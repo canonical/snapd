@@ -103,7 +103,7 @@ func (s *profileSuite) TestSaveMountProfile1(c *C) {
 			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 		},
 	}
-	err := p.Save(fname)
+	err := osutil.SaveMountProfile(p, fname, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 
 	stat, err := os.Stat(fname)

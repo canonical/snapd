@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -33,6 +34,7 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "privs.h"
 
 /**
  * sc_open_snapd_tool returns a file descriptor of the given internal executable.
@@ -41,6 +43,12 @@
  * The returning file descriptor can be used with fexecve function, like in sc_call_snapd_tool.
  **/
 static int sc_open_snapd_tool(const char *tool_name);
+
+typedef struct {
+    /* number of entries in @caps */
+    size_t n_caps;
+    const cap_value_t *caps;
+} sc_tool_privs;
 
 /**
  * sc_call_snapd_tool calls a snapd tool by file descriptor.
@@ -53,15 +61,18 @@ static int sc_open_snapd_tool(const char *tool_name);
  * The environment vector has special support for expanding the string "SNAPD_DEBUG=x".
  * If such string is present, the "x" is replaced with either "0" or "1" depending on
  * the result of is_sc_debug_enabled().
+ *
+ * Identity indicates the set of effective uid/gid which are to be applied in
+ * the child process right after forking.
  **/
-static void sc_call_snapd_tool(int tool_fd, const char *tool_name, char **argv, char **envp);
+static void sc_call_snapd_tool(int tool_fd, const char *tool_name, sc_tool_privs privs, char **argv, char **envp);
 
 /**
  * sc_call_snapd_tool_with_apparmor calls a snapd tool by file descriptor,
  * possibly confining the program with a specific apparmor profile.
  **/
 static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name, struct sc_apparmor *apparmor,
-                                             const char *aa_profile, char **argv, char **envp);
+                                             const char *aa_profile, sc_tool_privs privs, char **argv, char **envp);
 
 int sc_open_snap_update_ns(void) { return sc_open_snapd_tool("snap-update-ns"); }
 
@@ -77,11 +88,17 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name, struct
                     "--from-snap-confine", snap_name_copy, NULL};
     char *envp[] = {"SNAPD_DEBUG=x", NULL};
 
-    /* Switch the group to root so that directories, files and locks created by
-     * snap-update-ns are owned by the root group. */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, argv, envp);
-    (void)sc_set_effective_identity(old);
+    /* keep the current identity, privileges are carried over through capabilities */
+    const cap_value_t caps[] = {
+        CAP_DAC_OVERRIDE, /* poking around as a regular user */
+        CAP_SYS_ADMIN,    /* mounts */
+        CAP_CHOWN,        /* file ownership */
+    };
+    sc_tool_privs privs = {
+        .n_caps = SC_ARRAY_SIZE(caps),
+        .caps = caps,
+    };
+    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, privs, argv, envp);
 }
 
 void sc_call_snap_update_ns_as_user(int snap_update_ns_fd, const char *snap_name, struct sc_apparmor *apparmor) {
@@ -112,7 +129,17 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd, const char *snap_name
                      * with either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function
                      * for details. */
                     "SNAPD_DEBUG=x", xdg_runtime_dir_env, snap_real_home_env, NULL};
-    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, argv, envp);
+    /* keep the current identity */
+    const cap_value_t caps[] = {
+        CAP_DAC_OVERRIDE, /* poking around as a regular user */
+        CAP_SYS_ADMIN,    /* mounts */
+        CAP_CHOWN,        /* file ownership */
+    };
+    sc_tool_privs privs = {
+        .n_caps = SC_ARRAY_SIZE(caps),
+        .caps = caps,
+    };
+    sc_call_snapd_tool_with_apparmor(snap_update_ns_fd, "snap-update-ns", apparmor, aa_profile, privs, argv, envp);
 }
 
 int sc_open_snap_discard_ns(void) { return sc_open_snapd_tool("snap-discard-ns"); }
@@ -124,11 +151,17 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name) {
     /* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor with
      * either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function for details. */
     char *envp[] = {"SNAPD_DEBUG=x", NULL};
-    /* Switch the group to root so that directories and locks created by
-     * snap-discard-ns are owned by the root group. */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", argv, envp);
-    (void)sc_set_effective_identity(old);
+    /* keep the current identity, privileges are carried over through capabilities */
+    const cap_value_t caps[] = {
+        CAP_DAC_OVERRIDE, /* poking around as a regular user */
+        CAP_SYS_ADMIN,    /* umount() */
+        CAP_CHOWN,        /* file ownership */
+    };
+    sc_tool_privs privs = {
+        .n_caps = SC_ARRAY_SIZE(caps),
+        .caps = caps,
+    };
+    sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", privs, argv, envp);
 }
 
 static int sc_open_snapd_tool(const char *tool_name) {
@@ -164,18 +197,42 @@ static int sc_open_snapd_tool(const char *tool_name) {
     return tool_fd;
 }
 
-static void sc_call_snapd_tool(int tool_fd, const char *tool_name, char **argv, char **envp) {
-    sc_call_snapd_tool_with_apparmor(tool_fd, tool_name, NULL, NULL, argv, envp);
+static void sc_call_snapd_tool(int tool_fd, const char *tool_name, sc_tool_privs privs, char **argv, char **envp) {
+    sc_call_snapd_tool_with_apparmor(tool_fd, tool_name, NULL, NULL, privs, argv, envp);
 }
 
 static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name, struct sc_apparmor *apparmor,
-                                             const char *aa_profile, char **argv, char **envp) {
+                                             const char *aa_profile, sc_tool_privs privs, char **argv, char **envp) {
     debug("calling snapd tool %s", tool_name);
     pid_t child = fork();
     if (child < 0) {
         die("cannot fork to run snapd tool %s", tool_name);
     }
     if (child == 0) {
+        if (sc_cap_reset_ambient() != 0) {
+            die("cannot reset ambient capabilities");
+        }
+
+        cap_t working SC_CLEANUP(cap_free) = cap_init();
+        if (working == NULL) {
+            die("cannot allocate capability set");
+        }
+        cap_clear_flag(working, CAP_EFFECTIVE);
+        cap_set_flag(working, CAP_PERMITTED, privs.n_caps, privs.caps, CAP_SET);
+        cap_set_flag(working, CAP_INHERITABLE, privs.n_caps, privs.caps, CAP_SET);
+
+        if (cap_set_proc(working) != 0) {
+            die("cannot set capabilities");
+        }
+
+        /* now that permitted and inheritable caps are set, we can also set ambient caps */
+        for (size_t i = 0; i < privs.n_caps; i++) {
+            if (sc_cap_set_ambient(privs.caps[i], CAP_SET) != 0) {
+                const char *txt_cap SC_CLEANUP(cap_free) = cap_to_name(privs.caps[i]);
+                die("cannot set ambient capability: %s", txt_cap);
+            }
+        }
+
         /* If the caller provided template environment entry for SNAPD_DEBUG
          * then expand it to the actual value. */
         for (char **env = envp;

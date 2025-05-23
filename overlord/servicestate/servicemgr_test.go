@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -68,7 +69,9 @@ type baseServiceMgrTestSuite struct {
 func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	dirs.SetRootDir(c.MkDir())
+	r := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(r)
+	dirs.SetRootDir(r)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.restartRequests = nil
@@ -156,17 +159,17 @@ Description=Service for snap application test-snap.svc1
 Requires=%[1]s
 Wants=network.target
 After=%[1]s network.target snapd.apparmor.service
-%[3]sX-Snappy=yes
+%[2]sX-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
+WorkingDirectory=/var/snap/test-snap/42
 TimeoutStopSec=30
 Type=simple
-%[4]s
+%[3]s
 [Install]
 WantedBy=multi-user.target
 `
@@ -216,8 +219,7 @@ After=usr-lib-snapd.mount
 	}
 
 	return fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, opts.snapName, opts.snapRev+".mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, opts.snapName, opts.snapRev+".mount"))),
 		usrLibSnapdSnippet,
 		oomScoreAdjust,
 	)

@@ -298,7 +298,12 @@ func createPartitions(volumes map[string]*gadget.Volume, gadgetRoot, bootDevice 
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(gadgetRoot, bootVol, diskVolume); err != nil {
+	// TODO we probably do not need to do this, as we are re-creating the
+	// partitions with the same sizes as the ones removed. We even check
+	// that labels are the same in gadget.EnsureVolumeCompatibility, so no
+	// data for the partition will actually change.
+	deletedOffsetSize, err := removeCreatedPartitions(gadgetRoot, bootVol, diskVolume)
+	if err != nil {
 		return "", nil, 0, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -315,7 +320,7 @@ func createPartitions(volumes map[string]*gadget.Volume, gadgetRoot, bootDevice 
 		opts := &CreateOptions{
 			GadgetRootDir: gadgetRoot,
 		}
-		created, err = createMissingPartitions(diskVolume, bootVol, opts)
+		created, err = createMissingPartitions(diskVolume, bootVol, opts, deletedOffsetSize)
 	})
 	if err != nil {
 		return "", nil, 0, fmt.Errorf("cannot create the partitions: %v", err)
@@ -839,11 +844,6 @@ func FactoryReset(model gadget.Model, gadgetRoot string, kernelSnapInfo *KernelS
 		// device) for each role
 		deviceForRole[vs.Role] = onDiskStruct.Node
 
-		// TODO:FDEM:FIX: when save partition does not have slots, then
-		// we need to create new partition the old fashion
-		// way.  Or, we should upgrade the save partition
-		// (which should be safe since the seed should not be
-		// considered safe to downgrade).
 		fsDevice, encryptionKey, err := installOnePartition(
 			&gadget.OnDiskAndGadgetStructurePair{
 				DiskStructure: onDiskStruct, GadgetStructure: vs},

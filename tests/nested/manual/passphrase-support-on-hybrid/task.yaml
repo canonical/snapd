@@ -1,0 +1,206 @@
+summary: End-to-end test for FDE passphrase support on hybrid systems
+
+details: |
+  This test installs an encrypted hybrid Ubuntu system using muinstaller
+  which is protected by passphrase authentication.
+
+systems: [ubuntu-24.04-64]
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+
+  GADGET_CHANNEL: classic-25.04/edge
+  KERNEL_CHANNEL: 25.04/edge
+
+  # Check if passphrase with space is handled properly
+  PASSPHRASE: "ubuntu test"
+
+  KDF_TYPE/default: default
+  KDF_TYPE/pbkdf2: pbkdf2
+  KDF_TYPE/argon2i: argon2i
+  KDF_TYPE/argon2id: argon2id
+
+  # Ensure we use our latest code.
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_ENABLE_OVMF: true
+  # Store related setup.
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  # Fakestore is needed for "snap prepare-image".
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+
+execute: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  # Expose the needed assertions through the fakestore.
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  # Retrieve the gadget.
+  snap download --basename=pc --channel="$GADGET_CHANNEL" pc
+
+  # Modify gadget and resign with snakeoil keys.
+  unsquashfs -d pc-gadget pc.snap
+  echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
+  echo "Sign the shim binary"
+  KEY_NAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack --filename=pc.snap pc-gadget/
+
+  # Retrieve kernel.
+  snap download --basename=pc-kernel --channel="$KERNEL_CHANNEL" pc-kernel
+
+  # THIS IS A HACK
+  # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+
+  # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
+  unsquashfs -d tmp-pc-kernel pc-kernel.snap
+  cat <<EOF > tmp-pc-kernel/snapd-info
+  VERSION=2.68
+  SNAPD_APPARMOR_REEXEC=1
+  SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+  EOF
+  rm pc-kernel.snap
+  snap pack tmp-pc-kernel
+  mv pc-kernel_*.snap pc-kernel.snap
+  # HACK ENDS
+
+  # Build kernel with initramfs with the compiled snap-bootstrap
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+
+  # Create new disk for the installer to work on and attach to VM.
+  truncate --size=10G disk.img
+
+  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid system.
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json > classic.model
+  if [[ "$KDF_TYPE" == "default" ]]; then
+    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+      --model classic.model \
+      --store-dir "${STORE_DIR}" \
+      --gadget pc.snap \
+      --gadget-assertion pc.assert \
+      --kernel pc-kernel.snap \
+      --kernel-assertion pc-kernel.assert \
+      --passphrase "$PASSPHRASE" \
+      --disk disk.img
+  else
+    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+      --model classic.model \
+      --store-dir "${STORE_DIR}" \
+      --gadget pc.snap \
+      --gadget-assertion pc.assert \
+      --kernel pc-kernel.snap \
+      --kernel-assertion pc-kernel.assert \
+      --passphrase "$PASSPHRASE" \
+      --extra-muinstaller-arg "-kdf-type $KDF_TYPE" \
+      --disk disk.img
+  fi
+
+  # Basic things look fine.
+  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
+  remote.exec "snap list" | MATCH pc-kernel
+
+  # Check encryption.
+  remote.exec "sudo test -d /var/lib/snapd/device/fde"
+  remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
+  remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
+  remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
+
+  # Check disk mappings.
+  # TODO: no ubuntu-save right now because:
+  #       "ERROR cannot store device key pair: internal error: cannot access device keypair manager if ubuntu-save is unavailable"
+  #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
+  #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+  DISK_MAPPINGS=(/run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+  for DM in "${DISK_MAPPINGS[@]}"; do
+      remote.exec "sudo cat $DM" > mapping.json
+      gojq -r '.pc."structure-encryption"."ubuntu-save".method' < mapping.json | MATCH LUKS 
+      gojq -r '.pc."structure-encryption"."ubuntu-data".method' < mapping.json | MATCH LUKS
+  done
+
+  # refresh rebooting snap
+  # $1: path to snap file
+  # $2: snap name
+  refresh_rebooting_snap()
+  {
+      local snap_filename=$1
+      local snap_name=$2
+
+      boot_id=$(tests.nested boot-id)
+
+      printf "Test installing snap from file %s\n" "$snap_filename"
+      remote.push "$snap_filename"
+      # install will exit when waiting for the reboot
+      remote.exec sudo snap install --dangerous "$snap_filename" | MATCH "Task set to wait until a system restart allows to continue"
+
+      # Check that a reboot notification was setup.
+      remote.exec test -f /run/reboot-required
+      remote.exec cat /run/reboot-required.pkgs | MATCH "snap:${snap_name}"
+
+      # Clear old log file to avoid matching passphrase prompt from previous boot.
+      echo "" > "$NESTED_LOGS_DIR"/serial.log
+      remote.exec sudo reboot || true
+
+      # Wait for passphrase prompt
+      retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
+      # Enter passphrase to continue boot
+      echo "$PASSPHRASE" | netcat -N localhost 7777
+
+      remote.wait-for reboot --wait 1 -n 100 "$boot_id"
+      remote.exec sudo snap watch --last=install
+  }
+  # Ensure update-notifier-common is installed so that reboot notification works.
+  remote.exec "sudo apt install -y update-notifier-common"
+
+  # Save PCR profile
+  remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile
+
+  # 1. Test gadget refresh causing reseal.
+
+  # Changing cmdline should force a reseal.
+  echo 'console=ttyS0 systemd.journald.forward_to_console=1 loglevel=4' > pc-gadget/cmdline.extra
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack --filename=pc-new.snap pc-gadget/
+  refresh_rebooting_snap pc-new.snap pc
+
+  # We expect a reseals, PCR profile should have been updated.
+  remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
+  not diff pcr_profile pcr_profile_current
+  mv pcr_profile_current pcr_profile
+
+  # 2. Test kernel refresh causing reseal.
+
+  # Resigning kernel should be enough to trigger a reseal.
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$PWD/pc-kernel-new.snap"
+  refresh_rebooting_snap pc-kernel-new.snap pc
+
+  # We expect a reseals, PCR profile should have been updated.
+  remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."keyslot-roles".run.params.all."tpm2-pcr-profile"'  > pcr_profile_current
+  not diff pcr_profile pcr_profile_current
+  mv pcr_profile_current pcr_profile
+
+  # TODO: 3. Try refreshing to an unsupported kernel when snapd-info files
+  # are available.
+
+  # TODO: 4. Remodelling?

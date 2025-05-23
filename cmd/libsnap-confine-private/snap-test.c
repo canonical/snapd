@@ -206,7 +206,7 @@ static void test_sc_snap_or_instance_name_validate(gconstpointer data) {
 
     const char *valid_names[] = {"aa",    "aaa", "aaaa", "a-a",  "aa-a",   "a-aa",
                                  "a-b-c", "a0",  "a-0",  "a-0a", "01game", "1-or-2"};
-    for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(valid_names); ++i) {
         g_test_message("checking valid snap name: %s", valid_names[i]);
         validate(valid_names[i], &err);
         g_assert_null(err);
@@ -242,7 +242,7 @@ static void test_sc_snap_or_instance_name_validate(gconstpointer data) {
         "한글",
         "ру́сский язы́к",
     };
-    for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(invalid_names); ++i) {
         g_test_message("checking invalid snap name: >%s<", invalid_names[i]);
         validate(invalid_names[i], &err);
         g_assert_nonnull(err);
@@ -332,7 +332,7 @@ static void test_sc_instance_name_validate(void) {
     const char *valid_names[] = {
         "aa", "aaa", "aaaa", "aa_a", "aa_1", "aa_123", "aa_0123456789",
     };
-    for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(valid_names); ++i) {
         g_test_message("checking valid instance name: %s", valid_names[i]);
         sc_instance_name_validate(valid_names[i], &err);
         g_assert_null(err);
@@ -358,7 +358,7 @@ static void test_sc_instance_name_validate(void) {
         "foobar_baz_zed_daz",
         "foobar______",
     };
-    for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(invalid_names); ++i) {
         g_test_message("checking invalid instance name: >%s<", invalid_names[i]);
         sc_instance_name_validate(invalid_names[i], &err);
         g_assert_nonnull(err);
@@ -509,7 +509,7 @@ static void test_sc_snap_component_validate(void) {
         "snap-name+loooooooooooooooooooooooooooong-comp-name",
     };
 
-    for (size_t i = 0; i < sizeof cases / sizeof *cases; ++i) {
+    for (size_t i = 0; i < SC_ARRAY_SIZE(cases); ++i) {
         g_test_message("checking invalid snap name: %s", cases[i]);
         sc_snap_component_validate(cases[i], NULL, &err);
         g_assert_nonnull(err);

@@ -172,6 +172,20 @@ AC_PATH_PROG([HAVE_VALGRIND],[valgrind])
 AM_CONDITIONAL([HAVE_VALGRIND], [test "x${HAVE_VALGRIND}" != "x"])
 AS_IF([test "x$HAVE_VALGRIND" = "x"], [AC_MSG_WARN(["cannot find the valgrind tool, will not run unit tests through valgrind"])])
 
+AC_MSG_CHECKING([for cap_set_ambient() in libcap])
+saved_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -Werror"
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+  #include <sys/capability.h>
+  static int f(void) { return cap_set_ambient(CAP_SYS_ADMIN, CAP_SET); }
+]])],[
+  AC_DEFINE([HAVE_CAP_SET_AMBIENT], 1, [Define 1 if libcap has cap_set_ambient])
+  AC_MSG_RESULT(yes)
+],[
+  AC_MSG_RESULT(no)
+])
+CFLAGS="$saved_CFLAGS"
+
 # Allow linking selected libraries statically for reexec.
 AC_ARG_ENABLE([static-libcap],
     AS_HELP_STRING([--enable-static-libcap], [Link libcap statically]),
@@ -302,6 +316,25 @@ AC_ARG_ENABLE([host-binaries],
     [build_host_binaries=yes])
 AM_CONDITIONAL([BUILD_HOST_BINARIES], [test "x$build_host_binaries" = "xyes"])
 
+AC_ARG_ENABLE([test-coverage],
+    AS_HELP_STRING([--enable-test-coverage], [Enable test coverage]),
+    [case "${enableval}" in
+        yes) enable_test_coverage=yes ;;
+        no)  enable_test_coverage=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-test-coverage])
+    esac], [enable_test_coverage=no])
+AM_CONDITIONAL([TEST_COVERAGE], [test "x$enable_test_coverage" = "xyes"])
+
+AC_PATH_PROGS([HAVE_GCOVR],[gcovr])
+AS_IF([test "x$HAVE_GCOVR" = "x" -a "x$enable_test_coverage" = "xyes"], [
+  AC_MSG_ERROR(["gcovr is required for coverage data"])
+])
+
+AC_PATH_PROGS([HAVE_GCOV],[gcov])
+AS_IF([test "x$HAVE_GCOV" = "x" -a "x$enable_test_coverage" = "xyes"], [
+  AC_MSG_ERROR(["gcov tool is required for coverage data"])
+])
+
 AX_APPEND_COMPILE_FLAGS([ dnl
   -Wall dnl
   -Wextra dnl
@@ -318,7 +351,31 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
   AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
 ])
 
+AS_IF([test "x$enable_test_coverage" = "xyes"], [
+  CODE_COVERAGE_CFLAGS="--coverage"
+  CODE_COVERAGE_LDFLAGS="--coverage"
+  AC_SUBST([CODE_COVERAGE_CFLAGS])
+  AC_SUBST([CODE_COVERAGE_LDFLAGS])
+])
+
+AC_ARG_ENABLE([sanitize],
+    AS_HELP_STRING([--enable-sanitize], [Build binaries with sanitizers (ASan and UBSan).
+                                        Note, this will perform a partial build, skipping binaries which
+                                        cannot be built with sanitizers enabled.]),
+    [case "$enableval" in
+        yes)
+          enable_sanitize=yes
+          ;;
+        no)
+          enable_sanitize=no
+          ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-sanitize])
+    esac],
+    [enable_sanitize=no])
+AM_CONDITIONAL([ENABLE_SANITIZE], [test "x$enable_sanitize" = "xyes"])
+
 AC_SUBST([CHECK_CFLAGS])
+AC_SUBST([CHECK_LDFLAGS])
 
 AC_ARG_WITH([apparmorconfigdir],
     [AS_HELP_STRING([--with-apparmorconfigdir], [path to apparmor.d configuration directory])], [

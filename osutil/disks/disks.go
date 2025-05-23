@@ -35,6 +35,11 @@ type Options struct {
 
 // Disk is a single physical disk device that contains partitions.
 type Disk interface {
+	// FindMatchingPartitionWithUUID finds a partition with a matching
+	// partition UUID on the disk. If no matching partition is found,
+	// a PartitionNotFoundError will be returned.
+	FindMatchingPartitionWithPartUUID(string) (Partition, error)
+
 	// FindMatchingPartitionWithFsLabel finds the partition with a matching
 	// filesystem label on the disk. Note that for non-ascii labels like
 	// "Some label", the label will be encoded using \x<hex> for potentially
@@ -207,6 +212,8 @@ func (e PartitionNotFoundError) Error() string {
 		t = "partition label"
 	case "filesystem-label":
 		t = "filesystem label"
+	case "partition-uuid":
+		t = "partition uuid"
 	default:
 		return fmt.Sprintf("searching with unknown search type %q and search query %q did not return a partition", e.SearchType, e.SearchQuery)
 	}

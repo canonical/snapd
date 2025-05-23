@@ -41,7 +41,9 @@ var supportedHooks = []*HookType{
 	NewHookType(regexp.MustCompile("^gate-auto-refresh$")),
 	NewHookType(regexp.MustCompile("^change-view-.+$")),
 	NewHookType(regexp.MustCompile("^save-view-.+$")),
-	NewHookType(regexp.MustCompile("^.+-view-changed$")),
+	NewHookType(regexp.MustCompile("^query-view-.+$")),
+	NewHookType(regexp.MustCompile("^load-view-.+$")),
+	NewHookType(regexp.MustCompile("^observe-view-.+$")),
 }
 
 var supportedComponentHooks = []*HookType{

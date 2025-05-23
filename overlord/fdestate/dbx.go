@@ -122,6 +122,12 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 // EFISecureBootDBUpdateCleanup notifies that the local EFI key database manager
 // has reached a cleanup stage of the update process.
 func EFISecureBootDBUpdateCleanup(st *state.State) error {
+	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
 	st.Lock()
 	defer st.Unlock()
 
@@ -161,6 +167,12 @@ func EFISecureBootDBUpdateCleanup(st *state.State) error {
 // EFISecureBootDBManagerStartup indicates that the local EFI key database
 // manager has started.
 func EFISecureBootDBManagerStartup(st *state.State) error {
+	if _, err := device.SealedKeysMethod(dirs.GlobalRootDir); err == device.ErrNoSealedKeys {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
 	st.Lock()
 	defer st.Unlock()
 

@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -37,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -90,6 +92,7 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	}
 
 	tmpdir := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(tmpdir)
 	dirs.SetRootDir(tmpdir)
 	ovs.AddCleanup(func() { dirs.SetRootDir("") })
 	ovs.AddCleanup(osutil.MockMountInfo(""))
@@ -177,8 +180,7 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 		"last-change-id": 0,
 		"last-task-id": 0,
 		"last-lane-id": 0,
-		"last-notice-id": 0,
-		"last-notice-timestamp":"0001-01-01T00:00:00Z"
+		"last-notice-id": 0
 	}`, patch.Level, patch.Sublevel, snapdtool.Version))
 	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
@@ -200,6 +202,18 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(fakeState, &expected)
 	c.Assert(err, IsNil)
+
+	if runtime.Version() < "go1.24" {
+		// Go versions prior to 1.24 do not recognize "omitzero", and since a
+		// zero time.Time is not technically empty, it is not omitted by
+		// "omitempty". We expect a zero-valued "last-notice-timestamp", so it
+		// should be "0001-01-01T00:00:00Z" on go versions prior to 1.24.
+		lastTS, ok := got["last-notice-timestamp"]
+		c.Check(ok, Equals, true)
+		c.Check(lastTS, Equals, "0001-01-01T00:00:00Z")
+		// Delete the field so the DeepEquals check can succeed
+		delete(got, "last-notice-timestamp")
+	}
 
 	data, _ := got["data"].(map[string]interface{})
 	c.Assert(data, NotNil)
@@ -1385,4 +1399,25 @@ func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
 	c.Check(notifyCalls, DeepEquals, []string{
 		"EXTEND_TIMEOUT_USEC=5000",
 	})
+}
+
+func (ovs *overlordSuite) TestAllStateManagersHaveEnsureLoggingTest(c *C) {
+	entries, err := os.ReadDir(".")
+	c.Assert(err, IsNil)
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), "state") {
+			continue
+		}
+		testPath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
+		prefix := strings.TrimSuffix(entry.Name(), "state")
+		mgrPath := filepath.Join(entry.Name(), prefix+"mgr.go")
+		if !osutil.FileExists(testPath) || !osutil.FileExists(mgrPath) {
+			continue
+		}
+		content, err := os.ReadFile(testPath)
+		c.Assert(err, IsNil)
+		containsEnsureChecks := strings.Contains(string(content), fmt.Sprintf(`testutil.CheckEnsureLoopLogging("%s`, prefix+"mgr.go"))
+		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a unit test that calls testutil.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
+	}
 }

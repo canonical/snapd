@@ -45,13 +45,11 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
     
     declare -A exclusion_map
-    # confdb are still in the experimental phase so its page is not exposed yet
-    exclusion_map["confdb"]="2025/03"
-    # we're actually missing this page but can't add it yet due to the same Discourse issues
-    exclusion_map["nomad-support"]="2024/12"
+    # gpio-chardev is still in the experimental phase so its page is not exposed yet
+    exclusion_map["gpio-chardev"]="2025/06"
     # need to add https://snapcraft.io/docs/checkbox-support-interface
     # as well as a link to it on https://snapcraft.io/docs/supported-interfaces
-    exclusion_map["checkbox-support"]="2025/03"
+    exclusion_map["checkbox-support"]="2025/06"
 
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true

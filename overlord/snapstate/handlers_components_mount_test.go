@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -333,6 +334,8 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 		return ci, fmt.Errorf("cannot read component")
 	}))
+	restore := snapstate.MockMountPollInterval(10 * time.Millisecond)
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()

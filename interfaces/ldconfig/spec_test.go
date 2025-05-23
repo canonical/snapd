@@ -97,6 +97,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(s.spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{"snap", "name"}: {"/dir2/lib3"},
 	})
+	c.Assert(s.spec.Plugs(), DeepEquals, []string{"name"})
 	c.Assert(r.AddPermanentSlot(s.iface1, s.slotInfo), IsNil)
 	c.Assert(s.spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{"snap", "name"}: {"/dir2/lib4"},

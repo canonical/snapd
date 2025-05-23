@@ -51,6 +51,13 @@ func AfterFunc(d time.Duration, f func()) StdlibTimer {
 	return StdlibTimer{time.AfterFunc(d, f)}
 }
 
+// After waits for the duration to elapse and then closes the channel.
+//
+// See here for more information: https://pkg.go.dev/time#After
+func After(d time.Duration) <-chan time.Time {
+	return StdlibTimer{time.NewTimer(d)}.ExpiredC()
+}
+
 // NewTimer creates a new Timer that will send the current time on its channel
 // after at least duration d.
 //

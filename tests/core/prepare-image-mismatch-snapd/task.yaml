@@ -1,0 +1,74 @@
+summary: Verify that a warning or error is thrown when mismatching snapd with kernel version
+
+details: |
+    Verify that when using snap prepare-image, an error or warning is thrown based on
+    the presence of either SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH or the --allow-snapd-kernel-mismatch
+    command line switch, based on the version of the snapd snap vs the snapd in the kernel.
+
+# the kernel for core18 does not carry snapd-info
+# skip arm64, no reason
+systems:
+  - -ubuntu-core-18-*
+  - -ubuntu-core-*-arm-*
+
+environment:
+    ROOT: /home/test/tmp/
+
+prepare: |
+    mkdir -p "$ROOT"
+    chown test:test "$ROOT"
+
+restore: |
+    rm -rf "$ROOT"
+
+execute: |
+    set -o pipefail
+
+    case "$SPREAD_SYSTEM" in
+      ubuntu-core-24-*)
+        UC_VERSION=24
+        ;;
+      ubuntu-core-22-*)
+        UC_VERSION=22
+        ;;
+      ubuntu-core-20-*)
+        UC_VERSION=20
+        ;;
+      ubuntu-core-18-*)
+        UC_VERSION=18
+        ;;
+      *)
+        echo "Unsupported ubuntu core system, add missing case here"
+        exit 1
+    esac
+    
+    snap download pc-kernel --channel="${UC_VERSION}"/stable
+    unsquashfs pc-kernel_*.snap
+    rm pc-kernel_*
+    sed -i "s/VERSION=.*/VERSION=2.67+test-dirty/g" ./squashfs-root/snapd-info
+    snap pack squashfs-root
+
+    cp /var/lib/snapd/snaps/snapd_*.snap ./snapd.snap
+
+    echo "Executing prepare-image and expecting an error surrounding snapd / kernel versions"
+    SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH=false \
+      not snap prepare-image --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
+
+    MATCH "error: snapd 2.68\+ is not compatible with a kernel containing snapd prior to 2.68" < output.log
+
+    echo "Cleaning up"
+    rm -rf /home/test/tmp/*
+
+    # currently SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH is set in spread.yaml, so we just avoid overriding it
+    echo "Executing prepare-image with SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH set, expecting a warning"
+    snap prepare-image --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
+
+    MATCH "WARNING: snapd 2.68\+ is not compatible with a kernel containing snapd prior to 2.68" < output.log
+
+    echo "Cleaning up"
+    rm -rf /home/test/tmp/*
+
+    echo "Executing prepare-image with --allow-snapd-kernel-mismatch set, expecting a warning"
+    SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH=false snap prepare-image --allow-snapd-kernel-mismatch --snap ./pc-kernel_*.snap --snap ./snapd.snap "$TESTSLIB/assertions/ubuntu-core-${UC_VERSION}-amd64.model" "$ROOT" 2>&1 | tee output.log
+
+    MATCH "WARNING: snapd 2.68\+ is not compatible with a kernel containing snapd prior to 2.68" < output.log

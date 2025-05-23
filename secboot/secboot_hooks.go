@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 
 	sb "github.com/snapcore/secboot"
 	sb_scope "github.com/snapcore/secboot/bootscope"
@@ -141,14 +140,7 @@ var setAuthorizedBootModesOnHooksKeydata = setAuthorizedBootModesOnHooksKeydataI
 
 // ResealKeysWithFDESetupHook updates hook based keydatas for given
 // files with a specific list of models
-func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, models []ModelForSealing, bootModes []string) error {
-	// TODO:FDEM:FIX: load primary key from keyring when available
-	primaryKeyBuf, err := os.ReadFile(primaryKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot read primary key file: %v", err)
-	}
-	primaryKey := sb.PrimaryKey(primaryKeyBuf)
-
+func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKey []byte, models []ModelForSealing, bootModes []string) error {
 	var sbModels []sb.SnapModel
 	for _, model := range models {
 		sbModels = append(sbModels, model)
@@ -186,7 +178,6 @@ func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyFile string, m
 				return err
 			}
 		} else {
-			// TODO:FDEM:FIX: also set the run modes
 			hooksKeyData, err := sb_hooks.NewKeyData(keyData)
 			if err != nil {
 				return err

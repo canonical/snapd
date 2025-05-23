@@ -25,6 +25,8 @@ _check_project_path() {
 }
 
 _check_test_paths() {
+    local project_path="$1"
+    shift
     # shellcheck disable=SC2124
     local test_paths="$@"
     if [ -z "$test_paths" ]; then
@@ -32,22 +34,23 @@ _check_test_paths() {
         exit 1
     fi
     for task_path in $test_paths; do
-        _check_test_path "$task_path"
+        _check_test_path "$project_path" "$task_path"
     done
 }
 
 _check_test_path() {
-    local test_path="$1"
+    local project_path="$1"
+    local test_path="$2"
     if [ -z "$test_path" ]; then
         echo "spread-manager: test path cannot be empty"
         exit 1
     fi
-    if [ ! -d "$test_path" ]; then
-        echo "spread-manager: test path \"$test_path\" has to be a directory"
+    if [ ! -d "${project_path}/${test_path}" ]; then
+        echo "spread-manager: test path \"${project_path}/${test_path}\" has to be a directory"
         exit 1
     fi
-    if [ ! -f "$test_path/task.yaml" ]; then
-        echo "spread-manager: test task \"$test_path/task.yaml\" does not exist"
+    if [ ! -f "${project_path}/${test_path}/task.yaml" ]; then
+        echo "spread-manager: test task \"${project_path}/${test_path}/task.yaml\" does not exist"
         exit 1
     fi
 }
@@ -72,7 +75,7 @@ set_manual() {
 
     _check_project_path "$project_path"
     test_paths="$(echo "$test_paths" | tr ',' ' ')"
-    _check_test_paths "$test_paths"
+    _check_test_paths "$project_path" "$test_paths"
 
     for test_path in $test_paths; do
         local task_path
@@ -92,7 +95,7 @@ unset_manual() {
 
     _check_project_path "$project_path"
     test_paths="$(echo "$test_paths" | tr ',' ' ')"
-    _check_test_paths "$test_paths"
+    _check_test_paths "$project_path" "$test_paths"
 
     for test_path in $test_paths; do
         local task_path
@@ -112,7 +115,7 @@ reset_manual() {
 
     _check_project_path "$project_path"
     test_paths="$(echo "$test_paths" | tr ',' ' ')"
-    _check_test_paths "$test_paths"
+    _check_test_paths "$project_path" "$test_paths"
 
     for test_path in $test_paths; do
         local task_path

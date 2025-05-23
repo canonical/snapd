@@ -14,6 +14,14 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
+  # by default, we don't do passphrase authentication
+  PASSPHRASE: ""
+
+  # encrypted + passphrase auth smoke test
+  # TODO: extract a more comprehensive core24 test similar
+  # to tests/nested/manual/passphrase-support-on-hybrid.
+  PASSPHRASE/passphrase_auth: "ubuntu"
+
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
   NESTED_ENABLE_SECURE_BOOT/plain: false
@@ -47,16 +55,20 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-  apt install dosfstools
 
 restore: |
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
+
+  if ! os.query is-noble && [ -n "$PASSPHRASE" ]; then
+    echo "SKIPPING: only run passphrase support variant for core24"
+    exit 0
+  fi
 
   version="$(nested_get_version)"
 
@@ -90,6 +102,21 @@ execute: |
 
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
+
+  # THIS IS A HACK
+  # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+
+  # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
+  unsquashfs -d tmp-pc-kernel pc-kernel.snap
+  cat <<EOF > tmp-pc-kernel/snapd-info
+  VERSION=2.68
+  SNAPD_APPARMOR_REEXEC=1
+  SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
+  EOF
+  rm pc-kernel.snap
+  snap pack tmp-pc-kernel
+  mv pc-kernel_*.snap pc-kernel.snap
+  # HACK ENDS
+
   # Build kernel with initramfs with the compiled snap-bootstrap
   if os.query is-ubuntu-ge 24.04; then
     uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
@@ -106,6 +133,9 @@ execute: |
   sed -i "s/\$BASE/core${version}/" ./snap-with-comps/meta/snap.yaml
   snap pack ./snap-with-comps --filename=snap-with-comps.snap
   snap pack ./comp1 --filename=snap-with-comps+comp1.comp
+
+  # TODO: refactor preparation/hacks in a reusable script
+  # similar to setup_nested_hybrid_system.sh
 
   # prepare a core seed
   SEED_DIR="core-seed"
@@ -230,6 +260,9 @@ execute: |
     remote.push optional-install.json
     muinstaller_args="$muinstaller_args -optional ./optional-install.json"
   fi
+  if [ -n "$PASSPHRASE" ]; then
+    muinstaller_args="$muinstaller_args -passphrase $PASSPHRASE"
+  fi
 
   remote.exec "sudo muinstaller $muinstaller_args"
 
@@ -245,7 +278,11 @@ execute: |
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # Start installed image
-  tests.nested create-vm core --keep-firmware-state
+  if [ -n "$PASSPHRASE" ]; then
+    tests.nested create-vm core --keep-firmware-state --passphrase "$PASSPHRASE"
+  else
+    tests.nested create-vm core --keep-firmware-state
+  fi
 
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu Core"'
@@ -310,5 +347,8 @@ execute: |
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/${LABEL}/model"
 
-  # test that we can actually boot into the installed recovery system
-  tests.nested transition "${LABEL}" recover
+  # TODO: update "tests.nested transition" to support rebooting with a passphrase
+  if [ -z "$PASSPHRASE" ]; then
+    # test that we can actually boot into the installed recovery system
+    tests.nested transition "${LABEL}" recover
+  fi

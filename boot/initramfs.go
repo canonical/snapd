@@ -106,7 +106,7 @@ var initramfsReboot = func() error {
 		panic("initramfsReboot must be mocked in tests")
 	}
 
-	out, err := exec.Command("/sbin/reboot").CombinedOutput()
+	out, err := exec.Command("systemctl", "reboot").CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(out, err)
 	}
@@ -117,7 +117,7 @@ var initramfsReboot = func() error {
 	// after a timeout so that if something goes wrong with the reboot we do
 	// exit with some info about the expected reboot
 	time.Sleep(10 * time.Minute)
-	panic("expected reboot to happen within 10 minutes after calling /sbin/reboot")
+	panic("expected reboot to happen within 10 minutes after calling systemctl reboot")
 }
 
 func MockInitramfsReboot(f func() error) (restore func()) {

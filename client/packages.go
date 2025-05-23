@@ -66,7 +66,7 @@ type Snap struct {
 	MountedFrom      string        `json:"mounted-from,omitempty"`
 	CohortKey        string        `json:"cohort-key,omitempty"`
 
-	Links map[string][]string `json:"links,omitempy"`
+	Links map[string][]string `json:"links,omitempty"`
 
 	// legacy fields before we had links
 	Contact string `json:"contact"`

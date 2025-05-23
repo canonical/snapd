@@ -1013,6 +1013,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
 			PCRPolicyCounterHandle: 42,
 			VolumesAuth:            tc.volumesAuth,
+			KeyRole:                "somerole",
 		}
 
 		containerA := secboot.CreateMockBootstrappedContainer()
@@ -1147,6 +1148,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
+			c.Check(params.Role, Equals, "somerole")
 			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
 		})
 		defer restore()
@@ -1155,6 +1157,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			passphraseSealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
+			c.Check(params.Role, Equals, "somerole")
 			var expectedKDFOptions sb.KDFOptions
 			switch tc.volumesAuth.KDFType {
 			case "argon2id":
@@ -1215,6 +1218,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
+		usePrimaryKeyFile      bool
 		keyDataInFile          bool
 		missingFile            bool
 		addPCRProfileErr       error
@@ -1234,7 +1238,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
 		// happy case with key files
-		{tpmEnabled: true, keyDataInFile: true, resealCalls: 1},
+		{tpmEnabled: true, keyDataInFile: true, usePrimaryKeyFile: true, resealCalls: 1},
 		// happy case with DBX update
 		{tpmEnabled: true, resealCalls: 1, dbxUpdate: []byte("dbx-update")},
 		// happy case, old keys
@@ -1257,8 +1261,20 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
 		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
-		err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
-		c.Assert(err, IsNil)
+		if tc.usePrimaryKeyFile {
+			err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
+			c.Assert(err, IsNil)
+		}
+		defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+			c.Check(prefix, Equals, "ubuntu-fde")
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			c.Check(remove, Equals, false)
+			if tc.usePrimaryKeyFile {
+				return nil, sb.ErrKernelKeyNotFound
+			} else {
+				return []byte{1, 3, 3, 7}, nil
+			}
+		})()
 
 		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
 		if !tc.missingFile {
@@ -1355,7 +1371,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 					KeyFile:    keyFile2,
 				},
 			},
-			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
+			PrimaryKey: mockTPMPolicyAuthKey,
 		}
 
 		numMockSealedKeyObjects := len(myParams.Keys)
@@ -2835,9 +2851,6 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 	key1Fn := filepath.Join(tmpdir, "key1.key")
 	err := os.WriteFile(key1Fn, key1, 0644)
 	c.Assert(err, IsNil)
-	auxKeyFn := filepath.Join(tmpdir, "aux.key")
-	err = os.WriteFile(auxKeyFn, auxKey, 0644)
-	c.Assert(err, IsNil)
 
 	m := &testModel{
 		name: "mytest",
@@ -2849,7 +2862,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKey, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -2866,9 +2879,6 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 	tmpdir := c.MkDir()
 	key1Fn := filepath.Join(tmpdir, "key1.key")
 	err := os.WriteFile(key1Fn, key1, 0644)
-	c.Assert(err, IsNil)
-	auxKeyFn := filepath.Join(tmpdir, "aux.key")
-	err = os.WriteFile(auxKeyFn, auxKey, 0644)
 	c.Assert(err, IsNil)
 
 	m := &testModel{
@@ -2890,7 +2900,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKeyFn, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKey, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -2912,7 +2922,6 @@ func (fakeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphe
 func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 	tmpdir := c.MkDir()
 	key1Fn := filepath.Join(tmpdir, "key1.key")
-	primaryKeyFn := filepath.Join(tmpdir, "primary.key")
 
 	oldModel := &testModel{
 		name: "oldmodel",
@@ -2923,8 +2932,6 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 	}
 
 	primaryKey := []byte{9, 10, 11, 12}
-	err := os.WriteFile(primaryKeyFn, primaryKey, 0644)
-	c.Assert(err, IsNil)
 
 	params := &sb_hooks.KeyParams{
 		PrimaryKey: primaryKey,
@@ -2979,7 +2986,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKey, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -2989,7 +2996,6 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 	tmpdir := c.MkDir()
 	key1Fn := filepath.Join(tmpdir, "key1.key")
-	primaryKeyFn := filepath.Join(tmpdir, "primary.key")
 
 	oldModel := &testModel{
 		name: "oldmodel",
@@ -3000,8 +3006,6 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 	}
 
 	primaryKey := []byte{9, 10, 11, 12}
-	err := os.WriteFile(primaryKeyFn, primaryKey, 0644)
-	c.Assert(err, IsNil)
 
 	params := &sb_hooks.KeyParams{
 		PrimaryKey: primaryKey,
@@ -3053,7 +3057,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyFn, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKey, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -3574,4 +3578,89 @@ func (s *secbootSuite) TestGetPrimaryKeyDigestFallbackDevPath(c *C) {
 	matches, err := secboot.VerifyPrimaryKeyDigest("/dev/other/device", crypto.SHA256, salt, digest)
 	c.Assert(err, IsNil)
 	c.Check(matches, Equals, true)
+}
+
+func (s *secbootSuite) TestGetPrimaryKey(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		switch node {
+		case "/dev/test/device1":
+			return []string{
+				"/dev/test/device1",
+				"/dev/disk/by-partuuid/a9456fe6-9850-41ce-b2ad-cf9b43a34286",
+			}, nil
+		case "/dev/test/device2":
+			return []string{
+				"/dev/test/device2",
+				"/dev/disk/by-partuuid/5b081ac5-2432-48a2-b69b-d1bfb7aec6fe",
+			}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, errors.New("unexpected call")
+		}
+	})()
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		switch devicePath {
+		case "/dev/test/device1":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/disk/by-partuuid/a9456fe6-9850-41ce-b2ad-cf9b43a34286":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/test/device2":
+			return []byte{1, 2, 3, 4}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, errors.New("unexpected call")
+		}
+	})()
+
+	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, "/nonexistant")
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
+}
+
+func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		switch node {
+		case "/dev/test/device1":
+			return []string{
+				"/dev/test/device1",
+				"/dev/disk/by-partuuid/a9456fe6-9850-41ce-b2ad-cf9b43a34286",
+			}, nil
+		case "/dev/test/device2":
+			return []string{
+				"/dev/test/device2",
+				"/dev/disk/by-partuuid/5b081ac5-2432-48a2-b69b-d1bfb7aec6fe",
+			}, nil
+		default:
+			c.Errorf("unexpected call")
+			return nil, errors.New("unexpected call")
+		}
+	})()
+	defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		switch devicePath {
+		case "/dev/test/device1":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/disk/by-partuuid/a9456fe6-9850-41ce-b2ad-cf9b43a34286":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/test/device2":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/disk/by-partuuid/5b081ac5-2432-48a2-b69b-d1bfb7aec6fe":
+			return nil, sb.ErrKernelKeyNotFound
+		default:
+			c.Errorf("unexpected call")
+			return nil, errors.New("unexpected call")
+		}
+	})()
+
+	tmpDir := c.MkDir()
+	keyFile := filepath.Join(tmpDir, "key-file")
+	err := os.WriteFile(keyFile, []byte{1, 2, 3, 4}, 0644)
+	c.Assert(err, IsNil)
+
+	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, keyFile)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }

@@ -8,10 +8,10 @@
 
 pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
-depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
+depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'libcap' 'apparmor')
 optdepends=('bash-completion: bash completion support'
             'xdg-desktop-portal: desktop integration')
-pkgver=2.68.5
+pkgver=2.69
 pkgrel=1
 arch=('x86_64' 'i686' 'armv7h' 'aarch64')
 url="https://github.com/snapcore/snapd"
@@ -23,22 +23,17 @@ checkdepends=('python' 'squashfs-tools' 'shellcheck')
 conflicts=('snap-confine')
 options=('!strip' 'emptydirs')
 install=snapd.install
-source=("git+https://github.com/snapcore/$pkgname.git")
+source=("${pkgname}_${pkgver}.vendor.tar.xz")
 sha256sums=('SKIP')
 
-pkgver() {
-    cd "$srcdir/snapd"
-    git describe --tag | sed -r 's/([^-]*-g)/r\1/; s/-/./g'
-}
-
 prepare() {
-  cd "$pkgname"
+  cd "$pkgname-$pkgver"
 
   :
 }
 
 build() {
-  cd "$pkgname"
+  cd "$pkgname-$pkgver"
 
   unset GO111MODULE
 
@@ -100,27 +95,27 @@ __DEFINES__
 }
 
 check() {
-  cd "$pkgname"
+    cd "$pkgname-$pkgver"
 
-  # make sure the binaries that need to be built statically really are
-  for binary in snap-exec snap-update-ns snapctl; do
-      if ! LC_ALL=C ldd "$srcdir/_go_build/$binary" 2>&1 | grep -q 'not a dynamic executable'; then
-          echo "$binary is not a static binary"
-          exit 1
-      fi
-  done
+    # make sure the binaries that need to be built statically really are
+    for binary in snap-exec snap-update-ns snapctl; do
+        if ! LC_ALL=C ldd "$srcdir/_go_build/$binary" 2>&1 | grep -q 'not a dynamic executable'; then
+            echo "$binary is not a static binary"
+            exit 1
+        fi
+    done
 
-  SKIP_UNCLEAN=1 IGNORE_MISSING=1 ./run-checks --unit
-  # XXX: Static checks choke on autotools generated cruft. Let's not run them
-  # here as they are designed to pass on a clean tree, before anything else is
-  # done, not after building the tree.
-  # ./run-checks --static
-  TMPDIR=/tmp make -C cmd -k check
-  TMPDIR=/tmp make -C data -k check
+    SKIP_UNCLEAN=1 IGNORE_MISSING=1 ./run-checks --unit
+    # XXX: Static checks choke on autotools generated cruft. Let's not run them
+    # here as they are designed to pass on a clean tree, before anything else is
+    # done, not after building the tree.
+    # ./run-checks --static
+    TMPDIR=/tmp make -C cmd -k check
+    TMPDIR=/tmp make -C data -k check
 }
 
 package() {
-  cd "$pkgname"
+  cd "$pkgname-$pkgver"
 
   # Install bash completion
   install -Dm644 data/completion/bash/snap \
@@ -134,7 +129,7 @@ package() {
     "$pkgdir/usr/share/zsh/site-functions/_snap"
 
   # Install systemd units, dbus services and a script for environment variables
-  make -C data install \
+  make -C data/ install \
      DBUSSERVICESDIR=/usr/share/dbus-1/services \
      BINDIR=/usr/bin \
      SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
@@ -170,4 +165,7 @@ package() {
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.aa-prompt-listener.service"
   rm -fv "$pkgdir/usr/lib/systemd/user/snapd.aa-prompt-ui.service"
   rm -fv "$pkgdir/usr/share/dbus-1/services/io.snapcraft.Prompt.service"
+
+  # Remove gpio-chardev ordering target
+  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.gpio-chardev-setup.target"
 }

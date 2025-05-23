@@ -330,6 +330,7 @@ network netlink raw,
 mount options=(rw, rshared) -> /run/netns/,
 mount options=(rw, bind) /run/netns/ -> /run/netns/,
 mount options=(rw, bind) / -> /run/netns/*,
+umount /run/netns/*,
 umount /,
 
 # 'ip netns identify <pid>' and 'ip netns pids foo'. Intenionally omit 'ptrace

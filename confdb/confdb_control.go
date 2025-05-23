@@ -31,134 +31,324 @@ var (
 	validAccountID = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$")
 )
 
-// AuthenticationMethod limits what keys can be used to sign messages used to remotely
-// manage confdbs.
-type AuthenticationMethod string
+// Control holds the delegations done by the device to operators.
+type Control struct {
+	// the key is the operator ID
+	operators map[string]*operator
+}
+
+// Delegate delegates the given views with the provided authentication methods to the operator.
+func (cc *Control) Delegate(operatorID string, views, authMeth []string) error {
+	if !validAccountID.MatchString(operatorID) {
+		return fmt.Errorf("invalid operator ID: %s", operatorID)
+	}
+
+	if cc.operators == nil {
+		cc.operators = make(map[string]*operator)
+	}
+
+	op, ok := cc.operators[operatorID]
+	if !ok {
+		op = &operator{ID: operatorID}
+	}
+
+	err := op.delegate(views, authMeth)
+	if err != nil {
+		return err
+	}
+
+	cc.operators[operatorID] = op
+	return nil
+}
+
+// Undelegate withdraws access to the views that have been delegated with the provided authentication methods.
+func (cc *Control) Undelegate(operatorID string, views, authMeth []string) error {
+	op, ok := cc.operators[operatorID]
+	if !ok {
+		return nil // nothing is delegated to this operator
+	}
+
+	err := op.undelegate(views, authMeth)
+	if err != nil {
+		return err
+	}
+
+	if len(op.Delegations) == 0 {
+		delete(cc.operators, operatorID)
+	}
+
+	return nil
+}
+
+// IsDelegated checks if the view is delegated to the operator with the given authentication methods.
+func (cc *Control) IsDelegated(operatorID, view string, authMeth []string) (bool, error) {
+	op, ok := cc.operators[operatorID]
+	if !ok {
+		return false, nil // nothing is delegated to this operator
+	}
+
+	return op.isDelegated(view, authMeth)
+}
+
+// Groups returns the groups in a format that can be used to assemble the next revision
+// of the confdb-control assertion.
+func (cc *Control) Groups() []interface{} {
+	// Group operators by authentication and views
+	// i.e. authentication > views > operator-ids
+	authMap := map[authentication]map[viewRef][]string{}
+	// auths will accumulate the authentication methods in use
+	var auths []authentication
+
+	// Group operators by auth and view
+	for _, op := range cc.operators {
+		for view, auth := range op.Delegations {
+			if _, exists := authMap[auth]; !exists {
+				authMap[auth] = map[viewRef][]string{}
+				auths = append(auths, auth)
+			}
+
+			authMap[auth][view] = append(authMap[auth][view], op.ID)
+		}
+	}
+
+	// Sort auths for consistent output
+	sort.Slice(auths, func(i, j int) bool { return auths[i] < auths[j] })
+
+	var groups []interface{}
+	for _, auth := range auths {
+		authStrs := auth.toStrings()
+
+		// Group by unique operator sets
+		opGroups := make(map[string][]string)
+
+		for view, ops := range authMap[auth] {
+			sort.Strings(ops)
+			key := strings.Join(ops, ",")
+			opGroups[key] = append(opGroups[key], view.String())
+		}
+
+		for ops, views := range opGroups {
+			sort.Strings(views)
+			groups = append(groups, map[string]interface{}{
+				"operators":       toInterfaceSlice(strings.Split(ops, ",")),
+				"authentications": toInterfaceSlice(authStrs),
+				"views":           toInterfaceSlice(views),
+			})
+		}
+	}
+
+	return groups
+}
+
+// Clone returns a deep copy of Control.
+func (cc Control) Clone() Control {
+	clone := Control{operators: make(map[string]*operator)}
+
+	for id, op := range cc.operators {
+		if op != nil {
+			clone.operators[id] = op.clone()
+		}
+	}
+
+	return clone
+}
+
+// authentication limits what keys can be used to sign messages used to remotely manage confdbs.
+type authentication uint8
 
 const (
 	// Only the operator's keys can be used to sign the messages.
-	OperatorKey AuthenticationMethod = "operator-key"
+	OperatorKey authentication = 1 << iota
 	// Messages can be signed on behalf of the operator by the store.
-	Store AuthenticationMethod = "store"
+	Store
 )
 
-// isValidAuthenticationMethod checks if a string is a valid AuthenticationMethod.
-func isValidAuthenticationMethod(value string) bool {
-	switch AuthenticationMethod(value) {
-	case OperatorKey, Store:
-		return true
-	default:
-		return false
-	}
-}
+const (
+	allAuth authentication = OperatorKey | Store
+)
 
-// convertToAuthenticationMethods converts []string to []AuthenticationMethod and validates it.
-func convertToAuthenticationMethods(methods []string) ([]AuthenticationMethod, error) {
-	sort.Slice(methods, func(i, j int) bool {
-		return methods[i] < methods[j]
-	})
-
-	// remove duplicates
-	methods = unique(methods)
-
-	var result []AuthenticationMethod
-	for _, method := range methods {
-		if !isValidAuthenticationMethod(method) {
-			return nil, fmt.Errorf("invalid authentication method: %s", method)
+// newAuthentication converts []string to authentication and validates it.
+func newAuthentication(authMeth []string) (authentication, error) {
+	var auth authentication
+	for _, method := range authMeth {
+		switch method {
+		case "operator-key":
+			auth |= OperatorKey
+		case "store":
+			auth |= Store
+		default:
+			return 0, fmt.Errorf("invalid authentication method: %s", method)
 		}
-		result = append(result, AuthenticationMethod(method))
 	}
-	return result, nil
+	return auth, nil
 }
 
-// Operator holds the delegations for a single operator.
-type Operator struct {
-	ID     string
-	Groups []*ControlGroup
+// Convert authentication to a sorted []string.
+func (a authentication) toStrings() []string {
+	var keys []string
+	if a&OperatorKey == OperatorKey {
+		keys = append(keys, "operator-key")
+	}
+
+	if a&Store == Store {
+		keys = append(keys, "store")
+	}
+
+	return keys
 }
 
-// ControlGroup holds a set of views delegated through the given authentication.
-type ControlGroup struct {
-	Authentication []AuthenticationMethod
-	Views          []*ViewRef
+// operator holds the delegations for a single operator.
+type operator struct {
+	ID          string
+	Delegations map[viewRef]authentication
 }
 
-// ViewRef holds the reference to account/confdb/view as parsed from the
+// viewRef holds the reference to account/confdb/view as parsed from the
 // confdb-control assertion.
-type ViewRef struct {
+type viewRef struct {
 	Account string
 	Confdb  string
 	View    string
 }
 
-// AddControlGroup adds the group to an operator under the given authentication.
-func (op *Operator) AddControlGroup(views, auth []string) error {
-	if len(auth) == 0 {
-		return errors.New(`cannot add group: "auth" must be a non-empty list`)
-	}
+// String returns the string representation of the viewRef.
+func (v *viewRef) String() string {
+	return fmt.Sprintf("%s/%s/%s", v.Account, v.Confdb, v.View)
+}
 
-	authentication, err := convertToAuthenticationMethods(auth)
-	if err != nil {
-		return fmt.Errorf("cannot add group: %w", err)
-	}
-
-	if len(views) == 0 {
-		return errors.New(`cannot add group: "views" must be a non-empty list`)
-	}
-
-	parsedViews := []*ViewRef{}
+// convertToViewRefs converts []string to []viewRef and validates it.
+func convertToViewRefs(views []string) ([]viewRef, error) {
+	var result []viewRef
 	for _, view := range views {
 		viewPath := strings.Split(view, "/")
 		if len(viewPath) != 3 {
-			return fmt.Errorf(`view "%s" must be in the format account/confdb/view`, view)
+			return nil, fmt.Errorf(`view "%s" must be in the format account/confdb/view`, view)
 		}
 
 		account := viewPath[0]
 		if !validAccountID.MatchString(account) {
-			return fmt.Errorf("invalid Account ID %s", account)
+			return nil, fmt.Errorf("invalid account ID: %s", account)
 		}
 
 		confdb := viewPath[1]
 		if !ValidConfdbName.MatchString(confdb) {
-			return fmt.Errorf("invalid confdb name %s", confdb)
+			return nil, fmt.Errorf("invalid confdb name: %s", confdb)
 		}
 
 		viewName := viewPath[2]
 		if !ValidViewName.MatchString(viewName) {
-			return fmt.Errorf("invalid view name %s", viewName)
+			return nil, fmt.Errorf("invalid view name: %s", viewName)
 		}
 
-		parsedView := &ViewRef{
-			Account: account,
-			Confdb:  confdb,
-			View:    viewName,
-		}
-		parsedViews = append(parsedViews, parsedView)
+		result = append(result, viewRef{Account: account, Confdb: confdb, View: viewName})
 	}
 
-	group := &ControlGroup{
-		Authentication: authentication,
-		Views:          parsedViews,
+	return result, nil
+}
+
+// delegate grants remote access to the views under the given auth.
+func (op *operator) delegate(views, authMeth []string) error {
+	if len(authMeth) == 0 {
+		return errors.New(`cannot delegate: "authentications" must be a non-empty list`)
 	}
-	op.Groups = append(op.Groups, group)
+
+	auth, err := newAuthentication(authMeth)
+	if err != nil {
+		return fmt.Errorf("cannot delegate: %w", err)
+	}
+
+	if len(views) == 0 {
+		return errors.New(`cannot delegate: "views" must be a non-empty list`)
+	}
+
+	viewRefs, err := convertToViewRefs(views)
+	if err != nil {
+		return fmt.Errorf("cannot delegate: %w", err)
+	}
+
+	if op.Delegations == nil {
+		op.Delegations = map[viewRef]authentication{}
+	}
+
+	for _, viewRef := range viewRefs {
+		op.Delegations[viewRef] |= auth
+	}
 
 	return nil
 }
 
-// unique replaces consecutive runs of equal elements with a single copy.
-// The provided slice s should be sorted.
-func unique[T comparable](s []T) []T {
-	if len(s) < 2 {
-		return s
-	}
-
-	j := 1
-	for i := 1; i < len(s); i++ {
-		if s[i] != s[i-1] {
-			s[j] = s[i]
-			j++
+// undelegate withdraws remote access to the views that have been delegated with the given auth.
+func (op *operator) undelegate(views, authMeth []string) error {
+	auth := allAuth // if no authentication is provided, revoke all auth methods
+	var err error
+	if len(authMeth) > 0 {
+		auth, err = newAuthentication(authMeth)
+		if err != nil {
+			return fmt.Errorf("cannot undelegate: %w", err)
 		}
 	}
 
-	return s[:j]
+	var viewRefs []viewRef
+	if len(views) == 0 {
+		// if no views are provided, operate on all views
+		for viewRef := range op.Delegations {
+			viewRefs = append(viewRefs, viewRef)
+		}
+	} else {
+		viewRefs, err = convertToViewRefs(views)
+		if err != nil {
+			return fmt.Errorf("cannot undelegate: %w", err)
+		}
+	}
+
+	for _, viewRef := range viewRefs {
+		if _, exists := op.Delegations[viewRef]; exists {
+			op.Delegations[viewRef] &= ^auth
+
+			if op.Delegations[viewRef] == 0 { // all remote access removed
+				delete(op.Delegations, viewRef)
+			}
+		}
+	}
+
+	return nil
+}
+
+// isDelegated checks if the view is delegated to the operator with the given auth.
+func (op *operator) isDelegated(view string, authMeth []string) (bool, error) {
+	viewRefs, err := convertToViewRefs([]string{view})
+	if err != nil {
+		return false, err
+	}
+
+	auth, err := newAuthentication(authMeth)
+	if err != nil {
+		return false, err
+	}
+
+	delegatedWith := op.Delegations[viewRefs[0]]
+	return delegatedWith&auth == auth, nil
+}
+
+// clone returns a deep copy of the operator.
+func (op operator) clone() *operator {
+	clone := &operator{
+		ID:          op.ID,
+		Delegations: make(map[viewRef]authentication),
+	}
+
+	for view, auth := range op.Delegations {
+		clone.Delegations[view] = auth
+	}
+
+	return clone
+}
+
+// toInterfaceSlice converts []string to []interface{}.
+func toInterfaceSlice(strs []string) []interface{} {
+	result := make([]interface{}, len(strs))
+	for i, str := range strs {
+		result[i] = str
+	}
+	return result
 }

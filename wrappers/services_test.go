@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget/quantity"
 
 	// imported to ensure actual interfaces are defined (in production this is guaranteed by ifacestate)
@@ -72,6 +73,7 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
 	s.sysdLog = nil
+	dirstest.MustMockCanonicalSnapMountDir(s.tempdir)
 	dirs.SetRootDir(s.tempdir)
 
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -133,7 +135,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		{"start", filepath.Base(svcFile)},
 	})
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -147,7 +149,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -157,7 +159,6 @@ Type=forking
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	))
 
 	s.sysdLog = nil
@@ -201,7 +202,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 		"hello-snap:svc1:service:svc1": true,
 	})
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -215,7 +216,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -225,7 +226,6 @@ Type=forking
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	))
 }
 
@@ -248,7 +248,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -262,7 +262,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -273,7 +273,6 @@ Slice=snap.foogroup.slice
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 
 	sliceTempl := `[Unit]
@@ -351,7 +350,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -365,7 +364,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -376,7 +375,6 @@ Slice=snap.foogroup.slice
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 
 	sliceTempl := `[Unit]
@@ -450,7 +448,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -464,7 +462,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -475,7 +473,6 @@ Slice=snap.foogroup.slice
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 
 	sliceTempl := `[Unit]
@@ -542,7 +539,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -556,7 +553,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -568,7 +565,6 @@ LogNamespace=snap-foogroup
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
@@ -657,7 +653,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -671,7 +667,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -683,7 +679,6 @@ LogNamespace=snap-foogroup
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
@@ -775,7 +770,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -789,7 +784,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -801,7 +796,6 @@ LogNamespace=snap-foogroup
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
@@ -921,7 +915,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svc1Content := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -935,17 +929,16 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
-Slice=snap.%[3]s.slice
+Slice=snap.%[2]s.slice
 LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		systemd.EscapeUnitNamePath("my-root"),
 	)
 	svc2Content := fmt.Sprintf(`[Unit]
@@ -961,17 +954,16 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc2
 SyslogIdentifier=hello-snap.svc2
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
-Slice=snap.%[3]s.slice
+Slice=snap.%[2]s.slice
 LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		systemd.EscapeUnitNamePath("my-root")+"-"+systemd.EscapeUnitNamePath("my-sub"),
 	)
 	jSvcContent := `[Service]
@@ -1115,7 +1107,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 		info: {QuotaGroup: grp},
 	}
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svc2Content := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc2
@@ -1129,17 +1121,16 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc2
 SyslogIdentifier=hello-snap.svc2
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
-Slice=snap.%[3]s.slice
+Slice=snap.%[2]s.slice
 LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		systemd.EscapeUnitNamePath("my-root")+"-"+systemd.EscapeUnitNamePath("my-sub"),
 	)
 	jSvcContent := `[Service]
@@ -1331,7 +1322,7 @@ TasksAccounting=true
 `
 	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -1345,7 +1336,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -1356,7 +1347,6 @@ Slice=snap.foogroup.slice
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 
 	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
@@ -1433,7 +1423,7 @@ TasksMax=%[3]d
 `
 	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -1447,7 +1437,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -1458,7 +1448,6 @@ Slice=snap.foogroup.slice
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	)
 
 	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
@@ -1625,31 +1614,29 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run %[1]s.svc1
 SyslogIdentifier=%[1]s.svc1
 Restart=on-failure
-WorkingDirectory=%[3]s/var/snap/%[1]s/12
+WorkingDirectory=/var/snap/%[1]s/12
 ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
 TimeoutStopSec=30
 Type=forking
-Slice=%[4]s
+Slice=%[3]s
 
 [Install]
 WantedBy=multi-user.target
 `
 
-	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-	dir2 := filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount")
+	dir1 := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
+	dir2 := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount"))
 
 	helloSnapContent := fmt.Sprintf(svcTemplate,
 		"hello-snap",
 		systemd.EscapeUnitNamePath(dir1),
-		dirs.GlobalRootDir,
 		"snap.foogroup.slice",
 	)
 
 	helloOtherSnapContent := fmt.Sprintf(svcTemplate,
 		"hello-other-snap",
 		systemd.EscapeUnitNamePath(dir2),
-		dirs.GlobalRootDir,
 		"snap.foogroup-subgroup.slice",
 	)
 
@@ -1746,23 +1733,22 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run %[1]s.svc1
 SyslogIdentifier=%[1]s.svc1
 Restart=on-failure
-WorkingDirectory=%[3]s/var/snap/%[1]s/12
+WorkingDirectory=/var/snap/%[1]s/12
 ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
 TimeoutStopSec=30
 Type=forking
-Slice=%[4]s
+Slice=%[3]s
 
 [Install]
 WantedBy=multi-user.target
 `
 
-	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir1 := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 
 	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(svcTemplate,
 		"hello-snap",
 		systemd.EscapeUnitNamePath(dir1),
-		dirs.GlobalRootDir,
 		"snap.foogroup-subgroup.slice",
 	))
 
@@ -1846,7 +1832,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 		"hello-snap:svc1:service:svc1": true,
 	})
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -1860,7 +1846,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -1870,7 +1856,6 @@ Type=forking
 WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 	))
 }
 
@@ -1940,30 +1925,28 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run %[1]s.svc1
 SyslogIdentifier=%[1]s.svc1
 Restart=on-failure
-WorkingDirectory=%[3]s/var/snap/%[1]s/12
+WorkingDirectory=/var/snap/%[1]s/12
 ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
 TimeoutStopSec=30
 Type=forking
-%[4]s
+%[3]s
 [Install]
 WantedBy=multi-user.target
 `
 
-	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-	dir2 := filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount")
+	dir1 := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
+	dir2 := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount"))
 
 	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(template,
 		"hello-snap",
 		systemd.EscapeUnitNamePath(dir1),
-		dirs.GlobalRootDir,
 		"OOMScoreAdjust=-899\n", // VitalityRank in effect
 	))
 
 	c.Assert(svcFile2, testutil.FileEquals, fmt.Sprintf(template,
 		"hello-other-snap",
 		systemd.EscapeUnitNamePath(dir2),
-		dirs.GlobalRootDir,
 		"", // no VitalityRank in effect
 	))
 }
@@ -1979,7 +1962,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
 	svc1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.%[1]s
@@ -1993,19 +1976,18 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.%[1]s
 SyslogIdentifier=hello-snap.%[1]s
 Restart=on-failure
-WorkingDirectory=%[3]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
 TimeoutStopSec=30
 Type=forking
-%[4]s
+%[3]s
 [Install]
 WantedBy=multi-user.target
 `
 	svc1Content := fmt.Sprintf(template,
 		"svc1",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 
@@ -2034,7 +2016,6 @@ WantedBy=multi-user.target
 	svc2New := fmt.Sprintf(template,
 		"svc2",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"OOMScoreAdjust=-899\n",
 	)
 	c.Assert(svc2File, testutil.FileEquals, svc2New)
@@ -2043,7 +2024,6 @@ WantedBy=multi-user.target
 	svc1New := fmt.Sprintf(template,
 		"svc1",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"OOMScoreAdjust=-899\n",
 	)
 	c.Assert(svc1File, testutil.FileEquals, svc1New)
@@ -2072,7 +2052,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
 	svc1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.%[1]s
@@ -2086,19 +2066,18 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.%[1]s
 SyslogIdentifier=hello-snap.%[1]s
 Restart=on-failure
-WorkingDirectory=%[3]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
 TimeoutStopSec=30
 Type=forking
-%[4]s
+%[3]s
 [Install]
 WantedBy=multi-user.target
 `
 	svc1Content := fmt.Sprintf(template,
 		"svc1",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 
@@ -2125,7 +2104,6 @@ WantedBy=multi-user.target
 	c.Assert(svc2File, testutil.FileEquals, fmt.Sprintf(template,
 		"svc2",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	))
 
@@ -2133,7 +2111,6 @@ WantedBy=multi-user.target
 	c.Assert(svc1File, testutil.FileEquals, fmt.Sprintf(template,
 		"svc1",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	))
 }
@@ -2144,7 +2121,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesNoChangeNoop(c *C) {
 	// pretend we already have a unit file setup
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -2158,7 +2135,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -2169,7 +2146,6 @@ WantedBy=multi-user.target
 `
 	origContent := fmt.Sprintf(template,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 
@@ -2212,7 +2188,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
 	// pretend we already have a unit file with no VitalityRank options set
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -2226,7 +2202,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -2237,7 +2213,6 @@ WantedBy=multi-user.target
 `
 	origContent := fmt.Sprintf(template,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 
@@ -2265,7 +2240,6 @@ WantedBy=multi-user.target
 	// now the file has been modified to have OOMScoreAdjust set for it
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"OOMScoreAdjust=-899\n",
 	))
 }
@@ -2276,7 +2250,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRollsback(c *C) {
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// pretend we already have a unit file with no VitalityRank options set
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -2290,7 +2264,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -2301,7 +2275,6 @@ WantedBy=multi-user.target
 `
 	origContent := fmt.Sprintf(template,
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 
@@ -2321,7 +2294,6 @@ WantedBy=multi-user.target
 			// for it
 			c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
 				systemd.EscapeUnitNamePath(dir),
-				dirs.GlobalRootDir,
 				"OOMScoreAdjust=-899\n",
 			))
 
@@ -2360,7 +2332,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) 
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// pretend we already have a unit file with no VitalityRank options set
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -2374,7 +2346,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
@@ -2394,7 +2366,6 @@ WantedBy=multi-user.target
 			// daemon reload
 			c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
 				systemd.EscapeUnitNamePath(dir),
-				dirs.GlobalRootDir,
 				"",
 			))
 
@@ -2438,7 +2409,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollback(c 
 	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
 	// pretend we already have a unit file with no VitalityRank options set
-	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.%[1]s
@@ -2452,12 +2423,12 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.%[1]s
 SyslogIdentifier=hello-snap.%[1]s
 Restart=on-failure
-WorkingDirectory=%[3]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
 ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
 TimeoutStopSec=30
 Type=forking
-%[4]s
+%[3]s
 [Install]
 WantedBy=multi-user.target
 `
@@ -2465,13 +2436,11 @@ WantedBy=multi-user.target
 	svc1Content := fmt.Sprintf(template,
 		"svc1",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 	svc2Content := fmt.Sprintf(template,
 		"svc2",
 		systemd.EscapeUnitNamePath(dir),
-		dirs.GlobalRootDir,
 		"",
 	)
 
@@ -2568,7 +2537,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 	})
 }
 
-func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
+func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceServiceSnippets(c *C) {
 	tt := []struct {
 		comment     string
 		plugSnippet string
@@ -2664,7 +2633,7 @@ plugs:
 			{"daemon-reload"},
 		}, comment)
 
-		dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+		dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
 		c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
@@ -2678,7 +2647,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/hello-snap/12
+WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Delegate=true
@@ -2687,7 +2656,6 @@ Delegate=true
 WantedBy=multi-user.target
 `,
 			systemd.EscapeUnitNamePath(dir),
-			dirs.GlobalRootDir,
 		), comment)
 
 		s.sysdLog = nil
@@ -2711,6 +2679,72 @@ WantedBy=multi-user.target
 
 		s.sysdLog = nil
 	}
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithGpioChardevInterfaceUnitSnippets(c *C) {
+	const snapYaml = packageHelloNoSrv + `
+ svc1:
+  daemon: simple
+  plugs:
+   - gpio-chardev
+plugs:
+ gpio-chardev:
+  source-chip: [chip0]
+  lines: 0-3
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{{"daemon-reload"}})
+
+	dir := dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount"))
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+After=snapd.gpio-chardev-setup.target
+Wants=snapd.gpio-chardev-setup.target
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=/var/snap/hello-snap/12
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+	))
+
+	s.sysdLog = nil
+	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(s.sysdLog, HasLen, 2)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(svcFile)},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+	})
+
+	s.sysdLog = nil
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(svcFile), Equals, false)
+	c.Assert(s.sysdLog, HasLen, 2)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--no-reload", "disable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
+
+	s.sysdLog = nil
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {

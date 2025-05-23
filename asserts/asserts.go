@@ -124,6 +124,11 @@ func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
 	return true
 }
 
+// JSONBody returns true if the body for this assertion type must be JSON.
+func (at *AssertionType) JSONBody() bool {
+	return at.flags&jsonBody != 0
+}
+
 // Understood assertion types.
 var (
 	AccountType              = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
@@ -143,7 +148,7 @@ var (
 	PreseedType              = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
-	ConfdbType               = &AssertionType{"confdb", []string{"account-id", "name"}, nil, assembleConfdb, jsonBody}
+	ConfdbSchemaType         = &AssertionType{"confdb-schema", []string{"account-id", "name"}, nil, assembleConfdbSchema, jsonBody}
 
 	// ...
 )
@@ -174,7 +179,7 @@ var typeRegistry = map[string]*AssertionType{
 	PreseedType.Name:              PreseedType,
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
 	SnapResourcePairType.Name:     SnapResourcePairType,
-	ConfdbType.Name:               ConfdbType,
+	ConfdbSchemaType.Name:         ConfdbSchemaType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -1022,6 +1027,8 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 	}
 
 	if !reflect.DeepEqual(body, formatted) {
+		// TODO: replace this with a manual comparison so we can give more context
+		// in the error message
 		return fmt.Errorf(`JSON in body must be indented with 2 spaces and sort object entries by key`)
 	}
 

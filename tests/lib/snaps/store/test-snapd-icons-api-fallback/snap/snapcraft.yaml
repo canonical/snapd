@@ -1,0 +1,23 @@
+name: test-snapd-icons-api-fallback
+base: core24
+version: '1.0'
+summary: An empty snap with only a store icon
+description: |
+  An empty snap which only has a store icon. Used to test that snapd caches the
+  store icon for the snap on download and serves it over the icons API, since
+  no icon is present at meta/gui/icon.*.
+
+grade: stable
+confinement: strict
+
+# Store icon: icon-orange-tail.svg
+# Local icon: none
+
+# Don't use the icon field, as this will copy the icon to meta/gui/icon.svg,
+# and we want there to be no icon file in the snap so we can test that snapd
+# falls back to the cached store icon when no local icon is present.
+# icon: icon-orange-tail.svg
+
+parts:
+  empty-part:
+    plugin: nil

@@ -23,11 +23,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/syslog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -45,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -402,10 +405,7 @@ This command has been left available for documentation purposes only.
 }
 
 func init() {
-	err := logger.SimpleSetup(nil)
-	if err != nil {
-		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
-	}
+	logger.SimpleSetup(nil)
 }
 
 func resolveApp(snapApp string) (string, error) {
@@ -442,6 +442,11 @@ func exitCodeFromError(err error) int {
 }
 
 func main() {
+	if err := loggerWithJournalMaybe(); err != nil {
+		fmt.Fprintf(Stderr, "cannot initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+
 	snapdtool.ExecInSnapdOrCoreSnap()
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {
@@ -536,9 +541,35 @@ func (e unknownCommandError) Error() string {
 	return e.msg
 }
 
+func loggerWithJournalMaybe() error {
+	maybeJournal := func() error {
+		if !osutil.GetenvBool("SNAP_LOG_TO_JOURNAL") {
+			return fmt.Errorf("no need to log to journal")
+		}
+		journalWriter, err := systemd.NewJournalStreamFile("snap", syslog.LOG_DEBUG, false)
+		if err != nil {
+			return err
+		}
+		l := logger.New(journalWriter, logger.DefaultFlags, nil)
+		logger.SetLogger(l)
+		return nil
+	}
+
+	if err := maybeJournal(); err != nil {
+		// try simple setup
+		logger.SimpleSetup(nil)
+	}
+	// unset so that it doesn't trickle down to the snap application
+	os.Unsetenv("SNAP_LOG_TO_JOURNAL")
+	return nil
+}
+
+var timeAfter func(d time.Duration) <-chan time.Time = time.After
+
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
+	logger.Trace("command-execution", "cmd", strings.Join(os.Args[1:], " "))
 	xtra, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {

@@ -202,6 +202,13 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 // returned it to snapd.
 func OnDiskVolumeFromGadgetVol(vol *Volume) (*OnDiskVolume, error) {
 	var diskVol *OnDiskVolume
+
+	// If the volume has been pre-assigned to a device, we must use that.
+	// This will happen when gadget use 'device-assignments' for volumes.
+	if vol.AssignedDevice != "" {
+		return OnDiskVolumeFromDevice(vol.AssignedDevice)
+	}
+
 	for _, vs := range vol.Structure {
 		if vs.Device == "" || vs.Role == "mbr" || vs.Type == "bare" {
 			continue

@@ -204,7 +204,7 @@ func (cm *CacheManager) cleanup() error {
 		if err := osRemove(path); err != nil {
 			if !os.IsNotExist(err) {
 				// If there is any error we cleanup the file (it is just a cache
-				// afterall).
+				// after all).
 				logger.Noticef("cannot cleanup cache: %s", err)
 				lastErr = err
 			}

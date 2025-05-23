@@ -29,12 +29,17 @@ import (
 
 // Transaction performs read and writes to a databag in an atomic way.
 type Transaction struct {
-	pristine confdb.JSONDataBag
+	// previous is the databag without any changes applied to it and is the same
+	// before or after changes are committed
+	previous confdb.JSONDatabag
+	// pristine databag, excluding any changes being made. Once the changes are
+	// committed, this will include them
+	pristine confdb.JSONDatabag
 
 	ConfdbAccount string
 	ConfdbName    string
 
-	modified      confdb.JSONDataBag
+	modified      confdb.JSONDatabag
 	deltas        []map[string]interface{}
 	appliedDeltas int
 
@@ -46,6 +51,8 @@ type Transaction struct {
 
 // NewTransaction takes a getter and setter to read and write the databag.
 func NewTransaction(st *state.State, account, confdbName string) (*Transaction, error) {
+	// TODO: if the databag can't change mid-transaction, there's no need to re-read
+	// this on commit and we can instead pass the bag in (easier testing)
 	databag, err := readDatabag(st, account, confdbName)
 	if err != nil {
 		return nil, err
@@ -53,18 +60,20 @@ func NewTransaction(st *state.State, account, confdbName string) (*Transaction, 
 
 	return &Transaction{
 		pristine:      databag,
+		previous:      databag,
 		ConfdbAccount: account,
 		ConfdbName:    confdbName,
 	}, nil
 }
 
 type marshalledTransaction struct {
-	Pristine confdb.JSONDataBag `json:"pristine,omitempty"`
+	Pristine confdb.JSONDatabag `json:"pristine,omitempty"`
+	Previous confdb.JSONDatabag `json:"previous,omitempty"`
 
 	ConfdbAccount string `json:"confdb-account,omitempty"`
 	ConfdbName    string `json:"confdb-name,omitempty"`
 
-	Modified      confdb.JSONDataBag       `json:"modified,omitempty"`
+	Modified      confdb.JSONDatabag       `json:"modified,omitempty"`
 	Deltas        []map[string]interface{} `json:"deltas,omitempty"`
 	AppliedDeltas int                      `json:"applied-deltas,omitempty"`
 
@@ -75,6 +84,7 @@ type marshalledTransaction struct {
 func (t *Transaction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(marshalledTransaction{
 		Pristine:      t.pristine,
+		Previous:      t.previous,
 		ConfdbAccount: t.ConfdbAccount,
 		ConfdbName:    t.ConfdbName,
 		Modified:      t.modified,
@@ -92,6 +102,7 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	}
 
 	t.pristine = mt.Pristine
+	t.previous = mt.Previous
 	t.ConfdbAccount = mt.ConfdbAccount
 	t.ConfdbName = mt.ConfdbName
 	t.modified = mt.Modified
@@ -154,7 +165,7 @@ func (t *Transaction) Get(path string) (interface{}, error) {
 
 // Commit applies the previous writes and validates the final databag. If any
 // error occurs, the original databag is kept.
-func (t *Transaction) Commit(st *state.State, schema confdb.Schema) error {
+func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -243,7 +254,7 @@ func (t *Transaction) applyChanges() error {
 	return nil
 }
 
-func applyDeltas(bag confdb.JSONDataBag, deltas []map[string]interface{}) error {
+func applyDeltas(bag confdb.JSONDatabag, deltas []map[string]interface{}) error {
 	// changes must be applied in the order they were written
 	for _, delta := range deltas {
 		for k, v := range delta {
@@ -297,6 +308,6 @@ func (t *Transaction) AbortInfo() (snap, reason string) {
 	return t.abortingSnap, t.abortReason
 }
 
-func (t *Transaction) Pristine() confdb.DataBag {
-	return t.pristine
+func (t *Transaction) Previous() confdb.Databag {
+	return t.previous
 }

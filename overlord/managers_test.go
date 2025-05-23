@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -184,6 +185,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	}
 
 	s.tempdir = c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(s.tempdir)
 	dirs.SetRootDir(s.tempdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -1075,7 +1077,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
+		hit = strings.Replace(hit, "@ICON@", "http://example.com/icon.svg", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
@@ -1092,6 +1094,14 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.storeObserver != nil {
 			s.storeObserver(r)
+		}
+
+		if r.URL.Path == "http://example.com/icon.svg" {
+			// the http server was hit while requesting the snap icon, so just
+			// write some stand-in data
+			iconContents := fmt.Sprintf("icon contents")
+			w.Write([]byte(iconContents))
+			return
 		}
 
 		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so
@@ -7459,11 +7469,11 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
-	restore = fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+	restore = fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
 		case filepath.Join(dirs.GlobalRootDir, "writable"):
 			return "root-uuid", nil
-		case dirs.GlobalRootDir:
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
 			return "root-uuid", nil
 		case dirs.SnapSaveDir:
 			return "save-uuid", nil
@@ -7630,6 +7640,14 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 			return fmt.Errorf("unexpected call")
 		}
 		return nil
+	})
+	defer restore()
+
+	restore = fdeBackend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		if !encrypted {
+			return nil, fmt.Errorf("unexpected call")
+		}
+		return []byte{1, 2, 3, 4}, nil
 	})
 	defer restore()
 
@@ -10309,7 +10327,7 @@ Description=Service for snap application test-snap.svc1
 Requires=%[1]s
 Wants=network.target
 After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
+%[2]s=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
@@ -10318,7 +10336,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
+WorkingDirectory=/var/snap/test-snap/42
 TimeoutStopSec=30
 Type=simple
 
@@ -10327,8 +10345,7 @@ WantedBy=multi-user.target
 `
 
 	initialUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Requires",
 	)
 
@@ -10492,8 +10509,7 @@ NeedDaemonReload=no
 
 	// the unit file was rewritten to use Wants= now
 	rewrittenUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Wants",
 	)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), testutil.FileEquals, rewrittenUnitFile)
@@ -10546,7 +10562,7 @@ Description=Service for snap application test-snap.svc1
 Requires=%[1]s
 Wants=network.target
 After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
+%[2]s=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
@@ -10555,7 +10571,7 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run test-snap.svc1
 SyslogIdentifier=test-snap.svc1
 Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
+WorkingDirectory=/var/snap/test-snap/42
 TimeoutStopSec=30
 Type=simple
 
@@ -10564,8 +10580,7 @@ WantedBy=multi-user.target
 `
 
 	initialUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Requires",
 	)
 
@@ -10661,7 +10676,7 @@ NeedDaemonReload=no
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 15) })
+	defer func() { c.Assert(systemctlCalls, Equals, 15) }()
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
@@ -10741,8 +10756,7 @@ NeedDaemonReload=no
 
 	// the unit file was rewritten to use Wants= now
 	rewrittenUnitFile := fmt.Sprintf(unitTempl,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount"))),
 		"Wants",
 	)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.test-snap.svc1.service"), testutil.FileEquals, rewrittenUnitFile)

@@ -463,6 +463,7 @@ prepare_classic() {
 
         prepare_reexec_override
         prepare_state_lock "SNAPD PROJECT"
+        prepare_tag_features
         prepare_memory_limit_override
         disable_refreshes
 
@@ -476,6 +477,19 @@ prepare_classic() {
                 echo "$output"
                 exit 1
             fi
+        fi
+
+        # lxd-installer is in cloud images starting from 24.04. This package
+        # installs lxd when any lxc command is run. This caused problems
+        # because if we install snapcraft & lxd, in the restore step lxd is
+        # removed, and after that snapcraft is removed. However, snapcraft's
+        # remove hook calls lxd and triggers a new installation of lxd, and in
+        # turn when we try to remove core22, it fails as lxd has been
+        # re-installed and depends on that base. Therefore, we remove it to
+        # prevent these issues, and we do that before we get the list of
+        # installed packages to make sure we do not re-install it again.
+        if ( os.query is-ubuntu || os.query is-debian ) && tests.pkgs is-installed lxd-installer; then
+            apt remove -y --purge lxd-installer
         fi
 
         setup_experimental_features
@@ -1246,7 +1260,12 @@ setup_reflash_magic() {
         fi
     elif is_test_target_core 24; then
         build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
+        if os.query is-arm; then
+            cp "$TESTSLIB/assertions/ubuntu-core-24-arm64.model" "$IMAGE_HOME/pc.model"
+        else
+            cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
+        fi
+        
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -1347,7 +1366,7 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
-        if [[ "$SPREAD_BACKEND" =~ google ]]; then
+        if [[ "$SPREAD_BACKEND" =~ google ]] || [[ "$SPREAD_BACKEND" =~ openstack ]]; then
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example
@@ -1445,7 +1464,7 @@ EOF
                     $EXTRA_FUNDAMENTAL \
                     --snap "${extra_snap[0]}" \
                     --output-dir "$IMAGE_HOME"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22}.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22,24}.{snap,assert}
 
     if os.query is-arm; then
         LOOP_PARTITION=1
@@ -1606,6 +1625,34 @@ EOF
     fi
 }
 
+prepare_tag_features(){
+    CONF_FILE="/etc/systemd/system/snapd.service.d/99-feature-tags.conf"
+    RESTART=false
+
+    if [ -n "$TAG_FEATURES" ]; then
+        # Generate the config file when it does not exist and when the threshold has changed different
+        if ! [ -f "$CONF_FILE" ]; then
+            cat <<EOF > "$CONF_FILE"
+[Service]
+Environment=SNAPPY_TESTING=1
+Environment=SNAPD_TRACE=1
+Environment=SNAPD_JSON_LOGGING=1
+EOF
+            RESTART=true
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        rm -f "$CONF_FILE"
+        RESTART=true
+    fi
+
+    if [ "$RESTART" = "true" ]; then
+        # the service setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
@@ -1720,6 +1767,7 @@ prepare_ubuntu_core() {
         remove_disabled_snaps
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
+        prepare_tag_features
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

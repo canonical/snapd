@@ -21,6 +21,7 @@ package fdestate
 
 import (
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/testutil"
@@ -62,3 +63,19 @@ func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDESt
 var NewModel = newModel
 
 func (m *FDEManager) IsFunctional() error { return m.isFunctional() }
+
+func MockBootHostUbuntuDataForMode(f func(mode string, mod gadget.Model) ([]string, error)) (restore func()) {
+	old := bootHostUbuntuDataForMode
+	bootHostUbuntuDataForMode = f
+	return func() {
+		bootHostUbuntuDataForMode = old
+	}
+}
+
+func EncryptedContainer(uuid string, containerRole string, legacyKeys map[string]string) *encryptedContainer {
+	return &encryptedContainer{
+		uuid:          uuid,
+		containerRole: containerRole,
+		legacyKeys:    legacyKeys,
+	}
+}

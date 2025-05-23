@@ -45,7 +45,7 @@ func (s *confdbSuite) TestFailAbortsConfdbTransaction(c *C) {
 	task := s.state.NewTask("run-hook", "")
 	chg.AddTask(task)
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "change-view-plug"}
-	task.Set("commit-task", commitTask.ID())
+	task.Set("tx-task", commitTask.ID())
 	s.state.Unlock()
 
 	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
@@ -73,7 +73,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
-	c.Assert(err, ErrorMatches, i18n.G(`"confdbs" feature flag is disabled: set 'experimental.confdbs' to true`))
+	c.Assert(err, ErrorMatches, i18n.G(`"confdb" feature flag is disabled: set 'experimental.confdb' to true`))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
@@ -116,7 +116,7 @@ func (s *confdbSuite) TestFailErrors(c *C) {
 
 	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"fail", "reason"}, 0)
 	// this shouldn't happen but check we handle it well anyway
-	c.Assert(err, ErrorMatches, i18n.G("internal error: cannot get confdb transaction to fail: no state entry for key \"commit-task\""))
+	c.Assert(err, ErrorMatches, i18n.G("internal error: cannot get confdb transaction to fail: no state entry for key \"tx-task\""))
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }

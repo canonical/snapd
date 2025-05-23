@@ -95,7 +95,7 @@ execute: |
     snap set test-snapd-service command=restart
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     # shellcheck disable=SC2119
-    if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
+    if "$TESTSTOOLS"/journal-state get-log | MATCH "error: snapctl"; then
         echo "snapctl should not report errors"
         exit 1
     fi

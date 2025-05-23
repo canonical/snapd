@@ -25,10 +25,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -148,20 +148,14 @@ kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
 }
 
 func (s *specSuite) TestTagDevice(c *C) {
-	defer func() { dirs.SetRootDir("") }()
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
-	dirs.SetRootDir("")
 	s.testTagDevice(c, "/usr/lib/snapd")
 }
 
 func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
-	defer func() { dirs.SetRootDir("") }()
-	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
-	defer restore()
-	dirs.SetRootDir("")
+	dirstest.MustMockAltLibExecDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(dirs.GlobalRootDir)
 	// validity
-	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
+	c.Check(dirs.StripRootDir(dirs.DistroLibExecDir), Equals, "/usr/libexec/snapd")
 	s.testTagDevice(c, "/usr/libexec/snapd")
 }
 

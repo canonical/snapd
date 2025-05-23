@@ -92,11 +92,14 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 
 	h := &testHandler{}
 
-	_, err := restart.Manager(st, "boot-id-1", h)
+	manager, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
 	ok, t = restart.Pending(st)
+	c.Check(ok, Equals, false)
+	c.Check(t, Equals, restart.RestartUnset)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
 
@@ -105,6 +108,9 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	c.Check(h.restartRequested, Equals, true)
 
 	ok, t = restart.Pending(st)
+	c.Check(ok, Equals, true)
+	c.Check(t, Equals, restart.RestartDaemon)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, true)
 	c.Check(t, Equals, restart.RestartDaemon)
 }
@@ -115,12 +121,15 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := restart.Manager(st, "boot-id-1", nil)
+	manager, err := restart.Manager(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
 	restart.Request(st, restart.RestartDaemon, nil)
 
 	ok, t := restart.Pending(st)
+	c.Check(ok, Equals, true)
+	c.Check(t, Equals, restart.RestartDaemon)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, true)
 	c.Check(t, Equals, restart.RestartDaemon)
 }
@@ -131,11 +140,14 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	_, err := restart.Manager(st, "boot-id-1", h)
+	manager, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
 	ok, t := restart.Pending(st)
+	c.Check(ok, Equals, false)
+	c.Check(t, Equals, restart.RestartUnset)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
 
@@ -144,6 +156,9 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(h.restartRequested, Equals, true)
 
 	ok, t = restart.Pending(st)
+	c.Check(ok, Equals, true)
+	c.Check(t, Equals, restart.RestartSystem)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, true)
 	c.Check(t, Equals, restart.RestartSystem)
 
@@ -173,11 +188,14 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	_, err := restart.Manager(st, "boot-id-1", h)
+	manager, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
 	ok, t := restart.Pending(st)
+	c.Check(ok, Equals, false)
+	c.Check(t, Equals, restart.RestartUnset)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
 
@@ -191,6 +209,9 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(h.rebootInfo.BootloaderOptions, NotNil)
 
 	ok, t = restart.Pending(st)
+	c.Check(ok, Equals, true)
+	c.Check(t, Equals, restart.RestartSystem)
+	ok, t = manager.Pending()
 	c.Check(ok, Equals, true)
 	c.Check(t, Equals, restart.RestartSystem)
 
@@ -1271,4 +1292,8 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 	c.Check(err, IsNil)
 	c.Check(mockNrr.Calls(), HasLen, 0)
 	c.Check(s.mockLog.String(), Equals, "")
+}
+
+func (s *restartSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("restart.go", c, false)
 }

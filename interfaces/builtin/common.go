@@ -49,6 +49,9 @@ type commonInterface struct {
 	implicitOnCore    bool
 	implicitOnClassic bool
 
+	implicitPlugOnCore    bool
+	implicitPlugOnClassic bool
+
 	affectsPlugOnRefresh bool
 
 	appArmorUnconfinedPlugs bool
@@ -87,7 +90,7 @@ type commonInterface struct {
 
 	controlsDeviceCgroup bool
 
-	serviceSnippets []string
+	serviceSnippets []interfaces.PlugServicesSnippet
 }
 
 // Name returns the interface name.
@@ -98,12 +101,14 @@ func (iface *commonInterface) Name() string {
 // StaticInfo returns various meta-data about this interface.
 func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:              iface.summary,
-		DocURL:               iface.docURL,
-		ImplicitOnCore:       iface.implicitOnCore,
-		ImplicitOnClassic:    iface.implicitOnClassic,
-		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
-		BaseDeclarationSlots: iface.baseDeclarationSlots,
+		Summary:               iface.summary,
+		DocURL:                iface.docURL,
+		ImplicitOnCore:        iface.implicitOnCore,
+		ImplicitOnClassic:     iface.implicitOnClassic,
+		ImplicitPlugOnCore:    iface.implicitPlugOnCore,
+		ImplicitPlugOnClassic: iface.implicitPlugOnClassic,
+		BaseDeclarationPlugs:  iface.baseDeclarationPlugs,
+		BaseDeclarationSlots:  iface.baseDeclarationSlots,
 		// affects the plug snap because of mount backend
 		AffectsPlugOnRefresh:    iface.affectsPlugOnRefresh,
 		AppArmorUnconfinedPlugs: iface.appArmorUnconfinedPlugs,
@@ -111,7 +116,7 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *commonInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+func (iface *commonInterface) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServicesSnippet {
 	return iface.serviceSnippets
 }
 

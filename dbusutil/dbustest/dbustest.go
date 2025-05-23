@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 )
 
 // testDBusClientName is the unique name of the connected client.

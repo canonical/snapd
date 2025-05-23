@@ -250,9 +250,16 @@ func (s *VerityTestSuite) TestReadEmptySuperBlockError(c *C) {
 	c.Assert(err, IsNil)
 
 	// attempt to read superblock from it
-	sb, err := dmverity.ReadSuperblock(testDiskPath)
+	_, err = dmverity.ReadSuperblock(testDiskPath)
+	c.Check(err, ErrorMatches, "invalid dm-verity superblock version")
+}
+
+func (s *VerityTestSuite) TestVeritySuperblockEncodedSalt(c *C) {
+	sbJson := `{"version":1,"hashType":1,"uuid":[147,116,13,94,144,57,74,7,146,25,189,53,88,130,182,75],"algorithm":[115,104,97,50,53,54,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"dataBlockSize":4096,"hashBlockSize":4096,"dataBlocks":2048,"saltSize":32,"salt":[70,174,227,175,251,208,69,86,35,233,7,187,127,198,34,153,155,172,76,134,250,38,56,8,172,21,36,11,22,40,100,88,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}`
+
+	var sb dmverity.VeritySuperblock
+	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
-	err = sb.Validate()
-	c.Check(err, ErrorMatches, "invalid dm-verity superblock version")
+	c.Check(sb.EncodedSalt(), Equals, "46aee3affbd0455623e907bb7fc62299")
 }

@@ -142,15 +142,15 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	return nil
 }
 
-func bulkRefreshConfdbs(s *state.State, confdbs []*confdb.Confdb, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
+func bulkRefreshConfdbSchemas(s *state.State, confdbSchemas []*confdb.Schema, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(s)
 
 	// all assertion refs will be in the same group
 	pool := asserts.NewPool(db, maxGroups)
-	for _, confdb := range confdbs {
+	for _, confdb := range confdbSchemas {
 		account, name := confdb.Account, confdb.Name
 		ref := &asserts.Ref{
-			Type:       asserts.ConfdbType,
+			Type:       asserts.ConfdbSchemaType,
 			PrimaryKey: []string{account, name},
 		}
 

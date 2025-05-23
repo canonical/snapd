@@ -335,7 +335,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups []ComponentSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error), deviceCtx DeviceContext) (*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -565,10 +565,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	// we need to know some of the characteristics of the device - it is
 	// expected to always have a model/device context at this point.
-	// TODO in a remodel this would use the old model, we need to fix this
-	// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
-	// remodel case.
-	deviceCtx, err := DeviceCtx(st, nil, nil)
+	deviceCtx, err = DeviceCtx(st, nil, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1885,6 +1882,25 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updated, tasksetGrp.Refresh, nil
 }
 
+func currentEssentialSnapNames(st *state.State) ([]string, error) {
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var names []string
+	for _, sn := range deviceCtx.Model().EssentialSnaps() {
+		names = append(names, sn.SnapName())
+	}
+
+	// some models have an implicit snapd, make sure that we account for it here
+	if !strutil.ListContains(names, "snapd") {
+		names = append(names, "snapd")
+	}
+
+	return names, nil
+}
+
 // ResolveValidationSetsEnforcementError installs and updates snaps in order to
 // meet the validation set constraints reported in the ValidationSetsValidationError..
 func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State, valErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, userID int) ([]*state.TaskSet, []string, error) {
@@ -1914,7 +1930,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	}
 
 	affected := make([]string, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
-	var tasksets []*state.TaskSet
 	// use the same lane for installing and refreshing so everything is reversed
 	lane := st.NewLane()
 
@@ -1923,7 +1938,12 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	// explicitly.
 	resolved := make(map[string]bool)
 
-	var wrongRevs []StoreUpdate
+	essential, err := currentEssentialSnapNames(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var wrongRevs, wrongRevsEssential []StoreUpdate
 	for name := range valErr.WrongRevisionSnaps {
 		resolved[name] = true
 
@@ -1932,13 +1952,19 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			additionalComps = keys(cerr.MissingComponents)
 		}
 
-		wrongRevs = append(wrongRevs, StoreUpdate{
+		update := StoreUpdate{
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
 			AdditionalComponents: additionalComps,
-		})
+		}
+
+		if strutil.ListContains(essential, name) {
+			wrongRevsEssential = append(wrongRevsEssential, update)
+		} else {
+			wrongRevs = append(wrongRevs, update)
+		}
 	}
 
 	var missing []StoreSnap
@@ -1958,6 +1984,20 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		})
 	}
 
+	var essentialTss []*state.TaskSet
+	if len(wrongRevsEssential) > 0 {
+		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevsEssential...), nil, Options{
+			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
+		}
+
+		essentialTss = append(essentialTss, uts.Refresh...)
+		affected = append(affected, updated...)
+	}
+
+	var updateTss []*state.TaskSet
 	if len(wrongRevs) > 0 {
 		updated, uts, err := UpdateWithGoal(ctx, st, StoreUpdateGoal(wrongRevs...), nil, Options{
 			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true},
@@ -1966,15 +2006,15 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
-		tasksets = append(tasksets, uts.Refresh...)
+		updateTss = append(updateTss, uts.Refresh...)
 		affected = append(affected, updated...)
 	}
 
 	var installed []*snap.Info
-	var tss []*state.TaskSet
+	var installTss []*state.TaskSet
 	if len(missing) > 0 {
 		var err error
-		installed, tss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
+		installed, installTss, err = InstallWithGoal(ctx, st, StoreInstallGoal(missing...), Options{
 			Flags: Flags{Transaction: client.TransactionAllSnaps, Lane: lane},
 		})
 		if err != nil {
@@ -2002,19 +2042,38 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		}
 
 		affected = append(affected, snapName)
-		tss = append(tss, compTasks...)
+		installTss = append(installTss, compTasks...)
 	}
 
-	// updates should be done before the installs
-	for _, ts := range tss {
-		for _, prevTs := range tasksets {
-			ts.WaitAll(prevTs) // TODO: make this not a WaitAll
-		}
-	}
-	tasksets = append(tasksets, tss...)
 	for _, i := range installed {
 		affected = append(affected, i.InstanceName())
 	}
+
+	// here we enforce some ordering constraints:
+	//  * essential snaps are updated first; this ensures that all reboots are
+	//    grouped together and subsequent updates/installs will see the new
+	//    versions of the essential snaps
+	//  * non-essential bases are installed next. this ensures that the
+	//    following updates and installs have their bases available. without this
+	//    ordering constraint, updates that bring in a new base will create a
+	//    circular dependency on the update's "prerequisites" task.
+	//  * the remaining updates and installs are done last
+
+	// installTss is made up of the install tasks for snaps and components (in
+	// that order). we only care about the snap ones, so we take a subslice.
+	var baseInstalls, nonBaseInstalls []*state.TaskSet
+	for i, ts := range installTss[:len(installed)] {
+		if installed[i].Type() == snap.TypeBase {
+			baseInstalls = append(baseInstalls, ts)
+		} else {
+			nonBaseInstalls = append(nonBaseInstalls, ts)
+		}
+	}
+
+	nonBaseInstalls = append(nonBaseInstalls, installTss[len(installed):]...)
+
+	// TODO: make use of EndEdges to make this chaining result in cleaner graphs
+	tasksets := flattenAndWaitTaskSets(essentialTss, baseInstalls, updateTss, nonBaseInstalls)
 
 	encodedAsserts := make(map[string][]byte, len(valErr.Sets))
 	for vsStr, vs := range valErr.Sets {
@@ -2034,6 +2093,36 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	tasksets = append(tasksets, ts)
 
 	return tasksets, affected, nil
+}
+
+// flattenAndWaitTaskSets merges a slice of [state.TaskSet] slices into one flat
+// slice. It also enforces ordering so that every [state.Task] in chain[i] waits
+// for each [state.Task] in chain[i-1].
+//
+// TODO: This implementation could be better if we relied on each task set to
+// have an [EndEdge]. This isn't true at the moment.
+func flattenAndWaitTaskSets(chain ...[]*state.TaskSet) []*state.TaskSet {
+	if len(chain) == 0 {
+		return nil
+	}
+
+	prev := chain[0]
+	flattened := make([]*state.TaskSet, len(prev))
+	copy(flattened, prev)
+
+	for _, tss := range chain[1:] {
+		// all of the tasks in tss must go after all of the tasks in prev
+		// thus, all of the tasks in tss must wait on all of the tasks in prev
+		for _, ts := range tss {
+			for _, prevTs := range prev {
+				ts.WaitAll(prevTs) // TODO: make this not a WaitAll
+			}
+		}
+		flattened = append(flattened, tss...)
+		prev = tss
+	}
+
+	return flattened
 }
 
 func keys[K comparable, V any](m map[K]V) []K {
@@ -2363,7 +2452,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
-		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &up.SnapState, up.Setup, up.Components, noRestartBoundaries, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -3366,8 +3455,21 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 	return tss, nil
 }
 
-// LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
-// additionally update-gadget-assets for the kernel snap, tasks for a remodel.
+// LinkNewBaseOrKernel creates a new task set that enables swapping to a base or
+// kernel snap that is already installed on the system. The primary use case for
+// this function is remodeling.
+//
+// For bases, we create prepare-snap and link-snap tasks. Technically this would
+// create link-component tasks for any installed components, but bases do not
+// currently use components.
+//
+// For kernels, we create prepare-snap, an update-gadget-assets task (if
+// needed), link-snap, and link-component tasks for any installed components.
+//
+// Note that this function previously created a prepare-kernel-snap task, but
+// this was not needed. Since this function is only used if the snap is
+// installed already installed, then it is expected that the drivers tree is
+// present. Thus, the prepare-kernel-snap task would be redundant.
 func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -3404,43 +3506,77 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		InstanceKey: snapst.InstanceKey,
 	}
 
+	// note that prepare-snap doesn't actually do anything here, and is mostly
+	// used as a task to carry the snap-setup information.
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 	prepareSnap.Set("snap-setup", &snapsup)
-	prev := prepareSnap
-	ts := state.NewTaskSet(prepareSnap)
-	// preserve the same order as during the update
-	if info.Type() == snap.TypeKernel {
-		// TODO in a remodel this would use the old model, we need to fix this
-		// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
-		// remodel case.
-		deviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		if kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
-			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
-			ts.AddTask(setupKernel)
-			setupKernel.Set("snap-setup-task", prepareSnap.ID())
-			setupKernel.WaitFor(prev)
-			prev = setupKernel
-		}
 
-		// kernel snaps can carry boot assets
-		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
-		gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
-		gadgetUpdate.WaitFor(prev)
-		ts.AddTask(gadgetUpdate)
-		prev = gadgetUpdate
-	}
-	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
-	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(prev)
-	ts.AddTask(linkSnap)
-	ts.MarkEdge(linkSnap, MaybeRebootEdge)
-	// prepare-snap is the last task that carries no system modifications
+	ts := state.NewTaskSet(prepareSnap)
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(prepareSnap, SnapSetupEdge)
+
+	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, prepareSnap); err != nil {
+		return nil, err
+	}
+
 	return ts, nil
+}
+
+func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.TaskSet, snapsupTask *state.Task) error {
+	tasks := ts.Tasks()
+	if len(tasks) == 0 {
+		return errors.New("internal error: task set must be seeded with at least one task")
+	}
+
+	prev := tasks[len(tasks)-1]
+	add := func(t *state.Task) {
+		t.Set("snap-setup-task", snapsupTask.ID())
+		t.WaitFor(prev)
+		ts.AddTask(t)
+		prev = t
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// preserve the same order as during the update
+	if info.Type() == snap.TypeKernel {
+		// this previously created a prepare-kernel-snap task. however, this
+		// isn't needed since we're only using this function to swap to already
+		// installed kernels. thus, the drivers tree should be present.
+
+		// kernel snaps can carry boot assets
+		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), info.Type(), info.InstanceName(), snapst.Current))
+		add(gadgetUpdate)
+	}
+
+	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), info.InstanceName(), snapst.Current))
+	add(linkSnap)
+	ts.MarkEdge(linkSnap, MaybeRebootEdge)
+
+	components := snapst.Sequence.ComponentsForRevision(snapst.Current)
+	compsupTasks := make([]string, 0, len(components))
+	for _, cs := range components {
+		compsup := ComponentSetup{
+			CompSideInfo: cs.SideInfo,
+			CompType:     cs.CompType,
+		}
+
+		cref := compsup.CompSideInfo.Component
+		compRev := compsup.CompSideInfo.Revision
+
+		link := st.NewTask("link-component", fmt.Sprintf(i18n.G("Make component %q (%s) available to the system during remodel"), cref, compRev))
+		link.Set("component-setup", compsup)
+		add(link)
+
+		compsupTasks = append(compsupTasks, link.ID())
+	}
+
+	snapsupTask.Set("component-setup-tasks", compsupTasks)
+
+	return nil
 }
 
 func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
@@ -3456,58 +3592,56 @@ func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
 	return nil, nil, nil
 }
 
-// AddLinkNewBaseOrKernel creates the same tasks as LinkNewBaseOrKernel but adds
-// them to the provided task set.
+// AddLinkNewBaseOrKernel appends tasks to a given task set. This enables
+// swapping to a base or kernel snap that is already installed on the system.
+// The primary use case for this function is remodeling.
+//
+// It is expected that the given task set contains a snap setup task.
+// Additionally, it should not perform any modifications to the local system.
+//
+// For bases, we create a link-snap task. Technically this would create
+// link-component tasks for any installed components, but bases do not currently
+// use components.
+//
+// For kernels, we create an update-gadget-assets task (if needed), link-snap,
+// and link-component tasks for any installed components.
+//
+// Note that this function previously created a prepare-kernel-snap task, but
+// this was not needed. Since this function is only used if the snap is
+// installed already installed, then it is expected that the drivers tree is
+// present. Thus, the prepare-kernel-snap task would be redundant.
 func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	if ts.MaybeEdge(LastBeforeLocalModificationsEdge) != nil {
+		return nil, errors.New("internal error: cannot add tasks to link new base or kernel to task set that introduces local modifications")
+	}
+
 	allTasks := ts.Tasks()
 	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
 	if err != nil {
 		return nil, err
 	}
 	if snapSetupTask == nil {
-		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+		return nil, errors.New("internal error: cannot identify task with snap-setup")
 	}
-	// the first task added here waits for the last task in the existing set
-	prev := allTasks[len(allTasks)-1]
-	// preserve the same order as during the update
-	if snapsup.Type == snap.TypeKernel {
-		// TODO in a remodel this would use the old model, we need to fix this
-		// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
-		// remodel case.
-		deviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		if kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
-			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
-			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
-			setupKernel.WaitFor(prev)
-			ts.AddTask(setupKernel)
-			prev = setupKernel
-		}
 
-		// kernel snaps can carry boot assets
-		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
-		gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
-		// wait for the last task in existing set
-		gadgetUpdate.WaitFor(prev)
-		ts.AddTask(gadgetUpdate)
-		prev = gadgetUpdate
+	var snapst SnapState
+	if err := Get(st, snapsup.InstanceName(), &snapst); err != nil {
+		return nil, err
 	}
-	linkSnap := st.NewTask("link-snap",
-		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
-	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
-	linkSnap.WaitFor(prev)
-	ts.AddTask(linkSnap)
-	ts.MarkEdge(linkSnap, MaybeRebootEdge)
-	// make sure that remodel can identify which tasks introduce actual
-	// changes to the system and order them correctly
-	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
-		// no task in the task set is marked as last before system
-		// modifications are introduced, so we need to mark the last
-		// task in the set, as tasks introduced here modify system state
-		ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+
+	if snapst.Current != snapsup.Revision() {
+		return nil, errors.New("internal error: cannot add tasks to link new base or kernel to task set that changes the snap revision")
 	}
+
+	// no task in the task set is marked as last before system modifications are
+	// introduced, so we need to mark the last task in the original set, as
+	// tasks introduced here modify system state
+	ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+
+	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, snapSetupTask); err != nil {
+		return nil, err
+	}
+
 	return ts, nil
 }
 
@@ -4225,7 +4359,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil)
+	return doInstall(st, &snapst, snapsup, compsups, 0, fromChange, nil, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -4279,7 +4413,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
-		}, nil, 0, "", nil)
+		}, nil, 0, "", nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -4828,6 +4962,14 @@ var cleanSnapDownloads = func(st *state.State, snapName string) error {
 	}
 
 	return err
+}
+
+// IconInstallFilename returns the path at which the cached icon would be
+// located for the snap with the given ID, if it exists. This function always
+// returns the path (for non-empty snap ID), and does not check whether the
+// snap is installed or the icon is actually present.
+func IconInstallFilename(snapID string) string {
+	return backend.IconInstallFilename(snapID)
 }
 
 func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {

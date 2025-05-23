@@ -169,11 +169,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	const allowPassphrase = true
 	options := activateVolOpts(opts.AllowRecoveryKey, allowPassphrase, partDevice)
-	authRequestor, err := newAuthRequestor()
-	if err != nil {
-		res.UnlockMethod = NotUnlocked
-		return res, fmt.Errorf("internal error: cannot build an auth requestor: %v", err)
-	}
+	authRequestor := newAuthRequestor()
 
 	// Non-nil FDEHookKeyV1 indicates that V1 hook key is used
 	if loadedKey.FDEHookKeyV1 != nil {
@@ -529,3 +525,24 @@ func sbCopyAndRemoveLUKS2ContainerKeyImpl(devicePath, keyslotName, renameTo stri
 }
 
 var sbCopyAndRemoveLUKS2ContainerKey = sbCopyAndRemoveLUKS2ContainerKeyImpl
+
+// GetPrimaryKey finds the primary from the keyring based on the path of
+// encrypted devices. If it does not find any primary in the keyring,
+// it then tries to read the key from a fallback key file.
+func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
+	for _, device := range devices {
+		primaryKey, err := findPrimaryKey(device)
+		if err == nil {
+			return primaryKey, nil
+		}
+		if !errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return nil, err
+		}
+	}
+
+	primaryKey, err := os.ReadFile(fallbackKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key file %s: %w", fallbackKeyFile, err)
+	}
+	return primaryKey, nil
+}

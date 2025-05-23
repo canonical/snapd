@@ -26,14 +26,17 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -387,12 +390,8 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockConfdbstateGet(f func(_ *state.State, _, _, _ string, _ []string) (interface{}, error)) (restore func()) {
-	return testutil.Mock(&confdbstateGet, f)
-}
-
 func MockConfdbstateGetTransaction(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) (restore func()) {
-	return testutil.Mock(&confdbstateGetTransaction, f)
+	return testutil.Mock(&confdbstateGetTransactionToSet, f)
 }
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
@@ -425,10 +424,22 @@ func MockConfdbstateGetView(f func(_ *state.State, _, _, _ string) (*confdb.View
 	return testutil.Mock(&confdbstateGetView, f)
 }
 
-func MockConfdbstateSetViaView(f func(confdb.DataBag, *confdb.View, map[string]interface{}) error) (restore func()) {
+func MockConfdbstateSetViaView(f func(confdb.Databag, *confdb.View, map[string]interface{}) error) (restore func()) {
 	return testutil.Mock(&confdbstateSetViaView, f)
 }
 
 func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
+}
+
+func MockConfdbstateLoadConfdbAsync(f func(_ *state.State, _ *confdb.View, _ []string) (string, error)) (restore func()) {
+	return testutil.Mock(&confdbstateLoadConfdbAsync, f)
+}
+
+func ValidateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiError {
+	return validateFeatureFlag(st, feature)
+}
+
+func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error)) (restore func()) {
+	return testutil.Mock(&devicestateSignConfdbControl, f)
 }

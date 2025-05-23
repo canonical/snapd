@@ -122,6 +122,8 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		return err
 	}
 
+	logger.Trace("ensure", "manager", "ServiceManager", "func", "ensureSnapServicesUpdated")
+
 	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 
 	for _, snapSt := range allStates {

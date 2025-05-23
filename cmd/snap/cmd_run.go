@@ -35,7 +35,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -72,7 +72,7 @@ var (
 )
 
 type cmdRun struct {
-	clientMixin
+	mustWaitMixin
 	Command  string `long:"command" hidden:"yes"`
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
@@ -103,7 +103,12 @@ The run command executes the given snap command with the right confinement
 and environment.
 `),
 		func() flags.Commander {
-			return &cmdRun{}
+			return &cmdRun{
+				mustWaitMixin: mustWaitMixin{
+					noProgress: true,
+					skipAbort:  true,
+				},
+			}
 		}, map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"command": i18n.G("Alternative command to run"),
@@ -150,15 +155,28 @@ func isStopping() (bool, error) {
 	return false, err
 }
 
-func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
+const defaultSystemKeyRetryCount = 12
+
+var getSystemKeyRetryCount = func() int {
+	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY"); timeoutEnv != "" {
+		if i, err := strconv.Atoi(timeoutEnv); err == nil {
+			return i
+		}
+	}
+
+	return defaultSystemKeyRetryCount
+}
+
+func maybeCheckSystemKeyMismatch(cli *client.Client) (changeID string, err error) {
 	extraData := interfaces.SystemKeyExtraData{
 		AppArmorPrompting: features.AppArmorPrompting.IsEnabled(),
 	}
+
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	mismatch, err := interfaces.SystemKeyMismatch(extraData)
+	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
 	if err == nil && !mismatch {
-		return nil
+		return "", nil
 	}
 	// something went wrong with the system-key compare, try to
 	// reach snapd before continuing
@@ -175,7 +193,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	}
 	if stopping {
 		logger.Debugf("ignoring system key mismatch during system shutdown/reboot")
-		return nil
+		return "", nil
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
@@ -190,30 +208,72 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// is to fix the packaging so that snapd is stopped, upgraded
 	// and started.
 	//
-	// connect timeout for client is 5s on each try, so 12*5s = 60s
-	timeout := 12
-	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY"); timeoutEnv != "" {
-		if i, err := strconv.Atoi(timeoutEnv); err == nil {
-			timeout = i
-		}
-	}
+	// connect timeout for client is 5s on each try, default retry count is 12,
+	// gives 60s of timeout
+	retryCount := getSystemKeyRetryCount()
 
 	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
+	logger.Debugf("my system key: %v", my)
 
-	for i := 0; i < timeout; i++ {
-		// TODO: we could also check cli.Maintenance() here too in case snapd is
-		// down semi-permanently for a refresh, but what message do we show to
-		// the user or what do we do if we know snapd is down for maintenance?
-		if _, err := cli.SysInfo(); err == nil {
-			return nil
-		} else {
-			logger.Debugf("cannot obtain system info: %v", err)
+	for i := 0; i < retryCount; i++ {
+		// refreshes the state of snapd maintenance internally
+		act, err := cli.SystemKeyMismatchAdvice(my)
+		if err == nil {
+			// we have an explicit response from snapd
+			switch act.SuggestedAction {
+			case client.MismatchActionProceed:
+				// we're good to go
+				logger.Debugf("continue execution")
+				return "", nil
+			case client.MismatchActionWaitForChange:
+				// snapd sent us an ID of a change to wait for
+				logger.Debugf("snapd started a regenerate profiles change with ID: %v", act.ChangeID)
+				return act.ChangeID, nil
+			default:
+				return "", fmt.Errorf("internal error: unexpected advice: %q", act.SuggestedAction)
+			}
 		}
+
+		// an error, which could be anything from socket being down, to
+		// relevant method, or our system-key version not being supported by the
+		// API if we're talking to an older snapd, or snapd is simply updating
+		restarting := false
+		if maintErr, ok := cli.Maintenance().(*client.Error); ok && maintErr.Kind == client.ErrorKindDaemonRestart {
+			restarting = true
+		}
+
+		var rspError *client.Error
+		if !restarting && errors.Is(err, client.ErrMismatchAdviceUnsupported) {
+			// snapd does not support system-key mismatch resolution, but it is
+			// responding, so we either woke it up or it was already running. In
+			// the context of home directories on NFS-like mounts, if we woke up
+			// snapd, the profiles would have regenerated and thus would account
+			// for our network mounted home. If snapd was already running when
+			// we poked it, and the security profiles may or may not be up to
+			// date, but since we're misisng an API there is no way for us to
+			// tell snapd to do the update
+			logger.Debugf("system-key mismatch advice not supported by snapd")
+			return "", nil
+		} else if errors.As(err, &rspError) {
+			// actual response error
+			if !restarting || rspError.Kind != client.ErrorKindSystemKeyVersionUnsupported {
+				logger.Debugf("ignoring system-key mismatch error: %v", err)
+				return "", nil
+			}
+
+			// edge case when the system-key version we sent is not
+			// supported by snapd, but the daemon appears to be restarting,
+			// hopefully as part of a refresh, and so it makes sense to try again
+			logger.Debugf("system-key version unsupported by snapd, but daemon is restarting")
+		} else {
+			logger.Debugf("cannot obtain system-key mismatch action: %v", err)
+		}
+		// TODO: use ticker
 		// sleep a little bit for good measure
-		time.Sleep(1 * time.Second)
+		<-timeAfter(1 * time.Second)
 	}
 
-	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
+	return "", fmt.Errorf("timeout waiting for snap system profiles to get updated")
 }
 
 func (x *cmdRun) Usage() string {
@@ -248,8 +308,16 @@ func (x *cmdRun) Execute(args []string) error {
 
 	logger.StartupStageTimestamp("start")
 
-	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
+	regenProfilesChangeID, err := maybeCheckSystemKeyMismatch(x.client)
+	if err != nil {
 		return err
+	}
+
+	if regenProfilesChangeID != "" {
+		logger.Debugf("waiting for security profiles regeneration change: %v", regenProfilesChangeID)
+		if _, err := x.wait(regenProfilesChangeID); err != nil {
+			logger.Debugf("profile regeneration change failed: %v", err)
+		}
 	}
 
 	// Now actually handle the dispatching

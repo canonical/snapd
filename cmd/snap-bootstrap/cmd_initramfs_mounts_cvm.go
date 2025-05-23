@@ -22,6 +22,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -305,6 +306,20 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 			if err := createOverlayDirs(pm.Where); err != nil {
 				return err
 			}
+		}
+	}
+
+	if createSysrootMount() {
+		// Create unit for sysroot. We restrict this to Ubuntu 24+ for
+		// the moment, until we backport necessary changes to the
+		// UC20/22 initramfs. Note that a transient unit is not used as
+		// it tries to be restarted after the switch root, and fails.
+		rootfsDir := boot.InitramfsDataDir
+		if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+			return fmt.Errorf("cannot write sysroot.mount (what: %s): %w", rootfsDir, err)
+		}
+		if err := recalculateRootfsTarget(); err != nil {
+			return err
 		}
 	}
 

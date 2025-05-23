@@ -1,3 +1,21 @@
+ubuntu-core-initramfs (71+2.69+g104.4871148+25.04) plucky; urgency=medium
+
+  * Update to snapd version 2.69+g104.4871148
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Wed, 30 Apr 2025 13:14:10 -0400
+
+ubuntu-core-initramfs (71+2.68.2+g116.194fb1d+25.04) plucky; urgency=medium
+
+  * Update to snapd version 2.68.2+g116.194fb1d
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Fri, 07 Mar 2025 17:02:35 -0500
+
+ubuntu-core-initramfs (71+2.68.2+25.04) plucky; urgency=medium
+
+  * Update to snapd version 2.68.2
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Mon, 03 Mar 2025 09:38:49 -0500
+
 ubuntu-core-initramfs (71+2.68+g387.699b1b4+24.10ubuntu1) plucky; urgency=medium
 
   * First plucky release

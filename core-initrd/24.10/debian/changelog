@@ -1,3 +1,21 @@
+ubuntu-core-initramfs (70+2.69+g104.4871148+24.10) oracular; urgency=medium
+
+  * Update to snapd version 2.69+g104.4871148
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Wed, 30 Apr 2025 13:13:39 -0400
+
+ubuntu-core-initramfs (70+2.68.2+g116.194fb1d+24.10) oracular; urgency=medium
+
+  * Update to snapd version 2.68.2+g116.194fb1d
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Fri, 07 Mar 2025 17:02:21 -0500
+
+ubuntu-core-initramfs (70+2.68.2+24.10) oracular; urgency=medium
+
+  * Update to snapd version 2.68.2
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Mon, 03 Mar 2025 09:38:27 -0500
+
 ubuntu-core-initramfs (70+2.68+g387.699b1b4+24.10) oracular; urgency=medium
 
   * Update to snapd version 2.68+g387.699b1b4

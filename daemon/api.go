@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -41,7 +42,7 @@ var api = []*Command{
 	sysInfoCmd,
 	loginCmd,
 	logoutCmd,
-	appIconCmd,
+	snapIconCmd,
 	findCmd,
 	snapsCmd,
 	snapCmd,
@@ -83,6 +84,7 @@ var api = []*Command{
 	quotaGroupsCmd,
 	quotaGroupInfoCmd,
 	confdbCmd,
+	confdbControlCmd,
 	noticesCmd,
 	noticeCmd,
 	requestsPromptsCmd,
@@ -99,8 +101,11 @@ const (
 	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
 )
 
-// userFromRequest extracts user information from request and return the respective user in state, if valid
-// It requires the state to be locked
+// userFromRequest extracts user information from request and return the
+// respective user in state, if valid.
+//
+// Locks state to check authentication, if headers are valid, so the caller
+// must not hold the state lock.
 func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
@@ -128,6 +133,8 @@ func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 		return nil, fmt.Errorf("invalid authorization header")
 	}
 
+	st.Lock()
+	defer st.Unlock()
 	user, err := auth.CheckMacaroon(st, macaroon, discharges)
 	return user, err
 }
@@ -173,10 +180,12 @@ var (
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 	assertstateFetchAllValidationSets        = assertstate.FetchAllValidationSets
 
-	confdbstateGetView        = confdbstate.GetView
-	confdbstateGetTransaction = confdbstate.GetTransactionToModify
-	confdbstateGet            = confdbstate.Get
-	confdbstateSetViaView     = confdbstate.SetViaView
+	confdbstateGetView             = confdbstate.GetView
+	confdbstateGetTransactionToSet = confdbstate.GetTransactionToSet
+	confdbstateSetViaView          = confdbstate.SetViaView
+	confdbstateLoadConfdbAsync     = confdbstate.LoadConfdbAsync
+
+	devicestateSignConfdbControl = (*devicestate.DeviceManager).SignConfdbControl
 )
 
 func ensureStateSoonImpl(st *state.State) {

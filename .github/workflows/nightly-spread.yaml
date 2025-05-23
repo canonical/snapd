@@ -19,6 +19,9 @@ on:
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
+          - spread-master-fundamental
+          - spread-master-not-fundamental
+          - spread-master-nested
 
 jobs:
 
@@ -45,7 +48,7 @@ jobs:
       tasks: 'tests/...'
       rules: ''
       use-snapd-snap-from-master: true
-      spread-snapd-deb-from-repo: false
+      spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC=0 SPREAD_SNAP_REEXEC=0"
     strategy:
       fail-fast: false
       matrix:
@@ -84,14 +87,15 @@ jobs:
         id: read-systems
         shell: bash
         run: |
-          echo "fundamental-systems=$(jq -c . ./.github/workflows/fundamental-systems.json)" >> $GITHUB_OUTPUT
-          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/non-fundamental-systems.json)" >> $GITHUB_OUTPUT
-          echo "nested-systems=$(jq -c . ./.github/workflows/nested-systems.json)" >> $GITHUB_OUTPUT
+          echo "fundamental-systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
 
   spread-master-fundamental:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -105,6 +109,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       is-fundamental: true
+      use-snapd-snap-from-master: true
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -113,6 +118,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-not-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -125,6 +131,7 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -133,6 +140,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-nested') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
+    needs: [read-systems]
     with:
       # Github doesn't support passing sequences as parameters.
       # Instead here we create a json array and pass it as a string.
@@ -145,6 +153,7 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}

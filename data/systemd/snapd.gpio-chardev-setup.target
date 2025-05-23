@@ -1,0 +1,4 @@
+[Unit]
+Description=Synchronization target for gpio-chardev interface setup
+# Started from gpio-chardev setup services
+# X-Snapd-Snap: do-not-start

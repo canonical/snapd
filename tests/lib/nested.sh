@@ -20,9 +20,14 @@
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
 : "${NESTED_UBUNTU_SEED_SIZE:=}"
+: "${NESTED_KEEP_FIRMWARE_STATE:=}"
+: "${NESTED_BIOS_FILE:=}"
+: "${NESTED_ENABLE_ARM_TRUSTZONE:=false}"
 
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
+
+: "${NESTED_PASSPHRASE:=}"
 
 nested_wait_for_ssh() {
     local retry=${1:-800}
@@ -194,7 +199,10 @@ nested_is_kvm_enabled() {
         [ "$NESTED_ENABLE_KVM" = true ]
     fi
     return 0
+}
 
+nested_is_kvm_supported() {
+    test -e /dev/kvm
 }
 
 nested_is_tpm_enabled() {
@@ -206,8 +214,13 @@ nested_is_tpm_enabled() {
                 return 1
                 ;;
             ubuntu-2*)
-                # TPM enabled by default on 20.04 and later
-                return 0
+                if os.query is-arm; then
+                    # TPM disabled by default on arm
+                    return 1
+                else 
+                    # TPM enabled by default on 20.04 and later
+                    return 0
+                fi
                 ;;
             *)
                 echo "unsupported system"
@@ -226,8 +239,13 @@ nested_is_secure_boot_enabled() {
                 return 1
                 ;;
             ubuntu-2*)
-                # secure boot enabled by default on 20.04 and later
-                return 0
+                if os.query is-arm; then
+                    # secure boot disabled by default on arm
+                    return 1
+                else 
+                    # secure boot enabled by default on 20.04 and later
+                    return 0
+                fi
                 ;;
             *)
                 echo "unsupported system"
@@ -594,6 +612,9 @@ nested_get_model() {
          ubuntu-24.04-64)
             echo "$TESTSLIB/assertions/nested-24-amd64.model"
             ;;
+        ubuntu-24.04-arm-64)
+            echo "$TESTSLIB/assertions/nested-24-arm64.model"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -759,6 +780,8 @@ EOF
                 # add snapd debug and log to serial console for extra
                 # visibility what happens when a machine fails to boot
                 GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            elif os.query is-arm; then
+                GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
 
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
@@ -982,7 +1005,7 @@ nested_create_core_vm() {
             BOOTVOLUME=pc
             if [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml | tr -d '"')"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
                     echo "please inspect it and make sure it looks as expected"
@@ -1168,6 +1191,10 @@ nested_ensure_ovmf() {
         snap download --channel=latest/edge test-snapd-ovmf --basename=test-snapd-ovmf --target-directory="${NESTED_ASSETS_DIR}"
     fi
     unsquashfs -d "${NESTED_ASSETS_DIR}/ovmf" "${NESTED_ASSETS_DIR}/test-snapd-ovmf.snap"
+    
+    if os.query is-arm; then
+        cp /usr/share/AAVMF/* "${NESTED_ASSETS_DIR}/ovmf/fw"
+    fi
 }
 
 nested_force_start_vm() {
@@ -1189,9 +1216,12 @@ nested_start_core_vm_unit() {
     # use only 2G of RAM for qemu-nested
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
-    if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
+    elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-4}"
@@ -1219,6 +1249,9 @@ nested_start_core_vm_unit() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
+    local PASSPHRASE
+    PASSPHRASE=${NESTED_PASSPHRASE}
+
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -1226,6 +1259,10 @@ nested_start_core_vm_unit() {
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
+        if [ -z "$PASSPHRASE" ]; then
+            echo "internal error: NESTED_PASSPHRASE is set and qemu doesn't support chardev over socket"
+            exit 1
+        fi
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
@@ -1236,42 +1273,16 @@ nested_start_core_vm_unit() {
     nested_save_serial_log
 
     # Set kvm attribute
-    local ATTR_KVM
+    local ATTR_KVM PARAM_CPU PARAM_MACHINE
     ATTR_KVM=""
-    if nested_is_kvm_enabled; then
+    if nested_is_kvm_enabled && nested_is_kvm_supported; then
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
         PARAM_CPU="-cpu host"
     fi
 
-    local PARAM_MACHINE
-    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
-        if os.query is-arm; then
-            PARAM_MACHINE="-machine virt${ATTR_KVM}"
-            PARAM_CPU="-cpu host"
-        else
-            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        fi
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        # check if we have nested kvm
-        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
-            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        else
-            # and if not reset kvm related parameters
-            PARAM_MACHINE=""
-            PARAM_CPU=""
-            ATTR_KVM=""
-        fi
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
-    fi
-    
-    local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
+    local PARAM_ASSERTIONS
     PARAM_ASSERTIONS=""
-    PARAM_BIOS=""
-    PARAM_TPM=""
-    PARAM_REEXEC_ON_FAILURE=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
         # TODO: fix using the old way of an ext4 formatted drive w/o partitions
         #       as this used to work but has since regressed
@@ -1283,28 +1294,71 @@ nested_start_core_vm_unit() {
         # storage to
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
+
+    local PARAM_BIOS PARAM_TPM PARAM_IMAGE
+    PARAM_BIOS=""
+    PARAM_TPM=""
+    PARAM_REEXEC_ON_FAILURE=""
+
+    if nested_is_core_lt 20; then
+        if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+            # check if we have nested kvm
+            if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+                PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+            else
+                # and if not reset kvm related parameters
+                PARAM_MACHINE=""
+                PARAM_CPU=""
+                ATTR_KVM=""
+            fi
+        else
+            echo "unknown spread backend $SPREAD_BACKEND"
+            exit 1
+        fi
+    fi
+
     if nested_is_core_ge 20; then
         nested_ensure_ovmf
-        local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
+        local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF 
         if os.query is-arm; then
-            OVMF=QEMU
+            OVMF=AAVMF
+            OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.ms.fd"
         else
             OVMF=OVMF
+            OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
         fi
         OVMF_CODE="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_CODE.fd"
         OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
-        OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
         OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
 
-        if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
+        if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
             if nested_is_secure_boot_enabled; then
                 cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
             else
                 cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
             fi
         fi
-        PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
-        PARAM_MACHINE="-machine q35${ATTR_KVM}"
+
+        if [ -z "$NESTED_BIOS_FILE" ]; then
+            PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+        else
+            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on  -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+        fi
+
+        local ENABLE_ARM_TRUSTZONE
+        ENABLE_ARM_TRUSTZONE=""
+        if [ "$NESTED_ENABLE_ARM_TRUSTZONE" = true ]; then
+            ENABLE_ARM_TRUSTZONE=",secure=on"
+        fi
+    
+        if os.query is-arm; then
+            PARAM_MACHINE="-machine virt${ENABLE_ARM_TRUSTZONE} -accel tcg,thread=multi"
+            PARAM_CPU="-cpu cortex-a57"
+        else
+            PARAM_MACHINE="-machine q35${ATTR_KVM}"
+        fi
 
         if nested_is_tpm_enabled; then
             if snap list test-snapd-swtpm >/dev/null; then
@@ -1366,6 +1420,13 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
+
+    if [ -n "$PASSPHRASE" ]; then
+        # Wait for passphrase prompt from serial log file.
+        retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
+        # Enter passphrase to continue boot.
+        echo "$PASSPHRASE" | netcat -N localhost 7777
+    fi
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1534,6 +1595,9 @@ nested_start_classic_vm() {
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
+    elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
@@ -1704,6 +1768,23 @@ nested_prepare_tools() {
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
         remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
     fi
+
+    if [ -n "$TAG_FEATURES" ]; then
+        # If feature tagging is enabled, then we need to enable debug logging
+        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+        remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_TRACE=1 SNAPD_JSON_LOGGING=1\n' | sudo tee /etc/systemd/system/snapd.service.d/99-feature-tags.conf"
+        # Persist journal logs
+        remote.exec "sudo snap set system journal.persistent=true"
+        # Add trace structured logging to journal for snap commands
+        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
+        # We changed the service configuration so we need to reload and restart
+        # the units to get them applied
+        remote.exec "sudo systemctl daemon-reload"
+        # stop the socket (it pulls down the service)
+        remote.exec "sudo systemctl stop snapd.socket"
+        # start the service (it pulls up the socket)
+        remote.exec "sudo systemctl start snapd.service"
+    fi
 }
 
 nested_add_tty_chardev() {
@@ -1725,6 +1806,16 @@ nested_add_usb_serial_device() {
     local SERIAL_NUM=$3
     echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID,serial=$SERIAL_NUM" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
     echo "device added"
+}
+
+nested_add_usb_drive() {
+    local DEVICE_ID=$1
+    local DRIVE_FILE=$2
+
+    # A device_del of $DEVICE_ID also will remove the drive
+    echo "drive_add 0 if=none,file=$DRIVE_FILE,format=raw,id=rawdisk" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
+    echo "device_add usb-storage,drive=rawdisk,id=$DEVICE_ID" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
+    echo "USB drive device added"
 }
 
 nested_del_device() {

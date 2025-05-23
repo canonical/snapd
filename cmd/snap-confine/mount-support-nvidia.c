@@ -52,14 +52,14 @@ static const char *vulkan_globs[] = {
     "icd.d/*nvidia*.json",
 };
 
-static const size_t vulkan_globs_len = sizeof vulkan_globs / sizeof *vulkan_globs;
+static const size_t vulkan_globs_len = SC_ARRAY_SIZE(vulkan_globs);
 
 // Location of EGL vendor files
 static const char *egl_vendor_globs[] = {
     "egl_vendor.d/*nvidia*.json",
 };
 
-static const size_t egl_vendor_globs_len = sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
+static const size_t egl_vendor_globs_len = SC_ARRAY_SIZE(egl_vendor_globs);
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -162,14 +162,14 @@ static const char *nvidia_globs[] = {
     "libcudnn_ops_train*",
 };
 
-static const size_t nvidia_globs_len = sizeof nvidia_globs / sizeof *nvidia_globs;
+static const size_t nvidia_globs_len = SC_ARRAY_SIZE(nvidia_globs);
 
 static const char *glvnd_globs[] = {
     "libEGL.so*",          "libGL.so*",  "libOpenGL.so*",     "libGLESv1_CM.so*", "libGLESv2.so*",
     "libGLX_indirect.so*", "libGLX.so*", "libGLdispatch.so*", "libGLU.so*",
 };
 
-static const size_t glvnd_globs_len = sizeof glvnd_globs / sizeof *glvnd_globs;
+static const size_t glvnd_globs_len = SC_ARRAY_SIZE(glvnd_globs);
 
 #endif  // defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -219,11 +219,9 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir, const 
             // more directories below source_dir. Make sure to recreate the whole
             // prefix
             sc_must_snprintf(prefix_dir, sizeof prefix_dir, "%s%s", libgl_dir, &directory_name[source_dir_len]);
-            sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-            if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
+            if (sc_nonfatal_mkpath(prefix_dir, 0755, 0, 0) != 0) {
                 die("failed to create prefix path: %s", prefix_dir);
             }
-            (void)sc_set_effective_identity(old);
         }
 
         struct stat stat_buf;
@@ -280,16 +278,9 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char
     sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
     const char *libgl_dir = buf;
 
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    int res = mkdir(libgl_dir, 0755);
-    if (res != 0 && errno != EEXIST) {
+    if (sc_ensure_mkdir(libgl_dir, 0755, 0, 0) != 0) {
         die("cannot create tmpfs target %s", libgl_dir);
     }
-    if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of %s", libgl_dir);
-    }
-    (void)sc_set_effective_identity(old);
 
     debug("mounting tmpfs at %s", libgl_dir);
     if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
@@ -331,7 +322,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
         NATIVE_LIBDIR,
         NATIVE_LIBDIR "/nvidia*",
     };
-    const size_t native_sources_len = sizeof native_sources / sizeof *native_sources;
+    const size_t native_sources_len = SC_ARRAY_SIZE(native_sources);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
     // Alternative 32-bit support
@@ -339,7 +330,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
         LIB32_DIR,
         LIB32_DIR "/nvidia*",
     };
-    const size_t lib32_sources_len = sizeof lib32_sources / sizeof *lib32_sources;
+    const size_t lib32_sources_len = SC_ARRAY_SIZE(lib32_sources);
 #endif
 
     // Primary arch
@@ -417,16 +408,9 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir, const char *src_
     if (access(src, F_OK) != 0) {
         return;
     }
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    int res = mkdir(dst, 0755);
-    if (res != 0 && errno != EEXIST) {
+    if (sc_ensure_mkdir(dst, 0755, 0, 0) != 0) {
         die("cannot create directory %s", dst);
     }
-    if (res == 0 && (chown(dst, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of %s", dst);
-    }
-    (void)sc_set_effective_identity(old);
     // Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
     debug("bind mounting nvidia driver %s -> %s", src, dst);
     if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -470,7 +454,7 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
         // initialize native_sources accordingly, but calculate the array length
         // dynamically to make adjustments to native_sources easier.
         const char *native_sources[] = {native_libdir};
-        const size_t native_sources_len = sizeof native_sources / sizeof *native_sources;
+        const size_t native_sources_len = SC_ARRAY_SIZE(native_sources);
         // Primary arch
         sc_mkdir_and_mount_and_glob_files(rootfs_dir, native_sources, native_sources_len, SC_LIBGL_DIR, globs,
                                           globs_len);
@@ -481,7 +465,7 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
             // initialize lib32_sources accordingly, but calculate the array length
             // dynamically to make adjustments to lib32_sources easier.
             const char *lib32_sources[] = {lib32_libdir};
-            const size_t lib32_sources_len = sizeof lib32_sources / sizeof *lib32_sources;
+            const size_t lib32_sources_len = SC_ARRAY_SIZE(lib32_sources);
             sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources, lib32_sources_len, SC_LIBGL32_DIR, globs,
                                               globs_len);
         }
@@ -499,7 +483,7 @@ static void sc_mount_vulkan(const char *rootfs_dir) {
     const char *vulkan_sources[] = {
         SC_VULKAN_SOURCE_DIR,
     };
-    const size_t vulkan_sources_len = sizeof vulkan_sources / sizeof *vulkan_sources;
+    const size_t vulkan_sources_len = SC_ARRAY_SIZE(vulkan_sources);
 
     sc_mkdir_and_mount_and_glob_files(rootfs_dir, vulkan_sources, vulkan_sources_len, SC_VULKAN_DIR, vulkan_globs,
                                       vulkan_globs_len);
@@ -507,7 +491,7 @@ static void sc_mount_vulkan(const char *rootfs_dir) {
 
 static void sc_mount_egl(const char *rootfs_dir) {
     const char *egl_vendor_sources[] = {SC_EGL_VENDOR_SOURCE_DIR};
-    const size_t egl_vendor_sources_len = sizeof egl_vendor_sources / sizeof *egl_vendor_sources;
+    const size_t egl_vendor_sources_len = SC_ARRAY_SIZE(egl_vendor_sources);
 
     sc_mkdir_and_mount_and_glob_files(rootfs_dir, egl_vendor_sources, egl_vendor_sources_len, SC_GLVND_DIR,
                                       egl_vendor_globs, egl_vendor_globs_len);
@@ -519,16 +503,9 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) 
         return;
     }
 
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
-    if (res != 0) {
+    if (sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755, 0, 0) != 0) {
         die("cannot create " SC_EXTRA_LIB_DIR);
     }
-    if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of " SC_EXTRA_LIB_DIR);
-    }
-    (void)sc_set_effective_identity(old);
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
     /* We include the globs for the glvnd libraries for old snaps

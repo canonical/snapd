@@ -37,7 +37,6 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
-	PolkitPoliciesSupported     = polkitPoliciesSupported
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
@@ -153,6 +152,10 @@ func MockApparmorGenerateAAREExclusionPatterns(fn func(excludePatterns []string,
 
 func MockDesktopFilesFromInstalledSnap(fn func(s *snap.Info) ([]string, error)) (restore func()) {
 	return testutil.Mock(&desktopFilesFromInstalledSnap, fn)
+}
+
+func MockGpioCheckConfigfsSupport(fn func() error) (restore func()) {
+	return testutil.Mock(&gpioCheckConfigfsSupport, fn)
 }
 
 func AllowedKernelMountOptions() []string {

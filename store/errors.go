@@ -66,7 +66,7 @@ var (
 	// ErrLocalSnap is returned when an operation that only applies to snaps that come from a store was attempted on a local snap.
 	ErrLocalSnap = errors.New("cannot perform operation on local snap")
 
-	// ErrNoUpdateAvailable is returned when an update is attempetd for a snap that has no update available.
+	// ErrNoUpdateAvailable is returned when an update is attempted for a snap that has no update available.
 	ErrNoUpdateAvailable = errors.New("snap has no updates available")
 )
 

@@ -1,0 +1,84 @@
+name: State Locks Checker
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * 0'
+
+jobs:
+  run-spread-tests:
+    uses: ./.github/workflows/spread-tests.yaml
+    name: "spread ${{ matrix.group }}"
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+      use-snapd-snap-from-master: true
+      spread-env: "SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS=1000"
+      upload-artifacts: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: "ubuntu-24.04"
+            backend: "google"
+            systems: "ubuntu-24.04-64"
+            tasks: "tests/main/"
+            rules: "main"
+          - group: "ubuntu-core-24"
+            backend: "google-core"
+            systems: "ubuntu-core-24-64"
+            tasks: "tests/core/"
+            rules: "main"
+
+  create-reports:
+    runs-on: ubuntu-latest
+    needs: [run-spread-tests]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get generated data
+        uses: actions/download-artifact@v4
+        with:
+          path: state-locks-artifacts
+          pattern: spread-artifacts-*
+          merge-multiple: true
+
+      - name: Prepare artifacts
+        run: |
+          mkdir workdir
+          for file in "state-locks-artifacts"/*; do
+            tar -xzf "$file" -C workdir
+          done
+
+      - name: Get the baseline traces file
+        run: |
+          curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/state_locks_baseline.traces > state_locks_baseline.traces
+
+      - name: Generate report
+        run: |
+          find ./workdir/spread-artifacts/state-locks -name snapd_lock_traces -exec cat {} ';' > state_locks.log
+          ./tests/utils/state-locks/filter.py -f state_locks.log --list-traces > state_locks.traces
+          tar -czf "state-locks-${{ github.run_id }}.tar.gz" state_locks.log
+
+      - name: Generate diff
+        run: |
+          ./tests/utils/state-locks/traces_diff.py -b state_locks_baseline.traces -f state_locks.traces > diff.traces
+          if [ -z "$(cat diff.traces)" ]; then
+            echo "No new traces found in state locks file"
+          else
+            echo "New traces found in state locks file:"
+            cat diff.traces
+            exit 1
+          fi
+
+      - name: Upload state locks data
+        uses: actions/upload-artifact@v4
+        with:
+          name: "state-locks-${{ github.run_id }}"
+          path: "state-locks-${{ github.run_id }}.tar.gz"

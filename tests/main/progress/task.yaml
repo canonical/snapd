@@ -4,18 +4,6 @@ details: |
   Verify that progress reporting from snap command works as expected depending
   on whether the command is ran with a tty attached or not.
 
-systems:
-  # no way to install socat
-  - -ubuntu-core-*
-  # observed to fail randomly?
-  # TODO investigate once we can spin up instances in openstack manually
-  - -fedora-*
-  # has socat 1.7.4.x which handles timeout in a buggy way
-  - -centos-*
-
-prepare: |
-  tests.pkgs install socat
-
 execute: |
   echo "Minimal status reported when stdout is redirected"
   # no stdin, stdout to a pipe
@@ -31,8 +19,14 @@ execute: |
   (
   # work around progress.go check for SPREAD_SYSTEM
   unset SPREAD_SYSTEM;
-  socat -dddd -T30 system:'snap install test-snapd-tools-core24',pty,raw,echo=0 - | tr '\r' '\n' > tty-install.log
-  socat -dddd -T30 system:'snap remove test-snapd-tools-core24',pty,raw,echo=0 - | tr '\r' '\n' > tty-remove.log
+
+  faketty() {
+    script -qefc "$(printf "%q " "$@")" /dev/null
+  }
+
+  faketty snap install test-snapd-tools-core24 | tr '\r' '\n' > tty-install.log
+  faketty snap remove test-snapd-tools-core24 | tr '\r' '\n' > tty-remove.log
+
   )
   # more than one line for each operation
   test "$(wc -l < tty-install.log)" -gt "1"

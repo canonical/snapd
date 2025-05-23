@@ -37,8 +37,7 @@ func GetLoggerFlags() int {
 	if !ok {
 		return -1
 	}
-
-	return log.log.Flags()
+	return log.flags
 }
 
 func GetQuiet() bool {

@@ -71,6 +71,10 @@ func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap
 	panic("Store.DownloadStream not expected")
 }
 
+func (Store) DownloadIcon(context.Context, string, string, string) error {
+	panic("Store.DownloadIcon not expected")
+}
+
 func (Store) SuggestedCurrency() string {
 	panic("Store.SuggestedCurrency not expected")
 }

@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -299,52 +298,110 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux", "xyz"})
 
+	// Also test boolean file features
+	file, err := os.OpenFile(filepath.Join(d, featuresSysPath, "bar", "feat1"), os.O_CREATE, 0o644)
+	c.Assert(err, IsNil)
+	c.Assert(file.Close(), IsNil)
+	file, err = os.OpenFile(filepath.Join(d, featuresSysPath, "bar", "feat2"), os.O_CREATE, 0o644)
+	c.Assert(err, IsNil)
+	c.Assert(file.Close(), IsNil)
+	file, err = os.OpenFile(filepath.Join(d, featuresSysPath, "foo", "qux", "v3"), os.O_CREATE, 0o644)
+	c.Assert(err, IsNil)
+	c.Assert(file.Close(), IsNil)
+	file, err = os.OpenFile(filepath.Join(d, featuresSysPath, "foo", "qux", "v5"), os.O_CREATE, 0o644)
+	c.Assert(err, IsNil)
+	c.Assert(file.Close(), IsNil)
+	features, err = apparmor.ProbeKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"bar", "bar:feat1", "bar:feat2", "foo", "foo:baz", "foo:qux", "foo:qux:v3", "foo:qux:v5", "xyz"})
+
 	// Also test that prompt feature is read from permstable32 if it exists
 	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	for _, testCase := range []struct {
 		permstableContent string
-		expectedSuffixes  []string
+		expectedFeatures  []string
 	}{
 		{
 			"allow deny prompt fizz buzz",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:allow",
+				"policy:permstable32:buzz",
+				"policy:permstable32:deny",
+				"policy:permstable32:fizz",
+				"policy:permstable32:prompt",
+			},
 		},
 		{
 			"allow  deny prompt fizz   buzz ",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:allow",
+				"policy:permstable32:buzz",
+				"policy:permstable32:deny",
+				"policy:permstable32:fizz",
+				"policy:permstable32:prompt",
+			},
 		},
 		{
 			"allow  deny\nprompt fizz \n  buzz",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:allow",
+				"policy:permstable32:buzz",
+				"policy:permstable32:deny",
+				"policy:permstable32:fizz",
+				"policy:permstable32:prompt",
+			},
 		},
 		{
 			"allow  deny\nprompt fizz \n  buzz\n ",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:allow",
+				"policy:permstable32:buzz",
+				"policy:permstable32:deny",
+				"policy:permstable32:fizz",
+				"policy:permstable32:prompt",
+			},
 		},
 		{
 			"fizz",
-			[]string{"fizz"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:fizz",
+			},
 		},
 		{
 			"\n\n\nfizz\n\nbuzz",
-			[]string{"buzz", "fizz"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:buzz",
+				"policy:permstable32:fizz",
+			},
 		},
 		{
 			"fizz\tbuzz",
-			[]string{"buzz", "fizz"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:buzz",
+				"policy:permstable32:fizz",
+			},
 		},
 		{
 			"fizz buzz\r\n",
-			[]string{"buzz", "fizz"},
+			[]string{
+				"policy:permstable32",
+				"policy:permstable32:buzz",
+				"policy:permstable32:fizz",
+			},
 		},
 	} {
 		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte(testCase.permstableContent), 0644), IsNil)
 		features, err = apparmor.ProbeKernelFeatures()
 		c.Assert(err, IsNil)
-		expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy"}
-		for _, suffix := range testCase.expectedSuffixes {
-			expected = append(expected, fmt.Sprintf("policy:permstable32:%s", suffix))
-		}
+		expected := []string{"bar", "bar:feat1", "bar:feat2", "foo", "foo:baz", "foo:qux", "foo:qux:v3", "foo:qux:v5", "policy"}
+		expected = append(expected, testCase.expectedFeatures...)
 		expected = append(expected, "xyz")
 		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
 	}
@@ -355,7 +412,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy", "notify"), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
-	expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify", "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz"}
+	expected := []string{"bar", "bar:feat1", "bar:feat2", "foo", "foo:baz", "foo:qux", "foo:qux:v3", "foo:qux:v5", "policy", "policy:notify", "policy:permstable32", "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz"}
 	c.Check(features, DeepEquals, expected)
 
 	// Also test that prompt feature is read from notify/user if it exists
@@ -379,11 +436,11 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "notify", "user"), []byte(testCase.userContent), 0644), IsNil)
 		features, err = apparmor.ProbeKernelFeatures()
 		c.Assert(err, IsNil)
-		expected = []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify"}
+		expected = []string{"bar", "bar:feat1", "bar:feat2", "foo", "foo:baz", "foo:qux", "foo:qux:v3", "foo:qux:v5", "policy", "policy:notify", "policy:notify:user"}
 		for _, suffix := range testCase.expectedSuffixes {
 			expected = append(expected, fmt.Sprintf("policy:notify:user:%s", suffix))
 		}
-		expected = append(expected, "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz")
+		expected = append(expected, "policy:permstable32", "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz")
 		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
 	}
 }
@@ -551,6 +608,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneVersionDependentParserFeature(c, &knownProbes, parserPath, "4.0.1", "mqueue-posix", `profile snap-test { mqueue type=posix,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "prompt", `profile snap-test { prompt /foo r,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "qipcrtr-socket", `profile snap-test { network qipcrtr dgram,}`)
+	probeOneParserFeature(c, &knownProbes, parserPath, "tags", `profile snap-test { /bar r tags=(foo),}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "unconfined", `profile snap-test flags=(unconfined) { # test unconfined}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "unsafe", `profile snap-test { change_profile unsafe /**,}`)
 	probeOneParserFeature(c, &knownProbes, parserPath, "userns", `profile snap-test { userns,}`)
@@ -626,7 +684,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "io-uring", "mqueue", "mqueue-posix", "prompt", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "io-uring", "mqueue", "mqueue-posix", "prompt", "qipcrtr-socket", "tags", "unconfined", "unsafe", "userns", "xdp"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -666,7 +724,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "io-uring", "mqueue", "mqueue-posix", "prompt", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "io-uring", "mqueue", "mqueue-posix", "prompt", "qipcrtr-socket", "tags", "unconfined", "unsafe", "userns", "xdp"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
@@ -765,7 +823,7 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 
 	// Create a file at the notify path, doesn't matter what kind of file.
 	// The actual file is a socket, but a directory will do here for convenience.
-	c.Assert(os.MkdirAll(notify.SysPath, 0o755), IsNil)
+	c.Assert(os.MkdirAll(apparmor.NotifySocketPath, 0o755), IsNil)
 	restore = apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
 	defer restore()
 
@@ -792,6 +850,56 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 		c.Check(supported, Equals, true)
 		c.Check(reason, Equals, "")
 	}
+}
+
+func (s *apparmorSuite) TestMetadataTagsSupported(c *C) {
+	for _, testCase := range []struct {
+		kernelFeatures  []string
+		parserFeatures  []string
+		expectedSupport bool
+	}{
+		{
+			kernelFeatures:  []string{"policy:notify:user:file"},
+			parserFeatures:  []string{"prompt"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:tags"},
+			parserFeatures:  []string{"prompt"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:file"},
+			parserFeatures:  []string{"tags"},
+			expectedSupport: false,
+		},
+		{
+			kernelFeatures:  []string{"policy:notify:user:tags"},
+			parserFeatures:  []string{"tags"},
+			expectedSupport: true,
+		},
+	} {
+		restore := apparmor.MockFeatures(testCase.kernelFeatures, nil, testCase.parserFeatures, nil)
+
+		result := apparmor.MetadataTagsSupported()
+		c.Check(result, Equals, testCase.expectedSupport)
+
+		restore()
+	}
+
+	// If any error occurs, metadata tagging is not supported
+	kernelFeatures := []string{"policy:notify:user:tags"}
+	parserFeatures := []string{"tags"}
+
+	restore := apparmor.MockFeatures(kernelFeatures, fmt.Errorf("kernel error"), parserFeatures, nil)
+	result := apparmor.MetadataTagsSupported()
+	c.Check(result, Equals, false)
+	restore()
+
+	restore = apparmor.MockFeatures(kernelFeatures, nil, parserFeatures, fmt.Errorf("parser error"))
+	result = apparmor.MetadataTagsSupported()
+	c.Check(result, Equals, false)
+	restore()
 }
 
 func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
@@ -862,7 +970,7 @@ func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 	// with no info file should indicate it does not support reexec
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
 
-	d := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	d := dirs.DistroLibExecDir
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	infoFile := filepath.Join(d, "info")
 	c.Assert(os.WriteFile(infoFile, []byte("VERSION=foo"), 0644), IsNil)
@@ -900,6 +1008,15 @@ func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
 
 	apparmor.SetupConfCacheDirs("/newdir")
 	c.Check(apparmor.SnapConfineAppArmorDir, Equals, "/newdir/var/lib/snapd/apparmor/snap-confine.internal")
+}
+
+func (s *apparmorSuite) TestSetupNotifySocketPath(c *C) {
+	apparmor.SetupNotifySocketPath("/newdir")
+	c.Check(apparmor.NotifySocketPath, Equals, "/newdir/sys/kernel/security/apparmor/.notify")
+
+	newRoot := c.MkDir()
+	dirs.SetRootDir(newRoot)
+	c.Check(apparmor.NotifySocketPath, Equals, filepath.Join(newRoot, "/sys/kernel/security/apparmor/.notify"))
 }
 
 func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicyErr(c *C) {

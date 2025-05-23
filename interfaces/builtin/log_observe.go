@@ -74,6 +74,10 @@ const logObserveConnectedPlugAppArmor = `
 capability dac_override,
 `
 
+var logObserveConnectedPlugUDev = []string{
+	`KERNEL=="kmsg"`,
+}
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "log-observe",
@@ -82,5 +86,6 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  logObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
+		connectedPlugUDev:     logObserveConnectedPlugUDev,
 	})
 }

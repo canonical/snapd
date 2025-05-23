@@ -34,22 +34,23 @@ func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
 	return ok
 }
 
-// addImplicitSlots adds implicitly defined slots and hotplug slots to a given snap.
+// addImplicitInterfaces adds implicitly defined plugs, slots and hotplug slots
+// to a given snap.
 //
-// Only the OS snap has implicit and hotplug slots.
+// Only the OS snap has implicit slots/plugs and hotplug slots.
 //
-// It is assumed that slots have names matching the interface name. Existing
-// slots are not changed, only missing slots are added.
-func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
-	// Implicit slots can be added to the special "snapd" snap or to snaps with
+// It is assumed that slots/plugs have names matching the interface name.
+// Existing slots/plugs are not changed, only missing ones are added.
+func addImplicitInterfaces(st *state.State, snapInfo *snap.Info) error {
+	// Implicit interfaces can be added to the special "snapd" snap or to snaps with
 	// type "os". Currently there are no other snaps that gain implicit
 	// interfaces.
 	if snapInfo.Type() != snap.TypeOS && snapInfo.Type() != snap.TypeSnapd {
 		return nil
 	}
 
-	// If the manager has chosen to put implicit slots on the "snapd" snap
-	// then stop adding them to any other core snaps.
+	// If the manager has chosen to put implicit slots/plugs on the "snapd"
+	// snap then stop adding them to any other core snaps.
 	if shouldSnapdHostImplicitSlots(mapper) && snapInfo.Type() != snap.TypeSnapd {
 		return nil
 	}
@@ -59,13 +60,19 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 		return err
 	}
 
-	// Ask each interface if it wants to be implicitly added.
+	// Ask each slot/plug if it wants to be implicitly added.
 	for _, iface := range builtin.Interfaces() {
 		si := interfaces.StaticInfoOf(iface)
 		if (release.OnClassic && si.ImplicitOnClassic) || (!release.OnClassic && si.ImplicitOnCore) {
 			ifaceName := iface.Name()
 			if _, ok := snapInfo.Slots[ifaceName]; !ok {
 				snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
+			}
+		}
+		if (release.OnClassic && si.ImplicitPlugOnClassic) || (!release.OnClassic && si.ImplicitPlugOnCore) {
+			ifaceName := iface.Name()
+			if _, ok := snapInfo.Plugs[ifaceName]; !ok {
+				snapInfo.Plugs[ifaceName] = makeImplicitPlug(snapInfo, ifaceName)
 			}
 		}
 	}
@@ -92,6 +99,14 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 
 func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {
 	return &snap.SlotInfo{
+		Name:      ifaceName,
+		Snap:      snapInfo,
+		Interface: ifaceName,
+	}
+}
+
+func makeImplicitPlug(snapInfo *snap.Info, ifaceName string) *snap.PlugInfo {
+	return &snap.PlugInfo{
 		Name:      ifaceName,
 		Snap:      snapInfo,
 		Interface: ifaceName,

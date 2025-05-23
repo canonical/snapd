@@ -1,0 +1,18 @@
+{
+	"type": "confdb-schema",
+	"account-id": "developer1",
+	"authority-id": "developer1",
+	"name": "network-ephemeral",
+	"views": {
+		"wifi-setup": {
+			"rules": [
+				{"request": "ssids", "storage": "wifi.ssids"},
+				{"request": "ssid", "storage": "wifi.ssid"},
+				{"request": "password", "storage": "wifi.psk"},
+				{"request": "status", "storage": "wifi.status"}
+			]
+		}
+	},
+	"body": "{\n  \"storage\": {\n    \"schema\": {\n      \"wifi\": {\n        \"schema\": {\n          \"psk\": {\n            \"ephemeral\": true,\n            \"type\": \"string\"\n          },\n          \"ssid\": \"string\",\n          \"ssids\": {\n            \"type\": \"array\",\n            \"unique\": true,\n            \"values\": \"string\"\n          },\n          \"status\": {\n            \"choices\": [\n              \"on\",\n              \"off\"\n            ],\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}",
+	"timestamp": "2025-03-21T11:51:32Z"
+}

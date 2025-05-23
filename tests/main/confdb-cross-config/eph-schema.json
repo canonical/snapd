@@ -1,0 +1,24 @@
+{
+	"storage": {
+		"schema": {
+			"wifi": {
+				"schema": {
+					"ssids": {
+						"type": "array",
+						"values": "string",
+						"unique": true
+					},
+					"ssid": "string",
+					"psk": {
+						"type": "string",
+						"ephemeral": true
+					},
+					"status": {
+						"type": "string",
+						"choices": ["on", "off"]
+					}
+				}
+			}
+		}
+	}
+}

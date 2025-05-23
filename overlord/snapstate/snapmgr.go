@@ -107,7 +107,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
-	auxStoreInfo
+	backend.AuxStoreInfo
 
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
@@ -150,9 +150,9 @@ type SnapSetup struct {
 	// effect on which tasks get created to update the snap.
 	AlwaysUpdate bool `json:"-"`
 
-	// Confdbs is the set of confdbs that the snap plugs, identified by
-	// account and confdb name pairs.
-	Confdbs []ConfdbID `json:"confdbs,omitempty"`
+	// PluggedConfdbIDs is the set of confdb schema IDs that the snap plugs,
+	// identified by account and confdb schema name pairs.
+	PluggedConfdbIDs []ConfdbSchemaID `json:"plugged-confdb-ids,omitempty"`
 
 	// PreUpdateKernelModuleComponents is set if the kernel-modules component
 	// that are set up, prior to any changes to the state. This is used in the
@@ -165,12 +165,12 @@ type SnapSetup struct {
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 }
 
-// ConfdbID identifies a confdb.
-type ConfdbID struct {
-	// Account is the name of the account that publishes the confdb.
+// ConfdbSchemaID identifies a confdb schema.
+type ConfdbSchemaID struct {
+	// Account is the name of the account that publishes the confdb schema.
 	Account string
-	// Confdb is the name of the confdb within the account namespace.
-	Confdb string
+	// Name is the name of the confdb schema within the account namespace.
+	Name string
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -624,7 +624,7 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		err = nil
 	}
 	if err == nil && flags&withAuxStoreInfo != 0 {
-		if err := retrieveAuxStoreInfo(info); err != nil {
+		if err := backend.RetrieveAuxStoreInfo(info); err != nil {
 			logger.Debugf("cannot read auxiliary store info for snap %q: %v", name, err)
 		}
 	}
@@ -1129,6 +1129,8 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
+
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1167,6 +1169,8 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	if fixed > 0 {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureForceDevmodeDropsDevmodeFromState")
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
@@ -1253,6 +1257,8 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureUbuntuCoreTransition")
+
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
 	var retryCount int
@@ -1285,6 +1291,7 @@ func (m *SnapManager) atSeed() error {
 		// already seeded or other error
 		return err
 	}
+	logger.Trace("ensure", "manager", "SnapManager", "func", "atSeed")
 	if err := m.autoRefresh.AtSeed(); err != nil {
 		return err
 	}
@@ -1390,6 +1397,8 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		return err
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureMountsUpdated")
+
 	if len(allStates) != 0 {
 		sysd := getSystemD()
 
@@ -1470,6 +1479,7 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 		}
 		snaps = append(snaps, info)
 	}
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDesktopFilesUpdated")
 	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
 		return err
 	}
@@ -1496,6 +1506,8 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	if !seeded {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDownloadsCleaned")
 
 	if err := cleanDownloads(m.state); err != nil {
 		return err

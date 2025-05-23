@@ -130,7 +130,7 @@ execute: |
         # These units should have been created by the initramfs
         stat /run/systemd/system/sysroot-usr-lib-firmware.mount
         stat /run/systemd/system/sysroot-usr-lib-modules.mount
-        stat /run/systemd/system/'writable-system\x2ddata-snap-pc\x2dkernel-'*
+        stat /run/systemd/system/'sysroot-writable-system\x2ddata-snap-pc\x2dkernel-'*
 
         not mountpoint /run/mnt/base
         loop="$(findmnt -o source / -n)"

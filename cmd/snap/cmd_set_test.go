@@ -184,7 +184,7 @@ func (s *confdbSuite) mockConfdbFlag(c *check.C) (restore func()) {
 	old := dirs.FeaturesDir
 	dirs.FeaturesDir = s.tmpDir
 
-	confdbCtlFile := features.Confdbs.ControlFile()
+	confdbCtlFile := features.Confdb.ControlFile()
 	c.Assert(os.WriteFile(confdbCtlFile, []byte(nil), 0644), check.IsNil)
 
 	return func() {
@@ -267,7 +267,7 @@ func (s *confdbSuite) TestConfdbSetInvalidAspectID(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "confdb identifier must conform to format: <account-id>/<confdb>/<view>")
+	c.Check(err.Error(), check.Equals, "confdb-schema view id must conform to format: <account-id>/<confdb-schema>/<view>")
 }
 
 func (s *confdbSuite) TestConfdbSetNoWait(c *check.C) {
@@ -299,7 +299,7 @@ func (s *confdbSuite) TestConfdbSetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"})
-	c.Assert(err, check.ErrorMatches, `the "confdbs" feature is disabled: set 'experimental.confdbs' to true`)
+	c.Assert(err, check.ErrorMatches, `the "confdb" feature is disabled: set 'experimental.confdb' to true`)
 }
 
 func (s *confdbSuite) TestConfdbSetExclamationMark(c *check.C) {

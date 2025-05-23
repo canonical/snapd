@@ -32,16 +32,20 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testtime"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -57,8 +61,9 @@ type requestpromptsSuite struct {
 	defaultUser         uint32
 	promptNotices       []*noticeInfo
 
-	tmpdir    string
-	maxIDPath string
+	tmpdir          string
+	legacyMaxIDPath string
+	maxIDPath       string
 }
 
 var _ = Suite(&requestpromptsSuite{})
@@ -77,11 +82,12 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.promptNotices = make([]*noticeInfo, 0)
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-	s.maxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	s.legacyMaxIDPath = filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	s.maxIDPath = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -101,7 +107,7 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -151,7 +157,7 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -193,13 +199,13 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
 	defer restore()
 
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 
 	var initialMaxID uint64 = 42
 	var initialData [8]byte
@@ -254,8 +260,253 @@ func (s *requestpromptsSuite) checkWrittenMaxID(c *C, id uint64) {
 	c.Assert(writtenID, Equals, id)
 }
 
-func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o755), IsNil)
+
+	var initialMaxID uint64 = 42
+	var initialData [8]byte
+	*(*uint64)(unsafe.Pointer(&initialData[0])) = initialMaxID
+	osutil.AtomicWriteFile(s.legacyMaxIDPath, initialData[:], 0600, 0)
+
+	pdb1, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb1.Close()
+	expectedID := initialMaxID + 1
+	nextID, err := pdb1.NextID()
+	c.Check(err, IsNil)
+	c.Check(nextID, Equals, prompting.IDType(expectedID))
+	s.checkWrittenMaxID(c, expectedID)
+
+	// Set maxIDPath to legacyMaxIDPath so checkWrittenID checks legacy path.
+	// Since the legacy path existed, it should have been hard linked to the
+	// new path, and it should have been updated as the max ID updated.
+	restore = testutil.Mock(&s.maxIDPath, s.legacyMaxIDPath)
+	defer restore()
+	s.checkWrittenMaxID(c, expectedID)
+}
+
+func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadataTemplate := prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		PID:       1234,
+		Interface: "home",
+	}
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+
+	listenerReq1 := &listener.Request{}
+	listenerReq2 := &listener.Request{}
+	listenerReq3 := &listener.Request{}
+	listenerReq4 := &listener.Request{}
+	listenerReq5 := &listener.Request{}
+
+	clientActivity := false // doesn't matter if it's true or false for this test
+	stored, err := pdb.Prompts(metadataTemplate.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, IsNil)
+
+	metadata := metadataTemplate
+	before := time.Now()
+	prompt1, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq1)
+	c.Assert(err, IsNil)
+	after := time.Now()
+	c.Assert(merged, Equals, false)
+
+	c.Check(prompt1.Timestamp.After(before), Equals, true)
+	c.Check(prompt1.Timestamp.Before(after), Equals, true)
+
+	c.Check(prompt1.Snap, Equals, metadata.Snap)
+	c.Check(prompt1.PID, Equals, metadata.PID)
+	c.Check(prompt1.Interface, Equals, metadata.Interface)
+	c.Check(prompt1.Constraints.Path(), Equals, path)
+	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	expectedID := uint64(1)
+
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err := pdb.PromptWithID(metadata.User, prompt1.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt1)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 1)
+	c.Check(stored[0], Equals, prompt1)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add second prompt, this time with different snap
+
+	metadata = metadataTemplate
+	metadata.Snap = "firefox"
+	prompt2, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq2)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+	c.Assert(prompt2, Not(Equals), prompt1)
+
+	c.Check(prompt2.Snap, Equals, metadata.Snap)
+	c.Check(prompt2.PID, Equals, metadata.PID)
+	c.Check(prompt2.Interface, Equals, metadata.Interface)
+	c.Check(prompt2.Constraints.Path(), Equals, path)
+	c.Check(prompt2.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt2.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt2)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 2)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add third prompt, this time with different PID
+
+	metadata = metadataTemplate
+	metadata.PID = 1337
+	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq3)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt3, Not(Equals), prompt1)
+	c.Check(prompt3, Not(Equals), prompt2)
+
+	c.Check(prompt3.Snap, Equals, metadata.Snap)
+	c.Check(prompt3.PID, Equals, metadata.PID)
+	c.Check(prompt3.Interface, Equals, metadata.Interface)
+	c.Check(prompt3.Constraints.Path(), Equals, path)
+	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt3.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt3.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt3)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 3)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add fourth prompt, this time with different path
+
+	metadata = metadataTemplate
+	path = "/home/test/Documents/other.txt"
+	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq4)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt4, Not(Equals), prompt1)
+	c.Check(prompt4, Not(Equals), prompt2)
+	c.Check(prompt4, Not(Equals), prompt3)
+
+	c.Check(prompt4.Snap, Equals, metadata.Snap)
+	c.Check(prompt4.PID, Equals, metadata.PID)
+	c.Check(prompt4.Interface, Equals, metadata.Interface)
+	c.Check(prompt4.Constraints.Path(), Equals, path)
+	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt4.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt4.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt4)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 4)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add fifth prompt, this time with different requested permissions
+
+	metadata = metadataTemplate
+	path = "/home/test/Documents/foo.txt"
+	requestedPermissions := permissions[:2]
+	prompt5, merged, err := pdb.AddOrMerge(&metadata, path, requestedPermissions, permissions, listenerReq5)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt5, Not(Equals), prompt1)
+	c.Check(prompt5, Not(Equals), prompt2)
+	c.Check(prompt5, Not(Equals), prompt3)
+	c.Check(prompt5, Not(Equals), prompt4)
+
+	c.Check(prompt5.Snap, Equals, metadata.Snap)
+	c.Check(prompt5.PID, Equals, metadata.PID)
+	c.Check(prompt5.Interface, Equals, metadata.Interface)
+	c.Check(prompt5.Constraints.Path(), Equals, path)
+	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt5.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	s.checkWrittenMaxID(c, expectedID)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt5.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt5)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 5)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
+	c.Check(stored[4], Equals, prompt5)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+}
+
+func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -268,6 +519,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       1234,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -307,6 +559,7 @@ func (s *requestpromptsSuite) TestAddOrMerge(c *C) {
 	c.Check(prompt1.Timestamp.Before(after), Equals, true)
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
+	c.Check(prompt1.PID, Equals, metadata.PID)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -385,7 +638,7 @@ func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -398,6 +651,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       42,
 		Interface: "home",
 	}
 
@@ -409,7 +663,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		listenerReq := &listener.Request{}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
-		c.Assert(prompt, Not(IsNil))
+		c.Assert(prompt, NotNil)
 		c.Assert(merged, Equals, false)
 		stored, err := pdb.Prompts(metadata.User, clientActivity)
 		c.Assert(err, IsNil)
@@ -419,7 +673,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
 	lr := &listener.Request{}
 
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Assert(listenerReq, Equals, lr)
 		c.Assert(allowedPermission, DeepEquals, notify.FilePermission(0))
 		return nil
@@ -446,7 +700,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		listenerReq := &listener.Request{}
 		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
-		c.Assert(prompt, Not(IsNil))
+		c.Assert(prompt, NotNil)
 		c.Assert(merged, Equals, true)
 		stored, err := pdb.Prompts(metadata.User, clientActivity)
 		c.Assert(err, IsNil)
@@ -456,7 +710,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -469,6 +723,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       1337,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -501,8 +756,8 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 
 func (s *requestpromptsSuite) TestReply(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
-	replyChan := make(chan any, 2)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	replyChan := make(chan notify.AppArmorPermission, 2)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		listenerReqChan <- listenerReq
 		replyChan <- allowedPermission
 		return nil
@@ -516,6 +771,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -569,7 +825,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	}
 }
 
-func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <-chan *listener.Request, replyChan <-chan any) (req *listener.Request, allowedPermission any, err error) {
+func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <-chan *listener.Request, replyChan <-chan notify.AppArmorPermission) (req *listener.Request, allowedPermission notify.AppArmorPermission, err error) {
 	select {
 	case req = <-listenerReqChan:
 	case <-time.NewTimer(10 * time.Second).C:
@@ -583,9 +839,82 @@ func (s *requestpromptsSuite) waitForListenerReqAndReply(c *C, listenerReqChan <
 	return req, allowedPermission, err
 }
 
+func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
+	listenerReqChan := make(chan *listener.Request, 2)
+	replyChan := make(chan notify.AppArmorPermission, 2)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		listenerReqChan <- listenerReq
+		replyChan <- allowedPermission
+		// Return ENOENT, indicating that the notification does not exist.
+		// If the prompt exists but the notification does not, then the
+		// notification most likely timed out in the kernel.
+		return unix.ENOENT
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		PID:       123,
+		Interface: "home",
+	}
+	path := "/home/test/Documents/foo.txt"
+	permissions := []string{"read", "write", "execute"}
+	outcome := prompting.OutcomeAllow
+
+	listenerReq1 := &listener.Request{ID: 1}
+	listenerReq2 := &listener.Request{ID: 2}
+
+	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+
+	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq2)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, true)
+	c.Check(prompt2, Equals, prompt1)
+
+	// Merged prompts should re-record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
+
+	clientActivity := true // doesn't matter if it's true or false for this test
+	repliedPrompt, err := pdb.Reply(metadata.User, prompt1.ID, outcome, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(repliedPrompt, Equals, prompt1)
+	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
+		receivedReq, allowedPermission, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
+		c.Check(err, IsNil, Commentf("expected reply for request %d", listenerReq.ID))
+		c.Check(receivedReq, Equals, listenerReq)
+		// Check that permissions in response map to prompt's permissions
+		abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(prompt1.Interface, allowedPermission)
+		c.Check(err, IsNil)
+		c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.OutstandingPermissions())
+		// Check that prompt's permissions map to response's permissions
+		expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.OutstandingPermissions())
+		c.Check(err, IsNil)
+		c.Check(allowedPermission, DeepEquals, expectedPerm)
+	}
+
+	expectedData := map[string]string{"resolved": "replied"}
+	s.checkNewNoticesSimple(c, []prompting.IDType{repliedPrompt.ID}, expectedData)
+
+	// Expect two messages containing the following:
+	logMsg := "kernel returned ENOENT from APPARMOR_NOTIF_SEND"
+	c.Check(logbuf.String(), testutil.MatchesWrapped, fmt.Sprintf(".*%s.*%s.*", logMsg, logMsg))
+}
+
 func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	fakeError := fmt.Errorf("fake reply error")
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		return fakeError
 	})
 	defer restore()
@@ -597,6 +926,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -628,8 +958,8 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 
 func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
-	replyChan := make(chan any, 2)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	replyChan := make(chan notify.AppArmorPermission, 2)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		listenerReqChan <- listenerReq
 		replyChan <- allowedPermission
 		return nil
@@ -643,6 +973,7 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -688,6 +1019,9 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 			"append":  &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 		},
 	}
+
+	// For completeness, set metadata.PID to 0 since it would not be populated for rules
+	metadata.PID = 0
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
@@ -764,8 +1098,8 @@ func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) 
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	listenerReqChan := make(chan *listener.Request, 1)
-	replyChan := make(chan any, 1)
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	replyChan := make(chan notify.AppArmorPermission, 1)
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		listenerReqChan <- listenerReq
 		replyChan <- allowedPermission
 		return nil
@@ -782,6 +1116,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	metadata := &prompting.Metadata{
 		User:      user,
 		Snap:      snap,
+		PID:       123,
 		Interface: iface,
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -792,6 +1127,9 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
+
+	// For completeness, set metadata.PID to 0 since it would not be populated for rules
+	metadata.PID = 0
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
@@ -902,7 +1240,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	})
 	defer restore()
 
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -914,6 +1252,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
+		PID:       1234,
 		Interface: "home",
 	}
 	permissions := []string{"read", "write", "execute"}
@@ -967,7 +1306,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 }
 
 func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -1011,7 +1350,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 }
 
 func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
-	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -1024,6 +1363,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
+		PID:       1234,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1039,7 +1379,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
 	c.Assert(err, IsNil)
 
-	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
+	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
 
 	marshalled, err := json.Marshal(prompt)
 	c.Assert(err, IsNil)
@@ -1059,7 +1399,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	defer restore()
 
 	replyChan := make(chan notify.FilePermission, 1)
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		allowedFilePermission, ok := allowedPermission.(notify.FilePermission)
 		c.Assert(ok, Equals, true)
 		replyChan <- allowedFilePermission
@@ -1070,6 +1410,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
+		PID:       1234,
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1205,7 +1546,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	defer restore()
 
 	replyChan := make(chan notify.FilePermission, 1)
-	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission any) error {
+	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		allowedFilePermission, ok := allowedPermission.(notify.FilePermission)
 		c.Assert(ok, Equals, true)
 		replyChan <- allowedFilePermission
@@ -1216,6 +1557,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "firefox",
+		PID:       123,
 		Interface: "home",
 	}
 	path := "/home/test/foo"

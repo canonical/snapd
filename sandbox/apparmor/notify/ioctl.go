@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -44,12 +43,11 @@ type IoctlRequestBuffer []byte
 // NewIoctlRequestBuffer returns a new buffer for communication with the kernel.
 //
 // The buffer contains encoded information about its size and protocol version.
-func NewIoctlRequestBuffer() IoctlRequestBuffer {
+func NewIoctlRequestBuffer(version ProtocolVersion) IoctlRequestBuffer {
 	bufSize := 0xFFFF
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
-	header := MsgHeader{Version: 3, Length: uint16(bufSize)}
-	order := arch.Endian()
-	binary.Write(buf, order, &header)
+	header := MsgHeader{Version: version, Length: uint16(bufSize)}
+	binary.Write(buf, nativeByteOrder, &header)
 	buf.Write(make([]byte, bufSize-buf.Len()))
 	return IoctlRequestBuffer(buf.Bytes())
 }
@@ -109,13 +107,15 @@ func Ioctl(fd uintptr, req IoctlRequest, buf IoctlRequestBuffer) ([]byte, error)
 type IoctlRequest uintptr
 
 // Available ioctl(2) requests for .notify file.
-// Those are not documented beyond the implementeation in the kernel.
+// Those are not documented beyond the implementation in the kernel.
 const (
 	APPARMOR_NOTIF_SET_FILTER  IoctlRequest = 0x4008F800
 	APPARMOR_NOTIF_GET_FILTER  IoctlRequest = 0x8008F801
 	APPARMOR_NOTIF_IS_ID_VALID IoctlRequest = 0x8008F803
 	APPARMOR_NOTIF_RECV        IoctlRequest = 0xC008F804
 	APPARMOR_NOTIF_SEND        IoctlRequest = 0xC008F805
+	APPARMOR_NOTIF_REGISTER    IoctlRequest = 0xC008F806
+	APPARMOR_NOTIF_RESEND      IoctlRequest = 0xC008F807
 )
 
 // String returns the string representation of an IoctlRequest.
@@ -131,6 +131,10 @@ func (req IoctlRequest) String() string {
 		return "APPARMOR_NOTIF_RECV"
 	case APPARMOR_NOTIF_SEND:
 		return "APPARMOR_NOTIF_SEND"
+	case APPARMOR_NOTIF_REGISTER:
+		return "APPARMOR_NOTIF_REGISTER"
+	case APPARMOR_NOTIF_RESEND:
+		return "APPARMOR_NOTIF_RESEND"
 	default:
 		return fmt.Sprintf("IoctlRequest(%x)", uintptr(req))
 	}

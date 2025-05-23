@@ -24,15 +24,15 @@ import (
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/release"
 )
 
 func (s *SnapSuite) TestPathsUbuntu(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
+	dirstest.MustMockCanonicalSnapMountDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(dirs.GlobalRootDir)
 	defer dirs.SetRootDir("/")
 
-	dirs.SetRootDir("/")
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
@@ -42,12 +42,12 @@ func (s *SnapSuite) TestPathsUbuntu(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestPathsFedora(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
-	defer restore()
+func (s *SnapSuite) TestPathsLibexecDir(c *C) {
+	dirstest.MustMockAltSnapMountDir(dirs.GlobalRootDir)
+	dirstest.MustMockAltLibExecDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(dirs.GlobalRootDir)
 	defer dirs.SetRootDir("/")
 
-	dirs.SetRootDir("/")
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
@@ -57,14 +57,12 @@ func (s *SnapSuite) TestPathsFedora(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestPathsArch(c *C) {
+func (s *SnapSuite) TestPathsAltMountDir(c *C) {
 	defer dirs.SetRootDir("/")
 
-	// old /etc/os-release contents
-	restore := release.MockReleaseInfo(&release.OS{ID: "arch", IDLike: []string{"archlinux"}})
-	defer restore()
+	dirstest.MustMockAltSnapMountDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
-	dirs.SetRootDir("/")
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
@@ -74,14 +72,21 @@ func (s *SnapSuite) TestPathsArch(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 
 	s.ResetStdStreams()
+}
 
-	// new contents, as set by filesystem-2018.12-1
-	restore = release.MockReleaseInfo(&release.OS{ID: "archlinux"})
+func (s *SnapSuite) TestPathsMyDistro(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "my-distro"})
 	defer restore()
+	defer dirs.SetRootDir("/")
 
-	dirs.SetRootDir("/")
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
+	d := c.MkDir()
+	dirstest.MustMockAltSnapMountDir(d)
+	dirs.SetRootDir(d)
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "paths"})
 	c.Assert(err, IsNil)
+	// since it's a custom distro, the test overrides root directory so the resulting paths
+	// include an explicit path
 	c.Assert(s.Stdout(), Equals, ""+
 		"SNAPD_MOUNT=/var/lib/snapd/snap\n"+
 		"SNAPD_BIN=/var/lib/snapd/snap/bin\n"+

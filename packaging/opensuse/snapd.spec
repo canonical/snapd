@@ -91,7 +91,7 @@
 
 
 Name:           snapd
-Version:        2.68.5
+Version:        2.69
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -318,8 +318,11 @@ chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
-install -pm 644 -D %{indigo_srcdir}/packaging/opensuse/permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
-install -pm 644 -D %{indigo_srcdir}/packaging/opensuse/permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
+install_caps="$(cat %{buildroot}%{_libexecdir}/snapd/snap-confine.caps)"
+sed -e 's,@LIBEXECDIR@,%{_libexecdir},' -e "s#@CAPS@#$install_caps#" < %{indigo_srcdir}/packaging/opensuse/permissions.in > permissions
+install -pm 644 -D permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
+sed -e 's,@LIBEXECDIR@,%{_libexecdir},' -e "s#@CAPS@#$install_caps#" < %{indigo_srcdir}/packaging/opensuse/permissions.paranoid.in > permissions.paranoid
+install -pm 644 -D permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
 install -d %{buildroot}%{_sbindir}
@@ -342,6 +345,9 @@ install -pm 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot
 # Install zsh completion for "snap"
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -pm 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
+
+# Remove gpio-chardev ordering target
+rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -458,7 +464,9 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
-%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
+# capabilities and permissions are set through permctl and set_permissions snippet in post
+%verify(not caps) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
+%{_libexecdir}/snapd/snap-confine.caps
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop

@@ -69,14 +69,12 @@ const (
 	QuotaGroups
 	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
 	RefreshAppAwarenessUX
-	// Confdbs enables experimental configuration based on confdbs and views.
-	Confdbs
-	// ConfdbControl enables experimental remote management of confdbs
+	// Confdb enables experimental configuration based on confdb and views.
+	Confdb
+	// ConfdbControl enables experimental remote management of confdb.
 	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
-	// GPIOChardevInterface enables experimental gpio-chardev interface.
-	GPIOChardevInterface
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -122,12 +120,10 @@ var featureNames = map[SnapdFeature]string{
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
 
-	Confdbs:       "confdbs",
+	Confdb:        "confdb",
 	ConfdbControl: "confdb-control",
 
 	AppArmorPrompting: "apparmor-prompting",
-
-	GPIOChardevInterface: "gpio-chardev-interface",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -149,9 +145,8 @@ var featuresExported = map[SnapdFeature]bool{
 	MoveSnapHomeDir:               true,
 
 	RefreshAppAwarenessUX: true,
-	Confdbs:               true,
+	Confdb:                true,
 	AppArmorPrompting:     true,
-	GPIOChardevInterface:  true,
 }
 
 var (

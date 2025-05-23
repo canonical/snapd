@@ -12,6 +12,7 @@ usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-recovery-chooser /usr/lib/snapd/
 usr/bin/snap-fde-keymgr /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
+usr/bin/snap-gpio-helper /usr/lib/snapd/
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions
@@ -29,6 +30,7 @@ etc/apparmor.d/usr.lib.snapd.snap-confine.real
 usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-mgmt
 usr/lib/snapd/snap-confine
+usr/lib/snapd/snap-confine.caps
 usr/lib/snapd/snap-discard-ns
 usr/share/man/
 

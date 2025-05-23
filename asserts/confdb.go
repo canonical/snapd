@@ -28,33 +28,33 @@ import (
 	"github.com/snapcore/snapd/confdb"
 )
 
-// Confdb holds a confdb assertion, which is a definition by an account of
-// access views and a storage schema for a set of related configuration options
-// under the purview of the account.
-type Confdb struct {
+// ConfdbSchema holds a confdb-schema assertion, which is a definition by an
+// account of access views and a storage schema for a set of related
+// configuration options under the purview of the account.
+type ConfdbSchema struct {
 	assertionBase
 
-	confdb    *confdb.Confdb
+	schema    *confdb.Schema
 	timestamp time.Time
 }
 
 // AccountID returns the identifier of the account that signed this assertion.
-func (ar *Confdb) AccountID() string {
+func (ar *ConfdbSchema) AccountID() string {
 	return ar.HeaderString("account-id")
 }
 
 // Name returns the name for the confdb.
-func (ar *Confdb) Name() string {
+func (ar *ConfdbSchema) Name() string {
 	return ar.HeaderString("name")
 }
 
-// Confdb returns a Confdb assembled from the assertion that can be used
-// to access confdb views.
-func (ar *Confdb) Confdb() *confdb.Confdb {
-	return ar.confdb
+// Schema returns a confdb.Schema assembled from the assertion that can
+// be used to access confdb views.
+func (ar *ConfdbSchema) Schema() *confdb.Schema {
+	return ar.schema
 }
 
-func assembleConfdb(assert assertionBase) (Assertion, error) {
+func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
 	if accountID != authorityID {
@@ -88,12 +88,12 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`body must contain a "storage" stanza`)
 	}
 
-	schema, err := confdb.ParseSchema(schemaRaw)
+	schema, err := confdb.ParseStorageSchema(schemaRaw)
 	if err != nil {
 		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}
 
-	confdb, err := confdb.New(accountID, name, viewsMap, schema)
+	confdbSchema, err := confdb.NewSchema(accountID, name, viewsMap, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +103,9 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	return &Confdb{
+	return &ConfdbSchema{
 		assertionBase: assert,
-		confdb:        confdb,
+		schema:        confdbSchema,
 		timestamp:     timestamp,
 	}, nil
 }
@@ -115,8 +115,7 @@ func assembleConfdb(assert assertionBase) (Assertion, error) {
 type ConfdbControl struct {
 	assertionBase
 
-	// the key is the operator ID
-	operators map[string]*confdb.Operator
+	control *confdb.Control
 }
 
 // expected interfaces are implemented
@@ -167,6 +166,11 @@ func (cc *ConfdbControl) Serial() string {
 	return cc.HeaderString("serial")
 }
 
+// Control returns the confdb.Control reflecting the assertion.
+func (cc *ConfdbControl) Control() confdb.Control {
+	return cc.control.Clone()
+}
+
 // assembleConfdbControl creates a new confdb-control assertion after validating
 // all required fields and constraints.
 func assembleConfdbControl(assert assertionBase) (Assertion, error) {
@@ -183,24 +187,20 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	if groups == nil {
-		return nil, errors.New(`"groups" stanza is mandatory`)
-	}
 
-	operators, err := parseConfdbControlGroups(groups)
+	cc, err := parseConfdbControlGroups(groups)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := &ConfdbControl{
+	return &ConfdbControl{
 		assertionBase: assert,
-		operators:     operators,
-	}
-	return cc, nil
+		control:       cc,
+	}, nil
 }
 
-func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Operator, error) {
-	operators := map[string]*confdb.Operator{}
+func parseConfdbControlGroups(rawGroups []interface{}) (*confdb.Control, error) {
+	cc := &confdb.Control{}
 	for i, rawGroup := range rawGroups {
 		errPrefix := fmt.Sprintf("cannot parse group at position %d", i+1)
 
@@ -209,42 +209,36 @@ func parseConfdbControlGroups(rawGroups []interface{}) (map[string]*confdb.Opera
 			return nil, fmt.Errorf("%s: must be a map", errPrefix)
 		}
 
-		operatorID, err := checkNotEmptyStringWhat(group, "operator-id", "field")
+		auth, err := checkStringListInMap(group, "authentications", `"authentications" field`, nil)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
-
-		// Currently, operatorIDs must be snap store account IDs
-		if !IsValidAccountID(operatorID) {
-			return nil, fmt.Errorf(`%s: invalid "operator-id" %s`, errPrefix, operatorID)
-		}
-
-		operator, ok := operators[operatorID]
-		if !ok {
-			operator = &confdb.Operator{ID: operatorID}
-			operators[operatorID] = operator
-		}
-
-		auth, err := checkStringListInMap(group, "authentication", "field", nil)
-		if err != nil {
-			return nil, fmt.Errorf(`%s: "authentication" %w`, errPrefix, err)
-		}
 		if auth == nil {
-			return nil, fmt.Errorf(`%s: "authentication" must be provided`, errPrefix)
+			return nil, fmt.Errorf(`%s: "authentications" must be provided`, errPrefix)
 		}
 
-		views, err := checkStringListInMap(group, "views", "field", nil)
+		views, err := checkStringListInMap(group, "views", `"views" field`, nil)
 		if err != nil {
-			return nil, fmt.Errorf(`%s: "views" %w`, errPrefix, err)
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
 		}
 		if views == nil {
 			return nil, fmt.Errorf(`%s: "views" must be provided`, errPrefix)
 		}
 
-		if err := operator.AddControlGroup(views, auth); err != nil {
-			return nil, fmt.Errorf(`%s: %w`, errPrefix, err)
+		operatorIDs, err := checkStringListInMap(group, "operators", `"operators" field`, nil)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", errPrefix, err)
+		}
+		if operatorIDs == nil {
+			return nil, fmt.Errorf(`%s: "operators" must be provided`, errPrefix)
+		}
+
+		for _, operatorID := range operatorIDs {
+			if err := cc.Delegate(operatorID, views, auth); err != nil {
+				return nil, fmt.Errorf("%s: %w", errPrefix, err)
+			}
 		}
 	}
 
-	return operators, nil
+	return cc, nil
 }

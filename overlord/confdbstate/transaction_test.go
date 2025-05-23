@@ -50,13 +50,13 @@ func (s *transactionTestSuite) SetUpTest(c *C) {
 	s.readCalled = 0
 	s.writeCalled = 0
 
-	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDataBag, error) {
+	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDatabag, error) {
 		s.readCalled++
 		return confdbstate.ReadDatabag(st, account, confdbName)
 	})
 	s.AddCleanup(restore)
 
-	restore = confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDataBag, account, confdbName string) error {
+	restore = confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDatabag, account, confdbName string) error {
 		s.writeCalled++
 		return confdbstate.WriteDatabag(st, bag, account, confdbName)
 	})
@@ -135,17 +135,13 @@ func (f *failingSchema) Validate([]byte) error {
 	return f.err
 }
 
-func (f *failingSchema) SchemaAt(path []string) ([]confdb.Schema, error) {
-	return []confdb.Schema{f}, nil
+func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) {
+	return []confdb.DatabagSchema{f}, nil
 }
 
-func (f *failingSchema) Type() confdb.SchemaType {
-	return confdb.Any
-}
-
-func (f *failingSchema) Ephemeral() bool { return false }
-
-func (f *failingSchema) PruneEphemeral([]byte) ([]byte, error) { return nil, nil }
+func (f *failingSchema) Type() confdb.SchemaType { return confdb.Any }
+func (f *failingSchema) Ephemeral() bool         { return false }
+func (f *failingSchema) NestedEphemeral() bool   { return false }
 
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
@@ -275,7 +271,7 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 
 func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 	var readErr error
-	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDataBag, error) {
+	restore := confdbstate.MockReadDatabag(func(st *state.State, account, confdbName string) (confdb.JSONDatabag, error) {
 		return nil, readErr
 	})
 	defer restore()
@@ -295,7 +291,7 @@ func (s *transactionTestSuite) TestTransactionBagReadError(c *C) {
 
 func (s *transactionTestSuite) TestTransactionBagWriteError(c *C) {
 	writeErr := errors.New("expected")
-	restore := confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDataBag, account, confdbName string) error {
+	restore := confdbstate.MockWriteDatabag(func(st *state.State, bag confdb.JSONDatabag, account, confdbName string) error {
 		return writeErr
 	})
 	defer restore()
@@ -352,7 +348,7 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 }
 
 func (s *transactionTestSuite) TestSerializable(c *C) {
-	bag := confdb.NewJSONDataBag()
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("other", "value")
 	c.Assert(err, IsNil)
 
@@ -435,8 +431,8 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	c.Assert(err, ErrorMatches, "cannot commit aborted transaction")
 }
 
-func (s *transactionTestSuite) TestTransactionPristine(c *C) {
-	bag := confdb.NewJSONDataBag()
+func (s *transactionTestSuite) TestTransactionPrevious(c *C) {
+	bag := confdb.NewJSONDatabag()
 	err := bag.Set("foo", "bar")
 	c.Assert(err, IsNil)
 
@@ -449,16 +445,16 @@ func (s *transactionTestSuite) TestTransactionPristine(c *C) {
 	err = tx.Set("foo", "baz")
 	c.Assert(err, IsNil)
 
-	checkPristine := func(key, expected string) {
-		pristineBag := tx.Pristine()
-		val, err := pristineBag.Get(key)
+	checkPrevious := func() {
+		previousBag := tx.Previous()
+		val, err := previousBag.Get("foo")
 		c.Assert(err, IsNil)
-		c.Check(val, Equals, expected)
+		c.Check(val, Equals, "bar")
 	}
-	checkPristine("foo", "bar")
+	checkPrevious()
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	checkPristine("foo", "baz")
+	checkPrevious()
 }

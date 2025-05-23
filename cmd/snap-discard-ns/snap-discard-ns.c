@@ -24,12 +24,14 @@
 #include <limits.h>
 #include <linux/magic.h>
 #include <stdio.h>
+#include <sys/capability.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/error.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/snap.h"
@@ -39,6 +41,32 @@
 #ifndef NSFS_MAGIC
 #define NSFS_MAGIC 0x6e736673
 #endif
+
+// Asserts the proces has sufficient capabilities being either run directly by root user or
+// through snap-confine.
+static void assert_caps(void) {
+    cap_t current SC_CLEANUP(cap_free) = cap_get_proc();
+
+    cap_value_t expected_caps[] = {
+        CAP_SYS_ADMIN,    /* umount */
+        CAP_DAC_OVERRIDE, /* for poking around /run/snapd */
+        CAP_CHOWN,        /* for lock file and directory */
+    };
+
+    for (size_t i = 0; i < SC_ARRAY_SIZE(expected_caps); i++) {
+        cap_value_t cap = expected_caps[i];
+        const char* cap_name SC_CLEANUP(cap_free) = cap_to_name(cap);
+
+        cap_flag_value_t set = CAP_CLEAR;
+        if (cap_get_flag(current, cap, CAP_EFFECTIVE, &set) != 0) {
+            die("cannot assert %s state", cap_name);
+        }
+
+        if (set != CAP_SET) {
+            die("missing capability %s", cap_name);
+        }
+    }
+}
 
 int main(int argc, char** argv) {
     if (argc != 2 && argc != 3) {
@@ -62,6 +90,11 @@ int main(int argc, char** argv) {
     sc_error* err = NULL;
     sc_instance_name_validate(snap_instance_name, &err);
     sc_die_on_error(err);
+
+    /* time to asssert we have the right capabilities to perform the job */
+    assert_caps();
+    /* TODO: drop superfluous capabilities and keep only the ones that are
+     * explicitly needed */
 
     int snap_lock_fd = -1;
     if (from_snap_confine) {
@@ -157,7 +190,7 @@ int main(int argc, char** argv) {
             {.pattern = usr_fstab_pattern},
             {.pattern = sys_info_pattern},
         };
-        for (size_t i = 0; i < sizeof variants / sizeof *variants; ++i) {
+        for (size_t i = 0; i < SC_ARRAY_SIZE(variants); ++i) {
             struct variant* v = &variants[i];
             debug("checking if %s matches %s", dname, v->pattern);
             int match_result = fnmatch(v->pattern, dname, 0);

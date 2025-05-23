@@ -40,7 +40,7 @@ var (
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
-	CreatedDuringInstall        = createdDuringInstall
+	IndexIfCreatedDuringInstall = indexIfCreatedDuringInstall
 	TestCreateMissingPartitions = createMissingPartitions
 )
 

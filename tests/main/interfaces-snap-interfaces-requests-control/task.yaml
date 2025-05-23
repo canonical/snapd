@@ -82,33 +82,25 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/system-info" | \
         gojq '."result"."features"."apparmor-prompting"."enabled"' | MATCH '^true$'
 
-    EXPECTED_HTTP_CODE="200"
-    if api-client --socket /run/snapd-snap.socket "/v2/system-info" | \
-           gojq '."result"."features"."apparmor-prompting"."supported"' | MATCH '^false$' ; then
-        # AppArmor prompting isn't supported, so rules and prompts backends are
-        # not active, and will return InternalError (500). We can at least check
-        # that we receive an InternalError instead of Forbidden (403).
-        echo "Prompting is not supported, so check that we get InternalError (500) instead of Forbidden (403)"
-        EXPECTED_HTTP_CODE="500"
-    fi
-
     echo "Check snap can access prompts via /v2/interfaces/requests/prompts"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | \
-        gojq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
-    # echo "Check snap can access a single prompt via /v2/interfaces/requests/prompts/<ID>"
+        gojq '."status-code"' | MATCH '^200$'
+    echo "Check snap can access a single prompt via /v2/interfaces/requests/prompts/<ID>"
+    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | \
+        gojq '."status-code"' | MATCH '^404$' # nonexistent prompt ID
     # TODO: include the "home" interface and create a request prompt by attempting to list contents of $HOME
     # PROMPT_ID=FIXME
     # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$PROMPT_ID" | \
-    #     gojq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    #     gojq '."status-code"' | MATCH '^200$'
     # echo "Check snap can reply to a prompt via /v2/interfaces/requests/prompts/<ID>
     # TODO: split this line more
     # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"allow","lifespan":"forever","constraints":{"path-pattern":"/**","permissions":["read"]}}' "/v2/interfaces/requests/prompts/$PROMPT_ID" | \
-    #     gojq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    #     gojq '."status-code"' | MATCH '^200$'
     # TODO: check that thread which triggered request completed successfully
 
     echo "Check snap can access rules via /v2/interfaces/requests/rules"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | \
-        gojq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+        gojq '."status-code"' | MATCH '^200$'
 
     # XXX: creating rules requires polkit authentication, so for now, use snap debug api instead of api-client
     # echo "Check snap can create rule via /v2/interfaces/requests/rules"
@@ -140,14 +132,14 @@ execute: |
     }' | \
         snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests/rules" | \
         tee result.json
-    gojq '."status-code"' < result.json | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    gojq '."status-code"' < result.json | MATCH '^200$'
     RULE_ID=$(gojq '."result"."id"' < result.json | tr -d '"')
     echo "Check snap can view a single rule via /v2/interfaces/requests/rules/<ID>"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | \
-        gojq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+        gojq '."status-code"' | MATCH '^200$'
     # XXX: modifying rules requires polkit authentication
     # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | gojq '."status-code"' | MATCH '^'"$EXPECTED_HTTP_CODE"'$'
+    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | gojq '."status-code"' | MATCH '^200$'
 
     echo "Without snap-interfaces-requests-control the snap cannot access those API endpoints"
     snap disconnect api-client:snap-interfaces-requests-control

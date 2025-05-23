@@ -39,8 +39,25 @@ func (*filePresenceCheckerSuite) TestFilePresent(c *check.C) {
 	testInfo(c, FilePresent, "FilePresent", []string{"filename"})
 	testCheck(c, FilePresent, false, `filename must be a string`, 42)
 	testCheck(c, FilePresent, false, fmt.Sprintf(`file %q is absent but should exist`, filename), filename)
+
+	// Symlink is followed, file not present
+	c.Assert(os.Symlink("bar", filename), check.IsNil)
+	testCheck(c, FilePresent, false, fmt.Sprintf(`file %q is absent but should exist`, filename), filename)
+
+	// Now use regular file
+	c.Assert(os.Remove(filename), check.IsNil)
 	c.Assert(os.WriteFile(filename, nil, 0644), check.IsNil)
 	testCheck(c, FilePresent, true, "", filename)
+}
+
+func (*filePresenceCheckerSuite) TestSymlinkPresent(c *check.C) {
+	d := c.MkDir()
+	filename := filepath.Join(d, "foo")
+	testInfo(c, LFilePresent, "LFilePresent", []string{"filename"})
+	testCheck(c, LFilePresent, false, `filename must be a string`, 42)
+	testCheck(c, LFilePresent, false, fmt.Sprintf(`file %q is absent but should exist`, filename), filename)
+	c.Assert(os.Symlink("bar", filename), check.IsNil)
+	testCheck(c, LFilePresent, true, "", filename)
 }
 
 func (*filePresenceCheckerSuite) TestFileAbsent(c *check.C) {
@@ -49,6 +66,23 @@ func (*filePresenceCheckerSuite) TestFileAbsent(c *check.C) {
 	testInfo(c, FileAbsent, "FileAbsent", []string{"filename"})
 	testCheck(c, FileAbsent, false, `filename must be a string`, 42)
 	testCheck(c, FileAbsent, true, "", filename)
+
+	// Symlink is followed, still file is absent
+	c.Assert(os.Symlink("bar", filename), check.IsNil)
+	testCheck(c, FileAbsent, true, "", filename)
+
+	// Now use regular file
+	c.Assert(os.Remove(filename), check.IsNil)
 	c.Assert(os.WriteFile(filename, nil, 0644), check.IsNil)
 	testCheck(c, FileAbsent, false, fmt.Sprintf(`file %q is present but should not exist`, filename), filename)
+}
+
+func (*filePresenceCheckerSuite) TestSymlinkAbsent(c *check.C) {
+	d := c.MkDir()
+	filename := filepath.Join(d, "foo")
+	testInfo(c, LFileAbsent, "LFileAbsent", []string{"filename"})
+	testCheck(c, LFileAbsent, false, `filename must be a string`, 42)
+	testCheck(c, LFileAbsent, true, "", filename)
+	c.Assert(os.Symlink("bar", filename), check.IsNil)
+	testCheck(c, LFileAbsent, false, fmt.Sprintf(`file %q is present but should not exist`, filename), filename)
 }

@@ -2076,7 +2076,7 @@ var verToSnapDecl = []struct {
 // ConfdbPlugAttrs returns the account, confdb and view specified in a plug
 // if that plug is of type confdb. If it's not or the information cannot be
 // found, returns an error.
-func ConfdbPlugAttrs(plug *PlugInfo) (account, confdb, view string, err error) {
+func ConfdbPlugAttrs(plug *PlugInfo) (account, dbSchema, view string, err error) {
 	if plug.Interface != "confdb" {
 		return "", "", "", fmt.Errorf("must be confdb plug: %s", plug.Interface)
 	}
@@ -2092,11 +2092,11 @@ func ConfdbPlugAttrs(plug *PlugInfo) (account, confdb, view string, err error) {
 
 	parts := strings.Split(confdbView, "/")
 	if len(parts) != 2 {
-		return "", "", "", fmt.Errorf("\"view\" must conform to <confdb>/<view>: %s", confdbView)
+		return "", "", "", fmt.Errorf("\"view\" must conform to <confdb-schema>/<view>: %s", confdbView)
 	}
-	confdb, view = parts[0], parts[1]
+	dbSchema, view = parts[0], parts[1]
 
-	return account, confdb, view, nil
+	return account, dbSchema, view, nil
 }
 
 type RefreshFailureSeverity string

@@ -1643,5 +1643,5 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(task)
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Confdbs, DeepEquals, []snapstate.ConfdbID{{Account: "my-publisher", Confdb: "my-reg"}})
+	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }

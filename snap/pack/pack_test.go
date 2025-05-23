@@ -167,6 +167,63 @@ apps:
 	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 }
 
+func (s *packSuite) TestPackKernelGadgetOSAppWithConfigureHookHappy(c *C) {
+	for _, snapType := range []string{"kernel", "gadget", "os", "app"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0755), IsNil)
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *packSuite) TestPackKernelGadgetAppWithDefaultConfigureAndConfigureHookHappy(c *C) {
+	for _, snapType := range []string{"kernel", "gadget", "app"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		configureHooks := []string{"default-configure", "configure"}
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		for _, hook := range configureHooks {
+			c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
+		}
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *packSuite) TestPackSnapdBaseWithConfigureHookError(c *C) {
+	for _, snapType := range []string{"snapd", "base"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "configure"), []byte("#!/bin/sh"), 0755), IsNil)
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot validate snap %[1]q: cannot specify "configure" hook for %[1]q snap %[1]q`, snapType))
+	}
+}
+
+func (s *packSuite) TestPackSnapdBaseOSWithDefaultConfigureHookError(c *C) {
+	for _, snapType := range []string{"snapd", "base", "os"} {
+		snapYaml := fmt.Sprintf(`name: %[1]s
+version: 0
+type: %[1]s`, snapType)
+		sourceDir := makeExampleSnapSourceDir(c, snapYaml)
+		c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
+		_, err := pack.Pack(sourceDir, pack.Defaults)
+		// an error due to a prohibited hook for the snap type takes precedence over the
+		// error for missing a configure hook when default-configure is present
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot validate snap %[1]q: cannot specify "default-configure" hook for %[1]q snap %[1]q`, snapType))
+	}
+}
+
 func (s *packSuite) TestPackDefaultConfigureWithoutConfigureError(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 0
@@ -177,7 +234,7 @@ apps:
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", "default-configure"), []byte("#!/bin/sh"), 0755), IsNil)
 	_, err := pack.Pack(sourceDir, pack.Defaults)
-	c.Check(err, ErrorMatches, "cannot validate snap \"hello\": cannot specify \"default-configure\" hook without \"configure\" hook")
+	c.Check(err, ErrorMatches, `cannot validate snap "hello": cannot specify "default-configure" hook without "configure" hook`)
 }
 
 func (s *packSuite) TestPackConfigureHooksPermissionsError(c *C) {
@@ -193,25 +250,9 @@ apps:
 		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0644), IsNil)
 		_, err := pack.Pack(sourceDir, pack.Defaults)
 		c.Check(err, testutil.ErrorIs, snap.ErrBadModes)
-		c.Check(err, ErrorMatches, fmt.Sprintf("snap is unusable due to bad permissions: \"meta/hooks/%s\" should be executable, and isn't: -rw-r--r--", hook))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`snap is unusable due to bad permissions: "meta/hooks/%s" should be executable, and isn't: -rw-r--r--`, hook))
 		// Fix hook error to catch next hook's error
-		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 755), IsNil)
-	}
-}
-
-func (s *packSuite) TestPackConfigureHooksHappy(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 0
-apps:
- foo:
-  command: bin/hello-world
-`)
-	c.Assert(os.Mkdir(filepath.Join(sourceDir, "meta", "hooks"), 0755), IsNil)
-	configureHooks := []string{"configure", "default-configure"}
-	for _, hook := range configureHooks {
-		c.Assert(os.WriteFile(filepath.Join(sourceDir, "meta", "hooks", hook), []byte("#!/bin/sh"), 0755), IsNil)
-		_, err := pack.Pack(sourceDir, pack.Defaults)
-		c.Assert(err, IsNil)
+		c.Assert(os.Chmod(filepath.Join(sourceDir, "meta", "hooks", hook), 0755), IsNil)
 	}
 }
 

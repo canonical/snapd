@@ -60,6 +60,36 @@ volumes:
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 `
 
+// Save partition with min-size
+const RaspiSimplifiedMinSizeYaml = `
+volumes:
+  pi:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+    - filesystem: vfat
+      name: ubuntu-seed
+      role: system-seed
+      size: 1200M
+      type: 0C
+    - filesystem: vfat
+      name: ubuntu-boot
+      role: system-boot
+      size: 750M
+      type: 0C
+    - filesystem: ext4
+      name: ubuntu-save
+      role: system-save
+      min-size: 8M
+      size: 32M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+    - filesystem: ext4
+      name: ubuntu-data
+      role: system-data
+      size: 1500M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+
 // from a rpi without the kernel assets or content layout for simplicity's sake
 // and without ubuntu-save
 const RaspiSimplifiedNoSaveYaml = `
@@ -1379,6 +1409,22 @@ const MultiVolumeUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
         size: 1G
 `
 
+const MultiVolumeEmmcUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
+  my-emmc:
+    schema: emmc
+    structure:
+      - name: boot0
+        size: 1048576
+      - name: boot1
+        size: 1048576
+volume-assignments:
+  - assignment-name: my-emmc-device
+    assignment:
+      pc:
+        device: /dev/disk/by-path/pci-42:0
+      my-emmc:
+        device: /dev/disk/by-path/pci-43:0
+`
 const SingleVolumeClassicwithModesNoEncryptGadgetYaml = `
 volumes:
   pc:
@@ -1580,6 +1626,39 @@ var VMSystemVolumeDiskMapping = &disks.MockDiskMapping{
 	},
 }
 
+var VMEmmcVolumeDiskMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/mmcblk0",
+	DevPath:             "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0",
+	DevNum:              "525:1",
+	DiskUsableSectorEnd: 5120 * oneMeg / 512,
+	DiskSizeInBytes:     5120 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "emmc",
+	ID:                  "86964016-3b5c-477e-9828-24ba9c552d39",
+	Structure: []disks.Partition{
+		{
+			PartitionLabel:   "boot0",
+			Major:            525,
+			Minor:            2,
+			KernelDeviceNode: "/dev/mmcblk0boot0",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0boot0",
+			DiskIndex:        1,
+			StartInBytes:     0,
+			SizeInBytes:      oneMeg,
+		},
+		{
+			PartitionLabel:   "boot1",
+			Major:            525,
+			Minor:            3,
+			KernelDeviceNode: "/dev/mmcblk0boot1",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0boot1",
+			DiskIndex:        2,
+			StartInBytes:     0,
+			SizeInBytes:      oneMeg,
+		},
+	},
+}
+
 var VMSystemVolumeDiskMappingSeedFsLabelCaps = &disks.MockDiskMapping{
 	DevNode: "/dev/vda",
 	DevPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
@@ -1758,6 +1837,29 @@ var VMSystemVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
 			Offset:             (1 + 1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 			// including the last usable sector - the offset
 			Size: ((5120*quantity.SizeMiB - 33*512) - (1+1+1200+750+16)*quantity.SizeMiB),
+		},
+	},
+}
+
+var VMEmmcVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0",
+	OriginalKernelPath: "/dev/mmcblk0",
+	DiskID:             "86964016-3b5c-477e-9828-24ba9c552d39",
+	Size:               5120 * quantity.SizeMiB,
+	SectorSize:         quantity.Size(512),
+	Schema:             "emmc",
+	Structure: []gadget.DiskStructureDeviceTraits{
+		{
+			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0boot0",
+			OriginalKernelPath: "/dev/mmcblk0boot0",
+			Offset:             0,
+			Size:               quantity.SizeMiB,
+		},
+		{
+			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0boot1",
+			OriginalKernelPath: "/dev/mmcblk0boot1",
+			Offset:             0,
+			Size:               quantity.SizeMiB,
 		},
 	},
 }

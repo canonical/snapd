@@ -20,6 +20,8 @@
 package notify_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -30,7 +32,7 @@ type versionSuite struct{}
 
 var _ = Suite(&versionSuite{})
 
-func (s *versionSuite) TestVersionsAndSupportedChecks(c *C) {
+func (s *versionSuite) TestVersionsAndSupportedChecksAlign(c *C) {
 	// Check both directions so we get pretty printing for the values on error
 	c.Check(notify.Versions, HasLen, len(notify.VersionLikelySupportedChecks))
 	c.Check(notify.VersionLikelySupportedChecks, HasLen, len(notify.Versions))
@@ -44,6 +46,74 @@ func (s *versionSuite) TestVersionsAndSupportedChecks(c *C) {
 	for ver, checkFn := range notify.VersionLikelySupportedChecks {
 		c.Check(checkFn, NotNil, Commentf("version has nil supported check: %v", ver))
 		c.Check(notify.Versions, testutil.Contains, ver, Commentf("version in versionLikelySupportedChecks missing from versions: %v", ver))
+	}
+}
+
+func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
+	// TODO: remove this once v5 is no longer manually disabled
+	restore := notify.OverrideV5ManuallyDisabled()
+	defer restore()
+
+	for _, testCase := range []struct {
+		featuresList    []string
+		featuresErr     error
+		expectedSupport []bool // corresponds to ordered list notify.Versions
+	}{
+		{
+			// error getting features
+			featuresList:    nil,
+			featuresErr:     fmt.Errorf("couldn't get kernel features"),
+			expectedSupport: []bool{false, false},
+		},
+		{
+			// no features related to prompting support
+			featuresList:    nil,
+			featuresErr:     nil,
+			expectedSupport: []bool{false, true},
+		},
+		{
+			// policy:notify_versions dir present, but no versions
+			featuresList:    []string{"policy:notify_versions"},
+			featuresErr:     nil,
+			expectedSupport: []bool{false, false},
+		},
+		{
+			// policy:notify_versions:v3 present
+			featuresList:    []string{"policy:notify_versions", "policy:notify_versions:v3"},
+			featuresErr:     nil,
+			expectedSupport: []bool{false, true},
+		},
+		{
+			// policy:notify_versions:v5 present
+			featuresList:    []string{"policy:notify_versions", "policy:notify_versions:v5"},
+			featuresErr:     nil,
+			expectedSupport: []bool{false, false},
+		},
+		{
+			// policy:notify_versions:v5 and policy:notify:user:tags present
+			featuresList:    []string{"policy:notify_versions", "policy:notify_versions:v5", "policy:notify:user:tags"},
+			featuresErr:     nil,
+			expectedSupport: []bool{true, false},
+		},
+		{
+			// only policy:notify:user:tags present
+			featuresList:    []string{"policy:notify:user:tags"},
+			featuresErr:     nil,
+			expectedSupport: []bool{false, true},
+		},
+	} {
+		c.Assert(testCase.expectedSupport, HasLen, len(notify.Versions))
+
+		restore := notify.MockApparmorKernelFeatures(func() ([]string, error) {
+			return testCase.featuresList, testCase.featuresErr
+		})
+		defer restore()
+
+		for i, version := range notify.Versions {
+			supported, err := notify.LikelySupported(version)
+			c.Assert(err, IsNil)
+			c.Check(supported, Equals, testCase.expectedSupport[i], Commentf("version: %d\ntestCase: %+v", version, testCase))
+		}
 	}
 }
 

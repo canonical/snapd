@@ -60,9 +60,9 @@ const refMockUbuntuCoreInitrdRelease = `
 NAME="Ubuntu Core Initramfs"
 VERSION="1"
 ID=ubuntucoreinitramfs
-PRETTY_NAME="Ubuntu Core Initramfs Kelly's Eye - Number One"
+PRETTY_NAME="Ubuntu Core 24 Initramfs"
 VERSION_ID="1"
-VERSION_CODENAME=keelyseye
+VERSION_CODENAME=24
 `
 
 func mockOSRelease(c *C, root string, filesWithContent [][]string) {

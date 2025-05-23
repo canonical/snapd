@@ -27,7 +27,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/confdb"
 )
 
 type confdbSuite struct {
@@ -43,7 +42,7 @@ func (s *confdbSuite) SetUpSuite(c *C) {
 }
 
 const (
-	confdbExample = `type: confdb
+	confdbExample = `type: confdb-schema
 authority-id: brand-id1
 account-id: brand-id1
 name: my-network
@@ -95,18 +94,18 @@ func (s *confdbSuite) TestDecodeOK(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.ConfdbType)
-	ar := a.(*asserts.Confdb)
+	c.Check(a.Type(), Equals, asserts.ConfdbSchemaType)
+	ar := a.(*asserts.ConfdbSchema)
 	c.Check(ar.AuthorityID(), Equals, "brand-id1")
 	c.Check(ar.AccountID(), Equals, "brand-id1")
 	c.Check(ar.Name(), Equals, "my-network")
-	confdb := ar.Confdb()
-	c.Assert(confdb, NotNil)
-	c.Check(confdb.View("wifi-setup"), NotNil)
+	schema := ar.Schema()
+	c.Assert(schema, NotNil)
+	c.Check(schema.View("wifi-setup"), NotNil)
 }
 
 func (s *confdbSuite) TestDecodeInvalid(c *C) {
-	const validationSetErrPrefix = "assertion confdb: "
+	const validationSetErrPrefix = "assertion confdb-schema: "
 
 	encoded := strings.Replace(confdbExample, "TSLINE", s.tsLine, 1)
 
@@ -176,7 +175,7 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatOK(c *C) {
     }
   }
 }`
-	acct1, err := asserts.AssembleAndSignInTest(asserts.ConfdbType, headers, []byte(schema), testPrivKey0)
+	acct1, err := asserts.AssembleAndSignInTest(asserts.ConfdbSchemaType, headers, []byte(schema), testPrivKey0)
 	c.Assert(err, IsNil)
 	c.Assert(string(acct1.Body()), Equals, schema)
 }
@@ -198,8 +197,8 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	}
 
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
-	_, err := asserts.AssembleAndSignInTest(asserts.ConfdbType, headers, []byte(schema), testPrivKey0)
-	c.Assert(err, ErrorMatches, `assertion confdb: JSON in body must be indented with 2 spaces and sort object entries by key`)
+	_, err := asserts.AssembleAndSignInTest(asserts.ConfdbSchemaType, headers, []byte(schema), testPrivKey0)
+	c.Assert(err, ErrorMatches, `assertion confdb-schema: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }
 
 type confdbCtrlSuite struct {
@@ -215,25 +214,38 @@ model: generic-classic
 serial: 03961d5d-26e5-443f-838d-6db046126bea
 groups:
   -
-    operator-id: john
-    authentication:
+    operators:
+      - john
+    authentications:
       - operator-key
     views:
       - canonical/network/control-device
       - canonical/network/observe-device
   -
-    operator-id: john
-    authentication:
+    operators:
+      - john
+    authentications:
       - store
     views:
       - canonical/network/control-interfaces
   -
-    operator-id: jane
-    authentication:
+    operators:
+      - jane
+    authentications:
       - store
       - operator-key
     views:
       - canonical/network/observe-interfaces
+  -
+    operators:
+      - alice
+      - bob
+    authentications:
+      - store
+      - operator-key
+    views:
+      - canonical/network/observe-device
+      - canonical/network/control-interfaces
 sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
 
 AXNpZw==`
@@ -289,39 +301,33 @@ func (s *confdbCtrlSuite) TestDecodeOK(c *C) {
 	c.Assert(cc.Serial(), Equals, "03961d5d-26e5-443f-838d-6db046126bea")
 	c.Assert(cc.AuthorityID(), Equals, "")
 
-	operators := cc.Operators()
+	ctrl := cc.Control()
+	delegated, _ := ctrl.IsDelegated("john", "canonical/network/control-device", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
+	delegated, _ = ctrl.IsDelegated("john", "canonical/network/observe-device", []string{"operator-key"})
+	c.Check(delegated, Equals, true)
+	delegated, _ = ctrl.IsDelegated("john", "canonical/network/control-interfaces", []string{"store"})
+	c.Check(delegated, Equals, true)
+	delegated, _ = ctrl.IsDelegated("jane", "canonical/network/observe-interfaces", []string{"store", "operator-key"})
+	c.Check(delegated, Equals, true)
+}
 
-	john, ok := operators["john"]
-	c.Assert(ok, Equals, true)
-	c.Assert(john.ID, Equals, "john")
-	c.Assert(len(john.Groups), Equals, 2)
+func (s *confdbCtrlSuite) TestDecodeEmptyAssertionOK(c *C) {
+	emptyAssertion := `type: confdb-control
+brand-id: generic
+model: generic-classic
+serial: 03961d5d-26e5-443f-838d-6db046126bea
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
 
-	g := john.Groups[0]
-	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"operator-key"})
-	expectedViews := []*confdb.ViewRef{
-		{Account: "canonical", Confdb: "network", View: "control-device"},
-		{Account: "canonical", Confdb: "network", View: "observe-device"},
-	}
-	c.Assert(g.Views, DeepEquals, expectedViews)
+AXNpZw==`
 
-	g = john.Groups[1]
-	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"store"})
-	expectedViews = []*confdb.ViewRef{
-		{Account: "canonical", Confdb: "network", View: "control-interfaces"},
-	}
-	c.Assert(g.Views, DeepEquals, expectedViews)
+	a, err := asserts.Decode([]byte(emptyAssertion))
+	c.Assert(err, IsNil)
+	c.Assert(a, NotNil)
 
-	jane, ok := operators["jane"]
-	c.Assert(ok, Equals, true)
-	c.Assert(jane.ID, Equals, "jane")
-	c.Assert(len(jane.Groups), Equals, 1)
-
-	g = jane.Groups[0]
-	c.Assert(g.Authentication, DeepEquals, []confdb.AuthenticationMethod{"operator-key", "store"})
-	expectedViews = []*confdb.ViewRef{
-		{Account: "canonical", Confdb: "network", View: "observe-interfaces"},
-	}
-	c.Assert(g.Views, DeepEquals, expectedViews)
+	ctrl := a.(*asserts.ConfdbControl).Control()
+	groups := ctrl.Groups()
+	c.Assert(groups, HasLen, 0)
 }
 
 func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
@@ -338,28 +344,26 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "", `"serial" header is mandatory`},
 		{"serial: 03961d5d-26e5-443f-838d-6db046126bea\n", "serial: \n", `"serial" header should not be empty`},
 		{"groups:", "groups: foo\nviews:", `"groups" header must be a list`},
-		{"groups:", "views:", `"groups" stanza is mandatory`},
 		{"groups:", "groups:\n  - bar", `cannot parse group at position 1: must be a map`},
-		{"    operator-id: jane\n", "", `cannot parse group at position 3: "operator-id" field is mandatory`},
+		{"    operators:\n      - jane\n", "", `cannot parse group at position 3: "operators" must be provided`},
 		{
-			"operator-id: jane\n",
-			"operator-id: \n",
-			`cannot parse group at position 3: "operator-id" field should not be empty`,
+			"    operators:\n      - jane\n",
+			"    operators: abcd\n", `cannot parse group at position 3: "operators" field must be a list of strings`,
 		},
 		{
-			"operator-id: jane\n",
-			"operator-id: @op\n",
-			`cannot parse group at position 3: invalid "operator-id" @op`,
+			"      - jane",
+			"      - @op",
+			`cannot parse group at position 3: invalid operator ID: @op`,
 		},
 		{
-			"    authentication:\n      - store",
-			"    authentication: abcd",
-			`cannot parse group at position 2: "authentication" field must be a list of strings`,
+			"    authentications:\n      - store",
+			"    authentications: abcd",
+			`cannot parse group at position 2: "authentications" field must be a list of strings`,
 		},
 		{
-			"    authentication:\n      - store",
+			"    authentications:\n      - store",
 			"    foo: bar",
-			`cannot parse group at position 2: "authentication" must be provided`,
+			`cannot parse group at position 2: "authentications" must be provided`,
 		},
 		{
 			"    views:\n      - canonical/network/control-interfaces",
@@ -374,12 +378,12 @@ func (s *confdbCtrlSuite) TestDecodeInvalid(c *C) {
 		{
 			"      - operator-key",
 			"      - foo-bar",
-			"cannot parse group at position 1: cannot add group: invalid authentication method: foo-bar",
+			"cannot parse group at position 1: cannot delegate: invalid authentication method: foo-bar",
 		},
 		{
 			"canonical/network/control-interfaces",
 			"canonical",
-			`cannot parse group at position 2: view "canonical" must be in the format account/confdb/view`,
+			`cannot parse group at position 2: cannot delegate: view "canonical" must be in the format account/confdb/view`,
 		},
 	}
 
@@ -438,7 +442,16 @@ func (s *confdbCtrlSuite) TestAckAssertionOK(c *C) {
 	s.addSerial(c)
 
 	headers := map[string]interface{}{
-		"brand-id": "canonical", "model": "pc", "serial": "42", "groups": []interface{}{},
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "42",
+		"groups": []interface{}{
+			map[string]interface{}{
+				"operators":       []interface{}{"aa", "cc"},
+				"authentications": []interface{}{"operator-key"},
+				"views":           []interface{}{"pp/qq/rr"},
+			},
+		},
 	}
 	a, err := asserts.AssembleAndSignInTest(asserts.ConfdbControlType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)

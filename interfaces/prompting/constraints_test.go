@@ -20,7 +20,9 @@
 package prompting_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"runtime"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -970,12 +972,12 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 	}
 }
 
-func constructPermissionsMaps() []map[string]map[string]any {
-	var permissionsMaps []map[string]map[string]any
+func constructPermissionsMaps() []map[string]map[string]notify.AppArmorPermission {
+	var permissionsMaps []map[string]map[string]notify.AppArmorPermission
 	// interfaceFilePermissionsMaps
-	filePermissionsMaps := make(map[string]map[string]any)
+	filePermissionsMaps := make(map[string]map[string]notify.AppArmorPermission)
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
-		filePermissionsMaps[iface] = make(map[string]any, len(permsMap))
+		filePermissionsMaps[iface] = make(map[string]notify.AppArmorPermission, len(permsMap))
 		for perm, val := range permsMap {
 			filePermissionsMaps[iface][perm] = val
 		}
@@ -983,6 +985,37 @@ func constructPermissionsMaps() []map[string]map[string]any {
 	permissionsMaps = append(permissionsMaps, filePermissionsMaps)
 	// TODO: do the same for other maps of permissions maps in the future
 	return permissionsMaps
+}
+
+func (s *constraintsSuite) TestMarshalRulePermissionEntry(c *C) {
+	if runtime.Version() < "go1.24" {
+		c.Skip("omitzero requires go version 1.24 or higher")
+	}
+	timeNow := time.Date(2025, time.February, 20, 16, 0, 27, 913561089, time.UTC)
+	for _, testCase := range []struct {
+		entry    prompting.RulePermissionEntry
+		expected string
+	}{
+		{
+			entry: prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: `{"outcome":"allow","lifespan":"forever"}`,
+		},
+		{
+			entry: prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeDeny,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: timeNow,
+			},
+			expected: `{"outcome":"deny","lifespan":"timespan","expiration":"2025-02-20T16:00:27.913561089Z"}`,
+		},
+	} {
+		marshalled, err := json.Marshal(testCase.entry)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(string(marshalled), Equals, testCase.expected, Commentf("testCase: %+v", testCase))
+	}
 }
 
 func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
@@ -1046,7 +1079,7 @@ func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
 		iface string
-		perms any
+		perms notify.AppArmorPermission
 		list  []string
 	}{
 		{
@@ -1087,15 +1120,25 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 	}
 }
 
+type fakeAaPerm string
+
+func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
+	return uint32(len(p)) // deliberately gratuitously meaningless
+}
+
+func (p fakeAaPerm) String() string {
+	return string(p)
+}
+
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
 	for _, testCase := range []struct {
 		iface  string
-		perms  any
+		perms  notify.AppArmorPermission
 		errStr string
 	}{
 		{
 			"home",
-			"not a file permission",
+			fakeAaPerm("not a file permission"),
 			"cannot parse the given permissions as file permissions.*",
 		},
 		{
@@ -1115,7 +1158,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 	}
 	for _, testCase := range []struct {
 		iface    string
-		perms    any
+		perms    notify.AppArmorPermission
 		abstract []string
 		errStr   string
 	}{
@@ -1145,7 +1188,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	cases := []struct {
 		iface string
 		list  []string
-		perms any
+		perms notify.AppArmorPermission
 	}{
 		{
 			"home",

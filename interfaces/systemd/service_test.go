@@ -42,4 +42,12 @@ func (s *serviceSuite) TestString(c *C) {
 	c.Assert(service5.String(), Equals, "[Service]\nExecStop=/bin/true\n\n[Install]\nWantedBy=multi-user.target\n")
 	service6 := systemd.Service{Description: "ohai"}
 	c.Assert(service6.String(), Equals, "[Unit]\nDescription=ohai\n\n[Service]\n\n[Install]\nWantedBy=multi-user.target\n")
+	service7 := systemd.Service{Wants: "snapd.mounts.target"}
+	c.Assert(service7.String(), Equals, "[Unit]\nWants=snapd.mounts.target\n[Service]\n\n[Install]\nWantedBy=multi-user.target\n")
+	service8 := systemd.Service{WantedBy: "snapd.mounts.target"}
+	c.Assert(service8.String(), Equals, "[Unit]\nWantedBy=snapd.mounts.target\n[Service]\n\n[Install]\nWantedBy=multi-user.target\n")
+	service9 := systemd.Service{After: "snapd.mounts.target"}
+	c.Assert(service9.String(), Equals, "[Unit]\nAfter=snapd.mounts.target\n[Service]\n\n[Install]\nWantedBy=multi-user.target\n")
+	service10 := systemd.Service{Before: "snapd.mounts.target"}
+	c.Assert(service10.String(), Equals, "[Unit]\nBefore=snapd.mounts.target\n[Service]\n\n[Install]\nWantedBy=multi-user.target\n")
 }

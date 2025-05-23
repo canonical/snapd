@@ -5,6 +5,6 @@ DefaultDependencies=no
 ConditionKernelCommandLine=ubuntu_core.bootchart
 
 [Service]
-ExecStartPre=/usr/sbin/mkdir -p /run/log
+ExecStartPre=/usr/bin/mkdir -p /run/log
 ExecStart=/lib/systemd/systemd-bootchart -r
 KillSignal=SIGHUP

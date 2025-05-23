@@ -21,12 +21,19 @@ package listener
 
 import (
 	"os"
+	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/osutil/epoll"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
+)
+
+var (
+	ReadyTimeout = readyTimeout
 )
 
 func ExitOnError() (restore func()) {
@@ -35,10 +42,16 @@ func ExitOnError() (restore func()) {
 	return restore
 }
 
-func FakeRequestWithClassAndReplyChan(class notify.MediationClass, replyChan chan any) *Request {
+func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVersion, class notify.MediationClass, aaAllow, aaDeny notify.AppArmorPermission) *Request {
+	listener := &Listener{
+		protocolVersion: version,
+	}
 	return &Request{
-		Class:     class,
-		replyChan: replyChan,
+		ID:         id,
+		Class:      class,
+		Permission: aaDeny,
+		AaAllowed:  aaAllow,
+		listener:   listener,
 	}
 }
 
@@ -56,7 +69,7 @@ func MockOsOpenWithSocket() (restore func()) {
 		if err != nil {
 			return nil, err
 		}
-		notifyFile := os.NewFile(uintptr(socket), notify.SysPath)
+		notifyFile := os.NewFile(uintptr(socket), apparmor.NotifySocketPath)
 		return notifyFile, nil
 	}
 	restore = MockOsOpen(f)
@@ -69,7 +82,7 @@ func MockEpollWait(f func(l *Listener) ([]epoll.Event, error)) (restore func()) 
 	return restore
 }
 
-func MockNotifyRegisterFileDescriptor(f func(fd uintptr) (notify.ProtocolVersion, error)) (restore func()) {
+func MockNotifyRegisterFileDescriptor(f func(fd uintptr) (notify.ProtocolVersion, int, error)) (restore func()) {
 	restore = testutil.Backup(&notifyRegisterFileDescriptor)
 	notifyRegisterFileDescriptor = f
 	return restore
@@ -89,18 +102,24 @@ func MockNotifyIoctl(f func(fd uintptr, req notify.IoctlRequest, buf notify.Ioct
 // call), it triggers an epoll event with the listener's notify socket fd, and
 // then passes the data on to the next ioctl RECV call. When the listener makes
 // a SEND call via ioctl, the data is instead written to the send channel.
-func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan chan<- []byte, sendChan <-chan []byte, restore func()) {
+func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion, pendingCount int) (recvChan chan<- []byte, sendChan <-chan []byte, restore func()) {
 	recvChanRW := make(chan []byte)
-	sendChanRW := make(chan []byte)
+	sendChanRW := make(chan []byte, 1) // need to have buffer size 1 since reply does not run in a goroutine and the test would otherwise block
 	internalRecvChan := make(chan []byte, 1)
 	epollF := func(l *Listener) ([]epoll.Event, error) {
+		// In the real listener, the epoll instance has its own FD and we don't
+		// need to get the notify FD, but here, we get the notify FD directly,
+		// so we need to get it with the socket mutex held to avoid a race.
+		l.socketMu.Lock()
+		socketFd := int(l.notifyFile.Fd())
+		l.socketMu.Unlock()
 		for {
 			select {
 			case request := <-recvChanRW:
 				internalRecvChan <- request
 				events := []epoll.Event{
 					{
-						Fd:        int(l.notifyFile.Fd()),
+						Fd:        socketFd,
 						Readiness: epoll.Readable,
 					},
 				}
@@ -124,8 +143,8 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan cha
 		}
 		return buf, nil
 	}
-	rfdF := func(fd uintptr) (notify.ProtocolVersion, error) {
-		return protoVersion, nil
+	rfdF := func(fd uintptr) (notify.ProtocolVersion, int, error) {
+		return protoVersion, pendingCount, nil
 	}
 	restoreEpoll := testutil.Mock(&listenerEpollWait, epollF)
 	restoreIoctl := testutil.Mock(&notifyIoctl, ioctlF)
@@ -141,32 +160,29 @@ func MockEpollWaitNotifyIoctl(protoVersion notify.ProtocolVersion) (recvChan cha
 	return recvChanRW, sendChanRW, restore
 }
 
+// Return a blocking channel over which a IoctlRequest type will be sent
+// whenever notifyIoctl returns.
+func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore func()) {
+	ioctlDoneRW := make(chan notify.IoctlRequest)
+	realIoctl := notifyIoctl
+	restore = testutil.Mock(&notifyIoctl, func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
+		ret, err := realIoctl(fd, req, buf)
+		ioctlDoneRW <- req // synchronize
+		return ret, err
+	})
+	return ioctlDoneRW, restore
+}
+
 func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationResponse) error) (restore func()) {
 	restore = testutil.Backup(&encodeAndSendResponse)
 	encodeAndSendResponse = f
 	return restore
 }
 
-func (l *Listener) Dead() <-chan struct{} {
-	return l.tomb.Dead()
-}
-
-func (l *Listener) Dying() <-chan struct{} {
-	return l.tomb.Dying()
-}
-
-func (l *Listener) Err() error {
-	return l.tomb.Err()
-}
-
-func (l *Listener) Kill(err error) {
-	l.tomb.Kill(err)
-}
-
 func (l *Listener) EpollIsClosed() bool {
 	return l.poll.IsClosed()
 }
 
-func (l *Listener) WaitAndRespondAaClassFile(req *Request, msg *notify.MsgNotificationFile) error {
-	return l.waitAndRespondAaClassFile(req, msg)
+func MockTimeAfterFunc(f func(d time.Duration, callback func()) timeutil.Timer) (restore func()) {
+	return testutil.Mock(&timeAfterFunc, f)
 }

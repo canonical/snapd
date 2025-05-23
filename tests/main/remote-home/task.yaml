@@ -15,6 +15,7 @@ details: |
 # unit tests and is relatively useless in the field, where way more elaborate
 # logic is used in practice (e.g. PAM modules), that snapd has no support for.
 systems:
+  - ubuntu-20.04-*
   - ubuntu-22.04-*
   - ubuntu-24.04-*
 
@@ -23,6 +24,9 @@ environment:
   FS/cifs: cifs
 
 prepare: |
+    # Install local copy of test-snapd-sh which plugs in the home interface but not the network interface.
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
     # We don't expect to leak the test-remote user, group or mount.
     tests.cleanup defer NOMATCH 'test-remote' /etc/passwd
     tests.cleanup defer NOMATCH 'test-remote' /etc/group
@@ -30,7 +34,9 @@ prepare: |
 
     # Create a user called test-remote
     adduser --uid 54321 --quiet --disabled-password --gecos '' test-remote
-    tests.cleanup defer deluser test-remote
+    # TODO this fails sometimes when a user's smb mount process hasn't stopped
+    # yet
+    tests.cleanup defer retry -n 5 deluser test-remote
 
     # Move the actual home directory of the user test-remote to /var/home.
     # Later on we will mount /home/test-remote from the remote file system.
@@ -43,12 +49,9 @@ prepare: |
     tests.cleanup defer rm -rf /var/home/test-remote
 
     # Install a package with additional kernel modules, so that we can mount cifs/nfs.
-    if ! tests.pkgs install "linux-modules-extra-$(uname -r)"; then
-      echo "SKIP: Kernel version and extras module mismatch"
-      # TODO: figure out something better. This sort of skew can happen at any time,
-      # and we have no good way of solving the problem apart from a real SKIP command
-      # in spread.
-      exit 0
+    if ! tests.pkgs install "linux-modules-$(uname -r)"; then
+      echo "Kernel version and modules mismatch"
+      exit 1
     fi
 
     case "$FS" in
@@ -119,38 +122,44 @@ prepare: |
     tests.cleanup defer systemctl restart snapd.service
     tests.cleanup defer systemctl reset-failed snapd.service snapd.socket
 
+    # leave a canary file
+    touch /var/home/test-remote/hello
     # Mount the remote filesystem at /home/test-remote.
     case "$FS" in
       nfs)
-        mount -t nfs localhost:/var/home/test-remote /home/test-remote -o nfsvers=3,proto=tcp
+        mount -t nfs localhost:/var/home/test-remote /home/test-remote
         ;;
       cifs)
         # TODO: it would be nice to successfully pass ",posix" option and get things to mount.
         mount -t cifs //127.0.0.1/var-home/test-remote /home/test-remote -o vers=3.1.1,nomapposix,mfsymlinks,username=test-remote,password=secret,uid=54321,gid=54321
         ;;
+      *)
+        echo "unexpected test case '$FS'"
+        exit 1
+        ;;
     esac
+    # which should be visible now after the mount has succeeded
+    test -f /home/test-remote/hello
     tests.cleanup defer umount /home/test-remote
 
     # Ensure the session is working.
     tests.session -u test-remote prepare
     tests.cleanup defer tests.session -u test-remote restore
 
-    # Install local copy of test-snapd-sh which plugs in the home interface but not the network interface.
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
-
     # Check that snapd works around NFS and CIFS apparmor interaction. Note
     # that the name of the file is "nfs-support" as we are not trying to change
     # too much of the extension interface visible to the system.
-    systemctl reset-failed snapd.service snapd.socket
-    systemctl restart snapd.service
     if [ "$(snap debug confinement)" = strict ]; then
         if tests.info is-reexec-in-use; then
-          MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
+          test ! -f /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
         else
-          MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+          test ! -f /var/lib/snapd/apparmor/snap-confine/nfs-support
         fi
-        MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+        NOMATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
     fi
+    snap changes | NOMATCH 'Regenerate security profiles'
+
+    gojq '.["nfs-home"]' < /var/lib/snapd/system-key | MATCH false
 
 restore: |
     # Run cleanup handlers registered earlier.
@@ -175,10 +184,34 @@ execute: |
     #shellcheck disable=SC2016
     tests.session -u test-remote exec snap run test-snapd-sh.with-home-plug -c 'test -h $SNAP_USER_COMMON/../current'
 
+    snap changes | grep 'Regenerate security profiles' | MATCH 'Done'
+    # only one change
+    test "$(snap changes | grep -c 'Regenerate security profiles')" = "1"
+
+    # Client has notified snapd of a system-key mismatch, snapd reacted with a
+    # change to regenerate security profiles
+    if [ "$(snap debug confinement)" = strict ]; then
+        # TODO:mismatch: fix
+        if tests.info is-reexec-in-use; then
+          MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine.internal/nfs-support
+        else
+          MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+        fi
+        MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+    fi
+
+    gojq '.["nfs-home"]' < /var/lib/snapd/system-key | MATCH true
+
     # As a non-root user perform a write to $SNAP_USER_DATA which is mounted over CIFS or NFS.
     #shellcheck disable=SC2016
     tests.session -u test-remote exec snap run test-snapd-sh.with-home-plug -c 'touch $SNAP_USER_DATA/smoke-cifs'
 
+    # still just one change
+    test "$(snap changes | grep -c 'Regenerate security profiles')" = "1"
+
     # As a non-root user perform a write to $SNAP_USER_COMMON which is mounted over CIFS or NFS.
     #shellcheck disable=SC2016
     tests.session -u test-remote exec snap run test-snapd-sh.with-home-plug -c 'touch $SNAP_USER_COMMON/smoke-cifs'
+
+    # same
+    test "$(snap changes | grep -c 'Regenerate security profiles')" = "1"

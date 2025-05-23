@@ -107,8 +107,14 @@ func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.Compon
 	err = os.MkdirAll(filepath.Dir(info.MountFile()), 0755)
 	c.Assert(err, check.IsNil)
 
-	// TODO: write something to disk for the component snap file, like in
-	// MockSnap
+	compPath := MakeTestComponent(c, yamlText)
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		csi.Component.ComponentName,
+		csi.Revision,
+		info.SnapName(),
+	)
+	err = os.Rename(compPath, cpi.MountFile())
+	c.Assert(err, check.IsNil)
 
 	container := snapdir.New(filepath.Dir(metaDir))
 	component, err := snap.ReadComponentInfoFromContainer(container, info, &csi)

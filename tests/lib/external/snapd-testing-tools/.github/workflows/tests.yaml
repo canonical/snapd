@@ -9,7 +9,7 @@ on:
 
 jobs:
   unit-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -31,6 +31,10 @@ jobs:
           sudo apt install python3-pip
           pip3 install codespell
           codespell
+
+    - name: Run Python unit tests
+      run: |
+          python3 -m unittest discover -s utils
 
   test:
     needs: [unit-tests]

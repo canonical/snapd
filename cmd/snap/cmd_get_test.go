@@ -227,13 +227,6 @@ func (s *SnapSuite) mockGetEmptyConfigServer(c *C) {
 	})
 }
 
-const syncResp = `{
-  "type": "sync",
-  "status-code": 200,
-  "status": "OK",
-  "result": %s
-}`
-
 func (s *confdbSuite) TestConfdbGet(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
 	defer restore()
@@ -252,8 +245,16 @@ func (s *confdbSuite) TestConfdbGet(c *C) {
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
 			c.Check(fields, DeepEquals, []string{"abc"})
 
-			w.WriteHeader(200)
-			fmt.Fprintf(w, syncResp, `{"abc": "cba"}`)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": "cba"}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -289,8 +290,16 @@ func (s *confdbSuite) TestConfdbGetAsDocument(c *C) {
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
 			c.Check(fields, DeepEquals, []string{"abc"})
 
-			w.WriteHeader(200)
-			fmt.Fprintf(w, syncResp, `{"abc": "cba"}`)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": "cba"}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -330,8 +339,16 @@ func (s *confdbSuite) TestConfdbGetMany(c *C) {
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
 			c.Check(fields, DeepEquals, []string{"abc", "xyz"})
 
-			w.WriteHeader(200)
-			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": 1, "xyz": false}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -371,8 +388,16 @@ func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
 			fields := strutil.CommaSeparatedList(q.Get("fields"))
 			c.Check(fields, DeepEquals, []string{"abc", "xyz"})
 
-			w.WriteHeader(200)
-			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": 1, "xyz": false}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -395,13 +420,13 @@ func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *confdbSuite) TestConfdbGetInvalidConfdbID(c *check.C) {
+func (s *confdbSuite) TestConfdbGetInvalidConfdbSchemaID(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo//bar", "foo=bar"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "confdb identifier must conform to format: <account-id>/<confdb>/<view>")
+	c.Check(err.Error(), Equals, "confdb-schema view id must conform to format: <account-id>/<confdb-schema>/<view>")
 }
 
 func (s *confdbSuite) TestConfdbGetDisabledFlag(c *check.C) {
@@ -419,7 +444,7 @@ func (s *confdbSuite) TestConfdbGetDisabledFlag(c *check.C) {
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
-	c.Assert(err, check.ErrorMatches, `the "confdbs" feature is disabled: set 'experimental.confdbs' to true`)
+	c.Assert(err, check.ErrorMatches, `the "confdb" feature is disabled: set 'experimental.confdb' to true`)
 }
 
 func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
@@ -433,11 +458,20 @@ func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
-			fields := r.URL.Query().Get("fields")
-			c.Check(fields, Equals, "")
+			q := r.URL.Query()
+			fields := strutil.CommaSeparatedList(q.Get("fields"))
+			c.Check(fields, HasLen, 0)
 
-			w.WriteHeader(200)
-			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": 1, "xyz": false}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -457,4 +491,48 @@ func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
 	"xyz": false
 }
 `)
+}
+
+func (s *confdbSuite) TestConfdbGetNoWait(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "--no-wait"})
+	// although a confdb snap get waits for a change, there's no --no-wait option
+	c.Assert(err, ErrorMatches, "unknown flag `no-wait'")
+}
+
+func (s *confdbSuite) TestConfdbGetNoDataError(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			fields := strutil.CommaSeparatedList(q.Get("fields"))
+			c.Check(fields, DeepEquals, []string{"foo"})
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-error": "some error, no data"}}}`)
+		default:
+			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "foo"})
+	c.Assert(err, ErrorMatches, "some error, no data")
 }

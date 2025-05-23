@@ -5338,7 +5338,7 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
-func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.Confdb {
+func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.ConfdbSchema {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"account-id":   s.dev1AcctKey.AccountID(),
@@ -5350,10 +5350,10 @@ func (s *assertMgrSuite) confdb(c *C, name string, extraHeaders map[string]inter
 		headers[h] = v
 	}
 
-	as, err := s.dev1Signing.Sign(asserts.ConfdbType, headers, []byte(body), "")
+	as, err := s.dev1Signing.Sign(asserts.ConfdbSchemaType, headers, []byte(body), "")
 	c.Assert(err, IsNil)
 
-	return as.(*asserts.Confdb)
+	return as.(*asserts.ConfdbSchema)
 }
 
 func (s *assertMgrSuite) TestConfdb(c *C) {
@@ -5388,16 +5388,16 @@ func (s *assertMgrSuite) TestConfdb(c *C) {
 	err = assertstate.Add(s.state, confdbFoo)
 	c.Assert(err, IsNil)
 
-	_, err = assertstate.Confdb(s.state, "no-account", "foo")
+	_, err = assertstate.ConfdbSchema(s.state, "no-account", "foo")
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	confdbAs, err := assertstate.Confdb(s.state, s.dev1AcctKey.AccountID(), "foo")
+	confdbSchemaAs, err := assertstate.ConfdbSchema(s.state, s.dev1AcctKey.AccountID(), "foo")
 	c.Assert(err, IsNil)
 
-	confdb := confdbAs.Confdb()
-	c.Check(confdb.Account, Equals, s.dev1AcctKey.AccountID())
-	c.Check(confdb.Name, Equals, "foo")
-	c.Check(confdb.Schema, NotNil)
+	schema := confdbSchemaAs.Schema()
+	c.Check(schema.Account, Equals, s.dev1AcctKey.AccountID())
+	c.Check(schema.Name, Equals, "foo")
+	c.Check(schema.DatabagSchema, NotNil)
 }
 
 func (s *assertMgrSuite) TestValidateComponent(c *C) {
@@ -5695,10 +5695,10 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 
 	snapsup := snapstate.SnapSetup{
-		SnapPath: snapPath,
-		UserID:   0,
-		SideInfo: si,
-		Confdbs:  []snapstate.ConfdbID{{Account: s.dev1Acct.AccountID(), Confdb: "my-confdb"}},
+		SnapPath:         snapPath,
+		UserID:           0,
+		SideInfo:         si,
+		PluggedConfdbIDs: []snapstate.ConfdbSchemaID{{Account: s.dev1Acct.AccountID(), Name: "my-confdb"}},
 	}
 
 	t.Set("snap-setup", snapsup)
@@ -5717,7 +5717,7 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 
-	confdb, err := assertstate.DB(s.state).Find(asserts.ConfdbType, map[string]string{
+	confdb, err := assertstate.DB(s.state).Find(asserts.ConfdbSchemaType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "my-confdb",
 	})
@@ -5789,7 +5789,7 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	// precondition check
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
 	db := assertstate.DB(s.state)
-	confdb, err := db.Find(asserts.ConfdbType, map[string]string{
+	confdb, err := db.Find(asserts.ConfdbSchemaType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "my-confdb",
 	})
@@ -5804,7 +5804,7 @@ func (s *assertMgrSuite) testConfdbAssertionsAutoRefresh(c *C) {
 	// auto-refresh should obtain revision 2
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
 
-	a, err := db.Find(asserts.ConfdbType, map[string]string{
+	a, err := db.Find(asserts.ConfdbSchemaType, map[string]string{
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "my-confdb",
 	})
@@ -5866,4 +5866,8 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 	c.Assert(found.SnapID(), Equals, snaptest.AssertedSnapID("snap-1"))
 	c.Assert(found.Provenance(), Equals, info.Provenance())
 	c.Assert(found.DeveloperID(), Equals, s.dev1Acct.AccountID())
+}
+
+func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("assertmgr.go", c, false)
 }

@@ -37,14 +37,14 @@ func (*schemaSuite) TestTopLevelFailsWithoutSchema(c *C) {
 	"keys": "string"
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse top level schema: must have a "schema" constraint`)
 }
 
 func (*schemaSuite) TestSchemaMustBeMap(c *C) {
 	schemaStr := []byte(`["foo"]`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse top level schema as map: json: cannot unmarshal array.*`)
 }
 
@@ -53,7 +53,7 @@ func (*schemaSuite) TestTopLevelMustBeMapType(c *C) {
 	"type": "string"
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse top level schema: unexpected declared type "string", should be "map" or omitted`)
 
 	schemaStr = []byte(`{
@@ -63,7 +63,7 @@ func (*schemaSuite) TestTopLevelMustBeMapType(c *C) {
 		}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 }
 
@@ -74,7 +74,7 @@ func (*schemaSuite) TestTopLevelTypeWrongFormat(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse top level schema's "type" entry: .*`)
 }
 
@@ -98,7 +98,7 @@ func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -116,7 +116,7 @@ func (*schemaSuite) TestMapSchemasRequireConstraints(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "map": must be schema definition with constraints`)
 }
 
@@ -132,7 +132,7 @@ func (*schemaSuite) TestTypeConstraintMustBeString(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "type" constraint in type definition: json: cannot unmarshal number into.*`)
 }
 
@@ -145,7 +145,7 @@ func (*schemaSuite) TestMapSchemasRequireSchemaOrKeyValues(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse map: must have "schema" or "keys"/"values" constraint`)
 }
 
@@ -167,7 +167,7 @@ func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -188,7 +188,7 @@ func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -212,7 +212,7 @@ func (*schemaSuite) TestMapWithKeysConstraintAsMap(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -230,7 +230,7 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but type was map`)
 
 	schemaStr = []byte(`{
@@ -241,7 +241,7 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 	}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: keys must be based on string but type was int`)
 }
 
@@ -260,7 +260,7 @@ func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -276,7 +276,7 @@ func (*schemaSuite) TestMapWithBadValuesConstraint(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse unknown type "foo"`)
 }
 
@@ -295,7 +295,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -314,7 +314,7 @@ func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
 	"foo": "oof"
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -336,7 +336,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -359,7 +359,7 @@ func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
 	"baz": 3
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -382,7 +382,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 	"bar": "rab"
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -405,7 +405,7 @@ func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
 	"foo": "oof"
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -416,7 +416,7 @@ func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
 	"bar": "rab"
 }`)
 
-	schema, err = confdb.ParseSchema(schemaStr)
+	schema, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -438,7 +438,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 	"baz": 1
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -454,7 +454,7 @@ func (*schemaSuite) TestMapSchemaRequiredNotInSchema(c *C) {
 	"required": ["foo", "baz"]
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse map's "required" constraint: required key "baz" must have schema entry`)
 }
 
@@ -465,7 +465,7 @@ func (*schemaSuite) TestMapSchemaWithInvalidKeyFormat(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse map: key "-foo" doesn't conform to required format: .*`)
 }
 
@@ -476,7 +476,7 @@ func (*schemaSuite) TestMapRejectsInputMapWithInvalidKeyFormat(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -526,7 +526,7 @@ func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 	}
 }`, tc.snippet))
 
-		_, err := confdb.ParseSchema(schemaStr)
+		_, err := confdb.ParseStorageSchema(schemaStr)
 		cmt := Commentf("subtest %q", tc.name)
 		c.Assert(err, ErrorMatches, tc.err, cmt)
 	}
@@ -539,7 +539,7 @@ func (*schemaSuite) TestSchemaWithUnknownType(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse unknown type "blarg"`)
 }
 
@@ -555,7 +555,7 @@ func (*schemaSuite) TestStringsWithEmptyChoices(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot have a "choices" constraint with an empty list`)
 }
 
@@ -579,7 +579,7 @@ func (*schemaSuite) TestStringsWithChoicesHappy(c *C) {
 		}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -607,7 +607,7 @@ func (*schemaSuite) TestStringsWithChoicesFail(c *C) {
 		}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -627,7 +627,7 @@ func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `.*cannot use "choices" and "pattern" constraints in same schema`)
 }
 
@@ -650,7 +650,7 @@ func (*schemaSuite) TestStringPatternHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -671,7 +671,7 @@ func (*schemaSuite) TestStringPatternNoMatch(c *C) {
 	"foo": "F00"
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -688,7 +688,7 @@ func (*schemaSuite) TestStringPatternWrongFormat(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "pattern" constraint: error parsing regexp.*`)
 
 	schemaStr = []byte(`{
@@ -700,7 +700,7 @@ func (*schemaSuite) TestStringPatternWrongFormat(c *C) {
 	}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "pattern" constraint:.*`)
 }
 
@@ -714,7 +714,7 @@ func (*schemaSuite) TestStringChoicesWrongFormat(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint:.*`)
 }
 
@@ -759,7 +759,7 @@ func (*schemaSuite) TestStringBasedAlias(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -781,7 +781,7 @@ func (*schemaSuite) TestMapKeyMustBeStringAlias(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: key type "key-type" must be based on string`)
 }
 
@@ -791,7 +791,7 @@ func (*schemaSuite) TestAliasesWrongFormat(c *C) {
 	"schema": {}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse aliases map: json: cannot unmarshal.*`)
 }
 
@@ -805,7 +805,7 @@ func (*schemaSuite) TestBadAlias(c *C) {
 	"schema": {}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse alias "mytype": cannot parse unknown type "bad-type"`)
 }
 
@@ -818,7 +818,7 @@ func (*schemaSuite) TestUnknownAlias(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot find alias "foo"`)
 }
 
@@ -831,7 +831,7 @@ func (*schemaSuite) TestUnknownAliasInKeys(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot find alias "foo"`)
 }
 
@@ -865,7 +865,7 @@ func (*schemaSuite) TestMapBasedAliasHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -887,7 +887,7 @@ func (*schemaSuite) TestAliasReferenceDoesntRequireConstraints(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 }
@@ -903,7 +903,7 @@ func (*schemaSuite) TestMapInAliasRequiresConstraints(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse alias "my-type": cannot parse "map": must be schema definition with constraints`)
 }
 
@@ -933,7 +933,7 @@ func (*schemaSuite) TestMapBasedAliasFail(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
@@ -957,7 +957,7 @@ func (*schemaSuite) TestBadAliasName(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`)
 }
@@ -969,7 +969,7 @@ func (*schemaSuite) TestIntegerHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -986,7 +986,7 @@ func (*schemaSuite) TestIntRejectsOtherValues(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, val := range []string{`1.2`, `"a"`, `false`, `[1]`} {
@@ -1008,7 +1008,7 @@ func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, num := range []int{0, 1, 2, 3, 4} {
@@ -1037,7 +1037,7 @@ func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
 	}
 }`, min, max))
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, num := range []int{0, 1, 2, 3, 4} {
@@ -1067,7 +1067,7 @@ func (*schemaSuite) TestIntegerChoicesAndMinMaxFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "choices" and "min" constraints`)
 
 	schemaStr = []byte(`{
@@ -1080,7 +1080,7 @@ func (*schemaSuite) TestIntegerChoicesAndMinMaxFail(c *C) {
 	}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "choices" and "max" constraints`)
 }
 
@@ -1094,7 +1094,7 @@ func (*schemaSuite) TestIntegerEmptyChoicesFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "choices" constraint with empty list`)
 }
 
@@ -1108,7 +1108,7 @@ func (*schemaSuite) TestIntegerBadChoicesConstraint(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint: json: cannot unmarshal number into Go value of type \[\]int64`)
 }
 
@@ -1122,7 +1122,7 @@ func (*schemaSuite) TestIntegerBadMinMaxConstraints(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "min" constraint: json: cannot unmarshal string into Go value of type int64`)
 
 	schemaStr = []byte(`{
@@ -1134,7 +1134,7 @@ func (*schemaSuite) TestIntegerBadMinMaxConstraints(c *C) {
 	}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "max" constraint: json: cannot unmarshal string into Go value of type int64`)
 }
 
@@ -1149,7 +1149,7 @@ func (*schemaSuite) TestIntegerMinGreaterThanMaxConstraintFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
 }
 
@@ -1164,7 +1164,7 @@ func (*schemaSuite) TestIntegerMinMaxOver32Bits(c *C) {
 	}
 }`, int64(math.MinInt64), int64(math.MaxInt64)))
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(fmt.Sprintf(`{
@@ -1185,7 +1185,7 @@ func (*schemaSuite) TestIntegerChoicesOver32Bits(c *C) {
 	}
 }`, int64(math.MinInt64), int64(math.MaxInt64)))
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, num := range []int64{math.MinInt64, math.MaxInt64} {
@@ -1205,7 +1205,7 @@ func (*schemaSuite) TestAnyTypeAcceptsAllTypes(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, val := range []string{`"bar"`, `123`, `{ "a": 1, "b": 2 }`, `0.1`, `false`} {
@@ -1227,7 +1227,7 @@ func (*schemaSuite) TestAnyTypeWithMapDefinition(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1245,7 +1245,7 @@ func (*schemaSuite) TestAnyTypeRejectsBadJSON(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1263,7 +1263,7 @@ func (*schemaSuite) TestNumberValidFloatAndInt(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1285,7 +1285,7 @@ func (*schemaSuite) TestNumberMustMatchChoices(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, num := range []float64{0, 1, 2, 3, 4} {
@@ -1314,7 +1314,7 @@ func (*schemaSuite) TestNumberMustMatchMinMax(c *C) {
 	}
 }`, min, max))
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, num := range []float32{0, 0.1, 2, 3, 4} {
@@ -1344,7 +1344,7 @@ func (*schemaSuite) TestNumberChoicesAndMinMaxFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "choices" and "min" constraints`)
 
 	schemaStr = []byte(`{
@@ -1357,7 +1357,7 @@ func (*schemaSuite) TestNumberChoicesAndMinMaxFail(c *C) {
 	}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "choices" and "max" constraints`)
 }
 
@@ -1371,7 +1371,7 @@ func (*schemaSuite) TestNumberEmptyChoicesFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "choices" constraint with empty list`)
 }
 
@@ -1385,7 +1385,7 @@ func (*schemaSuite) TestNumberBadChoicesConstraint(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint: json: cannot unmarshal number into Go value of type \[\]float64`)
 }
 
@@ -1399,7 +1399,7 @@ func (*schemaSuite) TestNumberBadMinMaxConstraints(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "min" constraint: json: cannot unmarshal string into Go value of type float64`)
 
 	schemaStr = []byte(`{
@@ -1411,7 +1411,7 @@ func (*schemaSuite) TestNumberBadMinMaxConstraints(c *C) {
 	}
 }`)
 
-	_, err = confdb.ParseSchema(schemaStr)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "max" constraint: json: cannot unmarshal string into Go value of type float64`)
 }
 
@@ -1426,7 +1426,7 @@ func (*schemaSuite) TestNumberMinGreaterThanMaxConstraintFail(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
 }
 
@@ -1438,7 +1438,7 @@ func (*schemaSuite) TestSimpleTypesRejectNull(c *C) {
 	}
 }`, typ))
 
-		schema, err := confdb.ParseSchema(schemaStr)
+		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil)
 
 		err = schema.Validate([]byte(`{"foo": null}`))
@@ -1457,7 +1457,7 @@ func (*schemaSuite) TestMapTypeRejectsNull(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo": null}`))
@@ -1476,7 +1476,7 @@ func (*schemaSuite) TestAliasRejectsNull(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo": null}`))
@@ -1492,7 +1492,7 @@ func (*schemaSuite) TestArrayRejectsNull(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{"foo": null}`)
@@ -1508,7 +1508,7 @@ func (*schemaSuite) TestBooleanHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1530,7 +1530,7 @@ func (*schemaSuite) TestArrayHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1554,7 +1554,7 @@ func (*schemaSuite) TestArrayHappyWithAlias(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1572,7 +1572,7 @@ func (*schemaSuite) TestArrayRequireConstraints(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "array": must be schema definition with constraints`)
 }
 
@@ -1585,7 +1585,7 @@ func (*schemaSuite) TestArrayRequireValueConstraint(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "array": must have "values" constraint`)
 }
 
@@ -1599,7 +1599,7 @@ func (*schemaSuite) TestArrayFailsWithBadElementType(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "array" values type: cannot parse unknown type "foo"`)
 }
 
@@ -1613,7 +1613,7 @@ func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1635,7 +1635,7 @@ func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1657,7 +1657,7 @@ func (*schemaSuite) TestArrayWithoutUniqueAcceptsDuplicates(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
@@ -1679,7 +1679,7 @@ func (*schemaSuite) TestArrayFailsWithBadUniqueType(c *C) {
 	}
 }`)
 
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse array's "unique" constraint: json: cannot unmarshal string into Go value of type bool`)
 }
 
@@ -1698,7 +1698,7 @@ func (*schemaSuite) TestErrorContainsPathPrefixes(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	type testcase struct {
@@ -1748,7 +1748,7 @@ func (*schemaSuite) TestPathPrefixWithMapUnderUserType(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{"foo": {"bar": -1}}`)
@@ -1771,7 +1771,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderAlias(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{"foo": [-1]}`)
@@ -1798,7 +1798,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderAliasWithAContainerElementType(c
 		"foo": "$my-type"
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{"foo": [{"bar": 1}, {"bar": -1}]}`)
@@ -1822,7 +1822,7 @@ func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{"foo": {"other-key": 1}}`)
@@ -1851,7 +1851,7 @@ func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(`{"foo": { "one": 1 }, "bar": { "two": -1 } }`)
@@ -1940,7 +1940,7 @@ func (*schemaSuite) TestUnexpectedTypes(c *C) {
 		"foo": %s
 	}
 }`, tc.schemaType))
-		schema, err := confdb.ParseSchema(schemaStr)
+		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil)
 
 		input := []byte(fmt.Sprintf(`{"foo": %v}`, tc.testValue))
@@ -1956,7 +1956,7 @@ func (*schemaSuite) TestAlternativeTypesHappy(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, val := range []interface{}{`"one"`, `1`} {
@@ -1973,7 +1973,7 @@ func (*schemaSuite) TestAlternativeTypesFail(c *C) {
 	}
 }`)
 
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, val := range []interface{}{"1.1", "true", `{"bar": 1}`, `[1, 2]`} {
@@ -2000,7 +2000,7 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsHappy(c *C) {
 		]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, val := range []interface{}{"3", "0", `"Bar"`, `"bar"`} {
@@ -2025,7 +2025,7 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsFail(c *C) {
 		]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo":-1}`))
@@ -2045,7 +2045,7 @@ func (*schemaSuite) TestAlternativeTypesNestedHappy(c *C) {
 		"foo": ["int", ["number", ["string"]]]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	for _, val := range []interface{}{`"one"`, `1`, `1.3`} {
@@ -2061,7 +2061,7 @@ func (*schemaSuite) TestAlternativeTypesNestedFail(c *C) {
 		"foo": ["int", ["number", ["string"]]]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo":false}`))
@@ -2077,7 +2077,7 @@ func (*schemaSuite) TestAlternativeTypesUnknownType(c *C) {
 		"foo": ["foo"]
 	}
 }`)
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse alternative types: cannot parse unknown type "foo"`)
 }
 
@@ -2087,7 +2087,7 @@ func (*schemaSuite) TestAlternativeTypesEmpty(c *C) {
 		"foo": []
 	}
 }`)
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse alternative types: alternative type list cannot be empty`)
 }
 
@@ -2101,7 +2101,7 @@ func (*schemaSuite) TestAlternativeTypesPathError(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo":{"bar": {"baz": {"zab": [1]}}}}`))
@@ -2117,11 +2117,11 @@ func (*schemaSuite) TestInvalidTypeDefinition(c *C) {
 		"foo": 1
 	}
 }`)
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse type definition: type must be expressed as map, string or list: json: cannot unmarshal number.*`)
 }
 
-func schemasToTypes(schemas []confdb.Schema) []confdb.SchemaType {
+func schemasToTypes(schemas []confdb.DatabagSchema) []confdb.SchemaType {
 	var types []confdb.SchemaType
 	for _, s := range schemas {
 		types = append(types, s.Type())
@@ -2173,7 +2173,7 @@ func (*schemaSuite) TestSchemaAtTopLevel(c *C) {
 		"foo": %s
 	}
 }`, tc.typeStr))
-		schema, err := confdb.ParseSchema(schemaStr)
+		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
 
 		schemas, err := schema.SchemaAt([]string{"foo"})
@@ -2193,7 +2193,7 @@ func (*schemaSuite) TestSchemaAtNestedMapWithSchema(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
@@ -2210,7 +2210,7 @@ func (*schemaSuite) TestSchemaAtNestedInMapWithValues(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
@@ -2227,7 +2227,7 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "0"})
@@ -2249,7 +2249,7 @@ func (*schemaSuite) TestSchemaAtInUserDefinedType(c *C) {
 		"foo": "$my-type"
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
@@ -2265,7 +2265,7 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
 		"foo": %q
 	}
 }`, typ))
-		schema, err := confdb.ParseSchema(schemaStr)
+		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
 
 		schemas, err := schema.SchemaAt([]string{"foo", "bar"})
@@ -2280,7 +2280,7 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaContainerSchema(c *C) {
 		"foo": {"type": "array", "values": "string"}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "0", "bar"})
@@ -2294,7 +2294,7 @@ func (*schemaSuite) TestSchemaAtBadPathArray(c *C) {
 		"foo": {"type": "array", "values": "any"}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "b"})
@@ -2312,7 +2312,7 @@ func (*schemaSuite) TestSchemaAtBadPathMap(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
@@ -2326,7 +2326,7 @@ func (*schemaSuite) TestSchemaAtAlternativesDifferentDepthsHappy(c *C) {
 		"foo": ["int", {"schema": {"bar": "string"}}]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
@@ -2340,7 +2340,7 @@ func (*schemaSuite) TestSchemaAtAlternativesFail(c *C) {
 		"foo": ["int", "string"]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
@@ -2354,7 +2354,7 @@ func (*schemaSuite) TestSchemaAtAnyAcceptsLongerPath(c *C) {
 		"foo": "any"
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
@@ -2369,9 +2369,10 @@ func (*schemaSuite) TestEphemeralTopLevelSchema(c *C) {
 	},
 	"ephemeral": true
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 	c.Assert(schema.Ephemeral(), Equals, true)
+	c.Assert(schema.NestedEphemeral(), Equals, true)
 }
 
 func (*schemaSuite) TestEphemeralAllTypes(c *C) {
@@ -2386,13 +2387,14 @@ func (*schemaSuite) TestEphemeralAllTypes(c *C) {
 		}
 	}
 }`, typ))
-		schema, err := confdb.ParseSchema(schemaStr)
+		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
 
 		nestedSchema, err := schema.SchemaAt([]string{"foo"})
 		c.Assert(err, IsNil, cmt)
 		c.Assert(nestedSchema, HasLen, 1, cmt)
 		c.Check(nestedSchema[0].Ephemeral(), Equals, true, cmt)
+		c.Check(nestedSchema[0].NestedEphemeral(), Equals, true, cmt)
 	}
 }
 
@@ -2408,14 +2410,29 @@ func (*schemaSuite) TestAlternativesAllEphemeralOk(c *C) {
 		]
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
+	c.Assert(schema.NestedEphemeral(), Equals, true)
 
 	nestedSchema, err := schema.SchemaAt([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Assert(nestedSchema, HasLen, 2)
 	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
 	c.Assert(nestedSchema[1].Ephemeral(), Equals, false)
+
+	c.Assert(nestedSchema[0].NestedEphemeral(), Equals, true)
+	c.Assert(nestedSchema[1].NestedEphemeral(), Equals, false)
+}
+
+func (*schemaSuite) TestAlternativesNoEphemeral(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["string", "number"]
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+	c.Assert(schema.NestedEphemeral(), Equals, false)
 }
 
 func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
@@ -2430,7 +2447,25 @@ func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
 		"foo": "$my-type"
 	}
 }`)
-	_, err := confdb.ParseSchema(schemaStr)
+	_, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot use "ephemeral" in user-defined type: my-type`)
+
+	schemaStr = []byte(`{
+	"aliases": {
+		"my-type": {
+			"schema": {
+				"foo": {
+					"type": "string",
+					"ephemeral": true
+				}
+			}
+		}
+	},
+	"schema": {
+		"foo": "$my-type"
+	}
+}`)
+	_, err = confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot use "ephemeral" in user-defined type: my-type`)
 }
 
@@ -2448,253 +2483,90 @@ func (*schemaSuite) TestUserTypeReferenceEphemeral(c *C) {
 		}
 	}
 }`)
-	schema, err := confdb.ParseSchema(schemaStr)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	nestedSchema, err := schema.SchemaAt([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Assert(nestedSchema, HasLen, 1)
 	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
+	c.Assert(nestedSchema[0].NestedEphemeral(), Equals, true)
 }
 
-func (*schemaSuite) TestPruneEphemeralBasicTypes(c *C) {
-	type testcase struct {
-		typ  string
-		data string
-	}
-
-	tcs := []testcase{
-		{
-			typ:  "number",
-			data: `1.3`,
-		},
-		{
-			typ:  "int",
-			data: `5`,
-		},
-		{
-			typ:  "bool",
-			data: `true`,
-		},
-		{
-			typ:  "string",
-			data: `"foo"`,
-		},
-		{
-			typ:  "any",
-			data: `5.3`,
-		},
-	}
-
-	for _, tc := range tcs {
-		cmt := Commentf("ephemeral pruning for type %q", tc.typ)
-
-		schemaStr := []byte(fmt.Sprintf(`{
-	"schema": {
-		"foo": {
-			"type": "%s",
-			"ephemeral": true
-		},
-		"bar": "string"
-	}
-}`, tc.typ))
-		schema, err := confdb.ParseSchema(schemaStr)
-		c.Assert(err, IsNil, cmt)
-
-		data := []byte(fmt.Sprintf(`{
-	"foo": %s,
-	"bar": "baz"
-}`, tc.data))
-
-		data, err = schema.PruneEphemeral(data)
-		c.Assert(err, IsNil, cmt)
-		c.Assert(string(data), Equals, `{"bar":"baz"}`)
-	}
-}
-
-func (*schemaSuite) TestPruneEphemeralContainerTypes(c *C) {
+func (*schemaSuite) TestNestedEphemeralOnlyNestedType(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
-		"foo": {
-			"values": "string",
-			"ephemeral": true
+		"map-schema": {
+			"schema": {
+				"bar": {
+					"type": "string",
+					"ephemeral": true
+				},
+				"baz": "string"
+			}
 		},
-		"bar": {
-			"type": "array",
-			"values": "int",
-			"ephemeral": true
+		"map-values": {
+			"values": {
+				"type": "string",
+				"ephemeral": true
+			}
 		},
-		"baz": {
+		"map-keys": {
 			"keys": {
 				"type": "string",
 				"ephemeral": true
 			}
 		},
-		"nested": {
+		"arr": {
 			"type": "array",
 			"values": {
 				"type": "string",
 				"ephemeral": true
 			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		path []string
+		eph  bool
+	}
+
+	tcs := []testcase{
+		{
+			path: []string{"map-schema"},
+			eph:  true,
 		},
-		"no-eph": "string"
-	}
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	data := []byte(`{
-	"foo": {
-		"a": "b"
-	},
-	"bar": [1, 5, 9],
-	"baz": {
-		"a": "b"
-	},
-	"nested": ["foo"],
-	"no-eph": "foo"
-}`)
-
-	data, err = schema.PruneEphemeral(data)
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"baz":{},"nested":[],"no-eph":"foo"}`)
-}
-
-func (*schemaSuite) TestPruneEphemeralAliasReference(c *C) {
-	schemaStr := []byte(`{
-	"aliases": {
-		"my-type": {
-			"type": "string"
-		}
-	},
-	"schema": {
-		"foo": {
-			"type": "$my-type",
-			"ephemeral": true
+		{
+			path: []string{"map-schema", "bar"},
+			eph:  true,
 		},
-		"bar": "$my-type"
+		{
+			path: []string{"map-schema", "baz"},
+			eph:  false,
+		},
+		{
+			path: []string{"map-values"},
+			eph:  true,
+		},
+		{
+			path: []string{"map-keys"},
+			eph:  true,
+		},
+
+		{
+			path: []string{"arr"},
+			eph:  true,
+		},
 	}
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
 
-	data, err := schema.PruneEphemeral([]byte(`{"foo":"bar","bar":"baz"}`))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"bar":"baz"}`)
-}
-
-func (*schemaSuite) TestPruneEphemeralTopLevel(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": "any"
-	},
-	"ephemeral": true
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	data := []byte(`{
-	"foo": "bar"
-}`)
-
-	data, err = schema.PruneEphemeral(data)
-	c.Assert(err, IsNil)
-	c.Assert(data, IsNil)
-}
-
-func (*schemaSuite) TestPruneEphemeralSeveralNested(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": {
-			"type": "array",
-			"values": {
-				"schema": {
-					"bar": {
-						"type": "int",
-						"ephemeral": true
-					},
-					"baz": "int"
-				}
-			}
-		}
+	for i, tc := range tcs {
+		cmt := Commentf("failed test case %d", i)
+		nestedSchema, err := schema.SchemaAt(tc.path)
+		c.Assert(err, IsNil, cmt)
+		c.Assert(nestedSchema, HasLen, 1, cmt)
+		c.Check(nestedSchema[0].NestedEphemeral(), Equals, tc.eph, cmt)
 	}
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	data := []byte(`{
-	"foo": [{"bar": 1, "baz": 2}, {"bar": 4}]
-}`)
-
-	data, err = schema.PruneEphemeral(data)
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":[{"baz":2},{}]}`)
-}
-
-func (*schemaSuite) TestPruneEphemeralAlternativesNestedOk(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": {
-			"values": [
-				{
-					"schema": {
-						"foo": {
-							"type": "string",
-							"ephemeral": true
-						}
-					}
-				}
-			]
-		}
-	}
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	data := []byte(`{
-	"foo": {
-		"bar": {
-			"foo": "bar"
-		}
-	}
-}`)
-
-	data, err = schema.PruneEphemeral(data)
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":{"bar":{}}}`)
-}
-
-func (*schemaSuite) TestAlternativeMixingEphemeral(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": {
-			"values": [
-				{
-					"type": "string",
-					"ephemeral": true
-				},
-				"int",
-				{
-					"type": "number",
-					"ephemeral": true
-				}
-			]
-		}
-	}
-}`)
-	schema, err := confdb.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	data := []byte(`{
-	"foo": {
-		"bar": "baz",
-		"num": 1,
-		"dec": 2.0
-	}
-}`)
-
-	data, err = schema.PruneEphemeral(data)
-	c.Assert(err, IsNil)
-	// 1 wasn't pruned so it matched with the int not number (i.e., in order)
-	c.Assert(string(data), Equals, `{"foo":{"num":1}}`)
 }

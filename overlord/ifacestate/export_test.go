@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	AddImplicitSlots             = addImplicitSlots
+	AddImplicitInterfaces        = addImplicitInterfaces
 	SnapsWithSecurityProfiles    = snapsWithSecurityProfiles
 	CheckAutoconnectConflicts    = checkAutoconnectConflicts
 	FindSymmetricAutoconnectTask = findSymmetricAutoconnectTask

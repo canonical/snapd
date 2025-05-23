@@ -145,6 +145,8 @@ type SealKeysParams struct {
 	TPMPolicyAuthKeyFile string
 	// Optional volume authentication options
 	VolumesAuth *device.VolumesAuthOptions
+	// The key role (run, run+recover, recover)
+	KeyRole string
 }
 
 type SealKeysWithFDESetupHookParams struct {
@@ -182,8 +184,8 @@ type ResealKeysParams struct {
 	PCRProfile SerializedPCRProfile
 	// The locations to the key data
 	Keys []KeyDataLocation
-	// The path to the authorization policy update key file (only relevant for TPM)
-	TPMPolicyAuthKeyFile string
+	// The primary key
+	PrimaryKey []byte
 }
 
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted

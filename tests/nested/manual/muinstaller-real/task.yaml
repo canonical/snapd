@@ -39,12 +39,11 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-  apt install dosfstools kpartx
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
@@ -140,6 +139,10 @@ execute: |
       # early, otherwise it will not have been loaded
       remote.exec lsmod | MATCH efi_pstore
       remote.exec modinfo -F filename efi_pstore | MATCH updates/efi-pstore/kmod/efi-pstore.ko
+      # Make sure it was loaded early
+      remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
+      # Additionally, check that modules loaded by systemd right after switch root could be loaded
+      lsmod | MATCH ip_tables
   fi
 
   # check encryption

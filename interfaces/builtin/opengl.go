@@ -108,6 +108,10 @@ const openglConnectedPlugAppArmor = `
 @{PROC}/modules r,
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
+# A socketpair with the NVIDIA DDX is needed for GLX.
+# When Xorg is not confined, then a special-case object delegation allows this automatically.
+# When Xorg is confined, object delegation is not implemented yet and we need a rule on our side to allow this.
+unix (send, receive) type=stream peer=(label="Xorg"),
 # driver profiles
 /usr/share/nvidia/ r,
 /usr/share/nvidia/** r,

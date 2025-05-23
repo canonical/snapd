@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -177,6 +178,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 	if opts&unlinkBefore == 0 && opts&(noConfigure|runCoreConfigure) == 0 {
 		expected = append(expected, "run-hook[default-configure]")
 	}
+
+	// TODO: it seems that removing this line doesn't break any tests
+	expected = append(expected, tasksBeforeDiscard...)
 
 	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
@@ -572,7 +576,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {
 	chg := s.state.NewChange("remodel", "remodel")
 	chg.AddTask(tugc)
 
-	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore, DeviceModel: &asserts.Model{}}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore, DeviceModel: MakeModel20("brand-gadget", nil)}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, nil, deviceCtx, chg.ID())
@@ -582,6 +586,30 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {
 	ts, err = snapstate.InstallWithDeviceContext(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{}, nil, deviceCtx, chg.ID())
 	c.Assert(err, IsNil)
 	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextRemodelKernel24(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	tugc := s.state.NewTask("update-kernel", "update kernel")
+	chg := s.state.NewChange("remodel", "remodel")
+	chg.AddTask(tugc)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore,
+		DeviceModel: MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"})}
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state,
+		"some-kernel", opts, 0, snapstate.Flags{}, nil, deviceCtx, chg.ID())
+	c.Assert(err, IsNil)
+	verifyInstallTasks(c, snap.TypeKernel, needsKernelSetup, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestInstallWithDeviceContextRemodelConflict(c *C) {
@@ -648,7 +676,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 		SnapType:        "app",
 	}
 	snapsup := snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", nil)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", nil, nil)
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
@@ -705,7 +733,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	}
 
 	// And observe that we cannot refresh because the snap is busy.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\), pids: 1234`)
 
 	// Don't record time since it wasn't a failed refresh
@@ -771,7 +799,7 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	}
 
 	// And observe that we do so despite the running app.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
 	c.Assert(err, IsNil)
 
 	// The state confirms that the refresh operation was not postponed.
@@ -832,7 +860,7 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	}
 
 	// And observe that refresh occurred regardless of the running process.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -841,7 +869,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	defer s.state.Unlock()
 
 	snapsup := snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
-	_, err := snapstate.DoInstall(s.state, nil, snapsup, nil, 0, "", nil)
+	_, err := snapstate.DoInstall(s.state, nil, snapsup, nil, 0, "", nil, nil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
 
@@ -936,7 +964,7 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 
 	// Ensure that restart boundaries were set on 'link-snap' as a part of doInstall
 	// when the flag noRestartBoundaries is not set
-	ts1, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, nil, 0, "", inUseCheck)
+	ts1, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, nil, 0, "", inUseCheck, nil)
 	c.Assert(err, IsNil)
 
 	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
@@ -946,7 +974,7 @@ func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
 	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
 
 	// Ensure that restart boundaries are not set when we do provide the noRestartBoundaries flag
-	ts2, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.NoRestartBoundaries, "", inUseCheck)
+	ts2, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, nil, snapstate.NoRestartBoundaries, "", inUseCheck, nil)
 	c.Assert(err, IsNil)
 
 	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
@@ -1318,7 +1346,18 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
+
+	iconContents := []byte("I'm an svg")
+	// set up the downloadIcon callback to write the fake icon to the icons pool
+	var downloadIconCalls int
+	s.fakeStore.downloadIconCallback = func(targetPath string) {
+		downloadIconCalls++
+		c.Assert(downloadIconCalls, Equals, 1)
+
+		c.Assert(os.MkdirAll(filepath.Dir(targetPath), 0o755), IsNil)
+		c.Assert(os.WriteFile(targetPath, iconContents, 0o644), IsNil)
+	}
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-media"}
@@ -1336,6 +1375,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 		target:   filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
+	}})
+	c.Check(s.fakeStore.iconDownloads, DeepEquals, []fakeIconDownload{{
+		name:   "some-snap",
+		target: backend.IconDownloadFilename("some-snap-id"),
+		url:    "http://example.com/icon.png",
 	}})
 	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
 	expected := fakeOps{
@@ -1355,6 +1399,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
+			op:   "storesvc-download-icon",
 			name: "some-snap",
 		},
 		{
@@ -1498,7 +1546,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			RealName: "some-snap",
 		},
 	}
-	err = snapstate.RetrieveAuxStoreInfo(&info)
+	err = backend.RetrieveAuxStoreInfo(&info)
 	c.Assert(err, IsNil)
 
 	c.Assert(info.Media, DeepEquals, snap.MediaInfos{
@@ -1514,6 +1562,8 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 	})
 	c.Check(info.StoreURL, Equals, "https://snapcraft.io/example-snap")
+
+	c.Check(backend.IconInstallFilename("some-snap-id"), testutil.FileEquals, iconContents)
 }
 
 func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {
@@ -3857,12 +3907,9 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	reset := release.MockReleaseInfo(&release.OS{
-		ID: "fedora",
-	})
-	defer reset()
-
 	// this needs doing because dirs depends on the release info
+	c.Check(os.RemoveAll(dirs.SnapMountDir), IsNil)
+	dirstest.MustMockAltSnapMountDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-classic"}
@@ -6692,7 +6739,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
 
 	// we start without the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	var componentStates []*sequence.ComponentState
 	for i, compName := range opts.components {
@@ -6995,7 +7042,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 	} else {
 		// verify snap in the system state
 		var snapst snapstate.SnapState
@@ -7027,7 +7074,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		// make sure that all of our components are accounted for
 		c.Assert(snapst.Sequence.Revisions[0].Components, DeepEquals, componentStates)
 
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	}
 }
 

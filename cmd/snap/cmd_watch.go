@@ -22,10 +22,14 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdWatch struct{ changeIDMixin }
+type cmdWatch struct {
+	changeIDMixin
+	mustWaitMixin
+}
 
 var shortWatchHelp = i18n.G("Watch a change in progress")
 var longWatchHelp = i18n.G(`
@@ -35,7 +39,7 @@ The watch command waits for the given change-id to finish and shows progress
 
 func init() {
 	addCommand("watch", shortWatchHelp, longWatchHelp, func() flags.Commander {
-		return &cmdWatch{}
+		return &cmdWatch{mustWaitMixin: mustWaitMixin{skipAbort: true, waitForTasksInWaitStatus: true}}
 	}, changeIDMixinOptDesc, changeIDMixinArgDesc)
 }
 
@@ -51,11 +55,11 @@ func (x *cmdWatch) Execute(args []string) error {
 		return err
 	}
 
-	// this is the only valid use of wait without a waitMixin (ie
-	// without --no-wait), so we fake it here.
-	wmx := &waitMixin{skipAbort: true, waitForTasksInWaitStatus: true}
-	wmx.client = x.client
-	_, err = wmx.wait(id)
-
+	_, err = x.wait(id)
 	return err
+}
+
+func (x *cmdWatch) setClient(c *client.Client) {
+	x.changeIDMixin.setClient(c)
+	x.mustWaitMixin.setClient(c)
 }

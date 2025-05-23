@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -152,7 +152,7 @@ func (s *syncedSuite) TestIsNTPSynchronizedStrangeEr(c *C) {
 	// artificial
 
 	_, err = timeutil.IsNTPSynchronized()
-	c.Check(err, ErrorMatches, `cannot check for ntp sync: Object does not implement the interface`)
+	c.Check(err, ErrorMatches, `cannot check for ntp sync: Object does not implement the interface .*`)
 }
 
 func (s *syncedSuite) TestIsNTPSynchronizedNoTimedatectlNoErr(c *C) {

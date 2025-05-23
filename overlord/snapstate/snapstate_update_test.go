@@ -1056,7 +1056,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 
 func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool) {
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
 
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
@@ -1324,7 +1324,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 	c.Check(snapst.CohortKey, Equals, "some-cohort")
 
 	// we end up with the auxiliary store info
-	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
+	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
@@ -10938,7 +10938,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}
 
-	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
+	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
 
 	var busyErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -11625,7 +11625,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	// don't create a pre-download task if one exists w/ these statuses
 	for _, status := range []state.Status{state.DoStatus, state.DoingStatus} {
 		task.SetStatus(status)
-		ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
+		ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
 
 		var busyErr *snapstate.TimedBusySnapError
 		c.Assert(errors.As(err, &busyErr), Equals, true)
@@ -11643,7 +11643,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 
 	// a "Done" pre-download is ignored since the auto-refresh it causes might also be done
 	task.SetStatus(state.DoneStatus)
-	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck)
+	ts, err := snapstate.DoInstall(s.state, snapst, snapsup, nil, 0, "", inUseCheck, nil)
 	c.Assert(err, FitsTypeOf, &snapstate.TimedBusySnapError{})
 	c.Assert(ts.Tasks(), HasLen, 1)
 }
@@ -11760,8 +11760,8 @@ func (s *snapmgrTestSuite) TestDownloadTaskWaitsForPreDownload(c *C) {
 
 			c.Assert(s.o.TaskRunner().Ensure(), IsNil)
 
-			for i := 0; i < 5; i++ {
-				<-time.After(time.Second)
+			for i := 0; i < 5000; i++ {
+				<-time.After(time.Millisecond)
 				s.state.Lock()
 				atTime := dlTask.AtTime()
 				s.state.Unlock()
@@ -12511,7 +12511,7 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeletedAfterRefresh
 }
 
 func waitFor(st *state.State, c *C, cond func() bool) {
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 5000; i++ {
 		st.Lock()
 		condMet := cond()
 		st.Unlock()
@@ -12519,7 +12519,7 @@ func waitFor(st *state.State, c *C, cond func() bool) {
 			return
 		}
 
-		<-time.After(time.Second)
+		<-time.After(time.Millisecond)
 	}
 
 	c.Fatal("condition wasn't met within 5 seconds")
@@ -12603,9 +12603,9 @@ func (s *snapmgrTestSuite) TestPreDownloadWithIgnoreRunningRefresh(c *C) {
 	c.Assert(chg.Err(), IsNil)
 
 	// wait for the monitoring to be cleared
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1000; i++ {
 		s.state.Unlock()
-		<-time.After(2 * time.Second)
+		<-time.After(1 * time.Millisecond)
 		s.state.Lock()
 
 		// the monitoring has stopped but no auto-refresh was or will be attempted
@@ -14412,7 +14412,7 @@ func checkSnapsupHasConfdb(ts *state.TaskSet, c *C) {
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
-	c.Assert(snapsup.Confdbs, DeepEquals, []snapstate.ConfdbID{{Account: "my-publisher", Confdb: "my-reg"}})
+	c.Assert(snapsup.PluggedConfdbIDs, DeepEquals, []snapstate.ConfdbSchemaID{{Account: "my-publisher", Name: "my-reg"}})
 }
 
 func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {
@@ -14492,7 +14492,7 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	}
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -14951,7 +14951,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	sort.Strings(components)
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -15390,7 +15390,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 	instanceName := snap.InstanceName(snapName, instanceKey)
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	currentSI := snap.SideInfo{
 		RealName: snapName,
@@ -15917,7 +15917,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	}
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,
@@ -16498,7 +16498,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
 
 		// we end up with the auxiliary store info
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	} else {
 		// make sure everything is back to how it started
 		c.Assert(snapst.Active, Equals, true)
@@ -16558,7 +16558,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		return results
 	}
 
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,
@@ -16977,7 +16977,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		c.Assert(snapst.Sequence, DeepEquals, currentSeq)
 
 		// we end up with the auxiliary store info
-		c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
 	} else {
 		// make sure everything is back to how it started
 		c.Assert(snapst.Active, Equals, true)
@@ -17683,6 +17683,366 @@ components:
 	}
 }
 
+func withComponents(yaml string, comps map[string]snap.ComponentType) string {
+	if len(comps) == 0 {
+		return yaml
+	}
+
+	var b strings.Builder
+	b.WriteString(yaml)
+	b.WriteString("\ncomponents:")
+	for name, typ := range comps {
+		fmt.Fprintf(&b, "\n  %s:\n    type: %s", name, typ)
+	}
+	return b.String()
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevision(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	const (
+		channel      = "channel-for-components"
+		snapName     = "kernel"
+		instanceName = snapName
+		snapID       = "kernel-id"
+	)
+
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]interface{}{"base": "core24"}))
+	defer r()
+
+	s.enableRefreshAppAwarenessUX()
+
+	oldSnapRev := snap.R(7)
+	currentSnapRev := snap.R(11)
+
+	currentSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: currentSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	oldSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: oldSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	currentYAML := fmt.Sprintf("name: %s\ntype: %s\nversion: 1\nepoch: 1*\n", snapName, snap.TypeKernel)
+	snaptest.MockSnapInstance(c, instanceName, currentYAML, &currentSI)
+
+	oldYAML := withComponents(currentYAML, map[string]snap.ComponentType{
+		"kernel-modules-component": snap.KernelModulesComponent,
+	})
+	oldInfo := snaptest.MockSnapInstance(c, instanceName, oldYAML, &oldSI)
+	oldComponentSI := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "kernel-modules-component"),
+		Revision:  snap.R(22),
+	}
+
+	snaptest.MockComponent(c, fmt.Sprintf("component: %s+kernel-modules-component\ntype: kernel-modules\n", snapName), oldInfo, oldComponentSI)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstatetest.InstallSnap(c, s.state, oldYAML, nil, &oldSI, snapstatetest.InstallSnapOptions{
+		Required: true,
+		Components: []*sequence.ComponentState{
+			sequence.NewComponentState(&oldComponentSI, snap.KernelModulesComponent),
+		},
+	})
+
+	snapstatetest.InstallSnap(c, s.state, currentYAML, nil, &currentSI, snapstatetest.InstallSnapOptions{
+		Required:         true,
+		PreserveSequence: true,
+	})
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, instanceName, &snapst)
+	c.Assert(err, IsNil)
+
+	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bl.SetBootVars(map[string]string{"snap_kernel": snapName, "snap_core": "core24_2.snap"})
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	// This is the new revision as this information is accessed after the reboot
+	kPlaceInfo, err := snap.ParsePlaceInfoFromSnapFileName("kernel_" + oldSnapRev.String() + ".snap")
+	c.Assert(err, IsNil)
+	restore := bl.SetEnabledKernel(kPlaceInfo)
+	defer restore()
+
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
+	c.Assert(err, IsNil)
+
+	restore = snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	// make sure that the store is never hit
+	snapstate.ReplaceStore(s.state, &storetest.Store{})
+
+	expectedSideState := snapst.Sequence.Revisions[0]
+	originalSideState := snapst.Sequence.Revisions[1]
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              componentNameToType(c, csi.Component.ComponentName),
+			CompVersion:       "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	oldComponentCPI := snap.MinimalComponentContainerPlaceInfo(
+		"kernel-modules-component",
+		oldComponentSI.Revision,
+		snapName,
+	)
+
+	components := []snapstate.PathComponent{{
+		Path:     oldComponentCPI.MountFile(),
+		SideInfo: &oldComponentSI,
+	}}
+
+	oldSnapPath := oldInfo.MountFile()
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		Path:         oldSnapPath,
+		InstanceName: instanceName,
+		SideInfo:     &oldSI,
+		Components:   components,
+	})
+
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	chg.AddAll(ts)
+
+	// check unlink-reason
+	unlinkTask := findLastTask(chg, "unlink-current-snap")
+	c.Assert(unlinkTask, NotNil)
+	var unlinkReason string
+	unlinkTask.Get("unlink-reason", &unlinkReason)
+	c.Check(unlinkReason, Equals, "refresh")
+
+	// local modifications, edge must be set
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "validate-component")
+
+	// we manually settle here since this test can be slow when the host is
+	// under load
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+
+	c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+
+	expectedComponentStates := snapst.Sequence.Revisions[0].Components
+
+	var expected fakeOps
+	for _, cs := range expectedComponentStates {
+		compName := cs.SideInfo.Component.ComponentName
+		compRev := cs.SideInfo.Revision
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			compName,
+			compRev,
+			snapName,
+		)
+
+		expected = append(expected, fakeOp{
+			op:                              "validate-component:Doing",
+			name:                            instanceName,
+			revno:                           oldSnapRev,
+			componentName:                   compName,
+			componentPath:                   cpi.MountFile(),
+			componentRev:                    compRev,
+			componentSideInfo:               *cs.SideInfo,
+			componentSkipAssertionsDownload: true,
+		})
+	}
+
+	expected = append(expected, fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        instanceName,
+			inhibitHint: "refresh",
+		},
+		{
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+			unlinkSkipBinaries: true,
+		},
+		{
+			op: "prepare-kernel-snap",
+		},
+		{
+			op:    "update-gadget-assets:Doing",
+			name:  instanceName,
+			revno: oldSnapRev,
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, instanceName, oldSnapRev.String()),
+			old:  filepath.Join(dirs.SnapMountDir, instanceName, currentSnapRev.String()),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  instanceName,
+			revno: oldSnapRev,
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: snapName,
+				SnapID:   snapID,
+				Channel:  channel,
+				Revision: oldSnapRev,
+			},
+		},
+		{
+			op:                  "link-snap",
+			path:                filepath.Join(dirs.SnapMountDir, instanceName, oldSnapRev.String()),
+			requireSnapdTooling: true,
+		},
+	}...)
+
+	currentKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	newKmodComps := make([]*snap.ComponentSideInfo, 0, len(components))
+	for _, cs := range expectedComponentStates {
+		if cs.CompType == snap.KernelModulesComponent {
+			compName := cs.SideInfo.Component.ComponentName
+			newKmodComps = append(newKmodComps, &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, compName),
+				Revision:  cs.SideInfo.Revision,
+			})
+		}
+	}
+
+	if len(currentKmodComps) == 0 && len(newKmodComps) == 0 {
+		expected = append(expected, fakeOp{
+			op: "maybe-set-next-boot",
+		})
+	}
+
+	for _, cs := range expectedComponentStates {
+		expected = append(expected, fakeOp{
+			op:   "link-component",
+			path: snap.ComponentMountDir(cs.SideInfo.Component.ComponentName, cs.SideInfo.Revision, instanceName),
+		})
+	}
+
+	expected = append(expected, fakeOps{
+		{
+			op:    "auto-connect:Doing",
+			name:  instanceName,
+			revno: oldSnapRev,
+		},
+		{
+			op: "update-aliases",
+		},
+	}...)
+
+	if len(currentKmodComps) > 0 || len(newKmodComps) > 0 {
+		expected = append(expected, fakeOp{
+			op:           "prepare-kernel-modules-components",
+			currentComps: currentKmodComps,
+			finalComps:   newKmodComps,
+		})
+	}
+
+	expected = append(expected, fakeOp{
+		op: "maybe-set-next-boot",
+	}, fakeOp{
+		op: "remove-kernel-snap-setup",
+	}, fakeOp{
+		op:    "cleanup-trash",
+		name:  instanceName,
+		revno: oldSnapRev,
+	})
+
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// check progress
+	task := ts.Tasks()[1]
+
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
+		Channel:   channel,
+		SnapPath:  oldSnapPath,
+		SideInfo:  snapsup.SideInfo,
+		Type:      snap.TypeKernel,
+		Version:   "1",
+		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+		PreUpdateKernelModuleComponents: currentKmodComps,
+	})
+	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: snapName,
+		Revision: oldSnapRev,
+		Channel:  channel,
+		SnapID:   snapID,
+	})
+
+	compsups := make([]snapstate.ComponentSetup, 0)
+	for _, comp := range expectedComponentStates {
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			comp.SideInfo.Component.ComponentName,
+			comp.SideInfo.Revision,
+			snapName,
+		)
+
+		compsups = append(compsups, snapstate.ComponentSetup{
+			CompSideInfo: &snap.ComponentSideInfo{
+				Component: comp.SideInfo.Component,
+				Revision:  comp.SideInfo.Revision,
+			},
+			CompType: componentNameToType(c, comp.SideInfo.Component.ComponentName),
+			CompPath: cpi.MountFile(),
+			ComponentInstallFlags: snapstate.ComponentInstallFlags{
+				MultiComponentInstall: true,
+			},
+			SkipAssertionsDownload: true,
+		})
+	}
+	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
+
+	// verify the new system state
+	err = snapstate.Get(s.state, instanceName, &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, originalSideState)
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, expectedSideState)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithComponentsRunThroughOnlyComponentUpdate(c *C) {
 	s.testUpdateWithComponentsRunThroughOnlyComponentUpdate(c, updateWithComponentsOpts{
 		snapType:              snap.TypeKernel,
@@ -17791,7 +18151,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	}
 
 	// we start without the auxiliary store info (or with an older one)
-	c.Check(snapstate.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 
 	si := snap.SideInfo{
 		RealName: snapName,

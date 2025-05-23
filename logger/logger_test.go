@@ -77,14 +77,12 @@ func (s *LogSuite) TestDefault(c *C) {
 	c.Check(logger.GetLogger(), IsNil)
 
 	os.Setenv("TERM", "dumb")
-	err := logger.SimpleSetup(nil)
-	c.Assert(err, IsNil)
+	logger.SimpleSetup(nil)
 	c.Check(logger.GetLogger(), NotNil)
 	c.Check(logger.GetLoggerFlags(), Equals, logger.DefaultFlags)
 
 	os.Unsetenv("TERM")
-	err = logger.SimpleSetup(nil)
-	c.Assert(err, IsNil)
+	logger.SimpleSetup(nil)
 	c.Check(logger.GetLogger(), NotNil)
 	c.Check(logger.GetLoggerFlags(), Equals, log.Lshortfile)
 }
@@ -135,8 +133,7 @@ func (s *LogSuite) TestBootSetup(c *C) {
 
 func (s *LogSuite) TestNew(c *C) {
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags, nil)
-	c.Assert(err, IsNil)
+	l := logger.New(&buf, logger.DefaultFlags, nil)
 	c.Assert(l, NotNil)
 }
 
@@ -202,8 +199,7 @@ func (s *LogSuite) TestIntegrationDebugFromKernelCmdline(c *C) {
 	defer restore()
 
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags, nil)
-	c.Assert(err, IsNil)
+	l := logger.New(&buf, logger.DefaultFlags, nil)
 	l.Debug("xyzzy")
 	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }
@@ -239,8 +235,7 @@ func (s *LogSuite) TestStartupTimestampMsg(c *C) {
 
 func (s *LogSuite) TestForceDebug(c *C) {
 	var buf bytes.Buffer
-	l, err := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{ForceDebug: true})
-	c.Assert(err, IsNil)
+	l := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{ForceDebug: true})
 	l.Debug("xyzzy")
 	c.Check(buf.String(), testutil.Contains, `DEBUG: xyzzy`)
 }

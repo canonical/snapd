@@ -69,7 +69,7 @@ func (iface *confdbInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return fmt.Errorf(`confdb plug must have a valid "view" attribute: %w`, err)
 	}
 
-	// by default, snaps can read/write confdbs and be notified of changes. The
+	// by default, snaps can read/write confdb and be notified of changes. The
 	// custodian role allows snaps to change, reject and persist changes made by others
 	role, ok := plug.Attrs["role"].(string)
 	if ok && role != "custodian" {

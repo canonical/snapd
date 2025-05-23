@@ -61,10 +61,9 @@ func (*featureSuite) TestName(c *C) {
 	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
 	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
-	check(features.Confdbs, "confdbs")
+	check(features.Confdb, "confdb")
 	check(features.ConfdbControl, "confdb-control")
 	check(features.AppArmorPrompting, "apparmor-prompting")
-	check(features.GPIOChardevInterface, "gpio-chardev-interface")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
@@ -102,10 +101,9 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
-	check(features.Confdbs, true)
+	check(features.Confdb, true)
 	check(features.ConfdbControl, false)
 	check(features.AppArmorPrompting, true)
-	check(features.GPIOChardevInterface, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -228,10 +226,9 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, false)
-	check(features.Confdbs, false)
+	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
 	check(features.ConfdbControl, false)
-	check(features.GPIOChardevInterface, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -243,7 +240,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
-	c.Check(features.Confdbs.ControlFile(), Equals, "/var/lib/snapd/features/confdbs")
+	c.Check(features.Confdb.ControlFile(), Equals, "/var/lib/snapd/features/confdb")
 	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)

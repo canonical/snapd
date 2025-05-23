@@ -81,3 +81,14 @@ execute: |
         remote.exec "test -f /run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"
         remote.exec "test -f /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"
     fi
+
+    if os.query is-ubuntu-ge 24.04; then
+        remote.exec "udevadm info --query=name /dev/disk/snapd/disk" | MATCH "."
+        remote.exec "udevadm info --query=property --property=ID_PART_ENTRY_NAME --value /dev/disk/snapd/ubuntu-seed" | MATCH "^ubuntu-seed$"
+        remote.exec "udevadm info --query=property --property=ID_PART_ENTRY_NAME --value /dev/disk/snapd/ubuntu-boot" | MATCH "^ubuntu-boot$"
+        remote.exec "udevadm info --query=property --property=ID_PART_ENTRY_NAME --value /dev/disk/snapd/ubuntu-data-luks" | MATCH "^ubuntu-data$"
+        remote.exec "udevadm info --query=property --property=ID_PART_ENTRY_NAME --value /dev/disk/snapd/ubuntu-save-luks" | MATCH "^ubuntu-save$"
+        # TODO: when udev rules are available in core-base, we should also test those
+        #remote.exec "udevadm info --query=property --property=DM_NAME --value /dev/disk/snapd/ubuntu-data" | MATCH "^ubuntu-data"
+        #remote.exec "udevadm info --query=property --property=DM_NAME --value /dev/disk/snapd/ubuntu-save" | MATCH "^ubuntu-save"
+    fi

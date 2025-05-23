@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022-2024 Canonical Ltd
+ * Copyright (C) 2022-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,16 +78,20 @@ func NewNotFoundError(msg string, v ...any) *NotFoundError {
 }
 
 type BadRequestError struct {
-	Account    string
-	ConfdbName string
-	View       string
-	Operation  string
-	Request    string
-	Cause      string
+	viewID    string
+	operation string
+	request   string
+	cause     string
 }
 
 func (e *BadRequestError) Error() string {
-	return fmt.Sprintf("cannot %s %q in confdb view %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.ConfdbName, e.View, e.Cause)
+	var reqStr string
+	if e.request != "" {
+		reqStr = "\"" + e.request + "\""
+	} else {
+		reqStr = "empty path"
+	}
+	return fmt.Sprintf("cannot %s %s through confdb view %s: %s", e.operation, reqStr, e.viewID, e.cause)
 }
 
 func (e *BadRequestError) Is(err error) bool {
@@ -97,32 +101,30 @@ func (e *BadRequestError) Is(err error) bool {
 
 func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestError {
 	return &BadRequestError{
-		Account:    v.confdb.Account,
-		ConfdbName: v.confdb.Name,
-		View:       v.Name,
-		Operation:  operation,
-		Request:    request,
-		Cause:      msg,
+		viewID:    v.ID(),
+		operation: operation,
+		request:   request,
+		cause:     msg,
 	}
 }
 
-// DataBag controls access to the confdb data storage.
-type DataBag interface {
+// Databag controls access to the confdb data storage.
+type Databag interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
 	Unset(path string) error
 	Data() ([]byte, error)
 }
 
-// Schema takes in data from the DataBag and validates that it's valid and could
-// be committed.
-type Schema interface {
+// DatabagSchema takes in data from the Databag and validates that it's valid
+// and could be committed.
+type DatabagSchema interface {
 	// Validate checks that the data conforms to the schema.
 	Validate(data []byte) error
 
 	// SchemaAt returns the schemas (e.g., string, int, etc) that may be at the
 	// provided path. If the path cannot be followed, an error is returned.
-	SchemaAt(path []string) ([]Schema, error)
+	SchemaAt(path []string) ([]DatabagSchema, error)
 
 	// Type returns the SchemaType corresponding to the Schema.
 	Type() SchemaType
@@ -131,10 +133,9 @@ type Schema interface {
 	// saved by snapd.
 	Ephemeral() bool
 
-	// PruneEphemeral parses the data and removes paths marked as ephemeral in the
-	// schema. The data should've been validated previously to ensure that the data
-	// matches the schema. Returns nil if the entire data was pruned.
-	PruneEphemeral(data []byte) ([]byte, error)
+	// NestedEphemeral returns true if the type or any of its nested types are
+	// ephemeral.
+	NestedEphemeral() bool
 }
 
 type SchemaType uint
@@ -171,19 +172,20 @@ var (
 	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
 )
 
-// Confdb holds a series of related views.
-type Confdb struct {
-	Account string
-	Name    string
-	Schema  Schema
-	views   map[string]*View
+// Schema holds a set of views that describe how the confdb can be accessed as
+// well as a schema for the storage.
+type Schema struct {
+	Account       string
+	Name          string
+	DatabagSchema DatabagSchema
+	views         map[string]*View
 }
 
-// GetViewsAffectedByPath returns all the views in the confdb that have visibility
-// into a storage path.
-func (db *Confdb) GetViewsAffectedByPath(path string) []*View {
+// GetViewsAffectedByPath returns all the views in the confdb schema that have
+// visibility into a storage path.
+func (s *Schema) GetViewsAffectedByPath(path string) []*View {
 	var views []*View
-	for _, view := range db.views {
+	for _, view := range s.views {
 		for _, rule := range view.rules {
 			if pathChangeAffects(path, rule.originalStorage) {
 				views = append(views, view)
@@ -219,17 +221,18 @@ func pathChangeAffects(modified, affected string) bool {
 	return true
 }
 
-// New returns a new confdb with the specified views and their rules.
-func New(account string, confdbName string, views map[string]interface{}, schema Schema) (*Confdb, error) {
+// NewSchema returns a new confdb schema with the specified views (and their
+// rules) and storage schema.
+func NewSchema(account string, dbSchemaName string, views map[string]interface{}, schema DatabagSchema) (*Schema, error) {
 	if len(views) == 0 {
-		return nil, errors.New(`cannot define confdb: no views`)
+		return nil, errors.New(`cannot define confdb schema: no views`)
 	}
 
-	confdb := &Confdb{
-		Account: account,
-		Name:    confdbName,
-		Schema:  schema,
-		views:   make(map[string]*View, len(views)),
+	dbSchema := &Schema{
+		Account:       account,
+		Name:          dbSchemaName,
+		DatabagSchema: schema,
+		views:         make(map[string]*View, len(views)),
 	}
 
 	for name, v := range views {
@@ -253,22 +256,22 @@ func New(account string, confdbName string, views map[string]interface{}, schema
 			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
 
-		view, err := newView(confdb, name, rules)
+		view, err := newView(dbSchema, name, rules)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define view %q: %w", name, err)
 		}
 
-		confdb.views[name] = view
+		dbSchema.views[name] = view
 	}
 
-	return confdb, nil
+	return dbSchema, nil
 }
 
-func newView(confdb *Confdb, name string, viewRules []interface{}) (*View, error) {
+func newView(dbSchema *Schema, name string, viewRules []interface{}) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]*viewRule, 0, len(viewRules)),
-		confdb: confdb,
+		schema: dbSchema,
 	}
 
 	for _, ruleRaw := range viewRules {
@@ -303,7 +306,7 @@ func newView(confdb *Confdb, name string, viewRules []interface{}) (*View, error
 	}
 
 	for _, rules := range pathToRules {
-		if err := checkSchemaMismatch(confdb.Schema, rules); err != nil {
+		if err := checkSchemaMismatch(dbSchema.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
 	}
@@ -460,20 +463,20 @@ func getPlaceholders(viewStr string) map[string]bool {
 	return placeholders
 }
 
-// View returns a view from the confdb.
-func (db *Confdb) View(view string) *View {
-	return db.views[view]
+// View returns a view from the confdb schema.
+func (s *Schema) View(view string) *View {
+	return s.views[view]
 }
 
-// View carries access rules for a particular view in a confdb.
+// View carries access rules for a particular view in a confdb schema.
 type View struct {
 	Name   string
 	rules  []*viewRule
-	confdb *Confdb
+	schema *Schema
 }
 
-func (v *View) Confdb() *Confdb {
-	return v.confdb
+func (v *View) Schema() *Schema {
+	return v.schema
 }
 
 type expandedMatch struct {
@@ -530,7 +533,7 @@ func validateSetValue(v interface{}, depth int) error {
 }
 
 // Set sets the named view to a specified non-nil value.
-func (v *View) Set(databag DataBag, request string, value interface{}) error {
+func (v *View) Set(databag Databag, request string, value interface{}) error {
 	if err := validateViewDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
@@ -550,7 +553,7 @@ func (v *View) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot set %q through %s/%s/%s: no matching rule"), request, v.confdb.Account, v.confdb.Name, v.Name)
+		return NewNotFoundError(i18n.G("cannot set %q through %s: no matching rule"), request, v.ID())
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -599,14 +602,14 @@ func (v *View) Set(databag DataBag, request string, value interface{}) error {
 	// TODO: when using a transaction, the data only changes on commit so
 	// this is a bit of a waste. Maybe cache the result so we only do the first
 	// validation and then in viewstate on Commit
-	if err := v.confdb.Schema.Validate(data); err != nil {
+	if err := v.schema.DatabagSchema.Validate(data); err != nil {
 		return fmt.Errorf(`cannot write data: %w`, err)
 	}
 
 	return nil
 }
 
-func (v *View) Unset(databag DataBag, request string) error {
+func (v *View) Unset(databag Databag, request string) error {
 	if err := validateViewDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(v, "unset", request, err.Error())
 	}
@@ -617,7 +620,7 @@ func (v *View) Unset(databag DataBag, request string) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot unset %q through %s/%s/%s: no matching rule"), request, v.confdb.Account, v.confdb.Name, v.Name)
+		return NewNotFoundError(i18n.G("cannot unset %q through %s: no matching rule"), request, v.ID())
 	}
 
 	for _, match := range matches {
@@ -633,7 +636,7 @@ func (v *View) Unset(databag DataBag, request string) error {
 		// TODO: when using a transaction, the data only changes on commit so
 		// this is a bit of a waste. Maybe cache the result so we only do the first
 		// validation and then in viewstate on Commit
-		if err := v.confdb.Schema.Validate(data); err != nil {
+		if err := v.schema.DatabagSchema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot unset data: %w`, err)
 		}
 	}
@@ -671,7 +674,7 @@ func (v *View) matchWriteRequest(request string) ([]requestMatch, error) {
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
 // If not, then no data can satisfy these rules and the view should be rejected.
-func checkSchemaMismatch(schema Schema, rules []*viewRule) error {
+func checkSchemaMismatch(schema DatabagSchema, rules []*viewRule) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, rule := range rules {
@@ -981,7 +984,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 
 // Get returns the view value identified by the request. If either the named
 // view or the corresponding value can't be found, a NotFoundError is returned.
-func (v *View) Get(databag DataBag, request string) (interface{}, error) {
+func (v *View) Get(databag Databag, request string) (interface{}, error) {
 	if request != "" {
 		if err := validateViewDottedPath(request, nil); err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
@@ -1022,7 +1025,7 @@ func (v *View) Get(databag DataBag, request string) (interface{}, error) {
 			reqStr = fmt.Sprintf(" %q through", request)
 		}
 
-		return nil, NewNotFoundError(i18n.G("cannot get%s %s/%s/%s: no view data"), reqStr, v.confdb.Account, v.confdb.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get%s %s: no data"), reqStr, v.ID())
 	}
 
 	return merged, nil
@@ -1058,6 +1061,103 @@ func mergeNamespaces(old, new interface{}) (interface{}, error) {
 	}
 
 	return oldMap, nil
+}
+
+// ReadAffectsEphemeral returns true if any of the requests might be used to
+// set ephemeral data. The requests are mapped to storage paths as in GetViaView.
+func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
+	if len(requests) == 0 {
+		// try to match all like we'd to read
+		requests = []string{""}
+	}
+
+	var matches []requestMatch
+	for _, request := range requests {
+		reqMatches, err := v.matchGetRequest(request)
+		if err != nil {
+			if errors.Is(err, &NotFoundError{}) {
+				// we serve partial reads so check other paths
+				continue
+			}
+			// no match
+			return false, err
+		}
+
+		if len(reqMatches) != 0 {
+			matches = append(matches, reqMatches...)
+		}
+	}
+
+	if len(matches) == 0 {
+		return false, NewNotFoundError(i18n.G("cannot get %s through %s: no matching rule"), strutil.Quoted(requests), v.ID())
+	}
+
+	schema := []DatabagSchema{v.schema.DatabagSchema}
+	for _, match := range matches {
+		pathParts := strings.Split(match.storagePath, ".")
+		ephemeral, err := anyEphemeralSchema(schema, pathParts)
+		if err != nil {
+			// shouldn't be possible unless there's a view/schema mismatch
+			return false, fmt.Errorf("cannot check if read affects ephemeral data: %v", err)
+		}
+
+		if ephemeral {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// WriteAffectsEphemeral returns true if the storage paths can affect ephemeral
+// data.
+func (v *View) WriteAffectsEphemeral(paths []string) (bool, error) {
+	schema := []DatabagSchema{v.schema.DatabagSchema}
+	for _, path := range paths {
+		pathParts := strings.Split(path, ".")
+		ephemeral, err := anyEphemeralSchema(schema, pathParts)
+		if err != nil {
+			// shouldn't be possible unless the paths don't match the schema somehow
+			return false, fmt.Errorf("cannot check if write affects ephemeral data: %v", err)
+		}
+
+		if ephemeral {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func anyEphemeralSchema(schemas []DatabagSchema, pathParts []string) (bool, error) {
+	for _, schema := range schemas {
+		if schema.Ephemeral() {
+			return true, nil
+		}
+
+		if len(pathParts) == 0 {
+			if schema.NestedEphemeral() {
+				return true, nil
+			}
+			continue
+		}
+
+		nestedSchemas, err := schema.SchemaAt([]string{pathParts[0]})
+		if err != nil {
+			return false, err
+		}
+
+		eph, err := anyEphemeralSchema(nestedSchemas, pathParts[1:])
+		if err != nil {
+			return false, err
+		}
+
+		if eph {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 type requestMatch struct {
@@ -1106,7 +1206,7 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 	}
 
 	if len(matches) == 0 {
-		return nil, NewNotFoundError(i18n.G("cannot get %q through %s/%s/%s: no matching rule"), request, v.confdb.Account, v.confdb.Name, v.Name)
+		return nil, NewNotFoundError(i18n.G("cannot get %q through %s: no matching rule"), request, v.ID())
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
@@ -1127,6 +1227,8 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 
 	return matches, nil
 }
+
+func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
 func newViewRule(request, storage, accesstype string) (*viewRule, error) {
 	accType, err := newAccessType(accesstype)
@@ -1311,19 +1413,19 @@ func pathErrorf(str string, v ...interface{}) PathError {
 	return PathError(fmt.Sprintf(str, v...))
 }
 
-// JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
-type JSONDataBag map[string]json.RawMessage
+// JSONDatabag is a simple Databag implementation that keeps JSON in-memory.
+type JSONDatabag map[string]json.RawMessage
 
-// NewJSONDataBag returns a DataBag implementation that stores data in JSON.
+// NewJSONDatabag returns a Databag implementation that stores data in JSON.
 // The top-level of the JSON structure is always a map.
-func NewJSONDataBag() JSONDataBag {
-	return JSONDataBag(make(map[string]json.RawMessage))
+func NewJSONDatabag() JSONDatabag {
+	return JSONDatabag(make(map[string]json.RawMessage))
 }
 
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s JSONDataBag) Get(path string) (interface{}, error) {
+func (s JSONDatabag) Get(path string) (interface{}, error) {
 	// TODO: create this in the return below as well?
 	var value interface{}
 	subKeys := strings.Split(path, ".")
@@ -1426,7 +1528,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 // If the value is nil, the entry is deleted.
-func (s JSONDataBag) Set(path string, value interface{}) error {
+func (s JSONDatabag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 
 	var err error
@@ -1500,7 +1602,7 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	return json.Marshal(node)
 }
 
-func (s JSONDataBag) Unset(path string) error {
+func (s JSONDatabag) Unset(path string) error {
 	subKeys := strings.Split(path, ".")
 	_, err := unset(subKeys, 0, s)
 	return err
@@ -1562,12 +1664,12 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 }
 
 // Data returns all of the bag's data encoded in JSON.
-func (s JSONDataBag) Data() ([]byte, error) {
+func (s JSONDatabag) Data() ([]byte, error) {
 	return json.Marshal(s)
 }
 
 // Copy returns a copy of the databag.
-func (s JSONDataBag) Copy() JSONDataBag {
+func (s JSONDatabag) Copy() JSONDatabag {
 	toplevel := map[string]json.RawMessage(s)
 	copy := make(map[string]json.RawMessage, len(toplevel))
 
@@ -1575,25 +1677,25 @@ func (s JSONDataBag) Copy() JSONDataBag {
 		copy[k] = v
 	}
 
-	return JSONDataBag(copy)
+	return JSONDatabag(copy)
 }
 
 // Overwrite replaces the entire databag with the provided data.
-func (s *JSONDataBag) Overwrite(data []byte) error {
+func (s *JSONDatabag) Overwrite(data []byte) error {
 	var unmarshalledBag map[string]json.RawMessage
 	if err := json.Unmarshal(data, &unmarshalledBag); err != nil {
 		return err
 	}
 
-	*s = JSONDataBag(unmarshalledBag)
+	*s = JSONDatabag(unmarshalledBag)
 	return nil
 }
 
-// JSONSchema is the Schema implementation corresponding to JSONDataBag and it's
+// JSONSchema is the Schema implementation corresponding to JSONDatabag and it's
 // able to validate its data.
 type JSONSchema struct{}
 
-// NewJSONSchema returns a Schema able to validate a JSONDataBag's data.
+// NewJSONSchema returns a Schema able to validate a JSONDatabag's data.
 func NewJSONSchema() JSONSchema {
 	return JSONSchema{}
 }
@@ -1606,16 +1708,10 @@ func (s JSONSchema) Validate(jsonData []byte) error {
 }
 
 // SchemaAt always returns the JSONSchema.
-func (v JSONSchema) SchemaAt(path []string) ([]Schema, error) {
-	return []Schema{v}, nil
+func (v JSONSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+	return []DatabagSchema{v}, nil
 }
 
-func (v JSONSchema) Type() SchemaType {
-	return Any
-}
-
-func (v JSONSchema) Ephemeral() bool {
-	return false
-}
-
-func (v JSONSchema) PruneEphemeral(b []byte) ([]byte, error) { return b, nil }
+func (v JSONSchema) Type() SchemaType      { return Any }
+func (v JSONSchema) Ephemeral() bool       { return false }
+func (v JSONSchema) NestedEphemeral() bool { return false }

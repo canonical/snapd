@@ -20,13 +20,11 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -385,8 +383,8 @@ Before=umount.target
 Conflicts=umount.target
 
 [Mount]
-What=%s
-Where=%s
+What=%[1]s
+Where=%[2]s
 Options=bind,shared
 `
 
@@ -399,10 +397,10 @@ Before=umount.target
 Conflicts=umount.target
 
 [Mount]
-What=%s
-Where=%s
-Type=%s
-Options=%s
+What=%[1]s
+Where=%[2]s
+Type=%[3]s
+Options=%[4]s
 `
 
 type unitType string
@@ -445,7 +443,14 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
 }
 
-const sysrootMountUnitTmpltTxt = `[Unit]
+func assembleSysrootMountUnitContent(what, mntType string) string {
+	var typ string
+	if mntType == "" {
+		typ = "Type=none\nOptions=bind"
+	} else {
+		typ = fmt.Sprintf("Type=%s", mntType)
+	}
+	content := fmt.Sprintf(`[Unit]
 DefaultDependencies=no
 Before=initrd-root-fs.target
 After=snap-initramfs-mounts.service
@@ -453,28 +458,14 @@ Before=umount.target
 Conflicts=umount.target
 
 [Mount]
-What={{.What}}
+What=%[1]s
 Where=/sysroot
-{{- with .MntType}}
-Type={{.}}
-{{- else}}
-Type=none
-Options=bind
-{{- end}}
-`
-
-var sysrootMountUnitTmpl = template.Must(template.New("unit").Parse(sysrootMountUnitTmpltTxt))
+%[2]s
+`, what, typ)
+	return content
+}
 
 func writeSysrootMountUnit(what, mntType string) error {
-	what = dirs.StripRootDir(what)
-	var unitContent bytes.Buffer
-	if err := sysrootMountUnitTmpl.Execute(&unitContent, struct {
-		What    string
-		MntType string
-	}{what, mntType}); err != nil {
-		return err
-	}
-
 	// Writing the unit in this folder overrides
 	// /lib/systemd/system/sysroot-writable.mount - we will remove
 	// this unit eventually from the initramfs.
@@ -484,8 +475,10 @@ func writeSysrootMountUnit(what, mntType string) error {
 	}
 	unitFileName := "sysroot.mount"
 	unitPath := filepath.Join(unitDir, unitFileName)
+	what = dirs.StripRootDir(what)
+	unitContent := assembleSysrootMountUnitContent(what, mntType)
 	// This is in the initramfs, no need for atomic writes
-	if err := os.WriteFile(unitPath, unitContent.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(unitContent), 0644); err != nil {
 		return err
 	}
 
@@ -499,5 +492,40 @@ func writeSysrootMountUnit(what, mntType string) error {
 		!os.IsExist(err) {
 		return err
 	}
+	return nil
+}
+
+// writeSnapMountUnit writes a mount unit for a snap but does not activate it.
+// It uses destRoot as rootfs under which to store the unit.
+func writeSnapMountUnit(destRoot, what, where string, unitType systemd.MountUnitType, description string) error {
+	hostFsType, options := systemd.HostFsTypeAndMountOptions("squashfs")
+	mountOptions := &systemd.MountUnitOptions{
+		Lifetime:                 systemd.Persistent,
+		Description:              description,
+		What:                     dirs.StripRootDir(what),
+		Where:                    dirs.StripRootDir(where),
+		Fstype:                   hostFsType,
+		Options:                  options,
+		MountUnitType:            unitType,
+		RootDir:                  destRoot,
+		PreventRestartIfModified: true,
+	}
+	unitFileName, _, err := systemd.EnsureMountUnitFileContent(mountOptions)
+	if err != nil {
+		return err
+	}
+	// Make sure the unit is activated
+	unitFilePath := filepath.Join(dirs.SnapServicesDir, unitFileName)
+	for _, target := range []string{"multi-user.target.wants", "snapd.mounts.target.wants"} {
+		linkDir := filepath.Join(dirs.SnapServicesDirUnder(destRoot), target)
+		if err := os.MkdirAll(linkDir, 0755); err != nil {
+			return err
+		}
+		linkPath := filepath.Join(linkDir, unitFileName)
+		if err := osutil.AtomicSymlink(unitFilePath, linkPath); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

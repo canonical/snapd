@@ -299,6 +299,9 @@ apps:
   xilinx-dma:
     command: bin/run
     plugs: [ xilinx-dma ]
+  gpio-chardev:
+    command: bin/run
+    plugs: [ gpio-chardev ]
 
 plugs:
   custom-device:

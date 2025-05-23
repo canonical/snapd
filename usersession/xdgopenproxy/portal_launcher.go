@@ -20,7 +20,7 @@
 package xdgopenproxy
 
 import (
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/desktop/portal"

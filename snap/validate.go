@@ -171,6 +171,24 @@ func validateHooks(info *Info) error {
 
 	hasDefaultConfigureHook := info.Hooks["default-configure"] != nil
 	hasConfigureHook := info.Hooks["configure"] != nil
+
+	if info.SnapType == TypeSnapd || info.SnapType == TypeBase || info.SnapType == TypeOS {
+		var invalidHooks []string
+		if hasDefaultConfigureHook {
+			invalidHooks = append(invalidHooks, `"default-configure"`)
+		}
+		if hasConfigureHook && info.SnapType != TypeOS {
+			invalidHooks = append(invalidHooks, `"configure"`)
+		}
+		if len(invalidHooks) > 0 {
+			// The default-configure hook is not supported for snapd, base or OS snaps.
+			// The configure hook is also not supported for snapd and base snaps. While
+			// it is not required for OS snaps (core and ubuntu-core), it is tolerated
+			// to prevent errors due to existing configure hooks.
+			return fmt.Errorf("cannot specify %s hook for %q snap %q", strings.Join(invalidHooks, " or "), info.Type(), info.InstanceName())
+		}
+	}
+
 	if hasDefaultConfigureHook && !hasConfigureHook {
 		return fmt.Errorf(`cannot specify "default-configure" hook without "configure" hook`)
 	}
@@ -333,6 +351,84 @@ func validateProvenance(prov string) error {
 	return naming.ValidateProvenance(prov)
 }
 
+type gpioChipLinesOverlapError struct {
+	chip, slotA, slotB string
+	spanA, spanB       strutil.RangeSpan
+}
+
+func (e *gpioChipLinesOverlapError) Error() string {
+	return fmt.Sprintf(`invalid "lines" attribute: chip %q has reused conflicting line spans: %q in slot %q conflicts with %q in slot %q`,
+		e.chip, e.spanB.String(), e.slotB, e.spanA.String(), e.slotA,
+	)
+}
+
+func validateGpioChardevSlots(info *Info) error {
+	if info.Type() != TypeGadget {
+		// not a gadget, nothing to do
+		return nil
+	}
+
+	type chipSlotInfo struct {
+		chip  string
+		slot  string
+		lines strutil.Range
+	}
+
+	chipSlots := make([]chipSlotInfo, 0)
+	for _, slot := range info.Slots {
+		if slot.Interface != "gpio-chardev" {
+			continue
+		}
+		var sourceChip []string
+		if err := slot.Attr("source-chip", &sourceChip); err != nil {
+			return err
+		}
+		var lines string
+		if err := slot.Attr("lines", &lines); err != nil {
+			return err
+		}
+		r, err := strutil.ParseRange(lines)
+		if err != nil {
+			return fmt.Errorf(`invalid "lines" attribute found in slot %q: %w`, slot.Name, err)
+		}
+		for _, chip := range sourceChip {
+			chipSlots = append(chipSlots, chipSlotInfo{
+				chip:  chip,
+				slot:  slot.Name,
+				lines: r,
+			})
+		}
+	}
+
+	sort.SliceStable(chipSlots, func(i, j int) bool {
+		return chipSlots[i].slot < chipSlots[j].slot
+	})
+
+	// detect line overlaps for every chip label across all gpio-chardev slots
+	var errs []error
+	for i, a := range chipSlots {
+		for _, b := range chipSlots[i+1:] {
+			if a.chip != b.chip {
+				continue
+			}
+
+			for _, spanA := range a.lines {
+				for _, spanB := range b.lines {
+					if spanA.Intersects(spanB) {
+						errs = append(errs, &gpioChipLinesOverlapError{
+							chip:  a.chip,
+							slotA: a.slot, spanA: spanA,
+							slotB: b.slot, spanB: spanB,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	return strutil.JoinErrors(errs...)
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
@@ -429,6 +525,11 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	// Ensure that any given gpio line is only be exported by one slot.
+	if err := validateGpioChardevSlots(info); err != nil {
+		return err
+	}
+
 	// Ensure that base field is valid
 	if err := ValidateBase(info); err != nil {
 		return err
@@ -457,7 +558,7 @@ func ValidateBase(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type() == TypeOS || info.Type() == TypeBase {
 		if info.Base != "" && info.Base != "none" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type(), info.InstanceName())
+			return fmt.Errorf(`cannot have "base" field with value other than "none" on %q snap %q`, info.Type(), info.InstanceName())
 		}
 	}
 

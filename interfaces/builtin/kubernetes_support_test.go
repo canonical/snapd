@@ -284,11 +284,11 @@ func (s *KubernetesSupportInterfaceSuite) TestInterfaces(c *C) {
 func (s *KubernetesSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C) {
 	for _, t := range []struct {
 		plug *snap.PlugInfo
-		exp  []string
+		exp  []interfaces.PlugServicesSnippet
 	}{
-		{s.plugInfo, []string{"Delegate=true"}},
-		{s.plugKubeletInfo, []string{"Delegate=true"}},
-		{s.plugKubeproxyInfo, []string{"Delegate=true"}},
+		{s.plugInfo, []interfaces.PlugServicesSnippet{interfaces.PlugServicesServiceSectionSnippet("Delegate=true")}},
+		{s.plugKubeletInfo, []interfaces.PlugServicesSnippet{interfaces.PlugServicesServiceSectionSnippet("Delegate=true")}},
+		{s.plugKubeproxyInfo, []interfaces.PlugServicesSnippet{interfaces.PlugServicesServiceSectionSnippet("Delegate=true")}},
 		// only autobind-unix flavor does not get Delegate=true
 		{s.plugKubeAutobindInfo, nil},
 	} {

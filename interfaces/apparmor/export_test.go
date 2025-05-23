@@ -95,6 +95,10 @@ func MockParserFeatures(f func() ([]string, error)) (resture func()) {
 	}
 }
 
+func MockMetadataTagsSupported(f func() bool) (restore func()) {
+	return testutil.Mock(&metadataTagsSupported, f)
+}
+
 func (b *Backend) SetupSnapConfineReexec(info *snap.Info) error {
 	return b.setupSnapConfineReexec(info)
 }

@@ -24,21 +24,17 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 )
 
 var (
-	disksDMCryptUUIDFromMountPoint = disks.DMCryptUUIDFromMountPoint
-	secbootGetPrimaryKeyDigest     = secboot.GetPrimaryKeyDigest
-	secbootVerifyPrimaryKeyDigest  = secboot.VerifyPrimaryKeyDigest
-	secbootGetPCRHandle            = secboot.GetPCRHandle
+	secbootGetPrimaryKeyDigest    = secboot.GetPrimaryKeyDigest
+	secbootVerifyPrimaryKeyDigest = secboot.VerifyPrimaryKeyDigest
+	secbootGetPCRHandle           = secboot.GetPCRHandle
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -187,98 +183,84 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
-	// TODO:FDEM:FIX: mount points will be different in recovery or factory-reset modes
-	// either inspect degraded.json, or use boot.HostUbuntuDataForMode()
-	dataUUID, dataErr := disksDMCryptUUIDFromMountPoint(dirs.WritableMountPath)
-	saveUUID, saveErr := disksDMCryptUUIDFromMountPoint(dirs.SnapSaveDir)
-	if errors.Is(saveErr, disks.ErrMountPointNotFound) {
-		// TODO:FDEM: do we need to care about old cases where there is no save partition?
-		return nil
-	}
-
-	if errors.Is(dataErr, disks.ErrNoDmUUID) && errors.Is(saveErr, disks.ErrNoDmUUID) {
-		// There is no encryption, so we ignore it.
-		// TODO:FDEM: we should verify the device "sealed key method"
-		return nil
-	}
-
-	if dataErr != nil {
-		return fmt.Errorf("cannot resolve data partition mount: %w", dataErr)
-	}
-	if saveErr != nil {
-		return fmt.Errorf("cannot resolve save partition mount: %w", saveErr)
-	}
-
-	devpData := fmt.Sprintf("/dev/disk/by-uuid/%s", dataUUID)
-	devpSave := fmt.Sprintf("/dev/disk/by-uuid/%s", saveUUID)
-	digest, err := getPrimaryKeyDigest(devpData)
+	disks, err := getEncryptedContainers(st)
 	if err != nil {
-		if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
-			return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", devpData, err)
-		}
-		// Some very old kernels with FDE do not set primary key in the keyring
-		logger.Noticef("cannot obtain primary key digest for data device %s: %v", devpData, err)
-		s.PrimaryKeys = map[int]PrimaryKeyInfo{}
-	} else {
-		sameDigest, err := digest.verifyPrimaryKeyDigest(devpSave)
-		if err != nil {
-			if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
-				return fmt.Errorf("cannot verify primary key digest for save device %s: %w", devpSave, err)
-			}
-			// If plainkey tokens were not used, then
-			// there is no primary key in the keyring for
-			// the save disk
-			logger.Noticef("cannot verify primary key digest for save device %s: %v", devpSave, err)
-		} else if !sameDigest {
-			return fmt.Errorf("primary key for data and save partition are not the same")
-		}
-
-		s.PrimaryKeys = map[int]PrimaryKeyInfo{
-			0: {
-				Digest: digest,
-			},
-		}
+		return fmt.Errorf("cannot get encrypted disks: %w", err)
 	}
 
-	keyFile := device.DataSealedKeyUnder(dirs.SnapSaveDir)
-	runCounterHandle, err := secbootGetPCRHandle(devpData, "default", keyFile)
-	if err != nil {
-		return fmt.Errorf("cannot obtain counter handle: %w", err)
-	}
-
-	fallbackKeyFile := device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir)
-	fallbackCounterHandle, err := secbootGetPCRHandle(devpData, "default-fallback", fallbackKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot obtain counter handle: %w", err)
-	}
-
-	fallbackSaveKeyFile := device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir)
-	fallbackSaveCounterHandle, err := secbootGetPCRHandle(devpSave, "default-fallback", fallbackSaveKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot obtain counter handle: %w", err)
-	}
-
-	if fallbackCounterHandle != fallbackSaveCounterHandle {
-		return fmt.Errorf("the recover data and save keys do not use the same counter handle")
-	}
-
+	s.PrimaryKeys = map[int]PrimaryKeyInfo{}
 	// Note that Parameters will be updated on first update
 	s.KeyslotRoles = map[string]KeyslotRoleInfo{
 		// TODO:FDEM: use a constant
 		"run": {
-			PrimaryKeyID:                   0,
-			TPM2PCRPolicyRevocationCounter: runCounterHandle,
+			PrimaryKeyID: 0,
 		},
 		// TODO:FDEM: use a constant
 		"run+recover": {
-			PrimaryKeyID:                   0,
-			TPM2PCRPolicyRevocationCounter: runCounterHandle,
+			PrimaryKeyID: 0,
 		},
 		// TODO:FDEM: use a constant
 		"recover": {
-			PrimaryKeyID:                   0,
-			TPM2PCRPolicyRevocationCounter: fallbackCounterHandle,
+			PrimaryKeyID: 0,
 		},
+	}
+
+	for _, disk := range disks {
+		statePrimaryKey, hasStatePrimaryKey := s.PrimaryKeys[0]
+		if !hasStatePrimaryKey {
+			digest, err := getPrimaryKeyDigest(disk.DevPath())
+			if err != nil {
+				if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
+					return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", disk.DevPath(), err)
+				}
+				logger.Noticef("cannot obtain primary key digest for data device %s: %v", disk.DevPath(), err)
+			} else {
+				s.PrimaryKeys[0] = PrimaryKeyInfo{Digest: digest}
+			}
+		} else {
+			sameDigest, err := statePrimaryKey.Digest.verifyPrimaryKeyDigest(disk.DevPath())
+			if err != nil {
+				if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
+					return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", disk.DevPath(), err)
+				}
+				logger.Noticef("cannot obtain primary key digest for data device %s: %v", disk.DevPath(), err)
+			} else if !sameDigest {
+				return fmt.Errorf("primary key for data and save partition are not the same")
+			}
+		}
+
+		legacyKeys := disk.LegacyKeys()
+		for _, keyName := range []string{"default", "default-fallback"} {
+			if keyName == "default" && disk.ContainerRole() == "system-save" {
+				continue
+			}
+			legacyKey, _ := legacyKeys[keyName]
+			handle, err := secbootGetPCRHandle(disk.DevPath(), keyName, legacyKey)
+			if err != nil {
+				return fmt.Errorf("cannot obtain counter handle for %s (default): %w", disk.DevPath(), err)
+			}
+			var profiles []string
+			switch keyName {
+			case "default":
+				profiles = []string{"run", "run+recover"}
+			case "default-fallback":
+				profiles = []string{"recover"}
+			}
+			for _, profile := range profiles {
+				role := s.KeyslotRoles[profile]
+				if s.KeyslotRoles[profile].TPM2PCRPolicyRevocationCounter == 0 {
+					role.TPM2PCRPolicyRevocationCounter = handle
+					s.KeyslotRoles[profile] = role
+				} else if role.TPM2PCRPolicyRevocationCounter != handle {
+					return fmt.Errorf("found multiple revocation count for run keys")
+				}
+			}
+		}
+	}
+
+	_, hasStatePrimaryKey := s.PrimaryKeys[0]
+	if !hasStatePrimaryKey {
+		logger.Noticef("WARNING: no primary key was found")
 	}
 
 	st.Set(fdeStateKey, s)
@@ -379,16 +361,6 @@ func fdeRelevantSnaps(st *state.State) ([]string, error) {
 
 	// these snaps, or either their content is measured during boot
 	return []string{devCtx.Gadget(), devCtx.Kernel(), devCtx.Base()}, nil
-}
-
-func MockDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
-	osutil.MustBeTestBinary("mocking DMCryptUUIDFromMountPoint can be done only from tests")
-
-	old := disksDMCryptUUIDFromMountPoint
-	disksDMCryptUUIDFromMountPoint = f
-	return func() {
-		disksDMCryptUUIDFromMountPoint = old
-	}
 }
 
 func MockGetPrimaryKeyDigest(f func(devicePath string, alg crypto.Hash) ([]byte, []byte, error)) (restore func()) {

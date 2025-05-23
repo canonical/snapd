@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-var confdbstateGetTransaction = confdbstate.GetTransactionToModify
+var confdbstateTransactionForSet = confdbstate.GetTransactionToSet
 
 type setCommand struct {
 	baseCommand
@@ -236,21 +236,21 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	account, confdbName, viewName, err := getConfdbViewID(ctx, plugName)
+	account, dbSchemaName, viewName, err := getConfdbViewID(ctx, plugName)
 	if err != nil {
 		return err
 	}
 
-	view, err := confdbstateGetView(ctx.State(), account, confdbName, viewName)
+	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)
 	if err != nil {
 		return err
 	}
 
-	if confdbstate.IsConfdbHook(ctx) && !strings.HasPrefix(ctx.HookName(), "change-view-") {
+	if confdbstate.IsConfdbHook(ctx) && !confdbstate.IsModifyConfdbHook(ctx) {
 		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
 	}
 
-	tx, commitTxFunc, err := confdbstateGetTransaction(ctx, ctx.State(), view)
+	tx, commitTxFunc, err := confdbstateTransactionForSet(ctx, ctx.State(), view)
 	if err != nil {
 		return err
 	}

@@ -22,7 +22,7 @@
     # the .so suffix, eg. ld-linux-aarch64.so.1
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
     # libc, you are funny
-    /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+    /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,glibc-hwcaps/*/,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
@@ -468,6 +468,7 @@
     /run/snapd/lock/*.lock rwk,
 
     # support for the mount namespace sharing
+    capability fowner,
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
     ptrace read peer=unconfined,
@@ -514,7 +515,7 @@
         /etc/ld.so.cache r,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
         # libc, you are funny
-        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+        /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,glibc-hwcaps/*/,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
         /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}librt{,-[0-9]*}.so* mr,
@@ -545,6 +546,7 @@
         /dev/random r,
         /dev/urandom r,
 
+        capability dac_override,
         capability sys_ptrace,
         capability sys_admin,
         # This allows us to read and bind mount the namespace file

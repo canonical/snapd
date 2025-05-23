@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/v5"
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 

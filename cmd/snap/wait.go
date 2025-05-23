@@ -36,27 +36,22 @@ var (
 	pollTime    = 100 * time.Millisecond
 )
 
-type waitMixin struct {
+// mustWaitMixin mixin which exposes a helper method to wait for a state change.
+type mustWaitMixin struct {
 	clientMixin
-	NoWait    bool `long:"no-wait"`
+	// skipAbort when set, the change we wait for will not be aborted
 	skipAbort bool
+	// noProgress when set, no progress will be shown to the user
+	noProgress bool
 
 	// Wait also for tasks in the "wait" state.
 	waitForTasksInWaitStatus bool
 }
 
-var waitDescs = mixinDescs{
-	// TRANSLATORS: This should not start with a lowercase letter.
-	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
-}
-
-var noWait = errors.New("no wait for op")
-
-func (wmx waitMixin) wait(id string) (*client.Change, error) {
-	if wmx.NoWait {
-		fmt.Fprintf(Stdout, "%s\n", id)
-		return nil, noWait
-	}
+// wait waits for a given change to complete. By default, unless skipAbort is
+// set, it will abort the change when SIGINT is received. Change progress is
+// reported to standard output, unless noProgress is true.
+func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 	cli := wmx.client
 	// Intercept sigint
 	c := make(chan os.Signal, 2)
@@ -73,7 +68,12 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		}
 	}()
 
-	pb := progress.MakeProgressBar(Stdout)
+	var pb progress.Meter
+	if wmx.noProgress {
+		pb = &progress.Null
+	} else {
+		pb = progress.MakeProgressBar(Stdout)
+	}
 	defer func() {
 		pb.Finished()
 		// next two not strictly needed for CLI, but without
@@ -188,6 +188,26 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		// 100ms.
 		time.Sleep(pollTime)
 	}
+}
+
+type waitMixin struct {
+	mustWaitMixin
+	NoWait bool `long:"no-wait"`
+}
+
+var waitDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
+}
+
+var noWait = errors.New("no wait for op")
+
+func (wmx waitMixin) wait(id string) (*client.Change, error) {
+	if wmx.NoWait {
+		fmt.Fprintf(Stdout, "%s\n", id)
+		return nil, noWait
+	}
+	return wmx.mustWaitMixin.wait(id)
 }
 
 func lastLogStr(logs []string) string {

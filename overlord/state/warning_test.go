@@ -295,3 +295,29 @@ func (stateSuite) TestRemoveWarning(c *check.C) {
 	ws = st.AllWarnings()
 	c.Check(ws, check.HasLen, 0)
 }
+
+func (stateSuite) TestWarningsReadWithoutStateLock(c *check.C) {
+	st := state.New(nil)
+
+	ws := st.AllWarnings()
+	c.Check(ws, check.HasLen, 0)
+	ws, ts := st.PendingWarnings()
+	c.Check(ws, check.HasLen, 0)
+	c.Check(ts.IsZero(), check.Equals, false)
+	count, ts := st.WarningsSummary()
+	c.Check(count, check.Equals, 0)
+	c.Check(ts.IsZero(), check.Equals, true)
+
+	st.Lock()
+	st.Warnf("this warning exists")
+	st.Unlock()
+
+	ws = st.AllWarnings()
+	c.Check(ws, check.HasLen, 1)
+	ws, ts = st.PendingWarnings()
+	c.Check(ws, check.HasLen, 1)
+	c.Check(ts.IsZero(), check.Equals, false)
+	count, ts = st.WarningsSummary()
+	c.Check(count, check.Equals, 1)
+	c.Check(ts.IsZero(), check.Equals, false)
+}

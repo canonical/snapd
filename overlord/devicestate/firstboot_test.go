@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -86,6 +87,7 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	}
 
 	tempdir := c.MkDir()
+	dirstest.MustMockCanonicalSnapMountDir(tempdir)
 	dirs.SetRootDir(tempdir)
 	t.AddCleanup(func() { dirs.SetRootDir("/") })
 
@@ -133,6 +135,14 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 // your own before calling this again
 func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
+	func() {
+		st := ovld.State()
+		st.Lock()
+		defer st.Unlock()
+		// set a fake fde state to avoid failure in initialization
+		st.Set("fde", &struct{}{})
+	}()
+
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
 	// avoid gadget preload in the general tests cases

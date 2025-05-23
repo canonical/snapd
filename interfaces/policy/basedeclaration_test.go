@@ -145,7 +145,9 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	snowflakes := map[string]bool{
 		"content":                true,
 		"core-support":           true,
+		"cuda-driver-libs":       true,
 		"desktop":                true,
+		"egl-driver-libs":        true,
 		"home":                   true,
 		"lxd-support":            true,
 		"microstack-support":     true,
@@ -872,8 +874,10 @@ var (
 		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support":   nil,
+		"cuda-driver-libs":  nil,
 		"custom-device":     nil,
 		"docker":            nil,
+		"egl-driver-libs":   nil,
 		"lxd":               nil,
 		"microceph":         nil,
 		"microceph-support": nil,
@@ -881,6 +885,7 @@ var (
 		"pkcs11":            nil,
 		"posix-mq":          nil,
 		"shared-memory":     nil,
+		"gpio-chardev":      nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -968,6 +973,25 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation denied by \"shared-memory\" slot rule of interface \"shared-memory\"")
 
+	// test gpio-chardev specifically as it needs correct attributes in the snap yaml
+	for name, snapType := range snapTypeMap {
+		ic := s.installSlotCand(c, "gpio-chardev", snapType, fmt.Sprintf(`name: my-device
+version: 0
+type: %s
+slots:
+  gpio-chardev:
+    source-chip: [chip0]
+    lines: 0,1
+`, snapType))
+		err := ic.Check()
+		comm := Commentf("%s by %s snap", "gpio-chardev", name)
+		if snapType == snap.TypeGadget {
+			c.Check(err, IsNil, comm)
+		} else {
+			c.Check(err, NotNil, comm)
+		}
+	}
+
 	// The core and snapd snaps may provide a shared-memory slot
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeOS, `name: core
 version: 0
@@ -1016,9 +1040,11 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"block-devices":                    true,
 		"checkbox-support":                 true,
 		"classic-support":                  true,
+		"cuda-driver-libs":                 true,
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
 		"docker-support":                   true,
+		"egl-driver-libs":                  true,
 		"greengrass-support":               true,
 		"gpio-control":                     true,
 		"ion-memory-control":               true,
@@ -1038,6 +1064,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"polkit":                           true,
 		"polkit-agent":                     true,
 		"remoteproc":                       true,
+		"scsi-generic":                     true,
 		"sd-control":                       true,
 		"shutdown":                         true,
 		"snap-interfaces-requests-control": true,
@@ -1317,11 +1344,13 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"classic-support":                  true,
 		"checkbox-support":                 true,
 		"core-support":                     true,
+		"cuda-driver-libs":                 true,
 		"custom-device":                    true,
 		"desktop":                          true,
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
 		"docker-support":                   true,
+		"egl-driver-libs":                  true,
 		"greengrass-support":               true,
 		"gpio-control":                     true,
 		"ion-memory-control":               true,
@@ -1344,6 +1373,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"polkit-agent":                     true,
 		"remoteproc":                       true,
 		"qualcomm-ipc-router":              true,
+		"scsi-generic":                     true,
 		"screen-inhibit-control":           true,
 		"sd-control":                       true,
 		"shutdown":                         true,

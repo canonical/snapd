@@ -20,6 +20,7 @@
 package apparmorprompting
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -41,9 +43,14 @@ var (
 	listenerRegister = listener.Register
 	listenerClose    = func(l *listener.Listener) error { return l.Close() }
 	listenerRun      = func(l *listener.Listener) error { return l.Run() }
+	listenerReady    = func(l *listener.Listener) <-chan struct{} { return l.Ready() }
 	listenerReqs     = func(l *listener.Listener) <-chan *listener.Request { return l.Reqs() }
 
-	requestReply = func(req *listener.Request, allowedPermission any) error { return req.Reply(allowedPermission) }
+	requestReply = func(req *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		return req.Reply(allowedPermission)
+	}
+
+	promptingInterfaceFromTagsets = prompting.InterfaceFromTagsets
 )
 
 // A Manager holds outstanding prompts and mediates their replies, further it
@@ -73,6 +80,17 @@ type InterfacesRequestsManager struct {
 	listener *listener.Listener
 	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
+
+	// ready should block method calls which depend on the manager having re-
+	// received all pending requests which were previously sent before snapd
+	// restarted (or timed out attempting to do so). It is closed to broadcast
+	// that method calls may proceed.
+	//
+	// We can't block on listenerReady directly in the method calls, as that
+	// would mean that after the manager receives the final request, there
+	// would be a race between the method calls unblocking and the manager
+	// actually getting the chance to handle the request.
+	ready chan struct{}
 
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
 	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
@@ -136,6 +154,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		listener:     listenerBackend,
 		prompts:      promptsBackend,
 		rules:        rulesBackend,
+		ready:        make(chan struct{}),
 		notifyPrompt: notifyPrompt,
 		notifyRule:   notifyRule,
 	}
@@ -147,44 +166,80 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 
 // Run is the main run loop for the manager, and must be called using tomb.Go.
 func (m *InterfacesRequestsManager) run() error {
-	m.lock.Lock()
-	// disconnect replaces the listener so keep track of the one we have
-	// right now
-	currentListener := m.listener
-	m.lock.Unlock()
-
 	m.tomb.Go(func() error {
 		logger.Debugf("starting prompting listener")
-		if err := listenerRun(currentListener); err != listener.ErrClosed {
-			return err
-		}
-		return nil
+		// listener.Run will return an error if and only if there's a real
+		// error, not if Close() is called. But Close() is called only by
+		// disconnect(), which is itself only called when this run() function
+		// returns, which only occurs when the manager tomb is dying. So we
+		// don't need to worry about the listener returning nil when we don't
+		// already expect to be exiting.
+		return listenerRun(m.listener)
 	})
+
+	defer func() {
+		// Ensure that m.ready ends up closed, since we'll never have the
+		// opportunity to close it again after this function returns, and we
+		// don't want to leave method calls blocked forever.
+		select {
+		case <-m.ready:
+			// is already closed
+		default:
+			close(m.ready)
+		}
+	}()
 
 run_loop:
 	for {
 		logger.Debugf("waiting prompt loop")
 		select {
-		case req, ok := <-listenerReqs(currentListener):
+		case <-m.listenerReadyForTheFirstTime():
+			// The previous request we processed was the final pending one
+			// waiting to be resent, or the listener timed out waiting for one.
+			// In either case, let method calls proceed.
+			logger.Debugf("received ready signal from the listener")
+			close(m.ready)
+		case req, ok := <-listenerReqs(m.listener):
 			if !ok {
-				// Reqs() closed, so either errored or Stop() was called.
-				// In either case, the listener Close() method has already
-				// been called, and the tomb error will be set to the return
+				// Reqs() closed, so an error occurred in the listener. In
+				// production, the listener does not close itself on error, so
+				// this should never actually occur.
+				//
+				// If Stop() were called, it would set the tomb to dying and
+				// the other select case would have occurred, since the
+				// disconnect() method is the only place in the manager where
+				// the listener Close() method is called, and disconnect() is
+				// only called when this function returns.
+				//
+				// The listener Close() method has already been called by the
+				// listener itself, and the tomb error will be set to the error
 				// value of the Run() call from the previous tracked goroutine.
 				logger.Debugf("prompting listener closed requests channel")
 				break run_loop
 			}
 
-			logger.Debugf("received from kernel requests channel: %v", req)
+			logger.Debugf("received from kernel requests channel: %+v", req)
 			if err := m.handleListenerReq(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
 		case <-m.tomb.Dying():
-			logger.Noticef("InterfacesRequestsManager tomb is dying, disconnecting")
+			logger.Debugf("InterfacesRequestsManager tomb is dying with error %v, disconnecting", m.tomb.Err())
 			break run_loop
 		}
 	}
 	return m.disconnect()
+}
+
+func (m *InterfacesRequestsManager) listenerReadyForTheFirstTime() <-chan struct{} {
+	select {
+	case <-m.ready:
+		// We already closed m.ready, so the listener previously readied and we
+		// handled it. So return something which will never signal.
+		return nil
+	default:
+		// We haven't handled a ready signal yet, so return the real thing.
+		return listenerReady(m.listener)
+	}
 }
 
 func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) error {
@@ -194,14 +249,25 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		return requestReply(req, nil)
 	}
 	snap := req.Label // Default to apparmor label, in case process is not a snap
-	tag, err := naming.ParseSecurityTag(req.Label)
-	if err == nil {
-		// the triggering process is not a snap, so treat apparmor label as snap field
+	if tag, err := naming.ParseSecurityTag(req.Label); err == nil {
+		// the triggering process is a snap, so use instance name as snap field
 		snap = tag.InstanceName()
 	}
 
-	// TODO: when we support interfaces beyond "home", do a proper selection here
-	iface := "home"
+	iface, err := promptingInterfaceFromTagsets(req.Tagsets)
+	if err != nil {
+		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
+			// There were no tags registered with a snapd interface, so we
+			// default to the "home" interface.
+			iface = "home"
+		} else {
+			// There was either more than one interface associated with tags, or
+			// none which applied to all requested permissions. Since we can't
+			// decide which interface to use, automatically deny this request.
+			logger.Noticef("error while selecting interface from metadata tags: %v", err)
+			return requestReply(req, nil)
+		}
+	}
 
 	path := req.Path
 
@@ -241,6 +307,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	metadata := &prompting.Metadata{
 		User:      userID,
 		Snap:      snap,
+		PID:       req.PID,
 		Interface: iface,
 	}
 
@@ -273,15 +340,12 @@ func (m *InterfacesRequestsManager) disconnect() error {
 	var errs []error
 	if m.listener != nil {
 		errs = append(errs, listenerClose(m.listener))
-		m.listener = nil
 	}
 	if m.prompts != nil {
 		errs = append(errs, m.prompts.Close())
-		m.prompts = nil
 	}
 	if m.rules != nil {
 		errs = append(errs, m.rules.Close())
-		m.rules = nil
 	}
 
 	return strutil.JoinErrors(errs...)
@@ -300,6 +364,10 @@ func (m *InterfacesRequestsManager) Stop() error {
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
 func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.prompts.Prompts(userID, clientActivity)
@@ -310,6 +378,10 @@ func (m *InterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) 
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
 func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.prompts.PromptWithID(userID, promptID, clientActivity)
@@ -324,6 +396,10 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
 func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -447,6 +523,10 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
 func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -462,6 +542,10 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 // RemoveRules removes all rules for the user with the given user ID and the
 // given snap and/or interface. Snap and iface can't both be unspecified.
 func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	// The lock need only be held for reading, since no synchronization is
 	// required between the rules and prompts backends, and the rules backend
 	// has an internal mutex.
@@ -494,6 +578,10 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
 func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -507,6 +595,10 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 }
 
 func (m *InterfacesRequestsManager) RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error) {
+	// Wait until the listener has re-sent pending requests and prompts have
+	// been re-created.
+	<-m.ready
+
 	// The lock need only be held for reading, since no synchronization is
 	// required between the rules and prompts backends, and the rules backend
 	// has an internal mutex.

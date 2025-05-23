@@ -20,7 +20,7 @@
 //
 // This file is a preprocessor for snap-update-ns' main() function. It will
 // perform input validation and clear the environment so that snap-update-ns'
-// go code runs with safe inputs when called by the setuid() snap-confine.
+// go code runs with safe inputs when called by the snap-confine.
 
 #include "bootstrap.h"
 
@@ -39,6 +39,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+/* copied from libsnap-confine-private/utils.h */
+#define SC_ARRAY_SIZE(arr)                                                                                  \
+    (sizeof(arr) / sizeof((arr)[0]) + ((int)sizeof(struct {                                                 \
+         _Static_assert(!__builtin_types_compatible_p(typeof(arr), typeof(&(arr)[0])), "must be an array"); \
+     })))
 
 // bootstrap_errno contains a copy of errno if a system call fails.
 int bootstrap_errno = 0;
@@ -75,25 +81,17 @@ static int setns_into_snap(const char *snap_name) {
     return err;
 }
 
-// switch_to_privileged_user drops to the real user ID while retaining
-// CAP_SYS_ADMIN, for operations such as mount().
-static int switch_to_privileged_user() {
-    uid_t real_uid;
-    gid_t real_gid;
-
-    real_uid = getuid();
-    if (real_uid == 0) {
-        // We're running as root: no need to switch IDs
-        return 0;
-    }
-    real_gid = getgid();
-
+/* TODO:nonsetuid: drop this code, move clearing and verification of
+ * CAP_SYS_ADMIN to single function */
+// keep_sys_admin sets CAP_SYS_ADMIN in the effective capability set (required
+// for mount()) and drops everything else.
+static int keep_sys_admin(void) {
     // _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
     // https://github.com/torvalds/linux/blob/master/kernel/capability.c
     struct __user_cap_header_struct hdr = {_LINUX_CAPABILITY_VERSION_3, 0};
     struct __user_cap_data_struct data[2] = {{0}};
 
-    data[0].effective = (CAP_TO_MASK(CAP_SYS_ADMIN) | CAP_TO_MASK(CAP_SETUID) | CAP_TO_MASK(CAP_SETGID));
+    data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
     data[0].permitted = data[0].effective;
     data[0].inheritable = 0;
     data[1].effective = 0;
@@ -102,41 +100,53 @@ static int switch_to_privileged_user() {
 
     if (capset(&hdr, data) != 0) {
         bootstrap_errno = errno;
-        bootstrap_msg = "cannot set permitted capabilities mask";
-        return -1;
-    }
-
-    if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "cannot tell kernel to keep capabilities over setuid";
-        return -1;
-    }
-
-    if (setgroups(1, &real_gid) != 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "cannot drop supplementary groups";
-        return -1;
-    }
-
-    if (setgid(real_gid) != 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "cannot switch to real group ID";
-        return -1;
-    }
-
-    if (setuid(real_uid) != 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "cannot switch to real user ID";
-        return -1;
-    }
-    // After changing uid, our effective capabilities were dropped.
-    // Reacquire CAP_SYS_ADMIN, and discard CAP_SETUID/CAP_SETGID.
-    data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
-    data[0].permitted = data[0].effective;
-    if (capset(&hdr, data) != 0) {
-        bootstrap_errno = errno;
         bootstrap_msg = "cannot enable capabilities after switching to real user";
         return -1;
+    }
+
+    return 0;
+}
+
+// verify we have required capabilities
+static int verify_caps(void) {
+    /* nothing to do if running as a root */
+    if (getuid() == 0) {
+        return 0;
+    }
+
+    // _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
+    // https://github.com/torvalds/linux/blob/master/kernel/capability.c
+    struct __user_cap_header_struct hdr = {_LINUX_CAPABILITY_VERSION_3, 0};
+    struct __user_cap_data_struct data = {0};
+
+    if (capget(&hdr, &data) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot query capabilities";
+        return -1;
+    }
+
+    struct {
+        int cap;
+        const char *err;
+    } expected_caps[] = {{
+                             .cap = CAP_SYS_ADMIN,
+                             .err = "CAP_SYS_ADMIN capability not in effective set",
+                         },
+                         {
+                             .cap = CAP_CHOWN,
+                             .err = "CAP_CHOWN capability not in effective set",
+                         },
+                         {
+                             .cap = CAP_DAC_OVERRIDE,
+                             .err = "CAP_DAC_OVERRIDE capability not in effective set",
+                         }};
+    size_t i;
+    for (i = 0; i < SC_ARRAY_SIZE(expected_caps); i++) {
+        if ((data.effective & CAP_TO_MASK(expected_caps[i].cap)) == 0) {
+            bootstrap_errno = EPERM;
+            bootstrap_msg = expected_caps[i].err;
+            return -1;
+        }
     }
 
     return 0;
@@ -174,7 +184,7 @@ static int skip_one_char(const char **p, char c) {
 }
 
 // validate_snap_name performs full validation of the given name.
-int validate_snap_name(const char *snap_name) {
+static int validate_snap_name(const char *snap_name) {
     // NOTE: This function should be synchronized with the two other
     // implementations: sc_snap_name_validate and snap.ValidateName.
 
@@ -454,9 +464,9 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out, 
 // bootstrap prepares snap-update-ns to work in the namespace of the snap given
 // on command line.
 void bootstrap(int argc, char **argv, char **envp) {
-    // We may have been started via a setuid-root snap-confine. In order to
-    // prevent environment-based attacks we start by erasing all environment
-    // variables.
+    // We may have been started via snap-confine with capabilities carried over
+    // across exec. In order to prevent environment-based attacks we start by
+    // erasing all environment variables.
     char *snapd_debug = getenv("SNAPD_DEBUG");
     if (clearenv() != 0) {
         bootstrap_errno = 0;
@@ -466,6 +476,11 @@ void bootstrap(int argc, char **argv, char **envp) {
     if (snapd_debug != NULL) {
         setenv("SNAPD_DEBUG", snapd_debug, 0);
     }
+
+    if (verify_caps() != 0) {
+        return;
+    }
+
     // Analyze the read process cmdline to find the snap name and decide if we
     // should use setns to jump into the mount namespace of a particular snap.
     // This is spread out for easier testability.
@@ -475,8 +490,11 @@ void bootstrap(int argc, char **argv, char **envp) {
     unsigned long uid = 0;
     process_arguments(argc, argv, &snap_name, &should_setns, &process_user_fstab, &uid);
     if (process_user_fstab) {
-        switch_to_privileged_user();
-        // switch_to_privileged_user sets bootstrap_{errno,msg}
+        // since privileged are passed as capabilities, we re already invoked as
+        // a target user, so we can drop evrything else only keeping
+        // CAP_SYS_ADMIN for mount()
+        keep_sys_admin();
+        // keep_sys_admin sets bootstrap_{errno,msg}
     } else if (snap_name != NULL && should_setns) {
         setns_into_snap(snap_name);
         // setns_into_snap sets bootstrap_{errno,msg}

@@ -39,9 +39,8 @@ import (
 )
 
 var (
-	confdbstateGetView              = confdbstate.GetView
-	confdbstateNewTransaction       = confdbstate.NewTransaction
-	confdbstateGetStoredTransaction = confdbstate.GetStoredTransaction
+	confdbstateGetView           = confdbstate.GetView
+	confdbstateTransactionForGet = confdbstate.GetTransactionForSnapctlGet
 )
 
 type getCommand struct {
@@ -51,7 +50,7 @@ type getCommand struct {
 	ForceSlotSide bool `long:"slot" description:"return attribute values from the slot side of the connection"`
 	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
 	View          bool `long:"view" description:"return confdb values from the view declared in the plug"`
-	Pristine      bool `long:"pristine" description:"return confdb values disregarding changes from the current transaction"`
+	Previous      bool `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
@@ -165,8 +164,8 @@ func (c *getCommand) Execute(args []string) error {
 	if c.Typed && c.Document {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
-	if c.Pristine && !c.View {
-		return fmt.Errorf("cannot use --pristine without --view")
+	if c.Previous && !c.View {
+		return fmt.Errorf("cannot use --previous without --view")
 	}
 
 	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
@@ -185,7 +184,7 @@ func (c *getCommand) Execute(args []string) error {
 			}
 
 			requests := c.Positional.Keys
-			return c.getConfdbValues(context, name, requests, c.Pristine)
+			return c.getConfdbValues(context, name, requests, c.Previous)
 		}
 
 		if len(c.Positional.Keys) == 0 {
@@ -371,26 +370,31 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	})
 }
 
-func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, requests []string, pristine bool) error {
+func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, requests []string, previous bool) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return errors.New(i18n.G("cannot use --plug or --slot with --view"))
 	}
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	account, confdbName, viewName, err := getConfdbViewID(ctx, plugName)
+	account, dbSchemaName, viewName, err := getConfdbViewID(ctx, plugName)
 	if err != nil {
 		return err
 	}
 
-	view, err := confdbstateGetView(ctx.State(), account, confdbName, viewName)
+	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)
 	if err != nil {
 		return err
 	}
 
-	bag, err := c.getDatabag(ctx, view, pristine)
+	tx, err := confdbstateTransactionForGet(ctx, view, requests)
 	if err != nil {
 		return err
+	}
+
+	var bag confdb.Databag = tx
+	if previous {
+		bag = tx.Previous()
 	}
 
 	res, err := confdbstate.GetViaView(bag, view, requests)
@@ -401,41 +405,7 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	return c.printPatch(res)
 }
 
-func (c *getCommand) getDatabag(ctx *hookstate.Context, view *confdb.View, pristine bool) (bag confdb.DataBag, err error) {
-	account, confdbName := view.Confdb().Account, view.Confdb().Name
-
-	var tx *confdbstate.Transaction
-	if confdbstate.IsConfdbHook(ctx) {
-		// running in the context of a transaction, so if the referenced confdb
-		// doesn't match that tx, we only allow the caller to read the other confdb
-		t, _ := ctx.Task()
-		tx, _, err = confdbstateGetStoredTransaction(t)
-		if err != nil {
-			return nil, fmt.Errorf("cannot access confdb view %s/%s/%s: cannot get transaction: %v", account, confdbName, view.Name, err)
-		}
-
-		if tx.ConfdbAccount != account || tx.ConfdbName != confdbName {
-			// we're reading a different transaction
-			tx = nil
-		}
-	}
-
-	// reading a view but there's no ongoing transaction for it, make a temporary
-	// transaction just as a pass-through databag
-	if tx == nil {
-		tx, err = confdbstateNewTransaction(ctx.State(), account, confdbName)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if pristine {
-		return tx.Pristine(), nil
-	}
-	return tx, nil
-}
-
-func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, confdbName, viewName string, err error) {
+func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, dbSchemaName, viewName string, err error) {
 	repo := ifacerepo.Get(ctx.State())
 
 	plug := repo.Plug(ctx.InstanceName(), plugName)
@@ -447,29 +417,29 @@ func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, confdbNa
 		return "", "", "", fmt.Errorf(i18n.G("cannot use --view with non-confdb plug :%s"), plugName)
 	}
 
-	account, confdbName, viewName, err = snap.ConfdbPlugAttrs(plug)
+	account, dbSchemaName, viewName, err = snap.ConfdbPlugAttrs(plug)
 	if err != nil {
 		return "", "", "", fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
 	}
 
-	return account, confdbName, viewName, nil
+	return account, dbSchemaName, viewName, nil
 }
 
-// validateConfdbsFeatureFlag checks whether the confdbs experimental flag
+// validateConfdbsFeatureFlag checks whether the confdb experimental flag
 // is enabled. The state should not be locked by the caller.
 func validateConfdbsFeatureFlag(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdbs)
+	enabled, err := features.Flag(tr, features.Confdb)
 	if err != nil && !config.IsNoOption(err) {
-		return fmt.Errorf(i18n.G("internal error: cannot check confdbs feature flag: %v"), err)
+		return fmt.Errorf(i18n.G("internal error: cannot check confdb feature flag: %v"), err)
 	}
 
 	if !enabled {
-		_, confName := features.Confdbs.ConfigOption()
-		return fmt.Errorf(i18n.G(`"confdbs" feature flag is disabled: set '%s' to true`), confName)
+		_, confName := features.Confdb.ConfigOption()
+		return fmt.Errorf(i18n.G(`"confdb" feature flag is disabled: set '%s' to true`), confName)
 	}
 
 	return nil

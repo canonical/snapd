@@ -1,3 +1,5 @@
+name: Run spread tests
+
 on:
   workflow_call:
     inputs:
@@ -39,12 +41,21 @@ on:
         required: false
         type: boolean
         default: false
-      spread-snapd-deb-from-repo:
-        description: 'If true, will use the snapd package from the repository when possible'
-        required: false
-        type: string
       spread-experimental-features:
         description: 'Comma-separated list of experimental snapd features to enable with: snap set system "experimental.<feature-name>=true"'
+        required: false
+        type: string
+      spread-env:
+        description: 'Extra environment variables to set before calling spread (format ENV1=VALUE1 ENV2=VALUE2) that are not covered by the other inputs'
+        required: false
+        type: string
+      upload-artifacts:
+        description: 'If true, will upload any artifacts that spread produces'
+        type: boolean
+        required: false
+        default: false
+      skip-tests:
+        description: 'Space-separated list of regex expressions identifying tests to skip. As a regex, they can identify any part of the spread test like an entire suite or a single test. End a single test with $ to avoid inadvertently matching others.'
         required: false
         type: string
 
@@ -80,9 +91,12 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
 
-    - name: set SPREAD_SNAPD_DEB_FROM_REPO=1
-      if: ${{ inputs.spread-snapd-deb-from-repo == 'true' }}
-      run: echo "SPREAD_SNAPD_DEB_FROM_REPO=1" >> $GITHUB_ENV
+    - name: Set extra spread environment variables
+      if: ${{ inputs.spread-env != '' }}
+      run: |
+          for env in ${{ inputs.spread-env }}; do
+            echo "$env" >> $GITHUB_ENV
+          done
 
     - name: Get previous attempt
       id: get-previous-attempt
@@ -117,7 +131,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v45.0.6
+      uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
 
     - name: Save changes files
       run: |
@@ -221,7 +235,7 @@ jobs:
 
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
@@ -229,7 +243,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built snap (arm64)
-      if: "contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips')"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       uses: actions/download-artifact@v4
       with:
         name: snap-files-arm64-default-test
@@ -240,7 +254,7 @@ jobs:
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "${{ !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
@@ -248,7 +262,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
-      if: "${{ !inputs.use-snapd-snap-from-master }}"
+      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master }}"
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
           mv -v "${snap}" "${snap}.keep"
@@ -285,12 +299,20 @@ jobs:
             exit 0
           fi
 
-          # Add openstack backend definition to spread.yaml
-          if [ "$SPREAD_BACKEND" = openstack ]; then
-              ./tests/lib/spread/add-backend tests/lib/spread/backend.openstack.yaml spread.yaml
+          spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
+          if [ -n "${{ inputs.skip-tests }}" ]; then
+            for test in ${{ inputs.skip-tests }}; do
+              spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$test" | tr '\n' ' ')
+            done
+            export RUN_TESTS=$spread_list
+            echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
           fi
 
-          spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
+          # If all spread tests are skipped, exit
+          if [ -z "$RUN_TESTS" ]; then
+            echo "All tests are skipped, exiting..."
+            exit 0
+          fi
 
           if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
@@ -306,6 +328,12 @@ jobs:
             exit 0
           fi
 
+          SPREAD_FLAGS='-no-debug-output -logs spread-logs'
+          if [ "${{ inputs.upload-artifacts }}" = true ]; then
+            SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
+            echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
+          fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
@@ -313,7 +341,7 @@ jobs:
           echo "Running command: $SPREAD $RUN_TESTS"
           (
             set -o pipefail 
-            $SPREAD -no-debug-output -logs spread-logs $RUN_TESTS | \
+            $SPREAD $SPREAD_FLAGS $RUN_TESTS | \
               ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
               tee spread.log
           )
@@ -377,6 +405,22 @@ jobs:
           if [ -n "$(cat $FAILED_TESTS_FILE)" ]; then
             echo "TEST_FAILED=true" >> $GITHUB_ENV
           fi
+
+    - name: Prepare artifact upload
+      if: always() && fromJSON(inputs.upload-artifacts)
+      run: |
+        echo "${{ github.run_attempt }}" > "${ARTIFACTS_FOLDER}/run-attempt.txt"
+        cp "$FAILED_TESTS_FILE" "${ARTIFACTS_FOLDER}/failed-tests.txt"
+        echo "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES}" > "${ARTIFACTS_FOLDER}/env-variables.txt"
+        echo "SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}" >> "${ARTIFACTS_FOLDER}/env-variables.txt"
+        tar -czf "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz" "$ARTIFACTS_FOLDER"
+
+    - name: Upload artifacts
+      if: always() && fromJSON(inputs.upload-artifacts)
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
+        path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
 
     - name: Save spread test results to cache
       if: always()

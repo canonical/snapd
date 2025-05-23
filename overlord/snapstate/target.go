@@ -133,7 +133,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		flags.IgnoreValidation = t.snapst.IgnoreValidation
 	}
 
-	var confdbs []ConfdbID
+	var confdbSchemaIDs []ConfdbSchemaID
 	for _, plug := range t.info.Plugs {
 		if plug.Interface != "confdb" {
 			continue
@@ -144,7 +144,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			return SnapSetup{}, nil, err
 		}
 
-		confdbs = append(confdbs, ConfdbID{Account: account, Confdb: confdb})
+		confdbSchemaIDs = append(confdbSchemaIDs, ConfdbSchemaID{Account: account, Name: confdb})
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
@@ -167,8 +167,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		PlugsOnly:          len(t.info.Slots) == 0,
 		InstanceKey:        t.info.InstanceKey,
 		ExpectedProvenance: t.info.SnapProvenance,
-		Confdbs:            confdbs,
-		auxStoreInfo: auxStoreInfo{
+		PluggedConfdbIDs:   confdbSchemaIDs,
+		AuxStoreInfo: backend.AuxStoreInfo{
 			Media:    t.info.Media,
 			StoreURL: t.info.StoreURL,
 			// XXX we store this for the benefit of old snapd
@@ -751,7 +751,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			instFlags |= skipConfigure
 		}
 
-		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx))
+		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
 		if err != nil {
 			return nil, nil, err
 		}

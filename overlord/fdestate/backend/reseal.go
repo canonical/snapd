@@ -38,6 +38,7 @@ var (
 	secbootResealKeys                 = secboot.ResealKeys
 	secbootBuildPCRProtectionProfile  = secboot.BuildPCRProtectionProfile
 	secbootResealKeysWithFDESetupHook = secboot.ResealKeysWithFDESetupHook
+	secbootGetPrimaryKey              = secboot.GetPrimaryKey
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
@@ -60,6 +61,15 @@ func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyM
 	}
 }
 
+func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFile string) ([]byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootGetPrimaryKey only can be mocked in tests")
+	old := secbootGetPrimaryKey
+	secbootGetPrimaryKey = f
+	return func() {
+		secbootGetPrimaryKey = old
+	}
+}
+
 // SealingParameters contains the parameters that may be used for
 // sealing.  It should be the same as
 // fdestate.KeyslotRoleParameters. However we cannot import it. See
@@ -68,6 +78,17 @@ type SealingParameters struct {
 	BootModes     []string
 	Models        []secboot.ModelForSealing
 	TpmPCRProfile []byte
+}
+
+// EncryptedContainer gives information on the role, path and path to
+// extra legacy keys.
+type EncryptedContainer interface {
+	// ContainerRole gives the container role of the disk. See KeyslotRoleInfo.Parameters.
+	ContainerRole() string
+	// DevPath gives the path to the device node. This should be the same as the path used for keyring.
+	DevPath() string
+	// LegacyKeys gives path of the legacy keys indexed by the key names used in the tokens
+	LegacyKeys() map[string]string
 }
 
 // FDEStateManager represents an interface for a manager that can
@@ -79,6 +100,8 @@ type FDEStateManager interface {
 	Get(role string, containerRole string) (parameters *SealingParameters, err error)
 	// Unlock notifies the manager that the state can be unlocked and returns a function to relock it.
 	Unlock() (relock func())
+	// GetEncryptedContainers returns the list of encrypted disks for the device
+	GetEncryptedContainers() ([]EncryptedContainer, error)
 }
 
 // comparableModel is just a representation of secboot.ModelForSealing
@@ -125,61 +148,85 @@ type resealParamsAndLocation struct {
 }
 
 func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string) error {
-	runParamsData, err := manager.Get("run+recover", "system-data")
-	if err != nil {
-		return err
-	}
-
-	recoveryParamsSave, err := manager.Get("recover", "system-save")
-	if err != nil {
-		return err
-	}
-
-	recoveryParamsData, err := manager.Get("recover", "system-data")
+	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
 	}
 
 	var keys []resealParamsAndLocation
 
-	if runParamsData != nil {
-		keys = append(keys, resealParamsAndLocation{
-			params: runParamsData,
-			location: secboot.KeyDataLocation{
-				DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
+	var devices []string
+
+	for _, container := range containers {
+		devices = append(devices, container.DevPath())
+		legacyKeys := container.LegacyKeys()
+
+		switch container.ContainerRole() {
+		case "system-data":
+			parameters, err := manager.Get("run+recover", container.ContainerRole())
+			if err != nil {
+				return err
+			}
+			if parameters == nil {
+				logger.Debugf("there was no parameters for run+recover/%s", container.ContainerRole())
+				continue
+			}
+
+			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
+
+			runKey := secboot.KeyDataLocation{
+				DevicePath: container.DevPath(),
 				SlotName:   "default",
-				KeyFile:    device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir),
-			},
-		})
-	}
+			}
+			if hasDefaultLegacyKey {
+				runKey.KeyFile = defaultLegacyKey
+			}
+			keys = append(keys, resealParamsAndLocation{
+				params:   parameters,
+				location: runKey,
+			})
+		}
 
-	if recoveryParamsData != nil {
-		keys = append(keys, resealParamsAndLocation{
-			params: recoveryParamsData,
-			location: secboot.KeyDataLocation{
-				DevicePath: "/dev/disk/by-partlabel/ubuntu-data",
-				SlotName:   "default-fallback",
-				KeyFile:    device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-			},
-		})
-	}
+		switch container.ContainerRole() {
+		case "system-save", "system-data":
+			parameters, err := manager.Get("recover", container.ContainerRole())
+			if err != nil {
+				return err
+			}
+			if parameters == nil {
+				logger.Debugf("there was no parameters for recover/%s", container.ContainerRole())
+				continue
+			}
 
-	if recoveryParamsSave != nil {
-		keys = append(keys, resealParamsAndLocation{
-			params: recoveryParamsSave,
-			location: secboot.KeyDataLocation{
-				DevicePath: "/dev/disk/by-partlabel/ubuntu-save",
+			fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
+
+			fallbackKey := secboot.KeyDataLocation{
+				DevicePath: container.DevPath(),
 				SlotName:   "default-fallback",
-				KeyFile:    device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir),
-			},
-		})
+			}
+
+			if hasFallbackLegacyKey {
+				fallbackKey.KeyFile = fallbackLegacyKey
+			}
+
+			keys = append(keys, resealParamsAndLocation{
+				params:   parameters,
+				location: fallbackKey,
+			})
+		}
 	}
 
 	switch method {
 	case device.SealingMethodFDESetupHook:
+		// Note this is the fallback key path for old installations. The file might not exist.
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
+		// All devices should have the same primary key
+		primaryKey, err := secbootGetPrimaryKey(devices, primaryKeyFile)
+		if err != nil {
+			return err
+		}
 		for _, key := range keys {
-			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKeyFile, key.params.Models, key.params.BootModes); err != nil {
+			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKey, key.params.Models, key.params.BootModes); err != nil {
 				return err
 			}
 		}
@@ -187,11 +234,16 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
 		authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
+		// All devices should have the same primary key
+		primaryKey, err := secbootGetPrimaryKey(devices, authKeyFile)
+		if err != nil {
+			return err
+		}
 		for _, key := range keys {
 			keyParams := &secboot.ResealKeysParams{
-				PCRProfile:           key.params.TpmPCRProfile,
-				Keys:                 []secboot.KeyDataLocation{key.location},
-				TPMPolicyAuthKeyFile: authKeyFile,
+				PCRProfile: key.params.TpmPCRProfile,
+				Keys:       []secboot.KeyDataLocation{key.location},
+				PrimaryKey: primaryKey,
 			}
 
 			if err := secbootResealKeys(keyParams); err != nil {

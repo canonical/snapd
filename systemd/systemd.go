@@ -34,7 +34,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -335,6 +334,9 @@ type MountUnitOptions struct {
 	// PreventRestartIfModified is set if we do not want to restart the
 	// mount unit if modified
 	PreventRestartIfModified bool
+	// EnsureStartIfUnchanged is set if we want to make sure that the unit
+	// is started even if it was not modified.
+	EnsureStartIfUnchanged bool
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -1066,7 +1068,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 	errorRet := make(chan error)
 	quit := make(chan interface{})
 
-	go func() {
+	go func(serviceNames []string) {
 		// The polling routine is the 'errorRet' channel sender, so we make
 		// sure we exit closing the channel explicitly, even though we always
 		// return the error result first. Closing the channel does not free the
@@ -1137,7 +1139,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 				notifyShowFirst = false
 			}
 		}
-	}()
+	}(serviceNames)
 
 	// This command blocks until the 'systemctl stop' completes
 	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
@@ -1411,44 +1413,41 @@ func ExistingMountUnitPath(mountPointDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-// Note that WantedBy=multi-user.target and Before=local-fs.target are
-// only used to allow downgrading to an older version of snapd.
-//
-// We want (see isBeforeDrivers) some snaps and components to be mounted before
-// modules are loaded (that is before systemd-{udevd,modules-load}).
-const snapMountUnitTmpl = `[Unit]
-Description={{.Description}}
+const (
+	snappyOriginModule = "X-SnapdOrigin"
+)
+
+func assembleMountUnitContent(u *MountUnitOptions) string {
+	before := "Before=snapd.mounts.target"
+	if u.MountUnitType == BeforeDriversLoadMountUnit {
+		// We want some snaps and components to be mounted before
+		// modules are loaded (that is before systemd-{udevd,modules-load}).
+		before += "\nBefore=systemd-udevd.service systemd-modules-load.service\nBefore=usr-lib-modules.mount usr-lib-firmware.mount"
+	}
+	origin := ""
+	if u.Origin != "" {
+		origin = fmt.Sprintf("%s=%s\n", snappyOriginModule, u.Origin)
+	}
+	// Note that WantedBy=multi-user.target is only used to allow
+	// downgrading to an older version of snapd.
+	unitContent := fmt.Sprintf(`[Unit]
+Description=%[1]s
 After=snapd.mounts-pre.target
-Before=snapd.mounts.target{{if isBeforeDrivers .MountUnitType}}
-Before=systemd-udevd.service systemd-modules-load.service
-Before=usr-lib-modules.mount usr-lib-firmware.mount{{end}}
+%[2]s
 
 [Mount]
-What={{.What}}
-Where={{.Where}}
-Type={{.Fstype}}
-Options={{join .Options ","}}
+What=%[3]s
+Where=%[4]s
+Type=%[5]s
+Options=%[6]s
 LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-{{- with .Origin}}
-X-SnapdOrigin={{.}}
-{{- end}}
-`
-
-func isBeforeDriversLoadMountUnit(mType MountUnitType) bool {
-	return mType == BeforeDriversLoadMountUnit
+%[7]s`, u.Description, before, u.What, u.Where, u.Fstype, strings.Join(u.Options, ","), origin)
+	return unitContent
 }
-
-var templateFuncs = template.FuncMap{"join": strings.Join,
-	"isBeforeDrivers": isBeforeDriversLoadMountUnit}
-var parsedMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(snapMountUnitTmpl))
-
-const (
-	snappyOriginModule = "X-SnapdOrigin"
-)
 
 // EnsureMountUnitFileContent creates a mount unit file.
 func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modified MountUpdateStatus, err error) {
@@ -1457,10 +1456,6 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 	}
 
 	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
-	var unitContent bytes.Buffer
-	if err := parsedMountUnitTmpl.Execute(&unitContent, &u); err != nil {
-		return "", MountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
-	}
 
 	if osutil.FileExists(mu) {
 		modified = MountUpdated
@@ -1472,8 +1467,9 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 		return "", MountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
 	}
 
+	unitContent := assembleMountUnitContent(u)
 	stateErr := osutil.EnsureFileState(mu, &osutil.MemoryFileState{
-		Content: unitContent.Bytes(),
+		Content: []byte(unitContent),
 		Mode:    0644,
 	})
 
@@ -1541,6 +1537,7 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 	if err != nil {
 		return "", err
 	}
+	units := []string{mountUnitName}
 	if modified != MountUnchanged {
 		// we need to do a daemon-reload here to ensure that systemd really
 		// knows about this new mount unit file
@@ -1548,7 +1545,6 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 			return "", err
 		}
 
-		units := []string{mountUnitName}
 		if err := s.EnableNoReload(units); err != nil {
 			return "", err
 		}
@@ -1559,6 +1555,15 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 			if err := s.RestartNoWaitForStop(units); err != nil {
 				return "", err
 			}
+		}
+	} else if unitOptions.EnsureStartIfUnchanged {
+		// Make sure the unit is actually started. This is useful for
+		// removable units, in case the device was unplugged and then
+		// replugged and "snapctl mount" is called again. Note that we
+		// avoid calling restart as we do not want to stop the unit in
+		// case it was already active.
+		if err := s.StartNoBlock(units); err != nil {
+			return "", err
 		}
 	}
 

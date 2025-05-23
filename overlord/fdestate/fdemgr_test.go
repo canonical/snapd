@@ -34,9 +34,11 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/fdestate"
@@ -98,7 +100,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 		func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			panic("BackendResealKeyForBootChains not mocked")
 		}))
-	s.AddCleanup(fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+	s.AddCleanup(fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		panic("MockDMCryptUUIDFromMountPoint is not mocked")
 	}))
 	s.AddCleanup(fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
@@ -115,12 +117,14 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 		panic("secbootGetPCRHandle is not mocked")
 	}))
 
+	mountinfo := `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+	s.AddCleanup(osutil.MockMountInfo(fmt.Sprintf(mountinfo, dirs.GlobalRootDir)))
+
 	m := boot.Modeenv{
 		Mode: boot.ModeRun,
 	}
 	err := m.WriteTo(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
-
 }
 
 func (s *fdeMgrSuite) TearDownTest(c *C) {
@@ -129,12 +133,13 @@ func (s *fdeMgrSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *fdeMgrSuite) mockDeviceInState(model *asserts.Model) {
+func (s *fdeMgrSuite) mockDeviceInState(model *asserts.Model, sysMode string) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	s.AddCleanup(snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
 		DeviceModel: model,
+		SysMode:     sysMode,
 	}))
 }
 
@@ -165,13 +170,15 @@ func (u *instrumentedUnlocker) Relock() {
 }
 
 func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager {
-	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
 		case dirs.GlobalRootDir:
-			c.Check(onClassic, Equals, true)
 			return "aaa", nil
 		case filepath.Join(dirs.GlobalRootDir, "writable"):
-			c.Check(onClassic, Equals, false)
+			return "aaa", nil
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
 			return "aaa", nil
 		case dirs.SnapSaveDir:
 			return "bbb", nil
@@ -193,22 +200,35 @@ func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager 
 		return true, nil
 	})()
 
+	err := os.MkdirAll(filepath.Dir(device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir), []byte{}, 0644)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0644)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0644)
+	c.Assert(err, IsNil)
+
 	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
 		switch devicePath {
 		case "/dev/disk/by-uuid/aaa":
 			switch keySlot {
 			case "default":
-				c.Check(keyFile, Equals, device.DataSealedKeyUnder(dirs.SnapSaveDir))
+				c.Check(keyFile, Equals, device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir))
 				return 41, nil
 			case "default-fallback":
-				c.Check(keyFile, Equals, device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir))
+				c.Check(keyFile, Equals, device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 				return 42, nil
 			default:
 				c.Errorf("unexpected keyslot %s", keySlot)
 			}
 		case "/dev/disk/by-uuid/bbb":
 			c.Check(keySlot, Equals, "default-fallback")
-			c.Check(keyFile, Equals, device.FallbackDataSealedKeyUnder(dirs.SnapSaveDir))
+			c.Check(keyFile, Equals, device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 			return 42, nil
 		default:
 			c.Errorf("unexpected device path %s", devicePath)
@@ -397,9 +417,11 @@ type mountResolveTestCase struct {
 }
 
 func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
-	defer fdestate.MockDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
-		case dirs.GlobalRootDir:
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
 			// ubuntu-data
 			if tc.dataResolveErr != nil {
 				return "", tc.dataResolveErr
@@ -426,6 +448,10 @@ func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
 			return false, fmt.Errorf("unexpected call to get primary key")
 		}
 		return true, nil
+	})()
+
+	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+		return 41, nil
 	})()
 
 	manager, err := fdestate.Manager(s.st, s.runner)
@@ -464,14 +490,14 @@ func (s *fdeMgrSuite) TestStateInitMountResolveError_NoDataNoSaveNoError(c *C) {
 func (s *fdeMgrSuite) TestStateInitMountResolveError_NoDataFails(c *C) {
 	s.testMountResolveError(c, mountResolveTestCase{
 		dataResolveErr: fmt.Errorf("mock error data"),
-		expectedError:  "cannot initialize FDE state: cannot resolve data partition mount: mock error data",
+		expectedError:  "cannot initialize FDE state: .*: mock error data",
 	})
 }
 
 func (s *fdeMgrSuite) TestStatetInitMountResolveError_NoSaveFails(c *C) {
 	s.testMountResolveError(c, mountResolveTestCase{
 		saveResolveErr: fmt.Errorf("mock error save"),
-		expectedError:  "cannot initialize FDE state: cannot resolve save partition mount: mock error save",
+		expectedError:  "cannot initialize FDE state: .*: mock error save",
 	})
 }
 
@@ -586,4 +612,57 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	hasParameters, _, _, _, err = manager.GetParameters("run", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
 	c.Check(hasParameters, Equals, false)
+}
+
+func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
+	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
+
+	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	c.Assert(err, IsNil)
+
+	onClassic := false
+	mgr := s.startedManager(c, onClassic)
+
+	model := &asserts.Model{}
+	s.mockDeviceInState(model, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case dataPath:
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockBootHostUbuntuDataForMode(func(mode string, mod gadget.Model) ([]string, error) {
+		c.Check(mode, Equals, "run")
+		c.Check(mod, Equals, model)
+		return []string{dataPath}, nil
+	})()
+
+	disks, err := mgr.GetEncryptedContainers()
+	c.Assert(err, IsNil)
+	c.Check(disks, DeepEquals, []backend.EncryptedContainer{
+		fdestate.EncryptedContainer(
+			"aaa",
+			"system-data",
+			map[string]string{
+				"default":          filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		),
+		fdestate.EncryptedContainer(
+			"bbb",
+			"system-save",
+			map[string]string{
+				"default-fallback": filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		),
+	})
+}
+
+func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("fdemgr.go", c, false)
 }

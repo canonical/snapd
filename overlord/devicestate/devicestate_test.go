@@ -2850,12 +2850,12 @@ func (s *deviceMgrSuite) TestSignConfdbControlInvalid(c *C) {
 	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
 	s.addKeyToManagerInState(c)
 
-	groups := []interface{}{map[string]interface{}{"operator-id": "jane"}}
+	groups := []interface{}{map[string]interface{}{"operators": []interface{}{"jane"}}}
 	_, err := s.mgr.SignConfdbControl(groups, 4)
 	c.Assert(
 		err,
 		ErrorMatches,
-		"cannot assemble assertion confdb-control: cannot parse group at position 1: \"authentication\" must be provided",
+		"cannot assemble assertion confdb-control: cannot parse group at position 1: \"authentications\" must be provided",
 	)
 }
 
@@ -2868,8 +2868,8 @@ func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
 	s.addKeyToManagerInState(c)
 
 	jane := map[string]interface{}{
-		"operator-id":    "jane",
-		"authentication": []interface{}{"operator-key"},
+		"operators":       []interface{}{"jane"},
+		"authentications": []interface{}{"operator-key"},
 		"views": []interface{}{
 			"canonical/network/observe-interfaces",
 			"canonical/network/control-interfaces",
@@ -2883,4 +2883,83 @@ func (s *deviceMgrSuite) TestSignConfdbControlOK(c *C) {
 
 	// Confirm we can ack it
 	assertstatetest.AddMany(s.state, cc)
+}
+
+func (s *deviceMgrSuite) TestConfdbControlNoSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := s.mgr.ConfdbControl()
+	c.Assert(err, ErrorMatches, "device has no identity yet")
+}
+
+func (s *deviceMgrSuite) TestConfdbControlNotFound(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	cc, err := s.mgr.ConfdbControl()
+	c.Assert(cc, IsNil)
+	c.Assert(err, ErrorMatches, "no state entry for key")
+}
+
+func (s *deviceMgrSuite) TestConfbControlUnknownSigningKey(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, cc)
+
+	// change the device key
+	anotherKey, _ := assertstest.GenerateKey(testKeyLength)
+	encDevKey, err := asserts.EncodePublicKey(anotherKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	serial, err := s.brands.Signing("canonical").Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            "canonical",
+		"model":               "pc",
+		"serial":              "serialserialserial",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": anotherKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+		"revision":            "1",
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, serial)
+	c.Assert(err, IsNil)
+
+	cc, err = s.mgr.ConfdbControl() // attempt to retrieve it
+	c.Assert(cc, IsNil)
+	c.Assert(err, ErrorMatches, "confdb-control's signing key doesn't match the device key")
+}
+
+func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
+	s.setPCModelInState(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "serialserialserial")
+	s.addKeyToManagerInState(c)
+
+	// add assertion
+	cc, err := s.mgr.SignConfdbControl([]interface{}{}, 10)
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, cc)
+
+	found, err := s.mgr.ConfdbControl()
+	c.Assert(err, IsNil)
+	c.Assert(found, DeepEquals, cc)
+}
+
+func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
 }

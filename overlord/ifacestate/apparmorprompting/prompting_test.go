@@ -62,14 +62,13 @@ func (s *apparmorpromptingSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	os.MkdirAll(dirs.SnapRunDir, 0o755)
 
 	s.st = state.New(nil)
 	s.defaultUser = 1000
 }
 
 func (s *apparmorpromptingSuite) TestNew(c *C) {
-	_, _, restore := apparmorprompting.MockListener()
+	_, _, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -92,12 +91,12 @@ func (s *apparmorpromptingSuite) TestNewErrorListener(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
-	reqChan, _, restore := apparmorprompting.MockListener()
+	_, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Prevent prompt backend from opening successfully
-	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0o700), IsNil)
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
@@ -121,12 +120,12 @@ func checkListenerClosed(c *C, reqChan <-chan *listener.Request) {
 }
 
 func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
-	reqChan, _, restore := apparmorprompting.MockListener()
+	_, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	// Prevent rule backend from opening successfully
-	maxIDFilepath := filepath.Join(prompting.StateDir(), "request-rule-max-id")
-	c.Assert(os.MkdirAll(prompting.StateDir(), 0o700), IsNil)
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755), IsNil)
 	f, err := os.Create(maxIDFilepath)
 	c.Assert(err, IsNil)
 	c.Assert(f.Chmod(0o400), IsNil)
@@ -145,7 +144,7 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestStop(c *C) {
-	reqChan, _, restore := apparmorprompting.MockListener()
+	_, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -164,13 +163,113 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(promptDB.Close(), Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(ruleDB.Close(), Equals, prompting_errors.ErrRulesClosed)
 
-	// Check that current backends are nil
-	c.Check(mgr.PromptDB(), IsNil)
-	c.Check(mgr.RuleDB(), IsNil)
+	// Check that calls to API methods don't panic after backends have been closed
+	_, err = mgr.Prompts(1000, false)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.PromptWithID(1000, 1, false)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.HandleReply(1000, 1, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
+	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
+	_, err = mgr.Rules(1000, "foo", "bar")
+	c.Check(err, IsNil) // rule backend supports getting rules even after closed
+	_, err = mgr.AddRule(1000, "foo", "bar", nil)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RemoveRules(1000, "foo", "bar")
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RuleWithID(1000, 1)
+	c.Check(err, Equals, prompting_errors.ErrRuleNotFound) // rule backend supports getting rules even after closed
+	_, err = mgr.PatchRule(1000, 1, nil)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+	_, err = mgr.RemoveRule(1000, 1)
+	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
+}
+
+func (s *apparmorpromptingSuite) TestHandleListenerRequestInterfaceSelection(c *C) {
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Close readyChan so we can add rules
+	close(readyChan)
+
+	clientActivity := true
+	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 0)
+
+	// Explicitly set "home" interface based on tags
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "home", nil
+	})
+	req := &listener.Request{
+		// Most fields don't matter here
+		ID:         1,
+		Label:      "snap1",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_OPEN,
+	}
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 1)
+	c.Check(prompts[0].Interface, Equals, "home")
+	restore()
+
+	// Return ErrNoInterfaceTags and check that the manager defaults to "home"
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "", prompting_errors.ErrNoInterfaceTags
+	})
+	req = &listener.Request{
+		// Most fields don't matter here
+		ID:         2,
+		Label:      "snap2",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_EXEC,
+	}
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(prompts, HasLen, 2, Commentf("%+v", prompts[0]))
+	c.Check(prompts[0].Interface, Equals, "home")
+	c.Check(prompts[1].Interface, Equals, "home")
+	restore()
+
+	// Explicitly set some other interface based on tags.
+	// Currently only "home" is supported, so we expect a later error in order
+	// to see that the given interface was used when mapping permissions.
+	// TODO: when other interfaces are supported, use one here instead.
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "foo", nil
+	})
+	req = &listener.Request{
+		// Most fields don't matter here
+		ID:         3,
+		Label:      "snap3",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_OPEN,
+	}
+	reqChan <- req
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			` error while parsing AppArmor permissions: cannot map the given interface to list of available permissions: foo`)
+	})
+	restore()
+
+	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	_, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -192,7 +291,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestDenyRoot(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	logbuf, restore := logger.MockLogger()
@@ -201,19 +300,40 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
 
+	// Close readyChan so we can check mgr.Prompts
+	close(readyChan)
+
 	clientActivity := true
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
 	c.Check(prompts, HasLen, 0)
 
-	// Send request with invalid permissions
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "", fmt.Errorf("something went wrong")
+	})
+	// Send request with invalid tags
 	req := &listener.Request{
+		// Most fields don't matter here
+		SubjectUID: s.defaultUser,
+	}
+	reqChan <- req
+	resp, err := waitForReply(replyChan)
+	c.Assert(err, IsNil)
+	c.Check(resp.Request, Equals, req)
+	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains,
+			` error while selecting interface from metadata tags: something went wrong`)
+	})
+	restore()
+
+	// Send request with invalid permissions
+	req = &listener.Request{
 		// Most fields don't matter here
 		SubjectUID: s.defaultUser,
 		Permission: notify.FilePermission(0),
 	}
 	reqChan <- req
-	resp, err := waitForReply(replyChan)
+	resp, err = waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, req)
 	logger.WithLoggerLock(func() {
@@ -226,6 +346,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	maxOutstandingPromptsPerUser := 1000 // from requestprompts package
 	for i := 0; i < maxOutstandingPromptsPerUser; i++ {
 		req := &listener.Request{
+			PID:        1234,
 			Label:      "snap.firefox.firefox",
 			SubjectUID: s.defaultUser,
 			Path:       fmt.Sprintf("/home/test/%d", i),
@@ -235,6 +356,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 		reqChan <- req
 	}
 	time.Sleep(10 * time.Millisecond)
+
 	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
 	c.Assert(err, IsNil)
 	c.Assert(len(prompts), Equals, maxOutstandingPromptsPerUser)
@@ -245,6 +367,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	})
 
 	req = &listener.Request{
+		PID:        1234,
 		Label:      "snap.firefox.firefox",
 		SubjectUID: s.defaultUser,
 		Path:       fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
@@ -262,11 +385,14 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	req, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
@@ -352,7 +478,8 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	}
 
 	c.Check(prompt.Snap, Equals, expectedSnap)
-	c.Check(prompt.Interface, Equals, "home")
+	c.Check(prompt.PID, Equals, req.PID)
+	c.Check(prompt.Interface, Equals, "home") // assumes InterfaceFromTagsets returns "home" or ErrNoInterfaceTags
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can query that prompt by ID
@@ -367,6 +494,9 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 // fillInPartialRequest fills in any blank fields from the given request
 // with default non-empty values.
 func (s *apparmorpromptingSuite) fillInPartialRequest(req *listener.Request) {
+	if req.PID == 0 {
+		req.PID = 1234
+	}
 	if req.Label == "" {
 		req.Label = "snap.firefox.firefox"
 	}
@@ -402,11 +532,14 @@ func waitForReply(replyChan chan apparmorprompting.RequestResponse) (*apparmorpr
 }
 
 func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	_, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
@@ -481,11 +614,14 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// pretend that there are no pending requests to be re-sent
+	close(readyChan)
 
 	// Add allow rule to match read permission
 	constraints := &prompting.Constraints{
@@ -563,11 +699,14 @@ func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) {
-	reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// pretend that there are no pending requests to be re-sent
+	close(readyChan)
 
 	// Add rule to match read permission
 	constraints := &prompting.Constraints{
@@ -597,11 +736,14 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// pretend that there are no pending requests to be re-sent
+	close(readyChan)
 
 	// Add deny rule to match read permission
 	constraints := &prompting.Constraints{
@@ -646,11 +788,14 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 }
 
 func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// pretend that there are no pending requests to be re-sent
+	close(readyChan)
 
 	// Add deny rule to match read permission
 	constraints := &prompting.Constraints{
@@ -713,11 +858,14 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	// Add read request
 	readReq := &listener.Request{
@@ -792,11 +940,14 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	// Add read request
 	readReq := &listener.Request{
@@ -863,7 +1014,7 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -872,6 +1023,9 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
 	// works correctly, so now just need to test that if reply creates a rule,
 	// that rule applies to existing prompts.
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	// Add read request
 	readReq := &listener.Request{
@@ -958,7 +1112,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 		duration = "10m"
 	}
 
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -967,6 +1121,9 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	// Already tested HandleReply errors, and that applyRuleToOutstandingPrompts
 	// works correctly, so now just need to test that if reply creates a rule,
 	// that rule applies to existing prompts.
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	// Add read request
 	readReq := &listener.Request{
@@ -988,7 +1145,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	resp, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(resp.Request, Equals, readReq)
-	var expectedPermission any
+	var expectedPermission notify.AppArmorPermission
 	switch outcome {
 	case prompting.OutcomeAllow:
 		expectedPermission, err = prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
@@ -1035,7 +1192,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	for i := 0; i < 2; i++ {
 		resp, err := waitForReply(replyChan)
 		c.Assert(err, IsNil)
-		var expectedPermission any
+		var expectedPermission notify.AppArmorPermission
 		switch outcome {
 		case prompting.OutcomeAllow:
 			// Round-trip to abstract permissions and back to get full permission mask
@@ -1056,7 +1213,7 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 }
 
 func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
-	reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -1064,6 +1221,9 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 
 	// Requests with identical *original* abstract permissions are merged into
 	// the existing prompt
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	// Create request for read and write
 	partialReq := &listener.Request{
@@ -1108,8 +1268,11 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRules(c *C) {
-	_, _, restore := apparmorprompting.MockListener()
+	readyChan, _, _, restore := apparmorprompting.MockListener()
 	defer restore()
+
+	// Close readyChan so we can add rules
+	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1209,8 +1372,11 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
-	_, _, restore := apparmorprompting.MockListener()
+	readyChan, _, _, restore := apparmorprompting.MockListener()
 	defer restore()
+
+	// Close readyChan so we can add rules
+	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1232,8 +1398,11 @@ func (s *apparmorpromptingSuite) TestRemoveRulesInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
-	_, _, restore := apparmorprompting.MockListener()
+	readyChan, _, _, restore := apparmorprompting.MockListener()
 	defer restore()
+
+	// Close readyChan so we can add rules
+	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1255,8 +1424,11 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnap(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
-	_, _, restore := apparmorprompting.MockListener()
+	readyChan, _, _, restore := apparmorprompting.MockListener()
 	defer restore()
+
+	// Close readyChan so we can add rules
+	close(readyChan)
 
 	mgr, rules := s.prepManagerWithRules(c)
 
@@ -1278,11 +1450,14 @@ func (s *apparmorpromptingSuite) TestRemoveRulesSnapInterface(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
-	reqChan, replyChan, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, replyChan, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
 	c.Assert(err, IsNil)
+
+	// simulateRequest checks mgr.Prompts, so make sure we close readyChan first
+	close(readyChan)
 
 	// Add read request
 	req := &listener.Request{
@@ -1370,4 +1545,74 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	c.Assert(rules, HasLen, 0)
 
 	c.Assert(mgr.Stop(), IsNil)
+}
+
+func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		prompts, err := mgr.Prompts(1000, false)
+		c.Check(err, IsNil)
+		c.Check(prompts, HasLen, 0)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		_, err := mgr.PromptWithID(1000, 0, false)
+		c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		_, err := mgr.HandleReply(1000, 0, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", false)
+		c.Check(err, Equals, prompting_errors.ErrPromptNotFound)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		_, err := mgr.AddRule(1000, "foo", "bar", &prompting.Constraints{})
+		c.Check(err, NotNil)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		rules, err := mgr.RemoveRules(1000, "foo", "bar")
+		c.Check(err, IsNil)
+		c.Check(rules, HasLen, 0)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		_, err := mgr.PatchRule(1000, 0, nil)
+		c.Check(err, Equals, prompting_errors.ErrRuleNotFound)
+	})
+
+	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
+		_, err := mgr.RemoveRule(1000, 0)
+		c.Check(err, NotNil)
+	})
+}
+
+func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorprompting.InterfacesRequestsManager)) {
+	readyChan, _, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	startChan := make(chan time.Time)
+	doneChan := make(chan time.Time)
+	go func() {
+		startChan <- time.Now()
+		f(mgr)
+		doneChan <- time.Now()
+	}()
+	// Wait for function to start
+	<-startChan
+	// Wait another few milliseconds
+	<-time.NewTimer(10 * time.Millisecond).C
+	// Record the current time before readying
+	now := time.Now()
+	close(readyChan)
+	finished := <-doneChan
+	// Check that the finished time was after the ready time
+	c.Check(finished.After(now), Equals, true, Commentf("finish time failed to be after ready time"))
+
+	// restore races with listenerRun and listenerReqs, so wait for everything
+	// to stop before restoring.
+	err = mgr.Stop()
+	c.Check(err, IsNil)
 }

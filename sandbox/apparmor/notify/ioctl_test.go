@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -19,21 +18,25 @@ type ioctlSuite struct{}
 var _ = Suite(&ioctlSuite{})
 
 func (*ioctlSuite) TestIoctlRequestBuffer(c *C) {
-	buf := notify.NewIoctlRequestBuffer()
-	c.Assert(buf, HasLen, 0xFFFF)
-	var header notify.MsgHeader
-	err := header.UnmarshalBinary(buf)
-	c.Assert(err, IsNil)
-	c.Check(header, Equals, notify.MsgHeader{
-		Length:  0xFFFF,
-		Version: 3,
-	})
+	for _, version := range notify.Versions {
+		version := notify.ProtocolVersion(version)
+		buf := notify.NewIoctlRequestBuffer(version)
+		c.Assert(buf, HasLen, 0xFFFF)
+		var header notify.MsgHeader
+		err := header.UnmarshalBinary(buf)
+		c.Assert(err, IsNil)
+		c.Check(header, Equals, notify.MsgHeader{
+			Length:  0xFFFF,
+			Version: version,
+		})
+	}
 }
 
 func (*ioctlSuite) TestIoctlHappy(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	ioctlBuf := notify.NewIoctlRequestBuffer()
+	version := notify.ProtocolVersion(42)
+	ioctlBuf := notify.NewIoctlRequestBuffer(version)
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			c.Check(trap, Equals, uintptr(unix.SYS_IOCTL))
@@ -51,7 +54,8 @@ func (*ioctlSuite) TestIoctlHappy(c *C) {
 func (*ioctlSuite) TestIoctlBuffer(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	ioctlBuf := notify.NewIoctlRequestBuffer()
+	version := notify.ProtocolVersion(5)
+	ioctlBuf := notify.NewIoctlRequestBuffer(version)
 
 	contents := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 
@@ -75,7 +79,8 @@ func (*ioctlSuite) TestIoctlBuffer(c *C) {
 func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	ioctlBuf := notify.NewIoctlRequestBuffer()
+	version := notify.ProtocolVersion(7)
+	ioctlBuf := notify.NewIoctlRequestBuffer(version)
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			// Return different size.
@@ -90,7 +95,8 @@ func (*ioctlSuite) TestIoctlReturnValueSizeMismatch(c *C) {
 func (*ioctlSuite) TestIoctlReturnError(c *C) {
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	ioctlBuf := notify.NewIoctlRequestBuffer()
+	version := notify.ProtocolVersion(11)
+	ioctlBuf := notify.NewIoctlRequestBuffer(version)
 	restore := notify.MockSyscall(
 		func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err unix.Errno) {
 			// return size of -1
@@ -114,7 +120,8 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 
 	fd := uintptr(123)
 	req := notify.IoctlRequest(456)
-	ioctlBuf := notify.NewIoctlRequestBuffer()
+	version := notify.ProtocolVersion(0x42)
+	ioctlBuf := notify.NewIoctlRequestBuffer(version)
 
 	contents := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	contentsString := "0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, \n0xff"
@@ -132,9 +139,9 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 	defer restore()
 
 	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, len(ioctlBuf))
-	sendDataStr := "0xff, 0xff, 0x03, 0x00, "
-	if arch.Endian() == binary.BigEndian {
-		sendDataStr = "0xff, 0xff, 0x00, 0x03, "
+	sendDataStr := "0xff, 0xff, 0x42, 0x00, "
+	if notify.NativeByteOrder == binary.BigEndian {
+		sendDataStr = "0xff, 0xff, 0x00, 0x42, "
 	}
 
 	buf, err := notify.Ioctl(fd, req, ioctlBuf)
@@ -176,6 +183,8 @@ func (*ioctlSuite) TestIoctlString(c *C) {
 	c.Assert(notify.APPARMOR_NOTIF_IS_ID_VALID.String(), Equals, "APPARMOR_NOTIF_IS_ID_VALID")
 	c.Assert(notify.APPARMOR_NOTIF_RECV.String(), Equals, "APPARMOR_NOTIF_RECV")
 	c.Assert(notify.APPARMOR_NOTIF_SEND.String(), Equals, "APPARMOR_NOTIF_SEND")
+	c.Assert(notify.APPARMOR_NOTIF_REGISTER.String(), Equals, "APPARMOR_NOTIF_REGISTER")
+	c.Assert(notify.APPARMOR_NOTIF_RESEND.String(), Equals, "APPARMOR_NOTIF_RESEND")
 
 	arbitrary := notify.IoctlRequest(0xDEADBEEF)
 	c.Assert(arbitrary.String(), Equals, "IoctlRequest(deadbeef)")

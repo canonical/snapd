@@ -1,0 +1,12 @@
+name: libs-provider1
+version: 1.0
+base: core24
+slots:
+  cuda-driver-libs:
+    source:
+      - $SNAP/libs
+  egl-driver-libs:
+    priority: 15
+    client-driver: libsquare.so
+    source:
+      - $SNAP/libs

@@ -122,7 +122,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err != nil {
 			return err
 		}
-		if err := addImplicitSlots(st, affectedSnapInfo); err != nil {
+		if err := addImplicitInterfaces(st, affectedSnapInfo); err != nil {
 			return err
 		}
 
@@ -182,7 +182,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := addImplicitSlots(task.State(), snapInfo); err != nil {
+	if err := addImplicitInterfaces(task.State(), snapInfo); err != nil {
 		return err
 	}
 
@@ -317,7 +317,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(task *state.Task, appSet *inte
 		if err != nil {
 			return err
 		}
-		if err := addImplicitSlots(st, snapInfo); err != nil {
+		if err := addImplicitInterfaces(st, snapInfo); err != nil {
 			return err
 		}
 
@@ -468,7 +468,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 
-		if err := addImplicitSlots(st, snapInfo); err != nil {
+		if err := addImplicitInterfaces(st, snapInfo); err != nil {
 			return err
 		}
 
@@ -2074,4 +2074,25 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 
 	// no conflicting change for same hotplug key found
 	return nil
+}
+
+func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(task.State())
+
+	// the reported system key change may have an effect on the security
+	// backends, give them a chance to update their view of the system
+	if err := m.reinitializeBackends(perfTimings); err != nil {
+		return err
+	}
+
+	// regenerating and reloading profiles is time consuming, so allow unlocking
+	// of state for the duration of security backend operations
+	const unlockState = true
+	return m.regenerateAllSecurityProfiles(perfTimings, unlockState)
 }

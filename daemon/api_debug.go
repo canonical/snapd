@@ -97,7 +97,7 @@ type changeTimings struct {
 	Kind           string                `json:"kind,omitempty"`
 	Summary        string                `json:"summary,omitempty"`
 	Lane           int                   `json:"lane,omitempty"`
-	ReadyTime      time.Time             `json:"ready-time,omitempty"`
+	ReadyTime      time.Time             `json:"ready-time,omitzero"`
 	DoingTime      time.Duration         `json:"doing-time,omitempty"`
 	UndoingTime    time.Duration         `json:"undoing-time,omitempty"`
 	DoingTimings   []*timings.TimingJSON `json:"doing-timings,omitempty"`
@@ -370,6 +370,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getGadgetDiskMapping(st)
 	case "disks":
 		return getDisks(st)
+	case "raa":
+		return getRAAInfo(st)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}

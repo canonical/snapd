@@ -1,17 +1,17 @@
-summary: Check the confdbs and views feature
+summary: Check the confdb and views feature
 
 details: |
   Verify the basic features of experimental configuration feature based on
-  confdbs and views.
+  confdb and views.
 
 # the test snaps have a core24 base
 systems: [ -ubuntu-16.04 ]
 
 prepare: |
-  snap set system experimental.confdbs=true
+  snap set system experimental.confdb=true
 
 restore: |
-  snap unset system experimental.confdbs
+  snap unset system experimental.confdb
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -27,9 +27,9 @@ execute: |
   snap set developer1/network/wifi-setup ssid=canonical
   snap get developer1/network/wifi-setup ssid | MATCH "canonical"
   # hook was called
-  MATCH "canonical" < /var/snap/test-custodian-snap/common/manage-wifi-view-changed-ran
+  MATCH "canonical" < /var/snap/test-custodian-snap/common/observe-view-manage-wifi-ran
   snap set developer1/network/wifi-setup ssid!
-  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no view data'
+  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no data'
 
   # check writing, reading and unsetting using placeholders
   snap set -t developer1/network/wifi-setup private.my-company=\"my-config\" private.your-company=\"your-config\"
@@ -37,7 +37,7 @@ execute: |
   snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
 
   snap set developer1/network/wifi-setup private.my-company!
-  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" through developer1/network/wifi-setup: no view data'
+  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" through developer1/network/wifi-setup: no data'
 
   snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
   snap set developer1/network/wifi-setup private.your-company!
