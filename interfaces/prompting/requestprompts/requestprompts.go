@@ -108,6 +108,36 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toMarshal)
 }
 
+// matchesRequestContents returns true if the receiving prompt matches the
+// given contents.
+func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraints *promptConstraints) bool {
+	// We treat requests and prompts with different PIDs as distinct so that
+	// if there are multiple otherwise identical requests with different PIDs,
+	// the client can present the modal dialog on any/all windows associated
+	// with the requests.
+	return p.Snap == metadata.Snap && p.PID == metadata.PID && p.Interface == metadata.Interface && p.Constraints.equals(constraints)
+}
+
+// addListenerRequest adds the given listener request to the list of requests
+// associated with the receiving prompt if it is not already in the list.
+func (p *Prompt) addListenerRequest(listenerReq *listener.Request) {
+	if !slicesContainsFunc(p.listenerReqs, func(r *listener.Request) bool {
+		return r.ID == listenerReq.ID
+	}) {
+		p.listenerReqs = append(p.listenerReqs, listenerReq)
+	}
+}
+
+// TODO: replace this with slices.ContainsFunc once on go 1.21+
+func slicesContainsFunc(s []*listener.Request, f func(r *listener.Request) bool) bool {
+	for _, element := range s {
+		if f(element) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 	allow, err := outcome.AsBool()
 	if err != nil {
@@ -659,22 +689,11 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			// The prompt exists, likely because the prompt was associated with
 			// multiple requests and one of the other requests has already been
 			// re-received. Confirm that the prompt contents match the request.
-			if prompt.Snap == metadata.Snap && prompt.PID == metadata.PID && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
-				// PID must be identical in order to merge, in case multiple
-				// requests come in with different PIDs, so that the client can
-				// present the modal dialog on any/all windows associated with the
-				// requests. A reply to any prompt which is identical aside from
-				// the PID should handle all those otherwise-identical prompts, so
-				// long as the lifespan is not "single".
-
+			if prompt.matchesRequestContents(metadata, constraints) {
 				// The prompt matches the request, all is well. Re-add the
 				// request to the prompt (if it hasn't already been added),
 				// re-record a notice, and return.
-				if !slicesContainsFunc(prompt.listenerReqs, func(r *listener.Request) bool {
-					return r.ID == listenerReq.ID
-				}) {
-					prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
-				}
+				prompt.addListenerRequest(listenerReq)
 				// Although the prompt itself has not changed, re-record a notice
 				// to re-notify clients to respond to this request. A client may
 				// have replied with a malformed response and not retried after
@@ -708,8 +727,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	if getNewPromptID {
 		// Search for an identical existing prompt, merge if found
 		for _, prompt := range userEntry.prompts {
-			if prompt.Snap == metadata.Snap && prompt.PID == metadata.PID && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
-				prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+			if prompt.matchesRequestContents(metadata, constraints) {
+				prompt.addListenerRequest(listenerReq)
 				// Although the prompt itself has not changed, re-record a notice
 				// to re-notify clients to respond to this request. A client may
 				// have replied with a malformed response and not retried after
@@ -764,16 +783,6 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
 	return prompt, false, nil
-}
-
-// TODO: replace this with slices.ContainsFunc once on go 1.21+
-func slicesContainsFunc(s []*listener.Request, f func(r *listener.Request) bool) bool {
-	for _, element := range s {
-		if f(element) {
-			return true
-		}
-	}
-	return false
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
