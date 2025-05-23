@@ -13,7 +13,8 @@ prepare: |
   snap refresh
 
   snap install test-snapd-sh
-  tests.cleanup defer snap remove --purge test-snapd-sh
+  # retry is needed because we might need to wait for auto-refresh to finish first
+  tests.cleanup defer retry -n 50 --wait 1 snap remove --purge test-snapd-sh
 
 debug: |
   cat debug.out || true
