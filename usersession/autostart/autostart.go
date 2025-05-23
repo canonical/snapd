@@ -101,7 +101,7 @@ func (f failedAutostartError) Error() string {
 func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 	var err error
 
-	stdout, err = systemd.NewJournalStreamFile(&systemd.JournalStreamFileOptions{
+	stdout, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
 		Identifier: identifier,
 		Priority:   syslog.LOG_INFO,
 	})
@@ -110,7 +110,7 @@ func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 		stdout = os.Stdout
 	}
 
-	stderr, err = systemd.NewJournalStreamFile(&systemd.JournalStreamFileOptions{
+	stderr, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
 		Identifier: identifier,
 		Priority:   syslog.LOG_WARNING,
 	})

@@ -48,8 +48,16 @@ func (j *journalTestSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(j.journalNamespaceDir, 0755), IsNil)
 }
 
+func (j *journalTestSuite) TestStreamFileErrorNoIdentifier(c *C) {
+	jout, err := NewJournalStreamFile(JournalStreamFileParams{
+		Priority: syslog.LOG_INFO,
+	})
+	c.Assert(err, ErrorMatches, "internal error: cannot setup a journal stream without an identifier")
+	c.Assert(jout, IsNil)
+}
+
 func (j *journalTestSuite) TestStreamFileErrorNoPath(c *C) {
-	jout, err := NewJournalStreamFile(&JournalStreamFileOptions{
+	jout, err := NewJournalStreamFile(JournalStreamFileParams{
 		Identifier: "foobar",
 		Priority:   syslog.LOG_INFO,
 	})
@@ -89,7 +97,7 @@ func (j *journalTestSuite) testStreamFileHeader(c *C, journalDir, namespace stri
 		doneCh <- struct{}{}
 	}()
 
-	jout, err := NewJournalStreamFile(&JournalStreamFileOptions{
+	jout, err := NewJournalStreamFile(JournalStreamFileParams{
 		Namespace:  namespace,
 		Identifier: "foobar",
 		UnitName:   "foobar.service",
