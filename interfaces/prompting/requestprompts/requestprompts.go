@@ -677,79 +677,35 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		}
 	}()
 
-	var promptID prompting.IDType
-	getNewPromptID := true
-
-	// Check whether there's a mapping from the request ID to a prompt ID
-	entry, ok := pdb.requestIDMap[listenerReq.ID]
-	if ok {
-		promptID = entry.PromptID
-		// A mapping exists, but does the prompt currently exist?
-		if prompt, err := userEntry.get(promptID); err == nil {
-			// The prompt exists, likely because the prompt was associated with
-			// multiple requests and one of the other requests has already been
-			// re-received. Confirm that the prompt contents match the request.
-			if prompt.matchesRequestContents(metadata, constraints) {
-				// The prompt matches the request, all is well. Re-add the
-				// request to the prompt (if it hasn't already been added),
-				// re-record a notice, and return.
-				prompt.addListenerRequest(listenerReq)
-				// Although the prompt itself has not changed, re-record a notice
-				// to re-notify clients to respond to this request. A client may
-				// have replied with a malformed response and not retried after
-				// receiving the error, so this notice encourages it to try again
-				// if the user retries the operation.
-				pdb.notifyPrompt(metadata.User, prompt.ID, nil)
-				return prompt, true, nil
-			}
-			// Contents don't match. This should never occur in practice.
-			//
-			// Remove the mapping, since it's no longer valid, and carry on as
-			// if there was no mapping in the first place.
-			delete(pdb.requestIDMap, listenerReq.ID)
-			needToSave = true
-			getNewPromptID = true
-		} else {
-			// The prompt doesn't exist, so we'll have to make a new one, but
-			// use the same ID as before
-			getNewPromptID = false
-		}
+	existingPrompt, promptID, resultFlags := pdb.findExistingPrompt(userEntry, listenerReq.ID, metadata, constraints)
+	if resultFlags&mutatedIDMapping != 0 {
+		needToSave = true
 	}
 
-	// Only search for prompts which match the request if we don't already know
-	// the prompt ID which should be associated with the request. This means it
-	// is theoretically possible to end up with multiple identical prompts.
-	// However, the kernel guarantees that previously-sent requests are re-sent
-	// before any new requests and in the same order they were originally sent.
-	// Thus, it should be impossible for a request to be received which has a
-	// prompt ID mapping but but is identical to an existing prompt with a
-	// different ID.
-	if getNewPromptID {
-		// Search for an identical existing prompt, merge if found
-		for _, prompt := range userEntry.prompts {
-			if prompt.matchesRequestContents(metadata, constraints) {
-				prompt.addListenerRequest(listenerReq)
-				// Although the prompt itself has not changed, re-record a notice
-				// to re-notify clients to respond to this request. A client may
-				// have replied with a malformed response and not retried after
-				// receiving the error, so this notice encourages it to try again
-				// if the user retries the operation.
-				pdb.notifyPrompt(metadata.User, prompt.ID, nil)
-
-				// Now that we have the ID, map the request ID to the prompt ID and
-				// user ID and save the mapping to disk.
-				pdb.requestIDMap[listenerReq.ID] = idMapEntry{
-					PromptID: prompt.ID,
-					UserID:   metadata.User,
-				}
-				needToSave = true
-
-				return prompt, true, nil
+	// Handle the cases where the request matches an existing prompt
+	if resultFlags&foundExistingPrompt != 0 {
+		if resultFlags&foundExistingIDMapping == 0 {
+			// Request matched existing prompt but doesn't have an ID mapped,
+			// so map the request ID to the prompt ID.
+			pdb.requestIDMap[listenerReq.ID] = idMapEntry{
+				PromptID: existingPrompt.ID,
+				UserID:   metadata.User,
 			}
+			needToSave = true
 		}
+		// Associate request with prompt
+		existingPrompt.addListenerRequest(listenerReq)
+		// Although the prompt itself has not changed from client POV,
+		// re-record a notice to re-notify clients to respond to this request.
+		pdb.notifyPrompt(metadata.User, existingPrompt.ID, nil)
+		return existingPrompt, true, nil
+	}
 
-		// No matching prompt exists, so we must create a new one.
-		// Make sure we don't already have too many.
+	// No existing prompt, so we'll need to make a new one.
+	// If there's no existing ID mapping, get a new prompt ID and map it.
+	if resultFlags&foundExistingIDMapping == 0 {
+		// Check if there are too many prompts already (this check doesn't
+		// occur if we're re-creating a prompt from an existing ID)
 		if len(userEntry.prompts) >= maxOutstandingPromptsPerUser {
 			logger.Noticef("WARNING: too many outstanding prompts for user %d; auto-denying new one", metadata.User)
 			// Deny all permissions which are not already allowed by existing rules
@@ -758,11 +714,10 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 			return nil, false, prompting_errors.ErrTooManyPrompts
 		}
 
-		// We'll be creating a new prompt and need a new prompt ID, so get it.
+		// Get a new ID
 		promptID, _ = pdb.maxIDMmap.NextID() // err must be nil because maxIDMmap is not nil and lock is held
 
-		// Now that we have the new ID, map the request ID to the prompt ID and
-		// save the mapping to disk.
+		// Map the new ID
 		pdb.requestIDMap[listenerReq.ID] = idMapEntry{
 			PromptID: promptID,
 			UserID:   metadata.User,
@@ -783,6 +738,80 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	userEntry.add(prompt)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
 	return prompt, false, nil
+}
+
+type existingPromptResult int
+
+const (
+	foundExistingPrompt existingPromptResult = 1 << iota
+	foundExistingIDMapping
+	mutatedIDMapping
+)
+
+// findExistingPrompt attempts to find an existing prompt or prompt ID which
+// matches the given request ID or contents.
+//
+// First, check whether there is an existing mapping from the given listener
+// request ID to a prompt ID. If there is a mapping, then check if a prompt
+// with that ID exists. If so, return it, otherwise return the mapped prompt ID.
+//
+// If there is no existing mapping, then check whether the given request
+// contents match any existing prompt. If so, return the prompt.
+//
+// Returns flags indicating whether an existing prompt and/or ID mapping was
+// found.
+//
+// This function does not record a notice, associate the request ID with any
+// found prompt, or create an ID mapping; the caller is responsible for any of
+// these, as necessary.
+func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, listenerReqID uint64, metadata *prompting.Metadata, constraints *promptConstraints) (*Prompt, prompting.IDType, existingPromptResult) {
+	var resultFlags existingPromptResult
+
+	// First, check for existing prompt ID mapping
+	entry, ok := pdb.requestIDMap[listenerReqID]
+	if ok {
+		resultFlags |= foundExistingIDMapping
+		promptID := entry.PromptID
+		// A mapping exists, but does the prompt currently exist?
+		prompt, err := userEntry.get(promptID)
+		if err != nil {
+			// Prompt with the mapped ID hasn't yet been re-created, so return
+			// the ID. The caller should create a new prompt with that ID.
+			// It is theoretically possible that there could be an existing
+			// prompt which matches but has a different ID, but the kernel
+			// guarantees that previously-sent requests are re-sent before any
+			// new requests and in the same order they were originally sent.
+			// Thus, it should be impossible for a request to be received which
+			// has a prompt ID mapping but is identical to an existing prompt
+			// with a different ID.
+			return nil, promptID, resultFlags
+		}
+		// The prompt exists, likely because the prompt was associated with
+		// multiple requests and one of the other requests has already been
+		// re-received. Confirm that the prompt contents match the request.
+		if prompt.matchesRequestContents(metadata, constraints) {
+			resultFlags |= foundExistingPrompt
+			return prompt, promptID, resultFlags
+		}
+		// Contents don't match. This should never occur in practice.
+		//
+		// Remove the mapping, since it's no longer valid, and carry on as
+		// if there was no mapping in the first place. Erase previous flags.
+		delete(pdb.requestIDMap, listenerReqID)
+		resultFlags = mutatedIDMapping
+	}
+
+	// No existing mapping, so now look for matching prompt contents
+	for _, prompt := range userEntry.prompts {
+		if !prompt.matchesRequestContents(metadata, constraints) {
+			continue
+		}
+		// Prompt matches
+		resultFlags |= foundExistingPrompt
+		return prompt, prompt.ID, resultFlags
+	}
+
+	return nil, 0, resultFlags
 }
 
 // Prompts returns a slice of all outstanding prompts for the given user.
