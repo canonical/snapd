@@ -24,6 +24,8 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -230,12 +232,17 @@ func initializeState(st *state.State) error {
 		}
 
 		legacyKeys := disk.LegacyKeys()
+		method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+		if err != nil {
+			logger.Noticef("cannot find sealed keys method: %v", err)
+			method = device.SealingMethodTPM
+		}
 		for _, keyName := range []string{"default", "default-fallback"} {
 			if keyName == "default" && disk.ContainerRole() == "system-save" {
 				continue
 			}
 			legacyKey, _ := legacyKeys[keyName]
-			handle, err := secbootGetPCRHandle(disk.DevPath(), keyName, legacyKey)
+			handle, err := secbootGetPCRHandle(disk.DevPath(), keyName, legacyKey, method == device.SealingMethodFDESetupHook)
 			if err != nil {
 				return fmt.Errorf("cannot obtain counter handle for %s (default): %w", disk.DevPath(), err)
 			}
@@ -383,7 +390,7 @@ func MockVerifyPrimaryKeyDigest(f func(devicePath string, alg crypto.Hash, salt 
 	}
 }
 
-func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string) (uint32, error)) (restore func()) {
+func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error)) (restore func()) {
 	osutil.MustBeTestBinary("mocking secboot.GetPCRHandle can be done only from tests")
 
 	old := secbootGetPCRHandle
