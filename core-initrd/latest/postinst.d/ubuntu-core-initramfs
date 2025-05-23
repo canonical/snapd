@@ -24,7 +24,7 @@ case $(dpkg --print-architecture) in
 	case $version in
 	    *-azure | *-azure-fde)
 		# Currently nullboot doesn't seal cmdline, thus it must be baked in for azure
-		ubuntu-core-initramfs create-efi --unsigned --kernelver "$version" --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0"
+		ubuntu-core-initramfs create-efi --unsigned --kernelver "$version" --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 panic=60"
 		;;
 	    *)
 		ubuntu-core-initramfs create-efi --unsigned --kernelver "$version"
