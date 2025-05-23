@@ -407,6 +407,8 @@ func PrepareEncryptedSystemData(
 				return err
 			}
 
+			saveBootstrappedContainer.RegisterKey(generatedPK, diskKey)
+
 			primaryKey = generatedPK
 		} else {
 			saveKey, err := keys.NewEncryptionKey()
