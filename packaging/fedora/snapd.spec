@@ -1083,6 +1083,10 @@ fi
    generic plug
  - Interfaces: u2f | add support for Arculus AuthentiKey
 
+* Wed May 21 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.68.5
+ - LP: #2109843 fix missing preseed files when running in a container
+
 * Wed Apr 02 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68.4
  - Snap components: LP: #2104933 workaround for classic 24.04/24.10

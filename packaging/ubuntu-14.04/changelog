@@ -75,6 +75,13 @@ snapd (2.69~14.04) trusty; urgency=medium
 
  -- Ernest Lotter <ernest.lotter@canonical.com>  Tue, 08 Apr 2025 12:53:39 +0200
 
+snapd (2.68.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2098137
+    - LP: #2109843 fix missing preseed files when running in a container
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Wed, 21 May 2025 17:46:09 +0200
+
 snapd (2.68.4~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2098137
