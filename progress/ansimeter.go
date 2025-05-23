@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/snapcore/snapd/strutil/quantity"
 )
 
@@ -67,6 +68,26 @@ var termWidth = func() int {
 	return col
 }
 
+func init() {
+	// The width of some characters in unicode can not be determined before renderering.
+	// For example, we use the character '…' (U+2026) to indicate that the text is too long. We assume it will just
+	// take 1 column in terminals.
+	// With EastAsianWidth = true (the default value if LC_ALL is set to one of CJK locales), runewidth assumes
+	// the width of the character '…' is 2. But we expected it to be 1.
+	//
+	// But in the real world, most of terminal applications render it as 1 column, even if the UI language of
+	// the console application is CJK. This appears to be true for GNOME Terminal, Konsole, Tilda and
+	// Linux Console with default monospace font on Ubuntu Noble, all of them rendered it as 1 column.
+	// To get closer to the real world, we disable EastAsianWidth here. And we will show correct progress
+	// bar in most of terminal applications.
+	//
+	// See "Ambiguous Characters" in http://www.unicode.org/reports/tr11/
+	runewidth.DefaultCondition.EastAsianWidth = false
+
+	// Speed up the process of handling the width of characters.
+	runewidth.DefaultCondition.CreateLUT()
+}
+
 func (p *ANSIMeter) Start(label string, total float64) {
 	p.label = []rune(label)
 	p.total = total
@@ -74,21 +95,45 @@ func (p *ANSIMeter) Start(label string, total float64) {
 	fmt.Fprint(stdout, cursorInvisible)
 }
 
+func runeWidth(runes []rune) int {
+	width := 0
+	for _, r := range runes {
+		width += runewidth.RuneWidth(r)
+	}
+	return width
+}
+
 func norm(col int, msg []rune) []rune {
 	if col <= 0 {
 		return []rune{}
 	}
 	out := make([]rune, col)
-	copy(out, msg)
-	d := col - len(msg)
-	if d < 0 {
-		out[col-1] = '…'
-	} else {
-		for i := len(msg); i < col; i++ {
-			out[i] = ' '
+	width := 0
+	i := 0
+	for i = 0; i < len(msg); i++ {
+		r := msg[i]
+		w := runewidth.RuneWidth(r)
+		if width+w > col {
+			if width == col {
+				width -= runewidth.RuneWidth(out[i-1])
+				i -= 1
+			}
+			// '…' (U+2026) is used to indicate text is too long. In most of
+			// terminal applications, this character is rendered as 1 column.
+			out[i] = '…'
+			width += 1
+			i += 1
+			break
 		}
+		out[i] = r
+		width += w
 	}
-	return out
+
+	for ; width < col; i++ {
+		out[i] = ' '
+		width += 1
+	}
+	return out[:i]
 }
 
 func (p *ANSIMeter) SetTotal(total float64) {
@@ -152,11 +197,11 @@ func (p *ANSIMeter) Set(current float64) {
 	rtimeleft := []rune(timeleft)
 	msg := make([]rune, 0, col)
 	// XXX: assuming terminal can display `col` number of runes
-	msg = append(msg, norm(col-len(rpercent)-len(rspeed)-len(rtimeleft), p.label)...)
+	msg = append(msg, norm(col-len(rpercent)-len(rspeed)-runeWidth(rtimeleft), p.label)...)
 	msg = append(msg, rpercent...)
 	msg = append(msg, rspeed...)
 	msg = append(msg, rtimeleft...)
-	i := int(current * float64(col) / p.total)
+	i := int(current * float64(len(msg)) / p.total)
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
@@ -165,7 +210,7 @@ var spinner = []string{"/", "-", "\\", "|"}
 func (p *ANSIMeter) Spin(msgstr string) {
 	msg := []rune(msgstr)
 	col := termWidth()
-	if col-2 >= len(msg) {
+	if col-2 >= runeWidth(msg) {
 		fmt.Fprint(stdout, "\r", string(norm(col-2, msg)), " ", spinner[p.spin])
 		p.spin++
 		if p.spin >= len(spinner) {
@@ -186,21 +231,31 @@ func (*ANSIMeter) Notify(msgstr string) {
 
 	msg := []rune(msgstr)
 	var i int
-	for len(msg) > col {
-		for i = col; i >= 0; i-- {
-			if unicode.IsSpace(msg[i]) {
+	for runeWidth(msg) > col {
+		endOfLine := 0
+		lineWidth := 0
+		for i = 0; i < len(msg); i++ {
+			r := msg[i]
+			w := runewidth.RuneWidth(r)
+			if w+lineWidth > col {
 				break
 			}
+			if unicode.IsSpace(r) {
+				endOfLine = i
+			}
+			lineWidth += w
 		}
-		if i < 1 {
-			// didn't find anything; print the whole thing and try again
-			fmt.Fprintln(stdout, string(msg[:col]))
-			msg = msg[col:]
-		} else {
+
+		if endOfLine >= 1 {
 			// found a space; print up to but not including it, and skip it
-			fmt.Fprintln(stdout, string(msg[:i]))
-			msg = msg[i+1:]
+			i = endOfLine + 1
+		} else {
+			// didn't find anything; print the whole thing and try again
+			endOfLine = i
 		}
+
+		fmt.Fprintln(stdout, string(msg[:endOfLine]))
+		msg = msg[i:]
 	}
 	fmt.Fprintln(stdout, string(msg))
 }
