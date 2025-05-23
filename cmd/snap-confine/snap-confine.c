@@ -398,21 +398,20 @@ int main(int argc, char **argv) {
         die("cannot fill inheritable capability set");
     }
 
-    /* Set of caps we use while not performing any privileged operations, keep
-     * only CAP_SYS_ADMIN in permitted caps, but clear effective and
-     * inheritable. */
-    static const cap_value_t only_sys_admin_caps[] = {
+    /* Set of caps we use while not performing any privileged operations which
+     * require CAP_SYS_ADMIN, but also keep CAP_DAC_OVERRIDE in case we need to
+     * restore it ater, if the user was really root */
+    static const cap_value_t keep_no_effective_caps[] = {
         CAP_SYS_ADMIN, /* seccomp */
+        CAP_DAC_OVERRIDE,
     };
 
-    cap_t caps_no_effective SC_CLEANUP(sc_cleanup_cap_t) = cap_dup(caps_privileged);
+    cap_t caps_no_effective SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
     if (caps_no_effective == NULL) {
         die("cannot copy caps");
     }
 
-    if (cap_clear_flag(caps_no_effective, CAP_EFFECTIVE) != 0 ||
-        cap_clear_flag(caps_no_effective, CAP_INHERITABLE) != 0 ||
-        cap_set_flag(caps_no_effective, CAP_PERMITTED, SC_ARRAY_SIZE(only_sys_admin_caps), only_sys_admin_caps,
+    if (cap_set_flag(caps_no_effective, CAP_PERMITTED, SC_ARRAY_SIZE(keep_no_effective_caps), keep_no_effective_caps,
                      CAP_SET) != 0) {
         die("cannot set capapbility flags");
     }
@@ -533,18 +532,24 @@ int main(int argc, char **argv) {
     // when we are permanently dropping privileges.
     debug("setting capabilities bounding set");
 
-    /* only SYS_ADMIN in effective */
-    cap_t cap_only_sys_admin SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
-    if (cap_only_sys_admin == NULL) {
-        die("cannot allocate only admin caps");
-    }
+    /* we're going to drop caps when user isn't root, which preserves the spirit
+     * behind original behavior predating the introduction of non-seuid support
+     * in snap-confine */
+    bool is_regular_user = real_uid != 0;
+
+    debug("drop caps as non-root? %s", is_regular_user ? "yes" : "no");
+
+    /* only SYS_ADMIN in effective, keep permitted set unchanged */
+    cap_t cap_only_sys_admin SC_CLEANUP(sc_cleanup_cap_t) = cap_dup(caps_no_effective);
+    static const cap_value_t only_sys_admin_caps[] = {
+        CAP_SYS_ADMIN, /* seccomp */
+    };
 
     if (cap_set_flag(cap_only_sys_admin, CAP_EFFECTIVE, SC_ARRAY_SIZE(only_sys_admin_caps), only_sys_admin_caps,
-                     CAP_SET) != 0 ||
-        cap_set_flag(cap_only_sys_admin, CAP_PERMITTED, SC_ARRAY_SIZE(only_sys_admin_caps), only_sys_admin_caps,
                      CAP_SET) != 0) {
         die("cannot set capability flags");
     }
+
     if (cap_set_proc(cap_only_sys_admin) != 0) {
         die("cannot change capabilities");
     }
@@ -555,14 +560,41 @@ int main(int argc, char **argv) {
     // seccomp profiles.
     sc_apply_seccomp_profile_for_security_tag(invocation.security_tag);
 
-    debug("dropping all capabilities");
+    if (is_regular_user) {
+        debug("dropping all capabilities for user");
 
-    cap_t cap_dropped SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
-    if (cap_dropped == NULL) {
-        die("cannot allocate capabilities");
-    }
-    if (cap_set_proc(cap_dropped) != 0) {
-        die("cannot drop capabilities");
+        /* drop all permissions we had as a regular user */
+        cap_t cap_dropped SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
+        if (cap_dropped == NULL) {
+            die("cannot allocate capabilities");
+        }
+        if (cap_set_proc(cap_dropped) != 0) {
+            die("cannot drop capabilities");
+        }
+    } else {
+        debug("restore subset of capabilities for root");
+        /* root, since we're restoring process state we want to keep
+         * DAC_OVERRIDE, such that the some semantics of being root, such as
+         * being able to access non root files (at least while still executing
+         * under snap-confine's profile) are preserved */
+        /* for real root, keep the permitted set, we'll need it later on */
+
+        static const cap_value_t only_dac_override_caps[] = {
+            CAP_DAC_OVERRIDE,
+        };
+        cap_t cap_only_dac_override SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
+        if (cap_only_dac_override == NULL) {
+            die("cannot allocate only DAC caps for root");
+        }
+        if (cap_set_flag(cap_only_dac_override, CAP_EFFECTIVE, SC_ARRAY_SIZE(only_dac_override_caps),
+                         only_dac_override_caps, CAP_SET) != 0 ||
+            cap_set_flag(cap_only_dac_override, CAP_PERMITTED, SC_ARRAY_SIZE(only_dac_override_caps),
+                         only_dac_override_caps, CAP_SET) != 0) {
+            die("cannot set capapbility flags");
+        }
+        if (cap_set_proc(cap_only_dac_override) != 0) {
+            die("cannot drop capabilities");
+        }
     }
 
     sc_debug_capabilities("before exec to application");
@@ -576,6 +608,7 @@ int main(int argc, char **argv) {
     // Restore process state that was recorded earlier.
     sc_restore_process_state(&proc_state);
     log_startup_stage("snap-confine to snap-exec");
+    /* post exec capabilities restored as described in capabilities(7) */
     execv(invocation.executable, (char *const *)&argv[0]);
     perror("execv failed");
     return 1;
