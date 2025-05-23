@@ -61,7 +61,7 @@ type userAction struct {
 	*RemoveUserOptions
 }
 
-func (client *Client) doUserAction(act *userAction, result interface{}) error {
+func (client *Client) doUserAction(act *userAction, result any) error {
 	data, err := json.Marshal(act)
 	if err != nil {
 		return err

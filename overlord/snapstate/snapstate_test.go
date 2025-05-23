@@ -1151,7 +1151,7 @@ func (s *snapmgrTestSuite) TestDoUpdateHadSlots(c *C) {
 				Snap:      info,
 				Name:      "shared-content",
 				Interface: "content",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"content": "shared-content",
 				},
 			},
@@ -1484,11 +1484,11 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 	s.settle(c)
 
 	// config snapshot of rev. 2 has been made by 'revert'
-	var cfgs map[string]interface{}
+	var cfgs map[string]any
 	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
-	c.Assert(cfgs["some-snap"], DeepEquals, map[string]interface{}{
-		"1": map[string]interface{}{"foo": "100"},
-		"2": map[string]interface{}{"foo": "200"},
+	c.Assert(cfgs["some-snap"], DeepEquals, map[string]any{
+		"1": map[string]any{"foo": "100"},
+		"2": map[string]any{"foo": "200"},
 	})
 
 	// current snap configuration has been restored from rev. 1 config snapshot
@@ -4774,7 +4774,7 @@ func (s *snapmgrQuerySuite) TestKernelInfo(c *C) {
 		DeviceModel: ClassicModel(),
 	}
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel(map[string]interface{}{
+		DeviceModel: MakeModel(map[string]any{
 			"kernel": "pc-kernel",
 		}),
 	}
@@ -4819,7 +4819,7 @@ func (s *snapmgrQuerySuite) TestBootBaseInfo(c *C) {
 		DeviceModel: ClassicModel(),
 	}
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel20("gadget", map[string]interface{}{
+		DeviceModel: MakeModel20("gadget", map[string]any{
 			"base": "core20",
 		}),
 	}
@@ -5363,7 +5363,7 @@ func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
 	defer restoreLogger()
 
 	for i, val := range []struct {
-		input    interface{}
+		input    any
 		expected int
 		msg      string
 	}{
@@ -5371,7 +5371,7 @@ func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
 		{json.Number("2"), 2, "^$"},
 		{"6", 6, "^$"},
 		// invalid => default value for core
-		{map[string]interface{}{"foo": "bar"}, 3, `.*internal error: refresh.retain system option has unexpected type: map\[string\]interface {}\n`},
+		{map[string]any{"foo": "bar"}, 3, `.*internal error: refresh.retain system option has unexpected type: map\[string\]interface {}\n`},
 	} {
 		tr := config.NewTransaction(s.state)
 		tr.Set("core", "refresh.retain", val.input)
@@ -5527,7 +5527,7 @@ version: 1.0
 
 func deviceWithGadgetContext(gadgetName string) snapstate.DeviceContext {
 	return &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel(map[string]interface{}{
+		DeviceModel: MakeModel(map[string]any{
 			"gadget": gadgetName,
 		}),
 	}
@@ -6020,7 +6020,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsInvalid(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -6028,8 +6028,8 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsInvalid(c *C) {
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "core",
 				"id":       snaptest.AssertedSnapID("core"),
 				"presence": "invalid",
@@ -6068,7 +6068,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -6076,8 +6076,8 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsRevision(c *C) {
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "core",
 				"id":       snaptest.AssertedSnapID("core"),
 				"presence": "required",
@@ -6286,7 +6286,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	var gone interface{}
+	var gone any
 	err = s.state.Get("aliases", &gone)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
@@ -6355,7 +6355,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	var gone interface{}
+	var gone any
 	err = s.state.Get("aliases", &gone)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
@@ -6566,7 +6566,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "shared-content",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"default-provider": "snap-content-slot",
 						"content":          "shared-content",
 					},
@@ -6578,7 +6578,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "shared-content",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"default-provider": "snap-content-slot:some-slot",
 						"content":          "shared-content",
 					},
@@ -6590,7 +6590,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "shared-content",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"content": "shared-content",
 					},
 				},
@@ -6601,7 +6601,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "circular-plug1",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"default-provider": "snap-content-circular2",
 						"content":          "circular2",
 					},
@@ -6612,7 +6612,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "circular-slot1",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"content": "circular1",
 					},
 				},
@@ -6623,7 +6623,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "circular-plug2",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"default-provider": "snap-content-circular1",
 						"content":          "circular2",
 					},
@@ -6634,7 +6634,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 					Snap:      info,
 					Name:      "circular-slot2",
 					Interface: "content",
-					Attrs: map[string]interface{}{
+					Attrs: map[string]any{
 						"content": "circular1",
 					},
 				},
@@ -7285,7 +7285,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUC20KernelRefresh(c *C) {
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUC24KernelRefresh(c *C) {
 	s.testGadgetUpdateTaskAddedOnUCKernelRefresh(c,
-		MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"}),
+		MakeModel20("brand-gadget", map[string]any{"base": "core24"}),
 		doesReRefresh|needsKernelSetup)
 }
 
@@ -7340,7 +7340,7 @@ func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C
 	defer s.state.Unlock()
 
 	defer snapstatetest.MockDeviceModel(MakeModelClassicWithModes(
-		"brand-gadget", map[string]interface{}{"base": base}))()
+		"brand-gadget", map[string]any{"base": base}))()
 
 	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
 		Active: true,
@@ -8158,7 +8158,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC20KernelHappyWithKmodCompon
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC24KernelHappy(c *C) {
 	// UC24 model has additional tasks for the kernel
 	s.testRemodelLinkNewBaseOrKernelHappy(c,
-		MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"}),
+		MakeModel20("brand-gadget", map[string]any{"base": "core24"}),
 		needsKernelSetup)
 }
 
@@ -8355,7 +8355,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrUC20Kernel(c *C) {
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrUC24Kernel(c *C) {
 	// UC24 model has additional tasks for the kernel
 	s.testRemodelAddLinkNewBaseOrKernel(c,
-		MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"}),
+		MakeModel20("brand-gadget", map[string]any{"base": "core24"}),
 		needsKernelSetup)
 }
 
@@ -8929,7 +8929,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 		Active:   true,
 	})
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -8937,14 +8937,14 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "some-snap",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "some-other-snap",
 				"id":       "mysnapcccccccccccccccccccccccccc",
 				"presence": "required",
@@ -9022,7 +9022,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorInvalidCompo
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -9030,66 +9030,66 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-with-missing-comps-at-wrong-rev",
 				"id":       snaptest.AssertedSnapID("snap-with-missing-comps-at-wrong-rev"),
 				"presence": "required",
 				"revision": "2",
-				"components": map[string]interface{}{
-					"one": map[string]interface{}{
+				"components": map[string]any{
+					"one": map[string]any{
 						"presence": "required",
 						"revision": "11",
 					},
-					"two": map[string]interface{}{
+					"two": map[string]any{
 						"presence": "required",
 						"revision": "22",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-with-wrong-rev-comp-at-wrong-rev",
 				"id":       snaptest.AssertedSnapID("snap-with-wrong-rev-comp-at-wrong-rev"),
 				"presence": "required",
 				"revision": "2",
-				"components": map[string]interface{}{
-					"three": map[string]interface{}{
+				"components": map[string]any{
+					"three": map[string]any{
 						"presence": "required",
 						"revision": "33",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-with-wrong-rev-comp",
 				"id":       snaptest.AssertedSnapID("snap-with-wrong-rev-comp"),
 				"presence": "required",
 				"revision": "1",
-				"components": map[string]interface{}{
-					"four": map[string]interface{}{
+				"components": map[string]any{
+					"four": map[string]any{
 						"presence": "required",
 						"revision": "44",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-with-missing-comps",
 				"id":       snaptest.AssertedSnapID("snap-with-missing-comps"),
 				"presence": "required",
 				"revision": "1",
-				"components": map[string]interface{}{
-					"five": map[string]interface{}{
+				"components": map[string]any{
+					"five": map[string]any{
 						"presence": "required",
 						"revision": "55",
 					},
 				},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "snap-missing-with-missing-comps",
 				"id":       snaptest.AssertedSnapID("snap-missing-with-missing-comps"),
 				"presence": "required",
 				"revision": "1",
-				"components": map[string]interface{}{
-					"six": map[string]interface{}{
+				"components": map[string]any{
+					"six": map[string]any{
 						"presence": "required",
 						"revision": "66",
 					},
@@ -9223,7 +9223,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c
 }
 
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering(c *C) {
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -9231,20 +9231,20 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"presence": "required",
 				"revision": "2",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "some-base",
 				"id":       snaptest.AssertedSnapID("some-base"),
 				"presence": "required",
 				"revision": "2",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "kernel",
 				"id":       snaptest.AssertedSnapID("kernel"),
 				"presence": "required",
@@ -9531,7 +9531,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C
 		Active:   true,
 	})
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -9539,13 +9539,13 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "some-snap",
 				"id":       "mysnapdddddddddddddddddddddddddd",
 				"presence": "required",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "some-other-snap",
 				"id":       "mysnapcccccccccccccccccccccccccc",
 				"presence": "required",
@@ -10520,7 +10520,7 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithMismatchValidationSets(
 		return nil
 	}
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -10528,14 +10528,14 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithMismatchValidationSets(
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"presence": "required",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 						"revision": "1",
 					},
@@ -10609,7 +10609,7 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 		return nil
 	}
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"type":         "validation-set",
 		"timestamp":    time.Now().Format(time.RFC3339),
 		"authority-id": "foo",
@@ -10617,18 +10617,18 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 		"account-id":   "foo",
 		"name":         "bar",
 		"sequence":     "3",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "snap-1",
 				"id":       snaptest.AssertedSnapID("snap-1"),
 				"presence": "required",
 				"revision": "11",
-				"components": map[string]interface{}{
-					"comp-1": map[string]interface{}{
+				"components": map[string]any{
+					"comp-1": map[string]any{
 						"presence": "required",
 						"revision": "1",
 					},
-					"comp-2": map[string]interface{}{
+					"comp-2": map[string]any{
 						"presence": "required",
 						"revision": "2",
 					},

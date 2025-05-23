@@ -157,8 +157,8 @@ type SnapSuite struct {
 var _ = Suite(&SnapSuite{})
 
 // DecodedRequestBody returns the JSON-decoded body of the request.
-func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
-	var body map[string]interface{}
+func DecodedRequestBody(c *C, r *http.Request) map[string]any {
+	var body map[string]any
 	decoder := json.NewDecoder(r.Body)
 	decoder.UseNumber()
 	err := decoder.Decode(&body)
@@ -167,7 +167,7 @@ func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
 }
 
 // EncodeResponseBody writes JSON-serialized body to the response writer.
-func EncodeResponseBody(c *C, w http.ResponseWriter, body interface{}) {
+func EncodeResponseBody(c *C, w http.ResponseWriter, body any) {
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(body)
 	c.Assert(err, IsNil)

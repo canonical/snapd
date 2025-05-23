@@ -27,9 +27,9 @@ package configcore
 //
 // Move this part of the code to yaml.v3 because without it we run
 // into incompatibilites of maps between json and yaml:
-// "json: unsupported type: map[interface{}]interface{}" because
-// because yaml.v2 unmarshalls by default to "map[interface{}]interface{}"
-// v3 fixes this, see https://github.com/go-yaml/yaml/pull/385#issuecomment-475588596
+// "json: unsupported type: map[any]any" because yaml.v2 unmarshalls by default
+// to "map[any]any" v3 fixes this, see
+// https://github.com/go-yaml/yaml/pull/385#issuecomment-475588596
 import (
 	"encoding/json"
 	"fmt"
@@ -160,7 +160,7 @@ func handleNetplanConfiguration(tr RunTransaction, opts *fsOnlyContext) (err err
 		return nil
 	}
 
-	var cfg map[string]interface{}
+	var cfg map[string]any
 	if err := tr.Get("core", "system.network.netplan", &cfg); err != nil && !config.IsNoOption(err) {
 		return fmt.Errorf("cannot get netpan config: %v", err)
 	}
@@ -257,7 +257,7 @@ func handleNetplanConfiguration(tr RunTransaction, opts *fsOnlyContext) (err err
 	return nil
 }
 
-func getNetplanFromSystem(key string) (result interface{}, err error) {
+func getNetplanFromSystem(key string) (result any, err error) {
 	if release.OnClassic {
 		return nil, nil
 	}
@@ -282,7 +282,7 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 		}
 	}()
 
-	var cfg map[string]interface{}
+	var cfg map[string]any
 	if err := yaml.Unmarshal([]byte(netplanYamlCfg), &cfg); err != nil {
 		return nil, err
 	}

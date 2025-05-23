@@ -191,7 +191,7 @@ func (a fdoApi) CloseNotification(id uint32) *dbus.Error {
 	if err := a.server.Close(id, 3); err != nil {
 		return &dbus.Error{
 			Name: "org.freedesktop.DBus.Error.Failed",
-			Body: []interface{}{err.Error()},
+			Body: []any{err.Error()},
 		}
 	}
 	return nil

@@ -449,7 +449,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	var aliasesV1 map[string]interface{}
+	var aliasesV1 map[string]any
 	err := m.state.Get("aliases", &aliasesV1)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -474,7 +474,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 	// the start of wait chains
 	for _, t := range m.state.Tasks() {
 		if t.Kind() == "alias" && !t.Status().Ready() {
-			var param interface{}
+			var param any
 			err := t.Get("aliases", &param)
 			if errors.Is(err, state.ErrNoState) {
 				// not the old variant, leave alone

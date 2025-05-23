@@ -49,7 +49,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 		switch r.URL.Path {
 		case "/v2/aliases":
 			c.Check(r.Method, Equals, "POST")
-			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]any{
 				"action": "alias",
 				"snap":   "alias-snap",
 				"app":    "cmd1",

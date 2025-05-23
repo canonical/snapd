@@ -53,17 +53,17 @@ func (s *snapConfSuite) SetUpTest(c *check.C) {
 	config.ClearExternalConfigMap()
 }
 
-func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {
+func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]any {
 	req, err := http.NewRequest("GET", "/v2/snaps/"+snapName+"/conf?keys="+strings.Join(keys, ","), nil)
 	c.Check(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, statusCode)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	return body["result"].(map[string]interface{})
+	return body["result"].(map[string]any)
 }
 
 func (s *snapConfSuite) TestGetConfSingleKey(c *check.C) {
@@ -78,10 +78,10 @@ func (s *snapConfSuite) TestGetConfSingleKey(c *check.C) {
 	d.Overlord().State().Unlock()
 
 	result := s.runGetConf(c, "test-snap", []string{"test-key1"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+	c.Check(result, check.DeepEquals, map[string]any{"test-key1": "test-value1"})
 
 	result = s.runGetConf(c, "test-snap", []string{"test-key1", "test-key2"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
+	c.Check(result, check.DeepEquals, map[string]any{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
 func (s *snapConfSuite) TestGetConfCoreSystemAlias(c *check.C) {
@@ -95,17 +95,17 @@ func (s *snapConfSuite) TestGetConfCoreSystemAlias(c *check.C) {
 	d.Overlord().State().Unlock()
 
 	result := s.runGetConf(c, "core", []string{"test-key1"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+	c.Check(result, check.DeepEquals, map[string]any{"test-key1": "test-value1"})
 
 	result = s.runGetConf(c, "system", []string{"test-key1"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+	c.Check(result, check.DeepEquals, map[string]any{"test-key1": "test-value1"})
 }
 
 func (s *snapConfSuite) TestGetConfMissingKey(c *check.C) {
 	s.daemon(c)
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{
-		"value": map[string]interface{}{
+	c.Check(result, check.DeepEquals, map[string]any{
+		"value": map[string]any{
 			"SnapName": "test-snap",
 			"Key":      "test-key2",
 		},
@@ -135,22 +135,22 @@ func (s *snapConfSuite) TestGetConfCoreUnsupportedExperimentalFlag(c *check.C) {
 
 	// Exact query to old experimental feature are not pruned
 	result := s.runGetConf(c, "core", []string{"experimental.old-flag"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{
+	c.Check(result, check.DeepEquals, map[string]any{
 		"experimental.old-flag": true,
 	})
 
 	// Generic experimental features query should hide old experimental
 	// features that are no longer supported
 	result = s.runGetConf(c, "core", []string{"experimental"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{
-		"experimental": map[string]interface{}{
+	c.Check(result, check.DeepEquals, map[string]any{
+		"experimental": map[string]any{
 			"supported-flag": true,
 		},
 	})
 	// Let's only check experimental config in root document
 	result = s.runGetConf(c, "core", nil, 200)
-	result = result["experimental"].(map[string]interface{})
-	c.Check(result, check.DeepEquals, map[string]interface{}{"supported-flag": true})
+	result = result["experimental"].(map[string]any)
+	c.Check(result, check.DeepEquals, map[string]any{"supported-flag": true})
 
 	// Simulate the scenario where snapd is reverted to revision
 	// that supports a hidden experimental feature
@@ -159,19 +159,19 @@ func (s *snapConfSuite) TestGetConfCoreUnsupportedExperimentalFlag(c *check.C) {
 
 	// Exact queries are still shown
 	result = s.runGetConf(c, "core", []string{"experimental.old-flag"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"experimental.old-flag": true})
+	c.Check(result, check.DeepEquals, map[string]any{"experimental.old-flag": true})
 
 	// Generic queries should now show previously hidden experimental feature
 	result = s.runGetConf(c, "core", []string{"experimental"}, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{
-		"experimental": map[string]interface{}{
+	c.Check(result, check.DeepEquals, map[string]any{
+		"experimental": map[string]any{
 			"old-flag":       true,
 			"supported-flag": true,
 		},
 	})
 	result = s.runGetConf(c, "core", nil, 200)
-	result = result["experimental"].(map[string]interface{})
-	c.Check(result, check.DeepEquals, map[string]interface{}{"old-flag": true, "supported-flag": true})
+	result = result["experimental"].(map[string]any)
+	c.Check(result, check.DeepEquals, map[string]any{"old-flag": true, "supported-flag": true})
 }
 
 func (s *snapConfSuite) TestGetRootDocument(c *check.C) {
@@ -184,14 +184,14 @@ func (s *snapConfSuite) TestGetRootDocument(c *check.C) {
 	d.Overlord().State().Unlock()
 
 	result := s.runGetConf(c, "test-snap", nil, 200)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
+	c.Check(result, check.DeepEquals, map[string]any{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
 func (s *snapConfSuite) TestGetConfBadKey(c *check.C) {
 	s.daemon(c)
 	// TODO: this one in particular should really be a 400 also
 	result := s.runGetConf(c, "test-snap", []string{"."}, 500)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `invalid option name: ""`})
+	c.Check(result, check.DeepEquals, map[string]any{"message": `invalid option name: ""`})
 }
 
 const configYaml = `
@@ -212,7 +212,7 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text, err := json.Marshal(map[string]any{"key": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -223,7 +223,7 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
@@ -262,7 +262,7 @@ version: 1
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"proxy.ftp": "value"})
+	text, err := json.Marshal(map[string]any{"proxy.ftp": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -273,7 +273,7 @@ version: 1
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
@@ -308,7 +308,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": 1234567890})
+	text, err := json.Marshal(map[string]any{"key": 1234567890})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -319,7 +319,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
 	id := body["change"].(string)
@@ -335,7 +335,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	tr := config.NewTransaction(d.Overlord().State())
-	var result interface{}
+	var result any
 	c.Assert(tr.Get("config-snap", "key", &result), check.IsNil)
 	c.Assert(result, check.DeepEquals, json.Number("1234567890"))
 }
@@ -343,7 +343,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	s.daemonWithOverlordMockAndStore()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text, err := json.Marshal(map[string]any{"key": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -354,13 +354,13 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"status-code": 404.,
 		"status":      "Not Found",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"message": `snap "config-snap" is not installed`,
 			"kind":    "snap-not-found",
 			"value":   "config-snap",
@@ -374,7 +374,7 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 
 	s.simulateConflict("config-snap")
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text, err := json.Marshal(map[string]any{"key": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -385,16 +385,16 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Assert(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
+	c.Check(body, check.DeepEquals, map[string]any{
 		"status-code": 409.,
 		"status":      "Conflict",
-		"result": map[string]interface{}{
+		"result": map[string]any{
 			"message": `snap "config-snap" has "manip" change in progress`,
 			"kind":    "snap-change-conflict",
-			"value": map[string]interface{}{
+			"value": map[string]any{
 				"change-kind": "manip",
 				"snap-name":   "config-snap",
 			},

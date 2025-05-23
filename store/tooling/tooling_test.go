@@ -93,12 +93,12 @@ func (s *toolingSuite) SetUpTest(c *C) {
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
 
-	otherAcct := assertstest.NewAccount(s.StoreSigning, "other", map[string]interface{}{
+	otherAcct := assertstest.NewAccount(s.StoreSigning, "other", map[string]any{
 		"account-id": "other",
 	}, "")
 	s.StoreSigning.Add(otherAcct)
@@ -687,15 +687,15 @@ func (s *toolingSuite) TestSimpleCreds(c *C) {
 }
 
 func (s *toolingSuite) setupSequenceFormingAssertion(c *C) {
-	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	vs, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc",
 				"id":       "idididididididididididididididid",
 				"presence": "required",

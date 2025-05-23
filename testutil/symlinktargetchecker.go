@@ -49,7 +49,7 @@ var SymlinkTargetMatches check.Checker = &symlinkTargetChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "SymlinkTargetMatches", Params: []string{"filename", "regex"}},
 }
 
-func (c *symlinkTargetChecker) Check(params []interface{}, names []string) (result bool, error string) {
+func (c *symlinkTargetChecker) Check(params []any, names []string) (result bool, error string) {
 	filename, ok := params[0].(string)
 	if !ok {
 		return false, "Filename must be a string"
@@ -68,7 +68,7 @@ func (c *symlinkTargetChecker) Check(params []interface{}, names []string) (resu
 	return symlinkTargetCheck(filename, params[1], c.exact)
 }
 
-func symlinkTargetCheck(filename string, expectedTarget interface{}, exact bool) (result bool, error string) {
+func symlinkTargetCheck(filename string, expectedTarget any, exact bool) (result bool, error string) {
 	target, err := os.Readlink(filename)
 	if err != nil {
 		return false, fmt.Sprintf("Cannot read symbolic link: %v", err)

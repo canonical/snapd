@@ -624,19 +624,19 @@ snaps:
 	c.Check(seedTime.IsZero(), Equals, false)
 
 	// verify that connections was made
-	var conns map[string]interface{}
+	var conns map[string]any
 	c.Assert(st.Get("conns", &conns), IsNil)
-	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"foo:network core:network": map[string]interface{}{
+	c.Assert(conns, DeepEquals, map[string]any{
+		"foo:network core:network": map[string]any{
 			"auto": true, "interface": "network"},
-		"foo:shared-data-plug bar:shared-data-slot": map[string]interface{}{
+		"foo:shared-data-plug bar:shared-data-slot": map[string]any{
 			"auto": true, "interface": "content",
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"content": "mylib", "target": "import",
 			},
-			"slot-static": map[string]interface{}{
+			"slot-static": map[string]any{
 				"content": "mylib",
-				"read": []interface{}{
+				"read": []any{
 					"/",
 				},
 			},

@@ -24,8 +24,8 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
-func MakeMockModel(overrides ...map[string]interface{}) *asserts.Model {
-	headers := map[string]interface{}{
+func MakeMockModel(overrides ...map[string]any) *asserts.Model {
+	headers := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -38,11 +38,11 @@ func MakeMockModel(overrides ...map[string]interface{}) *asserts.Model {
 		"kernel":       "pc-kernel=18",
 		"timestamp":    "2018-01-01T08:00:00+00:00",
 	}
-	return assertstest.FakeAssertion(append([]map[string]interface{}{headers}, overrides...)...).(*asserts.Model)
+	return assertstest.FakeAssertion(append([]map[string]any{headers}, overrides...)...).(*asserts.Model)
 }
 
-func MakeMockUC20Model(overrides ...map[string]interface{}) *asserts.Model {
-	headers := map[string]interface{}{
+func MakeMockUC20Model(overrides ...map[string]any) *asserts.Model {
+	headers := map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"series":       "16",
@@ -53,24 +53,24 @@ func MakeMockUC20Model(overrides ...map[string]interface{}) *asserts.Model {
 		"base":         "core20",
 		"grade":        "dangerous",
 		"timestamp":    "2019-11-01T08:00:00+00:00",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   "pckernelidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",
 			},
 		},
 	}
-	return assertstest.FakeAssertion(append([]map[string]interface{}{headers}, overrides...)...).(*asserts.Model)
+	return assertstest.FakeAssertion(append([]map[string]any{headers}, overrides...)...).(*asserts.Model)
 }
 
-func MakeMockClassicWithModesModel(overrides ...map[string]interface{}) *asserts.Model {
-	headers := map[string]interface{}{
+func MakeMockClassicWithModesModel(overrides ...map[string]any) *asserts.Model {
+	headers := map[string]any{
 		"type":         "model",
 		"classic":      "true",
 		"distribution": "ubuntu",
@@ -83,18 +83,18 @@ func MakeMockClassicWithModesModel(overrides ...map[string]interface{}) *asserts
 		"base":         "core20",
 		"grade":        "dangerous",
 		"timestamp":    "2019-11-01T08:00:00+00:00",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "pc-kernel",
 				"id":   "pckernelidididididididididididid",
 				"type": "kernel",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "pc",
 				"id":   "pcididididididididididididididid",
 				"type": "gadget",
 			},
 		},
 	}
-	return assertstest.FakeAssertion(append([]map[string]interface{}{headers}, overrides...)...).(*asserts.Model)
+	return assertstest.FakeAssertion(append([]map[string]any{headers}, overrides...)...).(*asserts.Model)
 }

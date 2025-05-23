@@ -271,18 +271,18 @@ func startTransientScope(conn *dbus.Conn, unitName string, pid int) (job dbus.Ob
 	// jobMode string  // corresponds to --job-mode= (see systemctl(1) manual page)
 	// properties []struct{
 	//   Name string
-	//   Value interface{}
+	//   Value any
 	// } // properties describe properties of the started unit
 	// auxUnits []struct {
 	//   Name string
 	//   Properties []struct{
 	//   	Name string
-	//   	Value interface{}
+	//   	Value any
 	//	 }
 	// } // auxUnits describe any additional units to define.
 	type property struct {
 		Name  string
-		Value interface{}
+		Value any
 	}
 	type auxUnit struct {
 		Name  string

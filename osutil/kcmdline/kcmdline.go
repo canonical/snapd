@@ -210,7 +210,7 @@ type Argument struct {
 }
 
 // UnmarshalYAML implements the Unmarshaler interface.
-func (ka *Argument) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (ka *Argument) UnmarshalYAML(unmarshal func(any) error) error {
 	var arg string
 	if err := unmarshal(&arg); err != nil {
 		return errors.New("cannot unmarshal kernel argument")
@@ -466,7 +466,7 @@ func (kap *ArgumentPattern) MarshalText() ([]byte, error) {
 	return []byte(kap.marshalToString()), nil
 }
 
-func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(any) error) error {
 	var arg string
 	if err := unmarshal(&arg); err != nil {
 		return fmt.Errorf("cannot unmarshal kernel argument: %v", err)

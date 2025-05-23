@@ -97,7 +97,7 @@ func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRe
 				})
 			}
 			result := client.Connections{Established: connections}
-			EncodeResponseBody(c, w, map[string]interface{}{
+			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
 				"result": result,
 			})

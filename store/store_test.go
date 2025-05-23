@@ -65,15 +65,15 @@ type configTestSuite struct{}
 var _ = Suite(&configTestSuite{})
 
 var (
-	// this is what snap.E("0") looks like when decoded into an interface{} (the /^i/ is for "interface")
-	iZeroEpoch = map[string]interface{}{
-		"read":  []interface{}{0.},
-		"write": []interface{}{0.},
+	// this is what snap.E("0") looks like when decoded into an any
+	anyZeroEpoch = map[string]any{
+		"read":  []any{0.},
+		"write": []any{0.},
 	}
 	// ...and this is snap.E("5*")
-	iFiveStarEpoch = map[string]interface{}{
-		"read":  []interface{}{4., 5.},
-		"write": []interface{}{5.},
+	anyFiveStarEpoch = map[string]any{
+		"read":  []any{4., 5.},
+		"write": []any{5.},
 	}
 )
 

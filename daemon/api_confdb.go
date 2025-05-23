@@ -94,7 +94,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
 	decoder := json.NewDecoder(r.Body)
-	var values map[string]interface{}
+	var values map[string]any
 	if err := decoder.Decode(&values); err != nil {
 		return BadRequest("cannot decode confdb request body: %v", err)
 	}

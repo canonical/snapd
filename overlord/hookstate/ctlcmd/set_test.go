@@ -160,9 +160,9 @@ func (s *setSuite) TestUnsetConfigOptionWithInitialConfiguration(c *C) {
 	c.Check(tr.Get("test-snap", "test-key2", &value), IsNil)
 	c.Check(value, Equals, "test-value2")
 	c.Check(tr.Get("test-snap", "test-key1", &value), ErrorMatches, `snap "test-snap" has no "test-key1" configuration option`)
-	var value2 interface{}
+	var value2 any
 	c.Check(tr.Get("test-snap", "test-key3", &value2), IsNil)
-	c.Check(value2, DeepEquals, map[string]interface{}{"bar": "bar-value"})
+	c.Check(value2, DeepEquals, map[string]any{"bar": "bar-value"})
 }
 
 func (s *setSuite) TestUnsetConfigOptionWithNoInitialConfiguration(c *C) {
@@ -177,7 +177,7 @@ func (s *setSuite) TestUnsetConfigOptionWithNoInitialConfiguration(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	var value interface{}
+	var value any
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "test-key.key2", &value), IsNil)
 	c.Check(value, DeepEquals, "value2")
@@ -197,7 +197,7 @@ func (s *setSuite) TestSetNumbers(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	var value interface{}
+	var value any
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, json.Number("1234567890"))
@@ -218,10 +218,10 @@ func (s *setSuite) TestSetStrictJSON(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	var value interface{}
+	var value any
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Assert(tr.Get("test-snap", "key", &value), IsNil)
-	c.Check(value, DeepEquals, map[string]interface{}{"a": "b", "c": json.Number("1"), "d": map[string]interface{}{"e": "f"}})
+	c.Check(value, DeepEquals, map[string]any{"a": "b", "c": json.Number("1"), "d": map[string]any{"e": "f"}})
 }
 
 func (s *setSuite) TestSetFailWithStrictJSON(c *C) {
@@ -242,7 +242,7 @@ func (s *setSuite) TestSetAsString(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	var value interface{}
+	var value any
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Assert(tr.Get("test-snap", "key", &value), IsNil)
 	c.Check(value, Equals, expected)
@@ -297,13 +297,13 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	staticAttrs := map[string]interface{}{
+	staticAttrs := map[string]any{
 		"lorem": "ipsum",
-		"nested": map[string]interface{}{
+		"nested": map[string]any{
 			"x": "y",
 		},
 	}
-	dynamicAttrs := make(map[string]interface{})
+	dynamicAttrs := make(map[string]any)
 	attrsTask.Set("plug-static", staticAttrs)
 	attrsTask.Set("plug-dynamic", dynamicAttrs)
 	attrsTask.Set("slot-static", staticAttrs)
@@ -356,7 +356,7 @@ func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
-	dynattrs := make(map[string]interface{})
+	dynattrs := make(map[string]any)
 	err = attrsTask.Get("plug-dynamic", &dynattrs)
 	c.Assert(err, IsNil)
 	c.Check(dynattrs["foo"], Equals, "bar")
@@ -373,10 +373,10 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
-	dynattrs := make(map[string]interface{})
+	dynattrs := make(map[string]any)
 	err = attrsTask.Get("plug-dynamic", &dynattrs)
 	c.Assert(err, IsNil)
-	c.Check(dynattrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
+	c.Check(dynattrs["my"], DeepEquals, map[string]any{"attr1": "foo", "attr2": "bar"})
 }
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {

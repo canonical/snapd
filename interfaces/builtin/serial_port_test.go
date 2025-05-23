@@ -754,7 +754,7 @@ func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetected(c *C) {
 	c.Assert(err, IsNil)
 	proposedSlot, err := hotplugIface.HotplugDeviceDetected(di)
 	c.Assert(err, IsNil)
-	c.Assert(proposedSlot, DeepEquals, &hotplug.ProposedSlot{Attrs: map[string]interface{}{"path": "/dev/ttyUSB0", "usb-vendor": "1234", "usb-product": "5678"}})
+	c.Assert(proposedSlot, DeepEquals, &hotplug.ProposedSlot{Attrs: map[string]any{"path": "/dev/ttyUSB0", "usb-vendor": "1234", "usb-product": "5678"}})
 }
 
 func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetectedNotSerialPort(c *C) {

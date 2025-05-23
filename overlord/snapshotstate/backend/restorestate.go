@@ -38,7 +38,7 @@ type RestoreState struct {
 	Created []string `json:"created,omitempty"`
 	Moved   []string `json:"moved,omitempty"`
 	// Config is here for convenience; this package doesn't touch it
-	Config map[string]interface{} `json:"config,omitempty"`
+	Config map[string]any `json:"config,omitempty"`
 }
 
 // Cleanup the backed up data from disk.

@@ -184,7 +184,7 @@ func filename(setID uint64, si *snap.Info) string {
 
 // prepareSave does all the steps of doSave that require the state lock;
 // it has no real significance beyond making the lock handling simpler
-func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg map[string]interface{}, err error) {
+func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg map[string]any, err error) {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -244,7 +244,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 
 // prepareRestore does the steps of doRestore that require the state lock
 // before the backend Restore call.
-func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[string]interface{}, reader *backend.Reader, err error) {
+func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[string]any, reader *backend.Reader, err error) {
 	st := task.State()
 
 	st.Lock()
@@ -269,7 +269,7 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 
 // marshalSnapConfig encodes cfg to JSON and returns raw JSON message, unless
 // cfg is nil - in this case nil is returned.
-func marshalSnapConfig(cfg map[string]interface{}) (*json.RawMessage, error) {
+func marshalSnapConfig(cfg map[string]any) (*json.RawMessage, error) {
 	if cfg == nil {
 		// do not marshal nil - this would result in "null" raw message which
 		// we want to avoid.
@@ -283,12 +283,12 @@ func marshalSnapConfig(cfg map[string]interface{}) (*json.RawMessage, error) {
 	return raw, err
 }
 
-func unmarshalSnapConfig(st *state.State, snapName string) (map[string]interface{}, error) {
+func unmarshalSnapConfig(st *state.State, snapName string) (map[string]any, error) {
 	rawCfg, err := configGetSnapConfig(st, snapName)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot obtain current snap config: %v", err)
 	}
-	var cfg map[string]interface{}
+	var cfg map[string]any
 	if rawCfg != nil {
 		if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
 			return nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
@@ -305,7 +305,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	defer reader.Close()
 
 	st := task.State()
-	logf := func(format string, args ...interface{}) {
+	logf := func(format string, args ...any) {
 		st.Lock()
 		defer st.Unlock()
 		task.Logf(format, args...)
@@ -468,7 +468,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *snap.SnapshotOptions, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]any, []string, *snap.SnapshotOptions, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

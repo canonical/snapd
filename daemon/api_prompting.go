@@ -117,8 +117,8 @@ const (
 type invalidFieldValue struct {
 	Reason invalidReason `json:"reason"`
 	// Value is a []string for unsupported value errors and string for parse errors
-	Value     interface{} `json:"value,omitempty"`
-	Supported []string    `json:"supported,omitempty"`
+	Value     any      `json:"value,omitempty"`
+	Supported []string `json:"supported,omitempty"`
 	// TODO: once documentation exists for user-defined fields
 	// DocumentationURL string `json:"documentation"`
 }

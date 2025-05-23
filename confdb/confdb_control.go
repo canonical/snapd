@@ -92,7 +92,7 @@ func (cc *Control) IsDelegated(operatorID, view string, authMeth []string) (bool
 
 // Groups returns the groups in a format that can be used to assemble the next revision
 // of the confdb-control assertion.
-func (cc *Control) Groups() []interface{} {
+func (cc *Control) Groups() []any {
 	// Group operators by authentication and views
 	// i.e. authentication > views > operator-ids
 	authMap := map[authentication]map[viewRef][]string{}
@@ -114,7 +114,7 @@ func (cc *Control) Groups() []interface{} {
 	// Sort auths for consistent output
 	sort.Slice(auths, func(i, j int) bool { return auths[i] < auths[j] })
 
-	var groups []interface{}
+	var groups []any
 	for _, auth := range auths {
 		authStrs := auth.toStrings()
 
@@ -129,10 +129,10 @@ func (cc *Control) Groups() []interface{} {
 
 		for ops, views := range opGroups {
 			sort.Strings(views)
-			groups = append(groups, map[string]interface{}{
-				"operators":       toInterfaceSlice(strings.Split(ops, ",")),
-				"authentications": toInterfaceSlice(authStrs),
-				"views":           toInterfaceSlice(views),
+			groups = append(groups, map[string]any{
+				"operators":       toAnySlice(strings.Split(ops, ",")),
+				"authentications": toAnySlice(authStrs),
+				"views":           toAnySlice(views),
 			})
 		}
 	}
@@ -344,9 +344,9 @@ func (op operator) clone() *operator {
 	return clone
 }
 
-// toInterfaceSlice converts []string to []interface{}.
-func toInterfaceSlice(strs []string) []interface{} {
-	result := make([]interface{}, len(strs))
+// toAnySlice converts []string to []any.
+func toAnySlice(strs []string) []any {
+	result := make([]any, len(strs))
 	for i, str := range strs {
 		result[i] = str
 	}
