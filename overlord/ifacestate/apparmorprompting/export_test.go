@@ -126,6 +126,15 @@ func MockRequestReply(f func(req *listener.Request, allowedPermission notify.App
 	}
 }
 
+// Export the manager-level ready channel so it can be used in tests.
+func (m *InterfacesRequestsManager) Ready() <-chan struct{} {
+	return m.ready
+}
+
+func MockPromptsHandleReadying(f func(pdb *requestprompts.PromptDB) error) (restore func()) {
+	return testutil.Mock(&promptsHandleReadying, f)
+}
+
 func MockPromptingInterfaceFromTagsets(f func(tagsets notify.TagsetMap) (string, error)) (restore func()) {
 	return testutil.Mock(&promptingInterfaceFromTagsets, f)
 }
