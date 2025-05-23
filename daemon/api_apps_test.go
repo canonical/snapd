@@ -181,8 +181,8 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *appsSuite) expectAppsAccess() {
-	s.expectOpenAccess()
-	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"ros-snapd-support"}})
+	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"ros-snapd-support"}, Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *appsSuite) TestSplitAppName(c *check.C) {
