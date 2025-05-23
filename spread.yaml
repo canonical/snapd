@@ -387,12 +387,12 @@ backends:
         wait-timeout: 5m
         groups: [default]
         environment:
-            HTTP_PROXY: 'http://squid.internal:3128'
-            HTTPS_PROXY: 'http://squid.internal:3128'
-            http_proxy: 'http://squid.internal:3128'
-            https_proxy: 'http://squid.internal:3128'
-            no_proxy: '127.0.0.1,ubuntu.com'
-            NO_PROXY: '127.0.0.1,ubuntu.com'
+            HTTP_PROXY: "http://squid.internal:3128"
+            HTTPS_PROXY: "http://squid.internal:3128"
+            http_proxy: "http://squid.internal:3128"
+            https_proxy: "http://squid.internal:3128"
+            no_proxy: "127.0.0.1,ubuntu.com"
+            NO_PROXY: "127.0.0.1,ubuntu.com"
         systems:
             - ubuntu-20.04-64:
                   image: snapd-spread/ubuntu-20.04-64
@@ -447,12 +447,12 @@ backends:
         wait-timeout: 5m
         groups: [default]
         environment:
-            HTTP_PROXY: 'http://squid.internal:3128'
-            HTTPS_PROXY: 'http://squid.internal:3128'
-            http_proxy: 'http://squid.internal:3128'
-            https_proxy: 'http://squid.internal:3128'
-            no_proxy: '127.0.0.1,ubuntu.com'
-            NO_PROXY: '127.0.0.1,ubuntu.com'
+            HTTP_PROXY: "http://squid.internal:3128"
+            HTTPS_PROXY: "http://squid.internal:3128"
+            http_proxy: "http://squid.internal:3128"
+            https_proxy: "http://squid.internal:3128"
+            no_proxy: "127.0.0.1,ubuntu.com"
+            NO_PROXY: "127.0.0.1,ubuntu.com"
         systems:
             - ubuntu-20.04-arm-64:
                   image: snapd-spread/ubuntu-20.04-arm-64
