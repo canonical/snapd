@@ -61,7 +61,11 @@ func udevadmTrigger(args ...string) error {
 //	udevadm trigger --subsystem-match=input
 //	udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
 func (b *Backend) reloadRules(subsystemTriggers []string) error {
-	if b.preseed {
+	// When running in a container observe the state of host's udev, as such
+	// reloading rules makes no sense, since they are ineffective.
+	// Similarly in preseeding, there is no point in reloading rules which
+	// only affect the runtime standbox.
+	if b.preseed || b.isContainer {
 		return nil
 	}
 
