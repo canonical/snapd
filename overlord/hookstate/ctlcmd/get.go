@@ -164,8 +164,16 @@ func (c *getCommand) Execute(args []string) error {
 	if c.Typed && c.Document {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
-	if c.Previous && !c.View {
-		return fmt.Errorf("cannot use --previous without --view")
+	if c.Previous {
+		if !c.View {
+			return fmt.Errorf("cannot use --previous without --view")
+		}
+
+		hookPref := func(p string) bool { return strings.HasPrefix(context.HookName(), p) }
+		if context == nil || context.IsEphemeral() || !(hookPref("save-view-") ||
+			hookPref("change-view-") || hookPref("observe-view-")) {
+			return fmt.Errorf(`cannot use --previous outside of save-view, change-view or observe-view hooks`)
+		}
 	}
 
 	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
