@@ -49,7 +49,7 @@ func (j *journalTestSuite) SetUpTest(c *C) {
 }
 
 func (j *journalTestSuite) TestStreamFileErrorNoPath(c *C) {
-	jout, err := NewJournalStreamFile(&JournalStreamFileOptions{
+	jout, err := NewJournalStreamFile(JournalStreamFileParams{
 		Identifier: "foobar",
 		Priority:   syslog.LOG_INFO,
 	})
@@ -89,7 +89,7 @@ func (j *journalTestSuite) testStreamFileHeader(c *C, journalDir, namespace stri
 		doneCh <- struct{}{}
 	}()
 
-	jout, err := NewJournalStreamFile(&JournalStreamFileOptions{
+	jout, err := NewJournalStreamFile(JournalStreamFileParams{
 		Namespace:  namespace,
 		Identifier: "foobar",
 		UnitName:   "foobar.service",
