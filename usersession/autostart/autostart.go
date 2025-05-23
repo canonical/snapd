@@ -101,13 +101,19 @@ func (f failedAutostartError) Error() string {
 func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 	var err error
 
-	stdout, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_INFO, false)
+	stdout, err = systemd.NewJournalStreamFile(&systemd.JournalStreamFileOptions{
+		Identifier: identifier,
+		Priority:   syslog.LOG_INFO,
+	})
 	if err != nil {
 		logger.Noticef("failed to set up stdout journal stream for %q: %v", identifier, err)
 		stdout = os.Stdout
 	}
 
-	stderr, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_WARNING, false)
+	stderr, err = systemd.NewJournalStreamFile(&systemd.JournalStreamFileOptions{
+		Identifier: identifier,
+		Priority:   syslog.LOG_WARNING,
+	})
 	if err != nil {
 		logger.Noticef("failed to set up stderr journal stream for %q: %v", identifier, err)
 		stderr = os.Stderr

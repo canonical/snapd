@@ -22,31 +22,43 @@ package systemd_test
 import (
 	"log/syslog"
 	"net"
+	"os"
 	"path"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	. "github.com/snapcore/snapd/systemd"
 )
 
-type journalTestSuite struct{}
+type journalTestSuite struct {
+	journalDir          string
+	journalNamespaceDir string
+}
 
 var _ = Suite(&journalTestSuite{})
 
-func (j *journalTestSuite) TestStreamFileErrorNoPath(c *C) {
-	restore := MockJournalStdoutPath(path.Join(c.MkDir(), "fake-journal"))
-	defer restore()
+func (j *journalTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 
-	jout, err := NewJournalStreamFile("foobar", syslog.LOG_INFO, false)
+	j.journalDir = path.Join(dirs.SnapSystemdRunDir, "journal")
+	c.Assert(os.MkdirAll(j.journalDir, 0755), IsNil)
+
+	j.journalNamespaceDir = path.Join(dirs.SnapSystemdRunDir, "journal.test")
+	c.Assert(os.MkdirAll(j.journalNamespaceDir, 0755), IsNil)
+}
+
+func (j *journalTestSuite) TestStreamFileErrorNoPath(c *C) {
+	jout, err := NewJournalStreamFile(&JournalStreamFileOptions{
+		Identifier: "foobar",
+		Priority:   syslog.LOG_INFO,
+	})
 	c.Assert(err, ErrorMatches, ".*no such file or directory")
 	c.Assert(jout, IsNil)
 }
 
-func (j *journalTestSuite) TestStreamFileHeader(c *C) {
-	fakePath := path.Join(c.MkDir(), "fake-journal")
-	restore := MockJournalStdoutPath(fakePath)
-	defer restore()
-
+func (j *journalTestSuite) testStreamFileHeader(c *C, journalDir, namespace string) {
+	fakePath := path.Join(journalDir, "stdout")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: fakePath})
 	c.Assert(err, IsNil)
 	defer listener.Close()
@@ -61,12 +73,12 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 		c.Assert(err, IsNil)
 		defer conn.Close()
 
-		expectedHdrLen := len("foobar") + 1 + 1 + 2 + 2 + 2 + 2 + 2
+		expectedHdrLen := len("foobar") + 1 + len("foobar.service") + 1 + 2 + 2 + 2 + 2 + 2
 		hdrBuf := make([]byte, expectedHdrLen)
 		hdrLen, err := conn.Read(hdrBuf)
 		c.Assert(err, IsNil)
 		c.Assert(hdrLen, Equals, expectedHdrLen)
-		c.Check(hdrBuf, DeepEquals, []byte("foobar\n\n6\n0\n0\n0\n0\n"))
+		c.Check(hdrBuf, DeepEquals, []byte("foobar\nfoobar.service\n6\n0\n0\n0\n0\n"))
 
 		data := make([]byte, 4096)
 		sz, err := conn.Read(data)
@@ -77,7 +89,12 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 		doneCh <- struct{}{}
 	}()
 
-	jout, err := NewJournalStreamFile("foobar", syslog.LOG_INFO, false)
+	jout, err := NewJournalStreamFile(&JournalStreamFileOptions{
+		Namespace:  namespace,
+		Identifier: "foobar",
+		UnitName:   "foobar.service",
+		Priority:   syslog.LOG_INFO,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(jout, NotNil)
 
@@ -86,4 +103,12 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 	defer jout.Close()
 
 	<-doneCh
+}
+
+func (j *journalTestSuite) TestStreamFileHeader(c *C) {
+	j.testStreamFileHeader(c, j.journalDir, "")
+}
+
+func (j *journalTestSuite) TestNamespaceStream(c *C) {
+	j.testStreamFileHeader(c, j.journalNamespaceDir, "test")
 }
