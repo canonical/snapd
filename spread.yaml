@@ -395,49 +395,49 @@ backends:
             NO_PROXY: '127.0.0.1,ubuntu.com'
         systems:
             - ubuntu-20.04-64:
-                image: snapd-spread/ubuntu-20.04-64
-                workers: 8
+                  image: snapd-spread/ubuntu-20.04-64
+                  workers: 8
             - ubuntu-22.04-64:
-                image: snapd-spread/ubuntu-22.04-64
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-64
+                  workers: 8
             - ubuntu-24.04-64:
-                image: snapd-spread/ubuntu-24.04-64
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-64
+                  workers: 8
 
             - ubuntu-core-20-64:
-                image: snapd-spread/ubuntu-20.04-64-uefi
-                workers: 8
+                  image: snapd-spread/ubuntu-20.04-64-uefi
+                  workers: 8
             - ubuntu-core-22-64:
-                image: snapd-spread/ubuntu-22.04-64-uefi
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-64-uefi
+                  workers: 8
             - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-64-uefi
+                  workers: 8
 
             - fedora-40-64:
-                image: snapd-spread/fedora-40-64
-                workers: 6
+                  image: snapd-spread/fedora-40-64
+                  workers: 6
             - fedora-41-64:
-                image: snapd-spread/fedora-41-64
-                workers: 6
-    
+                  image: snapd-spread/fedora-41-64
+                  workers: 6
+
             - opensuse-15.6-64:
-                image: snapd-spread/opensuse-15.6-64
-                workers: 6
+                  image: snapd-spread/opensuse-15.6-64
+                  workers: 6
             - opensuse-tumbleweed-64:
-                image: snapd-spread/opensuse-tumbleweed-64
-                workers: 6
+                  image: snapd-spread/opensuse-tumbleweed-64
+                  workers: 6
 
             - centos-9-64:
-                image: snapd-spread/centos-9-64
-                workers: 6
+                  image: snapd-spread/centos-9-64
+                  workers: 6
 
             - debian-12-64:
-                image: snapd-spread/debian-12-64
-                workers: 6
+                  image: snapd-spread/debian-12-64
+                  workers: 6
             - debian-sid-64:
-                image: snapd-spread/debian-sid-64
-                workers: 6
+                  image: snapd-spread/debian-sid-64
+                  workers: 6
 
     openstack-arm:
         type: openstack
@@ -455,20 +455,20 @@ backends:
             NO_PROXY: '127.0.0.1,ubuntu.com'
         systems:
             - ubuntu-20.04-arm-64:
-                image: snapd-spread/ubuntu-20.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-20.04-arm-64
+                  workers: 8
             - ubuntu-22.04-arm-64:
-                image: snapd-spread/ubuntu-22.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-arm-64
+                  workers: 8
             - ubuntu-24.04-arm-64:
-                image: snapd-spread/ubuntu-24.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-arm-64
+                  workers: 8
             - ubuntu-core-22-arm-64:
-                image: snapd-spread/ubuntu-22.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-arm-64
+                  workers: 8
             - ubuntu-core-24-arm-64:
-                image: snapd-spread/ubuntu-24.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-arm-64
+                  workers: 8
 
     qemu-nested:
         memory: 4G
