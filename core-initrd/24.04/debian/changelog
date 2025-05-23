@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (69+2.69+g139.0b18e2d+24.04) noble; urgency=medium
+
+  * Update to snapd version 2.69+g139.0b18e2d
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Wed, 21 May 2025 15:31:34 -0400
+
 ubuntu-core-initramfs (69+2.69+g104.4871148+24.04) noble; urgency=medium
 
   * Update to snapd version 2.69+g104.4871148
