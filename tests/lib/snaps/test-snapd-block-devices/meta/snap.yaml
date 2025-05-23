@@ -1,0 +1,20 @@
+name: test-snapd-block-devices
+version: 1.0
+architectures: ["all"]
+base: core24
+
+apps:
+    sh:
+        command: bin/sh
+        plugs:
+            - block-devices
+
+    sh-with-partitions:
+        command: bin/sh
+        plugs:
+            - block-devices-with-partitions
+
+plugs:
+    block-devices-with-partitions:
+        interface: block-devices
+        allow-partitions: true

@@ -20,9 +20,6 @@ apps:
   avahi-control:
     command: bin/run
     plugs: [ avahi-control ]
-  block-devices:
-    command: bin/run
-    plugs: [ block-devices ]
   camera:
     command: bin/run
     plugs: [ camera ]
