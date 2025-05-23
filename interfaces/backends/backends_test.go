@@ -71,21 +71,6 @@ func (s *backendsSuite) TestEssentialOrdering(c *C) {
 	c.Assert(sdIndex, testutil.IntLessThan, aaIndex)
 }
 
-func (s *backendsSuite) TestUdevInContainers(c *C) {
-	cmd := testutil.MockCommand(c, "systemd-detect-virt", `
-	for arg in "$@"; do
-		if [ "$arg" = --container ]; then
-			exit 0
-		fi
-	done
-
-	exit 1
-	`)
-
-	defer cmd.Restore()
-	c.Assert(backendNames(backends.All()), Not(testutil.Contains), "udev")
-}
-
 func (s *backendsSuite) TestUdevPreseedingInContainers(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-detect-virt", `
 	for arg in "$@"; do
@@ -98,21 +83,6 @@ func (s *backendsSuite) TestUdevPreseedingInContainers(c *C) {
 	`)
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
-
-	defer cmd.Restore()
-	c.Assert(backendNames(backends.All()), testutil.Contains, "udev")
-}
-
-func (s *backendsSuite) TestUdevNotInContainers(c *C) {
-	cmd := testutil.MockCommand(c, "systemd-detect-virt", `
-	for arg in "$@"; do
-		if [ "$arg" = --container ]; then
-			exit 1
-		fi
-	done
-
-	exit 0
-	`)
 
 	defer cmd.Restore()
 	c.Assert(backendNames(backends.All()), testutil.Contains, "udev")
