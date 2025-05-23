@@ -370,6 +370,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getGadgetDiskMapping(st)
 	case "disks":
 		return getDisks(st)
+	case "raa":
+		return getRAAInfo(st)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
