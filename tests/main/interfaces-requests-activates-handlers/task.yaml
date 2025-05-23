@@ -24,6 +24,7 @@ prepare: |
 restore: |
     tests.exec is-skipped && exit 0
 
+    snap unset system experimental.user-daemons
     snap remove --purge test-snapd-prompt-handler || true
     tests.session -u test restore
 
