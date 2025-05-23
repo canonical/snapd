@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
+	 "github.com/snapcore/snapd/asserts"
 )
 
 type preinstallSuite struct {
@@ -113,7 +114,7 @@ func (s *preinstallSuite) TestPreinstallCheckHappy(c *C) {
 	})
 	defer restore()
 
-	err := secboot.PreinstallCheck(secboot.TPMProvisionFull)
+	err := secboot.PreinstallCheck(&asserts.Model{}, secboot.TPMProvisionFull)
 	c.Assert(err, IsNil)
 }
 
