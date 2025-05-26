@@ -335,9 +335,9 @@ func (s *envSuite) TestExpandEnvVariable(c *C) {
 	env := osutil.Environment{
 		"LD_LIBRARY_PATH": "/usr/lib:/usr/local/lib",
 		"TMPDIR":          "/var/tmp",
-		"A": "foo",
-		"B": "bad-value",
-		"D_default": "default",
+		"A":               "foo",
+		"B":               "bad-value",
+		"D_default":       "default",
 	}
 
 	env.ExtendWithExpanded(osutil.NewExpandableEnv(
@@ -345,7 +345,7 @@ func (s *envSuite) TestExpandEnvVariable(c *C) {
 		"PATH", "${PATH:+$PATH:}/usr/local/bin",
 		"TMPDIR", "${TMPDIR:-this-wont-be}",
 		"NOEXISTS", "${NOEXITS:-a-new-value}",
-		"A","${A:+}",
+		"A", "${A:+}",
 		"B", "${B:+goodvalue}",
 		"C", "${C:-}",
 		"D", "${D:-$D_default}",
@@ -354,5 +354,10 @@ func (s *envSuite) TestExpandEnvVariable(c *C) {
 		"LD_LIBRARY_PATH": "/usr/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu",
 		"NOEXISTS":        "a-new-value",
 		"TMPDIR":          "/var/tmp",
-		"PATH":            "/usr/local/bin"})
+		"PATH":            "/usr/local/bin",
+		"A":               "",
+		"B":               "goodvalue",
+		"C":               "",
+		"D":               "default",
+		"D_default":       "default"})
 }
