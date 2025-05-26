@@ -159,6 +159,10 @@ class DirRetriever(Retriever):
             raise RuntimeError(f'directory {dir} does not exist')
         self.dir = dir
 
+    @staticmethod
+    def __get_filename_without_last_ext(filename):
+        return filename.rsplit('.', 1)[0]
+
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
         dictionary = defaultdict(list)
         for timestamp in os.listdir(self.dir):
@@ -167,7 +171,7 @@ class DirRetriever(Retriever):
                 continue
             for filename in os.listdir(timestamp_path):
                 if filename.endswith('.json'):
-                    system = filename.rsplit('.', 1)[0]
+                    system = self.__get_filename_without_last_ext(filename)
                     dictionary[timestamp].append(system)
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
 
@@ -177,7 +181,7 @@ class DirRetriever(Retriever):
             raise RuntimeError(
                 f'timestamp {timestamp} not present in dir {self.dir}')
         for filename in os.listdir(timestamp_dir):
-            if filename.endswith('.json') and (not systems or filename.rsplit('.', 1)[0] in systems):
+            if filename.endswith('.json') and (not systems or self.__get_filename_without_last_ext(filename) in systems):
                 with open(os.path.join(timestamp_dir, filename), 'r', encoding='utf-8') as f:
                     yield json.load(f)
 
