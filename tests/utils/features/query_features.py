@@ -76,7 +76,7 @@ class Retriever(ABC):
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
         '''
         Gets the complete list of all timestamps and the systems run under each timestamp.
-        Format: [{"timestamp":\<timestamp\>,"systems":[\<system1\>,...,\<systemN\>]}]
+        Format: [{"timestamp":<timestamp>,"systems":[<system1>,...,<systemN>]}]
         '''
 
     @classmethod
@@ -146,10 +146,10 @@ class DirRetriever(Retriever):
     '''
     Retrieves features tagging data from the filesystem.
     It assumes data is saved in the following structure:
-     \<dir\>/\<timestamp\>/\<system\>.json.
+     <dir>/<timestamp>/<system>.json.
     To populate a directory with data from mongo, do the following:
 
-    ./query_features.py export -f /mongo/creds.json -o /write/dir -t \<timestamp1\> .. \<timestampN\> -s \<system1\> .. \<systemN\>
+    ./query_features.py export -f /mongo/creds.json -o /write/dir -t <timestamp1> .. <timestampN> -s <system1> .. <systemN>
 
     Then one can use /write/dir as a data source with this retriever
     '''
@@ -217,12 +217,12 @@ def consolidate_system_features(system_json: SystemFeatures, include_tasks: Iter
 
 def minus(first: dict[str, list], second: dict[str, list]) -> dict:
     '''
-    Creates a new dictionary of first \ second calculated on values.
+    Creates a new dictionary of first - second calculated on values.
 
     Ex: 
     first = {"a":["b","c"],"d":["e"]}; second = {"a":["c"], "q":[]}
 
-    first \ second == {"a":["b"],"d":["e"]}
+    first - second == {"a":["b"],"d":["e"]}
     '''
     minus = {}
     for feature, feature_list in first.items():
@@ -251,7 +251,7 @@ def list_tasks(system_json: SystemFeatures, remove_failed: bool) -> set[TaskIdVa
 
 def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, system2: str, remove_failed: bool, only_same: bool) -> dict:
     '''
-    Calculates set(system1_features) \ set(system2_features), each at their
+    Calculates set(system1_features) - set(system2_features), each at their
     respective timestamps. 
 
     :param remove_failed: if true, will remove all instances of tests where success == False
@@ -315,7 +315,7 @@ def dup(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) 
 
 def export(retriever: Retriever, output: str, timestamps: list[str], systems: list[str] = None):
     '''
-    Writes the feature data to the output directory in format \<dir\>/\<timestamp\>/\<system\>.json.
+    Writes the feature data to the output directory in format <dir>/<timestamp>/<system>.json.
     It creates one directory for each supplied timestamp, and will write one json file for each system
     in that timestamp and present in the systems list. If the systems list is None, then it will write
     all systems at each supplied timestamp.
@@ -329,7 +329,7 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
 
 def add_diff_parser(subparsers):
     diff_description = '''
-        Calculates feature diff between two systems: set(features_1) \ set(features_2).
+        Calculates feature diff between two systems: set(features_1) - set(features_2).
         You can specify either a json file with credentials for mongodb or a directory with features output.
         If using a directory, the directory format must be <dir>/<timestamp1>/<system1>.json and 
         <dir>/<timestamp2>/<system2>.json.
@@ -358,7 +358,7 @@ def add_dup_parser(subparsers):
     dup_description = '''
         For each task present in the indicated system under the indicated timestamp,
         calculates the difference between that task's features and the system's 
-        without the task: set(task_features) \ set(system_features without task).
+        without the task: set(task_features) - set(system_features without task).
         If the difference is ever empty, then that task is printed to console as
         a duplicate feature.
 
