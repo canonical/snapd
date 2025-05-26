@@ -775,6 +775,11 @@ func (mod *Model) Timestamp() time.Time {
 	return mod.timestamp
 }
 
+// IsHybrid reports whether the model is a hybrid, meaning it is both classic and has an associated kernel snap.
+func (mod *Model) IsHybrid() bool {
+	return mod.classic && mod.kernelSnap != nil
+}
+
 // Implement further consistency checks.
 func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// TODO: double check trust level of authority depending on class and possibly allowed-modes

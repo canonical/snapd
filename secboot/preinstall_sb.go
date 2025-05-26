@@ -23,11 +23,20 @@ package secboot
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	sb_efi "github.com/snapcore/secboot/efi"
 	"github.com/snapcore/secboot/efi/preinstall"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/systemd"
+)
+
+const (
+	hybridBootloaderShimGlob = "/cdrom/EFI/boot/boot*.efi"
+	hybridBootloaderGrubGlob = "/cdrom/EFI/boot/grub*.efi"
+	hybridKernelFile         = "/cdrom/casper/vmlinuz"
 )
 
 var (
@@ -123,28 +132,64 @@ func newInternalErrorUnexpectedType(err error) PreinstallErrorAndActions {
 
 // PreinstallCheck runs preinstall checks without customization or profile generation options.
 func PreinstallCheck(model *asserts.Model, tpmMode TPMProvisionMode) error {
-	isHybrid := model.Classic() && model.KernelSnap() != nil
-	if isHybrid {
-		// XXX: Need to return compound error to be consistent with preinstallRun
-		return CheckTPMKeySealingSupported(tpmMode)
+	if model.IsHybrid() {
+		// XXX: Expect preinstallNewRunChecksContext to require tpmMode in order to evaluate
+		// lockout when required. Complete implementation after preinstallNewRunChecksContext
+		// is modified.
+		_ = tpmMode
+
+		// XXX: Suggest also providing default value for check flags.
+		checkCustomizationFlags := preinstall.CheckFlags(0)
+		if snapdenv.Testing() && systemd.IsVirtualMachine() {
+			// allow virtual machine when testing
+			checkCustomizationFlags |= preinstall.PermitVirtualMachine
+		}
+
+		// do not customize TCG compliant PCR profile generation
+		profileOptionFlags := preinstall.PCRProfileOptionsDefault
+		// no image required because we avoid profile option flags WithBootManagerCodeProfile and WithSecureBootPolicyProfile
+		loadedImages := []sb_efi.Image{}
+		checksContext := preinstallNewRunChecksContext(checkCustomizationFlags, loadedImages, profileOptionFlags)
+
+		// no actions args due to no actions for preinstall checks
+		args := []any{}
+		// Ignore the returned *preinstall.CheckResult
+		_, err := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args...)
+		return err
 	}
 
-	// XXX: Expect preinstallNewRunChecksContext to require tpmMode in order to evaluate
-	// lockout when required. Complete implementation after preinstallNewRunChecksContext
-	// is modified.
-	_ = tpmMode
+	// Ubuntu Core systems continue to use the simpler check because we expect
+	// corner cases where previously allowed installations will be blocked by the
+	// RunChecksContext API.
+	// TODO: Transition Ubuntu Core to use the RunChecksContextAPI.
+	// XXX: Need to return compound error to be consistent with preinstallRun.
+	return CheckTPMKeySealingSupported(tpmMode)
+}
 
-	// do not customize preinstall checks
-	checkCustomizationFlags := preinstall.CheckFlags(0)
-	// do not customize TCG compliant PCR profile generation
-	profileOptionFlags := preinstall.PCRProfileOptionsFlags(0)
-	// no image required because we avoid profile option flags WithBootManagerCodeProfile and WithSecureBootPolicyProfile
-	loadedImages := []sb_efi.Image{}
-	checksContext := preinstallNewRunChecksContext(checkCustomizationFlags, loadedImages, profileOptionFlags)
+func hybridInstallerLoadedImages() ([]sb_efi.Image, error) {
+	imageInfo := []struct {
+		name string
+		glob string
+	}{
+		{"shim", hybridBootloaderShimGlob},
+		{"grub", hybridBootloaderGrubGlob},
+		{"kernel", hybridKernelFile},
+	}
 
-	// no actions args due to no actions for preinstall checks
-	args := []any{}
-	// Ignore the returned *preinstall.CheckResult
-	_, err := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args...)
-	return err
+	var loadedImages []sb_efi.Image
+	for _, info := range imageInfo {
+		matches, err := filepath.Glob(info.glob)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot use globbing pattern %q: %v", info.glob, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("cannot locate installer %s using globbing pattern %q", info.name, info.glob)
+		}
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
+		}
+		loadedImages = append(loadedImages, sb_efi.NewFileImage(matches[0]))
+	}
+
+	return loadedImages, nil
 }
