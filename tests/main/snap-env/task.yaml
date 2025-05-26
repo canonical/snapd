@@ -35,8 +35,9 @@ execute: |
     "$NAME".env | grep -E '^XDG_' | sort > xdg-vars.txt
     "$NAME".env | grep -E '^EXTRA_' | sort > extra-vars.txt
 
-    echo "Collect PATH and HOME environment variables"
-    "$NAME".env | grep -E '^(SNAP|PATH|HOME)=' | sort > misc-vars.txt
+    echo "Collect PATH, HOME and SHELL environment variables"
+    "$NAME".env | grep -E '^(SNAP|PATH|HOME|SHELL)=' | sort > misc-vars.txt
+    SHELL=/bin/sh "$NAME".env | grep -E '^SHELL=' | sort > custom-sh-vars.txt
 
     echo "Ensure that SNAP environment variables are what we expect"
     MATCH '^SNAP_ARCH=(amd64|arm64|armhf|ppc64el|s390x)$'                 < snap-vars.txt
@@ -93,6 +94,8 @@ execute: |
     # parallel-installs: $SNAP is remapped to appear under $SNAP_NAME
     MATCH "^SNAP=/snap/test-snapd-tools/x1$"                                                                < misc-vars.txt
     MATCH '^PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games$' < misc-vars.txt
+    MATCH '^SHELL=/bin/bash$' < misc-vars.txt
+    MATCH '^SHELL=/bin/bash$' < custom-sh-vars.txt
     # parallel-installs: $HOME is set to instance specific path
     MATCH "^HOME=/root/snap/$NAME/x1$"                                                                      < misc-vars.txt
-    test "$(wc -l < misc-vars.txt)" -eq 3
+    test "$(wc -l < misc-vars.txt)" -eq 4

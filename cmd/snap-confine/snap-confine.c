@@ -898,7 +898,7 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
     // assume it makes sense for the core snap layout. Note that the /usr/local
     // directories are explicitly left out as they are not part of the core
     // snap.
-    debug("resetting PATH to values in sync with core snap");
+    debug("resetting PATH and SHELL to values in sync with core snap");
     setenv("PATH",
            "/usr/local/sbin:"
            "/usr/local/bin:"
@@ -909,6 +909,12 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
            "/usr/games:"
            "/usr/local/games",
            1);
+
+    // Reset SHELL for non-classic snaps to /bin/bash which is present in core,
+    // core18, core20, core22 and core24. The bare base snap does not have a shell
+    // so no special case is necessary there.
+    setenv("SHELL", "/bin/bash", 1);
+
     // Ensure we set the various TMPDIRs to /tmp. One of the parts of setting
     // up the mount namespace is to create a private /tmp directory (this is
     // done in sc_populate_mount_ns() above). The host environment may point to
