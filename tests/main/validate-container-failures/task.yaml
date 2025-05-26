@@ -26,9 +26,9 @@ execute: |
     tr -s '\n ' ' ' < error.log | MATCH 'contact developer'
 
     echo "And the journal counts the ways"
-    "$TESTSTOOLS"/journal-state match-log '[\]{0,1}"comp.sh[\]{0,1}" should be world-readable' -u snapd
-    "$TESTSTOOLS"/journal-state match-log '[\]{0,1}"bin/bar[\]{0,1}" should be executable' -u snapd
-    "$TESTSTOOLS"/journal-state match-log '[\]{0,1}"bin/foo[\]{0,1}" should be world-readable and executable' -u snapd
-    "$TESTSTOOLS"/journal-state match-log '[\]{0,1}"meta/unreadable[\]{0,1}" should be world-readable' -u snapd
-    "$TESTSTOOLS"/journal-state match-log '[\]{0,1}"meta/hooks/what[\]{0,1}" should be executable' -u snapd
-    "$TESTSTOOLS"/journal-state match-log '[\]{0,1}"bin/stahp[\]{0,1}" does not exist' -u snapd
+    "$TESTSTOOLS"/journal-state match-log '[\]?"comp.sh[\]?" should be world-readable' -u snapd
+    "$TESTSTOOLS"/journal-state match-log '[\]?"bin/bar[\]?" should be executable' -u snapd
+    "$TESTSTOOLS"/journal-state match-log '[\]?"bin/foo[\]?" should be world-readable and executable' -u snapd
+    "$TESTSTOOLS"/journal-state match-log '[\]?"meta/unreadable[\]?" should be world-readable' -u snapd
+    "$TESTSTOOLS"/journal-state match-log '[\]?"meta/hooks/what[\]?" should be executable' -u snapd
+    "$TESTSTOOLS"/journal-state match-log '[\]?"bin/stahp[\]?" does not exist' -u snapd
