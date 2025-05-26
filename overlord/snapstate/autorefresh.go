@@ -342,6 +342,8 @@ func (m *autoRefresh) Ensure() (err error) {
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "autoRefresh.Ensure")
+
 	now := time.Now()
 	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
@@ -477,6 +479,8 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 	if !seedTime.IsZero() {
 		return
 	}
+
+	logger.Trace("ensure", "manager", "SnapManager", "func", "autoRefresh.ensureLastRefreshAnchor")
 
 	// last core refresh
 	coreRefreshDate := snap.InstallDate("core")

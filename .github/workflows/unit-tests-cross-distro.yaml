@@ -1,3 +1,5 @@
+name: Run unit tests cross-distro
+
 on:
   workflow_call:
     inputs:
@@ -33,6 +35,7 @@ jobs:
         distroname="$(echo "${{ inputs.distro }}" | tr : - | tr / -)"
         case "${{ inputs.distro }}" in
         fedora:*)
+            dnf upgrade -y
             dnf install -y rpmdevtools
             dnf install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
             # TODO these are needed only by cmd/snap-seccomp unit tests, and
@@ -44,8 +47,12 @@ jobs:
             dnf install -y python3-beautifulsoup4 # required by release-tools
             dnf install -y python3-debian # required by release-tools
             dnf install -y python3-flake8 # required by release-tools
+            # TODO drop; workaround for valgrind 3.25 causing EINVAL in
+            # glib test subprocess and thus failing the unit tests
+            dnf remove -y valgrind
             ;;
         opensuse/*)
+            zypper --non-interactive dup -y
             zypper --non-interactive install -y rpmdevtools rpm-build git
             zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
             zypper --non-interactive install -y llvm-clang # required by run-checks

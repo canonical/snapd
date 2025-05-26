@@ -220,7 +220,6 @@ echo '{"features":[]}'
 
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -253,6 +252,8 @@ echo '{"features":[]}'
 	c.Assert(nextBooEnsured, Equals, true)
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
 	c.Check(setBootstrappedContainersCalled, Equals, 1)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresent(c *C) {
@@ -379,7 +380,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -403,6 +403,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 	c.Assert(gadgetInstallCalled, Equals, true)
 	c.Assert(nextBootEnsured, Equals, true)
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c *C) {
@@ -425,7 +427,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -441,6 +442,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
+
+	checkSnapdMountUnit(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook(c *C) {
@@ -470,7 +473,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
@@ -486,4 +488,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
+
+	checkSnapdMountUnit(c)
 }

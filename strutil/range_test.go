@@ -20,8 +20,9 @@
 package strutil_test
 
 import (
-	"github.com/snapcore/snapd/strutil"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 type rangeSuite struct{}
@@ -42,6 +43,7 @@ func (s *rangeSuite) TestParseRange(c *C) {
 	c.Check(r.Intersects(strutil.RangeSpan{0, 1}), Equals, true)
 	c.Check(r.Intersects(strutil.RangeSpan{5, 20}), Equals, true)
 	c.Check(r.Intersects(strutil.RangeSpan{5, 5}), Equals, false)
+	c.Check(r.String(), Equals, "0,2,3,20-100")
 }
 
 func (s *rangeSuite) TestParseRangeError(c *C) {
@@ -71,4 +73,20 @@ func (s *rangeSuite) TestParseRangeError(c *C) {
 
 	_, err = strutil.ParseRange("2-1")
 	c.Assert(err, ErrorMatches, `invalid range span "2-1": ends before it starts`)
+}
+
+func (s *rangeSuite) TestString(c *C) {
+	for _, tc := range []struct {
+		input, expected string
+	}{
+		{"2,1", "1,2"},
+		{"4,0,2-3,1", "0,1,2-3,4"},
+		{"0-10000", "0-10000"},
+		{"10", "10"},
+	} {
+		r, err := strutil.ParseRange(tc.input)
+		c.Assert(err, IsNil)
+		c.Check(r.String(), Equals, tc.expected, Commentf("input: %q, expected: %q", tc.input, tc.expected))
+	}
+
 }

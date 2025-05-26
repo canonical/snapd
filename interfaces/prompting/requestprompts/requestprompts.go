@@ -23,17 +23,21 @@ package requestprompts
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
@@ -61,6 +65,7 @@ type Prompt struct {
 	ID           prompting.IDType
 	Timestamp    time.Time
 	Snap         string
+	PID          int32
 	Interface    string
 	Constraints  *promptConstraints
 	listenerReqs []*listener.Request
@@ -71,6 +76,7 @@ type jsonPrompt struct {
 	ID          prompting.IDType       `json:"id"`
 	Timestamp   time.Time              `json:"timestamp"`
 	Snap        string                 `json:"snap"`
+	PID         int32                  `json:"pid"`
 	Interface   string                 `json:"interface"`
 	Constraints *jsonPromptConstraints `json:"constraints"`
 }
@@ -94,6 +100,7 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		ID:          p.ID,
 		Timestamp:   p.Timestamp,
 		Snap:        p.Snap,
+		PID:         p.PID,
 		Interface:   p.Interface,
 		Constraints: constraints,
 	}
@@ -122,11 +129,18 @@ func (p *Prompt) sendReply(outcome prompting.OutcomeType) error {
 func (p *Prompt) sendReplyWithPermission(allowedPermission notify.AppArmorPermission) error {
 	for _, listenerReq := range p.listenerReqs {
 		if err := sendReply(listenerReq, allowedPermission); err != nil {
-			// Error should only occur if reply is malformed, and since these
-			// listener requests should be identical, if a reply is malformed
-			// for one, it should be malformed for all. Malformed replies should
-			// leave the listener request unchanged. Thus, return early.
-			return err
+			if errors.Is(err, unix.ENOENT) {
+				// If err is ENOENT, then notification with the given ID does not
+				// exist, so it timed out in the kernel.
+				logger.Debugf("kernel returned ENOENT from APPARMOR_NOTIF_SEND for request (notification probably timed out): %+v", listenerReq)
+			} else {
+				// Other errors should only occur if reply is malformed, and
+				// since these listener requests should be identical, if a
+				// reply is malformed for one, it should be malformed for all.
+				// Malformed replies should leave the listener request
+				// unchanged. Thus, return early.
+				return err
+			}
 		}
 	}
 	return nil
@@ -404,9 +418,19 @@ type PromptDB struct {
 // notifyPrompt is called with the prompt DB lock held, so it should not block
 // for a substantial amount of time (such as to lock and modify snapd state).
 func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
-	maxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
-	if err := os.MkdirAll(dirs.SnapRunDir, 0o755); err != nil {
-		return nil, err
+	legacyMaxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
+	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create interfaces requests run directory: %w", err)
+	}
+	if !osutil.FileExists(maxIDFilepath) && osutil.FileExists(legacyMaxIDFilepath) {
+		// Previous snapd stored max ID file in the snapd run dir, so link it
+		// to the new location, so snapd doesn't reuse prompt IDs. Link instead
+		// of moving in case snapd reverts and wants to use the old location
+		// again.
+		if err := osutil.AtomicLink(legacyMaxIDFilepath, maxIDFilepath); err != nil {
+			return nil, err
+		}
 	}
 	maxIDMmap, err := maxidmmap.OpenMaxIDMmap(maxIDFilepath)
 	if err != nil {
@@ -473,7 +497,13 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 
 	// Search for an identical existing prompt, merge if found
 	for _, prompt := range userEntry.prompts {
-		if prompt.Snap == metadata.Snap && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+		if prompt.Snap == metadata.Snap && prompt.PID == metadata.PID && prompt.Interface == metadata.Interface && prompt.Constraints.equals(constraints) {
+			// PID must be identical in order to merge, in case multiple
+			// requests come in with different PIDs, so that the client can
+			// present the modal dialog on any/all windows associated with the
+			// requests. A reply to any prompt which is identical aside from
+			// the PID should handle all those otherwise-identical prompts, so
+			// long as the lifespan is not "single".
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
 			// Although the prompt itself has not changed, re-record a notice
 			// to re-notify clients to respond to this request. A client may
@@ -499,6 +529,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		ID:           id,
 		Timestamp:    timestamp,
 		Snap:         metadata.Snap,
+		PID:          metadata.PID,
 		Interface:    metadata.Interface,
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},

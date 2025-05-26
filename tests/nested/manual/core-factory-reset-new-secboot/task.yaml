@@ -24,6 +24,8 @@ environment:
     NESTED_ENABLE_TPM/tpm: true
     NESTED_ENABLE_SECURE_BOOT/tpm: true
 
+    NESTED_KERNEL_REMOVE_COMPONENTS: true
+
 prepare: |
     if [ "${ENCRYPTION}" = hook ]; then
        mkdir -p ./extra-initrd/usr/bin/

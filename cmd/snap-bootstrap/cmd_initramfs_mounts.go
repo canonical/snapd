@@ -302,12 +302,12 @@ func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	return ok, nil
 }
 
-func readSnapInfoFromPath(path string) (*snap.Info, error) {
-	snapf, err := snapfile.Open(path)
+func readSnapInfoFromSeed(seedSnap *seed.Snap) (*snap.Info, error) {
+	snapf, err := snapfile.Open(seedSnap.Path)
 	if err != nil {
 		return nil, err
 	}
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	info, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
 	if err != nil {
 		return nil, err
 
@@ -328,7 +328,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	var baseSnap *snap.Info
 	if createSysrootMount() {
 		// On UC24+ the base is not mounted yet, peek into the file
-		baseSnap, err = readSnapInfoFromPath(sysSnaps[snap.TypeKernel].Path)
+		baseSnap, err = readSnapInfoFromSeed(sysSnaps[snap.TypeBase])
 	} else {
 		baseSnap, err = readSnapInfo(sysSnaps, snap.TypeBase)
 	}
@@ -489,6 +489,17 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 
+	// Now we can write the snapd mount unit (needed as this is the first boot)
+	// It is debatable if we are in run mode or not as after installation
+	// from initramfs we run as normal, but anyway this does not change
+	// anything as this code is run only by UC.
+	isRunMode := false
+	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
+	snapdSeed := sysSnaps[snap.TypeSnapd]
+	if err := setupSeedSnapdSnap(rootfsDir, snapdSeed); err != nil {
+		return err
+	}
+
 	if preseed {
 		// Extract pre-seed tarball
 		runMode := false
@@ -503,12 +514,12 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	// happens because on UC /etc/fstab is changed and systemd's
 	// initrd-parse-etc.service does the reload, as it detects entries with the
 	// x-initrd.mount option.
-	rootfsDir := filepath.Join(boot.InitramfsDataDir, "system-data")
 	hasDriversTree, err := createKernelMounts(
 		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
 	if err != nil {
 		return err
 	}
+
 	if hasDriversTree {
 		// Unmount the kernel snap mount, we keep it only for UC20/22
 		stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", kernelMountDir)
@@ -566,7 +577,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 		}
 		return nil
 	} else {
-		if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
+		if err := generateMountsCommonInstallRecoverContinue(model, snaps); err != nil {
 			return err
 		}
 
@@ -778,50 +789,10 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 	return nil
 }
 
-// states for partition state
-const (
-	// states for LocateState
-	partitionFound      = "found"
-	partitionNotFound   = "not-found"
-	partitionErrFinding = "error-finding"
-	// states for MountState
-	partitionMounted          = "mounted"
-	partitionErrMounting      = "error-mounting"
-	partitionAbsentOptional   = "absent-but-optional"
-	partitionMountedUntrusted = "mounted-untrusted"
-	// states for UnlockState
-	partitionUnlocked     = "unlocked"
-	partitionErrUnlocking = "error-unlocking"
-	// keys used to unlock for UnlockKey
-	keyRun      = "run"
-	keyFallback = "fallback"
-	keyRecovery = "recovery"
-)
-
 // partitionState is the state of a partition after recover mode has completed
 // for degraded mode.
 type partitionState struct {
-	// MountState is whether the partition was mounted successfully or not.
-	MountState string `json:"mount-state,omitempty"`
-	// MountLocation is where the partition was mounted.
-	MountLocation string `json:"mount-location,omitempty"`
-	// Device is what device the partition corresponds to. It can be the
-	// physical block device if the partition is unencrypted or if it was not
-	// successfully unlocked, or it can be a decrypted mapper device if the
-	// partition was encrypted and successfully decrypted, or it can be the
-	// empty string (or missing) if the partition was not found at all.
-	Device string `json:"device,omitempty"`
-	// FindState indicates whether the partition was found on the disk or not.
-	FindState string `json:"find-state,omitempty"`
-	// UnlockState was whether the partition was unlocked successfully or not.
-	UnlockState string `json:"unlock-state,omitempty"`
-	// UnlockKey was what key the partition was unlocked with, either "run",
-	// "fallback" or "recovery".
-	UnlockKey string `json:"unlock-key,omitempty"`
-
-	// unexported internal fields for tracking the device, these are used during
-	// state machine execution, and then combined into Device during finalize()
-	// for simple representation to the consumer of degraded.json
+	boot.PartitionState
 
 	// fsDevice is what decrypted mapper device corresponds to the
 	// partition, it can have the following states
@@ -837,15 +808,31 @@ type partitionState struct {
 type recoverDegradedState struct {
 	// UbuntuData is the state of the ubuntu-data (or ubuntu-data-enc)
 	// partition.
-	UbuntuData partitionState `json:"ubuntu-data,omitempty"`
+	UbuntuData partitionState
 	// UbuntuBoot is the state of the ubuntu-boot partition.
-	UbuntuBoot partitionState `json:"ubuntu-boot,omitempty"`
+	UbuntuBoot partitionState
 	// UbuntuSave is the state of the ubuntu-save (or ubuntu-save-enc)
 	// partition.
-	UbuntuSave partitionState `json:"ubuntu-save,omitempty"`
-	// ErrorLog is the log of error messages encountered during recover mode
-	// setting up degraded mode.
-	ErrorLog []string `json:"error-log"`
+	UbuntuSave partitionState
+
+	ErrorLog []string
+}
+
+func (r *recoverDegradedState) serializeTo(name string) error {
+	exportState := &boot.DiskUnlockState{
+		UbuntuData: r.UbuntuData.PartitionState,
+		UbuntuBoot: r.UbuntuBoot.PartitionState,
+		UbuntuSave: r.UbuntuSave.PartitionState,
+		ErrorLog:   r.ErrorLog,
+	}
+
+	return exportState.WriteTo(name)
+}
+
+func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	r.ErrorLog = append(r.ErrorLog, msg)
+	logger.Notice(msg)
 }
 
 func (r *recoverDegradedState) partition(part string) *partitionState {
@@ -858,26 +845,6 @@ func (r *recoverDegradedState) partition(part string) *partitionState {
 		return &r.UbuntuSave
 	}
 	panic(fmt.Sprintf("unknown partition %s", part))
-}
-
-func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
-	msg := fmt.Sprintf(format, v...)
-	r.ErrorLog = append(r.ErrorLog, msg)
-	logger.Notice(msg)
-}
-
-func (r *recoverDegradedState) serializeTo(name string) error {
-	b, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-		return err
-	}
-
-	// leave the information about degraded state at an ephemeral location
-	return os.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
 }
 
 // stateFunc is a function which executes a state action, returns the next
@@ -924,33 +891,33 @@ func (m *recoverModeStateMachine) degraded() bool {
 
 	if m.isEncryptedDev {
 		// for encrypted devices, we need to have ubuntu-save mounted
-		if r.UbuntuSave.MountState != partitionMounted {
+		if r.UbuntuSave.MountState != boot.PartitionMounted {
 			return true
 		}
 
 		// we also should have all the unlock keys as run keys
-		if r.UbuntuData.UnlockKey != keyRun {
+		if r.UbuntuData.UnlockKey != boot.KeyRun {
 			return true
 		}
 
-		if r.UbuntuSave.UnlockKey != keyRun {
+		if r.UbuntuSave.UnlockKey != boot.KeyRun {
 			return true
 		}
 	} else {
 		// for unencrypted devices, ubuntu-save must either be mounted or
 		// absent-but-optional
-		if r.UbuntuSave.MountState != partitionMounted {
-			if r.UbuntuSave.MountState != partitionAbsentOptional {
+		if r.UbuntuSave.MountState != boot.PartitionMounted {
+			if r.UbuntuSave.MountState != boot.PartitionAbsentOptional {
 				return true
 			}
 		}
 	}
 
 	// ubuntu-boot and ubuntu-data should both be mounted
-	if r.UbuntuBoot.MountState != partitionMounted {
+	if r.UbuntuBoot.MountState != boot.PartitionMounted {
 		return true
 	}
-	if r.UbuntuData.MountState != partitionMounted {
+	if r.UbuntuData.MountState != boot.PartitionMounted {
 		return true
 	}
 
@@ -986,10 +953,11 @@ func (m *recoverModeStateMachine) verifyMountPoint(dir, name string) error {
 
 func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err error, optionalPartition bool) error {
 	part := m.degradedState.partition(partName)
+
 	if err != nil {
 		if _, ok := err.(disks.PartitionNotFoundError); ok {
 			// explicit error that the device was not found
-			part.FindState = partitionNotFound
+			part.FindState = boot.PartitionNotFound
 			if !optionalPartition {
 				// partition is not optional, thus the error is relevant
 				m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
@@ -997,13 +965,13 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 			return nil
 		}
 		// the error is not "not-found", so we have a real error
-		part.FindState = partitionErrFinding
+		part.FindState = boot.PartitionErrFinding
 		m.degradedState.LogErrorf("error finding %v partition on disk %s: %v", partName, m.disk.Dev(), err)
 		return nil
 	}
 
 	// device was found
-	part.FindState = partitionFound
+	part.FindState = boot.PartitionFound
 	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 	part.partDevice = dev
 	part.fsDevice = dev
@@ -1013,11 +981,11 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 func (m *recoverModeStateMachine) setMountState(part, where string, err error) error {
 	if err != nil {
 		m.degradedState.LogErrorf("cannot mount %v: %v", part, err)
-		m.degradedState.partition(part).MountState = partitionErrMounting
+		m.degradedState.partition(part).MountState = boot.PartitionErrMounting
 		return nil
 	}
 
-	m.degradedState.partition(part).MountState = partitionMounted
+	m.degradedState.partition(part).MountState = boot.PartitionMounted
 	m.degradedState.partition(part).MountLocation = where
 
 	if err := m.verifyMountPoint(where, part); err != nil {
@@ -1031,11 +999,11 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 	part := m.degradedState.partition(partName)
 	// save the device if we found it from secboot
 	if unlockRes.PartDevice != "" {
-		part.FindState = partitionFound
+		part.FindState = boot.PartitionFound
 		part.partDevice = unlockRes.PartDevice
 		part.fsDevice = unlockRes.FsDevice
 	} else {
-		part.FindState = partitionNotFound
+		part.FindState = boot.PartitionNotFound
 	}
 	if unlockRes.IsEncrypted {
 		m.isEncryptedDev = true
@@ -1047,7 +1015,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 			// if we know the device is decrypted we must also always know at
 			// least the partDevice (which is the encrypted block device)
 			m.degradedState.LogErrorf("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
-			part.UnlockState = partitionErrUnlocking
+			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// TODO: we don't know if this is a plain not found or  a different error
 			m.degradedState.LogErrorf("cannot locate %s partition for mounting host data: %v", partName, err)
@@ -1058,8 +1026,8 @@ func (m *recoverModeStateMachine) setUnlockStateWithRunKey(partName string, unlo
 
 	if unlockRes.IsEncrypted {
 		// unlocked successfully
-		part.UnlockState = partitionUnlocked
-		part.UnlockKey = keyRun
+		part.UnlockState = boot.PartitionUnlocked
+		part.UnlockKey = boot.KeyRun
 	}
 
 	return nil
@@ -1100,7 +1068,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 
 	// now actually process the result into the state
 	if unlockRes.PartDevice != "" {
-		part.FindState = partitionFound
+		part.FindState = boot.PartitionFound
 		// Note that in some case this may be redundantly assigning the same
 		// value to partDevice again.
 		part.partDevice = unlockRes.PartDevice
@@ -1128,7 +1096,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 		// create different error message for encrypted vs unencrypted
 		if m.isEncryptedDev {
 			m.degradedState.LogErrorf("cannot unlock encrypted %s partition with sealed fallback key: %v", partName, err)
-			part.UnlockState = partitionErrUnlocking
+			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// if we don't have an encrypted device and err != nil, then the
 			// device must be not-found, see above checks
@@ -1142,14 +1110,14 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 
 	if m.isEncryptedDev {
 		// unlocked successfully
-		part.UnlockState = partitionUnlocked
+		part.UnlockState = boot.PartitionUnlocked
 
 		// figure out which key/method we used to unlock the partition
 		switch unlockRes.UnlockMethod {
 		case secboot.UnlockedWithSealedKey:
-			part.UnlockKey = keyFallback
+			part.UnlockKey = boot.KeyFallback
 		case secboot.UnlockedWithRecoveryKey:
-			part.UnlockKey = keyRecovery
+			part.UnlockKey = boot.KeyRecovery
 
 			// TODO: should we fail with internal error for default case here?
 		}
@@ -1192,7 +1160,7 @@ func (m *recoverModeStateMachine) finalize() error {
 	// but the model is secured it will end up marked as untrusted
 	isEncrypted := m.isEncryptedDev || m.model.StorageSafety() == asserts.StorageSafetyEncrypted
 	part := m.degradedState.partition("ubuntu-data")
-	if part.MountState == partitionMounted && isEncrypted {
+	if part.MountState == boot.PartitionMounted && isEncrypted {
 		// check that save and data match
 		// We want to avoid a chosen ubuntu-data
 		// (e.g. activated with a recovery key) to get access
@@ -1210,7 +1178,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		//       etc.
 		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir(m.model))
 		if !trustData {
-			part.MountState = partitionMountedUntrusted
+			part.MountState = boot.PartitionMountedUntrusted
 			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
 		}
 	}
@@ -1242,7 +1210,7 @@ func (m *recoverModeStateMachine) finalize() error {
 }
 
 func (m *recoverModeStateMachine) trustData() bool {
-	return m.degradedState.partition("ubuntu-data").MountState == partitionMounted
+	return m.degradedState.partition("ubuntu-data").MountState == boot.PartitionMounted
 }
 
 // mountBoot is the first state to execute in the state machine, it can
@@ -1260,7 +1228,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	if err := m.setFindState("ubuntu-boot", partUUID, findErr, partitionMandatory); err != nil {
 		return nil, err
 	}
-	if part.FindState != partitionFound {
+	if part.FindState != boot.PartitionFound {
 		// if we didn't find ubuntu-boot, we can't try to unlock data with the
 		// run key, and should instead just jump straight to attempting to
 		// unlock with the fallback key
@@ -1279,7 +1247,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	if err := m.setMountState("ubuntu-boot", boot.InitramfsUbuntuBootDir, mountErr); err != nil {
 		return nil, err
 	}
-	if part.MountState == partitionErrMounting {
+	if part.MountState == boot.PartitionErrMounting {
 		// if we didn't mount data, then try to unlock data with the
 		// fallback key
 		return m.unlockDataFallbackKey, nil
@@ -1442,7 +1410,7 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 	if err := m.setFindState("ubuntu-save", partUUID, findErr, partitionOptional); err != nil {
 		return nil, err
 	}
-	if partSave.FindState == partitionFound {
+	if partSave.FindState == boot.PartitionFound {
 		// we have ubuntu-save, go mount it
 		return m.mountSave, nil
 	}
@@ -1457,7 +1425,7 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 	}
 
 	// save is optional in an unencrypted system
-	partSave.MountState = partitionAbsentOptional
+	partSave.MountState = boot.PartitionAbsentOptional
 
 	// we're done, nothing more to try
 	return nil, nil
@@ -1517,7 +1485,7 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 
 func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	model, snaps, err := generateMountsRecoverOrFactoryReset(mst)
 	if err != nil {
 		return err
 	}
@@ -1688,7 +1656,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	// steps 1 and 2 are shared with install mode
-	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	model, snaps, err := generateMountsRecoverOrFactoryReset(mst)
 	if err != nil {
 		return err
 	}
@@ -1847,30 +1815,62 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 	return candidate, nil
 }
 
-// mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
-// dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
-// determine what partition the booted kernel came from. If which disk the
-// kernel came from cannot be determined, then it will fallback to mounting via
-// the specified disk label.
+// mountNonDataPartitionMatchingKernelDisk will select the partition
+// to mount at dir using the boot package function
+// FindPartitionUUIDForBootedKernelDisk to determine what partition
+// the booted kernel came from.
+//
+// If "snap-bootstrap scan-disk" was run as part of udev it will
+// restrict the search of the partition from the boot disk it found.
+//
+// If "snap-bootstrap scan-disk" is not in use (legacy case),
+// it will look for any partition that matches the boot.
+//
+// If which disk the kernel came from cannot be determined, then it
+// will fallback to mounting via the specified disk label. If
+// "snap-bootstrap scan-disk" was used, it will restrict the search to
+// the boot disk.
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
-	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	var partSrc string
-	if err == nil {
-		// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-		//       to use by-uuid or by-id
-		partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
-	} else {
-		partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+
+	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
+		disk, err := disks.DiskFromDeviceName("/dev/disk/snapd/disk")
 		if err != nil {
 			return err
 		}
-	}
+		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+		if err == nil {
+			partition, err := disk.FindMatchingPartitionWithPartUUID(partuuid)
+			if err != nil {
+				return err
+			}
+			partSrc = partition.KernelDeviceNode
+		} else {
+			partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+			if err != nil {
+				return err
+			}
+			partSrc = partition.KernelDeviceNode
+		}
+	} else {
+		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+		if err == nil {
+			// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+			//       to use by-uuid or by-id
+			partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+		} else {
+			partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+			if err != nil {
+				return err
+			}
+		}
 
-	// The partition uuid is read from the EFI variables. At this point
-	// the kernel may not have initialized the storage HW yet so poll
-	// here.
-	if err := waitForDevice(partSrc); err != nil {
-		return err
+		// The partition uuid is read from the EFI variables. At this point
+		// the kernel may not have initialized the storage HW yet so poll
+		// here.
+		if err := waitForDevice(partSrc); err != nil {
+			return err
+		}
 	}
 	return doSystemdMount(partSrc, dir, opts)
 }
@@ -1985,6 +1985,10 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 					return nil, nil, err
 				}
 			}
+		} else if essentialSnap.EssentialType == snap.TypeSnapd {
+			// We write later a unit for this one, when the data
+			// partition is mounted
+			continue
 		} else {
 			dir := snapTypeToMountDir[essentialSnap.EssentialType]
 			// TODO:UC20: we need to cross-check the kernel path
@@ -2000,7 +2004,7 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	return model, systemSnaps, nil
 }
 
-func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) (err error) {
+func generateMountsCommonInstallRecoverContinue(model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) (err error) {
 	// TODO:UC20: after we have the kernel and base snaps mounted, we should do
 	//            the bind mounts from the kernel modules on top of the base
 	//            mount and delete the corresponding systemd units from the
@@ -2027,12 +2031,19 @@ func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model
 		return err
 	}
 
+	// Now we can write the snapd mount unit (needed as this is the first boot)
+	isRunMode := false
+	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
+	snapdSeed := sysSnaps[snap.TypeSnapd]
+	if err := setupSeedSnapdSnap(rootfsDir, snapdSeed); err != nil {
+		return err
+	}
+
 	// finally get the gadget snap from the essential snaps and use it to
 	// configure the ephemeral system
 	// should only be one seed snap
 	gadgetSnap := squashfs.New(sysSnaps[snap.TypeGadget].Path)
 
-	isRunMode := false
 	// we need to configure the ephemeral system with defaults and such using
 	// from the seed gadget
 	configOpts := &sysconfig.Options{
@@ -2052,13 +2063,13 @@ func generateMountsCommonInstallRecoverContinue(mst *initramfsMountsState, model
 	return nil
 }
 
-func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
+func generateMountsRecoverOrFactoryReset(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	model, snaps, err := generateMountsCommonInstallRecoverStart(mst)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := generateMountsCommonInstallRecoverContinue(mst, model, snaps); err != nil {
+	if err := generateMountsCommonInstallRecoverContinue(model, snaps); err != nil {
 		return nil, nil, err
 	}
 
@@ -2128,7 +2139,7 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 	squashfsPath := filepath.Join(runWritableDataDir, dirs.StripRootDir(cpi.MountFile()))
 	// snapRoot is where we will find the /snap directory where
 	// snaps/components will be mounted
-	snapRoot := filepath.Join("writable", "system-data")
+	snapRoot := filepath.Join("sysroot", "writable", "system-data")
 	if isClassic {
 		snapRoot = "sysroot"
 	}
@@ -2494,11 +2505,31 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if typ == snap.TypeKernel && hasDriversTree {
 			continue
 		}
-		if sn, ok := mounts[typ]; ok {
-			dir := snapTypeToMountDir[typ]
-			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
-			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-				return err
+		sn, ok := mounts[typ]
+		if !ok {
+			continue
+		}
+		dir := snapTypeToMountDir[typ]
+		snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
+		snapMntPt := filepath.Join(boot.InitramfsRunMntDir, dir)
+		if err := doSystemdMount(snapPath, snapMntPt, mountReadOnlyOptions); err != nil {
+			return err
+		}
+		// On 24+ kernels, create /lib/{firmware,modules} mounts if
+		// there was no drivers tree. This is a fallback for not really
+		// supported but supported cases like having a 24+ kernel with
+		// a <24 model. For older initramfs this is done by a
+		// generator. Note also that for UC this is done by the
+		// extra-paths script, so we need this only for classic.
+		if typ == snap.TypeKernel && isClassic && createSysrootMount() {
+			logger.Noticef("warning: expected drivers tree not found, mounting /lib/{firmware,modules} directly from kernel snap")
+			for _, subDir := range []string{"modules", "firmware"} {
+				what := filepath.Join(snapMntPt, subDir)
+				where := filepath.Join(dirs.GlobalRootDir, "sysroot", "usr", "lib", subDir)
+				if err := writeInitramfsMountUnit(what, where, bindUnit); err != nil {
+					return fmt.Errorf("while creating mount for %s in %s: %v",
+						what, where, err)
+				}
 			}
 		}
 	}
@@ -2530,9 +2561,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if err := theSeed.LoadEssentialMeta([]snap.Type{snap.TypeSnapd}, perf); err != nil {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
-		essSnaps := theSeed.EssentialSnaps()
-		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
-			return fmt.Errorf("cannot mount snapd snap: %v", err)
+
+		snapdSeed := theSeed.EssentialSnaps()[0]
+		if err := setupSeedSnapdSnap(rootfsDir, snapdSeed); err != nil {
+			return err
 		}
 	}
 
@@ -2543,6 +2575,38 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	return nil
+}
+
+// setupSeedSnapdSnap makes sure that snapd from the snap is ready to be used
+// after switch root when starting from a UC seed.
+func setupSeedSnapdSnap(rootfsDir string, snapdSeedSnap *seed.Snap) error {
+	// We need to replicate the mount unit that snapd would create, but
+	// differently to other mounts we have to do here we do not need to
+	// start it from the initramfs. As this is first boot, do it in
+	// _writable_defaults to make sure we do not prevent files already
+	// there to be copied.
+	si := snapdSeedSnap.SideInfo
+	// Comes from the seed and it might be unasserted, set revision in that case
+	if si.Revision.Unset() {
+		si.Revision = snap.R(-1)
+	}
+	cpi := snap.MinimalSnapContainerPlaceInfo(si.RealName, si.Revision)
+	destRoot := sysconfig.WritableDefaultsDir(rootfsDir)
+	logger.Debugf("writing %s mount unit to %s", si.RealName, destRoot)
+	if err := writeSnapMountUnit(destRoot, snapdSeedSnap.Path, cpi.MountDir(),
+		systemd.RegularMountUnit, cpi.MountDescription()); err != nil {
+		return fmt.Errorf("while writing %s first boot mount unit: %v", si.RealName, err)
+	}
+
+	// We need to initialize /snap/snapd/current symlink so that the
+	// dynamic linker
+	// /snap/snapd/current/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 is
+	// available to run snapd on first boot.
+	mountDir := filepath.Join(rootfsDir, dirs.StripRootDir(dirs.SnapMountDir), si.RealName)
+	if err := os.MkdirAll(mountDir, 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicSymlink(si.Revision.String(), filepath.Join(mountDir, "current"))
 }
 
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {

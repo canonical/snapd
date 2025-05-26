@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sort"
-
-	"github.com/snapcore/snapd/arch"
 )
 
 // stringPacker assists in packing apparmor data structures with
@@ -45,7 +43,7 @@ func (sp *stringPacker) packString(s string) uint32 {
 // headers, and returns the offset of the beginning of the first header
 // relative to the start of the structure.
 //
-// If there are no tagsets, nothing is new is packed, and returns 0.
+// If there are no tagsets, nothing new is packed, and returns 0.
 //
 // Tagset headers are contiguous, and the start of the first header must be
 // 8-byte-aligned. Each header contains information about a tagset, including
@@ -66,7 +64,7 @@ func (sp *stringPacker) packString(s string) uint32 {
 //
 // It should never be necessary to pack tagsets outside of test code, since
 // snapd should never need to send a message containing tagsets to the kernel.
-func (sp *stringPacker) packTagsets(ts map[AppArmorPermission][]string) uint32 {
+func (sp *stringPacker) packTagsets(ts TagsetMap) uint32 {
 	if len(ts) == 0 {
 		return 0
 	}
@@ -110,8 +108,7 @@ func (sp *stringPacker) packTagsets(ts map[AppArmorPermission][]string) uint32 {
 	headerOffset := uint32(sp.buffer.Len())
 
 	// Now write the headers themselves
-	order := arch.Endian()
-	binary.Write(&sp.buffer, order, headers)
+	binary.Write(&sp.buffer, nativeByteOrder, headers)
 
 	return headerOffset + uint32(sp.baseOffset)
 }

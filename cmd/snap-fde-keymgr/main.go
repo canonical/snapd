@@ -244,9 +244,7 @@ func run(osArgs1 []string) error {
 }
 
 func main() {
-	if err := logger.SimpleSetup(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
-	}
+	logger.SimpleSetup(nil)
 
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

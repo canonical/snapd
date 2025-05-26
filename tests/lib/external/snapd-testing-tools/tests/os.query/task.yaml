@@ -118,6 +118,13 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
+        fedora-41-64)
+            os.query is-fedora
+            os.query is-fedora 41
+            ! os.query is-fedora rawhide
+            os.query is-classic
+            ! os.query is-core
+            ;;
         arch-linux-64)
             os.query is-arch-linux
             os.query is-classic

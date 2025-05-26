@@ -613,7 +613,8 @@ func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
 	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
+		c.Assert(requests, DeepEquals, []string{"ssid"})
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
 		return tx, nil
@@ -634,7 +635,8 @@ func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
 	c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
+		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
 		return tx, nil
@@ -659,7 +661,8 @@ func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
 	c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
 	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
+		c.Assert(requests, IsNil)
 		c.Assert(view.Schema().Account, Equals, s.devAccID)
 		c.Assert(view.Schema().Name, Equals, "network")
 		return tx, nil
@@ -766,30 +769,6 @@ slots:
 	c.Check(stderr, IsNil)
 }
 
-func (s *confdbSuite) TestConfdbGetAndSetAssertionNotFound(c *C) {
-	storeSigning := assertstest.NewStoreStack("can0nical", nil)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   storeSigning.Trusted,
-	})
-	c.Assert(err, IsNil)
-	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
-
-	s.state.Lock()
-	assertstate.ReplaceDB(s.state, db)
-	s.state.Unlock()
-
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-
-	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb schema %s/network: assertion not found", s.devAccID))
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-}
-
 func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": s.devAccID,
@@ -831,40 +810,55 @@ func (s *confdbSuite) TestConfdbGetAndSetViewNotFound(c *C) {
 	c.Check(stderr, IsNil)
 }
 
-func (s *confdbSuite) TestConfdbGetPristine(c *C) {
+func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
 	c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
 	c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
-	c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
-	s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View) (*confdbstate.Transaction, error) {
+	tx, err = confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
+
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
 		return tx, nil
 	})
 	defer restore()
 
-	s.state.Lock()
-	defer s.state.Unlock()
 	task := s.state.NewTask("run-hook", "")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "save-view-plug"}
 	ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-
 	s.state.Unlock()
-	defer s.state.Lock()
 
-	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", "--pristine", ":read-wifi", "ssid"}, 0)
+	// current transaction has uncommitted write "bar"
+	stdout, stderr, err := ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "bar\n")
+	c.Check(stderr, IsNil)
+
+	// but --previous show "foo"
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(stderr, IsNil)
 
-	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", ":read-wifi", "ssid"}, 0)
+	s.state.Lock()
+	// simulate a commit and then a observe-view- hook
+	c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
+	setup = &hookstate.HookSetup{Snap: "test-snap", Hook: "observe-view-plug"}
+	ctx, err = hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "bar\n")
+	s.state.Unlock()
+
+	// --previous in observe-view hook refers to pre-commit databag
+	stdout, stderr, err = ctlcmd.Run(ctx, []string{"get", "--view", "--previous", ":read-wifi", "ssid"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(stderr, IsNil)
+
 }
 
 func (s *confdbSuite) TestConfdbGetDifferentViewThanOngoingTx(c *C) {

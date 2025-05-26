@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/strutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
 	// So it registers Configure.
@@ -7320,8 +7321,15 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridOldBase(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "22.04"})()
 	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "core22",
 		doesReRefresh|isHybrid)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridWrongBase(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "24.04"})()
+	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "core22",
+		doesReRefresh|needsKernelSetup|isHybrid)
 }
 
 func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C, base string, opts int) {
@@ -9214,12 +9222,175 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c
 	s.testResolveValidationSetsEnforcementErrorComponents(c, opts)
 }
 
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering(c *C) {
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-1",
+				"id":       snaptest.AssertedSnapID("snap-1"),
+				"presence": "required",
+				"revision": "2",
+			},
+			map[string]interface{}{
+				"name":     "some-base",
+				"id":       snaptest.AssertedSnapID("some-base"),
+				"presence": "required",
+				"revision": "2",
+			},
+			map[string]interface{}{
+				"name":     "kernel",
+				"id":       snaptest.AssertedSnapID("kernel"),
+				"presence": "required",
+				"revision": "2",
+			},
+		},
+	}
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	vsets := snapasserts.NewValidationSets()
+	err = vsets.Add(vs)
+	c.Assert(err, IsNil)
+	c.Assert(vsets.Conflict(), IsNil)
+
+	newRef := func(name string) naming.SnapRef {
+		return naming.NewSnapRef(name, snaptest.AssertedSnapID(name))
+	}
+
+	newSeq := func(name string, rev snap.Revision, comps ...snap.ComponentSideInfo) sequence.SnapSequence {
+		seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: name,
+			SnapID:   snaptest.AssertedSnapID(name),
+			Revision: rev,
+		}})
+		for _, comp := range comps {
+			// since we take a pointer to comp here, we've gotta copy it out of
+			// the loop variable. can be removed once we're on go 1.22
+			comp := comp
+			err := seq.AddComponentForRevision(rev, sequence.NewComponentState(&comp, snap.TestComponent))
+			c.Assert(err, IsNil)
+		}
+		return seq
+	}
+
+	opts := testResolveValidationSetsEnforcementErrorComponentsOpts{
+		vsets: vsets,
+		affected: []string{
+			"snap-1",
+			"some-base",
+			"kernel",
+		},
+		expected: []*snapasserts.InstalledSnap{{
+			SnapRef:  newRef("snap-1"),
+			Revision: snap.R(2),
+		}, {
+			SnapRef:  newRef("some-base"),
+			Revision: snap.R(2),
+		}, {
+			SnapRef:  newRef("kernel"),
+			Revision: snap.R(2),
+		}},
+		current: []snapstate.SnapState{{
+			Current:  snap.R(1),
+			Active:   true,
+			Sequence: newSeq("snap-1", snap.R(1)),
+		}, {
+			Current:  snap.R(1),
+			Active:   true,
+			Sequence: newSeq("kernel", snap.R(1)),
+		}},
+	}
+
+	s.testResolveValidationSetsEnforcementErrorComponents(c, opts)
+}
+
 type testResolveValidationSetsEnforcementErrorComponentsOpts struct {
 	expected          []*snapasserts.InstalledSnap
 	affected          []string
 	vsets             *snapasserts.ValidationSets
 	componentsPerSnap map[string][]snap.ComponentSideInfo
 	current           []snapstate.SnapState
+}
+
+func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet) {
+	deviceCtx, err := snapstate.DeviceCtxFromState(st, nil)
+	c.Assert(err, IsNil)
+
+	essentials := []string{"snapd"}
+	for _, sn := range deviceCtx.Model().EssentialSnaps() {
+		essentials = append(essentials, sn.SnapName())
+	}
+
+	var essentialTaskIDs []string
+	var essentialAndBaseTasks []*state.Task
+	for _, ts := range tss {
+		begin := ts.MaybeEdge(snapstate.BeginEdge)
+		if begin == nil {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(begin)
+		c.Assert(err, IsNil)
+
+		switch {
+		case strutil.ListContains(essentials, snapsup.SideInfo.RealName):
+			// essential snap updates don't wait on anything
+			c.Assert(begin.WaitTasks(), HasLen, 0)
+			for _, t := range ts.Tasks() {
+				essentialTaskIDs = append(essentialTaskIDs, t.ID())
+			}
+			essentialAndBaseTasks = append(essentialAndBaseTasks, ts.Tasks()...)
+		case snapsup.Type == snap.TypeBase:
+			// non-essential bases only should wait on tasks that come from
+			// essential snap updates
+			for _, t := range begin.WaitTasks() {
+				c.Assert(strutil.ListContains(essentialTaskIDs, t.ID()), Equals, true)
+			}
+
+			essentialAndBaseTasks = append(essentialAndBaseTasks, ts.Tasks()...)
+		default:
+			// all other updates and installs should at a minimum wait on the
+			// essential snap updates and the new base installations
+			c.Assert(willWaitOnMany(begin, essentialAndBaseTasks), Equals, true)
+		}
+	}
+}
+
+func willWaitOnMany(graph *state.Task, targets []*state.Task) bool {
+	seen := make(map[string]bool)
+	queue := append([]*state.Task(nil), graph.WaitTasks()...)
+	for i := 0; i < len(queue); i++ {
+		current := queue[i]
+		if seen[current.ID()] {
+			continue
+		}
+
+		seen[current.ID()] = true
+
+		for _, child := range current.WaitTasks() {
+			if !seen[child.ID()] {
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	for _, t := range targets {
+		if !seen[t.ID()] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c *C, opts testResolveValidationSetsEnforcementErrorComponentsOpts) {
@@ -9306,6 +9477,14 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
+
+	// this verifies that we correctly set up task dependencies.
+	// things should happen in this order:
+	// * essential snap updates
+	// * non-essential base installations
+	// * remaining updates
+	// * remaining installs
+	validateEnforcementOrder(c, s.state, tss)
 
 	s.settle(c)
 	c.Assert(chg.Err(), IsNil)
@@ -11432,4 +11611,8 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 	})
 
 	c.Assert(calls, DeepEquals, expected)
+}
+
+func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }

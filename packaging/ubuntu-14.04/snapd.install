@@ -20,6 +20,7 @@ usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/lib/snapd/snap-confine
+usr/lib/snapd/snap-confine.caps
 usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-discard-ns
 # gdb helper

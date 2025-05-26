@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2023-2024 Canonical Ltd
+ * Copyright (C) 2023-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,8 +26,10 @@ import (
 
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -40,6 +42,11 @@ var (
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManage},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
+	confdbControlCmd = &Command{
+		Path:        "/v2/confdb",
+		POST:        handleConfdbControlAction,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
+	}
 )
 
 func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -47,7 +54,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateConfdbFeatureFlag(st); err != nil {
+	if err := validateFeatureFlag(st, features.Confdb); err != nil {
 		return err
 	}
 
@@ -79,7 +86,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := validateConfdbFeatureFlag(st); err != nil {
+	if err := validateFeatureFlag(st, features.Confdb); err != nil {
 		return err
 	}
 
@@ -128,16 +135,84 @@ func toAPIError(err error) *apiError {
 	}
 }
 
-func validateConfdbFeatureFlag(st *state.State) *apiError {
+func validateFeatureFlag(st *state.State, feature features.SnapdFeature) *apiError {
 	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, features.Confdb)
+	enabled, err := features.Flag(tr, feature)
 	if err != nil && !config.IsNoOption(err) {
-		return InternalError(fmt.Sprintf("internal error: cannot check confdb feature flag: %s", err))
+		return InternalError(
+			fmt.Sprintf("internal error: cannot check %q feature flag: %s", feature, err),
+		)
 	}
 
 	if !enabled {
-		_, confName := features.Confdb.ConfigOption()
-		return BadRequest(fmt.Sprintf(`"confdb" feature flag is disabled: set '%s' to true`, confName))
+		_, confName := feature.ConfigOption()
+		return BadRequest(
+			fmt.Sprintf(`feature flag %q is disabled: set '%s' to true`, feature, confName),
+		)
 	}
 	return nil
+}
+
+type confdbControlAction struct {
+	Action          string   `json:"action"`
+	OperatorID      string   `json:"operator-id"`
+	Authentications []string `json:"authentications"`
+	Views           []string `json:"views"`
+}
+
+func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	if err := validateFeatureFlag(st, features.Confdb); err != nil {
+		return err
+	}
+	if err := validateFeatureFlag(st, features.ConfdbControl); err != nil {
+		return err
+	}
+
+	devMgr := c.d.overlord.DeviceManager()
+	cc, err := devMgr.ConfdbControl()
+	if err != nil &&
+		(!errors.Is(err, state.ErrNoState) ||
+			errors.Is(err, devicestate.ErrNoDeviceIdentityYet)) {
+		return InternalError(err.Error())
+	}
+
+	var ctrl confdb.Control
+	var revision int
+	if cc != nil {
+		ctrl = cc.Control()
+		revision = cc.Revision() + 1
+	}
+
+	var a confdbControlAction
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest("cannot decode request body: %v", err)
+	}
+
+	switch a.Action {
+	case "delegate":
+		err = ctrl.Delegate(a.OperatorID, a.Views, a.Authentications)
+	case "undelegate":
+		err = ctrl.Undelegate(a.OperatorID, a.Views, a.Authentications)
+	default:
+		return BadRequest("unknown action %q", a.Action)
+	}
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	cc, err = devicestateSignConfdbControl(devMgr, ctrl.Groups(), revision)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	if err := assertstate.Add(st, cc); err != nil {
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(nil)
 }

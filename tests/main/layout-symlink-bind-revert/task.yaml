@@ -17,6 +17,9 @@ prepare: |
     snap pack ./app.v1 .
     snap pack ./app.v2 .
 
+restore: |
+    snap unset core experimental.layouts
+
 execute: |
     echo "The runtime and the application are installed and connected"
     snap install --dangerous ./runtime_1_all.snap

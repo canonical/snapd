@@ -319,3 +319,57 @@ func (s *signSuite) TestSignErrors(c *C) {
 		c.Check(err, ErrorMatches, t.expError)
 	}
 }
+
+func (s *signSuite) TestSignFormatsAssertionsWithJSONBody(c *C) {
+	statement, err := json.Marshal(map[string]interface{}{
+		"type":         "confdb-schema",
+		"account-id":   "user-id1",
+		"authority-id": "user-id1",
+		"revision":     "1",
+		"timestamp":    "2025-05-09T16:00:00Z",
+		"name":         "foo",
+		"views": map[string]interface{}{
+			"foo": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"storage": "a"},
+				},
+			},
+		},
+		// use unindented, unsorted JSON to check formatting
+		"body": `{"storage": {
+  "schema": {
+    "b": "int",
+      "a": "string",
+		"c": { "type": "number", "max": 1.0 }
+  }
+}}`,
+	})
+	c.Assert(err, IsNil)
+
+	opts := signtool.Options{
+		KeyID:     s.testKeyID,
+		Statement: statement,
+	}
+
+	expected := `{
+  "storage": {
+    "schema": {
+      "a": "string",
+      "b": "int",
+      "c": {
+        "max": 1,
+        "type": "number"
+      }
+    }
+  }
+}`
+
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ConfdbSchemaType)
+	c.Check(string(a.Body()), DeepEquals, expected)
+}

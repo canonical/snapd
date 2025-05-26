@@ -143,8 +143,12 @@ func (w *Warning) ShowAfter(t time.Time) bool {
 
 // flattenWarning loops over the warnings map, and returns all
 // non-expired warnings therein as a flat list, for serialising.
-// Call with the lock held.
+//
+// State lock does not need to be held, as the warnings mutex ensures
+// warnings can be safely read.
 func (s *State) flattenWarnings() []*Warning {
+	s.warningsMu.RLock()
+	defer s.warningsMu.RUnlock()
 	now := time.Now()
 	flat := make([]*Warning, 0, len(s.warnings))
 	for _, w := range s.warnings {
@@ -158,8 +162,11 @@ func (s *State) flattenWarnings() []*Warning {
 
 // unflattenWarnings takes a flat list of warnings and replaces the
 // warning map with them, ignoring expired warnings in the process.
-// Call with the lock held.
+//
+// Call with the state lock held. Acquires the warnings lock for writing.
 func (s *State) unflattenWarnings(flat []*Warning) {
+	s.warningsMu.Lock()
+	defer s.warningsMu.Unlock()
 	now := time.Now()
 	s.warnings = make(map[string]*Warning, len(flat))
 	for _, w := range flat {
@@ -203,6 +210,8 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	s.writing()
+	s.warningsMu.Lock()
+	defer s.warningsMu.Unlock()
 
 	now := options.Time
 	if now.IsZero() {
@@ -234,6 +243,8 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 // Returns state.ErrNoState if no warning exists with given message.
 func (s *State) RemoveWarning(message string) error {
 	s.writing()
+	s.warningsMu.Lock()
+	defer s.warningsMu.Unlock()
 	_, ok := s.warnings[message]
 	if !ok {
 		return ErrNoState
@@ -251,9 +262,10 @@ func (a byLastAdded) Less(i, j int) bool { return a[i].lastAdded.Before(a[j].las
 
 // AllWarnings returns all the warnings in the system, whether they're
 // due to be shown or not. They'll be sorted by lastAdded.
+//
+// State lock does not need to be held, as the warnings mutex ensures
+// warnings can be safely read.
 func (s *State) AllWarnings() []*Warning {
-	s.reading()
-
 	all := s.flattenWarnings()
 	sort.Sort(byLastAdded(all))
 
@@ -263,7 +275,10 @@ func (s *State) AllWarnings() []*Warning {
 // OkayWarnings marks warnings that were showable at the given time as shown.
 func (s *State) OkayWarnings(t time.Time) int {
 	t = t.UTC()
+
 	s.writing()
+	s.warningsMu.Lock()
+	defer s.warningsMu.Unlock()
 
 	n := 0
 	for _, w := range s.warnings {
@@ -281,8 +296,12 @@ func (s *State) OkayWarnings(t time.Time) int {
 //
 // Warnings to show to the user are those that have not been shown before,
 // or that have been shown earlier than repeatAfter ago.
+//
+// State lock does not need to be held, as the warnings mutex ensures
+// warnings can be safely read.
 func (s *State) PendingWarnings() ([]*Warning, time.Time) {
-	s.reading()
+	s.warningsMu.RLock()
+	defer s.warningsMu.RUnlock()
 	now := time.Now().UTC()
 
 	var toShow []*Warning
@@ -301,8 +320,12 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 // shown to the user, and the timestamp of the most recently added
 // warning (useful for silencing the warning alerts, and OKing the
 // returned warnings).
+//
+// State lock does not need to be held, as the warnings mutex ensures
+// warnings can be safely read.
 func (s *State) WarningsSummary() (int, time.Time) {
-	s.reading()
+	s.warningsMu.RLock()
+	defer s.warningsMu.RUnlock()
 	now := time.Now().UTC()
 	var last time.Time
 
@@ -323,6 +346,8 @@ func (s *State) WarningsSummary() (int, time.Time) {
 // warnings. For use in debugging.
 func (s *State) UnshowAllWarnings() {
 	s.writing()
+	s.warningsMu.Lock()
+	defer s.warningsMu.Unlock()
 	for _, w := range s.warnings {
 		w.lastShown = time.Time{}
 	}

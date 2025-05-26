@@ -2732,3 +2732,74 @@ components:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `hook command-chain contains illegal.*`)
 }
+
+func (s *ValidateSuite) TestValidateGpioChardev(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 0
+type: gadget
+slots:
+  gpio-chardev-0:
+    interface: gpio-chardev
+    source-chip: [chip0]
+    lines: 4,1-3,5
+  gpio-chardev-1:
+    interface: gpio-chardev
+    source-chip: [chip1]
+    lines: 4,1-3,5
+  # unrelated slot
+  dbus-slot:
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, IsNil)
+}
+
+func (s *ValidateSuite) TestValidateGpioChardevInvalidLines(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 0
+type: gadget
+slots:
+  gpio-chardev:
+    source-chip: [chip0]
+    lines: 2-1
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid "lines" attribute found in slot "gpio-chardev": invalid range span "2-1": ends before it starts`)
+}
+
+func (s *ValidateSuite) TestValidateGpioChardevOverlappingLines(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 0
+type: gadget
+slots:
+  gpio-chardev-0:
+    interface: gpio-chardev
+    source-chip: [chip0]
+    lines: 4,1-3,5
+  gpio-chardev-1:
+    interface: gpio-chardev
+    source-chip: [chip0]
+    lines: "2"
+  gpio-chardev-2:
+    interface: gpio-chardev
+    source-chip: [chip1]
+    lines: 1,2
+  gpio-chardev-3:
+    interface: gpio-chardev
+    source-chip: [chip1]
+    lines: 1,2
+`))
+	c.Assert(err, IsNil)
+
+	expectedErrs := []string{
+		`invalid "lines" attribute: chip "chip0" has reused conflicting line spans: "2" in slot "gpio-chardev-1" conflicts with "1-3" in slot "gpio-chardev-0"`,
+		`invalid "lines" attribute: chip "chip1" has reused conflicting line spans: "1" in slot "gpio-chardev-3" conflicts with "1" in slot "gpio-chardev-2"`,
+		`invalid "lines" attribute: chip "chip1" has reused conflicting line spans: "2" in slot "gpio-chardev-3" conflicts with "2" in slot "gpio-chardev-2"`,
+	}
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, strings.Join(expectedErrs, "\n"))
+}

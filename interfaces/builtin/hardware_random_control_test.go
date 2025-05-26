@@ -92,7 +92,7 @@ func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# hardware-random-control
-KERNEL=="hwrng", TAG+="snap_consumer_app"`)
+KERNEL=="hw_random", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 

@@ -124,6 +124,11 @@ func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
 	return true
 }
 
+// JSONBody returns true if the body for this assertion type must be JSON.
+func (at *AssertionType) JSONBody() bool {
+	return at.flags&jsonBody != 0
+}
+
 // Understood assertion types.
 var (
 	AccountType              = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
@@ -1022,6 +1027,8 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 	}
 
 	if !reflect.DeepEqual(body, formatted) {
+		// TODO: replace this with a manual comparison so we can give more context
+		// in the error message
 		return fmt.Errorf(`JSON in body must be indented with 2 spaces and sort object entries by key`)
 	}
 

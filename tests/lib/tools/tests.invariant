@@ -80,40 +80,34 @@ check_lxcfs_mounted() {
 
 check_stray_dbus_daemon() {
 	n="$1" # invariant name
-	wait_for_dbus_daemon=5
 	failed=()
-	while [ "${wait_for_dbus_daemon}" -gt 0 ]; do
-		failed=()
-		skipped_system=0
-		skipped_root_session=0
-		for pid in $(pgrep -x dbus-daemon); do
-			cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
-			# Ignore one dbus-daemon responsible for the system bus.
-			if echo "$cmdline" | grep -q 'dbus-daemon --system' && [ "$skipped_system" -eq 0 ]; then
-				skipped_system=1
-				continue
-			fi
-			if echo "$cmdline" | grep -q 'dbus-daemon --session' && [ "$(stat -c %u "/proc/$pid")" -eq 0 ] && [ "$skipped_root_session" -eq 0 ]; then
-				skipped_root_session=1
-				continue
-			fi
-			# Ignore dbus-daemon running the session of the "external" user.
-			# This may happen when testing a core device using the ad-hoc
-			# backend. This user is never used by tests explicitly.
-			user="$(stat -c %U "/proc/$pid")"
-			if [ "$user" = "external" ]; then
-				continue
-			fi
-                        # On qemu backend, sudo from user "ubuntu" is used. So the session
-                        # for user "ubuntu" is expected to exist.
-			if [ "$user" = "ubuntu" ]; then
-				continue
-			fi
-			# Report stray dbus-daemon.
-			failed+=("pid:$pid user:$user cmdline:$cmdline")
-		done
-		: $((wait_for_dbus_daemon--))
-		sleep 1
+	skipped_system=0
+	skipped_root_session=0
+	for pid in $(pgrep -x dbus-daemon); do
+		cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
+		# Ignore one dbus-daemon responsible for the system bus.
+		if echo "$cmdline" | grep -q 'dbus-daemon --system' && [ "$skipped_system" -eq 0 ]; then
+			skipped_system=1
+			continue
+		fi
+		if echo "$cmdline" | grep -q 'dbus-daemon --session' && [ "$(stat -c %u "/proc/$pid")" -eq 0 ] && [ "$skipped_root_session" -eq 0 ]; then
+			skipped_root_session=1
+			continue
+		fi
+		# Ignore dbus-daemon running the session of the "external" user.
+		# This may happen when testing a core device using the ad-hoc
+		# backend. This user is never used by tests explicitly.
+		user="$(stat -c %U "/proc/$pid")"
+		if [ "$user" = "external" ]; then
+			continue
+		fi
+		# On qemu backend, sudo from user "ubuntu" is used. So the session
+		# for user "ubuntu" is expected to exist.
+		if [ "$user" = "ubuntu" ]; then
+			continue
+		fi
+		# Report stray dbus-daemon.
+		failed+=("pid:$pid user:$user cmdline:$cmdline")
 	done
 
 	if [ "${#failed[@]}" -ne 0 ]; then

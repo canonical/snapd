@@ -22,7 +22,6 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -287,10 +286,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	}
 
 	for _, t := range tests {
-		st := d.overlord.State()
-		st.Lock()
-		restart.MockPending(st, t.rst)
-		st.Unlock()
+		d.overlord.RestartManager().MockPending(t.rst)
 		rec = httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
 		c.Check(rec.Code, check.Equals, 200)
@@ -1492,7 +1488,7 @@ func clientForSnapdSocket() *http.Client {
 	}
 }
 
-func (s *daemonSuite) TestRequestContextCanceledOnStop(c *check.C) {
+func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 	d, err := New()
 	c.Assert(err, check.IsNil)
 	// don't talk to the store, needs to be called after daemon.New()
@@ -1503,24 +1499,23 @@ func (s *daemonSuite) TestRequestContextCanceledOnStop(c *check.C) {
 
 	c.Assert(d.Init(), check.IsNil)
 
-	gotReqC := make(chan struct{})
-	reqErrC := make(chan error, 1)
-	d.router.HandleFunc("/test-call", func(w http.ResponseWriter, r *http.Request) {
-		close(gotReqC)
-		// since Stop() is called in the test, the request will get
-		// canceled
-		<-r.Context().Done()
-		reqErrC <- r.Context().Err()
-		w.WriteHeader(500)
-	})
-
 	client := clientForSnapdSocket()
 
-	req, err := http.NewRequest("GET", "http://localhost/test-call", nil)
+	req, err := http.NewRequest("GET", "http://localhost/v2/notices?timeout=10s", nil)
 	c.Assert(err, check.IsNil)
+
+	gotReqC := make(chan struct{})
+	d.router.Use(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Assert(r.URL.String(), check.Equals, "/v2/notices?timeout=10s")
+			close(gotReqC)
+			h.ServeHTTP(w, r)
+		})
+	})
 
 	c.Assert(d.Start(context.Background()), check.IsNil)
 
+	var resp map[string]any
 	clientC := make(chan struct{})
 	go func() {
 		// this will block until we call stop
@@ -1529,51 +1524,19 @@ func (s *daemonSuite) TestRequestContextCanceledOnStop(c *check.C) {
 			defer r.Body.Close()
 		}
 		c.Check(err, check.IsNil)
+		err = json.NewDecoder(r.Body).Decode(&resp)
+		c.Assert(err, check.IsNil)
 		close(clientC)
 	}()
 
 	<-gotReqC
 	d.Stop(nil)
-	reqErr := <-reqErrC
-	c.Check(errors.Is(reqErr, context.Canceled), check.Equals, true,
-		check.Commentf("unexpected error %v", reqErr))
 	<-clientC
-}
-
-func (s *daemonSuite) TestRequestContextPropagated(c *check.C) {
-	d, err := New()
-	c.Assert(err, check.IsNil)
-	// don't talk to the store, needs to be called after daemon.New()
-	snapstate.CanAutoRefresh = nil
-
-	// mark as already seeded
-	s.markSeeded(d)
-
-	c.Assert(d.Init(), check.IsNil)
-
-	type testKey struct{}
-
-	reqC := make(chan any, 1)
-	d.router.HandleFunc("/test-call", func(w http.ResponseWriter, r *http.Request) {
-		defer close(reqC)
-		reqC <- r.Context().Value(testKey{})
-	})
-
-	client := clientForSnapdSocket()
-
-	req, err := http.NewRequest("GET", "http://localhost/test-call", nil)
-	c.Assert(err, check.IsNil)
-
-	ctx := context.WithValue(context.Background(), testKey{}, "hello")
-	c.Assert(d.Start(ctx), check.IsNil)
-
-	r, err := client.Do(req)
-	if r != nil {
-		defer r.Body.Close()
-	}
-	c.Check(err, check.IsNil)
-
-	v := <-reqC
-	c.Assert(v, check.DeepEquals, "hello")
-	d.Stop(nil)
+	c.Check(resp, check.DeepEquals, map[string]interface{}{
+		"status-code": 500.,
+		"status":      "Internal Server Error",
+		"result": map[string]interface{}{
+			"message": "request canceled",
+		},
+		"type": "error"})
 }

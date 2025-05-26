@@ -38,4 +38,4 @@ execute: |
   if OUT=$(test-snap.checkconn home 2>&1); then
     echo "home is not expected"
   fi
-  echo "$OUT" | MATCH "error running snapctl: snap \"test-snap\" has no plug or slot named \"home\""
+  echo "$OUT" | MATCH "error: snapctl: snap \"test-snap\" has no plug or slot named \"home\""

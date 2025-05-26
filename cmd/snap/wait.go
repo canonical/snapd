@@ -36,14 +36,21 @@ var (
 	pollTime    = 100 * time.Millisecond
 )
 
+// mustWaitMixin mixin which exposes a helper method to wait for a state change.
 type mustWaitMixin struct {
 	clientMixin
+	// skipAbort when set, the change we wait for will not be aborted
 	skipAbort bool
+	// noProgress when set, no progress will be shown to the user
+	noProgress bool
 
 	// Wait also for tasks in the "wait" state.
 	waitForTasksInWaitStatus bool
 }
 
+// wait waits for a given change to complete. By default, unless skipAbort is
+// set, it will abort the change when SIGINT is received. Change progress is
+// reported to standard output, unless noProgress is true.
 func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 	cli := wmx.client
 	// Intercept sigint
@@ -61,7 +68,12 @@ func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 		}
 	}()
 
-	pb := progress.MakeProgressBar(Stdout)
+	var pb progress.Meter
+	if wmx.noProgress {
+		pb = &progress.Null
+	} else {
+		pb = progress.MakeProgressBar(Stdout)
+	}
 	defer func() {
 		pb.Finished()
 		// next two not strictly needed for CLI, but without

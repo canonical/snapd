@@ -1,3 +1,5 @@
+name: Run unit tests
+
 on:
   workflow_call:
     inputs:
@@ -119,6 +121,27 @@ jobs:
       if: ${{ inputs.skip-coverage }}
       run: echo "SKIP_COVERAGE=1" >> $GITHUB_ENV
 
+    - name: Test C (check & coverage)
+      if: ${{ inputs.code == 'c' }}
+      run: |
+          HAVE_GCOV=/usr/bin/gcov
+          if [ "$CC"  = 'clang' ]; then
+              # gcovr can normally guess this, but in our setup things need to
+              # be explicit
+              HAVE_GCOV='/usr/bin/llvm-cov-18 gcov'
+          fi
+
+          cd cmd/
+          HAVE_GCOV="$HAVE_GCOV" ./autogen.sh --enable-test-coverage
+          if [ -n "$SKIP_COVERAGE" ]; then
+              make check
+          else
+              make coverage.lcov
+              mkdir -p "${{ github.workspace }}/.coverage"
+              cp coverage.lcov "${{ github.workspace }}/.coverage/coverage-c-code-gcovr-$CC.lcov"
+              make clean
+          fi
+
     - name: Test Go
       if: ${{ inputs.code == 'go' }}
       run: |
@@ -137,4 +160,4 @@ jobs:
       with:
         include-hidden-files: true
         name: "${{ env.COVERAGE_NAME }}"
-        path: "${{ github.workspace }}/.coverage/coverage*.cov"
+        path: "${{ github.workspace }}/.coverage/coverage*"

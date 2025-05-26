@@ -93,6 +93,7 @@ func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOp
 	// value, but for some directives, systemd combines their values into a
 	// list.
 	ifaceServiceSnippets := &strutil.OrderedSet{}
+	ifaceUnitSnippets := &strutil.OrderedSet{}
 
 	for _, plug := range appInfo.Plugs {
 		iface, err := interfaces.ByName(plug.Interface)
@@ -104,13 +105,21 @@ func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOp
 			return nil, fmt.Errorf("error processing plugs while generating service unit for %v: %v", appInfo.SecurityTag(), err)
 		}
 		for _, snip := range snips {
-			ifaceServiceSnippets.Put(snip)
+			switch snip.SystemdConfSection() {
+			case interfaces.PlugServicesSnippetUnitSection:
+				ifaceUnitSnippets.Put(snip.String())
+			case interfaces.PlugServicesSnippetServiceSection:
+				ifaceServiceSnippets.Put(snip.String())
+			default:
+				return nil, fmt.Errorf("internal error: unknown plug service snippet section %q", snip.SystemdConfSection())
+			}
 		}
 	}
 
 	// join the service snippets into one string to be included in the
 	// template
 	ifaceSpecifiedServiceSnippet := strings.Join(ifaceServiceSnippets.Items(), "\n")
+	ifaceSpecifiedUnitSnippet := strings.Join(ifaceUnitSnippets.Items(), "\n")
 
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -130,6 +139,9 @@ Before={{ stringsJoin .Before " "}}
 {{- if .CoreMountedSnapdSnapDep}}
 Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+{{- end}}
+{{- if .InterfaceUnitSnippets}}
+{{.InterfaceUnitSnippets}}
 {{- end}}
 X-Snappy=yes
 
@@ -256,6 +268,7 @@ WantedBy={{.ServicesTarget}}
 		Before                   []string
 		After                    []string
 		InterfaceServiceSnippets string
+		InterfaceUnitSnippets    string
 		SliceUnit                string
 		LogNamespace             string
 
@@ -267,6 +280,7 @@ WantedBy={{.ServicesTarget}}
 		App: appInfo,
 
 		InterfaceServiceSnippets: ifaceSpecifiedServiceSnippet,
+		InterfaceUnitSnippets:    ifaceSpecifiedUnitSnippet,
 
 		Restart:        restartCond,
 		StopTimeout:    serviceStopTimeout(appInfo),

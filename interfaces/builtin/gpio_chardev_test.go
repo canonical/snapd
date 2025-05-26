@@ -20,15 +20,13 @@
 package builtin_test
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -67,6 +65,43 @@ slots:
       - chip0
       - chip1
     lines: 3,4,1-2,5
+`
+
+const gpioChardevConsumerYaml = `name: consumer
+version: 0
+apps:
+  app:
+    plugs:
+      - gpio-chardev-good-plug
+plugs:
+  gpio-chardev-good-plug:
+    interface: gpio-chardev
+`
+
+func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
+
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good-slot")
+	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
+}
+
+func (s *GpioChardevInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "gpio-chardev")
+}
+
+func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
+	// Happy case
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+
+	const badGpioChardevGadgetYaml = `name: my-device
+version: 0
+type: gadget
+slots:
   no-source-chip-attr:
     interface: gpio-chardev
     lines: 3,4,1-2,5
@@ -130,42 +165,7 @@ slots:
     source-chip: [chip11]
     lines: 0,1-512
 `
-
-const gpioChardevConsumerYaml = `name: consumer
-version: 0
-apps:
-  app:
-    plugs:
-      - gpio-chardev-good-plug
-plugs:
-  gpio-chardev-good-plug:
-    interface: gpio-chardev
-`
-
-func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	s.AddCleanup(restore)
-
-	s.rootdir = c.MkDir()
-	dirs.SetRootDir(s.rootdir)
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.GPIOChardevInterface.ControlFile(), []byte(nil), 0644), check.IsNil)
-
-	s.slot, s.slotInfo = MockConnectedSlot(c, gpioChardevGadgetYaml, nil, "gpio-chardev-good-slot")
-	s.plug, s.plugInfo = MockConnectedPlug(c, gpioChardevConsumerYaml, nil, "gpio-chardev-good-plug")
-}
-
-func (s *GpioChardevInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio-chardev")
-}
-
-func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
-	// Happy case
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-
-	info := snaptest.MockInfo(c, gpioChardevGadgetYaml, nil)
+	info := snaptest.MockInvalidInfo(c, badGpioChardevGadgetYaml, nil)
 	expectedError := map[string]string{
 		"no-source-chip-attr":   `snap "my-device" does not have attribute "source-chip" for interface "gpio-chardev"`,
 		"no-lines-attr":         `snap "my-device" does not have attribute "lines" for interface "gpio-chardev"`,
@@ -184,11 +184,8 @@ func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {
 		"bad-line-1":            `invalid "lines" attribute: invalid range span start "-1":.*: invalid syntax`,
 		"bad-lines-count":       `invalid "lines" attribute: range size cannot exceed 512, found 513`,
 	}
-	for slotName := range info.Slots {
-		if slotName == "gpio-chardev-good-slot" {
-			continue
-		}
-		slotInfo := MockSlot(c, gpioChardevGadgetYaml, nil, slotName)
+	c.Assert(len(info.Slots), Equals, len(expectedError))
+	for slotName, slotInfo := range info.Slots {
 		c.Check(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches, expectedError[slotName])
 	}
 }
@@ -198,11 +195,16 @@ func (s *GpioChardevInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *GpioChardevInterfaceSuite) TestBeforeConnectPlugExperimentalFlagRequired(c *C) {
+func (s *GpioChardevInterfaceSuite) TestBeforeConnectPlug(c *C) {
+	restore := builtin.MockGpioCheckConfigfsSupport(func() error { return nil })
+	defer restore()
+	// BeforeConnectPlug only checks that the gpio-aggregator kernel driver
+	// support the new configfs interface.
 	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
-	// Now without the experimental.gpio-chardev-interface flag set.
-	c.Assert(os.Remove(features.GPIOChardevInterface.ControlFile()), IsNil)
-	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), ErrorMatches, `gpio-chardev interface requires the "experimental.gpio-chardev-interface" flag to be set`)
+
+	restore = builtin.MockGpioCheckConfigfsSupport(func() error { return errors.New("boom!") })
+	defer restore()
+	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plug), ErrorMatches, "boom!")
 }
 
 func (s *GpioChardevInterfaceSuite) TestSystemdConnectedSlot(c *C) {
@@ -226,8 +228,8 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 
-	target := "/dev/snap/gpio-chardev/my-device/gpio-chardev-good-slot"
-	symlink := "/dev/snap/gpio-chardev/consumer/gpio-chardev-good-plug"
+	target := fmt.Sprintf("%s/my-device/gpio-chardev-good-slot", dirs.SnapGpioChardevDir)
+	symlink := fmt.Sprintf("%s/consumer/gpio-chardev-good-plug", dirs.SnapGpioChardevDir)
 
 	expectedExecStart := fmt.Sprintf("/bin/sh -c 'mkdir -p %q && ln -s %q %q'", filepath.Dir(symlink), target, symlink)
 	expectedExecStop := fmt.Sprintf("/bin/rm -f %q", symlink)
@@ -264,6 +266,16 @@ func (s *GpioChardevInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), testutil.Contains, `# gpio-chardev
 TAG=="snap_my-device_interface_gpio_chardev_gpio-chardev-good-slot", TAG+="snap_consumer_app"`)
+}
+
+func (s *GpioChardevInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
+	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
+	c.Assert(err, IsNil)
+	c.Assert(snips, HasLen, 2)
+	c.Check(string(snips[0].SystemdConfSection()), Equals, "Unit")
+	c.Check(snips[0].String(), Equals, "After=snapd.gpio-chardev-setup.target")
+	c.Check(string(snips[1].SystemdConfSection()), Equals, "Unit")
+	c.Check(snips[1].String(), Equals, "Wants=snapd.gpio-chardev-setup.target")
 }
 
 func (s *GpioChardevInterfaceSuite) TestStaticInfo(c *C) {

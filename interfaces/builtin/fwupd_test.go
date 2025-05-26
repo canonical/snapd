@@ -245,7 +245,7 @@ func (s *FwupdInterfaceSuite) TestPermanentSlotUdevImplicit(c *C) {
 	c.Assert(err, IsNil)
 
 	snippets := spec.Snippets()
-	c.Assert(snippets, HasLen, 12+1)
+	c.Assert(snippets, HasLen, 13+1)
 
 	c.Assert(snippets[0], Equals, `# fwupd
 KERNEL=="drm_dp_aux[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
@@ -271,10 +271,12 @@ KERNEL=="video[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 KERNEL=="wmi/dell-smbios", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[11], Equals, `# fwupd
 SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[12], Equals, `# fwupd
+SUBSYSTEM=="wwan", ENV{DEVTYPE}=="wwan_port", TAG+="snap_uefi-fw-tools_app2"`)
 
 	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_uefi-fw-tools_app2 $devpath $major:$minor"`,
 		dirs.StripRootDir(dirs.DistroLibExecDir))
-	c.Assert(snippets[12], Equals, expected)
+	c.Assert(snippets[13], Equals, expected)
 
 	// The implicit slot found on classic systems does not generate any rules
 	spec = udev.NewSpecification(s.coreSlot.AppSet())

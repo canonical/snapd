@@ -42,9 +42,9 @@ type parser interface {
 	parseConstraints(map[string]json.RawMessage) error
 }
 
-// ParseSchema parses a JSON confdb schema and returns a Schema that can be
+// ParseStorageSchema parses a JSON confdb schema and returns a Schema that can be
 // used to validate storage.
-func ParseSchema(raw []byte) (*StorageSchema, error) {
+func ParseStorageSchema(raw []byte) (*StorageSchema, error) {
 	var schemaDef map[string]json.RawMessage
 	err := json.Unmarshal(raw, &schemaDef)
 	if err != nil {
@@ -86,10 +86,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 				return nil, fmt.Errorf(`cannot parse alias %q: %w`, alias, err)
 			}
 
-			if aliasSchema.Ephemeral() {
-				// TODO: this isn't properly forbidden because the type may have other nested types
-				// that are marked as ephemeral. It might be as much effort to fully forbid it
-				// than it is to support it so I'll leave its enablement for a follow-up
+			if aliasSchema.NestedEphemeral() {
 				return nil, fmt.Errorf(`cannot use "ephemeral" in user-defined type: %s`, alias)
 			}
 
@@ -156,15 +153,6 @@ func (v *aliasReference) Validate(data []byte) error {
 	return v.alias.Validate(data)
 }
 
-func (v *aliasReference) PruneEphemeral(data []byte) ([]byte, error) {
-	if v.ephemeral {
-		return nil, nil
-	}
-
-	// user-defined types can't be marked as ephemeral so there's nothing else to check
-	return data, nil
-}
-
 // SchemaAt returns the alias reference itself if the path terminates at it. If
 // not, it uses the user-defined type to resolve the path.
 func (v *aliasReference) SchemaAt(path []string) ([]DatabagSchema, error) {
@@ -184,6 +172,12 @@ func (v *aliasReference) Ephemeral() bool {
 	return v.ephemeral
 }
 
+func (s *aliasReference) NestedEphemeral() bool {
+	// TODO: aliases can't be marked as ephemeral for now (only their references)
+	// so there's no point in calling the alias' NestedEphemeral()
+	return s.Ephemeral()
+}
+
 // scalarSchema holds the data and behaviours common to all types.
 type scalarSchema struct {
 	ephemeral bool
@@ -193,11 +187,8 @@ func (s scalarSchema) Ephemeral() bool {
 	return s.ephemeral
 }
 
-func (s scalarSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	if s.ephemeral {
-		return nil, nil
-	}
-	return data, nil
+func (s scalarSchema) NestedEphemeral() bool {
+	return s.Ephemeral()
 }
 
 func (b *scalarSchema) parseConstraints(constraints map[string]json.RawMessage) (err error) {
@@ -246,8 +237,8 @@ func (s *StorageSchema) Ephemeral() bool {
 	return s.topLevel.Ephemeral()
 }
 
-func (s *StorageSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	return s.topLevel.PruneEphemeral(data)
+func (s *StorageSchema) NestedEphemeral() bool {
+	return s.topLevel.NestedEphemeral()
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (DatabagSchema, error) {
@@ -489,19 +480,14 @@ func (v *alternativesSchema) Type() SchemaType {
 
 func (v *alternativesSchema) Ephemeral() bool { return false }
 
-func (v *alternativesSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	for _, s := range v.schemas {
-		if err := s.Validate(data); err != nil {
-			// alternatives are matched in order so find the first matching schema
-			// and use that to prune
-			continue
+func (v *alternativesSchema) NestedEphemeral() bool {
+	for _, schema := range v.schemas {
+		if schema.NestedEphemeral() {
+			return true
 		}
-
-		return s.PruneEphemeral(data)
 	}
 
-	// should not be possible, as we validate before pruning
-	return nil, errors.New("cannot prune ephemeral data: no matching alternative schema")
+	return false
 }
 
 type mapSchema struct {
@@ -661,69 +647,24 @@ func (v *mapSchema) Ephemeral() bool {
 	return v.ephemeral
 }
 
-func (v *mapSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	if v.ephemeral {
-		return nil, nil
+func (v *mapSchema) NestedEphemeral() bool {
+	if v.Ephemeral() {
+		return true
 	}
 
-	var mapValue map[string]json.RawMessage
-	if err := json.Unmarshal(data, &mapValue); err != nil {
-		return nil, err
-	}
-
-	if v.entrySchemas != nil {
-		for key := range mapValue {
-			val, ok := v.entrySchemas[key]
-			if !ok {
-				// should not be possible, as we validate before pruning
-				return nil, fmt.Errorf("cannot prune ephemeral: unexpected key %s", key)
-			}
-
-			pruned, err := val.PruneEphemeral([]byte(mapValue[key]))
-			if err != nil {
-				return nil, err
-			}
-
-			if pruned == nil {
-				delete(mapValue, key)
-			} else {
-				mapValue[key] = pruned
-			}
+	for _, schema := range v.entrySchemas {
+		if schema.NestedEphemeral() {
+			return true
 		}
-		return json.Marshal(mapValue)
 	}
 
 	if v.keySchema != nil {
-		for key := range mapValue {
-			pruned, err := v.keySchema.PruneEphemeral([]byte(key))
-			if err != nil {
-				return nil, err
-			}
-
-			if pruned == nil {
-				delete(mapValue, key)
-			}
-			// keys are always string based type so there is nothing nested to be
-			// ephemeral. The whole key is either ephemeral or not
+		if v.keySchema.NestedEphemeral() {
+			return true
 		}
 	}
 
-	if v.valueSchema != nil {
-		for key, val := range mapValue {
-			pruned, err := v.valueSchema.PruneEphemeral(val)
-			if err != nil {
-				return nil, err
-			}
-
-			if pruned == nil {
-				delete(mapValue, key)
-			} else {
-				mapValue[key] = pruned
-			}
-		}
-	}
-
-	return json.Marshal(mapValue)
+	return v.valueSchema != nil && v.valueSchema.NestedEphemeral()
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -940,13 +881,6 @@ func (v *stringSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
 
 func (v *stringSchema) Type() SchemaType {
 	return String
-}
-
-func (v *stringSchema) PruneEphemeral(data []byte) ([]byte, error) {
-	if v.ephemeral {
-		return nil, nil
-	}
-	return data, nil
 }
 
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1378,40 +1312,8 @@ func (v *arraySchema) Ephemeral() bool {
 	return v.ephemeral
 }
 
-func (v *arraySchema) PruneEphemeral(data []byte) ([]byte, error) {
-	if v.ephemeral {
-		return nil, nil
-	}
-
-	var array []json.RawMessage
-	if err := json.Unmarshal(data, &array); err != nil {
-		return nil, err
-	}
-
-	// prune ephemeral data nested in this array
-	var writeIndex int
-	for _, val := range array {
-		nestedData, err := v.elementType.PruneEphemeral([]byte(val))
-		if err != nil {
-			return nil, err
-		}
-
-		if nestedData == nil {
-			// whole nested value was pruned
-			continue
-		}
-
-		array[writeIndex] = nestedData
-		writeIndex++
-	}
-
-	// discard unused entries, so they can be garbage collected
-	for i := writeIndex; i < len(array); i++ {
-		array[i] = nil
-	}
-	array = array[:writeIndex]
-
-	return json.Marshal(array)
+func (v *arraySchema) NestedEphemeral() bool {
+	return v.Ephemeral() || v.elementType.NestedEphemeral()
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {

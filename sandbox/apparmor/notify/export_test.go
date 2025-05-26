@@ -7,6 +7,8 @@ import (
 )
 
 var (
+	NativeByteOrder = nativeByteOrder
+
 	Versions                     = versions
 	VersionLikelySupportedChecks = versionLikelySupportedChecks
 

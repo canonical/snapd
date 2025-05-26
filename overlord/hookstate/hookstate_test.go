@@ -1453,3 +1453,7 @@ func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
 	checkTaskLogContains(c, s.task, `.*component "test-snap\+standard-component" has no "missing-hook" hook.*`)
 }
+
+func (s *componentHookManagerSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("hookmgr.go", c, false)
+}

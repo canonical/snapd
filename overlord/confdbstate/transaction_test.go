@@ -139,13 +139,9 @@ func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) 
 	return []confdb.DatabagSchema{f}, nil
 }
 
-func (f *failingSchema) Type() confdb.SchemaType {
-	return confdb.Any
-}
-
-func (f *failingSchema) Ephemeral() bool { return false }
-
-func (f *failingSchema) PruneEphemeral([]byte) ([]byte, error) { return nil, nil }
+func (f *failingSchema) Type() confdb.SchemaType { return confdb.Any }
+func (f *failingSchema) Ephemeral() bool         { return false }
+func (f *failingSchema) NestedEphemeral() bool   { return false }
 
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
@@ -435,7 +431,7 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	c.Assert(err, ErrorMatches, "cannot commit aborted transaction")
 }
 
-func (s *transactionTestSuite) TestTransactionPristine(c *C) {
+func (s *transactionTestSuite) TestTransactionPrevious(c *C) {
 	bag := confdb.NewJSONDatabag()
 	err := bag.Set("foo", "bar")
 	c.Assert(err, IsNil)
@@ -449,16 +445,16 @@ func (s *transactionTestSuite) TestTransactionPristine(c *C) {
 	err = tx.Set("foo", "baz")
 	c.Assert(err, IsNil)
 
-	checkPristine := func(key, expected string) {
-		pristineBag := tx.Pristine()
-		val, err := pristineBag.Get(key)
+	checkPrevious := func() {
+		previousBag := tx.Previous()
+		val, err := previousBag.Get("foo")
 		c.Assert(err, IsNil)
-		c.Check(val, Equals, expected)
+		c.Check(val, Equals, "bar")
 	}
-	checkPristine("foo", "bar")
+	checkPrevious()
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	checkPristine("foo", "baz")
+	checkPrevious()
 }

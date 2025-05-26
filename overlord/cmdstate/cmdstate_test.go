@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // hook up gocheck to testing
@@ -220,4 +221,8 @@ func (s *cmdSuite) TestExecTimeoutMissing(c *check.C) {
 
 	// slept for
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
+}
+
+func (s *cmdSuite) TestEnsureLoopLogging(c *check.C) {
+	testutil.CheckEnsureLoopLogging("cmdmgr.go", c, false)
 }

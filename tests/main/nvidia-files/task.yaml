@@ -66,6 +66,8 @@ prepare: |
     skip["ubuntu-20.04-64/515-server"]="transitional-driver"
     skip["ubuntu-20.04-64/525"]="transitional-driver"
     skip["ubuntu-20.04-64/530"]="transitional-driver"
+    skip["ubuntu-20.04-64/535"]="broken-packaging"
+
     # The i386 side of the driver is not installable due to
     # https://bugs.launchpad.net/ubuntu/+source/nvidia-graphics-drivers-535-server/+bug/2080351
     skip["ubuntu-20.04-64/535-server"]="broken-packaging"
@@ -105,8 +107,7 @@ prepare: |
     skip["ubuntu-24.10-64/530"]="transitional-driver"
     skip["ubuntu-24.10-64/535"]="transitional-driver"
     skip["ubuntu-24.10-64/550"]="transitional-driver"
-    # /bin/bash: line 109: 10426 Segmentation fault      (core dumped) test-snapd-nvidia.64 > log-64.txt
-    skip["ubuntu-24.10-64/560"]="broken-driver"
+    skip["ubuntu-24.10-64/560"]="transitional-driver"
 
     driver_suffix=$PACKAGE_VERSION${PACKAGE_SUFFIX:-}
     combi_key=$SPREAD_SYSTEM/$driver_suffix

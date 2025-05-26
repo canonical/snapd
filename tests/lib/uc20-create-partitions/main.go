@@ -20,7 +20,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/jessevdk/go-flags"
@@ -29,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -66,9 +64,7 @@ func (c uc20Constraints) Classic() bool             { return false }
 func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
-	if err := logger.SimpleSetup(nil); err != nil {
-		fmt.Fprintf(os.Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
-	}
+	logger.SimpleSetup(nil)
 
 	args := &cmdCreatePartitions{}
 	if _, err := flags.ParseArgs(args, os.Args[1:]); err != nil {

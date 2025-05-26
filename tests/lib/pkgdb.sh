@@ -545,6 +545,23 @@ pkg_dependencies_ubuntu_generic(){
         "
 }
 
+pkg_dependencies_ubuntu_nested(){
+    echo "
+        ca-certificates
+        cloud-image-utils
+        genisoimage
+        kpartx
+        mtools
+        ovmf
+        qemu-kvm
+        qemu-utils
+        snapd
+        sshpass
+        xdelta3
+        xz-utils
+        "
+}
+
 pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
@@ -817,6 +834,7 @@ pkg_dependencies_opensuse(){
         xdg-user-dirs
         xdg-utils
         zsh
+        libcap-progs
         "
     if os.query is-opensuse tumbleweed; then
         echo "
@@ -876,8 +894,13 @@ pkg_dependencies(){
             pkg_dependencies_ubuntu_core
             ;;
         ubuntu-*|debian-*)
-            pkg_dependencies_ubuntu_generic
-            pkg_dependencies_ubuntu_classic
+            if tests.nested is-nested &>/dev/null; then
+                pkg_dependencies_ubuntu_generic
+                pkg_dependencies_ubuntu_nested
+            else
+                pkg_dependencies_ubuntu_generic
+                pkg_dependencies_ubuntu_classic
+            fi
             ;;
         amazon-*)
             pkg_dependencies_amazon

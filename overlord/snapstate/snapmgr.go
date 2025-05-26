@@ -1129,6 +1129,8 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
+
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1167,6 +1169,8 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	if fixed > 0 {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureForceDevmodeDropsDevmodeFromState")
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
@@ -1253,6 +1257,8 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return nil
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureUbuntuCoreTransition")
+
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
 	var retryCount int
@@ -1285,6 +1291,7 @@ func (m *SnapManager) atSeed() error {
 		// already seeded or other error
 		return err
 	}
+	logger.Trace("ensure", "manager", "SnapManager", "func", "atSeed")
 	if err := m.autoRefresh.AtSeed(); err != nil {
 		return err
 	}
@@ -1390,6 +1397,8 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		return err
 	}
 
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureMountsUpdated")
+
 	if len(allStates) != 0 {
 		sysd := getSystemD()
 
@@ -1470,6 +1479,7 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 		}
 		snaps = append(snaps, info)
 	}
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDesktopFilesUpdated")
 	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
 		return err
 	}
@@ -1496,6 +1506,8 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	if !seeded {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDownloadsCleaned")
 
 	if err := cleanDownloads(m.state); err != nil {
 		return err

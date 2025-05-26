@@ -1,0 +1,160 @@
+name: Master Push
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  go-channels:
+    runs-on: ubuntu-latest
+    outputs:
+      go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve Go snap channels
+        id: resolve-go-channels
+        uses: ./.github/actions/resolve-go-channels
+        with:
+          include-snapd-build-go-channel: true
+          include-snapd-build-fips-go-channel: true
+          include-latest-go-channel: true
+
+  cache-build-deps:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Debian dependencies
+      run: |
+          sudo apt clean
+          sudo apt update
+          sudo apt build-dep -d -y ${{ github.workspace }}
+          # for indent
+          sudo apt install texinfo autopoint
+
+    - name: Copy dependencies
+      run: |
+        sudo tar cvf cached-apt.tar /var/cache/apt
+
+    - name: upload Debian dependencies
+      uses: actions/upload-artifact@v4
+      with:
+        name: debian-dependencies
+        path: ./cached-apt.tar
+
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - go-channels
+      - cache-build-deps
+    name: "unit-tests (Go default ${{ matrix.gochannel }})"
+    with:
+      runs-on: ubuntu-latest
+      gochannel: ${{ matrix.gochannel }}
+      code: 'go'
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false      
+      matrix:
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+
+  unit-tests-c:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - cache-build-deps
+    name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
+    with:
+      runs-on: ubuntu-latest
+      code: 'c'
+      c-compiler: ${{ matrix.test-case.c-compiler }}
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false
+      matrix:
+        test-case:
+          - { c-compiler: gcc }
+          - { c-compiler: clang }
+
+  unit-tests-special:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - go-channels
+      - cache-build-deps
+    name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
+          ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
+          ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
+    with:
+      runs-on: ubuntu-latest
+      gochannel: ${{ matrix.gochannel }}
+      skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
+      go-build-tags: ${{ matrix.test-case.go-build-tags }}
+      go-test-race: ${{ matrix.test-case.go-test-race }}
+      snapd-debug: ${{ matrix.test-case.snapd-debug }}
+      code: 'go'
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false
+      matrix:
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+        test-case:
+          - { go-build-tags: snapd_debug,           skip-coverage: false, snapd-debug: true,  go-test-race: false}
+          - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: statelocktrace,        skip-coverage: true,  snapd-debug: false, go-test-race: false}
+          - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+          - { go-build-tags: structuredlogging,     skip-coverage: true,  snapd-debug: false, go-test-race: false}
+          - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
+
+  unit-tests-cross-distro:
+    uses: ./.github/workflows/unit-tests-cross-distro.yaml
+    with:
+      runs-on: ubuntu-latest
+      distro: ${{ matrix.distro }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          # TODO add arch?
+          - fedora:latest
+          - opensuse/tumbleweed
+
+  code-coverage:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, unit-tests-special, unit-tests-c]
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+    steps:
+    - name: Download the coverage files
+      uses: actions/download-artifact@v4
+      with:
+        pattern: coverage-files-*
+        path: .coverage/
+        merge-multiple: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      # uploading to codecov occasionally fails, so continue running the test
+      # workflow regardless of the upload
+      continue-on-error: true
+      with:
+        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: unittests
+        name: codecov-umbrella
+        verbose: true
+        # exclude codecov binaries
+        exclude: codecov*
+        disable_search: true
+        files: .coverage/*
+        # only pick files under .coverage directory
+        network_filter: .coverage/

@@ -25,6 +25,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/sandbox/gpio"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -33,11 +34,22 @@ type options struct {
 	CmdUnexportChardev cmdUnexportChardev `command:"unexport-chardev"`
 }
 
-func run(osArgs1 []string) error {
+var gpioEnsureAggregatorDriver = gpio.EnsureAggregatorDriver
+
+func run(args []string) error {
+	// Make sure the gpio-aggregator module is loaded because the
+	// systemd security backend comes before the kmod security
+	// backend, there is an edge case on first connection where
+	// the helper service could be started before the gpio-aggregator
+	// module is loaded.
+	if err := gpioEnsureAggregatorDriver(); err != nil {
+		return nil
+	}
+
 	var opts options
 	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
 
-	if _, err := p.ParseArgs(osArgs1); err != nil {
+	if _, err := p.ParseArgs(args); err != nil {
 		return err
 	}
 	return nil

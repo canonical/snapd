@@ -50,7 +50,7 @@ type getCommand struct {
 	ForceSlotSide bool `long:"slot" description:"return attribute values from the slot side of the connection"`
 	ForcePlugSide bool `long:"plug" description:"return attribute values from the plug side of the connection"`
 	View          bool `long:"view" description:"return confdb values from the view declared in the plug"`
-	Pristine      bool `long:"pristine" description:"return confdb values disregarding changes from the current transaction"`
+	Previous      bool `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
@@ -164,8 +164,8 @@ func (c *getCommand) Execute(args []string) error {
 	if c.Typed && c.Document {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
-	if c.Pristine && !c.View {
-		return fmt.Errorf("cannot use --pristine without --view")
+	if c.Previous && !c.View {
+		return fmt.Errorf("cannot use --previous without --view")
 	}
 
 	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
@@ -184,7 +184,7 @@ func (c *getCommand) Execute(args []string) error {
 			}
 
 			requests := c.Positional.Keys
-			return c.getConfdbValues(context, name, requests, c.Pristine)
+			return c.getConfdbValues(context, name, requests, c.Previous)
 		}
 
 		if len(c.Positional.Keys) == 0 {
@@ -370,7 +370,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	})
 }
 
-func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, requests []string, pristine bool) error {
+func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, requests []string, previous bool) error {
 	if c.ForcePlugSide || c.ForceSlotSide {
 		return errors.New(i18n.G("cannot use --plug or --slot with --view"))
 	}
@@ -387,14 +387,14 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	tx, err := confdbstateTransactionForGet(ctx, view)
+	tx, err := confdbstateTransactionForGet(ctx, view, requests)
 	if err != nil {
 		return err
 	}
 
 	var bag confdb.Databag = tx
-	if pristine {
-		bag = tx.Pristine()
+	if previous {
+		bag = tx.Previous()
 	}
 
 	res, err := confdbstate.GetViaView(bag, view, requests)

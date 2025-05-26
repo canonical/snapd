@@ -822,7 +822,6 @@ var (
 		"empty":                     {"app"},
 		"fwupd":                     {"app", "core"},
 		"gpio":                      {"core", "gadget"},
-		"gpio-chardev":              {"gadget"},
 		"gpio-control":              {"core"},
 		"greengrass-support":        {"core"},
 		"hidraw":                    {"core", "gadget"},
@@ -886,6 +885,7 @@ var (
 		"pkcs11":            nil,
 		"posix-mq":          nil,
 		"shared-memory":     nil,
+		"gpio-chardev":      nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -972,6 +972,25 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation denied by \"shared-memory\" slot rule of interface \"shared-memory\"")
+
+	// test gpio-chardev specifically as it needs correct attributes in the snap yaml
+	for name, snapType := range snapTypeMap {
+		ic := s.installSlotCand(c, "gpio-chardev", snapType, fmt.Sprintf(`name: my-device
+version: 0
+type: %s
+slots:
+  gpio-chardev:
+    source-chip: [chip0]
+    lines: 0,1
+`, snapType))
+		err := ic.Check()
+		comm := Commentf("%s by %s snap", "gpio-chardev", name)
+		if snapType == snap.TypeGadget {
+			c.Check(err, IsNil, comm)
+		} else {
+			c.Check(err, NotNil, comm)
+		}
+	}
 
 	// The core and snapd snaps may provide a shared-memory slot
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeOS, `name: core

@@ -239,10 +239,10 @@ func activateVolOpts(allowRecoveryKey bool, allowPassphrase bool, legacyPaths ..
 	return &options
 }
 
-func newAuthRequestor() (sb.AuthRequestor, error) {
+func newAuthRequestor() sb.AuthRequestor {
 	return sb.NewSystemdAuthRequestor(
-		"Please enter the passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
-		"Please enter the recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter the passphrase for volume %[1]s for device %[2]s",
+		"Please enter the recovery key for volume %[1]s for device %[2]s",
 	)
 }
 
@@ -565,8 +565,8 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	}
 	for _, key := range keys {
 		creationParams := &sb_tpm2.ProtectKeyParams{
-			PCRProfile: pcrProfile,
-			// TODO:FDEM:FIX: add roles
+			PCRProfile:             pcrProfile,
+			Role:                   params.KeyRole,
 			PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 			PrimaryKey:             primaryKey,
 		}
@@ -623,12 +623,6 @@ func ResealKeys(params *ResealKeysParams) error {
 		return err
 	}
 
-	// TODO:FDEM:FIX: load primary key from keyring when available
-	authKey, err := os.ReadFile(params.TPMPolicyAuthKeyFile)
-	if err != nil {
-		return fmt.Errorf("cannot read the policy auth key file %s: %w", params.TPMPolicyAuthKeyFile, err)
-	}
-
 	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
 	writers := make([]sb.KeyDataWriter, 0, numSealedKeyObjects)
@@ -656,7 +650,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	}
 
 	if hasOldSealedKeyObjects {
-		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, &pcrProfile); err != nil {
+		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, params.PrimaryKey, &pcrProfile); err != nil {
 			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
 		}
 
@@ -669,12 +663,12 @@ func ResealKeys(params *ResealKeysParams) error {
 		}
 
 		// revoke old policies via the primary key object
-		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, authKey); err != nil {
+		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, params.PrimaryKey); err != nil {
 			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
 		// TODO:FDEM:FIX: find out which context when revocation should happen
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, authKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, params.PrimaryKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
 			return fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 

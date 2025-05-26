@@ -1,0 +1,11 @@
+# Documentation:
+# https://docs.codecov.com/docs/codecovyml-reference
+
+fixes:
+  - "github.com/snapcore/snapd/::"
+  # default clone path on runner is /home/runner/work/snapd/snapd, drop the
+  # prefix so that C coverage data can match
+  - "/home/runner/work/snapd/snapd/::"
+
+codecov:
+  disable_default_path_fixes: true

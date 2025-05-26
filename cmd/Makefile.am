@@ -1,4 +1,3 @@
-
 EXTRA_DIST = VERSION snap-confine/PORTING
 CLEANFILES =
 TESTS =
@@ -7,7 +6,8 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
-AM_CFLAGS = $(CHECK_CFLAGS)
+AM_CFLAGS = $(CHECK_CFLAGS) $(CODE_COVERAGE_CFLAGS)
+AM_LDFLAGS = $(CHECK_LDFLAGS) $(CODE_COVERAGE_LDFLAGS)
 if ENABLE_SANITIZE
 SANITIZE_CFLAGS = -fsanitize=address -fsanitize=undefined
 SANITIZE_LDFLAGS = -fsanitize=address -fsanitize=undefined
@@ -65,7 +65,8 @@ fmt-check:: $(wildcard $(addsuffix /*.[ch],$(addprefix $(srcdir)/,$(subdirs))))
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
-	sudo install -D -m 4755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -D -m 755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
+	sudo setcap "$$(cat snap-confine/snap-confine.caps)" $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d $(DESTDIR)$(APPARMOR_SYSCONFIG) ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)$(snapdstatedir)/apparmor/snap-confine/
 	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
@@ -210,7 +211,7 @@ noinst_PROGRAMS += decode-mount-opts/decode-mount-opts
 decode_mount_opts_decode_mount_opts_SOURCES = \
 	decode-mount-opts/decode-mount-opts.c
 decode_mount_opts_decode_mount_opts_LDADD = libsnap-confine-private.a
-decode_mount_opts_decode_mount_opts_LDFLAGS = $(SANITIZE_LDFLAGS)
+decode_mount_opts_decode_mount_opts_LDFLAGS = $(SANITIZE_LDFLAGS) $(CODE_COVERAGE_LDFLAGS)
 decode_mount_opts_decode_mount_opts_STATIC =
 
 if STATIC_LIBCAP
@@ -240,6 +241,7 @@ CLEANFILES += snap-confine/snap-confine.8
 endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
+EXTRA_DIST += snap-confine/snap-confine.caps
 
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.c \
@@ -383,16 +385,14 @@ endif
 	install -d -m 755 $(DESTDIR)$(snapdstatedir)/apparmor/snap-confine/
 # NOTE: The 'void' directory *has to* be chmod 111
 	install -d -m 111 $(DESTDIR)$(snapdstatedir)/void
+	install -m 644 $(srcdir)/snap-confine/snap-confine.caps $(DESTDIR)$(libexecdir)/
 
 uninstall-local:
 if APPARMOR
 	rm -f $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 endif
 	rmdir $(DESTDIR)$(snapdstatedir)/void || true
-
-install-exec-hook:
-# Ensure that snap-confine is u+s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+	rm -f $(DESTDIR)$(libexecdir)/snap-confine.caps || true
 
 ##
 ## snap-mgmt
@@ -583,3 +583,26 @@ APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--with-apparmorconfigdir=$${dc_install_base}/
 else
 APPARMOR_DISTCHECK_CONFIGURE_FLAGS=--disable-apparmor
 endif
+
+GCOVR_OPTS = \
+	--gcov-executable '$(HAVE_GCOV)' \
+	--merge-mode-functions merge-use-line-0
+
+CLEANFILES += coverage.csv
+coverage.csv: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --csv -o $@ $(builddir)
+
+CLEANFILES += coverage.lcov
+coverage.lcov: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --lcov -o $@ $(builddir)
+
+CLEANFILES += coverage.xml
+coverage.xml: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --xml -o $@ $(builddir)
+
+CLEANFILES += coverage.html coverage.*.html
+coverage.html: check
+	$(HAVE_GCOVR) $(GCOVR_OPTS) --html-details $@ $(builddir)
+
+clean-local:
+	-find . \( -name "*.gcda" -o -name "*.gcno" \) -delete

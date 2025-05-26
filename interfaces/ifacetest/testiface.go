@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
@@ -127,6 +128,13 @@ type TestInterface struct {
 	PolkitConnectedSlotCallback func(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	PolkitPermanentPlugCallback func(spec *polkit.Specification, plug *snap.PlugInfo) error
 	PolkitPermanentSlotCallback func(spec *polkit.Specification, slot *snap.SlotInfo) error
+
+	// Support for interacting with the symlinks backend.
+
+	SymlinksConnectedPlugCallback func(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	SymlinksConnectedSlotCallback func(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	SymlinksPermanentPlugCallback func(spec *symlinks.Specification, plug *snap.PlugInfo) error
+	SymlinksPermanentSlotCallback func(spec *symlinks.Specification, slot *snap.SlotInfo) error
 }
 
 // TestHotplugInterface is an interface for various kinds of tests
@@ -148,6 +156,15 @@ type TestConfigFilesInterface struct {
 
 	// Support for interacting with configfiles backend.
 	PathPatternsCallback func() []string
+}
+
+// TestSymlinksInterface is used to test the symlinks backend,
+// which needs interfaces implementing SymlinksUser.
+type TestSymlinksInterface struct {
+	TestInterface
+
+	// Support for interacting with symlinks backend.
+	DirectoriesCallback func() []string
 }
 
 // String() returns the same value as Name().
@@ -535,6 +552,36 @@ func (t *TestInterface) PolkitPermanentPlug(spec *polkit.Specification, plug *sn
 	return nil
 }
 
+// Support for interacting with the symlinks backend.
+
+func (t *TestInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.SymlinksConnectedPlugCallback != nil {
+		return t.SymlinksConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SymlinksConnectedSlot(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.SymlinksConnectedSlotCallback != nil {
+		return t.SymlinksConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) SymlinksPermanentPlug(spec *symlinks.Specification, plug *snap.PlugInfo) error {
+	if t.SymlinksPermanentPlugCallback != nil {
+		return t.SymlinksPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) SymlinksPermanentSlot(spec *symlinks.Specification, slot *snap.SlotInfo) error {
+	if t.SymlinksPermanentSlotCallback != nil {
+		return t.SymlinksPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
 // Support for interacting with hotplug subsystem.
 
 func (t *TestHotplugInterface) HotplugKey(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
@@ -563,6 +610,15 @@ func (t *TestHotplugInterface) HandledByGadget(deviceInfo *hotplug.HotplugDevice
 func (t *TestConfigFilesInterface) PathPatterns() []string {
 	if t.PathPatternsCallback != nil {
 		return t.PathPatternsCallback()
+	}
+	return nil
+}
+
+// Support for interacting with symlinks backend.
+
+func (t *TestSymlinksInterface) TrackedDirectories() []string {
+	if t.DirectoriesCallback != nil {
+		return t.DirectoriesCallback()
 	}
 	return nil
 }

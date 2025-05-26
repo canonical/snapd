@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -637,6 +638,13 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamPath(c *
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHappyClassic(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	defer main.MockOsGetenv(func(envVar string) string {
+		if envVar == "CORE24_PLUS_INITRAMFS" {
+			return "1"
+		}
+		return ""
+	})()
+
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
@@ -707,6 +715,117 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithComponentsHa
 
 	checkKernelMounts(c, "/run/mnt/data", "/sysroot",
 		[]string{"comp1", "comp2", "comp3"}, []string{"11", "22", "33"}, nil, nil)
+	checkClassicSysrootMount(c)
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunMode24KernelClassicNoDriversTree(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	defer main.MockOsGetenv(func(envVar string) string {
+		if envVar == "CORE24_PLUS_INITRAMFS" {
+			return "1"
+		}
+		return ""
+	})()
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsDataDir)
+	c.Assert(err, IsNil)
+
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed", "")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	// Check /lib/{modules,firmware} mounts
+	unitsPath := filepath.Join(dirs.GlobalRootDir, "run/systemd/system")
+	for _, subdir := range []string{"modules", "firmware"} {
+		what := filepath.Join("/run/mnt/kernel", subdir)
+		where := filepath.Join("/sysroot/usr/lib", subdir)
+		unit := systemd.EscapeUnitNamePath(where) + ".mount"
+		c.Check(filepath.Join(unitsPath, unit), testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount of kernel drivers tree
+DefaultDependencies=no
+After=initrd-parse-etc.service
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Options=bind,shared
+`, what, where))
+
+		symlinkPath := filepath.Join(unitsPath, "initrd-fs.target.wants", unit)
+		target, err := os.Readlink(symlinkPath)
+		c.Assert(err, IsNil)
+		c.Assert(target, Equals, "../"+unit)
+	}
+
+	checkClassicSysrootMount(c)
+}
+
+func checkClassicSysrootMount(c *C) {
+	unitsPath := filepath.Join(dirs.GlobalRootDir, "run/systemd/system")
+	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
+	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
+	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
+DefaultDependencies=no
+Before=initrd-root-fs.target
+After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=/run/mnt/data
+Where=/sysroot
+Type=none
+Options=bind
+`)
+
+	symlinkPath := filepath.Join(unitsPath, "initrd-root-fs.target.wants", "sysroot.mount")
+	target, err := os.Readlink(symlinkPath)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "../sysroot.mount")
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappyClassic(c *C) {
@@ -1027,7 +1146,6 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRecoveryModeHybridSyste
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
-		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),

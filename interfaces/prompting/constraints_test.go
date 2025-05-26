@@ -1123,7 +1123,11 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 type fakeAaPerm string
 
 func (p fakeAaPerm) AsAppArmorOpMask() uint32 {
-	return uint32(len(p))
+	return uint32(len(p)) // deliberately gratuitously meaningless
+}
+
+func (p fakeAaPerm) String() string {
+	return string(p)
 }
 
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {

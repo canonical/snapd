@@ -92,6 +92,12 @@ var (
 	_ fmt.Stringer = (*systemKey)(nil)
 )
 
+// SystemKeyFromString unpacks the system key from a string obtained previously
+// by using the system key's Stringer interface.
+func SystemKeyFromString(s string) (any, error) {
+	return UnmarshalJSONSystemKey(strings.NewReader(s))
+}
+
 // IMPORTANT: when adding/removing/changing inputs bump this
 const systemKeyVersion = 11
 
@@ -173,7 +179,7 @@ func generateSystemKey() (*systemKey, error) {
 
 // UnmarshalJSONSystemKey unmarshalls the data from the reader as JSON into a
 // system key usable with SystemKeysMatch.
-func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
+func UnmarshalJSONSystemKey(r io.Reader) (any, error) {
 	sk := &systemKey{}
 	err := json.NewDecoder(r).Decode(sk)
 	if err != nil {
@@ -260,7 +266,7 @@ func WriteSystemKey(extraData SystemKeyExtraData) error {
 // snap run only has to obtain the mtime of apparmor_parser and
 // doesn't have to invoke it)
 //
-// Returns the current system key when a mismatch is detected.
+// Returns the current system key whenever it was possible to generate one.
 func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, err error) {
 	mySystemKey, err := generateSystemKey()
 	if err != nil {
@@ -269,7 +275,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 
 	diskSystemKey, err := readSystemKey()
 	if err != nil {
-		return false, nil, err
+		return false, mySystemKey, err
 	}
 
 	// deal with the race that "snap run" may start, then snapd
@@ -278,7 +284,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 	// should be fine because new security profiles will also
 	// have been written to disk.
 	if mySystemKey.Version != diskSystemKey.Version {
-		return false, nil, ErrSystemKeyVersion
+		return false, mySystemKey, ErrSystemKeyVersion
 	}
 
 	// special case to detect local runs
@@ -287,7 +293,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 			// detect running local local builds
 			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, dirs.SnapMountDir) {
 				logger.Noticef("running from non-installed location %s: ignoring system-key", exe)
-				return false, nil, ErrSystemKeyVersion
+				return false, mySystemKey, ErrSystemKeyVersion
 			}
 		}
 	}
@@ -322,7 +328,7 @@ func SystemKeyMismatch(extraData SystemKeyExtraData) (mismatch bool, myKey any, 
 		return true, mySystemKey, err
 	}
 
-	return false, nil, nil
+	return false, mySystemKey, nil
 }
 
 func readSystemKey() (*systemKey, error) {
@@ -378,11 +384,80 @@ func RemoveSystemKey() error {
 }
 
 func MockSystemKey(s string) func() {
-	var sk systemKey
-	err := json.Unmarshal([]byte(s), &sk)
+	sk, err := SystemKeyFromString(s)
 	if err != nil {
 		panic(err)
 	}
-	mockedSystemKey = &sk
+	mockedSystemKey = sk.(*systemKey)
 	return func() { mockedSystemKey = nil }
+}
+
+type SystemKeyMismatchAction int
+
+const (
+	SystemKeyMismatchActionUndefined SystemKeyMismatchAction = iota
+	SystemKeyMismatchActionNone
+	SystemKeyMismatchActionRegenerateProfiles
+)
+
+func (s SystemKeyMismatchAction) String() string {
+	switch s {
+	case SystemKeyMismatchActionNone:
+		return "none"
+	case SystemKeyMismatchActionRegenerateProfiles:
+		return "regenerate-profiles"
+	default:
+		return fmt.Sprintf("SystemKeyMismatchAction(%d)", int(s))
+	}
+}
+
+var (
+	ErrSystemKeyMismatchVersionTooHigh = errors.New("system-key version higher than supported")
+)
+
+// SystemKeyMismatchAdvice checks the provided and currently saved system keys
+// to advise whether security profiles should be regenerated. Returns
+// ErrSystemKeyMismatchVersionTooHigh when the provided system key is newer than
+// one supported by the current process.
+func SystemKeyMismatchAdvice(maybeOther any) (SystemKeyMismatchAction, error) {
+	other, ok := maybeOther.(*systemKey)
+	if !ok {
+		return SystemKeyMismatchActionUndefined, fmt.Errorf("internal error: %T is not a system key", maybeOther)
+	}
+
+	// system-key is regeneraterd on startup of snapd, so anything read back
+	// from disk should match what currently exeuting snapd supports
+	my, err := readSystemKey()
+	if err != nil {
+		return SystemKeyMismatchActionUndefined, err
+	}
+
+	if other.Version == my.Version {
+		// same version as our key, let's double check the mismatch, as the
+		// client may have generated a system key right right before snapd
+		// startup, so they did not observe the latest content of the key
+		match, err := SystemKeysMatch(my, other)
+		if err != nil {
+			// unreachable
+			return SystemKeyMismatchActionUndefined, err
+		}
+
+		if match {
+			return SystemKeyMismatchActionNone, nil
+		}
+	} else if other.Version < systemKeyVersion {
+		// fallback behavior for lower versions of system key observed by the
+		// client, most likely the client is older than the current snapd
+		// process, selectively compare keys that have special meaning
+		if other.NFSHome == my.NFSHome {
+			// client's view of NFS home is same as ours, let the client proceed
+			return SystemKeyMismatchActionNone, nil
+		}
+	} else {
+		// client is likely newer than the current snapd process, we don't know
+		// how to interpret, let the caller decide
+		return SystemKeyMismatchActionUndefined, ErrSystemKeyMismatchVersionTooHigh
+	}
+
+	return SystemKeyMismatchActionRegenerateProfiles, nil
 }

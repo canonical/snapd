@@ -18,9 +18,10 @@ systems:
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
   - -ubuntu-*-arm*       # not available on arm
+  - -ubuntu-25.04-*      # currently failing due to old apparmor parser not recognizing kernel features
 
 environment:
-    CHANNEL/edge: 1.25-strict/edge
+    CHANNEL/edge: 1.26-strict/edge
     # apparmor profile of microk8s can make snapd exceed its spread memory limit
     SNAPD_NO_MEMORY_LIMIT: 1
 

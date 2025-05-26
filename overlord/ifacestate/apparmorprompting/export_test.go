@@ -35,6 +35,10 @@ func MockListenerRun(f func(l *listener.Listener) error) (restore func()) {
 	return testutil.Mock(&listenerRun, f)
 }
 
+func MockListenerReady(f func(l *listener.Listener) <-chan struct{}) (restore func()) {
+	return testutil.Mock(&listenerReady, f)
+}
+
 func MockListenerReqs(f func(l *listener.Listener) <-chan *listener.Request) (restore func()) {
 	return testutil.Mock(&listenerReqs, f)
 }
@@ -48,7 +52,10 @@ type RequestResponse struct {
 	AllowedPermission notify.AppArmorPermission
 }
 
-func MockListener() (reqChan chan *listener.Request, replyChan chan RequestResponse, restore func()) {
+func MockListener() (readyChan chan struct{}, reqChan chan *listener.Request, replyChan chan RequestResponse, restore func()) {
+	// The readyChan should be closed once all pending previously-sent requests
+	// have been re-sent.
+	readyChan = make(chan struct{})
 	// Since the manager run loop is in a tracked goroutine, shouldn't block.
 	reqChan = make(chan *listener.Request)
 	// Replies would be sent synchronously to an async listener, but it's
@@ -67,6 +74,9 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 		// nil in practice.
 		return nil
 	})
+	restoreReady := MockListenerReady(func(l *listener.Listener) <-chan struct{} {
+		return readyChan
+	})
 	restoreReqs := MockListenerReqs(func(l *listener.Listener) <-chan *listener.Request {
 		return reqChan
 	})
@@ -78,6 +88,12 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 			close(reqChan)
 			close(replyChan)
 			close(closeChan)
+		}
+		select {
+		case <-readyChan:
+			// already closed
+		default:
+			close(readyChan)
 		}
 		return nil
 	})
@@ -93,10 +109,11 @@ func MockListener() (reqChan chan *listener.Request, replyChan chan RequestRespo
 		restoreReply()
 		restoreClose()
 		restoreReqs()
+		restoreReady()
 		restoreRun()
 		restoreRegister()
 	}
-	return reqChan, replyChan, restore
+	return readyChan, reqChan, replyChan, restore
 }
 
 func MockRequestReply(f func(req *listener.Request, allowedPermission notify.AppArmorPermission) error) (restore func()) {
@@ -107,6 +124,10 @@ func MockRequestReply(f func(req *listener.Request, allowedPermission notify.App
 		restoreRequestpromptsSendReply()
 		restoreRequestReply()
 	}
+}
+
+func MockPromptingInterfaceFromTagsets(f func(tagsets notify.TagsetMap) (string, error)) (restore func()) {
+	return testutil.Mock(&promptingInterfaceFromTagsets, f)
 }
 
 func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {

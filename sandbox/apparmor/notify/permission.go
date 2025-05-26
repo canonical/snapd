@@ -12,6 +12,8 @@ type AppArmorPermission interface {
 	// AsAppArmorOpMask returns the receiver as an AppArmor operation mask, as
 	// found in MsgNotificationOp and MsgNotificationResponse.
 	AsAppArmorOpMask() uint32
+	// String returns the string representation of the receiver.
+	String() string
 }
 
 // FilePermission is a bit-mask of apparmor permissions in relation to files.

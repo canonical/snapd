@@ -1,3 +1,96 @@
+snapd (2.69-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2105854
+    - FDE: re-factor listing of the disks based on run mode model and
+      model to correctly resolve paths
+    - FDE: run snapd from snap-failure with the correct keyring mode
+    - Snap components: allow remodeling back to an old snap revision
+      that includes components
+    - Snap components: fix remodel to a kernel snap that is already
+      installed on the system, but not the current kernel due to a
+      previous remodel.
+    - Snap components: fix for snapctl inputs that can crash snapd
+    - Confdb (experimental): load ephemeral data when reading data via
+      snapctl get
+    - Confdb (experimental): load ephemeral data when reading data via
+      snap get
+    - Confdb (experimental): rename {plug}-view-changed hook to observe-
+      view-{plug}
+    - Confdb (experimental): rename confdb assertion to confdb-schema
+    - Confdb (experimental): change operator grouping in confdb-control
+      assertion
+    - Confdb (experimental): add confdb-control API
+    - AppArmor: extend the probed features to include the presence of
+      files, as well as directories
+    - AppArmor prompting (experimental): simplify the listener
+    - AppArmor metadata tagging (disabled): probe parser support for
+      tags
+    - AppArmor metadata tagging (disabled): implement notification
+      protocol v5
+    - Confidential VMs: sysroot.mount is now dynamically created by
+      snap-bootstrap instead of being a static file in the initramfs
+    - Confidential VMs: Add new implementation of snap integrity API
+    - Non-suid snap-confine: first phase to replace snap-confine suid
+      with capabilities to achieve the required permissions
+    - Initial changes for dynamic security profiles updates
+    - Provide snap icon fallback for /v2/icons without requiring network
+      access at runtime
+    - Add eMMC gadget update support
+    - Support reexec when using /usr/libexec/snapd on the host (Arch
+      Linux, openSUSE)
+    - Auto detect snap mount dir location on unknown distributions
+    - Modify snap-confine AppArmor template to allow all glibc HWCAPS
+      subdirectories to prevent launch errors
+    - LP: #2102456 update secboot to bf2f40ea35c4 and modify snap-
+      bootstrap to remove usage of go templates to reduce size by 4MB
+    - Fix snap-bootstrap to mount kernel snap from
+      /sysroot/writable/system-data
+    - LP: #2106121 fix snap-bootstrap busy loop
+    - Fix encoding of time.Time by using omitzero instead of omitempty
+      (on go 1.24+)
+    - Fix setting snapd permissions through permctl for openSUSE
+    - Fix snap struct json tags typo
+    - Fix snap pack configure hook permissions check incorrect file mode
+    - Fix gadget snap reinstall to honor existing sizes of partitions
+    - Fix to update command line when re-executing a snapd tool
+    - Fix 'snap validate' of specific missing newline and add error on
+      missed case of 'snap validate --refresh' without another action
+    - Workaround for snapd-confine time_t size differences between
+      architectures
+    - Disallow pack and install of snapd, base and os with specific
+      configure hooks
+    - Drop udev build dependency that is no longer required and add
+      missing systemd-dev dependency
+    - Build snap-bootstrap with nomanagers tag to decrease size by 1MB
+    - Interfaces: polkit | support custom polkit rules
+    - Interfaces: opengl | LP: #2088456 fix GLX on nvidia when xorg is
+      confined by AppArmor
+    - Interfaces: log-observe | add missing udev rule
+    - Interfaces: hostname-control | fix call to hostnamectl in core24
+    - Interfaces: network-control | allow removing created network
+      namespaces
+    - Interfaces: scsi-generic | re-enable base declaration for scsi-
+      generic plug
+    - Interfaces: u2f | add support for Arculus AuthentiKey
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Tue, 08 Apr 2025 12:53:39 +0200
+
+snapd (2.68.5-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2098137
+    - LP: #2109843 fix missing preseed files when running in a container
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Wed, 21 May 2025 17:46:09 +0200
+
+snapd (2.68.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2098137
+    - Snap components: LP: #2104933 workaround for classic 24.04/24.10
+      models that incorrectly specify core22 instead of core24
+    - Update build dependencies
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Wed, 02 Apr 2025 19:48:25 +0200
+
 snapd (2.68.3-1) unstable; urgency=medium
 
   * New upstream release, LP: #2098137

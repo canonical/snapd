@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
@@ -141,7 +140,7 @@ func (*ioctlSuite) TestIoctlDump(c *C) {
 
 	sendHeader := fmt.Sprintf(">>> ioctl %v (%d bytes) ...\n", req, len(ioctlBuf))
 	sendDataStr := "0xff, 0xff, 0x42, 0x00, "
-	if arch.Endian() == binary.BigEndian {
+	if notify.NativeByteOrder == binary.BigEndian {
 		sendDataStr = "0xff, 0xff, 0x00, 0x42, "
 	}
 
@@ -184,6 +183,8 @@ func (*ioctlSuite) TestIoctlString(c *C) {
 	c.Assert(notify.APPARMOR_NOTIF_IS_ID_VALID.String(), Equals, "APPARMOR_NOTIF_IS_ID_VALID")
 	c.Assert(notify.APPARMOR_NOTIF_RECV.String(), Equals, "APPARMOR_NOTIF_RECV")
 	c.Assert(notify.APPARMOR_NOTIF_SEND.String(), Equals, "APPARMOR_NOTIF_SEND")
+	c.Assert(notify.APPARMOR_NOTIF_REGISTER.String(), Equals, "APPARMOR_NOTIF_REGISTER")
+	c.Assert(notify.APPARMOR_NOTIF_RESEND.String(), Equals, "APPARMOR_NOTIF_RESEND")
 
 	arbitrary := notify.IoctlRequest(0xDEADBEEF)
 	c.Assert(arbitrary.String(), Equals, "IoctlRequest(deadbeef)")

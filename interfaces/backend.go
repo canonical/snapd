@@ -122,6 +122,13 @@ type SecurityBackend interface {
 	SandboxFeatures() []string
 }
 
+// ReinitializableSecurityBackend is a backend which can be dynamically
+// reinitialized at runtime in response to changes in the system state,
+// typically ones that are observable in system-key.
+type ReinitializableSecurityBackend interface {
+	Reinitialize() error
+}
+
 // SecurityBackendSetupMany interface may be implemented by backends that can optimize their operations
 // when setting up multiple snaps at once.
 type SecurityBackendSetupMany interface {

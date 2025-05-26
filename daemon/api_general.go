@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -53,9 +54,11 @@ var (
 	}
 
 	sysInfoCmd = &Command{
-		Path:       "/v2/system-info",
-		GET:        sysInfo,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		Path:        "/v2/system-info",
+		GET:         sysInfo,
+		POST:        sysInfoPost,
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		WriteAccess: openAccess{},
 	}
 
 	stateChangeCmd = &Command{
@@ -170,6 +173,56 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(m)
+}
+
+func sysInfoPost(c *Command, r *http.Request, user *auth.UserState) Response {
+	var d struct {
+		Action    string `json:"action"`
+		SystemKey string `json:"system-key"`
+	}
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&d); err != nil {
+		return BadRequest("cannot decode request body: %v", err)
+	}
+
+	if dec.More() {
+		return BadRequest("unexpected additional content in request body")
+	}
+
+	switch d.Action {
+	case "advise-system-key-mismatch":
+	case "":
+		return BadRequest("no action")
+	default:
+		return BadRequest("unsupported action %q", d.Action)
+	}
+
+	var sk any
+	if maybeSk, err := interfaces.SystemKeyFromString(d.SystemKey); err != nil {
+		return BadRequest("cannot decode system key: %v", err)
+	} else {
+		sk = maybeSk
+	}
+
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	logger.Debugf("client reports mismatch with system-key: %v", d.SystemKey)
+	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(c.d.state, sk)
+	if err != nil {
+		return errToResponse(err, nil, InternalError, "cannot process system key: %v")
+	}
+
+	if chg == nil {
+		// proceed
+		return SyncResponse("")
+	}
+
+	ensureStateSoon(c.d.state)
+	// we have a new change
+	return AsyncResponse(nil, chg.ID())
 }
 
 func formatRefreshTime(t time.Time) string {
@@ -450,8 +503,6 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
 
 	var ws []*state.Warning
 	if all {

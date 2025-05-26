@@ -27,6 +27,8 @@ environment:
   OLD_SNAPD_REVISION: 21759
   OLD_SNAPD_COMMIT: 40efd81c2f35213eabf2df83fb9efabe88fa124e
 
+  NESTED_KERNEL_REMOVE_COMPONENTS: true
+
 prepare: |
     # Install what is needed before using the fake store
     snap install test-snapd-swtpm --edge

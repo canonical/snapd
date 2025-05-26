@@ -57,7 +57,7 @@ prepare: |
   fi
 
 restore: |
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
@@ -73,7 +73,7 @@ execute: |
   version="$(nested_get_version)"
 
   # Retrieve the gadget
-  snap download --basename=pc --channel="$version/edge" pc
+  snap download --basename=pc --channel="$version/${KERNEL_CHANNEL}" pc
 
   # Modify gadget, making sure we can access the device (we are not building
   # the image in the usual way in snapd spread tests).
@@ -101,7 +101,7 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel
-  snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+  snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
 
   # THIS IS A HACK
   # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+

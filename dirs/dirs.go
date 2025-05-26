@@ -66,6 +66,9 @@ var (
 	SnapBootstrapRunDir  string
 	SnapVoidDir          string
 
+	SnapInterfacesRequestsRunDir   string
+	SnapInterfacesRequestsStateDir string
+
 	SnapdMaintenanceFile string
 
 	SnapdStoreSSLCertsDir string
@@ -124,6 +127,8 @@ var (
 	SnapDeviceSaveDir string
 	SnapDataSaveDir   string
 
+	SnapGpioChardevDir string
+
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
 
@@ -144,6 +149,8 @@ var (
 	SnapshotsDir string
 
 	SysfsDir string
+
+	DevDir string
 
 	FeaturesDir string
 
@@ -569,6 +576,9 @@ func SetRootDir(rootdir string) {
 
 	SnapBootstrapRunDir = filepath.Join(SnapRunDir, "snap-bootstrap")
 
+	SnapInterfacesRequestsRunDir = filepath.Join(SnapRunDir, "interfaces-requests")
+	SnapInterfacesRequestsStateDir = filepath.Join(rootdir, snappyDir, "interfaces-requests")
+
 	SnapdStoreSSLCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
 
 	// keep in sync with the debian/snapd.socket file:
@@ -635,6 +645,9 @@ func SetRootDir(rootdir string) {
 
 	SnapKModModulesDir = filepath.Join(rootdir, "/etc/modules-load.d/")
 	SnapKModModprobeDir = filepath.Join(rootdir, "/etc/modprobe.d/")
+
+	DevDir = filepath.Join(rootdir, "/dev")
+	SnapGpioChardevDir = filepath.Join(DevDir, "/snap/gpio-chardev")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")

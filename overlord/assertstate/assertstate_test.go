@@ -5867,3 +5867,7 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 	c.Assert(found.Provenance(), Equals, info.Provenance())
 	c.Assert(found.DeveloperID(), Equals, s.dev1Acct.AccountID())
 }
+
+func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
+	testutil.CheckEnsureLoopLogging("assertmgr.go", c, false)
+}

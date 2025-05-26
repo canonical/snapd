@@ -29,6 +29,11 @@ import (
 
 // Transaction performs read and writes to a databag in an atomic way.
 type Transaction struct {
+	// previous is the databag without any changes applied to it and is the same
+	// before or after changes are committed
+	previous confdb.JSONDatabag
+	// pristine databag, excluding any changes being made. Once the changes are
+	// committed, this will include them
 	pristine confdb.JSONDatabag
 
 	ConfdbAccount string
@@ -46,6 +51,8 @@ type Transaction struct {
 
 // NewTransaction takes a getter and setter to read and write the databag.
 func NewTransaction(st *state.State, account, confdbName string) (*Transaction, error) {
+	// TODO: if the databag can't change mid-transaction, there's no need to re-read
+	// this on commit and we can instead pass the bag in (easier testing)
 	databag, err := readDatabag(st, account, confdbName)
 	if err != nil {
 		return nil, err
@@ -53,6 +60,7 @@ func NewTransaction(st *state.State, account, confdbName string) (*Transaction, 
 
 	return &Transaction{
 		pristine:      databag,
+		previous:      databag,
 		ConfdbAccount: account,
 		ConfdbName:    confdbName,
 	}, nil
@@ -60,6 +68,7 @@ func NewTransaction(st *state.State, account, confdbName string) (*Transaction, 
 
 type marshalledTransaction struct {
 	Pristine confdb.JSONDatabag `json:"pristine,omitempty"`
+	Previous confdb.JSONDatabag `json:"previous,omitempty"`
 
 	ConfdbAccount string `json:"confdb-account,omitempty"`
 	ConfdbName    string `json:"confdb-name,omitempty"`
@@ -75,6 +84,7 @@ type marshalledTransaction struct {
 func (t *Transaction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(marshalledTransaction{
 		Pristine:      t.pristine,
+		Previous:      t.previous,
 		ConfdbAccount: t.ConfdbAccount,
 		ConfdbName:    t.ConfdbName,
 		Modified:      t.modified,
@@ -92,6 +102,7 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	}
 
 	t.pristine = mt.Pristine
+	t.previous = mt.Previous
 	t.ConfdbAccount = mt.ConfdbAccount
 	t.ConfdbName = mt.ConfdbName
 	t.modified = mt.Modified
@@ -297,6 +308,6 @@ func (t *Transaction) AbortInfo() (snap, reason string) {
 	return t.abortingSnap, t.abortReason
 }
 
-func (t *Transaction) Pristine() confdb.Databag {
-	return t.pristine
+func (t *Transaction) Previous() confdb.Databag {
+	return t.previous
 }

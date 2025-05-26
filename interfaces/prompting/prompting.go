@@ -37,6 +37,9 @@ type Metadata struct {
 	User uint32
 	// Snap is the instance name of the snap for which the prompt or rule applies.
 	Snap string
+	// PID is the PID of the process which triggered a request.
+	// For rules, PID should be unset/ignored.
+	PID int32
 	// Interface is the interface for which the prompt or rule applies.
 	Interface string
 }
@@ -55,16 +58,20 @@ func (i IDType) String() string {
 	return fmt.Sprintf("%016X", uint64(i))
 }
 
-func (i *IDType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(i.String())
+// MarshalText implements [encoding.TextMarshaler] for IDType. We need this so
+// that IDType can be marshalled consistently when used as a map key, which is
+// not addressible (so must have non-pointer receiver) and is converted to text
+// so keys can be sorted before being marshalled as JSON.
+//
+// For more information, see [json.Marshal], in particular the discussion of
+// marshalling map keys and values.
+func (i IDType) MarshalText() ([]byte, error) {
+	return []byte(i.String()), nil
 }
 
-func (i *IDType) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("cannot read ID into string: %w", err)
-	}
-	id, err := IDFromString(s)
+// UnmarshalText implements [encoding.TextUnmarshaler] for IDType.
+func (i *IDType) UnmarshalText(b []byte) error {
+	id, err := IDFromString(string(b))
 	if err != nil {
 		return err
 	}

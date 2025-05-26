@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -90,8 +91,7 @@ type Daemon struct {
 
 	expectedRebootDidNotHappen bool
 
-	mu     sync.Mutex
-	cancel func()
+	mu sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -115,10 +115,9 @@ type Command struct {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	st := c.d.state
-	st.Lock()
+	// userFromRequest locks the state internally when checking authentication.
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
 	user, _ := userFromRequest(st, r)
-	st.Unlock()
 
 	// check if we are in degradedMode
 	if c.d.degradedErr != nil && r.Method != "GET" {
@@ -161,20 +160,18 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	traceSnapdAPI(c, w, r)
+
 	rsp := rspf(c, r, user)
 
 	if srsp, ok := rsp.(StructuredResponse); ok {
 		rjson := srsp.JSON()
 
-		st.Lock()
-		_, rst := restart.Pending(st)
-		st.Unlock()
+		_, rst := c.d.overlord.RestartManager().Pending()
 		rjson.addMaintenanceFromRestartType(rst)
 
 		if rjson.Type != ResponseTypeError {
-			st.Lock()
 			count, stamp := st.WarningsSummary()
-			st.Unlock()
 			rjson.addWarningCount(count, stamp)
 		}
 
@@ -183,6 +180,32 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rsp.ServeHTTP(w, r)
+}
+
+func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
+	if osutil.GetenvBool("SNAPD_TRACE") {
+		loggedWithAction := false
+		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
+			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err != nil {
+				logger.Trace("endpoint-error", "body-read", err)
+			}
+			var data struct {
+				Action string `json:"action"`
+			}
+			if err := json.Unmarshal(bodyBytes, &data); err == nil {
+				if data.Action != "" {
+					loggedWithAction = true
+					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
+				}
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+		if !loggedWithAction {
+			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
+		}
+	}
 }
 
 type wrappedWriter struct {
@@ -334,15 +357,6 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 		panic("internal error: no Overlord")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	d.cancel = cancel
-	defer func() {
-		// cancel the context on any errors
-		if err != nil {
-			cancel()
-		}
-	}()
-
 	to, reasoning, err := d.overlord.StartupTimeout()
 	if err != nil {
 		return err
@@ -366,13 +380,6 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 	d.serve = &http.Server{
 		Handler:   logit(d.router),
 		ConnState: d.connTracker.trackConn,
-		BaseContext: func(net.Listener) context.Context {
-			// requests will use the context provided to Start, as
-			// the caller will likely cancel it when appropriate
-			// thus canceling any outstanding requests to the snapd
-			// API
-			return ctx
-		},
 	}
 
 	// enable standby handling
@@ -500,10 +507,6 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return fmt.Errorf("internal error: no Overlord")
 	}
 
-	if d.cancel != nil {
-		d.cancel()
-	}
-
 	d.tomb.Kill(nil)
 
 	// check the state associated with a potential restart with the lock to
@@ -541,8 +544,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
+		// Don't proceed before the state lock has been released by the code
+		// path which may request a restart.
 		d.state.Lock()
-		ok, _ := restart.Pending(d.state)
+		ok, _ := d.overlord.RestartManager().Pending()
 		d.state.Unlock()
 		if ok {
 			logger.Noticef("gracefully waiting for running hooks")

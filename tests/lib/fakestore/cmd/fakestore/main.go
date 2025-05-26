@@ -33,10 +33,7 @@ type Options struct{}
 var parser = flags.NewParser(&Options{}, flags.HelpFlag|flags.PassDoubleDash)
 
 func main() {
-	if err := logger.SimpleSetup(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to activate logging: %v\n", err)
-		os.Exit(1)
-	}
+	logger.SimpleSetup(nil)
 	logger.Debugf("fakestore starting")
 
 	if err := run(); err != nil {

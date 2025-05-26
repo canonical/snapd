@@ -1,0 +1,61 @@
+summary: Ensure `snap debug refresh-app-awareness` command work
+
+details: |
+  The command `snap debug refresh-app-awareness` should report internal
+  snapd state related to refresh-app-awareness like a list of monitored
+  snaps and refresh candidates.
+
+# Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+systems: [-ubuntu-14.04-*]
+
+prepare: |
+  # ensure no other refreshes interfere with the test
+  snap refresh
+
+  snap install test-snapd-sh
+  # retry is needed because we might need to wait for auto-refresh to finish first
+  tests.cleanup defer retry -n 50 --wait 1 snap remove --purge test-snapd-sh
+
+debug: |
+  cat debug.out || true
+
+execute: |
+  # make sure an app keeps the test snap busy
+  test-snapd-sh.sh -c 'exec sleep infinity' &
+  PID="$!"
+  # Note that test-snapd-sh has different revisions in stable and edge
+  snap switch --edge test-snapd-sh
+
+  # trigger auto-refresh
+  snap unset system refresh.hold
+  systemctl stop snapd.{service,socket}
+  "$TESTSTOOLS"/snapd-state force-autorefresh
+  systemctl start snapd.{socket,service}
+
+  # wait for snap to be monitored
+  retry -n 50 --wait 1 sh -c 'snap debug refresh-app-awareness | MATCH "Monitored snaps"'
+
+  snap debug refresh-app-awareness > debug.out
+  # sample output
+  # -------------
+  # Monitored snaps:
+  # Name           Security Tag           PID
+  # test-snapd-sh  snap.test-snapd-sh.sh  10435
+
+  # Refresh candidates:
+  # Name           Version  Rev  Channel      Monitored
+  # test-snapd-sh  1.0      7    latest/edge  Yes
+
+  sed '1q;d' debug.out | MATCH "^Monitored snaps:$"
+  sed '2q;d' debug.out | MATCH "^Name.*Security Tag.*PID$"
+  sed '3q;d' debug.out | MATCH "^test-snapd-sh.*snap.test-snapd-sh.sh.*$PID$"
+  # Skip newline
+  sed '5q;d' debug.out | MATCH "^Refresh candidates:$"
+  sed '6q;d' debug.out | MATCH "^Name.*Version.*Rev.*Channel.*Monitored$"
+  sed '7q;d' debug.out | MATCH "^test-snapd-sh.*latest/edge.*Yes$"
+
+  # trigger auto-refresh
+  kill "$PID"
+
+  # wait for snap to refresh and monitoring to be removed
+  retry -n 50 --wait 1 sh -c 'snap debug refresh-app-awareness | wc -l | MATCH "^0$"'

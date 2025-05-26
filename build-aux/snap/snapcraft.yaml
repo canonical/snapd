@@ -96,6 +96,7 @@ parts:
   runtime:
     plugin: nil
     stage-packages:
+      - libblkid1
       - libbrotli1
       - libc6
       - libcap2
@@ -112,6 +113,10 @@ parts:
       - squashfs-tools
       - xdelta3
       - zlib1g
+      - on armhf:
+        - libteec1
+      - on arm64:
+        - libteec1
     stage:
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
       - -lib32
@@ -229,10 +234,17 @@ parts:
       - autoconf-archive
       - automake
       - xfslibs-dev
+      - libblkid-dev
       - libudev-dev
       - libcap-dev
       - libseccomp-dev
+      - libselinux1-dev
       - pkg-config
+      - libcap2-bin
+      - on armhf:
+        - optee-client-dev
+      - on arm64:
+        - optee-client-dev
     override-pull: |
       craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
@@ -305,7 +317,10 @@ parts:
         --sysconfdir=/etc \
         --localstatedir=/var \
         --without-unit-tests \
+        --enable-apparmor \
         --enable-static-libapparmor \
+        --enable-selinux \
+        --enable-static-libselinux \
         --disable-host-binaries \
         --enable-nvidia-multiarch \
         --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
@@ -356,21 +371,27 @@ parts:
              ;;
            *)
              export CGO_ENABLED=1
+             GO_LD_FLAGS=()
+
+             case "${CRAFT_ARCH_BUILD_FOR}" in
+               arm64|armhf)
+                 GO_LD_FLAGS+=(-ldflags "-extldflags \"-L/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"\")
+                 ;;
+             esac
+
              case "${CRAFT_ARCH_BUILD_FOR}" in
                armhf)
                  # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1822738
-                 BUILDMODE=()
                  ;;
                *)
-                 BUILDMODE=(-buildmode=pie)
+                 GO_LD_FLAGS+=(-buildmode=pie)
                  ;;
              esac
-             GO_LD_FLAGS=("${BUILDMODE[@]}")
              unset CHECK_STATIC
              ;;
         esac
 
-        TAGS=()
+        TAGS=(snapdusergo osusergo)
 
         # general build tags, note that version 1337 is used only in CI and
         # triggers testing specific build tags which produce binaries that are
@@ -378,29 +399,36 @@ parts:
         case "${cmd}" in
           bin/snap)
             TAGS+=(nomanagers)
-            case "${VERSION}" in
-              1337.*)
-                TAGS+=(withtestkeys faultinject statelocktrace)
-                ;;
-            esac
             ;;
           lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
-            case "${VERSION}" in
-              1337.*)
-                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace)
+            case "${CRAFT_ARCH_BUILD_FOR}" in
+              arm64|armhf)
+                TAGS+=(withoptee)
                 ;;
             esac
             ;;
-          *)
-            case "${VERSION}" in
-              1337.*)
-                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace)
+          lib/snapd/snapd)
+            case "${CRAFT_ARCH_BUILD_FOR}" in
+              arm64|armhf)
+                TAGS+=(withoptee)
                 ;;
             esac
             ;;
         esac
-        TAGS+=(snapdusergo osusergo)
+
+        case "${VERSION}" in
+          1337.*)
+            case "${cmd}" in
+              bin/snap)
+                TAGS+=(withtestkeys faultinject statelocktrace structuredlogging)
+                ;;
+              *)
+                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging)
+                ;;
+            esac
+            ;;
+        esac
 
         # FIPS specific build tags
         if [ -f fips-build ]; then
@@ -466,6 +494,11 @@ parts:
         touch "${CRAFT_PART_INSTALL}/fips-build-lp"
       fi
 
+      # ensure capabilities are set
+      setcap -q - "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" \
+           < "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps"
+      getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
+
     <<:
       - *dynamic-linker
     prime:
@@ -478,6 +511,13 @@ parts:
       PATH="${CRAFT_STAGE}"/usr/local/bin:$PATH \
           "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" \
               "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+
+      # verify file capabilities
+      caps="$(getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" | awk '{print $2}')"
+      expected_caps="$(cat "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps")"
+      echo "-- expecting caps: $expected_caps"
+      echo "-- actual caps:    $caps"
+      test "$caps" = "$expected_caps"
 
   libcrypto-fips:
     plugin: nil

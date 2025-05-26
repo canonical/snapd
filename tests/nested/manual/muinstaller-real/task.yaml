@@ -43,7 +43,7 @@ prepare: |
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf ./classic-root
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
@@ -139,6 +139,10 @@ execute: |
       # early, otherwise it will not have been loaded
       remote.exec lsmod | MATCH efi_pstore
       remote.exec modinfo -F filename efi_pstore | MATCH updates/efi-pstore/kmod/efi-pstore.ko
+      # Make sure it was loaded early
+      remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
+      # Additionally, check that modules loaded by systemd right after switch root could be loaded
+      lsmod | MATCH ip_tables
   fi
 
   # check encryption
@@ -280,6 +284,7 @@ execute: |
   # we append a fake1 string to the version, which can make the string grown
   # beyond the 32 characters limit. Cut '+' character and what goes after to
   # workaround this issue.
+  original_pc_kernel_version="$(gojq '.version' -r --yaml-input pc-kernel/meta/snap.yaml)"
   sed -i 's#\(version: .*\)+.*#\1#' pc-kernel/meta/snap.yaml
   refresh_rebooting_snap pc-kernel pc-kernel-from-store.snap ./pc-kernel
 
@@ -339,10 +344,11 @@ execute: |
   remote.exec "systemctl is-active var-lib-snapd-seed.mount"
 
   # check for unasserted snaps
-  for sn in pc pc-kernel snapd; do
+  for sn in pc snapd; do
       sn_version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | sed 's/+fake1//')
       remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${sn_version}.snap"
   done
+  remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/pc-kernel_${original_pc_kernel_version}.snap"
 
   # check for asserted snaps
   core_rev=$(remote.exec "snap list core${version}" | awk 'NR != 1 { print $3 }')

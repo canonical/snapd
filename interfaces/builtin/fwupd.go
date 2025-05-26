@@ -117,6 +117,10 @@ const fwupdPermanentSlotAppArmor = `
   /dev/i2c-[0-9]* rw,
   # Redfish plugin
   /dev/ipmi* rwk,
+  # Modem Manager plugin
+  /dev/tty[^0-9]* rw,
+  /dev/cdc-* rw,
+  /dev/wwan[0-9]* rw,
 
   # MMC boot partitions
   /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]* rwk,
@@ -408,6 +412,7 @@ func (iface *fwupdInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 		spec.TagDevice(`KERNEL=="video[0-9]*"`)
 		spec.TagDevice(`KERNEL=="wmi/dell-smbios"`)
 		spec.TagDevice(`SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device"`)
+		spec.TagDevice(`SUBSYSTEM=="wwan", ENV{DEVTYPE}=="wwan_port"`)
 	}
 
 	return nil

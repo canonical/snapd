@@ -113,6 +113,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("hotplug-update-slot", m.doHotplugUpdateSlot, nil)
 	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
+	addHandler("regenerate-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
 
 	// don't block on hotplug-seq-wait task
 	runner.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
@@ -240,11 +241,12 @@ func (m *InterfaceManager) StartUp() error {
 		}()
 	}
 	if m.profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
+		const unlockState = false
+		if err := m.regenerateAllSecurityProfiles(perfTimings, unlockState); err != nil {
 			return err
 		}
 	}
-	if snapdAppArmorServiceIsDisabled() {
+	if hasAppArmorBackend(m.repo.Backends()) && snapdAppArmorServiceIsDisabled() {
 		s.Warnf(`the snapd.apparmor service is disabled; snap applications will likely not start.
 Run "systemctl enable --now snapd.apparmor" to correct this.`)
 	}

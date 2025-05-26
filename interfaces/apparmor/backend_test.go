@@ -1951,7 +1951,8 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithRemoteFS(c *C, pro
 	c.Assert(os.WriteFile(profilePath, []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize(ifacetest.DefaultInitializeOpts)
+	b := &apparmor.Backend{}
+	err = b.Initialize(ifacetest.DefaultInitializeOpts)
 	c.Assert(err, IsNil)
 
 	// Because remote file system is being used, we have the extra policy file.
@@ -1975,9 +1976,38 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithRemoteFS(c *C, pro
 		apparmor_sandbox.SystemCacheDir,
 		apparmor_sandbox.SkipReadCache,
 	}})
+
+	err = any(b).(interfaces.ReinitializableSecurityBackend).Reinitialize()
+	c.Assert(err, IsNil)
+	// no new calls
+	c.Assert(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{{
+		[]string{profilePath},
+		apparmor_sandbox.SystemCacheDir,
+		apparmor_sandbox.SkipReadCache,
+	}})
+
+	// now pretend we're no longer using remote home
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// reinitialize once more
+	err = any(b).(interfaces.ReinitializableSecurityBackend).Reinitialize()
+	c.Assert(err, IsNil)
+	// no new calls
+	c.Assert(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{{
+		[]string{profilePath},
+		apparmor_sandbox.SystemCacheDir,
+		apparmor_sandbox.SkipReadCache,
+	}, {
+		[]string{profilePath},
+		apparmor_sandbox.SystemCacheDir,
+		apparmor_sandbox.SkipReadCache,
+	}})
+	// and the snippet was removed
+	c.Assert(fn, testutil.FileAbsent)
 }
 
-// snap-confine policy when remote file system  is used and snapd has re-executed.
+// snap-confine policy when remote file system is used and snapd has re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithRemoteFSAndReExec(c *C) {
 	// Make it appear as if remote file system workaround was needed.
 	restore := osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return true, nil })
@@ -2001,7 +2031,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithRemoteFSAndReExec(
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize(ifacetest.DefaultInitializeOpts)
+	b := &apparmor.Backend{}
+	err = b.Initialize(ifacetest.DefaultInitializeOpts)
 	c.Assert(err, IsNil)
 
 	// Because remote file system is being used, we have the extra policy file.
@@ -2022,6 +2053,11 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithRemoteFSAndReExec(
 	// The distribution policy was not reloaded because snap-confine executes
 	// from core snap. This is handled separately by per-profile Setup.
 	c.Assert(cmd.Calls(), HasLen, 0)
+
+	err = any(b).(interfaces.ReinitializableSecurityBackend).Reinitialize()
+	c.Assert(err, IsNil)
+	// no new calls
+	c.Assert(s.loadProfilesCalls, HasLen, 0)
 }
 
 // Test behavior when os.Readlink "/proc/self/exe" fails.
@@ -2046,7 +2082,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err := (&apparmor.Backend{}).Initialize(ifacetest.DefaultInitializeOpts)
-	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe: .*")
+	c.Assert(err, ErrorMatches, "cannot initialize snap-confine profiles: cannot read .*corrupt-proc-self-exe: .*")
 
 	// We didn't create the policy file.
 	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
@@ -2084,7 +2120,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err = (&apparmor.Backend{}).Initialize(ifacetest.DefaultInitializeOpts)
-	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: bad luck")
+	c.Assert(err, ErrorMatches, "cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: bad luck")
 
 	// While created the policy file initially we also removed it so that
 	// no side-effects remain.

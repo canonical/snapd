@@ -27,11 +27,13 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
@@ -43,6 +45,12 @@ var (
 
 	// ErrNotSupported indicates that the kernel does not support apparmor prompting.
 	ErrNotSupported = errors.New("kernel does not support apparmor notifications")
+
+	// readyTimeout is the time to wait to re-receive and process previously-
+	// pending requests from the kernel before we tell the manager we're ready.
+	// We should be able to re-receive messages very quickly, but there must be
+	// someone listening over l.reqs to quickly receive and process them too.
+	readyTimeout = time.Duration(5 * time.Second)
 
 	osOpen                       = os.Open
 	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
@@ -71,6 +79,10 @@ type Request struct {
 	// AaAllowed is the opaque permission mask which was already allowed by
 	// AppArmor rules.
 	AaAllowed notify.AppArmorPermission
+	// Tagsets is the metadata tagsets associated with the permissions in the
+	// request. The tagsets map from permission mask to the list of tags
+	// associated with those permissions.
+	Tagsets notify.TagsetMap
 
 	// listener is a pointer to the Listener which will handle the reply.
 	listener *Listener
@@ -121,6 +133,23 @@ type Listener struct {
 	// Only the main run loop may close this channel.
 	reqs chan *Request
 
+	// ready is a channel which is closed once all requests which were pending
+	// at time of registration have been re-received from the kernel and sent
+	// over the reqs channel. This occurs once pendingCount reaches 0, snapd
+	// receives a message which does not have the UNOTIF_RESENT flag, or the
+	// ready timer times out. This channel must only be closed by the
+	// signalReady method.
+	ready chan struct{}
+	// readyTimer is a timer which will call signalReady if the listener times
+	// out waiting for pending requests to be received.
+	readyTimer timeutil.Timer
+	// pendingMu is a mutex which protects pendingCount.
+	pendingMu sync.Mutex
+	// pendingCount is the number of "pending" (UNOTIF_RESENT) messages still
+	// expected to be re-received from the kernel. When the listener becomes
+	// ready, this count must be sent to 0.
+	pendingCount int
+
 	// protocolVersion is the notification protocol version associated with the
 	// listener's notify socket. Once registered with a particular version,
 	// that version will be used for all messages sent or received over that
@@ -158,11 +187,6 @@ func Register() (listener *Listener, err error) {
 		}
 	}()
 
-	protoVersion, err := notifyRegisterFileDescriptor(notifyFile.Fd())
-	if err != nil {
-		return nil, err
-	}
-
 	poll, err := epoll.Open()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open epoll file descriptor: %v", err)
@@ -176,8 +200,18 @@ func Register() (listener *Listener, err error) {
 		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
 	}
 
+	protoVersion, pendingCount, err := notifyRegisterFileDescriptor(notifyFile.Fd())
+	if err != nil {
+		return nil, err
+	}
+	logger.Debugf("registered listener with protocol version %d", protoVersion)
+
 	listener = &Listener{
 		reqs: make(chan *Request),
+
+		ready:        make(chan struct{}),
+		readyTimer:   timeutil.NewTimer(0), // initialize placeholder non-nil timer
+		pendingCount: pendingCount,
 
 		protocolVersion: protoVersion,
 
@@ -185,7 +219,20 @@ func Register() (listener *Listener, err error) {
 		poll:       poll,
 		closeChan:  make(chan struct{}),
 	}
+	// If there are no pending requests waiting to be re-sent, ready
+	// immediately, otherwise start the ready timer when Run is called.
+	if listener.pendingCount == 0 {
+		// Ensure timer is truly stopped, and no later call to readyTimer.Stop()
+		// can possibly return true.
+		listener.readyTimer.Stop()
+		// Ready up
+		listener.signalReady()
+	}
 	return listener, nil
+}
+
+var timeAfterFunc = func(d time.Duration, f func()) timeutil.Timer {
+	return timeutil.AfterFunc(d, f)
 }
 
 // isClosed returns true if the listener has been closed.
@@ -238,6 +285,20 @@ func (l *Listener) Reqs() <-chan *Request {
 	return l.reqs
 }
 
+// Ready returns a read-only channel which will be closed once all requests
+// which were pending when the listener was registered have been re-received
+// from the kernel and sent over the reqs channel. No non-resent requests will
+// be sent until all originally-pending requests have been resent.
+//
+// The channel will close automatically after a timeout even if not all pending
+// requests have been re-received.
+//
+// The caller may wish to block new prompt replies or rules until after the
+// ready channel has been closed.
+func (l *Listener) Ready() <-chan struct{} {
+	return l.ready
+}
+
 // Allow tests to kill the listener instead of logging errors so that tests
 // don't have race condition failures.
 var exitOnError = false
@@ -252,7 +313,23 @@ func (l *Listener) Run() error {
 	l.once.Do(func() {
 		// Run should only be called once, so this once.Do is really only an
 		// extra precaution to ensure that l.reqs is only closed once.
+
+		// If there were pending requests at time of registration, then Register
+		// didn't set a real ready timer with callback, so do so now.
+		if l.pendingCount != 0 {
+			l.readyTimer = timeAfterFunc(readyTimeout, func() {
+				pendingCount := l.signalReady()
+				logger.Noticef("timeout waiting for resent messages from apparmor: still expected %d more resent messages", pendingCount)
+			})
+		}
 		defer func() {
+			if l.readyTimer.Stop() {
+				// The timer was still active, so the listener was not ready.
+				// The manager is closing the listener, so if the listener isn't
+				// ready by now, it doesn't matter, the manager has stopped
+				// receiving requests by now anyway.
+			}
+
 			// When listener run loop ends, close the requests channel.
 			close(l.reqs)
 		}()
@@ -279,6 +356,14 @@ var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
 }
 
 func (l *Listener) handleRequests() error {
+	// Get the socket FD with the lock held, so we don't break our contract.
+	// Do this before any check whether the epoll instance is closed, so we
+	// are sure to have the pre-close FD in case the instance is closed after
+	// the check.
+	l.socketMu.Lock()
+	socketFd := int(l.notifyFile.Fd())
+	l.socketMu.Unlock() // unlock immediately, we'll lock again later if needed
+
 	events, err := listenerEpollWait(l)
 	if err != nil {
 		// The epoll syscall returned an error, so let's see whether it was
@@ -288,11 +373,13 @@ func (l *Listener) handleRequests() error {
 		}
 		return err
 	}
-
-	// Get the socket FD with the lock held, so we don't break our contract
-	l.socketMu.Lock()
-	socketFd := int(l.notifyFile.Fd())
-	l.socketMu.Unlock() // unlock immediately, we'll lock again later if needed
+	// XXX: Since queued notifications should be sent immediately by the kernel,
+	// if we think there are pending requests, we could use a non-blocking read
+	// to poll for new requests, and if we don't immediately see one, we could
+	// use a (not yet implemented) ioctl command to check the listener's status
+	// regarding ready/pending requests and update the listener's pending count.
+	// This would require some work on the kernel side, so it could be a future
+	// enhancement, but not one we can pursue at time of writing.
 
 	for _, event := range events {
 		if event.Fd != socketFd {
@@ -334,11 +421,13 @@ func (l *Listener) doIoctl(sendOrRecv notify.IoctlRequest, buf notify.IoctlReque
 // creates a Request from that message, and attempts to send it to the manager
 // via the request channel.
 func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
-	for {
+	for len(buf) > 0 {
 		first, rest, err := notify.ExtractFirstMsg(buf)
 		if err != nil {
 			return err
 		}
+		buf = rest
+
 		var nmsg notify.MsgNotification
 		if err := nmsg.UnmarshalBinary(first); err != nil {
 			return err
@@ -373,6 +462,34 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			return err
 		}
 
+		// Keep track of whether this is the final pending request so that if
+		// so, after the request has been received by the manager, the listener
+		// can signal ready.
+		isFinalPendingReq := false
+
+		// Before forwarding the request, check if it is resent. The kernel is
+		// guaranteed to resend all previously-pending messages before it sends
+		// any new messages, so if it's NOT resent, then we know the kernel is
+		// done sending pending messages. Regardless, all requests are forwarded
+		// over the reqs channel.
+		if msg.Resent() {
+			// Message was previously sent, see if it was the last one we're
+			// waiting for. Also ensure the pending count is decremented before
+			// waiting for the request to be received, so the pending count in
+			// case of a timeout is reported correctly. If the listener is
+			// already ready, this check will will return false.
+			isFinalPendingReq = l.decrementPendingCheckFinal()
+		} else {
+			// It is not resent, so there are no more resent messages, and we
+			// should ensure that we're ready.
+			if l.readyTimer.Stop() {
+				// Timer was active so we weren't yet ready. Ready up now.
+				if pendingCount := l.signalReady(); pendingCount != 0 {
+					logger.Noticef("received non-resent message when pending count was %d", pendingCount)
+				}
+			}
+		}
+
 		// Try to send request to manager, or wait for listener to be closed
 		select {
 		case l.reqs <- req:
@@ -381,17 +498,23 @@ func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
 			// The listener is being closed, so stop trying to deliver the
 			// message up to the manager. It will appear to the kernel that we
 			// have received and processed the request, when in reality, we
-			// have not. The higher-level restart handling logic will ensure
-			// that the request will be re-sent to snapd when it restarts and
-			// registers a new listener.
+			// have not. The higher-level restart handling logic ensures that
+			// the request will be re-sent to snapd when it restarts and
+			// re-registers the listener.
 			return ErrClosed
 		}
 
-		if len(rest) == 0 {
-			return nil
+		if !isFinalPendingReq {
+			continue
 		}
-		buf = rest
+		// This is the final pending request we were waiting for.
+		if l.readyTimer.Stop() {
+			// We stopped the timer before it fired, so we can signal
+			// ready. Otherwise, the timer already signalled for us.
+			l.signalReady()
+		}
 	}
+	return nil
 }
 
 func parseMsgNotificationFile(buf []byte) (*notify.MsgNotificationFile, error) {
@@ -418,9 +541,42 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		Class:      msg.MediationClass(),
 		Permission: aaDenied, // Request permissions which were initially denied
 		AaAllowed:  aaAllowed,
+		Tagsets:    msg.DeniedMetadataTagsets(),
 
 		listener: l,
 	}, nil
+}
+
+// decrementPendingCheckFinal decrements the pending count if it's not already
+// 0, and returns whether this was the final pending request.
+//
+// The caller should only call this method if the message associated with the
+// request *was* marked by the kernel as having been previously sent.
+func (l *Listener) decrementPendingCheckFinal() (isFinal bool) {
+	l.pendingMu.Lock()
+	defer l.pendingMu.Unlock()
+	if l.pendingCount == 0 {
+		return false
+	}
+	l.pendingCount--
+	if l.pendingCount == 0 {
+		return true
+	}
+	return false
+}
+
+// signalReady is responsible for closing the ready channel and ensuring that
+// pendingCount is set to 0. Returns the pending count at time of readying.
+//
+// Potential callers must ensure that this method is only called once per
+// listener.
+func (l *Listener) signalReady() (pendingCount int) {
+	l.pendingMu.Lock()
+	defer l.pendingMu.Unlock()
+	pendingCount = l.pendingCount
+	l.pendingCount = 0 // if timed out, tell the run loop we're ready
+	close(l.ready)
+	return pendingCount
 }
 
 var encodeAndSendResponse = func(l *Listener, resp *notify.MsgNotificationResponse) error {

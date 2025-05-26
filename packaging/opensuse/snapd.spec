@@ -91,7 +91,7 @@
 
 
 Name:           snapd
-Version:        2.68.3
+Version:        2.69
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -318,9 +318,10 @@ chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
-sed -e 's,@LIBEXECDIR@,%{_libexecdir},' < %{indigo_srcdir}/packaging/opensuse/permissions.in > permissions
+install_caps="$(cat %{buildroot}%{_libexecdir}/snapd/snap-confine.caps)"
+sed -e 's,@LIBEXECDIR@,%{_libexecdir},' -e "s#@CAPS@#$install_caps#" < %{indigo_srcdir}/packaging/opensuse/permissions.in > permissions
 install -pm 644 -D permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
-sed -e 's,@LIBEXECDIR@,%{_libexecdir},' < %{indigo_srcdir}/packaging/opensuse/permissions.paranoid.in > permissions.paranoid
+sed -e 's,@LIBEXECDIR@,%{_libexecdir},' -e "s#@CAPS@#$install_caps#" < %{indigo_srcdir}/packaging/opensuse/permissions.paranoid.in > permissions.paranoid
 install -pm 644 -D permissions.paranoid %{buildroot}%{_sysconfdir}/permissions.d/snapd.paranoid
 
 # See https://en.opensuse.org/openSUSE:Packaging_checks#suse-missing-rclink for details
@@ -463,8 +464,9 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
-# setuid permissions are set through permctl and set_permissions snippet in post
-%verify(not user group mode) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
+# capabilities and permissions are set through permctl and set_permissions snippet in post
+%verify(not caps) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
+%{_libexecdir}/snapd/snap-confine.caps
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop

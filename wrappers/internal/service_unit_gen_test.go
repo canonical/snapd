@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -848,4 +850,102 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
 			c.Check(found, Equals, false, Commentf("test failed: %s", t.description))
 		}
 	}
+}
+
+type ifaceWithServiceSnippet struct {
+	snips []interfaces.PlugServicesSnippet
+}
+
+func (iface ifaceWithServiceSnippet) Name() string { return "iface-with-service-snippet" }
+func (iface ifaceWithServiceSnippet) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
+	return false
+}
+func (iface ifaceWithServiceSnippet) ServicePermanentPlug(plug *snap.PlugInfo) []interfaces.PlugServicesSnippet {
+	return iface.snips
+}
+
+func (s *serviceUnitGenSuite) TestPlugServiceSnippets(c *C) {
+	restore := builtin.MockInterface(&ifaceWithServiceSnippet{
+		snips: []interfaces.PlugServicesSnippet{
+			interfaces.PlugServicesUnitSectionSnippet("X-Unit-Snippet-1=true"),
+			interfaces.PlugServicesUnitSectionSnippet("X-Unit-Snippet-2=true"),
+			interfaces.PlugServicesServiceSectionSnippet("X-Service-Snippet-1=true"),
+			interfaces.PlugServicesServiceSectionSnippet("X-Service-Snippet-2=true"),
+		},
+	})
+	defer restore()
+
+	yamlText := `
+name: foo
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+        plugs: [iface-with-service-snippet]
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application foo.app
+Requires=%s-foo-44.mount
+Wants=network.target
+After=%s-foo-44.mount network.target snapd.apparmor.service
+X-Unit-Snippet-1=true
+X-Unit-Snippet-2=true
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run foo.app
+SyslogIdentifier=foo.app
+Restart=on-failure
+WorkingDirectory=/var/snap/foo/44
+TimeoutStopSec=30
+Type=simple
+X-Service-Snippet-1=true
+X-Service-Snippet-2=true
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
+}
+
+type mockBadPlugSnippetSection string
+
+func (s mockBadPlugSnippetSection) SystemdConfSection() interfaces.PlugServicesSnippetSection {
+	return "bad"
+}
+func (s mockBadPlugSnippetSection) String() string { return string(s) }
+
+func (s *serviceUnitGenSuite) TestPlugServiceSnippetsBadSection(c *C) {
+	restore := builtin.MockInterface(&ifaceWithServiceSnippet{
+		snips: []interfaces.PlugServicesSnippet{
+			mockBadPlugSnippetSection("X-Snippet=true"),
+		},
+	})
+	defer restore()
+
+	yamlText := `
+name: foo
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+        plugs: [iface-with-service-snippet]
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	_, err = internal.GenerateSnapServiceUnitFile(app, nil)
+	c.Assert(err, ErrorMatches, `internal error: unknown plug service snippet section "bad"`)
 }

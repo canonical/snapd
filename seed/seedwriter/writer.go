@@ -60,6 +60,9 @@ type Options struct {
 	// IgnoreOptionFileExtentions if set, snaps and components will not be
 	// required to end in .snap or .comp, respectively.
 	IgnoreOptionFileExtentions bool
+
+	// Assertions to inject into the built image
+	ExtraAssertions []asserts.Assertion
 }
 
 // manifest returns either the manifest already provided by the
@@ -226,6 +229,7 @@ type Writer struct {
 	expectedStep writerStep
 
 	modelRefs []*asserts.Ref
+	extraRefs []*asserts.Ref
 
 	optionsSnaps []*OptionsSnap
 	// consumedOptSnapNum counts which options snaps have been consumed
@@ -297,7 +301,7 @@ type tree interface {
 	localSnapPath(*SeedSnap) (string, error)
 	localComponentPath(*SeedComponent, string) (string, error)
 
-	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
+	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, extraRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
 	writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 }
@@ -632,6 +636,22 @@ func (w *Writer) Start(db asserts.RODatabase, f SeedAssertionFetcher) error {
 	}
 
 	w.modelRefs = f.Refs()
+
+	if len(w.opts.ExtraAssertions) != 0 {
+
+		f.AddExtraAssertions(w.opts.ExtraAssertions)
+
+		for _, extraAssertion := range w.opts.ExtraAssertions {
+			if err := f.Save(extraAssertion); err != nil {
+				return fmt.Errorf(
+					"cannot fetch and check prerequisites for an injected assertion: %v",
+					err,
+				)
+			}
+		}
+
+		w.extraRefs = f.Refs()[len(w.modelRefs):]
+	}
 
 	if err := w.tree.mkFixedDirs(); err != nil {
 		return err
@@ -1100,7 +1120,8 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	return resChannel, nil
 }
 
-func (w *Writer) checkBase(info *snap.Info, modes []string) error {
+func (w *Writer) checkBase(sn *SeedSnap) error {
+	info := sn.Info
 	// Validity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
@@ -1113,7 +1134,16 @@ func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 		return nil
 	}
 
-	return w.policy.checkBase(info, modes, w.availableByMode)
+	modes := sn.modes()
+	err := w.policy.checkBase(info, modes, w.availableByMode)
+	if err != nil {
+		// in dangerous mode check base only at the end
+		// allowing overrides to provide the new base as well
+		if w.policy.allowsDangerousFeatures() == nil && sn.optionSnap != nil {
+			return nil
+		}
+	}
+	return err
 }
 
 func (w *Writer) recordUsageWithThePolicy(modSnaps []*asserts.ModelSnap) {
@@ -1295,9 +1325,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 			}
 		}
 
-		modes := sn.modes()
-
-		if err := w.checkBase(info, modes); err != nil {
+		if err := w.checkBase(sn); err != nil {
 			return err
 		}
 	}
@@ -1697,7 +1725,7 @@ func (w *Writer) WriteMeta() error {
 	snapsFromModel := w.snapsFromModel
 	extraSnaps := w.extraSnaps
 
-	if err := w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel, extraSnaps); err != nil {
+	if err := w.tree.writeAssertions(w.db, w.modelRefs, w.extraRefs, snapsFromModel, extraSnaps); err != nil {
 		return err
 	}
 

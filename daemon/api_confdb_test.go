@@ -24,16 +24,24 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -441,7 +449,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdb" feature flag is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -451,7 +459,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `"confdb" feature flag is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -479,4 +487,242 @@ func (s *confdbSuite) TestGetNoFields(c *C) {
 	rspe := s.asyncReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 202)
 	c.Check(rspe.Change, Equals, "123")
+}
+
+type confdbControlSuite struct {
+	apiBaseSuite
+
+	st     *state.State
+	brands *assertstest.SigningAccounts
+	serial *asserts.Serial
+}
+
+var _ = Suite(&confdbControlSuite{})
+
+var (
+	deviceKey, _ = assertstest.GenerateKey(752)
+)
+
+func (s *confdbControlSuite) SetUpTest(c *C) {
+	s.apiBaseSuite.SetUpTest(c)
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+
+	s.st = state.New(nil)
+	o := overlord.MockWithState(s.st)
+	s.d = daemon.NewWithOverlord(o)
+
+	hookMgr, err := hookstate.Manager(s.st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+
+	deviceMgr, err := devicestate.Manager(s.st, hookMgr, o.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	o.AddManager(deviceMgr)
+
+	assertMgr, err := assertstate.Manager(s.st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(assertMgr)
+
+	storeStack := assertstest.NewStoreStack("can0nical", nil)
+	s.brands = assertstest.NewSigningAccounts(storeStack)
+}
+
+func (s *confdbControlSuite) setFeatureFlag(c *C, confName string) {
+	s.st.Lock()
+	tr := config.NewTransaction(s.st)
+	err := tr.Set("core", confName, true)
+	c.Assert(err, IsNil)
+	tr.Commit()
+	s.st.Unlock()
+}
+
+func (s *confdbControlSuite) prereqs(c *C) {
+	s.setFeatureFlag(c, "experimental.confdb")
+	s.setFeatureFlag(c, "experimental.confdb-control")
+
+	s.st.Lock()
+	encDevKey, _ := asserts.EncodePublicKey(deviceKey.PublicKey())
+	a, err := s.brands.Signing("can0nical").Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            "can0nical",
+		"model":               "generic-classic",
+		"serial":              "serial-serial",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.st, a)
+	c.Assert(err, IsNil)
+	s.serial = a.(*asserts.Serial)
+
+	devicestatetest.SetDevice(s.st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "generic-classic",
+		Serial: "serial-serial",
+	})
+	s.st.Unlock()
+}
+
+func (s *confdbControlSuite) TestConfdbFlagNotEnabled(c *C) {
+	req, err := http.NewRequest("POST", "/v2/confdb", nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
+}
+
+func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
+	s.setFeatureFlag(c, "experimental.confdb")
+
+	req, err := http.NewRequest("POST", "/v2/confdb", nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, `feature flag "confdb-control" is disabled: set 'experimental.confdb-control' to true`)
+}
+
+func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
+	s.setFeatureFlag(c, "experimental.confdb")
+	s.setFeatureFlag(c, "experimental.confdb-control")
+
+	req, err := http.NewRequest("POST", "/v2/confdb", nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Message, Equals, "device has no identity yet")
+}
+
+func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
+	s.prereqs(c)
+	jane := map[string]interface{}{
+		"operators":       []interface{}{"jane"},
+		"authentications": []interface{}{"store"},
+		"views":           []interface{}{"account/confdb/view"},
+	}
+	restore := daemon.MockDeviceStateSignConfdbControl(func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
+		a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
+			"brand-id": "can0nical",
+			"model":    "generic-classic",
+			"serial":   "serial-serial",
+			"groups":   []interface{}{jane},
+		}, nil, deviceKey)
+		c.Assert(err, IsNil)
+		return a.(*asserts.ConfdbControl), nil
+	})
+	defer restore()
+
+	body := `{"action": "delegate", "operator-id": "jane", "authentications": ["store"], "views": ["account/confdb/view"]}`
+	req, err := http.NewRequest("POST", "/v2/confdb", bytes.NewBufferString(body))
+	c.Assert(err, IsNil)
+	s.asUserAuth(c, req)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 200)
+	c.Check(rsp.Result, DeepEquals, nil)
+
+	s.st.Lock()
+	a, err := assertstate.DB(s.st).Find(
+		asserts.ConfdbControlType,
+		map[string]string{"brand-id": "can0nical", "model": "generic-classic", "serial": "serial-serial"},
+	)
+	c.Assert(err, IsNil)
+	cc := a.(*asserts.ConfdbControl)
+	ctrl := cc.Control()
+	c.Check(ctrl.Groups(), DeepEquals, []interface{}{jane})
+	s.st.Unlock()
+}
+
+func (s *confdbControlSuite) TestConfdbControlActionSigningErr(c *C) {
+	s.prereqs(c)
+
+	body := `{"action": "delegate", "operator-id": "jane", "authentications": ["store"], "views": ["account/confdb/view"]}`
+	req, err := http.NewRequest("POST", "/v2/confdb", bytes.NewBufferString(body))
+	c.Assert(err, IsNil)
+	s.asUserAuth(c, req)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Message, Equals, "cannot sign confdb-control without device key")
+}
+
+func (s *confdbControlSuite) TestConfdbControlActionAckErr(c *C) {
+	s.prereqs(c)
+	restore := daemon.MockDeviceStateSignConfdbControl(func(m *devicestate.DeviceManager, groups []interface{}, revision int) (*asserts.ConfdbControl, error) {
+		a := assertstest.FakeAssertion(
+			map[string]interface{}{
+				"type":     "confdb-control",
+				"brand-id": "can0nical",
+				"model":    "generic-classic",
+				"serial":   "serial-serial",
+				"groups":   []interface{}{},
+			},
+		)
+		return a.(*asserts.ConfdbControl), nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	jane := map[string]interface{}{
+		"operators":       []interface{}{"jane"},
+		"authentications": []interface{}{"store"},
+		"views":           []interface{}{"account/confdb/view"},
+	}
+	a, err := asserts.SignWithoutAuthority(asserts.ConfdbControlType, map[string]interface{}{
+		"brand-id": "can0nical",
+		"model":    "generic-classic",
+		"serial":   "serial-serial",
+		"groups":   []interface{}{jane},
+	}, nil, deviceKey)
+	c.Assert(err, IsNil)
+	assertstate.Add(s.st, a)
+	s.st.Unlock()
+
+	body := `{"action": "undelegate", "operator-id": "jane", "authentications": ["store"]}`
+	req, err := http.NewRequest("POST", "/v2/confdb", bytes.NewBufferString(body))
+	c.Assert(err, IsNil)
+	s.asUserAuth(c, req)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(
+		rspe.Message,
+		Equals,
+		`cannot check no-authority assertion type "confdb-control": confdb-control's signing key doesn't match the device key`,
+	)
+}
+
+func (s *confdbControlSuite) TestConfdbControlActionInvalidRequest(c *C) {
+	s.prereqs(c)
+
+	type testcase struct {
+		body   string
+		errMsg string
+	}
+	tcs := []testcase{
+		{
+			body:   "}",
+			errMsg: "cannot decode request body: invalid character '}' looking for beginning of value",
+		},
+		{
+			body:   `{"action": "unknown", "operator-id": "jane"}`,
+			errMsg: `unknown action "unknown"`,
+		},
+		{
+			body:   `{"action": "delegate", "operator-id": "jane", "authentications": ["unknown"]}`,
+			errMsg: "cannot delegate: invalid authentication method: unknown",
+		},
+	}
+
+	for _, tc := range tcs {
+		req, err := http.NewRequest("POST", "/v2/confdb", bytes.NewBufferString(tc.body))
+		c.Assert(err, IsNil)
+		s.asUserAuth(c, req)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, Equals, 400)
+		c.Check(rspe.Message, Equals, tc.errMsg)
+	}
 }

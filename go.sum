@@ -8,8 +8,8 @@ github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9 h1:Twk1ZSTWRClf
 github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9/go.mod h1:IneQ5/yQcfPXrGekEXpR6yeea55ZD24N5+kHzeDseOM=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 h1:oe6fCvaEpkhyW3qAicT0TnGtyht/UrgvOwMcEgLb7Aw=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3/go.mod h1:qdP0gaj0QtgX2RUZhnlVrceJ+Qln8aSlDyJwelLLFeM=
-github.com/canonical/go-tpm2 v1.11.1 h1:RivdSXfBWWW+eFaFNYQby5+kVgY4km9eEayot1wX/qU=
-github.com/canonical/go-tpm2 v1.11.1/go.mod h1:zK+qESVwu78XyX+NPhiBdN+zwPPDoKk4rYlQ7VUsRp4=
+github.com/canonical/go-tpm2 v1.12.2 h1:7sWef6xVlWwBAn7hsY+3j62ANzoAO+GZvrltMHXq9RQ=
+github.com/canonical/go-tpm2 v1.12.2/go.mod h1:zK+qESVwu78XyX+NPhiBdN+zwPPDoKk4rYlQ7VUsRp4=
 github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981 h1:vrUzSfbhl8mzdXPzjxq4jXZPCCNLv18jy6S7aVTS2tI=
 github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981/go.mod h1:ywdPBqUGkuuiitPpVWCfilf2/gq+frhq4CNiNs9KyHU=
 github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf h1:iW4rZ826su+pqaw19uhpSCzhj44qo35pNgKFGqzDKkU=
@@ -17,8 +17,8 @@ github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf/go.mod h1:F5haX7
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/frankban/quicktest v1.2.2 h1:xfmOhhoH5fGPgbEAlhLpJH9p0z/0Qizio9osmvn9IUY=
 github.com/frankban/quicktest v1.2.2/go.mod h1:Qh/WofXFeiAFII1aEBu529AtJo6Zg2VHscnEsbBnJ20=
-github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 h1:ZpnhV/YsD2/4cESfV5+Hoeu/iUR3ruzNvZ+yQfO03a0=
-github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2/go.mod h1:bBOAhwG1umN6/6ZUMtDFBMQR8jRg9O75tm9K00oMsK4=
+github.com/godbus/dbus/v5 v5.1.0 h1:4KLkAxT3aOY8Li4FRJe/KvhoNFFxo0m6fNuFUO8QJUk=
+github.com/godbus/dbus/v5 v5.1.0/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/google/go-cmp v0.2.1-0.20190312032427-6f77996f0c42/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/go-cmp v0.5.8 h1:e6P7q2lk1O+qJJb4BtCQXlK8vWEO8V1ZeuEdJNOqZyg=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
@@ -49,8 +49,8 @@ github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraK
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0EmriMOiI4YgtQNOo+6fNxzLCYioo3Q3BCVLdMCE=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
-github.com/snapcore/secboot v0.0.0-20250225135840-e07f4ae48e98 h1:slmWDMFeSWUX1F0C2C8VI9IW2kqejGZB/p7ECsq7HkA=
-github.com/snapcore/secboot v0.0.0-20250225135840-e07f4ae48e98/go.mod h1:2cqUsx8AzOpyo7IAkeAln8SEr9ymC/GVOrFEYNL0RrI=
+github.com/snapcore/secboot v0.0.0-20250326125418-bf2f40ea35c4 h1:ECxlsvtHL7HOv8wIsnF95kUkQrtE86cY/cylWVt2n0M=
+github.com/snapcore/secboot v0.0.0-20250326125418-bf2f40ea35c4/go.mod h1:Y3APoLyInDvY8mVP1qDQd/t9bPuNp2itYPCGrltRQoQ=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 go.etcd.io/bbolt v1.3.9 h1:8x7aARPEXiXbHmtUwAIv7eV2fQFHrLLavdiJ3uzJXoI=
 go.etcd.io/bbolt v1.3.9/go.mod h1:zaO32+Ti0PK1ivdPtgMESzuzL2VPoIG1PCQNvOdo/dE=

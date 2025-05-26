@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -70,7 +71,7 @@ func (s *backendsSuite) TestEssentialOrdering(c *C) {
 	c.Assert(sdIndex, testutil.IntLessThan, aaIndex)
 }
 
-func (s *backendsSuite) TestUdevInContainers(c *C) {
+func (s *backendsSuite) TestUdevPreseedingInContainers(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-detect-virt", `
 	for arg in "$@"; do
 		if [ "$arg" = --container ]; then
@@ -80,21 +81,8 @@ func (s *backendsSuite) TestUdevInContainers(c *C) {
 
 	exit 1
 	`)
-
-	defer cmd.Restore()
-	c.Assert(backendNames(backends.All()), Not(testutil.Contains), "udev")
-}
-
-func (s *backendsSuite) TestUdevNotInContainers(c *C) {
-	cmd := testutil.MockCommand(c, "systemd-detect-virt", `
-	for arg in "$@"; do
-		if [ "$arg" = --container ]; then
-			exit 1
-		fi
-	done
-
-	exit 0
-	`)
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
 
 	defer cmd.Restore()
 	c.Assert(backendNames(backends.All()), testutil.Contains, "udev")

@@ -135,6 +135,14 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 // your own before calling this again
 func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
+	func() {
+		st := ovld.State()
+		st.Lock()
+		defer st.Unlock()
+		// set a fake fde state to avoid failure in initialization
+		st.Set("fde", &struct{}{})
+	}()
+
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
 	// avoid gadget preload in the general tests cases

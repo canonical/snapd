@@ -40,6 +40,8 @@ restore: |
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
     # restore hostname
     hostnamectl set-hostname "$(cat hostname)"
+    rm -f "$HOME"/.ssh/id_rsa*
+    printf "" > /home/ubuntu/.ssh/authorized_keys
 
 execute: |
     echo "Check that service disable works"
@@ -162,3 +164,20 @@ execute: |
     hostname | MATCH foo
     snap set system system.hostname=F00
     hostnamectl status | MATCH F00
+
+    echo "configuring ssh access"
+    ssh-keygen -t rsa -N "" -f "$HOME"/.ssh/id_rsa
+    cat "$HOME"/.ssh/id_rsa.pub >> /home/ubuntu/.ssh/authorized_keys
+    # For some reason this directory has the wrong user on UC18
+    chown ubuntu:ubuntu /home/ubuntu
+
+    echo "ssh is enabled and works by default"
+    ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ubuntu@localhost pwd
+    echo "ssh can be disabled"
+    snap set system service.ssh.disable=true
+    not ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ubuntu@localhost pwd
+    echo "ssh can be re-enabled"
+    # TODO "snap set system service.ssh.disable!" does not seem to remove
+    # the /etc/ssh/sshd_not_to_be_run file
+    snap set system service.ssh.disable=false
+    ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ubuntu@localhost pwd

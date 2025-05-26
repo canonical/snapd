@@ -2,6 +2,7 @@
 import argparse
 import os
 from subprocess import run, check_call, check_output
+import subprocess
 import tempfile
 import pathlib
 import platform
@@ -44,6 +45,7 @@ class ModuleDb:
     ModuleInfo = namedtuple('ModuleInfo', ('builtin', 'aliases', 'symbols'))
     alias_line = re.compile(r"^alias +(?P<alias>[^ ]+) +(?P<target>[^ ]+)$")
     modinfo_line = re.compile("^(?P<name>[^.]+)[.](?P<arg>[^.]+)=(?P<value>.+)$")
+
     class Installed(Enum):
         EXPLICIT = auto()
         IMPLICIT = auto()
@@ -76,8 +78,8 @@ class ModuleDb:
                     if m['arg'] == 'alias':
                         original = self._modules.get(m['name'], ModuleDb.ModuleInfo(True, [], []))
                         self._modules[m['name']] = ModuleDb.ModuleInfo(original.builtin,
-                                                                    original.aliases + [m['value']],
-                                                                    original.symbols)
+                                                                       original.aliases + [m['value']],
+                                                                       original.symbols)
                     self._alias[m['value']] = m['name']
 
         for root, dirs, files in os.walk(module_path):
@@ -213,6 +215,7 @@ known_automatic_modules = list(map(re.compile, [
     r'md-.*',
 ]))
 
+
 # Include kernel modules specified in conf_file
 def add_modules_from_file(dest_d, kernel_root, modules_d, fw_d, conf_file, db,
                           warn_discoverable=False):
@@ -247,11 +250,11 @@ def add_modules_from_file(dest_d, kernel_root, modules_d, fw_d, conf_file, db,
                         print(f"NOTE: {conf_file}: Module {module} is builtin", file=sys.stderr)
                     if warn_discoverable:
                         if len(mod.aliases) > 0:
-                              print(f"WARNING: {conf_file}: Module {module} has aliases:", file=sys.stderr)
-                              for alias in mod.aliases:
-                                  print(f" * {alias}", file=sys.stderr)
+                            print(f"WARNING: {conf_file}: Module {module} has aliases:", file=sys.stderr)
+                            for alias in mod.aliases:
+                                print(f" * {alias}", file=sys.stderr)
                         elif warn_discoverable and any(r.fullmatch(module.replace('_', '-')) for r in known_automatic_modules):
-                              print(f"WARNING: {conf_file}: Module {module} is probably automatically loaded", file=sys.stderr)
+                            print(f"WARNING: {conf_file}: Module {module} is probably automatically loaded", file=sys.stderr)
 
                     # A module that has symbols but no alias is likely to be loaded through aliases
                     if len(mod.aliases) == 0 and len(mod.symbols) > 0:
@@ -315,6 +318,13 @@ def package_files(pkgs, sysroot):
     return out.decode("utf-8").splitlines()
 
 
+def dpkg_architecture(sysroot, variable):
+    proc_env = os.environ.copy()
+    proc_env["DPKG_DATADIR"] = sysroot + "/usr/share/dpkg"
+    out = check_output(["dpkg-architecture", "-q", variable], env=proc_env).decode("utf-8")
+    return out.splitlines()[0]
+
+
 def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     # Build list of files and directories
 
@@ -370,9 +380,8 @@ def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     # This hack should be removed with PR#113
     check_call([r"sed -i '/^After=/"
                 r"{;s, *plymouth-start[.]service *, ,;/"
-                r"^After= *$/d;}' "
-                + os.path.join(dest_dir,
-                               "usr/lib/systemd/system/systemd-ask-password-*")],
+                r"^After= *$/d;}' " + os.path.join(dest_dir,
+                                                   "usr/lib/systemd/system/systemd-ask-password-*")],
                shell=True)
     # Generate hw database (/usr/lib/udev/hwdb.bin) for udev and
     # remove redundant definitions after that.
@@ -454,6 +463,11 @@ def install_misc(dest_dir, sysroot, deb_arch):
     files += glob.glob("/usr/lib/" + deb_arch + "/plymouth/renderers/*.so")
     files += glob.glob("/usr/share/plymouth/themes/bgrt/*")
     files += glob.glob("/usr/share/plymouth/themes/spinner/*")
+
+    # the arm64 build of snap-bootstrap requires libteec
+    if deb_arch == "aarch64-linux-gnu":
+        files += glob.glob("/usr/lib/" + deb_arch + "/libteec.so*")
+
     install_files(files, dest_dir, sysroot)
     # Links for fsck
     os.symlink("e2fsck", os.path.join(dest_dir, "usr/sbin", "fsck.ext4"))
@@ -505,9 +519,9 @@ def find_apt_repos(sysroot):
     sources_d = os.path.join(sysroot, "etc/apt/sources.list.d")
     state_d = os.path.join(sysroot, "var/lib/apt/lists")
     repo_lines = check_output(["apt-cache", "policy",
-                               "-o", "Dir::Etc::SourceList="+sources,
-                               "-o", "Dir::Etc::SourceParts="+sources_d,
-                               "-o", "Dir::State::Lists="+state_d]).decode("utf-8").splitlines()
+                               "-o", "Dir::Etc::SourceList=" + sources,
+                               "-o", "Dir::Etc::SourceParts=" + sources_d,
+                               "-o", "Dir::State::Lists=" + state_d]).decode("utf-8").splitlines()
     uri_line = re.compile(r"^ *-?[0-9]+ (http|mirror|file|cdrom|ftp|copy|rsh|ssh)")
     repo_lines = [r for r in repo_lines if uri_line.match(r)]
     uri_start = re.compile(r"^ *-?[0-9]+ ")
@@ -536,7 +550,7 @@ def find_apt_repos(sysroot):
     for i, repo in enumerate(repo_ls):
         if i in merged:
             continue
-        for j in range(i+1, len(repo_ls)):
+        for j in range(i + 1, len(repo_ls)):
             if sorted(repo.components) == sorted(repo_ls[j].components):
                 repo.suites += repo_ls[j].suites
                 merged.add(j)
@@ -546,7 +560,7 @@ def find_apt_repos(sysroot):
 
 
 def pkgs_used_in_initrd(dest_dir, sysroot):
-    MD5_HEX_CHARS = 2*hashlib.md5().digest_size
+    MD5_HEX_CHARS = 2 * hashlib.md5().digest_size
 
     # Get list of files we have in the initramfs and calculate their md5sum
     initrd_digests = []
@@ -599,7 +613,8 @@ def create_initrd_pkg_list(dest_dir, sysroot):
     # Write package list in yaml format
     docs_dir = os.path.join(dest_dir, "usr", "share", "doc")
     os.makedirs(docs_dir)
-    with open(os.path.join(docs_dir, "dpkg.yaml"), "w") as pkg_list:
+    manifest_path = os.path.join(docs_dir, "dpkg.yaml")
+    with open(manifest_path, "w") as pkg_list:
         # Write active repositories first so we can have an idea of where
         # things come from
         out = "package-repositories:\n"
@@ -612,9 +627,10 @@ def create_initrd_pkg_list(dest_dir, sysroot):
         # Now write package information
         out += "packages:\n"
         out += check_output(["dpkg-query", "--admindir=" + sysroot + "/var/lib/dpkg/",
-                             "--show", "--showformat=- ${binary:Package}=${Version}\\n"] +
-                            pkgs).decode("utf-8")
+                             "--show", "--showformat=- ${binary:Package}=${Version}\\n"] + pkgs).decode("utf-8")
         pkg_list.write(out)
+
+    return manifest_path
 
 
 # verify_missing_dlopen looks at the .notes.dlopen section of ELF
@@ -662,23 +678,66 @@ def verify_missing_dlopen(destdir, libdir):
 
     fatal = False
     if missing:
-        print(f"WARNING: These sonames are missing:", file=sys.stderr)
+        print("WARNING: These sonames are missing:", file=sys.stderr)
         for m, priority in missing.items():
             print(f" * {m} ({priority})", file=sys.stderr)
             if priority in ["required", "recommended"]:
                 fatal = True
         if fatal:
-            print(f"WARNING: Some missing sonames are required or recommended. Failing.", file=sys.stderr)
+            print("WARNING: Some missing sonames are required or recommended. Failing.", file=sys.stderr)
 
     return not fatal
 
 
-def get_deb_arch(sysroot):
-    proc_env = os.environ.copy()
-    proc_env["DPKG_DATADIR"] = sysroot + "/usr/share/dpkg"
-    out = check_output(["dpkg-architecture", "-q",
-                        "DEB_HOST_MULTIARCH"], env=proc_env).decode("utf-8")
-    return out.splitlines()[0]
+def mkcpio(path, output, *, compress=True):
+    cpio_cmd = subprocess.Popen(['cpio', '--null', '--reproducible', '--create', '--quiet', '--format=newc', '--owner=0:0'],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE if compress else output,
+                                cwd=path)
+
+    if compress:
+        zstd_cmd = subprocess.Popen(['zstd', '-1', '-T0'],
+                                    stdin=cpio_cmd.stdout, stdout=output)
+    else:
+        zstd_cmd = None
+
+    file_list = []
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            file_list.append(os.path.join(os.path.relpath(root, path), d))
+        for f in files:
+            file_list.append(os.path.join(os.path.relpath(root, path), f))
+    file_list = sorted(file_list)
+    for path in file_list:
+        cpio_cmd.stdin.write(path.encode('ascii'))
+        cpio_cmd.stdin.write(b'\0')
+
+    cpio_cmd.stdin.close()
+    if zstd_cmd is not None:
+        zstd_cmd.wait()
+    cpio_cmd.wait()
+    if cpio_cmd.returncode != 0:
+        raise RuntimeError("cpio failed")
+    if zstd_cmd is not None:
+        if zstd_cmd.returncode != 0:
+            raise RuntimeError("zstd failed")
+
+
+def mk_amd_ucode(root, output):
+    for path in glob.glob(f'{root}/lib/firmware/amd-ucode/*.bin'):
+        with open(path, 'rb') as f:
+            shutil.copyfileobj(f, output)
+
+
+def mk_intel_ucode(root, output_path):
+    check_call(['iucode_tool', f'--write-to={output_path}', f'{root}/lib/firmware/intel-ucode/'])
+
+
+def reset_time(path):
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            os.utime(os.path.join(root, d), (0, 0))
+        for f in files:
+            os.utime(os.path.join(root, f), (0, 0))
 
 
 def get_ubuntu_release(sysroot):
@@ -699,7 +758,6 @@ def release_higher_or_equal(release1, release2):
 
 
 def create_initrd(parser, args):
-    # TODO generate microcode instead of shipping in debian package
     rootfs = "/"
     if not args.kerneldir:
         args.kerneldir = "/lib/modules/%s" % args.kernelver
@@ -712,7 +770,7 @@ def create_initrd(parser, args):
     if args.kernelver:
         args.output = "-".join([args.output, args.kernelver])
     with tempfile.TemporaryDirectory(suffix=".ubuntu-core-initramfs") as d:
-        deb_arch = get_deb_arch(rootfs)
+        deb_arch = dpkg_architecture(rootfs, "DEB_HOST_MULTIARCH")
         ubuntu_release = get_ubuntu_release(rootfs)
 
         kernel_root = os.path.join(d, "kernel")
@@ -752,8 +810,8 @@ def create_initrd(parser, args):
         # make ubuntu-core-initramfs-fips a reality.
         if "fips" in args.features:
             install_files([
-                    "/usr/bin/kcapi-hasher",
-                    "/usr/bin/.kcapi-hasher.hmac",
+                "/usr/bin/kcapi-hasher",
+                "/usr/bin/.kcapi-hasher.hmac",
             ] + glob.glob("/usr/lib/*/.libkcapi.so.*.hmac"), main, rootfs)
 
         # Update epoch
@@ -781,22 +839,28 @@ def create_initrd(parser, args):
                 sys.exit(1)
 
         # Create manifest with packages with files included in the initramfs
-        create_initrd_pkg_list(main, rootfs)
+        manifest_path = create_initrd_pkg_list(main, rootfs)
+        out_dir = os.path.dirname(args.output)
+        manifest_out_path = os.path.join(out_dir, "manifest-initramfs.yaml")
+        shutil.copyfile(manifest_path, manifest_out_path)
+
+        arch = dpkg_architecture(args.root, "DEB_HOST_ARCH")
 
         # Finally, write it
         with open(args.output, "wb") as output:
-            for early in glob.iglob("%s/early/*.cpio" % args.skeleton):
-                with open(early, "rb") as f:
-                    shutil.copyfileobj(f, output)
-            output.write(
-                run(
-                    "find . | cpio --create --quiet --format='newc' --owner=0:0 | zstd -1 -T0",
-                    cwd=main,
-                    capture_output=True,
-                    shell=True,
-                    check=True,
-                ).stdout)
+            if arch == "amd64":
+                with tempfile.TemporaryDirectory(suffix='ubuntu-core-initramfs') as d:
+                    microcode_dir = os.path.join(d, 'kernel/x86/microcode')
+                    os.makedirs(microcode_dir)
+                    with open(os.path.join(microcode_dir, 'AuthenticAMD.bin'), 'wb') as f:
+                        mk_amd_ucode(args.root, f)
+                    mk_intel_ucode(args.root, os.path.join(microcode_dir, 'GenuineIntel.bin'))
+                    # Time is irrelevant. And we should make it reproducible.
+                    # It is also what update-microcode-initrd from package does.
+                    reset_time(d)
+                    mkcpio(d, output, compress=False)
 
+            mkcpio(main, output)
 
 def create_efi(parser, args):
     if args.root:
@@ -904,6 +968,8 @@ def main():
         help="certificate",
         default="/usr/lib/ubuntu-core-initramfs/snakeoil/PkKek-1-snakeoil.pem",
     )
+    # TODO we should have an output-dir instead and maybe another override for
+    # the file name.
     efi_parser.add_argument(
         "--output", help="path to output", default="/boot/kernel.efi"
     )
@@ -927,6 +993,8 @@ def main():
     initrd_parser.add_argument(
         "--firmwaredir", help="path to kernel firmware", default="/lib/firmware"
     )
+    # TODO we should have an output-dir instead and maybe another override for
+    # the file name.
     initrd_parser.add_argument(
         "--output", help="path to output", default="/boot/ubuntu-core-initramfs.img"
     )
