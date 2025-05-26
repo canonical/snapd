@@ -96,5 +96,13 @@ cmd/test-driver
 # Image files
 *.img
 
+# Image Garden files
+*.iso
+*.qcow2
+*.run
+*.lock
+*.user-data
+*.meta-data
+
 # Directory that is used by the run-spread script
 /built-snap
