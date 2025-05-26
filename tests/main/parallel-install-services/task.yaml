@@ -76,7 +76,7 @@ execute: |
     done
 
     echo "Verifying snap can only manage its own services"
-    snap run --shell test-snapd-service_foo -c "snapctl stop test-snapd-service.test-snapd-other-service" |& MATCH "error running snapctl: unknown service"
+    snap run --shell test-snapd-service_foo -c "snapctl stop test-snapd-service.test-snapd-other-service" |& MATCH "snapctl: unknown service"
 
     echo "Removing one instance does not remove services from other instances"
     snap remove --purge test-snapd-service_foo
