@@ -255,12 +255,12 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
-	opts := &wrappers.StartServicesOptions{Enable: true}
-	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
+	opts := &wrappers.StartSnapServicesOptions{Enable: true}
+	return wrappers.StartSnapServices(apps, disabledSvcs, opts, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, nil, reason, meter, tm)
+	return wrappers.StopSnapServices(apps, nil, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) (wrappers.SnapdRestart, error) {

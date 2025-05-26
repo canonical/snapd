@@ -217,7 +217,7 @@ func delayedCrossMgrInit() {
 }
 
 func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
-	var serviceAction ServiceAction
+	var serviceAction SnapServiceAction
 	if err := t.Get("service-action", &serviceAction); err != nil {
 		return nil, fmt.Errorf("internal error: cannot obtain service action from task: %s", t.Summary())
 	}
@@ -363,7 +363,7 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 
 		// TODO: what to do about timings here?
 		nullPerfTimings := &timings.Timings{}
-		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
+		if err := wrappers.StartSnapServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
 			return err
 		}
 	}

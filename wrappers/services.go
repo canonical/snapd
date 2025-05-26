@@ -239,18 +239,18 @@ func filterUserServicesNotInDisabledMap(disabledSvcs *DisabledServices, original
 	return filtered
 }
 
-// StartServicesOptions carries additional parameters for StartService.
-type StartServicesOptions struct {
+// StartSnapServicesOptions carries additional parameters for StartSnapServices.
+type StartSnapServicesOptions struct {
 	Enable bool
 	ScopeOptions
 }
 
-// StartServices starts service units for the applications from the snap which
+// StartSnapServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *StartServicesOptions, inter Interacter, tm timings.Measurer) (err error) {
+func StartSnapServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *StartSnapServicesOptions, inter Interacter, tm timings.Measurer) (err error) {
 	if opts == nil {
-		opts = &StartServicesOptions{}
+		opts = &StartSnapServicesOptions{}
 	}
 
 	systemSysd := systemd.New(systemd.SystemMode, inter)
@@ -932,7 +932,7 @@ func serviceUnitsFromApps(apps []*snap.AppInfo, includeActivatedServices bool) [
 //
 // The result is then two lists of snap service apps, separated by system/user type
 // that are valid for being stopped.
-func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts *StopServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
+func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts *StopSnapServicesOptions) (sys []*snap.AppInfo, usr []*snap.AppInfo) {
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -967,23 +967,23 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 	return sys, usr
 }
 
-// StopServicesOptions carries additional parameters for StopServices.
-type StopServicesOptions struct {
+// StopSnapServicesOptions carries additional parameters for StopSnapServices.
+type StopSnapServicesOptions struct {
 	Disable bool
 	ScopeOptions
 }
 
-// StopServices stops and optionally disables service units for the applications
+// StopSnapServices stops and optionally disables service units for the applications
 // from the snap which are services.
-func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
+func StopSnapServices(apps []*snap.AppInfo, opts *StopSnapServicesOptions, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
 	if opts == nil {
-		opts = &StopServicesOptions{}
+		opts = &StopSnapServicesOptions{}
 	}
 
 	if reason != snap.StopReasonOther {
-		logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
+		logger.Debugf("StopSnapServices called for %q, reason: %v", apps, reason)
 	} else {
-		logger.Debugf("StopServices called for %q", apps)
+		logger.Debugf("StopSnapServices called for %q", apps)
 	}
 
 	sysd := systemd.New(systemd.SystemMode, inter)
@@ -1191,8 +1191,8 @@ func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 	return nil
 }
 
-// RestartServicesOptions carries additional parameters for RestartServices.
-type RestartServicesOptions struct {
+// RestartSnapServicesOptions carries additional parameters for RestartServices.
+type RestartSnapServicesOptions struct {
 	// Reload set if we might need to reload the service definitions.
 	Reload bool
 	// AlsoEnabledNonActive set if we to restart also enabled but not running units
@@ -1201,7 +1201,7 @@ type RestartServicesOptions struct {
 }
 
 func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices []string,
-	opts *RestartServicesOptions, sysd systemd.Systemd, cli *userServiceClient, tm timings.Measurer) error {
+	opts *RestartSnapServicesOptions, sysd systemd.Systemd, cli *userServiceClient, tm timings.Measurer) error {
 	shouldRestart := func(active, enabled bool, name string) bool {
 		// If the unit was explicitly mentioned in the command line, restart it
 		// even if it is disabled; otherwise, we only restart units which are
@@ -1283,10 +1283,10 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 // The list of explicitServices needs to use systemd unit names.
 // TODO: change explicitServices format to be less unusual, more consistent
 // (introduce AppRef?)
-func RestartServices(apps []*snap.AppInfo, explicitServices []string,
-	opts *RestartServicesOptions, inter Interacter, tm timings.Measurer) error {
+func RestartSnapServices(apps []*snap.AppInfo, explicitServices []string,
+	opts *RestartSnapServicesOptions, inter Interacter, tm timings.Measurer) error {
 	if opts == nil {
-		opts = &RestartServicesOptions{}
+		opts = &RestartSnapServicesOptions{}
 	}
 	sysd := systemd.New(systemd.SystemMode, inter)
 

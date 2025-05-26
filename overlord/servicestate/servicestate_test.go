@@ -777,11 +777,11 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	}
 }
 
-func (s *snapServiceOptionsSuite) checkServiceAction(c *C, ts *state.TaskSet, expected *servicestate.ServiceAction) {
+func (s *snapServiceOptionsSuite) checkServiceAction(c *C, ts *state.TaskSet, expected *servicestate.SnapServiceAction) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	t := ts.Tasks()[0]
 
-	var obtained servicestate.ServiceAction
+	var obtained servicestate.SnapServiceAction
 	c.Assert(t.Get("service-action", &obtained), IsNil)
 	c.Check(&obtained, DeepEquals, expected)
 }
@@ -816,7 +816,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 
 	for _, tc := range []struct {
 		instruction    *servicestate.Instruction
-		expectedAction *servicestate.ServiceAction
+		expectedAction *servicestate.SnapServiceAction
 	}{
 		{
 			&servicestate.Instruction{
@@ -827,7 +827,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 					Enable: true,
 				},
 			},
-			&servicestate.ServiceAction{
+			&servicestate.SnapServiceAction{
 				SnapName:       "foo",
 				Action:         "start",
 				ActionModifier: "enable",
@@ -844,7 +844,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 				Scope:  client.ScopeSelector{"user"},
 				Users:  client.UserSelector{Names: []string{"foo"}},
 			},
-			&servicestate.ServiceAction{
+			&servicestate.SnapServiceAction{
 				SnapName:                "foo",
 				Action:                  "restart",
 				Services:                []string{"svc1", "svc2"},
@@ -861,7 +861,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 				Scope:  client.ScopeSelector{"system"},
 				Names:  []string{"foo.svc2"},
 			},
-			&servicestate.ServiceAction{
+			&servicestate.SnapServiceAction{
 				SnapName:                "foo",
 				Action:                  "restart",
 				Services:                []string{"svc1", "svc2"},
@@ -880,7 +880,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 				Scope:          client.ScopeSelector{"system", "user"},
 				Users:          client.UserSelector{Names: []string{"foo"}},
 			},
-			&servicestate.ServiceAction{
+			&servicestate.SnapServiceAction{
 				SnapName:                "foo",
 				Action:                  "reload-or-restart",
 				Services:                []string{"svc1", "svc2"},
@@ -898,7 +898,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 				Scope:  client.ScopeSelector{"user"},
 				Users:  client.UserSelector{Names: []string{"baz"}},
 			},
-			&servicestate.ServiceAction{
+			&servicestate.SnapServiceAction{
 				SnapName:         "foo",
 				Action:           "stop",
 				Services:         []string{"svc1", "svc2"},
