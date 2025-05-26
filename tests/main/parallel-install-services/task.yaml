@@ -45,7 +45,7 @@ execute: |
     snap list | MATCH '^test-snapd-service_foo '
     snap list | MATCH '^test-snapd-service_longname '
 
-    echo "Ensure we can use snapctl to stop a service the main installation, but not affect others"
+    echo "Ensure we can use snapctl to stop a service of the main installation, but not affect others"
     snap run --shell test-snapd-service -c "snapctl stop test-snapd-service.test-snapd-other-service"
     systemctl is-active snap.test-snapd-service.test-snapd-other-service | MATCH "inactive"
     systemctl is-active snap.test-snapd-service_foo.test-snapd-other-service | MATCH "^active"
@@ -74,6 +74,9 @@ execute: |
         snap run --shell test-snapd-service_${instance} -c "snapctl start test-snapd-service_${instance}.test-snapd-other-service"
         systemctl is-active "snap.test-snapd-service_${instance}.test-snapd-other-service" | MATCH "^active"
     done
+
+    echo "Verifying snap can only manage its own services"
+    snap run --shell test-snapd-service_foo -c "snapctl stop test-snapd-service.test-snapd-other-service" |& MATCH "error running snapctl: unknown service"
 
     echo "Removing one instance does not remove services from other instances"
     snap remove --purge test-snapd-service_foo
