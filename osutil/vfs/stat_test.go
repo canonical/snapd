@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,34 @@
  *
  */
 
-package daemon
+package vfs_test
 
-import "github.com/snapcore/snapd/testutil"
+import (
+	"testing"
+	"testing/fstest"
 
-type (
-	ConnectivityStatus = connectivityStatus
-
-	RAAInfo              = raaInfo
-	MonitoredSnapInfo    = monitoredSnapInfo
-	RefreshCandidateInfo = refreshCandidateInfo
-	RefreshCandidate     = refreshCandidate
+	"github.com/snapcore/snapd/osutil/vfs"
 )
 
-var (
-	MinLane = minLane
-)
-
-func MockCgroupPidsOfSnap(f func(instanceName string) (map[string][]int, error)) (restore func()) {
-	return testutil.Mock(&cgroupPidsOfSnap, f)
+func TestVFS_Stat(t *testing.T) {
+	v := vfs.NewVFS(fstest.MapFS{
+		"hello.txt": &fstest.MapFile{
+			Data: []byte("hello, world"),
+			Mode: 0o644,
+			Sys:  "potato",
+		},
+	})
+	fi, err := v.Stat("hello.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode() != 0o644 {
+		t.Fatalf("unexpected mode %o", fi.Mode())
+	}
+	if fi.Size() != 12 {
+		t.Fatalf("unexpected size %d", fi.Size())
+	}
+	if sys, ok := fi.Sys().(string); !ok || sys != "potato" {
+		t.Fatalf("unexpected sys %v", fi.Sys())
+	}
 }

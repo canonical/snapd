@@ -1205,7 +1205,8 @@ func checkLoadConfdbTasks(c *C, chg *state.Change, taskKinds []string, hooksups 
 	c.Assert(err, IsNil)
 	c.Assert(tx, NotNil)
 
-	t := findTask(chg, "run-hook")
+	// find first task relevant to confdb (might be reading from another change)
+	t := findTask(chg, "clear-confdb-tx-on-error")
 	var hookIndex int
 	var i int
 loop:
@@ -1260,7 +1261,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	c.Assert(cleanupTask.Kind(), Equals, "clear-confdb-tx")
 
 	// the custodian snap's hooks are run
-	tasks := []string{"run-hook", "run-hook", "clear-confdb-tx"}
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "custodian-snap",
@@ -1320,7 +1321,7 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 	chg := s.state.NewChange("get-confdb", "")
 	chg.AddAll(ts)
 
-	tasks := []string{"run-hook", "run-hook", "clear-confdb-tx"}
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "custodian-snap",
@@ -1533,27 +1534,32 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 
 func (s *confdbTestSuite) checkGetConfdbTasks(c *C, chg *state.Change, executedHooks *[]string) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	tasks := chg.Tasks()
+
+	if tasks[0].Kind() == "run-hook" {
+		// the test might be using an "install" hook as a starting point so it
+		// shows up here
+		var hooksup hookstate.HookSetup
+		err := tasks[0].Get("hook-setup", &hooksup)
+		c.Assert(err, IsNil)
+		c.Assert(hooksup.Hook, Equals, "install")
+		tasks = tasks[1:]
+	}
+
+	// first confdb-related task should be the clearing on error
+	c.Assert(tasks[0].Kind(), Equals, "clear-confdb-tx-on-error")
+	_, _, _, err := confdbstate.GetStoredTransaction(tasks[0])
+	c.Assert(err, IsNil)
+	tasks = tasks[1:]
 
 	// check that the change's hooks and the actual executed hooks (if any) are in the right order
 	expectedHooks := []string{"load-view-setup", "query-view-setup"}
-	tasks := chg.Tasks()
+
 	var i int
-	for len(tasks) > 0 {
-		t := tasks[0]
-		if t.Kind() != "run-hook" {
-			break
-		}
-
+	for len(tasks) > 0 && tasks[0].Kind() == "run-hook" {
 		var hooksup hookstate.HookSetup
-		err := t.Get("hook-setup", &hooksup)
+		err := tasks[0].Get("hook-setup", &hooksup)
 		c.Assert(err, IsNil)
-
-		if hooksup.Hook == "install" {
-			// the test might be using an "install" hook as a starting point so it
-			// shows up here (in reality it would be the first one running)
-			tasks = tasks[1:]
-			continue
-		}
 
 		// check hook order
 		if executedHooks != nil {
@@ -1565,10 +1571,10 @@ func (s *confdbTestSuite) checkGetConfdbTasks(c *C, chg *state.Change, executedH
 		tasks = tasks[1:]
 	}
 
-	// next task should be the clearing ()
+	// next task should be the clearing on success
 	clearTask := tasks[0]
 	c.Assert(clearTask.Kind(), Equals, "clear-confdb-tx")
-	_, _, _, err := confdbstate.GetStoredTransaction(clearTask)
+	_, _, _, err = confdbstate.GetStoredTransaction(clearTask)
 	c.Assert(err, IsNil)
 
 	// the state was cleared
@@ -1771,6 +1777,8 @@ func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {
 
 func (s *confdbTestSuite) TestConcurrentAccessWithOngoingRead(c *C) {
 	s.state.Lock()
+	// it's better not to have hooks here because if we do the GetTransactionForSnapctlGet
+	// needs to schedule tasks and will block on them, making this test more timing based/annoying
 	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
 
 	err := confdbstate.AddReadTransaction(s.state, s.devAccID, "network", "1")

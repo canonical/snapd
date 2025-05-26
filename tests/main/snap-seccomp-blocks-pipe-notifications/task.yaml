@@ -1,0 +1,23 @@
+summary: Ensure that the snap-seccomp blocks O_NOTIFICATION_PIPE flag to pipe2
+
+details: |
+    Check that it is not allowed to create a special kernel notification pipe.
+    Verify snap-seccomp generated a profile which results in "Operation not
+    permitted" message when pipe2 system call is used.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test programs"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test
+
+execute: |
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1 | MATCH 'pipe2: Permission denied'

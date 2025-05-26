@@ -26,6 +26,7 @@ package main
 //#include <asm/ioctls.h>
 //#include <ctype.h>
 //#include <errno.h>
+//#include <fcntl.h>
 //#include <linux/can.h>
 //#include <linux/netlink.h>
 //#include <sched.h>
@@ -476,6 +477,13 @@ var seccompResolver = map[string]uint64{
 	"KCMP_IO":        C.KCMP_IO,
 	"KCMP_SYSVSEM":   C.KCMP_SYSVSEM,
 	"KCMP_EPOLL_TFD": C.KCMP_EPOLL_TFD,
+
+	// man 2 pipe
+	// This is not using O_NOTIFICATION_PIPE becauses Go 1.18 has issues with Cgo
+	// resolving a define-to-define that is fixed in more recent versions.
+	// The macro O_NOTIFICATION_PIPE is just O_EXCL and is fixed for ABI compatibility.
+	//  see: https://elixir.bootlin.com/linux/v6.5.13/source/include/uapi/linux/watch_queue.h#L9
+	"O_NOTIFICATION_PIPE": C.O_EXCL,
 }
 
 // DpkgArchToScmpArch takes a dpkg architecture and converts it to

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,11 @@
  *
  */
 
-package daemon
+package vfs
 
-import "github.com/snapcore/snapd/testutil"
+import "io/fs"
 
-type (
-	ConnectivityStatus = connectivityStatus
-
-	RAAInfo              = raaInfo
-	MonitoredSnapInfo    = monitoredSnapInfo
-	RefreshCandidateInfo = refreshCandidateInfo
-	RefreshCandidate     = refreshCandidate
-)
-
-var (
-	MinLane = minLane
-)
-
-func MockCgroupPidsOfSnap(f func(instanceName string) (map[string][]int, error)) (restore func()) {
-	return testutil.Mock(&cgroupPidsOfSnap, f)
+// Open panics to implement [fs.FS], at least partially.
+func (v *VFS) Open(name string) (fs.File, error) {
+	panic("VFS.Open is not needed")
 }

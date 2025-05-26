@@ -570,7 +570,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 		case received := <-sendChan:
 			// all good
 			c.Check(received, DeepEquals, desiredBuf)
-		case <-time.NewTimer(100 * time.Millisecond).C:
+		case <-time.NewTimer(time.Second).C:
 			c.Errorf("failed to receive response in time")
 		}
 	}
@@ -629,14 +629,13 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	defer restoreEpollIoctl()
 
 	var timer *testtime.TestTimer
-	callbackDone := make(chan struct{})
 	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
 		timer = testtime.AfterFunc(d, func() {
 			f()
-			close(callbackDone)
+			c.Fatalf("should not have timed out; receiving final pending RESENT message should have explicitly triggered ready")
 		})
 		return timer
 	})
@@ -680,13 +679,13 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.ID, Equals, msg.KernelNotificationID)
-		case <-time.NewTimer(10 * time.Millisecond).C:
+		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
 	}
 
 	// We received the final RESENT message, so should be ready now.
-	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	checkListenerReadyWithTimeout(c, l, true, time.Second)
 	c.Check(timer.Active(), Equals, false)
 
 	// Send one more message for good measure, without UNOTIF_RESENT
@@ -699,7 +698,7 @@ func (*listenerSuite) TestRunWithPendingReady(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -726,14 +725,13 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	defer restoreEpollIoctl()
 
 	var timer *testtime.TestTimer
-	callbackDone := make(chan struct{})
 	restoreTimer := listener.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
 		if timer != nil {
 			c.Fatalf("created more than one timer")
 		}
 		timer = testtime.AfterFunc(d, func() {
 			f()
-			close(callbackDone)
+			c.Fatalf("should not have timed out; receiving non-RESENT message should have explicitly triggered ready")
 		})
 		return timer
 	})
@@ -777,7 +775,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.ID, Equals, msg.KernelNotificationID)
-		case <-time.NewTimer(10 * time.Millisecond).C:
+		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive request 0x%x", id)
 		}
 	}
@@ -796,7 +794,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	// The listener even seeing a message without UNOTIF_RESENT should be enough
 	// for it to ready up, since this indicates the kernel is done resending
 	// previously-sent requests. We don't need to have received it yet.
-	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	checkListenerReadyWithTimeout(c, l, true, time.Second)
 	// Readiness stops the timer
 	c.Check(timer.Active(), Equals, false)
 
@@ -804,7 +802,7 @@ func (*listenerSuite) TestRunWithPendingReadyDropped(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -880,7 +878,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -892,8 +890,12 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	timer.Elapse(listener.ReadyTimeout)
 	c.Assert(timer.Active(), Equals, false)
 	c.Assert(timer.FireCount(), Equals, 1)
+
+	// Wait for callback to finish readying and recording logger.Notice
+	<-callbackDone
+
 	// Expect the callback to mark the listener as ready
-	checkListenerReadyWithTimeout(c, l, true, 10*time.Millisecond)
+	checkListenerReady(c, l, true)
 
 	// Now, for good measure, send a message with UNOTIF_RESENT
 	id++
@@ -910,7 +912,7 @@ func (*listenerSuite) TestRunWithPendingReadyTimeout(c *C) {
 	select {
 	case req := <-l.Reqs():
 		c.Assert(req.ID, Equals, msg.KernelNotificationID)
-	case <-time.NewTimer(10 * time.Millisecond).C:
+	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request 0x%x", id)
 	}
 
@@ -955,34 +957,31 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	c.Assert(err, IsNil)
 
 	go func() {
-		giveUp := time.NewTimer(100 * time.Millisecond)
 		select {
 		case recvChan <- buf:
 			// all good
-		case <-giveUp.C:
+		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive buffer")
 		}
 	}()
 
-	timer := time.NewTimer(10 * time.Millisecond)
 	select {
 	case <-l.Reqs():
 		c.Fatalf("should not have received request before Run() called")
 	case <-t.Dying():
 		c.Fatalf("tomb encountered an error before Run() called: %v", t.Err())
-	case <-timer.C:
+	case <-time.NewTimer(10 * time.Millisecond).C:
 	}
 
 	t.Go(l.Run)
 
-	timer.Reset(100 * time.Millisecond)
 	select {
 	case req, ok := <-l.Reqs():
 		c.Assert(ok, Equals, true)
 		c.Assert(req.Path, Equals, path)
 	case <-t.Dying():
 		c.Fatalf("listener encountered unexpected error: %v", t.Err())
-	case <-timer.C:
+	case <-time.NewTimer(time.Second).C:
 		c.Fatalf("failed to receive request before timer expired")
 	}
 }
@@ -1030,13 +1029,12 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	recvChan <- megaBuf
 
 	for i, path := range paths {
-		timer := time.NewTimer(100 * time.Millisecond)
 		select {
 		case req := <-l.Reqs():
 			c.Assert(req.Path, DeepEquals, path)
 		case <-t.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, t.Err())
-		case <-timer.C:
+		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive request %d before timer expired", i)
 		}
 	}
@@ -1610,7 +1608,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 		case err := <-returnChan:
 			// Run returns nil if the listener was deliberately closed.
 			c.Check(err, IsNil)
-		case <-time.NewTimer(100 * time.Millisecond).C:
+		case <-time.NewTimer(time.Second).C:
 			c.Fatalf("failed to receive error from listener.Run")
 		}
 	}
