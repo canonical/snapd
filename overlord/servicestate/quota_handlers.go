@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -99,25 +98,26 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	qc := qcs[0]
 
-	updated, servicesAffected, refreshProfiles, err := quotaStateAlreadyUpdated(t)
+	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
 	}
 
-	if !updated {
-		allGrps, err := AllQuotas(st)
-		if err != nil {
-			return err
-		}
+	data, err := internal.QuotaStateAlreadyUpdated(t)
+	if err != nil {
+		return err
+	}
 
-		var grp *quota.Group
+	var grp *quota.Group
+	if data == nil {
+		data = &internal.QuotaStateItems{}
 		switch qc.Action {
 		case "create":
-			grp, allGrps, refreshProfiles, err = quotaCreate(st, qc, allGrps)
+			grp, allGrps, data.RefreshProfiles, err = quotaCreate(st, qc, allGrps)
 		case "remove":
-			grp, allGrps, refreshProfiles, err = quotaRemove(st, qc, allGrps)
+			grp, allGrps, data.RefreshProfiles, err = quotaRemove(st, qc, allGrps)
 		case "update":
-			grp, allGrps, refreshProfiles, err = quotaUpdate(st, qc, allGrps)
+			grp, allGrps, data.RefreshProfiles, err = quotaUpdate(st, qc, allGrps)
 		default:
 			return fmt.Errorf("unknown action %q requested", qc.Action)
 		}
@@ -126,11 +126,13 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		data.QuotaGroupName = grp.Name
+
 		// ensure service and slices on disk and their states are updated
 		opts := &ensureSnapServicesForGroupOptions{
 			allGrps: allGrps,
 		}
-		servicesAffected, err = ensureSnapServicesForGroup(st, t, grp, opts)
+		data.AppsToRestartBySnap, err = ensureSnapServicesForGroup(st, t, grp, opts)
 		if err != nil {
 			return err
 		}
@@ -157,26 +159,32 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		// restarting. There is a small chance that services
 		// will be restarted again but is preferable to the
 		// quota not applying to them.
-		if err := rememberQuotaStateUpdated(t, servicesAffected, refreshProfiles); err != nil {
+		if err := internal.QuotaStateUpdate(t, data); err != nil {
 			return err
 		}
 	}
 
-	if len(servicesAffected) > 0 {
-		ts := state.NewTaskSet()
-		var prevTask *state.Task
-		queueTask := func(task *state.Task) {
-			if prevTask != nil {
-				task.WaitFor(prevTask)
-			}
-			ts.AddTask(task)
-			prevTask = task
-		}
+	// retrieve the updated group
+	grp = allGrps[data.QuotaGroupName]
 
-		if refreshProfiles {
-			addRefreshProfileTasks(st, queueTask, servicesAffected)
+	ts := state.NewTaskSet()
+	var prevTask *state.Task
+	queueTask := func(task *state.Task) {
+		if prevTask != nil {
+			task.WaitFor(prevTask)
 		}
-		addRestartServicesTasks(st, queueTask, qc.QuotaName, servicesAffected)
+		ts.AddTask(task)
+		prevTask = task
+	}
+
+	if len(data.AppsToRestartBySnap) > 0 {
+		if data.RefreshProfiles {
+			addRefreshProfileTasks(st, queueTask, data.AppsToRestartBySnap)
+		}
+		addRestartServicesTasks(st, queueTask, qc.QuotaName, data.AppsToRestartBySnap)
+	}
+
+	if len(ts.Tasks()) > 0 {
 		snapstate.InjectTasks(t, ts)
 	}
 
@@ -299,78 +307,6 @@ func (m *ServiceManager) undoQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	return nil
-}
-
-var osutilBootID = osutil.BootID
-
-type quotaStateUpdated struct {
-	BootID              string              `json:"boot-id"`
-	AppsToRestartBySnap map[string][]string `json:"apps-to-restart,omitempty"`
-	RefreshProfiles     bool                `json:"refresh-profiles,omitempty"`
-}
-
-func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, refreshProfiles bool) error {
-	bootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
-	appNamesBySnapName := make(map[string][]string, len(appsToRestartBySnap))
-	for info, apps := range appsToRestartBySnap {
-		appNames := make([]string, len(apps))
-		for i, app := range apps {
-			appNames[i] = app.Name
-		}
-		appNamesBySnapName[info.InstanceName()] = appNames
-	}
-	t.Set("state-updated", quotaStateUpdated{
-		BootID:              bootID,
-		AppsToRestartBySnap: appNamesBySnapName,
-		RefreshProfiles:     refreshProfiles,
-	})
-	return nil
-}
-
-func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, refreshProfiles bool, err error) {
-	var updated quotaStateUpdated
-	if err := t.Get("state-updated", &updated); err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return false, nil, false, nil
-		}
-		return false, nil, false, err
-	}
-
-	bootID, err := osutilBootID()
-	if err != nil {
-		return false, nil, false, err
-	}
-	if bootID != updated.BootID {
-		// rebooted => nothing to restart
-		return true, nil, false, nil
-	}
-
-	appsToRestartBySnap = make(map[*snap.Info][]*snap.AppInfo, len(updated.AppsToRestartBySnap))
-	st := t.State()
-	// best effort, ignore missing snaps and apps
-	for instanceName, appNames := range updated.AppsToRestartBySnap {
-		info, err := snapstate.CurrentInfo(st, instanceName)
-		if err != nil {
-			if _, ok := err.(*snap.NotInstalledError); ok {
-				t.Logf("after snapd restart, snap %q went missing", instanceName)
-				continue
-			}
-			return false, nil, false, err
-		}
-		apps := make([]*snap.AppInfo, 0, len(appNames))
-		for _, appName := range appNames {
-			app := info.Apps[appName]
-			if app == nil || !app.IsService() {
-				continue
-			}
-			apps = append(apps, app)
-		}
-		appsToRestartBySnap[info] = apps
-	}
-	return true, appsToRestartBySnap, updated.RefreshProfiles, nil
 }
 
 func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, bool, error) {
@@ -1018,16 +954,7 @@ func affectedSnapsForQuotaControl(t *state.Task) (snaps []string, err error) {
 	}
 
 	// if state-updated was already set we can use it
-	var updated quotaStateUpdated
-	if err := t.Get("state-updated", &updated); !errors.Is(err, state.ErrNoState) {
-		if err != nil {
-			return nil, err
-		}
-		// TODO: consider boot-id as well?
-		for snapName := range updated.AppsToRestartBySnap {
-			snaps = append(snaps, snapName)
-		}
-		// all set
+	if snaps, err := internal.QuotaStateSnaps(t); !errors.Is(err, state.ErrNoState) {
 		return snaps, nil
 	}
 
