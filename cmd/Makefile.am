@@ -252,6 +252,8 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/mount-support.h \
 	snap-confine/ns-support.c \
 	snap-confine/ns-support.h \
+	snap-confine/group-policy.c \
+	snap-confine/group-policy.h \
 	snap-confine/seccomp-support-ext.c \
 	snap-confine/seccomp-support-ext.h \
 	snap-confine/seccomp-support.c \
@@ -343,7 +345,8 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/ns-support-test.c \
 	snap-confine/seccomp-support-test.c \
 	snap-confine/snap-confine-args-test.c \
-	snap-confine/snap-confine-invocation-test.c
+	snap-confine/snap-confine-invocation-test.c \
+	snap-confine/group-policy-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS) $(SANITIZE_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS) libsnap-confine-private-test-support.a
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS) $(SANITIZE_LDFLAGS)
