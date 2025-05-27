@@ -59,7 +59,7 @@ environment:
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.62
     DELTA_PREFIX: snapd-$DELTA_REF/
-    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: "127.0.0.1"
@@ -112,15 +112,15 @@ environment:
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
     NESTED_KERNEL_MODULES_COMP: '$(HOST: echo "${NESTED_KERNEL_MODULES_COMP:-}")'
-    
+
     # Whether we should use snapd snap ./built-snap/ directory
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
 
     # When SPREAD_TAG_FEATURES is populated with a non-empty value,
     # each spread task will extract relevant information form its
-    # journal and copy it and the state.json to the artifacts folder. 
-    # NOTE: this should only be used coupled with the -artifact spread 
+    # journal and copy it and the state.json to the artifacts folder.
+    # NOTE: this should only be used coupled with the -artifact spread
     # tag otherwise the data will not be downloaded from the VMs.
     TAG_FEATURES: '$(HOST: echo "${SPREAD_TAG_FEATURES:-}")'
     # Set the following to SPREAD_TAG_FEATURES by default
@@ -327,7 +327,7 @@ backends:
         location: snapd-spread/us-central1-a
         plan: n2-standard-2
         halt-timeout: 2h
-        environment: 
+        environment:
             NESTED_ARCHITECTURE: amd64
         systems: &google-nested-systems
             - ubuntu-16.04-64:
@@ -357,7 +357,7 @@ backends:
         location: snapd-spread/us-central1-a
         plan: c4a-highcpu-4
         halt-timeout: 2h
-        environment: 
+        environment:
             NESTED_ARCHITECTURE: arm64
             NESTED_ENABLE_KVM: false
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
@@ -378,7 +378,7 @@ backends:
         location: snapd-spread/northamerica-northeast1-a
         plan: n2-standard-4
         halt-timeout: 6h
-        environment: 
+        environment:
             NESTED_ARCHITECTURE: amd64
         systems: *google-nested-systems
 
@@ -387,59 +387,59 @@ backends:
         plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
         wait-timeout: 5m
-        groups: [default]        
+        groups: [default]
         environment:
-            HTTP_PROXY: 'http://squid.internal:3128'
-            HTTPS_PROXY: 'http://squid.internal:3128'
-            http_proxy: 'http://squid.internal:3128'
-            https_proxy: 'http://squid.internal:3128'
-            no_proxy: '127.0.0.1,ubuntu.com'
-            NO_PROXY: '127.0.0.1,ubuntu.com'
+            HTTP_PROXY: "http://squid.internal:3128"
+            HTTPS_PROXY: "http://squid.internal:3128"
+            http_proxy: "http://squid.internal:3128"
+            https_proxy: "http://squid.internal:3128"
+            no_proxy: "127.0.0.1,ubuntu.com"
+            NO_PROXY: "127.0.0.1,ubuntu.com"
         systems:
             - ubuntu-20.04-64:
-                image: snapd-spread/ubuntu-20.04-64
-                workers: 8
+                  image: snapd-spread/ubuntu-20.04-64
+                  workers: 8
             - ubuntu-22.04-64:
-                image: snapd-spread/ubuntu-22.04-64
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-64
+                  workers: 8
             - ubuntu-24.04-64:
-                image: snapd-spread/ubuntu-24.04-64
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-64
+                  workers: 8
 
             - ubuntu-core-20-64:
-                image: snapd-spread/ubuntu-20.04-64-uefi
-                workers: 8
+                  image: snapd-spread/ubuntu-20.04-64-uefi
+                  workers: 8
             - ubuntu-core-22-64:
-                image: snapd-spread/ubuntu-22.04-64-uefi
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-64-uefi
+                  workers: 8
             - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-64-uefi
+                  workers: 8
 
             - fedora-40-64:
-                image: snapd-spread/fedora-40-64
-                workers: 6
+                  image: snapd-spread/fedora-40-64
+                  workers: 6
             - fedora-41-64:
-                image: snapd-spread/fedora-41-64
-                workers: 6
-    
+                  image: snapd-spread/fedora-41-64
+                  workers: 6
+
             - opensuse-15.6-64:
-                image: snapd-spread/opensuse-15.6-64
-                workers: 6
+                  image: snapd-spread/opensuse-15.6-64
+                  workers: 6
             - opensuse-tumbleweed-64:
-                image: snapd-spread/opensuse-tumbleweed-64
-                workers: 6
+                  image: snapd-spread/opensuse-tumbleweed-64
+                  workers: 6
 
             - centos-9-64:
-                image: snapd-spread/centos-9-64
-                workers: 6
+                  image: snapd-spread/centos-9-64
+                  workers: 6
 
             - debian-12-64:
-                image: snapd-spread/debian-12-64
-                workers: 6
+                  image: snapd-spread/debian-12-64
+                  workers: 6
             - debian-sid-64:
-                image: snapd-spread/debian-sid-64
-                workers: 6
+                  image: snapd-spread/debian-sid-64
+                  workers: 6
 
     openstack-arm:
         type: openstack
@@ -449,28 +449,28 @@ backends:
         wait-timeout: 5m
         groups: [default]
         environment:
-            HTTP_PROXY: 'http://squid.internal:3128'
-            HTTPS_PROXY: 'http://squid.internal:3128'
-            http_proxy: 'http://squid.internal:3128'
-            https_proxy: 'http://squid.internal:3128'
-            no_proxy: '127.0.0.1,ubuntu.com'
-            NO_PROXY: '127.0.0.1,ubuntu.com'
+            HTTP_PROXY: "http://squid.internal:3128"
+            HTTPS_PROXY: "http://squid.internal:3128"
+            http_proxy: "http://squid.internal:3128"
+            https_proxy: "http://squid.internal:3128"
+            no_proxy: "127.0.0.1,ubuntu.com"
+            NO_PROXY: "127.0.0.1,ubuntu.com"
         systems:
             - ubuntu-20.04-arm-64:
-                image: snapd-spread/ubuntu-20.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-20.04-arm-64
+                  workers: 8
             - ubuntu-22.04-arm-64:
-                image: snapd-spread/ubuntu-22.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-arm-64
+                  workers: 8
             - ubuntu-24.04-arm-64:
-                image: snapd-spread/ubuntu-24.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-arm-64
+                  workers: 8
             - ubuntu-core-22-arm-64:
-                image: snapd-spread/ubuntu-22.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-22.04-arm-64
+                  workers: 8
             - ubuntu-core-24-arm-64:
-                image: snapd-spread/ubuntu-24.04-arm-64
-                workers: 8
+                  image: snapd-spread/ubuntu-24.04-arm-64
+                  workers: 8
 
     qemu-nested:
         memory: 4G
@@ -1150,7 +1150,11 @@ suites:
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*, -ubuntu-fips-*]
+        systems:
+            - -ubuntu-core-*
+            - -ubuntu-*-ppc64el
+            - -ubuntu-secboot-*
+            - -ubuntu-fips-*
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1313,7 +1317,7 @@ suites:
                 PIDs="$(ps -ef | grep -e '^root.*python3.*load-generator' | awk '{print $2}')"
                 # shellcheck disable=SC2086
                 for pid in $PIDs; do
-                    if ps -p "$pid" &>/dev/null; then 
+                    if ps -p "$pid" &>/dev/null; then
                         kill -9 "$pid"
                     fi
                 done
@@ -1325,7 +1329,11 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1335,15 +1343,15 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
-            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            NESTED_SNAPD_DEBUG_TO_SERIAL: '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Add any extra cmd line parameter to the nested vm
-            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Generic image name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Define which tests to run in the nested vm in run-spread test
-            NESTED_SPREAD_TESTS:  '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
+            NESTED_SPREAD_TESTS: '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
             # Indicates that by default snapd pkg is built from current
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
@@ -1365,7 +1373,7 @@ suites:
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
-            fi  
+            fi
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
@@ -1396,7 +1404,11 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1448,7 +1460,11 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1458,9 +1474,9 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
-            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            NESTED_SNAPD_DEBUG_TO_SERIAL: '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Add any extra cmd line parameter to the nested vm
-            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Indicates that by default snapd pkg is built from current
@@ -1470,7 +1486,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
-        
+
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1553,7 +1569,7 @@ suites:
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
             fi
-  
+
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
 
@@ -1577,12 +1593,12 @@ suites:
     tests/fips/:
         summary: FIPS enabled test suite
         systems:
-          - ubuntu-fips-*
+            - ubuntu-fips-*
         environment:
-          # disable reexec so that the tests run with deb
-          SNAP_REEXEC/deb: "0"
-          # but keep it enabled when using the snap
-          SNAP_REEXEC/snap: "1"
+            # disable reexec so that the tests run with deb
+            SNAP_REEXEC/deb: "0"
+            # but keep it enabled when using the snap
+            SNAP_REEXEC/snap: "1"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1604,15 +1620,15 @@ suites:
     tests/cross-distro-reexec/:
         summary: Cross-distro reeexec
         systems:
-          - arch-linux-*
-          - opensuse-*
-          - amazon-linux-2-*
-          - amazon-linux-2023-*
-          - fedora-*
-          - centos-*
+            - arch-linux-*
+            - opensuse-*
+            - amazon-linux-2-*
+            - amazon-linux-2023-*
+            - fedora-*
+            - centos-*
         environment:
-          # enable snap rexec
-          SNAP_REEXEC: "1"
+            # enable snap rexec
+            SNAP_REEXEC: "1"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
