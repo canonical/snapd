@@ -29,6 +29,8 @@ environment:
 
   NESTED_KERNEL_REMOVE_COMPONENTS: true
 
+  NESTED_CORE_CHANNEL: ""
+
 prepare: |
     # Install what is needed before using the fake store
     snap install test-snapd-swtpm --edge
@@ -178,9 +180,6 @@ execute: |
     remote.exec "snap version" | MATCH "^snapd *2.63$"
 
     remote.push model-new.model
-
-    # Some auto refresh sometimes start and we cannot remodel
-    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | NOMATCH '(Doing|Undoing)'"
 
     boot_id="$(tests.nested boot-id)"
     change_id="$(remote.exec sudo snap remodel --no-wait model-new.model)"
