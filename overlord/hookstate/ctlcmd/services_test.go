@@ -756,7 +756,7 @@ func (s *servicectlSuite) testQueueCommandsConfigureHookFinalTask(c *C, finalTas
 				c.Fatalf("unexpected command: %q", argv[1])
 			}
 		case "service-control":
-			var sa servicestate.ServiceAction
+			var sa servicestate.SnapServiceAction
 			c.Assert(t.Get("service-action", &sa), IsNil)
 			c.Check(sa.Services, DeepEquals, []string{"test-service"})
 			switch sa.Action {

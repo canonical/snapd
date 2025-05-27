@@ -194,7 +194,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 			return nil, err
 		}
 
-		cmd := &ServiceAction{
+		cmd := &SnapServiceAction{
 			SnapName: snapName,
 			ScopeOptions: wrappers.ScopeOptions{
 				Scope: inst.ServiceScope(),

@@ -36,7 +36,7 @@ import (
 // snap if services list is empty.
 // The names of services and explicit-services are app names (as defined in snap
 // yaml).
-type ServiceAction struct {
+type SnapServiceAction struct {
 	SnapName       string   `json:"snap-name"`
 	Action         string   `json:"action"`
 	ActionModifier string   `json:"action-modifier,omitempty"`
@@ -70,7 +70,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	var sc ServiceAction
+	var sc SnapServiceAction
 	err := t.Get("service-action", &sc)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get service-action: %v", err)
@@ -130,12 +130,12 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	switch sc.Action {
 	case "stop":
 		disable := sc.ActionModifier == "disable"
-		opts := &wrappers.StopServicesOptions{
+		opts := &wrappers.StopSnapServicesOptions{
 			Disable:      disable,
 			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err := wrappers.StopServices(services, opts, snap.StopReasonOther, meter, perfTimings)
+		err := wrappers.StopSnapServices(services, opts, snap.StopReasonOther, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
@@ -155,12 +155,12 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "start":
 		enable := sc.ActionModifier == "enable"
-		opts := &wrappers.StartServicesOptions{
+		opts := &wrappers.StartSnapServicesOptions{
 			Enable:       enable,
 			ScopeOptions: sc.ScopeOptions,
 		}
 		st.Unlock()
-		err = wrappers.StartServices(startupOrdered, nil, opts, meter, perfTimings)
+		err = wrappers.StartSnapServices(startupOrdered, nil, opts, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
@@ -180,7 +180,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesOptions{
+		err := wrappers.RestartSnapServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartSnapServicesOptions{
 			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
 			ScopeOptions:         sc.ScopeOptions,
 		}, meter, perfTimings)
@@ -188,7 +188,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	case "reload-or-restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesOptions{
+		err := wrappers.RestartSnapServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartSnapServicesOptions{
 			Reload:               true,
 			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
 			ScopeOptions:         sc.ScopeOptions,

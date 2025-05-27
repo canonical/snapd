@@ -166,9 +166,9 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 		if err != nil {
 			return err
 		}
-		opts := &wrappers.StartServicesOptions{Enable: true}
+		opts := &wrappers.StartSnapServicesOptions{Enable: true}
 		tm := timings.New(nil)
-		if err = wrappers.StartServices(startupOrdered, disabledSvcs, opts, progress.Null, tm); err != nil {
+		if err = wrappers.StartSnapServices(startupOrdered, disabledSvcs, opts, progress.Null, tm); err != nil {
 			return err
 		}
 	}

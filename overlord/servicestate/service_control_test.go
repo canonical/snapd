@@ -212,7 +212,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 			}
 		} else if kind == "service-control" {
 			serviceControlTasks++
-			var sa servicestate.ServiceAction
+			var sa servicestate.SnapServiceAction
 			c.Assert(tasks[i].Get("service-action", &sa), IsNil)
 			switch expectedAction {
 			case "start":
@@ -520,7 +520,7 @@ func (s *serviceControlSuite) TestNoopWhenNoServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{SnapName: "test-snap"}
+	cmd := &servicestate.SnapServiceAction{SnapName: "test-snap"}
 	t.Set("service-action", cmd)
 	chg.AddTask(t)
 
@@ -542,7 +542,7 @@ func (s *serviceControlSuite) TestUnhandledServiceAction(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{SnapName: "test-snap", Action: "foo"}
+	cmd := &servicestate.SnapServiceAction{SnapName: "test-snap", Action: "foo"}
 	t.Set("service-action", cmd)
 	chg.AddTask(t)
 
@@ -565,7 +565,7 @@ func (s *serviceControlSuite) TestUnknownService(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "start",
 		Services: []string{"boo"},
@@ -592,7 +592,7 @@ func (s *serviceControlSuite) TestNotAService(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "start",
 		Services: []string{"someapp"},
@@ -619,7 +619,7 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "start",
 	}
@@ -650,7 +650,7 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "start",
 		Services: []string{"foo"},
@@ -679,7 +679,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName:       "test-snap",
 		Action:         "start",
 		ActionModifier: "enable",
@@ -711,7 +711,7 @@ func (s *serviceControlSuite) TestStartServicesWithScope(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "start",
 		ScopeOptions: wrappers.ScopeOptions{
@@ -745,7 +745,7 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName:       "test-snap",
 		Action:         "start",
 		ActionModifier: "enable",
@@ -779,7 +779,7 @@ func (s *serviceControlSuite) TestStopServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "stop",
 		Services: []string{"foo"},
@@ -809,7 +809,7 @@ func (s *serviceControlSuite) TestStopServicesWithScope(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "stop",
 		ScopeOptions: wrappers.ScopeOptions{
@@ -842,7 +842,7 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName:       "test-snap",
 		Action:         "stop",
 		ActionModifier: "disable",
@@ -875,7 +875,7 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "restart",
 		Services: []string{"foo"},
@@ -906,7 +906,7 @@ func (s *serviceControlSuite) TestRestartServicesWithScope(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "restart",
 		ScopeOptions: wrappers.ScopeOptions{
@@ -965,7 +965,7 @@ func (s *serviceControlSuite) TestRestartOnlyActiveServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName:                "test-snap",
 		Action:                  "restart",
 		Services:                []string{"foo", "bar"},
@@ -1020,7 +1020,7 @@ func (s *serviceControlSuite) TestRestartAllEnabledServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName:                "test-snap",
 		Action:                  "restart",
 		Services:                []string{"foo", "bar"},
@@ -1081,7 +1081,7 @@ func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "restart",
 		Services: []string{"abc", "foo", "bar"},
@@ -1148,7 +1148,7 @@ func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "restart",
 		Services: []string{"abc", "foo", "bar"},
@@ -1185,7 +1185,7 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "reload-or-restart",
 		Services: []string{"foo"},
@@ -1214,7 +1214,7 @@ func (s *serviceControlSuite) TestReloadAllServices(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "reload-or-restart",
 		Services: []string{"foo", "abc", "bar"},
@@ -1245,7 +1245,7 @@ func (s *serviceControlSuite) TestConflict(c *C) {
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
-	cmd := &servicestate.ServiceAction{
+	cmd := &servicestate.SnapServiceAction{
 		SnapName: "test-snap",
 		Action:   "reload-or-restart",
 		Services: []string{"foo"},
