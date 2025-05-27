@@ -1,0 +1,66 @@
+summary: Verify local group policy
+
+details: |
+    Verify that snap-confine honors local group policies for executing snaps
+
+systems:
+    # not relevant for UC
+    - -ubuntu-core-*
+    # disable systems where there is an outdated native package and the
+    # non-reexec variant is broken as the native snap is unable to correctly
+    # invoke internal tools
+    - -ubuntu-18.04-*
+    - -ubuntu-16.04-*
+    - -debian-11-*
+    - -debian-12-*
+
+environment:
+    SNAP_REEXEC/no_reexec: 0
+    SNAP_REEXEC/with_reexec: 1
+
+prepare: |
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            # although classic snaps do not work out of the box on fedora,
+            # Arch linux and Centos, we still want to verify if the basics
+            # do work if the user symlinks /snap to $SNAP_MOUNT_DIR themselves
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            ln -sf "$SNAP_MOUNT_DIR" /snap
+            tests.cleanup defer rm -f /snap
+            ;;
+    esac
+
+    NOMATCH snap-runners /etc/group
+    groupadd snap-runners
+    tests.cleanup defer groupdel snap-runners
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+    find "$LIBEXEC_DIR"/snapd/snap-confine -ls | MATCH 'root +root'
+    cp -a "$LIBEXEC_DIR"/snapd/snap-confine{,.backup}
+    tests.cleanup defer mv "$LIBEXEC_DIR"/snapd/snap-confine{.backup,}
+
+    chown :snap-runners "$LIBEXEC_DIR"/snapd/snap-confine
+    # restore caps, depending on whether the host binary had them
+    caps="$(getcap "$LIBEXEC_DIR"/snapd/snap-confine.backup | awk '{ print $2 }')"
+    if [ -n "$caps" ]; then
+        echo "$caps" | setcap - "$LIBEXEC_DIR"/snapd/snap-confine
+    fi
+
+    grep snap-runners /etc/group | NOMATCH test
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
+
+execute: |
+    tests.session -u test exec sh -c "test-snapd-sh-core24.sh -c 'true' 2>&1" | \
+        MATCH 'user is not a member of group'
+
+    usermod -a -G snap-runners test
+    # restart the user's session
+    tests.session -u test restore
+    tests.session -u test prepare
+
+    tests.session -u test exec sh -c "test-snapd-sh-core24.sh -c 'true'"
