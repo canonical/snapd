@@ -21,10 +21,4 @@ execute: |
         echo "Expected error"
         exit 1
     fi
-    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ]; then
-        # When structured trace logging is active, the output
-        # will contain debug logs so filter out all those logs
-        sed -i '/\"level\"\:/d' touch.error
-
-    fi
-    [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-sh.foo': Permission denied" ]
+    MATCH "touch: cannot touch '/dev/shm/snap.not-test-snapd-sh.foo': Permission denied" <touch.error
