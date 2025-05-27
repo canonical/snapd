@@ -1,5 +1,13 @@
 #!/bin/sh
 
+# when using systemd's LogNamespace this caused some conflicts
+# with the mount namespaces set up by both systemd and snap-confine,
+# causing /var/snap to disappear on Core. 
+# https://bugs.launchpad.net/nuremberg/+bug/2080332
+# Print the current working directory so the test can verify this is
+# printed correctly
+echo "Working Directory: $PWD"
+
 i=0
 while true; do
     echo "LogDaemon: message number: $i"
