@@ -500,8 +500,9 @@ func IsConfdbHook(ctx *hookstate.Context) bool {
 			strings.HasPrefix(ctx.HookName(), "observe-view-"))
 }
 
-// IsConfdbHook returns whether the hook context belongs to a confdb hook.
-func IsModifyConfdbHook(ctx *hookstate.Context) bool {
+// CanHookSetConfdb returns whether the hook context belongs to a confdb hook
+// that supports snapctl set (either a write hook or load-view).
+func CanHookSetConfdb(ctx *hookstate.Context) bool {
 	return ctx != nil && !ctx.IsEphemeral() &&
 		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
 			strings.HasPrefix(ctx.HookName(), "query-view-") ||
