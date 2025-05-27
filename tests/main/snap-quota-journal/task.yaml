@@ -62,6 +62,8 @@ execute: |
   MATCH "^LogsDirectory=$" < /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
   
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
+  # verify the working directory of the service as well because of #LP2080332
+  retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log --namespace snap-group-one | MATCH '/var/snap/test-snapd-journal-quota/x1'"
   retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log --namespace snap-group-one | MATCH LogDaemon"
 
   # Change the size and set rate to zero and ensure that the journal is restarted, and that the changes
