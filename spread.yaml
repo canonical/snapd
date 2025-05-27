@@ -733,7 +733,6 @@ exclude:
     - "*.qcow2"
     - "*.log"
     - "*.iso"
-    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" != 1 ]; then
