@@ -98,9 +98,13 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 			}
 			ret = append(ret, flags.Completion{Item: installedSnap.Name})
 		}
-		return ret
+		if len(ret) > 1 {
+			return ret
+		}
+		// if there is only one option, then use it to find all the internal apps
+		matchSnap.Snap = ret[0].Item
 	}
-	// A dot in match, so complete with the apps inside the specified snap
+	// A dot in match, or only one option: complete with the apps inside the specified snap
 	info, err := snap.ReadCurrentInfo(matchSnap.Snap)
 	if err != nil {
 		return nil
@@ -108,7 +112,12 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 	ret := make([]flags.Completion, 0, len(info.Apps))
 	for _, app := range info.Apps {
 		if strings.HasPrefix(app.Name, matchSnap.App) {
-			ret = append(ret, flags.Completion{Item: fmt.Sprint(matchSnap.Snap, ".", app.Name)})
+			if app.Name == matchSnap.Snap {
+				// if the app name is the same than the snap, only the snap name is required
+				ret = append(ret, flags.Completion{Item: matchSnap.Snap})
+			} else {
+				ret = append(ret, flags.Completion{Item: fmt.Sprint(matchSnap.Snap, ".", app.Name)})
+			}
 		}
 	}
 	return ret
