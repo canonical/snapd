@@ -64,6 +64,10 @@ type EncryptionSetupData struct {
 	parts map[string]partEncryptionData
 	// optional volume authentication options
 	volumesAuth *device.VolumesAuthOptions
+	// optional recovery key id. if set, it indicates that the
+	// corrosponding recovery key should be used for all relevant
+	// volumes during installation.
+	recoveryKeyID string
 }
 
 // EncryptedDevices returns a map partition role -> LUKS mapper device.
@@ -80,6 +84,14 @@ func (esd *EncryptionSetupData) VolumesAuth() *device.VolumesAuthOptions {
 	return esd.volumesAuth
 }
 
+func (esd *EncryptionSetupData) SetRecoveryKeyID(keyID string) {
+	esd.recoveryKeyID = keyID
+}
+
+func (esd *EncryptionSetupData) GetRecoveryKeyID() string {
+	return esd.recoveryKeyID
+}
+
 // MockEncryptedDeviceAndRole is meant to be used for unit tests from other
 // packages.
 type MockEncryptedDeviceAndRole struct {
@@ -89,10 +101,11 @@ type MockEncryptedDeviceAndRole struct {
 
 // MockEncryptionSetupData is meant to be used for unit tests from other
 // packages.
-func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole, volumesAuth *device.VolumesAuthOptions) *EncryptionSetupData {
+func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole, recoveryKeyID string, volumesAuth *device.VolumesAuthOptions) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
-		parts:       map[string]partEncryptionData{},
-		volumesAuth: volumesAuth,
+		parts:         map[string]partEncryptionData{},
+		volumesAuth:   volumesAuth,
+		recoveryKeyID: recoveryKeyID,
 	}
 	for label, encryptData := range labelToEncDevice {
 		//TODO:FDEM: we should use a mock for the bootstrap key. However,
