@@ -25,6 +25,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -36,13 +38,17 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
-	backendResealKeyForBootChains  = backend.ResealKeyForBootChains
-	disksDMCryptUUIDFromMountPoint = disks.DMCryptUUIDFromMountPoint
-	bootHostUbuntuDataForMode      = boot.HostUbuntuDataForMode
+	backendResealKeyForBootChains      = backend.ResealKeyForBootChains
+	backendNewInMemoryRecoveryKeyStore = backend.NewInMemoryRecoveryKeyStore
+	disksDMCryptUUIDFromMountPoint     = disks.DMCryptUUIDFromMountPoint
+	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
+	keysNewRecoveryKey                 = keys.NewRecoveryKey
+	timeNow                            = time.Now
 )
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -52,6 +58,8 @@ type FDEManager struct {
 
 	preseed bool
 	mode    string
+
+	recoveryKeyStore backend.RecoveryKeyStore
 }
 
 type fdeMgrKey struct{}
@@ -89,6 +97,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 			return nil, err
 		}
 	}
+
+	m.recoveryKeyStore = backendNewInMemoryRecoveryKeyStore()
 
 	st.Lock()
 	defer st.Unlock()
@@ -298,6 +308,79 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 	}
 
 	return s.getParameters(role, containerRole)
+}
+
+const recoveryKeyExpireAfter = 5 * time.Minute
+
+func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
+	if m.recoveryKeyStore == nil {
+		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyStore is nil")
+	}
+
+	rkey, err = keysNewRecoveryKey()
+	if err != nil {
+		return keys.RecoveryKey{}, "", err
+	}
+
+	rkeyInfo := backend.RecoveryKeyInfo{
+		Key:        rkey,
+		Expiration: timeNow().Add(recoveryKeyExpireAfter),
+	}
+
+	var lastRecoveryKeyID int
+	err = m.state.Get("last-recovery-key-id", &lastRecoveryKeyID)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return keys.RecoveryKey{}, "", err
+	}
+	lastRecoveryKeyID++
+	keyID = strconv.Itoa(lastRecoveryKeyID)
+	m.state.Set("last-recovery-key-id", lastRecoveryKeyID)
+
+	if err := m.recoveryKeyStore.AddRecoveryKey(keyID, rkeyInfo); err != nil {
+		return keys.RecoveryKey{}, "", err
+	}
+
+	return rkey, keyID, nil
+}
+
+// GenerateRecoveryKey generates a recovery key and its corrosponding id
+// with an expiration time `recoveryKeyExpireAfter`.
+//
+// The state needs to be locked by the caller.
+func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
+	mgr := fdeMgr(st)
+	return mgr.generateRecoveryKey()
+}
+
+func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
+	if m.recoveryKeyStore == nil {
+		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyStore is nil")
+	}
+
+	rkeyInfo, err := m.recoveryKeyStore.GetRecoveryKey(keyID)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+	// generated recovery key can only be used once.
+	if err := m.recoveryKeyStore.DeleteRecoveryKey(keyID); err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	if rkeyInfo.Expired(time.Now()) {
+		return keys.RecoveryKey{}, errors.New("recovery key has expired")
+	}
+
+	return rkeyInfo.Key, nil
+}
+
+// GetRecoveryKey retrieves a recovery key by its key-id. The key can only
+// be retrieved once and is immediately deleted after being retrieved.
+// An error is returned if the corrosponding recovery key is expired.
+//
+// The state needs to be locked by the caller.
+func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+	mgr := fdeMgr(st)
+	return mgr.getRecoveryKey(keyID)
 }
 
 func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {

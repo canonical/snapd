@@ -20,10 +20,13 @@
 package fdestate
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -58,6 +61,18 @@ func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDESt
 	restore = testutil.Backup(&backendResealKeysForSignaturesDBUpdate)
 	backendResealKeysForSignaturesDBUpdate = f
 	return restore
+}
+
+func MockBackendNewInMemoryRecoveryKeyStore(f func() backend.RecoveryKeyStore) (restore func()) {
+	return testutil.Mock(&backendNewInMemoryRecoveryKeyStore, f)
+}
+
+func MockKeysNewRecoveryKey(f func() (keys.RecoveryKey, error)) (restore func()) {
+	return testutil.Mock(&keysNewRecoveryKey, f)
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	return testutil.Mock(&timeNow, f)
 }
 
 var NewModel = newModel
