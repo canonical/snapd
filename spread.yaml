@@ -416,9 +416,6 @@ backends:
                   image: snapd-spread/ubuntu-24.04-64-uefi
                   workers: 8
 
-            - fedora-40-64:
-                  image: snapd-spread/fedora-40-64
-                  workers: 6
             - fedora-41-64:
                   image: snapd-spread/fedora-41-64
                   workers: 6
