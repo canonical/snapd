@@ -678,7 +678,8 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 	}()
 
 	existingPrompt, promptID, result := pdb.findExistingPrompt(userEntry, listenerReq.ID, metadata, constraints)
-	if result.mutatedIDMapping {
+	if result.foundInvalidIDMapping {
+		delete(pdb.requestIDMap, listenerReq.ID)
 		needToSave = true
 	}
 
@@ -743,7 +744,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 type existingPromptResult struct {
 	foundExistingPrompt    bool
 	foundExistingIDMapping bool
-	mutatedIDMapping       bool
+	foundInvalidIDMapping  bool
 }
 
 // findExistingPrompt attempts to find an existing prompt or prompt ID which
@@ -751,7 +752,13 @@ type existingPromptResult struct {
 //
 // First, check whether there is an existing mapping from the given listener
 // request ID to a prompt ID. If there is a mapping, then check if a prompt
-// with that ID exists. If so, return it, otherwise return the mapped prompt ID.
+// with that ID exists. If so, return it, otherwise return the mapped prompt ID
+// so that the caller can re-create a prompt with that ID.
+//
+// This should never occur, but if there's an existing mapping to an existing
+// prompt but the prompt contents do not match the request contents, then set
+// a flag to indicate as much to the caller, and continue as if there were no
+// mapping.
 //
 // If there is no existing mapping, then check whether the given request
 // contents match any existing prompt. If so, return the prompt.
@@ -793,11 +800,10 @@ func (pdb *PromptDB) findExistingPrompt(userEntry *userPromptDB, listenerReqID u
 		}
 		// Contents don't match. This should never occur in practice.
 		//
-		// Remove the mapping, since it's no longer valid, and carry on as
-		// if there was no mapping in the first place. Erase previous flags.
-		delete(pdb.requestIDMap, listenerReqID)
+		// Record that the existing ID mapping was invalid, and erase previous
+		// flags. Carry on as if there was no mapping in the first place.
 		result = existingPromptResult{
-			mutatedIDMapping: true,
+			foundInvalidIDMapping: true,
 		}
 	}
 
