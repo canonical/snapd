@@ -372,7 +372,7 @@ The `garden` backend automatically downloads and initializes each base system.
 During testing additional scratch space is used to hold ephemeral chances to
 the disk image. This may require significant amount of space in `/tmp` so if
 your system uses `tmpfs` in `/tmp` you may want look at available free space.
-This is especially affecting the snap version of `image-garden`, as snap
+This especially affects the snap version of `image-garden`, as snap
 packages cannot use `/var/tmp` for scratch space.
 
 For quick reuse you can use:
