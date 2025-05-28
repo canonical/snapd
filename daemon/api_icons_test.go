@@ -40,7 +40,12 @@ type iconsSuite struct {
 	apiBaseSuite
 }
 
+func (s *iconsSuite) expectIconsReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"desktop-launch"}})
+}
+
 func (s *iconsSuite) TestSnapIconGet(c *check.C) {
+	s.expectIconsReadAccess()
 	d := s.daemon(c)
 
 	// have an active foo in the system
@@ -57,6 +62,7 @@ func (s *iconsSuite) TestSnapIconGet(c *check.C) {
 }
 
 func (s *iconsSuite) TestSnapIconGetPriority(c *check.C) {
+	s.expectIconsReadAccess()
 	d := s.daemon(c)
 
 	checkIconContents := func(expected string) {
@@ -95,6 +101,7 @@ func (s *iconsSuite) TestSnapIconGetPriority(c *check.C) {
 }
 
 func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
+	s.expectIconsReadAccess()
 	d := s.daemon(c)
 
 	// have an *in*active foo in the system
@@ -111,6 +118,7 @@ func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
 }
 
 func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
+	s.expectIconsReadAccess()
 	d := s.daemon(c)
 
 	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
@@ -129,6 +137,7 @@ func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
 }
 
 func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
+	s.expectIconsReadAccess()
 	d := s.daemon(c)
 
 	const snapName = "foo"
@@ -156,6 +165,7 @@ func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
 }
 
 func (s *iconsSuite) TestSnapIconGetUnasserted(c *check.C) {
+	s.expectIconsReadAccess()
 	d := s.daemon(c)
 
 	const snapName = "foo"
@@ -184,6 +194,7 @@ func (s *iconsSuite) TestSnapIconGetUnasserted(c *check.C) {
 }
 
 func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
+	s.expectIconsReadAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)

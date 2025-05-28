@@ -10,6 +10,7 @@ prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
         exit 0
     fi
+    snap remove --purge api-client || true
     tests.session -u test prepare
     tests.session -u test exec systemctl --user \
       set-environment XDG_DATA_DIRS=/usr/share:/var/lib/snapd/desktop
@@ -25,6 +26,9 @@ execute: |
     if ! tests.session has-session-systemd-and-dbus; then
         exit 0
     fi
+
+    "$TESTSTOOLS"/snaps-state install-local api-client
+    tests.cleanup defer snap remove --purge api-client
 
     echo "Install the application snap"
     "$TESTSTOOLS"/snaps-state install-local test-app
@@ -51,3 +55,20 @@ execute: |
 
     echo "The app was invoked with the arguments in the desktop file"
     MATCH "^args=arg-before arg-after$" < "$launch_data"
+
+    echo "Without the plug connection, the app cannot access endpoints"
+    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/snapd" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/snaps" | gojq '."status-code"' | MATCH '^403$'
+
+    echo "Connect the api-client desktop-launch plug"
+    snap connect api-client:desktop-launch
+
+    echo "Check that snap can access icons info via /v2/icons and gets 404 if icon is not found"
+    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^404$'
+
+    echo "Check that snap can access /v2/snaps/{name}"
+    api-client --socket /run/snapd-snap.socket "/v2/snaps/snapd" | gojq '."status-code"' | MATCH '^200$'
+
+    echo "Check that snap can access /v2/snaps"
+    api-client --socket /run/snapd-snap.socket "/v2/snaps" | gojq '."status-code"' | MATCH '^200$'
