@@ -91,6 +91,7 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	apparmor.GenWritableProfile(emit, "/usr/share/javascript/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/sphinx_rtd_theme/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/local/share/doc/", 3)
 
 	if base := plug.Snap().Base; base == "bare" || base == "test-snapd-base-bare" {
 		// The bare snap does not have enough mount points, causing us to create a mimic over /
