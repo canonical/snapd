@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -372,4 +373,49 @@ func (s *signSuite) TestSignFormatsAssertionsWithJSONBody(c *C) {
 
 	c.Check(a.Type(), Equals, asserts.ConfdbSchemaType)
 	c.Check(string(a.Body()), DeepEquals, expected)
+}
+
+func (s *signSuite) TestSignJSONWithUpdateTimestamp(c *C) {
+	opts := signtool.Options{
+		KeyID: s.testKeyID,
+
+		Statement:       exampleJSON(nil),
+		UpdateTimestamp: true,
+	}
+
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	c.Check(a.Revision(), Equals, 0)
+
+	// Retrieve the header "timestamp" from the assertion.
+	header := a.Headers()
+	tsValue, ok := header["timestamp"].(string)
+	c.Assert(ok, Equals, true)
+
+	// The original expected timestamp from expectedModelHeaders is "2015-11-25T20:00:00Z".
+	// Verify that the timestamp was indeed updated.
+	c.Check(tsValue, Not(Equals), "2015-11-25T20:00:00Z")
+
+	// Parse the updated timestamp and verify it is a valid RFC3339 timestamp near the current time.
+	updatedTime, err := time.Parse(time.RFC3339, tsValue)
+	c.Assert(err, IsNil)
+	now := time.Now()
+	diff := now.Sub(updatedTime)
+	if diff < 0 {
+		diff = -diff
+	}
+	// Allow a difference of up to 5 minutes.
+	c.Check(diff < 5*time.Minute, Equals, true)
+
+	// For a deep equality check, build the expected headers and replace the "timestamp" field
+	expectedHeaders := expectedModelHeaders(a)
+	expectedHeaders["timestamp"] = tsValue
+	c.Check(header, DeepEquals, expectedHeaders)
+
+	c.Check(a.Body(), IsNil)
 }
