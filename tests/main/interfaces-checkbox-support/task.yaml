@@ -1,0 +1,14 @@
+summary: ensure that checkbox-support interface allows running snap applications
+
+details: |
+    The checkbox-support interface allows running nearly anything without
+    confinement.  As a special behavior of checkbox allows it to run snap
+    applications from what is already a snap.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-checkbox-support
+    snap connect test-snapd-checkbox-support:checkbox-support
+
+execute: |
+    # When using checkbox support, one can run another snap application as if it was ran directly.
+    test-snapd-checkbox-support.sh -c "snap run test-snapd-checkbox-support.sh -c /bin/true"

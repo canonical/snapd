@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 )
 
@@ -40,10 +41,35 @@ const checkboxSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const checkboxSupportConnectedPlugAppArmorCanRunSnapConfine = `
+    # Allow checkbox-support to run snap-confine by allowing the profile
+    # transition from the current profile into the profile of the snap-confine
+    # executable.
+
+    # Due to https://gitlab.com/apparmor/apparmor/-/issues/93
+    # specify only the snap-confine executable at the fixed path
+    # as any wildcards are not supported due to the issue above.
+    # Snap-confine should have arranged up-to-date tools from either
+    # the host or from the snapd snap to be present at this location.
+    /usr/lib/snapd/snap-confine px,
+`
+
 type checkboxSupportInterface struct {
 	// The checkbox-support interface is exactly the steam-support interface
 	// with the exception that it is also allowed to run on core devices.
 	steamSupportInterface
+}
+
+func (iface *checkboxSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// we inherit one from steamSupportInterface but we also want to allow
+	// apparmor profile transition for snap-confine, so that we can run snaps
+	if err := iface.steamSupportInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
+		return err
+	}
+
+	spec.AddSnippet(checkboxSupportConnectedPlugAppArmorCanRunSnapConfine)
+
+	return nil
 }
 
 func (iface *checkboxSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

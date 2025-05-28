@@ -1,0 +1,14 @@
+name: test-snapd-checkbox-support
+version: 1.0
+summary: ...
+description: ...
+
+# This snap cannot be useing "base: core" as snapd tools are not correctly
+# injected into that environment and snap-confine is the ancient snap-confine
+# that is present in old core snap.
+base: core24
+
+apps:
+    sh:
+        command: bin/sh
+        plugs: [checkbox-support]
