@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,21 +17,20 @@
  *
  */
 
-package daemon
+package notices
 
 import (
-	"github.com/snapcore/snapd/overlord/notices"
+	"time"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-var (
-	SanitizeNoticeTypesFilter = sanitizeNoticeTypesFilter
-	NoticeTypesViewableBySnap = noticeTypesViewableBySnap
-)
+// NumNotices returns the total bumber of notices, including expired ones that
+// haven't yet been pruned.
+func (m *NoticeManager) NumNotices() int {
+	return len(m.notices)
+}
 
-func MockNoticeReadInterfaces(newMap map[notices.NoticeType][]string) (restore func()) {
-	old := noticeReadInterfaces
-	noticeReadInterfaces = newMap
-	return func() {
-		noticeReadInterfaces = old
-	}
+func MockTime(now time.Time) (restore func()) {
+	return testutil.Mock(&timeNow, func() time.Time { return now })
 }

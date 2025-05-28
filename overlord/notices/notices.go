@@ -12,13 +12,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package state
+package notices
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strconv"
 	"time"
 )
@@ -237,80 +235,6 @@ type AddNoticeOptions struct {
 	Time time.Time
 }
 
-// AddNotice records an occurrence of a notice with the specified type and key
-// and options.
-func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
-	if options == nil {
-		options = &AddNoticeOptions{}
-	}
-	err := ValidateNotice(noticeType, key, options)
-	if err != nil {
-		return "", fmt.Errorf("internal error: %w", err)
-	}
-
-	s.writing()
-
-	now := options.Time
-	if now.IsZero() {
-		now = timeNow()
-		/**
-		 * Ensure that two notices never have the same sent time.
-		 *
-		 * Since the Notices API receives an "after:" parameter with the
-		 * date and time of the last received notice to filter all the
-		 * previous notices and avoid duplicates, if two or more notices
-		 * have the same date and time, only the first will be emitted,
-		 * and the others will be silently discarded. This can happen in
-		 * systems that don't guarantee a granularity of one nanosecond
-		 * in their timers, which can happen in some not-so-old devices,
-		 * where the HPET is used instead of internal high resolution
-		 * timers, or in other architectures different from the X86_64.
-		 */
-		if !now.After(s.lastNoticeTimestamp) {
-			now = s.lastNoticeTimestamp.Add(time.Nanosecond)
-		}
-		s.lastNoticeTimestamp = now
-	}
-	now = now.UTC()
-	newOrRepeated := false
-	uid, hasUserID := flattenUserID(userID)
-	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
-	notice, ok := s.notices[uniqueKey]
-	if !ok {
-		// First occurrence of this notice userID+type+key
-		s.lastNoticeId++
-		notice = &Notice{
-			id:            strconv.Itoa(s.lastNoticeId),
-			userID:        userID,
-			noticeType:    noticeType,
-			key:           key,
-			firstOccurred: now,
-			lastRepeated:  now,
-			expireAfter:   defaultNoticeExpireAfter,
-			occurrences:   1,
-		}
-		s.notices[uniqueKey] = notice
-		newOrRepeated = true
-	} else {
-		// Additional occurrence, update existing notice
-		notice.occurrences++
-		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
-			// Update last repeated time if repeat-after time has elapsed (or is zero)
-			notice.lastRepeated = now
-			newOrRepeated = true
-		}
-	}
-	notice.lastOccurred = now
-	notice.lastData = options.Data
-	notice.repeatAfter = options.RepeatAfter
-
-	if newOrRepeated {
-		s.noticeCond.Broadcast()
-	}
-
-	return notice.id, nil
-}
-
 // ValidateNotice validates notice type and key before adding.
 func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions) error {
 	if !noticeType.Valid() {
@@ -378,123 +302,4 @@ func sliceContains[T comparable](haystack []T, needle T) bool {
 		}
 	}
 	return false
-}
-
-// Notices returns the list of notices that match the filter (if any),
-// ordered by the last-repeated time.
-func (s *State) Notices(filter *NoticeFilter) []*Notice {
-	s.reading()
-
-	notices := s.flattenNotices(filter)
-	sort.Slice(notices, func(i, j int) bool {
-		return notices[i].lastRepeated.Before(notices[j].lastRepeated)
-	})
-	return notices
-}
-
-// Notice returns a single notice by ID, or nil if not found.
-func (s *State) Notice(id string) *Notice {
-	s.reading()
-
-	// Could use another map for lookup, but the number of notices will likely
-	// be small, and this function is probably only used rarely, so performance
-	// is unlikely to matter.
-	for _, notice := range s.notices {
-		if notice.id == id {
-			return notice
-		}
-	}
-	return nil
-}
-
-func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
-	now := time.Now()
-	var notices []*Notice
-	for _, n := range s.notices {
-		if n.expired(now) || !filter.matches(n) {
-			continue
-		}
-		notices = append(notices, n)
-	}
-	return notices
-}
-
-func (s *State) unflattenNotices(flat []*Notice) {
-	now := time.Now()
-	s.notices = make(map[noticeKey]*Notice)
-	for _, n := range flat {
-		if n.expired(now) {
-			continue
-		}
-		userID, hasUserID := n.UserID()
-		uniqueKey := noticeKey{hasUserID, userID, n.noticeType, n.key}
-		s.notices[uniqueKey] = n
-	}
-}
-
-// WaitNotices waits for notices that match the filter to exist or occur,
-// returning the list of matching notices ordered by the last-repeated time.
-//
-// It waits till there is at least one matching notice or the context is
-// cancelled. If there are existing notices that match the filter,
-// WaitNotices will return them immediately.
-func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
-	s.reading()
-
-	// If there are existing notices, return them right away.
-	//
-	// State is already locked here by the caller, so notices won't be added
-	// concurrently.
-	notices := s.Notices(filter)
-	if len(notices) > 0 {
-		return notices, nil
-	}
-
-	// When the context is done/cancelled, wake up the waiters so that they
-	// can check their ctx.Err() and return if they're cancelled.
-	//
-	// TODO: replace this with context.AfterFunc once we're on Go 1.21.
-	stop := contextAfterFunc(ctx, func() {
-		// We need to acquire the cond lock here to be sure that the Broadcast
-		// below won't occur before the call to Wait, which would result in a
-		// missed signal (and deadlock).
-		s.noticeCond.L.Lock()
-		defer s.noticeCond.L.Unlock()
-
-		s.noticeCond.Broadcast()
-	})
-	defer stop()
-
-	for {
-		// Wait till a new notice occurs or a context is cancelled.
-		s.noticeCond.Wait()
-
-		// If this context is cancelled, return the error.
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
-			return nil, ctxErr
-		}
-
-		// Otherwise check if there are now matching notices.
-		notices = s.Notices(filter)
-		if len(notices) > 0 {
-			return notices, nil
-		}
-	}
-}
-
-// Remove this and just use context.AfterFunc once we're on Go 1.21.
-func contextAfterFunc(ctx context.Context, f func()) func() {
-	stopCh := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			f()
-		case <-stopCh:
-		}
-	}()
-	stop := func() {
-		close(stopCh)
-	}
-	return stop
 }

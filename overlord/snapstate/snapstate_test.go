@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/strutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
@@ -11332,9 +11333,9 @@ func (s *snapmgrTestSuite) TestChangeStatusRecordsChangeUpdateNotice(c *C) {
 	s.settle(c)
 
 	// Check notice is recorded on change status updates
-	notices := s.state.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := notices.GetNotices(s.state, nil)
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, chg.ID())
 	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "refresh"})
@@ -11372,9 +11373,9 @@ func (s *snapmgrTestSuite) TestChangeStatusUndoRecordsChangeUpdateNotice(c *C) {
 	s.settle(c)
 
 	// Check notice is recorded on change status updates
-	notices := s.state.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := notices.GetNotices(s.state, nil)
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, chg.ID())
 	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "refresh"})
@@ -11383,7 +11384,7 @@ func (s *snapmgrTestSuite) TestChangeStatusUndoRecordsChangeUpdateNotice(c *C) {
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
-func noticeToMap(c *C, notice *state.Notice) map[string]any {
+func noticeToMap(c *C, notice *notices.Notice) map[string]any {
 	buf, err := json.Marshal(notice)
 	c.Assert(err, IsNil)
 	var n map[string]any

@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/notices"
 )
 
 type changeSuite struct{}
@@ -47,13 +48,23 @@ func (cs *changeSuite) TestNewChange(c *C) {
 	c.Check(chg.Summary(), Equals, "summary...")
 
 	// Check notice is recorded on change spawn
-	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := notices.GetNotices(st, nil)
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, chg.ID())
 	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "install"})
 	c.Check(n["occurrences"], Equals, 1.0)
+}
+
+// noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
+func noticeToMap(c *C, notice *notices.Notice) map[string]any {
+	buf, err := json.Marshal(notice)
+	c.Assert(err, IsNil)
+	var n map[string]any
+	err = json.Unmarshal(buf, &n)
+	c.Assert(err, IsNil)
+	return n
 }
 
 func (cs *changeSuite) TestReadyTime(c *C) {
@@ -1496,9 +1507,9 @@ func (cs *changeSuite) TestChangeStatusRecordsChangeUpdateNotice(c *C) {
 
 	// Check notice is recorded on change status updates and ignores
 	// the alternating status
-	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := notices.GetNotices(st, nil)
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, chg.ID())
 	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "change"})
@@ -1552,9 +1563,9 @@ func (cs *changeSuite) TestChangeStatusUndoRecordsChangeUpdateNotice(c *C) {
 
 	// Check notice is recorded on change status updates and ignores
 	// the alternating status
-	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := notices.GetNotices(st, nil)
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, chg.ID())
 	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "change"})

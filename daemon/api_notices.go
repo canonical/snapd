@@ -25,17 +25,17 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var noticeReadInterfaces = map[state.NoticeType][]string{
-	state.ChangeUpdateNotice:                 {"snap-refresh-observe"},
-	state.RefreshInhibitNotice:               {"snap-refresh-observe"},
-	state.SnapRunInhibitNotice:               {"snap-refresh-observe"},
-	state.InterfacesRequestsPromptNotice:     {"snap-interfaces-requests-control"},
-	state.InterfacesRequestsRuleUpdateNotice: {"snap-interfaces-requests-control"},
+var noticeReadInterfaces = map[notices.NoticeType][]string{
+	notices.ChangeUpdateNotice:                 {"snap-refresh-observe"},
+	notices.RefreshInhibitNotice:               {"snap-refresh-observe"},
+	notices.SnapRunInhibitNotice:               {"snap-refresh-observe"},
+	notices.InterfacesRequestsPromptNotice:     {"snap-interfaces-requests-control"},
+	notices.InterfacesRequestsRuleUpdateNotice: {"snap-interfaces-requests-control"},
 }
 
 var (
@@ -99,7 +99,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		// Caller did provide a types filter, but they're all invalid notice types.
 		// Return no notices, rather than the default of all notices.
-		return SyncResponse([]*state.Notice{})
+		return SyncResponse([]*notices.Notice{})
 	}
 	if !noticeTypesViewableBySnap(types, r) {
 		return Forbidden("snap cannot access specified notice types")
@@ -112,7 +112,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest(`invalid "after" timestamp: %v`, err)
 	}
 
-	filter := &state.NoticeFilter{
+	filter := &notices.NoticeFilter{
 		UserID: userID,
 		Types:  types,
 		Keys:   keys,
@@ -124,11 +124,9 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid timeout: %v", err)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
+	noticeMgr := c.d.overlord.NoticeManager()
 
-	var notices []*state.Notice
+	var result []*notices.Notice
 
 	if timeout != 0 {
 		// Wait up to timeout for notices matching given filter to occur
@@ -137,7 +135,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		ctx, cancel := context.WithTimeout(c.d.tomb.Context(r.Context()), timeout)
 		defer cancel()
 
-		notices, err = st.WaitNotices(ctx, filter)
+		result, err = noticeMgr.WaitNotices(ctx, filter)
 		if errors.Is(err, context.Canceled) {
 			return InternalError("request canceled")
 		}
@@ -148,13 +146,13 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	} else {
 		// No timeout given, fetch currently-available notices
-		notices = st.Notices(filter)
+		result = noticeMgr.Notices(filter)
 	}
 
-	if notices == nil {
-		notices = []*state.Notice{} // avoid null result
+	if result == nil {
+		result = []*notices.Notice{} // avoid null result
 	}
-	return SyncResponse(notices)
+	return SyncResponse(result)
 }
 
 // Get the UID of the request. If the UID is not known, return an error.
@@ -166,7 +164,7 @@ func uidFromRequest(r *http.Request) (uint32, error) {
 	return cred.Uid, nil
 }
 
-// Construct the user IDs filter which will be passed to state.Notices.
+// Construct the user IDs filter which will be passed to NoticeManager.Notices.
 // Must only be called if the query user ID argument is set.
 func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 	userIDStrs := strutil.MultiCommaSeparatedList(queryUserID)
@@ -184,13 +182,13 @@ func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 	return &userID, nil
 }
 
-// Construct the types filter which will be passed to state.Notices.
-func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.NoticeType, error) {
+// Construct the types filter which will be passed to NoticeManager.Notices.
+func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]notices.NoticeType, error) {
 	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
-	alreadySeen := make(map[state.NoticeType]bool, len(typeStrs))
-	types := make([]state.NoticeType, 0, len(typeStrs))
+	alreadySeen := make(map[notices.NoticeType]bool, len(typeStrs))
+	types := make([]notices.NoticeType, 0, len(typeStrs))
 	for _, typeStr := range typeStrs {
-		noticeType := state.NoticeType(typeStr)
+		noticeType := notices.NoticeType(typeStr)
 		if !noticeType.Valid() {
 			// Ignore invalid notice types (so requests from newer clients
 			// with unknown types succeed).
@@ -235,9 +233,9 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 
 // allowedNoticeTypesForInterface returns a list of notice types that a snap
 // can read with connected interface.
-func allowedNoticeTypesForInterface(iface string) []state.NoticeType {
+func allowedNoticeTypesForInterface(iface string) []notices.NoticeType {
 	// Populate with notice types the snap can access through its plugged interfaces
-	var types []state.NoticeType
+	var types []notices.NoticeType
 	for noticeType, allowedInterfaces := range noticeReadInterfaces {
 		if strutil.ListContains(allowedInterfaces, iface) {
 			types = append(types, noticeType)
@@ -259,15 +257,13 @@ func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into notice instruction: %v", err)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
+	noticeMgr := c.d.overlord.NoticeManager()
 
 	if err := inst.validate(r); err != nil {
 		return err
 	}
 
-	noticeId, err := st.AddNotice(&requestUID, state.SnapRunInhibitNotice, inst.Key, nil)
+	noticeId, err := noticeMgr.AddNotice(&requestUID, notices.SnapRunInhibitNotice, inst.Key, nil)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -276,9 +272,9 @@ func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 type noticeInstruction struct {
-	Action string           `json:"action"`
-	Type   state.NoticeType `json:"type"`
-	Key    string           `json:"key"`
+	Action string             `json:"action"`
+	Type   notices.NoticeType `json:"type"`
+	Key    string             `json:"key"`
 	// NOTE: Data and RepeatAfter fields are not needed for snap-run-inhibit notices.
 }
 
@@ -286,12 +282,12 @@ func (inst *noticeInstruction) validate(r *http.Request) *apiError {
 	if inst.Action != "add" {
 		return BadRequest("invalid action %q", inst.Action)
 	}
-	if err := state.ValidateNotice(inst.Type, inst.Key, nil); err != nil {
+	if err := notices.ValidateNotice(inst.Type, inst.Key, nil); err != nil {
 		return BadRequest("%s", err)
 	}
 
 	switch inst.Type {
-	case state.SnapRunInhibitNotice:
+	case notices.SnapRunInhibitNotice:
 		return inst.validateSnapRunInhibitNotice(r)
 	default:
 		return BadRequest(`cannot add notice with invalid type %q (can only add "snap-run-inhibit" notices)`, inst.Type)
@@ -318,17 +314,15 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot determine UID of request, so cannot retrieve notice")
 	}
 	noticeID := muxVars(r)["id"]
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	notice := st.Notice(noticeID)
+	noticeMgr := c.d.overlord.NoticeManager()
+	notice := noticeMgr.Notice(noticeID)
 	if notice == nil {
 		return NotFound("cannot find notice with id %q", noticeID)
 	}
 	if !noticeViewableByUser(notice, requestUID) {
 		return Forbidden("not allowed to access notice with id %q", noticeID)
 	}
-	if !noticeTypesViewableBySnap([]state.NoticeType{notice.Type()}, r) {
+	if !noticeTypesViewableBySnap([]notices.NoticeType{notice.Type()}, r) {
 		return Forbidden("not allowed to access notice with id %q", noticeID)
 	}
 	return SyncResponse(notice)
@@ -338,7 +332,7 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 // may view the notice. Snapd does also have authenticated admins which are not
 // root, but at the moment we do not have a level of notice visibility which
 // grants access to those admins, as well as root and the notice's user.
-func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
+func noticeViewableByUser(notice *notices.Notice, requestUID uint32) bool {
 	userID, isSet := notice.UserID()
 	if !isSet {
 		return true
@@ -352,7 +346,7 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 
 // noticeTypesViewableBySnap checks if passed interface allows the snap
 // to have read-access for the passed notice types.
-func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
+func noticeTypesViewableBySnap(types []notices.NoticeType, r *http.Request) bool {
 	ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
 	if err != nil {
 		return false

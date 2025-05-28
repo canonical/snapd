@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/store/storetest"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
@@ -11580,13 +11581,13 @@ func checkLastRecordedInhibitedSnaps(c *C, st *state.State, snaps []string) {
 }
 
 func checkRefreshInhibitNotice(c *C, st *state.State, occurrences int) {
-	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.RefreshInhibitNotice}})
+	result := notices.GetNotices(st, &notices.NoticeFilter{Types: []notices.NoticeType{notices.RefreshInhibitNotice}})
 	if occurrences == 0 {
-		c.Assert(notices, HasLen, 0)
+		c.Assert(result, HasLen, 0)
 		return
 	}
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "refresh-inhibit")
 	c.Check(n["key"], Equals, "-")
 	c.Check(n["occurrences"], Equals, float64(occurrences))
@@ -12270,9 +12271,9 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
 	})
 	c.Check(refreshForced, DeepEquals, []interface{}{"some-other-snap", "some-snap"})
 
-	notices := s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := notices.GetNotices(s.state, &notices.NoticeFilter{Types: []notices.NoticeType{notices.ChangeUpdateNotice}})
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, chg.ID())
 	// 3 status changes (Default -> Doing -> Done) + 2 forced refreshes

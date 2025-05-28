@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -1437,10 +1438,10 @@ var onRefreshInhibitionTimeout = func(chg *state.Change, snapName string) error 
 	chg.Set("api-data", data)
 
 	// record a change-update notice on forced snap refresh
-	opts := &state.AddNoticeOptions{
+	opts := &notices.AddNoticeOptions{
 		Data: map[string]string{"kind": chg.Kind()},
 	}
-	_, err = chg.State().AddNotice(nil, state.ChangeUpdateNotice, chg.ID(), opts)
+	_, err = notices.AddNotice(chg.State(), nil, notices.ChangeUpdateNotice, chg.ID(), opts)
 	if err != nil {
 		return err
 	}

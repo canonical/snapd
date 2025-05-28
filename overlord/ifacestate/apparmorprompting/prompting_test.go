@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -441,14 +442,12 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	logger.WithLoggerLock(func() { c.Assert(logbuf.String(), Equals, "") })
 
 	// which should generate a notice
-	s.st.Lock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	n, err := s.st.WaitNotices(ctx, &state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+	n, err := notices.WaitNotices(s.st, ctx, &notices.NoticeFilter{
+		Types: []notices.NoticeType{notices.InterfacesRequestsPromptNotice},
 		After: whenSent,
 	})
-	s.st.Unlock()
 	c.Check(err, IsNil)
 	c.Check(n, HasLen, 1)
 
@@ -679,22 +678,18 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 }
 
 func (s *apparmorpromptingSuite) checkRecordedPromptNotices(c *C, since time.Time, count int) {
-	s.st.Lock()
-	n := s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsPromptNotice},
+	n := notices.GetNotices(s.st, &notices.NoticeFilter{
+		Types: []notices.NoticeType{notices.InterfacesRequestsPromptNotice},
 		After: since,
 	})
-	s.st.Unlock()
 	c.Check(n, HasLen, count, Commentf("%+v", n))
 }
 
 func (s *apparmorpromptingSuite) checkRecordedRuleUpdateNotices(c *C, since time.Time, count int) {
-	s.st.Lock()
-	n := s.st.Notices(&state.NoticeFilter{
-		Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+	n := notices.GetNotices(s.st, &notices.NoticeFilter{
+		Types: []notices.NoticeType{notices.InterfacesRequestsRuleUpdateNotice},
 		After: since,
 	})
-	s.st.Unlock()
 	c.Check(n, HasLen, count, Commentf("%+v", n))
 }
 

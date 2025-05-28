@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -97,26 +98,21 @@ type InterfacesRequestsManager struct {
 }
 
 func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
+	// XXX: it would be nice if we could get a pointer to the overlord or
+	// NoticeManager directly so we don't have to look it up through the state
+	// cache each time we want to record a notice.
 	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyPrompt calls can return
-		// quickly without waiting for state lock and AddNotice() to return.
-		s.Lock()
-		defer s.Unlock()
-		options := state.AddNoticeOptions{
+		options := notices.AddNoticeOptions{
 			Data: data,
 		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
+		_, err := notices.AddNotice(s, &userID, notices.InterfacesRequestsPromptNotice, promptID.String(), &options)
 		return err
 	}
 	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		// TODO: add some sort of queue so that notifyRule calls can return
-		// quickly without waiting for state lock and AddNotice() to return.
-		s.Lock()
-		defer s.Unlock()
-		options := state.AddNoticeOptions{
+		options := notices.AddNoticeOptions{
 			Data: data,
 		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
+		_, err := notices.AddNotice(s, &userID, notices.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
 		return err
 	}
 

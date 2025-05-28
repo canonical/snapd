@@ -30,9 +30,9 @@ import (
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -90,17 +90,15 @@ func (s *noticesSuite) TestNoticesFilterAll(c *C) {
 func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) url.Values) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	uid := uint32(123)
-	addNotice(c, st, &uid, state.WarningNotice, "warning", nil)
+	addNotice(c, noticeMgr, &uid, notices.WarningNotice, "warning", nil)
 	after := time.Now()
 	time.Sleep(time.Microsecond)
-	noticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+	noticeID, err := noticeMgr.AddNotice(nil, notices.ChangeUpdateNotice, "123", &notices.AddNoticeOptions{
 		Data: map[string]string{"k": "v"},
 	})
 	c.Assert(err, IsNil)
-	st.Unlock()
 
 	query := makeQuery(after)
 	req, err := http.NewRequest("GET", "/v2/notices?"+query.Encode(), nil)
@@ -109,10 +107,10 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 
 	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
 	c.Assert(err, IsNil)
@@ -141,14 +139,12 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.RefreshInhibitNotice, "-", nil)
 
 	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning,warning&types=refresh-inhibit", nil)
 	c.Assert(err, IsNil)
@@ -156,28 +152,26 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 3)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 3)
+	n := noticeToMap(c, result[0])
 	c.Assert(n["type"], Equals, "change-update")
-	n = noticeToMap(c, notices[1])
+	n = noticeToMap(c, result[1])
 	c.Assert(n["type"], Equals, "warning")
-	n = noticeToMap(c, notices[2])
+	n = noticeToMap(c, result[2])
 	c.Assert(n["type"], Equals, "refresh-inhibit")
 }
 
 func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "456", nil)
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "456", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	req, err := http.NewRequest("GET", "/v2/notices?keys=456&keys=danger", nil)
 	c.Assert(err, IsNil)
@@ -185,24 +179,22 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 2)
+	n := noticeToMap(c, result[0])
 	c.Assert(n["key"], Equals, "456")
-	n = noticeToMap(c, notices[1])
+	n = noticeToMap(c, result[1])
 	c.Assert(n["key"], Equals, "danger")
 }
 
 func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	// Check that invalid types are discarded, and notices with remaining
 	// types are requested as expected, without error.
@@ -212,10 +204,10 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Assert(n["type"], Equals, "warning")
 
 	// Check that if all types are invalid, no notices are returned, and there
@@ -226,24 +218,22 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok = rsp.Result.([]*state.Notice)
+	result, ok = rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 0)
+	c.Assert(result, HasLen, 0)
 }
 
 func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "abc", nil)
-	addNotice(c, st, nil, state.InterfacesRequestsRuleUpdateNotice, "xyz", nil)
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
-	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
-	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "def", nil)
-	st.Unlock()
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.InterfacesRequestsPromptNotice, "abc", nil)
+	addNotice(c, noticeMgr, nil, notices.InterfacesRequestsRuleUpdateNotice, "xyz", nil)
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, nil, notices.RefreshInhibitNotice, "-", nil)
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
+	addNotice(c, noticeMgr, nil, notices.SnapRunInhibitNotice, "snap-name", nil)
+	addNotice(c, noticeMgr, nil, notices.InterfacesRequestsPromptNotice, "def", nil)
 
 	// Check that a snap request without specifying types filter only shows
 	// allowed notice types based on connected snap interfaces.
@@ -254,9 +244,9 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 0)
+	c.Assert(result, HasLen, 0)
 
 	// snap-refresh-observe interface allows accessing change-update and refresh-inhibit notices
 	req, err = http.NewRequest("GET", "/v2/notices", nil)
@@ -264,12 +254,12 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
-	notices, ok = rsp.Result.([]*state.Notice)
+	result, ok = rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 3)
+	c.Assert(result, HasLen, 3)
 
 	seenNoticeType := make(map[string]int)
-	for _, notice := range notices {
+	for _, notice := range result {
 		n := noticeToMap(c, notice)
 		noticeType := n["type"].(string)
 		seenNoticeType[noticeType]++
@@ -285,12 +275,12 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe&snap-interfaces-requests-control;", dirs.SnapSocket)
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
-	notices, ok = rsp.Result.([]*state.Notice)
+	result, ok = rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 6)
+	c.Assert(result, HasLen, 6)
 
 	seenNoticeType = make(map[string]int)
-	for _, notice := range notices {
+	for _, notice := range result {
 		n := noticeToMap(c, notice)
 		noticeType := n["type"].(string)
 		seenNoticeType[noticeType]++
@@ -305,13 +295,11 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
-	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
-	st.Unlock()
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, nil, notices.RefreshInhibitNotice, "-", nil)
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
+	addNotice(c, noticeMgr, nil, notices.SnapRunInhibitNotice, "snap-name", nil)
 
 	// Check that a snap request with types filter allows access to
 	// snaps with required interfaces only.
@@ -322,12 +310,12 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 3)
+	c.Assert(result, HasLen, 3)
 
 	seenNoticeType := make(map[string]int)
-	for _, notice := range notices {
+	for _, notice := range result {
 		n := noticeToMap(c, notice)
 		noticeType := n["type"].(string)
 		seenNoticeType[noticeType]++
@@ -340,13 +328,11 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
 func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
-	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
-	st.Unlock()
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, nil, notices.RefreshInhibitNotice, "-", nil)
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
+	addNotice(c, noticeMgr, nil, notices.SnapRunInhibitNotice, "snap-name", nil)
 
 	// Check that a snap request with types filter denies access to
 	// snaps without required interfaces.
@@ -399,19 +385,17 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	admin := uint32(0)
 	nonAdmin := uint32(1000)
 	otherNonAdmin := uint32(123)
-	addNotice(c, st, &admin, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, &admin, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
+	addNotice(c, noticeMgr, &nonAdmin, notices.WarningNotice, "error1", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &otherNonAdmin, state.ChangeUpdateNotice, "456", nil)
+	addNotice(c, noticeMgr, &otherNonAdmin, notices.ChangeUpdateNotice, "456", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	// Test that admin user sees their own and all public notices if no filter is specified
 	req, err := http.NewRequest("GET", "/v2/notices", nil)
@@ -420,13 +404,13 @@ func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 2)
+	n := noticeToMap(c, result[0])
 	c.Assert(n["user-id"], Equals, float64(admin))
 	c.Assert(n["key"], Equals, "123")
-	n = noticeToMap(c, notices[1])
+	n = noticeToMap(c, result[1])
 	c.Assert(n["user-id"], Equals, nil)
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -434,19 +418,17 @@ func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	admin := uint32(0)
 	nonAdmin := uint32(1000)
 	otherNonAdmin := uint32(123)
-	addNotice(c, st, &admin, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, &admin, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
+	addNotice(c, noticeMgr, &nonAdmin, notices.WarningNotice, "error1", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &otherNonAdmin, state.ChangeUpdateNotice, "456", nil)
+	addNotice(c, noticeMgr, &otherNonAdmin, notices.ChangeUpdateNotice, "456", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	// Test that admin can filter on any user ID, and always gets public notices too
 	for _, uid := range []uint32{0, 1000, 123} {
@@ -459,12 +441,12 @@ func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 		rsp := s.syncReq(c, req, nil)
 		c.Check(rsp.Status, Equals, 200)
 
-		notices, ok := rsp.Result.([]*state.Notice)
+		result, ok := rsp.Result.([]*notices.Notice)
 		c.Assert(ok, Equals, true)
-		c.Assert(notices, HasLen, 2)
-		n := noticeToMap(c, notices[0])
+		c.Assert(result, HasLen, 2)
+		n := noticeToMap(c, result[0])
 		c.Assert(n["user-id"], Equals, float64(uid))
-		n = noticeToMap(c, notices[1])
+		n = noticeToMap(c, result[1])
 		c.Assert(n["user-id"], Equals, nil)
 	}
 }
@@ -472,19 +454,17 @@ func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	admin := uint32(0)
 	nonAdmin := uint32(1000)
 	otherNonAdmin := uint32(123)
-	addNotice(c, st, &admin, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, &admin, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
+	addNotice(c, noticeMgr, &nonAdmin, notices.WarningNotice, "error1", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &otherNonAdmin, state.ChangeUpdateNotice, "456", nil)
+	addNotice(c, noticeMgr, &otherNonAdmin, notices.ChangeUpdateNotice, "456", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	// Test that non-admin user by default only sees their notices and public notices.
 	req, err := http.NewRequest("GET", "/v2/notices", nil)
@@ -493,13 +473,13 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 2)
+	n := noticeToMap(c, result[0])
 	c.Assert(n["user-id"], Equals, float64(nonAdmin))
 	c.Assert(n["key"], Equals, "error1")
-	n = noticeToMap(c, notices[1])
+	n = noticeToMap(c, result[1])
 	c.Assert(n["user-id"], Equals, nil)
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -507,11 +487,9 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 func (s *noticesSuite) TestNoticesUserIDNonAdminFilter(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	nonAdmin := uint32(1000)
-	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, &nonAdmin, notices.WarningNotice, "error1", nil)
 
 	// Test that non-admin user may not use --user-id filter
 	reqUrl := "/v2/notices?user-id=1000"
@@ -525,19 +503,17 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminFilter(c *C) {
 func (s *noticesSuite) TestNoticesUsersAdminFilter(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	admin := uint32(0)
 	nonAdmin := uint32(1000)
 	otherNonAdmin := uint32(123)
-	addNotice(c, st, &admin, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, noticeMgr, &admin, notices.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
+	addNotice(c, noticeMgr, &nonAdmin, notices.WarningNotice, "error1", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &otherNonAdmin, state.ChangeUpdateNotice, "456", nil)
+	addNotice(c, noticeMgr, &otherNonAdmin, notices.ChangeUpdateNotice, "456", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	// Test that admin user may get all notices with --users=all filter
 	reqUrl := "/v2/notices?users=all"
@@ -547,19 +523,19 @@ func (s *noticesSuite) TestNoticesUsersAdminFilter(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 4)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 4)
+	n := noticeToMap(c, result[0])
 	c.Assert(n["user-id"], Equals, float64(admin))
 	c.Assert(n["key"], Equals, "123")
-	n = noticeToMap(c, notices[1])
+	n = noticeToMap(c, result[1])
 	c.Assert(n["user-id"], Equals, float64(nonAdmin))
 	c.Assert(n["key"], Equals, "error1")
-	n = noticeToMap(c, notices[2])
+	n = noticeToMap(c, result[2])
 	c.Assert(n["user-id"], Equals, float64(otherNonAdmin))
 	c.Assert(n["key"], Equals, "456")
-	n = noticeToMap(c, notices[3])
+	n = noticeToMap(c, result[3])
 	c.Assert(n["user-id"], Equals, nil)
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -567,11 +543,9 @@ func (s *noticesSuite) TestNoticesUsersAdminFilter(c *C) {
 func (s *noticesSuite) TestNoticesUsersNonAdminFilter(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	nonAdmin := uint32(1000)
-	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, &nonAdmin, notices.WarningNotice, "error1", nil)
 
 	// Test that non-admin user may not use --users filter
 	reqUrl := "/v2/notices?users=all"
@@ -585,10 +559,8 @@ func (s *noticesSuite) TestNoticesUsersNonAdminFilter(c *C) {
 func (s *noticesSuite) TestNoticesUnknownRequestUID(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
-	st.Unlock()
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "danger", nil)
 
 	// Test that a connection with unknown UID is forbidden from receiving notices
 	req, err := http.NewRequest("GET", "/v2/notices", nil)
@@ -601,12 +573,10 @@ func (s *noticesSuite) TestNoticesUnknownRequestUID(c *C) {
 func (s *noticesSuite) TestNoticesWait(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	go func() {
 		time.Sleep(testutil.HostScaledTimeout(50 * time.Millisecond))
-		st.Lock()
-		addNotice(c, st, nil, state.WarningNotice, "foo", nil)
-		st.Unlock()
+		addNotice(c, noticeMgr, nil, notices.WarningNotice, "foo", nil)
 	}()
 
 	timeout := testutil.HostScaledTimeout(5 * time.Second).String()
@@ -616,10 +586,10 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "foo")
@@ -634,9 +604,9 @@ func (s *noticesSuite) TestNoticesTimeout(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	result, ok := rsp.Result.([]*notices.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 0)
+	c.Assert(result, HasLen, 0)
 }
 
 func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
@@ -713,22 +683,22 @@ func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 // Check that duplicate explicitly-given notice types are removed from filter.
 func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateGivenTypes(c *C) {
 	typeStrs := []string{
-		string(state.ChangeUpdateNotice),
+		string(notices.ChangeUpdateNotice),
 		fmt.Sprintf(
 			"%s,%s,%s",
-			state.WarningNotice,
-			state.ChangeUpdateNotice,
-			state.RefreshInhibitNotice,
+			notices.WarningNotice,
+			notices.ChangeUpdateNotice,
+			notices.RefreshInhibitNotice,
 		),
-		string(state.WarningNotice),
-		string(state.RefreshInhibitNotice),
-		string(state.WarningNotice),
-		string(state.ChangeUpdateNotice),
+		string(notices.WarningNotice),
+		string(notices.RefreshInhibitNotice),
+		string(notices.WarningNotice),
+		string(notices.ChangeUpdateNotice),
 	}
-	types := []state.NoticeType{
-		state.ChangeUpdateNotice,
-		state.WarningNotice,
-		state.RefreshInhibitNotice,
+	types := []notices.NoticeType{
+		notices.ChangeUpdateNotice,
+		notices.WarningNotice,
+		notices.RefreshInhibitNotice,
 	}
 	// Request unnecessary since explicitly-specified types are validated later.
 	result, err := daemon.SanitizeNoticeTypesFilter(typeStrs, nil)
@@ -739,17 +709,17 @@ func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateGivenTypes(c *C) {
 // Check that notice types granted by default by multiple connected interfaces
 // are only included once in the filter.
 func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateDefaultTypes(c *C) {
-	types := []state.NoticeType{
-		state.NoticeType("foo"),
-		state.NoticeType("bar"),
-		state.NoticeType("baz"),
+	types := []notices.NoticeType{
+		notices.NoticeType("foo"),
+		notices.NoticeType("bar"),
+		notices.NoticeType("baz"),
 	}
 	ifaces := []string{
 		"abc",
 		"xyz",
 		"123",
 	}
-	fakeNoticeReadInterfaces := map[state.NoticeType][]string{
+	fakeNoticeReadInterfaces := map[notices.NoticeType][]string{
 		types[0]: {ifaces[0], ifaces[1]},
 		types[1]: {ifaces[1], ifaces[2]},
 		types[2]: {ifaces[2]},
@@ -770,17 +740,17 @@ func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateDefaultTypes(c *C) 
 // Check that requests for notice types granted by multiple connected interfaces
 // behave correctly.
 func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
-	types := []state.NoticeType{
-		state.NoticeType("foo"),
-		state.NoticeType("bar"),
-		state.NoticeType("baz"),
+	types := []notices.NoticeType{
+		notices.NoticeType("foo"),
+		notices.NoticeType("bar"),
+		notices.NoticeType("baz"),
 	}
 	ifaces := []string{
 		"abc",
 		"xyz",
 		"123",
 	}
-	fakeNoticeReadInterfaces := map[state.NoticeType][]string{
+	fakeNoticeReadInterfaces := map[notices.NoticeType][]string{
 		types[0]: {ifaces[0], ifaces[1]},
 		types[1]: {ifaces[1], ifaces[2]},
 		types[2]: {ifaces[2]},
@@ -792,7 +762,7 @@ func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
 	req, err := http.NewRequest("GET", "/v2/notices", nil)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[2])
-	requestedTypes := []state.NoticeType{types[0], types[1], types[2]}
+	requestedTypes := []notices.NoticeType{types[0], types[1], types[2]}
 	viewable := daemon.NoticeTypesViewableBySnap(requestedTypes, req)
 	c.Check(viewable, Equals, true)
 
@@ -801,24 +771,24 @@ func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
 	// Types viewable by both interfaces
-	requestedTypes = []state.NoticeType{types[0]}
+	requestedTypes = []notices.NoticeType{types[0]}
 	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
 	c.Check(viewable, Equals, true)
 	// Types viewable by at least one interface
-	requestedTypes = []state.NoticeType{types[0], types[1]}
+	requestedTypes = []notices.NoticeType{types[0], types[1]}
 	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
 	c.Check(viewable, Equals, true)
 	// Type not viewable by any interface
-	requestedTypes = []state.NoticeType{types[2]}
+	requestedTypes = []notices.NoticeType{types[2]}
 	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
 	c.Check(viewable, Equals, false)
 	// Mix of viewable and unviewable types
-	requestedTypes = []state.NoticeType{types[0], types[2]}
+	requestedTypes = []notices.NoticeType{types[0], types[2]}
 	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
 	c.Check(viewable, Equals, false)
 
 	// Check no types results in not viewable, no matter what
-	requestedTypes = make([]state.NoticeType, 0)
+	requestedTypes = make([]notices.NoticeType, 0)
 	req, err = http.NewRequest("GET", "/v2/notices", nil)
 	c.Assert(err, IsNil)
 	// No "iface=" field given
@@ -845,6 +815,7 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 	})
 	defer restore()
 
+	noticeMgr := s.d.Overlord().NoticeManager()
 	st := s.d.Overlord().State()
 	st.Lock()
 	// mock existing snap
@@ -869,11 +840,9 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 	resultBytes, err := json.Marshal(rsp.Result)
 	c.Assert(err, IsNil)
 
-	st.Lock()
-	notices := st.Notices(nil)
-	st.Unlock()
-	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	result := noticeMgr.Notices(nil)
+	c.Assert(result, HasLen, 1)
+	n := noticeToMap(c, result[0])
 	noticeID, ok := n["id"].(string)
 	c.Assert(ok, Equals, true)
 	c.Assert(string(resultBytes), Equals, `{"id":"`+noticeID+`"}`)
@@ -1021,16 +990,14 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 func (s *noticesSuite) TestNotice(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo", nil)
-	noticeIDPublic, err := st.AddNotice(nil, state.WarningNotice, "bar", nil)
+	noticeMgr := s.d.Overlord().NoticeManager()
+	addNotice(c, noticeMgr, nil, notices.WarningNotice, "foo", nil)
+	noticeIDPublic, err := noticeMgr.AddNotice(nil, notices.WarningNotice, "bar", nil)
 	c.Assert(err, IsNil)
 	uid := uint32(1000)
-	noticeIDPrivate, err := st.AddNotice(&uid, state.WarningNotice, "fizz", nil)
+	noticeIDPrivate, err := noticeMgr.AddNotice(&uid, notices.WarningNotice, "fizz", nil)
 	c.Assert(err, IsNil)
-	addNotice(c, st, &uid, state.WarningNotice, "baz", nil)
-	st.Unlock()
+	addNotice(c, noticeMgr, &uid, notices.WarningNotice, "baz", nil)
 
 	req, err := http.NewRequest("GET", "/v2/notices/"+noticeIDPublic, nil)
 	c.Assert(err, IsNil)
@@ -1038,7 +1005,7 @@ func (s *noticesSuite) TestNotice(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notice, ok := rsp.Result.(*state.Notice)
+	notice, ok := rsp.Result.(*notices.Notice)
 	c.Assert(ok, Equals, true)
 	n := noticeToMap(c, notice)
 	c.Check(n["user-id"], Equals, nil)
@@ -1051,7 +1018,7 @@ func (s *noticesSuite) TestNotice(c *C) {
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notice, ok = rsp.Result.(*state.Notice)
+	notice, ok = rsp.Result.(*notices.Notice)
 	c.Assert(ok, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["user-id"], Equals, 1000.0)
@@ -1082,12 +1049,10 @@ func (s *noticesSuite) TestNoticeUnknownRequestUID(c *C) {
 func (s *noticesSuite) TestNoticeAdminAllowed(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	uid := uint32(1000)
-	noticeID, err := st.AddNotice(&uid, state.WarningNotice, "danger", nil)
+	noticeID, err := noticeMgr.AddNotice(&uid, notices.WarningNotice, "danger", nil)
 	c.Assert(err, IsNil)
-	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/notices/"+noticeID, nil)
 	c.Assert(err, IsNil)
@@ -1095,7 +1060,7 @@ func (s *noticesSuite) TestNoticeAdminAllowed(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 
-	notice, ok := rsp.Result.(*state.Notice)
+	notice, ok := rsp.Result.(*notices.Notice)
 	c.Assert(ok, Equals, true)
 	n := noticeToMap(c, notice)
 	c.Check(n["user-id"], Equals, 1000.0)
@@ -1106,12 +1071,10 @@ func (s *noticesSuite) TestNoticeAdminAllowed(c *C) {
 func (s *noticesSuite) TestNoticeNonAdminNotAllowed(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
+	noticeMgr := s.d.Overlord().NoticeManager()
 	uid := uint32(1000)
-	noticeID, err := st.AddNotice(&uid, state.WarningNotice, "danger", nil)
+	noticeID, err := noticeMgr.AddNotice(&uid, notices.WarningNotice, "danger", nil)
 	c.Assert(err, IsNil)
-	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/notices/"+noticeID, nil)
 	c.Assert(err, IsNil)
@@ -1123,13 +1086,11 @@ func (s *noticesSuite) TestNoticeNonAdminNotAllowed(c *C) {
 func (s *noticesSuite) TestNoticeSnapAllowed(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	changeUpdateNoticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
+	noticeMgr := s.d.Overlord().NoticeManager()
+	changeUpdateNoticeID, err := noticeMgr.AddNotice(nil, notices.ChangeUpdateNotice, "123", nil)
 	c.Assert(err, IsNil)
-	refreshInhibitNoticeID, err := st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil)
+	refreshInhibitNoticeID, err := noticeMgr.AddNotice(nil, notices.RefreshInhibitNotice, "-", nil)
 	c.Assert(err, IsNil)
-	st.Unlock()
 
 	// snap-refresh-observe interface allows accessing change-update notices
 	req, err := http.NewRequest("GET", "/v2/notices/"+changeUpdateNoticeID, nil)
@@ -1138,7 +1099,7 @@ func (s *noticesSuite) TestNoticeSnapAllowed(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 
-	notice, ok := rsp.Result.(*state.Notice)
+	notice, ok := rsp.Result.(*notices.Notice)
 	c.Assert(ok, Equals, true)
 	n := noticeToMap(c, notice)
 	c.Check(n["type"], Equals, "change-update")
@@ -1151,7 +1112,7 @@ func (s *noticesSuite) TestNoticeSnapAllowed(c *C) {
 	rsp = s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 
-	notice, ok = rsp.Result.(*state.Notice)
+	notice, ok = rsp.Result.(*notices.Notice)
 	c.Assert(ok, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["type"], Equals, "refresh-inhibit")
@@ -1161,15 +1122,13 @@ func (s *noticesSuite) TestNoticeSnapAllowed(c *C) {
 func (s *noticesSuite) TestNoticeSnapNotAllowed(c *C) {
 	s.daemon(c)
 
-	st := s.d.Overlord().State()
-	st.Lock()
-	changeUpdateNoticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
+	noticeMgr := s.d.Overlord().NoticeManager()
+	changeUpdateNoticeID, err := noticeMgr.AddNotice(nil, notices.ChangeUpdateNotice, "123", nil)
 	c.Assert(err, IsNil)
-	refreshInhibitNoticeID, err := st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil)
+	refreshInhibitNoticeID, err := noticeMgr.AddNotice(nil, notices.RefreshInhibitNotice, "-", nil)
 	c.Assert(err, IsNil)
-	warningNoticeID, err := st.AddNotice(nil, state.WarningNotice, "danger", nil)
+	warningNoticeID, err := noticeMgr.AddNotice(nil, notices.WarningNotice, "danger", nil)
 	c.Assert(err, IsNil)
-	st.Unlock()
 
 	// snap-refresh-observe doesn't give access to warning notices.
 	req, err := http.NewRequest("GET", "/v2/notices/"+warningNoticeID, nil)
@@ -1205,7 +1164,7 @@ func (s *noticesSuite) TestNoticeSnapNotAllowed(c *C) {
 	c.Check(rsp.Status, Equals, 403)
 }
 
-func noticeToMap(c *C, notice *state.Notice) map[string]any {
+func noticeToMap(c *C, notice *notices.Notice) map[string]any {
 	buf, err := json.Marshal(notice)
 	c.Assert(err, IsNil)
 	var n map[string]any
@@ -1214,7 +1173,7 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	return n
 }
 
-func addNotice(c *C, st *state.State, userID *uint32, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) {
-	_, err := st.AddNotice(userID, noticeType, key, options)
+func addNotice(c *C, noticeMgr *notices.NoticeManager, userID *uint32, noticeType notices.NoticeType, key string, options *notices.AddNoticeOptions) {
+	_, err := noticeMgr.AddNotice(userID, noticeType, key, options)
 	c.Assert(err, IsNil)
 }
