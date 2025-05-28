@@ -37,8 +37,10 @@ var _ = Suite(&bootstrapContainerSuite{})
 
 func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
 	container := secboot.CreateBootstrappedContainer([]byte{1, 2, 3, 4}, "/dev/foo")
+	var addUnlockKeyCalled, addRecoveryKeyCalled, deleteKeyCalled int
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		addUnlockKeyCalled++
 		c.Check(devicePath, Equals, "/dev/foo")
 		c.Check(keyslotName, Equals, "slot-name")
 		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
@@ -48,8 +50,12 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
 
 	err := container.AddKey("slot-name", []byte{5, 6, 7, 8})
 	c.Assert(err, IsNil)
+	c.Assert(addUnlockKeyCalled, Equals, 1)
+	c.Assert(addRecoveryKeyCalled, Equals, 0)
+	c.Assert(deleteKeyCalled, Equals, 0)
 
 	defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error {
+		addUnlockKeyCalled++
 		c.Check(devicePath, Equals, "/dev/foo")
 		c.Check(keyslotName, Equals, "default")
 		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
@@ -59,8 +65,42 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
 
 	err = container.AddKey("", []byte{9, 10, 11, 12})
 	c.Assert(err, IsNil)
+	c.Assert(addUnlockKeyCalled, Equals, 2)
+	c.Assert(addRecoveryKeyCalled, Equals, 0)
+	c.Assert(deleteKeyCalled, Equals, 0)
+
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		addRecoveryKeyCalled++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "recovery-slot-name")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(recoveryKey, Equals, sb.RecoveryKey([16]byte{12, 11, 10, 9}))
+		return nil
+	})()
+
+	err = container.AddRecoveryKey("recovery-slot-name", [16]byte{12, 11, 10, 9})
+	c.Assert(err, IsNil)
+	c.Assert(addUnlockKeyCalled, Equals, 2)
+	c.Assert(addRecoveryKeyCalled, Equals, 1)
+	c.Assert(deleteKeyCalled, Equals, 0)
+
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		addRecoveryKeyCalled++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "default-recovery")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey([]byte{1, 2, 3, 4}))
+		c.Check(recoveryKey, Equals, sb.RecoveryKey([16]byte{12, 11, 10, 9}))
+		return nil
+	})()
+
+	err = container.AddRecoveryKey("", [16]byte{12, 11, 10, 9})
+	c.Assert(err, IsNil)
+	c.Assert(addUnlockKeyCalled, Equals, 2)
+	c.Assert(addRecoveryKeyCalled, Equals, 2)
+	c.Assert(deleteKeyCalled, Equals, 0)
 
 	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		deleteKeyCalled++
 		c.Check(devicePath, Equals, "/dev/foo")
 		c.Check(slotName, Equals, "bootstrap-key")
 		return nil
@@ -68,14 +108,21 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerHappy(c *C) {
 
 	err = container.RemoveBootstrapKey()
 	c.Assert(err, IsNil)
+	c.Assert(addUnlockKeyCalled, Equals, 2)
+	c.Assert(addRecoveryKeyCalled, Equals, 2)
+	c.Assert(deleteKeyCalled, Equals, 1)
 
 	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, slotName string) error {
+		deleteKeyCalled++
 		c.Errorf("unexpected call")
 		return nil
 	})()
 
 	err = container.RemoveBootstrapKey()
 	c.Assert(err, IsNil)
+	c.Assert(addUnlockKeyCalled, Equals, 2)
+	c.Assert(addRecoveryKeyCalled, Equals, 2)
+	c.Assert(deleteKeyCalled, Equals, 1)
 }
 
 type myKeyDataWriter struct {
