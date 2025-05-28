@@ -113,7 +113,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, update []byte) error {
 			panic("BackendResealKeysForSignaturesDBUpdate not mocked")
 		}))
-	s.AddCleanup(fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+	s.AddCleanup(fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
 		panic("secbootGetPCRHandle is not mocked")
 	}))
 
@@ -213,7 +213,8 @@ func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager 
 	err = os.WriteFile(device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), []byte{}, 0644)
 	c.Assert(err, IsNil)
 
-	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
+		c.Check(hintExpectFDEHook, Equals, false)
 		switch devicePath {
 		case "/dev/disk/by-uuid/aaa":
 			switch keySlot {
@@ -450,7 +451,7 @@ func (s *fdeMgrSuite) testMountResolveError(c *C, tc mountResolveTestCase) {
 		return true, nil
 	})()
 
-	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+	defer fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
 		return 41, nil
 	})()
 

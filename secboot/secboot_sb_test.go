@@ -2844,7 +2844,6 @@ func (tm *testModel) SignKeyID() string {
 }
 
 func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
-	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	key1 := []byte(`USK$blahblahblah`)
 
 	tmpdir := c.MkDir()
@@ -2862,7 +2861,11 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKey, []secboot.ModelForSealing{m}, []string{"run"})
+	primaryKeyGetter := func() ([]byte, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	}
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKeyGetter, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -2900,7 +2903,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, auxKey, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, func() ([]byte, error) { return auxKey, nil }, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -2986,7 +2989,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKey, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, func() ([]byte, error) { return primaryKey, nil }, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -3057,7 +3060,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		KeyFile:    key1Fn,
 	}
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, primaryKey, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, func() ([]byte, error) { return primaryKey, nil }, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -3214,7 +3217,8 @@ func (s *secbootSuite) TestGetPCRHandle(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "do-not-read", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3239,7 +3243,8 @@ func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfile(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3276,7 +3281,8 @@ func (s *secbootSuite) TestGetPCRHandleKeyslotNoKeyDataKeyfile(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
 }
@@ -3301,9 +3307,37 @@ func (s *secbootSuite) TestGetPCRHandleNoKeyslotKeyfileOldFormat(c *C) {
 	})
 	defer restore()
 
-	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file")
+	const hintExpectFDEHook = false
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
 	c.Assert(err, IsNil)
 	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleHookKeyV1(c *C) {
+	restore := secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "foo")
+		return []string{}, nil
+	})
+	defer restore()
+
+	restore = secboot.MockMockableReadKeyFile(func(keyFile string, kl *secboot.MockableKeyLoader, hintExpectFDEHook bool) error {
+		c.Check(hintExpectFDEHook, Equals, true)
+		c.Check(keyFile, Equals, "read-this-file")
+		kl.FDEHookKeyV1 = []byte(`USK$blahblahblah`)
+		return nil
+	})
+	defer restore()
+
+	restore = secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	const hintExpectFDEHook = true
+	handle, err := secboot.GetPCRHandle("foo", "some-key", "read-this-file", hintExpectFDEHook)
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(0))
 }
 
 func (s *secbootSuite) TestRemoveOldCounterHandles(c *C) {

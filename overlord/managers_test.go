@@ -7492,7 +7492,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
-	restore = fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string) (uint32, error) {
+	restore = fdestate.MockSecbootGetPCRHandle(func(devicePath, keySlot, keyFile string, hintExpectFDEHook bool) (uint32, error) {
 		return 0x1880005, nil
 	})
 	defer restore()

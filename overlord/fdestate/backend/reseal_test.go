@@ -1956,9 +1956,11 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	}
 
 	resealCalls := 0
-	restore := backend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKey []byte, models []secboot.ModelForSealing, bootModes []string) error {
+	restore := backend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []secboot.ModelForSealing, bootModes []string) error {
 		resealCalls++
 
+		primaryKey, err := primaryKeyGetter()
+		c.Assert(err, IsNil)
 		switch resealCalls {
 		case 1:
 			// Resealing the run+recover key for data partition

@@ -221,12 +221,11 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		// Note this is the fallback key path for old installations. The file might not exist.
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 		// All devices should have the same primary key
-		primaryKey, err := secbootGetPrimaryKey(devices, primaryKeyFile)
-		if err != nil {
-			return err
+		primaryKeyGetter := func() ([]byte, error) {
+			return secbootGetPrimaryKey(devices, primaryKeyFile)
 		}
 		for _, key := range keys {
-			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKey, key.params.Models, key.params.BootModes); err != nil {
+			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKeyGetter, key.params.Models, key.params.BootModes); err != nil {
 				return err
 			}
 		}
