@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -46,11 +47,13 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -69,6 +72,7 @@ var (
 	snapstatePathUpdateGoal       = snapstate.PathUpdateGoal
 	snapstateInstallComponents    = snapstate.InstallComponents
 	snapstateInstallComponentPath = snapstate.InstallComponentPath
+	fdestateGenerateRecoveryKey   = fdestate.GenerateRecoveryKey
 )
 
 // findModel returns the device model assertion.
@@ -2316,6 +2320,37 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 	chg.AddTask(finishTask)
 
 	return chg, nil
+}
+
+// GeneratePreInstallRecoveryKey generates a recovery key and embeds
+// its corresponding id in the storage encryption setup data.
+//
+// Note: InstallSetupStorageEncryption must be called before calling
+// this helper.
+func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
+	var encryptSetupData *install.EncryptionSetupData
+	cached := st.Cached(encryptionSetupDataKey{label})
+	if cached == nil {
+		return keys.RecoveryKey{}, fmt.Errorf("storage encryption setup step was not called")
+	}
+
+	// XXX: just let it panic?
+	encryptSetupData, ok := cached.(*install.EncryptionSetupData)
+	if !ok {
+		return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
+	}
+
+	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	// attach key-id to encryption setup data so it can be used
+	// in the install finish step.
+	encryptSetupData.SetRecoveryKeyID(keyID)
+	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
+
+	return rkey, err
 }
 
 // InstallSetupStorageEncryption creates a change that will setup the
