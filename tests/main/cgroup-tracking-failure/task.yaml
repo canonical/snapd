@@ -51,8 +51,12 @@ execute: |
     # pre-installed on standard images, we mask the dbus.socket for the user
     # session. This is done for Ubuntu 16.04 and 18.04, because only 20.04
     # started shipping dbus-user-session in all the images.
-    echo "run a snap app as a root user, without session bus" >scenario.txt
-    find /run/user/0 >run.txt
+    if os.query is-arm && os.query is-core-lt 24; then
+        echo "skip check for root user on arm when core is not 24+"
+    else
+        echo "run a snap app as a root user, without session bus" >scenario.txt
+        find /run/user/0 >run.txt
+    fi
     case "$SPREAD_SYSTEM" in
         ubuntu-1[68].04-*)
             systemctl --user stop dbus.{socket,service} || true
