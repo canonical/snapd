@@ -159,7 +159,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	}
 
 	chg := newChange(st, action.Action+"-snapshot", action.String(), []*state.TaskSet{ts}, affected)
-	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
+	chg.Set("api-data", map[string]any{"snap-names": affected})
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
@@ -213,7 +213,7 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest(err.Error())
 	}
 
-	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
+	result := map[string]any{"set-id": setID, "snaps": snapNames}
 	return SyncResponse(result)
 }
 
@@ -235,6 +235,6 @@ func snapshotMany(_ context.Context, inst *snapInstruction, st *state.State) (*s
 		Summary:  msg,
 		Affected: snapshotted,
 		Tasksets: []*state.TaskSet{ts},
-		Result:   map[string]interface{}{"set-id": setID},
+		Result:   map[string]any{"set-id": setID},
 	}, nil
 }

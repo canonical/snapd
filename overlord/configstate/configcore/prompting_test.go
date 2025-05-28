@@ -410,10 +410,10 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDiscon
 	defer restore()
 
 	s.state.Lock()
-	s.state.Set("conns", map[string]interface{}{
-		"test-snap:snap-interfaces-requests-control core:snap-interfaces-requests-control": map[string]interface{}{
+	s.state.Set("conns", map[string]any{
+		"test-snap:snap-interfaces-requests-control core:snap-interfaces-requests-control": map[string]any{
 			"interface": "snap-interfaces-requests-control",
-			"plug-static": map[string]interface{}{
+			"plug-static": map[string]any{
 				"handler-service": "prompts-handler",
 			},
 			// manually disconnected
@@ -625,22 +625,22 @@ plugs:
 		SnapType: "app",
 	})
 
-	plugStatic := map[string]interface{}{}
+	plugStatic := map[string]any{}
 	if opts.hasHandler {
 		plugStatic["handler-service"] = "prompts-handler"
 	}
 
-	var conns map[string]interface{}
+	var conns map[string]any
 	err := s.state.Get("conns", &conns)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			conns = map[string]interface{}{}
+			conns = map[string]any{}
 		} else {
 			c.Fatalf("unexpected error: %v", err)
 		}
 	}
 
-	conns[fmt.Sprintf("%s:snap-interfaces-requests-control core:snap-interfaces-requests-control", name)] = map[string]interface{}{
+	conns[fmt.Sprintf("%s:snap-interfaces-requests-control core:snap-interfaces-requests-control", name)] = map[string]any{
 		"interface":   "snap-interfaces-requests-control",
 		"plug-static": plugStatic,
 	}

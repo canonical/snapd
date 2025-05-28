@@ -98,7 +98,7 @@ func (x *cmdSignBuild) Execute(args []string) error {
 	pubKey := privKey.PublicKey()
 	timestamp := time.Now().Format(time.RFC3339)
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"developer-id":  x.DeveloperID,
 		"authority-id":  x.DeveloperID,
 		"snap-sha3-384": snapDigest,

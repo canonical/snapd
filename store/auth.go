@@ -284,7 +284,7 @@ func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string,
 }
 
 // retryPostRequestDecodeJSON calls retryPostRequest and decodes the response into either success or failure.
-func retryPostRequestDecodeJSON(httpClient *http.Client, endpoint string, headers map[string]string, data []byte, success interface{}, failure interface{}) (resp *http.Response, err error) {
+func retryPostRequestDecodeJSON(httpClient *http.Client, endpoint string, headers map[string]string, data []byte, success any, failure any) (resp *http.Response, err error) {
 	return retryPostRequest(httpClient, endpoint, headers, data, func(resp *http.Response) error {
 		return decodeJSONBody(resp, success, failure)
 	})

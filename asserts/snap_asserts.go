@@ -145,7 +145,7 @@ func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	}
 }
 
-func compilePlugRules(plugs map[string]interface{}, compiled func(iface string, plugRule *PlugRule)) error {
+func compilePlugRules(plugs map[string]any, compiled func(iface string, plugRule *PlugRule)) error {
 	for iface, rule := range plugs {
 		plugRule, err := compilePlugRule(iface, rule)
 		if err != nil {
@@ -156,7 +156,7 @@ func compilePlugRules(plugs map[string]interface{}, compiled func(iface string, 
 	return nil
 }
 
-func compileSlotRules(slots map[string]interface{}, compiled func(iface string, slotRule *SlotRule)) error {
+func compileSlotRules(slots map[string]any, compiled func(iface string, slotRule *SlotRule)) error {
 	for iface, rule := range slots {
 		slotRule, err := compileSlotRule(iface, rule)
 		if err != nil {
@@ -167,7 +167,7 @@ func compileSlotRules(slots map[string]interface{}, compiled func(iface string, 
 	return nil
 }
 
-func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+func snapDeclarationFormatAnalyze(headers map[string]any, body []byte) (formatnum int, err error) {
 	_, plugsOk := headers["plugs"]
 	_, slotsOk := headers["slots"]
 	if !(plugsOk || slotsOk) {
@@ -234,12 +234,12 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 	return formatnum, nil
 }
 
-func checkAliases(headers map[string]interface{}) (map[string]string, error) {
+func checkAliases(headers map[string]any) (map[string]string, error) {
 	value, ok := headers["aliases"]
 	if !ok {
 		return nil, nil
 	}
-	aliasList, ok := value.([]interface{})
+	aliasList, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf(`"aliases" header must be a list of alias maps`)
 	}
@@ -249,7 +249,7 @@ func checkAliases(headers map[string]interface{}) (map[string]string, error) {
 
 	aliasMap := make(map[string]string, len(aliasList))
 	for i, item := range aliasList {
-		aliasItem, ok := item.(map[string]interface{})
+		aliasItem, ok := item.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf(`"aliases" header must be a list of alias maps`)
 		}
@@ -344,7 +344,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 
 	ra, ok := assert.headers["revision-authority"]
 	if ok {
-		ramaps, ok := ra.([]interface{})
+		ramaps, ok := ra.([]any)
 		if !ok {
 			return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
 		}
@@ -354,7 +354,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 		ras = make([]*RevisionAuthority, 0, len(ramaps))
 		for _, ramap := range ramaps {
-			m, ok := ramap.(map[string]interface{})
+			m, ok := ramap.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
 			}
@@ -710,7 +710,7 @@ func (snaprev *SnapRevision) Prerequisites() []*Ref {
 	}
 }
 
-func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (snapRevision int, err error) {
+func checkSnapRevisionWhat(headers map[string]any, name, what string) (snapRevision int, err error) {
 	snapRevision, err = checkIntWhat(headers, name, what)
 	if err != nil {
 		return 0, err
@@ -721,21 +721,21 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 	return snapRevision, nil
 }
 
-func checkOptionalSnapRevisionWhat(headers map[string]interface{}, name, what string) (snapRevision int, err error) {
+func checkOptionalSnapRevisionWhat(headers map[string]any, name, what string) (snapRevision int, err error) {
 	if _, ok := headers[name]; !ok {
 		return 0, nil
 	}
 	return checkSnapRevisionWhat(headers, name, what)
 }
 
-func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, error) {
+func checkSnapIntegrity(headers map[string]any) ([]SnapIntegrityData, error) {
 	value, ok := headers["integrity"]
 	if !ok {
 		// integrity stanzas are optional
 		return nil, nil
 	}
 
-	integrityList, ok := value.([]interface{})
+	integrityList, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf(`"integrity" header must contain a list of integrity data`)
 	}
@@ -746,7 +746,7 @@ func checkSnapIntegrity(headers map[string]interface{}) ([]SnapIntegrityData, er
 	var snapIntegrityDataList []SnapIntegrityData
 
 	for i, il := range integrityList {
-		id, ok := il.(map[string]interface{})
+		id, ok := il.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf(`"integrity" header must contain a list of integrity data`)
 		}
@@ -1070,7 +1070,7 @@ func BuiltinBaseDeclaration() *BaseDeclaration {
 
 var (
 	builtinBaseDeclarationCheckOrder      = []string{"type", "authority-id", "series"}
-	builtinBaseDeclarationExpectedHeaders = map[string]interface{}{
+	builtinBaseDeclarationExpectedHeaders = map[string]any{
 		"type":         "base-declaration",
 		"authority-id": "canonical",
 		"series":       release.Series,
@@ -1226,12 +1226,12 @@ func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, error) {
+func checkDevelopers(headers map[string]any) (map[string][]*dateRange, error) {
 	value, ok := headers["developers"]
 	if !ok {
 		return nil, nil
 	}
-	developers, ok := value.([]interface{})
+	developers, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
 	}
@@ -1246,7 +1246,7 @@ func checkDevelopers(headers map[string]interface{}) (map[string][]*dateRange, e
 
 	developerRanges := make(map[string][]*dateRange)
 	for i, item := range developers {
-		developer, ok := item.(map[string]interface{})
+		developer, ok := item.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf(`"developers" must be a list of developer maps`)
 		}

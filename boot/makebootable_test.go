@@ -535,7 +535,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 
 	var model *asserts.Model
 	if opts.classic {
-		model = boottest.MakeMockUC20Model(map[string]interface{}{
+		model = boottest.MakeMockUC20Model(map[string]any{
 			"classic":      "true",
 			"distribution": "ubuntu",
 		})
@@ -2411,7 +2411,7 @@ func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsBothBootOpt
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsSignedAndDangerous(c *C) {
-	model := boottest.MakeMockUC20Model(map[string]interface{}{
+	model := boottest.MakeMockUC20Model(map[string]any{
 		"grade": "signed",
 	})
 	const cmdline = "param1=val param2"

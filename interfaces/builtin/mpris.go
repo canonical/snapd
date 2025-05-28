@@ -214,7 +214,7 @@ func (iface *mprisInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 
 var isValidDBusElement = regexp.MustCompile("^[a-zA-Z0-9_-]*$").MatchString
 
-func (iface *mprisInterface) getName(attribs map[string]interface{}) (string, error) {
+func (iface *mprisInterface) getName(attribs map[string]any) (string, error) {
 	// default to snap instance name if 'name' attribute not set
 	// parallel-installs: snaps utilizing the mpris interface must adjust
 	// themselves accordingly for parallel installs and use

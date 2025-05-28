@@ -102,7 +102,7 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidAction(c *C) {
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"system.ctrl-alt-del-action": "xxx",
 		},
 	})
@@ -114,7 +114,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidSystemctlReply(c *C) {
 	s.unit = unitStateMulti
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"system.ctrl-alt-del-action": "none",
 		},
 	})
@@ -126,7 +126,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidInstalledState(c *C) {
 	s.unit = unitStateUninstalled
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"system.ctrl-alt-del-action": "none",
 		},
 	})
@@ -138,7 +138,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidEnabledState(c *C) {
 	s.unit = unitStateEnabled
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
-		changes: map[string]interface{}{
+		changes: map[string]any{
 			"system.ctrl-alt-del-action": "none",
 		},
 	})
@@ -155,7 +155,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 		for _, opt := range []string{"reboot", "none"} {
 			err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 				state:   s.state,
-				changes: map[string]interface{}{"system.ctrl-alt-del-action": opt},
+				changes: map[string]any{"system.ctrl-alt-del-action": opt},
 			})
 			c.Assert(err, IsNil)
 			c.Check(s.systemctlArgs, HasLen, 2)
@@ -174,7 +174,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 }
 
 func (s *ctrlaltdelSuite) TestFilesystemOnlyApplyNone(c *C) {
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.ctrl-alt-del-action": "none",
 	})
 	tmpDir := c.MkDir()
@@ -187,7 +187,7 @@ func (s *ctrlaltdelSuite) TestFilesystemOnlyApplyNone(c *C) {
 
 func (s *ctrlaltdelSuite) TestFilesystemOnlyApplyReboot(c *C) {
 	// slightly strange test as this is the default
-	conf := configcore.PlainCoreConfig(map[string]interface{}{
+	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.ctrl-alt-del-action": "reboot",
 	})
 	tmpDir := c.MkDir()

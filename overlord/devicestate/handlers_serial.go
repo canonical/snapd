@@ -182,7 +182,7 @@ type registrationContext interface {
 	Model() *asserts.Model
 
 	GadgetForSerialRequestConfig() string
-	SerialRequestExtraHeaders() map[string]interface{}
+	SerialRequestExtraHeaders() map[string]any
 	SerialRequestAncillaryAssertions() []asserts.Assertion
 
 	FinishRegistration(serial *asserts.Serial) error
@@ -214,7 +214,7 @@ func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
 	return rc.model.Gadget()
 }
 
-func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]interface{} {
+func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]any {
 	return nil
 }
 
@@ -270,7 +270,7 @@ type requestIDResp struct {
 	RequestID string `json:"request-id"`
 }
 
-func retryErr(t *state.Task, nTentatives int, reason string, a ...interface{}) error {
+func retryErr(t *state.Task, nTentatives int, reason string, a ...any) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 	if nTentatives >= maxTentatives {
@@ -394,7 +394,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 
 	}
 
-	headers := map[string]interface{}{
+	headers := map[string]any{
 		"brand-id":   device.Brand,
 		"model":      device.Model,
 		"request-id": requestID.RequestID,

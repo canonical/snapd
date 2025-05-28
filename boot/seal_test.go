@@ -1317,7 +1317,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			case "20200831":
 				kernelRev = 3
 			case "off-model":
-				systemModel = boottest.MakeMockUC20Model(map[string]interface{}{
+				systemModel = boottest.MakeMockUC20Model(map[string]any{
 					"model": "model-mismatch-uc20",
 				})
 			default:
@@ -1414,7 +1414,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		"loader-loader-hash2",
 	})
 
-	oldmodel := boottest.MakeMockUC20Model(map[string]interface{}{
+	oldmodel := boottest.MakeMockUC20Model(map[string]any{
 		"model":     "old-model-uc20",
 		"timestamp": "2019-10-01T08:00:00+00:00",
 	})
@@ -1778,7 +1778,7 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 
 	model := boottest.MakeMockUC20Model()
 	// a try model which would normally only appear during remodel
-	tryModel := boottest.MakeMockUC20Model(map[string]interface{}{
+	tryModel := boottest.MakeMockUC20Model(map[string]any{
 		"model": "try-my-model-uc20",
 		"grade": "secured",
 	})
@@ -1829,7 +1829,7 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 		}
 		if label == "off-model" {
 			// a model that matches neither current not try models
-			systemModel = boottest.MakeMockUC20Model(map[string]interface{}{
+			systemModel = boottest.MakeMockUC20Model(map[string]any{
 				"model": "different-model-uc20",
 				"grade": "secured",
 			})

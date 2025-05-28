@@ -139,13 +139,13 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 	brandID := brandDB.AuthorityID
 	brandKeyID := brandDB.KeyID
 	genericKeyID := storeDB.GenericKey.PublicKeyID()
-	modelNA := []interface{}(nil)
-	brandOnly := []interface{}{}
+	modelNA := []any(nil)
+	brandOnly := []any{}
 	tests := []struct {
 		// serial-authority setting in model
 		// nil == model not available at check (modelNA)
 		// empty ==  just brand (brandOnly)
-		serialAuth  []interface{}
+		serialAuth  []any
 		signDB      assertstest.SignerDB
 		authID      string
 		keyID       string
@@ -153,19 +153,19 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 	}{
 		{modelNA, brandDB, "", brandKeyID, ""},
 		{brandOnly, brandDB, "", brandKeyID, ""},
-		{[]interface{}{"generic"}, brandDB, "", brandKeyID, ""},
-		{[]interface{}{"generic", brandID}, brandDB, "", brandKeyID, ""},
-		{[]interface{}{"generic"}, storeDB, "generic", genericKeyID, ""},
+		{[]any{"generic"}, brandDB, "", brandKeyID, ""},
+		{[]any{"generic", brandID}, brandDB, "", brandKeyID, ""},
+		{[]any{"generic"}, storeDB, "generic", genericKeyID, ""},
 		{brandOnly, storeDB, "generic", genericKeyID, serialMismatchErr},
 		{modelNA, storeDB, "generic", genericKeyID, serialMismatchErr},
-		{[]interface{}{"other"}, storeDB, "generic", genericKeyID, serialMismatchErr},
+		{[]any{"other"}, storeDB, "generic", genericKeyID, serialMismatchErr},
 	}
 
 	for _, test := range tests {
 		checkDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
 
 		if test.serialAuth != nil {
-			modHeaders := map[string]interface{}{
+			modHeaders := map[string]any{
 				"series":       "16",
 				"brand-id":     brandID,
 				"architecture": "amd64",
@@ -208,7 +208,7 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
-		map[string]interface{}{
+		map[string]any{
 			"brand-id":   "brand-id1",
 			"model":      "baz-3000",
 			"device-key": ss.encodedDevKey,
@@ -236,7 +236,7 @@ func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 
 func (ss *serialSuite) TestSerialRequestHappyOptionalSerial(c *C) {
 	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
-		map[string]interface{}{
+		map[string]any{
 			"brand-id":   "brand-id1",
 			"model":      "baz-3000",
 			"serial":     "pserial",
@@ -310,7 +310,7 @@ func (ss *serialSuite) TestSerialRequestDecodeKeyIDMismatch(c *C) {
 func (ss *serialSuite) TestDeviceSessionRequest(c *C) {
 	ts := time.Now().UTC().Round(time.Second)
 	sessReq, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType,
-		map[string]interface{}{
+		map[string]any{
 			"brand-id":  "brand-id1",
 			"model":     "baz-3000",
 			"serial":    "99990",
