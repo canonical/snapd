@@ -33,7 +33,7 @@ var (
 	snapIconCmd = &Command{
 		Path:       "/v2/icons/{name}/icon",
 		GET:        snapIconGet,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"desktop-launch"}},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"desktop-launch", "snap-interfaces-requests-control", "snap-refresh-observe"}},
 	}
 )
 
