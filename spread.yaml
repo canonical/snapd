@@ -472,6 +472,62 @@ backends:
                   image: snapd-spread/ubuntu-24.04-arm-64
                   workers: 8
 
+    openstack-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        plan: shared.xsmall
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.54.0/24:4000]
+        environment:
+            SNAPD_USE_PROXY: 'true'
+            HTTP_PROXY: 'http://egress.ps7.internal:3128'
+            HTTPS_PROXY: 'http://egress.ps7.internal:3128'
+            http_proxy: 'http://egress.ps7.internal:3128'
+            https_proxy: 'http://egress.ps7.internal:3128'
+            no_proxy: '127.0.0.1'
+            NO_PROXY: '127.0.0.1'
+        systems:
+            - ubuntu-20.04-64:
+                image: auto-sync/ubuntu-focal-20.04-amd64-server
+                workers: 8
+            - ubuntu-22.04-64:
+                image: auto-sync/ubuntu-jammy-22.04-amd64-server
+                workers: 8
+            - ubuntu-24.04-64:
+                image: auto-sync/ubuntu-noble-24.04-amd64-server
+                workers: 8
+
+    openstack-arm-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        plan: shared.xsmall.arm64
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.53.0/24:3000]
+        environment:
+            SNAPD_USE_PROXY: 'true'
+            HTTP_PROXY: 'http://egress.ps7.internal:3128'
+            HTTPS_PROXY: 'http://egress.ps7.internal:3128'
+            http_proxy: 'http://egress.ps7.internal:3128'
+            https_proxy: 'http://egress.ps7.internal:3128'
+            no_proxy: '127.0.0.1'
+            NO_PROXY: '127.0.0.1'
+        systems:
+            - ubuntu-20.04-arm-64:
+                image: auto-sync/ubuntu-focal-20.04-arm64-server
+                workers: 8
+            - ubuntu-22.04-arm-64:
+                image: auto-sync/ubuntu-jammy-22.04-arm64-server
+                workers: 8
+            - ubuntu-24.04-arm-64:
+                image: auto-sync/ubuntu-noble-24.04-arm64-server
+                workers: 8
+
     qemu-nested:
         memory: 4G
         type: qemu
