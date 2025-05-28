@@ -27,8 +27,6 @@
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
-: "${NESTED_PASSPHRASE:=}"
-
 nested_wait_for_ssh() {
     local retry=${1:-800}
     local wait=${2:-1}
@@ -1249,9 +1247,6 @@ nested_start_core_vm_unit() {
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
-    local PASSPHRASE
-    PASSPHRASE=${NESTED_PASSPHRASE}
-
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -1259,10 +1254,6 @@ nested_start_core_vm_unit() {
     # XXX: should serial just be logged to stdout so that we just need
     #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
-        if [ -z "$PASSPHRASE" ]; then
-            echo "internal error: NESTED_PASSPHRASE is set and qemu doesn't support chardev over socket"
-            exit 1
-        fi
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
@@ -1364,9 +1355,7 @@ nested_start_core_vm_unit() {
             if snap list test-snapd-swtpm >/dev/null; then
                 if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ]; then
                     # reset the tpm state
-                    snap stop test-snapd-swtpm > /dev/null
-                    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
-                    snap start test-snapd-swtpm > /dev/null
+                    nested_vm_clear_tpm
                 fi
             else
                 snap install test-snapd-swtpm --edge
@@ -1395,12 +1384,22 @@ nested_start_core_vm_unit() {
         PARAM_REEXEC_ON_FAILURE="[Service]\nRestart=on-failure\nRestartSec=5s"
     fi
 
+    rm -rf "${NESTED_ASSETS_DIR}"/qemu-creds
+    mkdir -p "${NESTED_ASSETS_DIR}"/qemu-creds
+    if [ "${NESTED_RECOVERY_KEY+set}" = set ]; then
+        echo -n "${NESTED_RECOVERY_KEY}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.recovery"
+    fi
+    if [ "${NESTED_PASSPHRASE+set}" = set ]; then
+        echo -n "${NESTED_PASSPHRASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
+    fi
+
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
     # make sure we start with clean log file
     echo > "${NESTED_LOGS_DIR}/serial.log"
     # Systemd unit is created, it is important to respect the qemu parameters order
-    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU} \
+
+    tests.systemd create-and-start-unit "$NESTED_VM" "${TESTSLIB}/qemu-runner.sh ${NESTED_ASSETS_DIR}/qemu-creds ${QEMU} \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -1420,13 +1419,6 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD}  \
         ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
-
-    if [ -n "$PASSPHRASE" ]; then
-        # Wait for passphrase prompt from serial log file.
-        retry -n 120 --wait 1 sh -c "MATCH \"Please enter the passphrase\" < ${NESTED_LOGS_DIR}/serial.log"
-        # Enter passphrase to continue boot.
-        echo "$PASSPHRASE" | netcat -N localhost 7777
-    fi
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1554,6 +1546,29 @@ nested_force_restart_vm() {
     tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
 }
 
+nested_vm_clear_tpm() {
+    snap stop test-snapd-swtpm > /dev/null
+    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
+    snap start test-snapd-swtpm > /dev/null
+}
+
+nested_vm_clear_uefi() {
+    if os.query is-arm; then
+        OVMF=QEMU
+    else
+        OVMF=OVMF
+    fi
+    rm -f "${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
+}
+
+nested_vm_set_passphrase() {
+    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
+}
+
+nested_vm_set_recovery_key() {
+    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.recovery"
+}
+
 nested_create_classic_vm() {
     local IMAGE_NAME
     IMAGE_NAME="$(nested_get_image_name classic)"
@@ -1673,9 +1688,18 @@ nested_start_classic_vm() {
     # save logs from previous runs
     nested_save_serial_log
 
+    rm -rf "${NESTED_ASSETS_DIR}"/qemu-creds
+    mkdir -p "${NESTED_ASSETS_DIR}"/qemu-creds
+    if [ "${NESTED_RECOVERY_KEY+set}" = set ]; then
+        echo -n "${NESTED_RECOVERY_KEY}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.recovery"
+    fi
+    if [ "${NESTED_PASSPHRASE+set}" = set ]; then
+        echo -n "${NESTED_PASSPRHASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
+    fi
+
     # Systemd unit is created, it is important to respect the qemu parameters 
     # order
-    tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU}  \
+    tests.systemd create-and-start-unit "$NESTED_VM" "${TESTSLIB}/qemu-runner.sh ${NESTED_ASSETS_DIR}/qemu-creds ${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \

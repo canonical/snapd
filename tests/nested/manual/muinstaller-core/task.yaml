@@ -14,13 +14,10 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
 
-  # by default, we don't do passphrase authentication
-  PASSPHRASE: ""
-
   # encrypted + passphrase auth smoke test
   # TODO: extract a more comprehensive core24 test similar
   # to tests/nested/manual/passphrase-support-on-hybrid.
-  PASSPHRASE/passphrase_auth: "ubuntu"
+  NESTED_PASSPHRASE/passphrase_auth: "ubuntu"
 
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
@@ -65,7 +62,7 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
 
-  if ! os.query is-noble && [ -n "$PASSPHRASE" ]; then
+  if ! os.query is-noble && [ -n "${NESTED_PASSPHRASE-}" ]; then
     echo "SKIPPING: only run passphrase support variant for core24"
     exit 0
   fi
@@ -260,8 +257,8 @@ execute: |
     remote.push optional-install.json
     muinstaller_args="$muinstaller_args -optional ./optional-install.json"
   fi
-  if [ -n "$PASSPHRASE" ]; then
-    muinstaller_args="$muinstaller_args -passphrase $PASSPHRASE"
+  if [ -n "${NESTED_PASSPHRASE-}" ]; then
+    muinstaller_args="$muinstaller_args -passphrase ${NESTED_PASSPHRASE}"
   fi
 
   remote.exec "sudo muinstaller $muinstaller_args"
@@ -278,8 +275,8 @@ execute: |
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # Start installed image
-  if [ -n "$PASSPHRASE" ]; then
-    tests.nested create-vm core --keep-firmware-state --passphrase "$PASSPHRASE"
+  if [ -n "${NESTED_PASSPHRASE-}" ]; then
+    tests.nested create-vm core --keep-firmware-state --passphrase "${NESTED_PASSPHRASE}"
   else
     tests.nested create-vm core --keep-firmware-state
   fi
@@ -347,8 +344,5 @@ execute: |
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/${LABEL}/model"
 
-  # TODO: update "tests.nested transition" to support rebooting with a passphrase
-  if [ -z "$PASSPHRASE" ]; then
-    # test that we can actually boot into the installed recovery system
-    tests.nested transition "${LABEL}" recover
-  fi
+  # test that we can actually boot into the installed recovery system
+  tests.nested transition "${LABEL}" recover

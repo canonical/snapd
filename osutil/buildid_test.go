@@ -47,9 +47,10 @@ func (s *buildIDSuite) SetUpTest(c *C) {
 }
 
 func buildID(c *C, fname string) string {
-	// XXX host's 'file' command may be too old to know about Go BuildID or
-	// hexstring GNU BuildID, use with caution
-	output, err := exec.Command("file", fname).CombinedOutput()
+	// XXX Host's "file" command may be too old to know about Go BuildID or
+	// hexstring GNU BuildID, use with caution. Use "-L" to follow symlinks,
+	// to also cover e.g. Ubuntu 25.10 where /bin/true is a symlink to gnutrue.
+	output, err := exec.Command("file", "-L", fname).CombinedOutput()
 	c.Assert(err, IsNil)
 
 	c.Logf("file output: %q", string(output))

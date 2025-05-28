@@ -224,7 +224,9 @@ show() {
 }
 
 vm() {
-    case "$1" in
+    cmd="${1}"
+    shift
+    case "${cmd}" in
         start)
             nested_start
             ;;
@@ -239,6 +241,18 @@ vm() {
             ;;
         unclean-reboot)
             nested_force_restart_vm
+            ;;
+        clear-tpm)
+            nested_vm_clear_tpm
+            ;;
+        clear-uefi)
+            nested_vm_clear_uefi
+            ;;
+        set-passphrase)
+            nested_vm_set_passphrase "$@"
+            ;;
+        set-recovery-key)
+            nested_vm_set_recovery_key "$@"
             ;;
         *)
             echo "tests.nested: action not supported: $1" >&2
