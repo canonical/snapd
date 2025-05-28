@@ -282,7 +282,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// Load seed to find out kernel-modules components in run mode
 	systemAndSnaps, mntPtForType, mntPtForComps, unmount,
-		err := m.loadAndMountSystemLabelSnapsUnlock(st, m.seedLabel, []snap.Type{snap.TypeKernel})
+		err := m.loadAndMountSystemLabelSnapsUnlock(st, modeEnv.RecoverySystem, []snap.Type{snap.TypeKernel})
 	if err != nil {
 		return err
 	}
