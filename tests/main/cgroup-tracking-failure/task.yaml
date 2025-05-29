@@ -69,6 +69,11 @@ execute: |
             SNAPD_DEBUG=1 snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
             ;;
     esac
+    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
+        # If logging to journal is active, then grab the entires in the journal for snap
+        # and append them to the debug log
+        "$TESTSTOOLS"/journal-state get-log --no-pager | grep -oP 'snap\[\d+\]: \K.*' >> debug.txt
+    fi
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
             # On Ubuntu 14.04 there is no session bus, there is no systemd
@@ -96,58 +101,58 @@ execute: |
         ubuntu-16.04-*)
             # On Ubuntu 16.04 with systemd 229, without access to the session
             # bus, we fall back to the system bus.
-            MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*using system bus now, session bus was not available' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-18.04-*)
             # On Ubuntu 18.04 with systemd 237, without access to the session
             # bus, we fall back to the system bus.
-            MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*using system bus now, session bus was not available' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-20.04-*)
             # On Ubuntu 20.04 with systemd 245 everything works correctly.
             # Note that on this system we no longer test the variant without
             # session bus, as that is not considered a customization anymore.
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*using session bus' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-22*|ubuntu-24*|ubuntu-25*)
             # Ubuntu > 22 uses unified cgroup hierarchy, where we wait
             # for the systemd to complete the job that creates a transient scope
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
+            MATCH 'DEBUG:?.*using session bus' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
             MATCH '0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-core-16-*)
             # On Ubuntu Core 16.04 with systemd 229 there is no session bus so we
             # use the system bus. The request succeeds and works correctly.
-            MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
-            MATCH 'DEBUG: falling back to system bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*session bus is not available: cannot find session bus' <debug.txt
+            MATCH 'DEBUG:?.*falling back to system bus' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-core-18-*)
             # On Ubuntu Core 18 behaves exactly the same as Ubuntu Core 16.
-            MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
-            MATCH 'DEBUG: falling back to system bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*session bus is not available: cannot find session bus' <debug.txt
+            MATCH 'DEBUG:?.*falling back to system bus' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-core-20-*)
             # On Ubuntu Core 20 everything is correct.
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*using session bus' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd.sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-core-22-*)
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
+            MATCH 'DEBUG:?.*using session bus' <debug.txt
+            MATCH 'DEBUG:?.*create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG:?.*transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
             MATCH '0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         *)
