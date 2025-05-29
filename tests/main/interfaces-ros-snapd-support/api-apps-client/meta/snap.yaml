@@ -1,0 +1,11 @@
+name: api-apps-client
+version: 1.0
+summary: A snap with the ros-snapd-support interface
+description: |
+  A snap with the ros-snapd-support interface used for testing the interface.
+
+apps:
+  api-apps-client:
+    command: bin/api-apps-client.py
+    plugs:
+      - ros-snapd-support

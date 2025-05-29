@@ -45,8 +45,8 @@ var (
 		Path:        "/v2/apps",
 		GET:         getAppsInfo,
 		POST:        postApps,
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"ros-snapd-support"}},
+		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"ros-snapd-support"}, Polkit: polkitActionManage},
 	}
 
 	logsCmd = &Command{
