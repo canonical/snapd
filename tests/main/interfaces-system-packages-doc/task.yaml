@@ -17,6 +17,8 @@ prepare: |
     echo text >/usr/share/libreoffice/help/content
     mkdir -p /usr/share/xubuntu-docs
     echo text >/usr/share/xubuntu-docs/content
+    mkdir -p /usr/local/share/doc
+    echo text >/usr/local/share/doc/content
     mkdir -p /usr/share/gtk-doc
     echo text >/usr/share/gtk-doc/content
     mkdir -p /usr/share/cups/doc-root
@@ -38,6 +40,7 @@ execute: |
     test-snapd-app.sh -c 'cat /usr/share/doc/system-packages-doc-iface/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/libreoffice/help/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/xubuntu-docs/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/local/share/doc/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/gtk-doc/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/cups/doc-root/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/gimp/2.0/help/content' | MATCH text
@@ -47,6 +50,7 @@ execute: |
     test-snapd-app.sh -c 'cat /usr/share/doc/system-packages-doc-iface/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/libreoffice/help/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/xubuntu-docs/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/local/share/doc/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/gtk-doc/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/cups/doc-root/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/gimp/2.0/help/content' | MATCH text
@@ -56,6 +60,7 @@ execute: |
     not test-snapd-app.sh -c 'test -e /usr/share/doc/system-packages-doc-iface/content'
     not test-snapd-app.sh -c 'test -e /usr/share/libreoffice/help/content'
     not test-snapd-app.sh -c 'test -e /usr/share/xubuntu-docs/content'
+    not test-snapd-app.sh -c 'test -e /usr/local/share/doc/content'
     not test-snapd-app.sh -c 'test -e /usr/share/gtk-doc/content'
     not test-snapd-app.sh -c 'test -e /usr/share/cups/doc-root/content'
     not test-snapd-app.sh -c 'test -e /usr/share/gimp/2.0/help/content'
