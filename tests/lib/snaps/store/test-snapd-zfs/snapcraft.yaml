@@ -1,0 +1,28 @@
+name: test-snapd-zfs
+version: 2.2.2
+summary: Tools for managing ZFS
+description: |
+    Tools for managing ZFS volumes
+grade: stable
+confinement: strict
+base: core24
+
+apps:
+    zpool:
+        command: bin/zpool
+        plugs:
+            - block-devices
+
+    zfs:
+        command: bin/zfs
+        plugs:
+            - block-devices
+
+parts:
+    zfs:
+        plugin: nil
+        stage-packages:
+            - zfsutils-linux
+
+plugs:
+    block-devices:
