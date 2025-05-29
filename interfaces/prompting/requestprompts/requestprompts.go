@@ -112,20 +112,26 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 // given contents.
 func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraints *promptConstraints) bool {
 	// We treat requests and prompts with different PIDs as distinct so that
-	// if there are multiple otherwise identical requests with different PIDs,
-	// the client can present the modal dialog on any/all windows associated
-	// with the requests.
+	// if there are multiple requests which are otherwise identical but have
+	// different PIDs, the client can present the modal dialog on any/all
+	// windows associated with the requests.
 	return p.Snap == metadata.Snap && p.PID == metadata.PID && p.Interface == metadata.Interface && p.Constraints.equals(constraints)
 }
 
 // addListenerRequest adds the given listener request to the list of requests
 // associated with the receiving prompt if it is not already in the list.
 func (p *Prompt) addListenerRequest(listenerReq *listener.Request) {
-	if !slicesContainsFunc(p.listenerReqs, func(r *listener.Request) bool {
-		return r.ID == listenerReq.ID
-	}) {
+	if !p.containsListenerRequestID(listenerReq.ID) {
 		p.listenerReqs = append(p.listenerReqs, listenerReq)
 	}
+}
+
+// containsListenerRequestID returns true if the receiving prompt contains a
+// request with the given ID in its list of listener requests.
+func (p *Prompt) containsListenerRequestID(requestID uint64) bool {
+	return slicesContainsFunc(p.listenerReqs, func(r *listener.Request) bool {
+		return r.ID == requestID
+	})
 }
 
 // TODO: replace this with slices.ContainsFunc once on go 1.21+
@@ -462,8 +468,8 @@ type PromptDB struct {
 	// is kept updated on disk and re-read when snapd restarts, so that we can
 	// re-associate each request which is re-received with a prompt with the
 	// same ID after snapd restarts. The user ID is required so a notice can be
-	// recorded if the manager readies the prompt ID is discarded without a
-	// request having been re-received yet.
+	// recorded if the manager readies, causing the prompt ID to be discarded
+	// if no associated request has been re-received for it at time of readying.
 	requestIDMap map[uint64]idMapEntry
 }
 
@@ -498,7 +504,7 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 		notifyPrompt: notifyPrompt,
 		maxIDMmap:    maxIDMmap,
 
-		requestIDMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping"),
+		requestIDMapFilepath: filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-id-mapping.json"),
 	}
 
 	// Load the previous ID mappings from disk
@@ -570,7 +576,10 @@ func (pdb *PromptDB) saveRequestIDMap() error {
 		logger.Noticef("cannot marshal mapping from request ID to prompt ID: %v", err)
 		return fmt.Errorf("cannot marshal mapping from request ID to prompt ID: %w", err)
 	}
-	return osutil.AtomicWriteFile(pdb.requestIDMapFilepath, b, 0o600, 0)
+	if err := osutil.AtomicWriteFile(pdb.requestIDMapFilepath, b, 0o600, 0); err != nil {
+		return fmt.Errorf("cannot save mapping from request ID to prompt ID: %w", err)
+	}
+	return nil
 }
 
 // HandleReadying prunes ID mappings for request IDs which have not been re-
@@ -589,17 +598,14 @@ func (pdb *PromptDB) HandleReadying() error {
 	// associated with the same prompt.
 	existingPrompts := make(map[prompting.IDType]bool)
 
-outer:
 	for requestID, entry := range pdb.requestIDMap {
 		if udb, ok := pdb.perUser[entry.UserID]; ok {
 			if prompt, err := udb.get(entry.PromptID); err == nil {
 				existingPrompts[entry.PromptID] = true
 				// The corresponding prompt exists, but has this
 				// particular request actually been re-received?
-				for _, req := range prompt.listenerReqs {
-					if req.ID == requestID {
-						continue outer
-					}
+				if prompt.containsListenerRequestID(requestID) {
+					continue
 				}
 			}
 		}
@@ -1032,7 +1038,7 @@ func (pdb *PromptDB) Close() error {
 	}
 
 	if err := pdb.saveRequestIDMap(); err != nil {
-		return fmt.Errorf("cannot save mapping from request ID to prompt ID: %w", err)
+		return err
 	}
 
 	// Clear all outstanding prompts
