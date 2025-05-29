@@ -400,6 +400,12 @@ backends:
             no_proxy: "127.0.0.1,ubuntu.com"
             NO_PROXY: "127.0.0.1,ubuntu.com"
         systems:
+            - ubuntu-16.04-64:
+                image: auto-sync/ubuntu-xenial-16.04-amd64-server
+                workers: 8
+            - ubuntu-18.04-64:
+                image: auto-sync/ubuntu-bionic-18.04-amd64-server 
+                workers: 8
             - ubuntu-20.04-64:
                   image: snapd-spread/ubuntu-20.04-64
                   workers: 8
@@ -410,6 +416,9 @@ backends:
                   image: snapd-spread/ubuntu-24.04-64
                   workers: 8
 
+            - ubuntu-core-18-64:
+                  image: auto-sync/ubuntu-bionic-18.04-amd64-server
+                  workers: 8
             - ubuntu-core-20-64:
                   image: snapd-spread/ubuntu-20.04-64-uefi
                   workers: 8
@@ -445,37 +454,6 @@ backends:
                   image: snapd-spread/debian-sid-64
                   workers: 6
 
-    openstack-arm:
-        type: openstack
-        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS6")'
-        plan: builder-arm64-cpu2-ram4-disk20
-        halt-timeout: 2h
-        wait-timeout: 5m
-        groups: [default]
-        environment:
-            HTTP_PROXY: "http://squid.internal:3128"
-            HTTPS_PROXY: "http://squid.internal:3128"
-            http_proxy: "http://squid.internal:3128"
-            https_proxy: "http://squid.internal:3128"
-            no_proxy: "127.0.0.1,ubuntu.com"
-            NO_PROXY: "127.0.0.1,ubuntu.com"
-        systems:
-            - ubuntu-20.04-arm-64:
-                  image: snapd-spread/ubuntu-20.04-arm-64
-                  workers: 8
-            - ubuntu-22.04-arm-64:
-                  image: snapd-spread/ubuntu-22.04-arm-64
-                  workers: 8
-            - ubuntu-24.04-arm-64:
-                  image: snapd-spread/ubuntu-24.04-arm-64
-                  workers: 8
-            - ubuntu-core-22-arm-64:
-                  image: snapd-spread/ubuntu-22.04-arm-64
-                  workers: 8
-            - ubuntu-core-24-arm-64:
-                  image: snapd-spread/ubuntu-24.04-arm-64
-                  workers: 8
-
     openstack-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
@@ -504,9 +482,22 @@ backends:
                 image: auto-sync/ubuntu-noble-24.04-amd64-server
                 workers: 8
 
+            - ubuntu-core-18-64:
+                  image: snapd-spread/ubuntu-20.04-64-uefi
+                  workers: 8
+            - ubuntu-core-20-64:
+                  image: snapd-spread/ubuntu-20.04-64-uefi
+                  workers: 8
+            - ubuntu-core-22-64:
+                  image: snapd-spread/ubuntu-22.04-64-uefi
+                  workers: 8
+            - ubuntu-core-24-64:
+                  image: snapd-spread/ubuntu-24.04-64-uefi
+                  workers: 8
+
     openstack-arm-ps7:
         type: openstack
-        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
         plan: shared.xsmall.arm64
         halt-timeout: 2h
         wait-timeout: 5m
