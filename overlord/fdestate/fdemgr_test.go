@@ -669,29 +669,29 @@ func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("fdemgr.go", c, false)
 }
 
-type mockRecoveryKeyStore struct {
-	addRecoveryKey    func(keyID string, rkeyInfo backend.RecoveryKeyInfo) (err error)
-	getRecoveryKey    func(keyID string) (rkeyInfo backend.RecoveryKeyInfo, err error)
+type mockRecoveryKeyCache struct {
+	addRecoveryKey    func(keyID string, rkeyInfo backend.CachedRecoverKey) (err error)
+	getRecoveryKey    func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error)
 	deleteRecoveryKey func(keyID string) error
 }
 
-func (s *mockRecoveryKeyStore) AddRecoveryKey(keyID string, rkeyInfo backend.RecoveryKeyInfo) (err error) {
+func (s *mockRecoveryKeyCache) AddKey(keyID string, rkeyInfo backend.CachedRecoverKey) (err error) {
 	if s.addRecoveryKey == nil {
-		panic("AddRecoveryKey is not implemented")
+		panic("AddKey is not implemented")
 	}
 	return s.addRecoveryKey(keyID, rkeyInfo)
 }
 
-func (s *mockRecoveryKeyStore) GetRecoveryKey(keyID string) (rkeyInfo backend.RecoveryKeyInfo, err error) {
+func (s *mockRecoveryKeyCache) Key(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
 	if s.getRecoveryKey == nil {
-		panic("GetRecoveryKey is not implemented")
+		panic("Key is not implemented")
 	}
 	return s.getRecoveryKey(keyID)
 }
 
-func (s *mockRecoveryKeyStore) DeleteRecoveryKey(keyID string) error {
+func (s *mockRecoveryKeyCache) RemoveKey(keyID string) error {
 	if s.deleteRecoveryKey == nil {
-		panic("DeleteRecoveryKey is not implemented")
+		panic("RemoveKey is not implemented")
 	}
 	return s.deleteRecoveryKey(keyID)
 }
@@ -702,8 +702,8 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 	var expectedExpirationTime time.Time
 
 	called := 0
-	mockStore := &mockRecoveryKeyStore{
-		addRecoveryKey: func(keyID string, rkeyInfo backend.RecoveryKeyInfo) (err error) {
+	mockStore := &mockRecoveryKeyCache{
+		addRecoveryKey: func(keyID string, rkeyInfo backend.CachedRecoverKey) (err error) {
 			called++
 			c.Check(keyID, Equals, expectedKeyID)
 			c.Check(rkeyInfo.Key, DeepEquals, expectedRecoveryKey)
@@ -711,7 +711,7 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 			return nil
 		},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyStore(func() backend.RecoveryKeyStore {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
 		return mockStore
 	})()
 
@@ -762,20 +762,20 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 }
 
 func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
-	mockRecoveryKeyInfo := backend.RecoveryKeyInfo{
+	mockRecoveryKeyInfo := backend.CachedRecoverKey{
 		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
 		// not expired
 		Expiration: time.Now().Add(time.Minute),
 	}
-	mockRecoveryKeyInfoExpired := backend.RecoveryKeyInfo{
+	mockRecoveryKeyInfoExpired := backend.CachedRecoverKey{
 		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
 		// not expired
 		Expiration: time.Now().Add(-time.Minute),
 	}
 
 	getCalled, deleteCalled := 0, 0
-	mockStore := &mockRecoveryKeyStore{
-		getRecoveryKey: func(keyID string) (rkeyInfo backend.RecoveryKeyInfo, err error) {
+	mockStore := &mockRecoveryKeyCache{
+		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
 			getCalled++
 			switch keyID {
 			case "1":
@@ -796,7 +796,7 @@ func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
 			}
 		},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyStore(func() backend.RecoveryKeyStore {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
 		return mockStore
 	})()
 

@@ -44,7 +44,7 @@ import (
 
 var (
 	backendResealKeyForBootChains      = backend.ResealKeyForBootChains
-	backendNewInMemoryRecoveryKeyStore = backend.NewInMemoryRecoveryKeyStore
+	backendNewInMemoryRecoveryKeyStore = backend.NewInMemoryRecoveryKeyCache
 	disksDMCryptUUIDFromMountPoint     = disks.DMCryptUUIDFromMountPoint
 	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
 	keysNewRecoveryKey                 = keys.NewRecoveryKey
@@ -59,7 +59,7 @@ type FDEManager struct {
 	preseed bool
 	mode    string
 
-	recoveryKeyStore backend.RecoveryKeyStore
+	recoveryKeyCache backend.RecoveryKeyCache
 }
 
 type fdeMgrKey struct{}
@@ -98,7 +98,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		}
 	}
 
-	m.recoveryKeyStore = backendNewInMemoryRecoveryKeyStore()
+	m.recoveryKeyCache = backendNewInMemoryRecoveryKeyStore()
 
 	st.Lock()
 	defer st.Unlock()
@@ -313,8 +313,8 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 const recoveryKeyExpireAfter = 5 * time.Minute
 
 func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
-	if m.recoveryKeyStore == nil {
-		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyStore is nil")
+	if m.recoveryKeyCache == nil {
+		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyCache is nil")
 	}
 
 	rkey, err = keysNewRecoveryKey()
@@ -322,7 +322,7 @@ func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 		return keys.RecoveryKey{}, "", err
 	}
 
-	rkeyInfo := backend.RecoveryKeyInfo{
+	rkeyInfo := backend.CachedRecoverKey{
 		Key:        rkey,
 		Expiration: timeNow().Add(recoveryKeyExpireAfter),
 	}
@@ -336,7 +336,7 @@ func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 	keyID = strconv.Itoa(lastRecoveryKeyID)
 	m.state.Set("last-recovery-key-id", lastRecoveryKeyID)
 
-	if err := m.recoveryKeyStore.AddRecoveryKey(keyID, rkeyInfo); err != nil {
+	if err := m.recoveryKeyCache.AddKey(keyID, rkeyInfo); err != nil {
 		return keys.RecoveryKey{}, "", err
 	}
 
@@ -353,16 +353,16 @@ func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, 
 }
 
 func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
-	if m.recoveryKeyStore == nil {
-		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyStore is nil")
+	if m.recoveryKeyCache == nil {
+		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyCache is nil")
 	}
 
-	rkeyInfo, err := m.recoveryKeyStore.GetRecoveryKey(keyID)
+	rkeyInfo, err := m.recoveryKeyCache.Key(keyID)
 	if err != nil {
 		return keys.RecoveryKey{}, err
 	}
 	// generated recovery key can only be used once.
-	if err := m.recoveryKeyStore.DeleteRecoveryKey(keyID); err != nil {
+	if err := m.recoveryKeyCache.RemoveKey(keyID); err != nil {
 		return keys.RecoveryKey{}, err
 	}
 

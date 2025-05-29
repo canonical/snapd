@@ -36,39 +36,39 @@ type keysSuite struct {
 
 var _ = Suite(&keysSuite{})
 
-func (k *keysSuite) TestInMemoryRecoveryKeyStore(c *C) {
-	mockRecoveryKey := backend.RecoveryKeyInfo{
+func (k *keysSuite) TestInMemoryRecoveryKeyCache(c *C) {
+	mockRecoveryKey := backend.CachedRecoverKey{
 		Key:        [16]byte{1, 2, 3, 4},
 		Expiration: time.Now(),
 	}
 
-	store := backend.NewInMemoryRecoveryKeyStore()
+	cache := backend.NewInMemoryRecoveryKeyCache()
 
-	err := store.AddRecoveryKey("1", mockRecoveryKey)
+	err := cache.AddKey("1", mockRecoveryKey)
 	c.Assert(err, IsNil)
 
-	rkey, err := store.GetRecoveryKey("1")
+	rkey, err := cache.Key("1")
 	c.Assert(err, IsNil)
 	c.Check(rkey, DeepEquals, mockRecoveryKey)
 
 	// cannot add an already existing key
-	err = store.AddRecoveryKey("1", backend.RecoveryKeyInfo{})
-	c.Assert(err, ErrorMatches, `recovery key with id "1" already exists`)
+	err = cache.AddKey("1", backend.CachedRecoverKey{})
+	c.Assert(err, ErrorMatches, `recovery key id already exists`)
 
-	err = store.DeleteRecoveryKey("1")
+	err = cache.RemoveKey("1")
 	c.Assert(err, IsNil)
 
-	rkey, err = store.GetRecoveryKey("1")
-	c.Assert(err, ErrorMatches, `recovery key with id "1" does not exist`)
+	rkey, err = cache.Key("1")
+	c.Assert(err, ErrorMatches, `no recovery key entry for key-id`)
 
 	// adding a deleted key works
-	err = store.AddRecoveryKey("1", backend.RecoveryKeyInfo{})
+	err = cache.AddKey("1", backend.CachedRecoverKey{})
 	c.Assert(err, IsNil)
 }
 
 func (k *keysSuite) TestRecoveryKeyExpired(c *C) {
 	now := time.Now()
-	rkey := backend.RecoveryKeyInfo{
+	rkey := backend.CachedRecoverKey{
 		Key:        [16]byte{1, 2, 3, 4},
 		Expiration: now,
 	}
