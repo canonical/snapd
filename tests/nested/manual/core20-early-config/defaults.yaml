@@ -1,5 +1,10 @@
 defaults:
   system:
+    # trigger early config behavior
+    # regression in #LP2104254
+    users:
+      create:
+        automatic: false
     service:
       rsyslog:
         disable: true
