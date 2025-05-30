@@ -87,11 +87,25 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 }
 
+setup_snapd_proxy() {
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        snap set system proxy.http="$HTTPS_PROXY"
+        snap set system proxy.https="$HTTPS_PROXY"
+    fi
+}
+
+setup_proxy() {
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        echo "HTTPS_PROXY=$HTTPS_PROXY" >> /etc/environment
+        echo "HTTP_PROXY=$HTTP_PROXY" >> /etc/environment
+        echo "https_proxy=$https_proxy" >> /etc/environment
+        echo "http_proxy=$http_proxy" >> /etc/environment
+    fi
+}
+
+
 setup_systemd_snapd_overrides() {
     local PROXY_PARAM=""
-    if [ -n "$HTTPS_PROXY" ] && [ "${SNAPD_USE_PROXY:-}" == true ]; then
-        PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY"
-    fi
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
@@ -1685,6 +1699,7 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
+    setup_snapd_proxy
     disable_journald_rate_limiting
     disable_journald_start_limiting
 

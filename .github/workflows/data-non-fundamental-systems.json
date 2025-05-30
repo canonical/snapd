@@ -82,7 +82,7 @@
       },
       {
         "group": "ubuntu-core-22",
-        "backend": "google-core",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-22-64",
         "tasks": "tests/...",
