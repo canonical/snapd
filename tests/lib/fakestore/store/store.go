@@ -871,9 +871,13 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 				Action:      "refresh",
 				SnapID:      s.SnapID,
 				InstanceKey: s.InstanceKey,
-				Channel:     s.TrackingChannel,
 			}
 		}
+	}
+
+	contextChannel := make(map[string]string)
+	for _, context := range reqData.Context {
+		contextChannel[context.SnapID] = context.TrackingChannel
 	}
 
 	// check if we have downloadable snap of the given SnapID or name
@@ -895,8 +899,17 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 
 		var set *revisionSet
 		var foundSnap bool
+		var channel string
+		foundChannel := false
 		if a.Channel != "" {
-			set, foundSnap = snaps[fmt.Sprintf("%s|%s", name, a.Channel)]
+			foundChannel = true
+			channel = a.Channel
+		}
+		if !foundChannel {
+			channel, foundChannel = contextChannel[snapID]
+		}
+		if foundChannel {
+			set, foundSnap = snaps[fmt.Sprintf("%s|%s", name, channel)]
 		}
 		if !foundSnap {
 			// FIXME: It is possible that many tests do
