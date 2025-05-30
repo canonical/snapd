@@ -1,3 +1,10 @@
+# New in snapd 2.70
+* snap-confine, the application execution boostrapping helper, no longer
+  requires to be setuid root, but instead relies on file capabilities and
+  executes in the security context of the user who invoked it. The capabilities
+  required for proper operation are effectively a subset of all the capabilities
+  which were obtained automatically previously when executing privileged binary.
+
 # New in snapd 2.69
 * FDE: re-factor listing of the disks based on run mode model and model to correctly resolve paths
 * FDE: run snapd from snap-failure with the correct keyring mode
