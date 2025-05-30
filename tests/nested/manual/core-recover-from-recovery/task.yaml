@@ -37,11 +37,10 @@ execute: |
 
     remote.exec true
 
-    # FIXME: check that we used the recovery key
-    # remote.pull /run/snapd/snap-bootstrap/unlocked.json .
-    # test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked.json)" = recovery
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json .
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked.json)" = recovery
     # We must have been able to unlock the save with the plain key
-    # test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked.json)" = run
 
     # FIXME: this is a bug we always had
     # remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
