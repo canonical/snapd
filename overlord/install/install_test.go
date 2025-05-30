@@ -211,7 +211,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 
 	var testCases = []struct {
 		grade, storageSafety, snapdVersion, kernelSnapdVersion string
-		tpmErr                                                 error
+		preinstallCheckErr                                     error
 
 		expected install.EncryptionSupportInfo
 	}{
@@ -229,6 +229,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		}, {
 			"dangerous", "encrypted", "", "", nil,
@@ -241,9 +242,10 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"dangerous", "encrypted", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+				StorageSafety:      asserts.StorageSafetyEncrypted,
+				Type:               device.EncryptionTypeNone,
+				UnavailableErr:     fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		},
 		{
@@ -269,6 +271,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		}, {
 			"signed", "encrypted", "", "", nil,
@@ -289,9 +292,10 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"signed", "encrypted", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+				StorageSafety:      asserts.StorageSafetyEncrypted,
+				Type:               device.EncryptionTypeNone,
+				UnavailableErr:     fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		}, {
 			"secured", "encrypted", "", "", nil,
@@ -304,9 +308,10 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"secured", "encrypted", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				StorageSafety:      asserts.StorageSafetyEncrypted,
+				Type:               device.EncryptionTypeNone,
+				UnavailableErr:     fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		}, {
 			"secured", "", "", "", nil,
@@ -319,9 +324,10 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			"secured", "", "", "", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				StorageSafety:      asserts.StorageSafetyEncrypted,
+				Type:               device.EncryptionTypeNone,
+				UnavailableErr:     fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		},
 		// Passphrase support requires snapd 2.68+
@@ -362,8 +368,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			},
 		},
 	}
-	for _, tc := range testCases {
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
+	for i, tc := range testCases {
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return tc.preinstallCheckErr })
 		defer restore()
 
 		mockModel := s.mockModel(map[string]interface{}{
@@ -377,7 +383,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 
 		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, mockSystemSnapdVersions, nil)
 		c.Assert(err, IsNil)
-		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
 }
 
@@ -388,7 +394,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
-		tpmErr                                 error
+		preinstallCheckErr                     error
 
 		expected install.EncryptionSupportInfo
 	}{
@@ -446,6 +452,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
 				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		},
 		{
@@ -468,15 +475,16 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 			"secured", "", "force-unencrypted", fmt.Errorf("no tpm"),
 			install.EncryptionSupportInfo{
 				Available: false, Disabled: false,
-				StorageSafety:  asserts.StorageSafetyEncrypted,
-				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				StorageSafety:      asserts.StorageSafetyEncrypted,
+				Type:               device.EncryptionTypeNone,
+				UnavailableErr:     fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+				PreinstallCheckErr: fmt.Errorf("no tpm"),
 			},
 		},
 	}
 
-	for _, tc := range testCases {
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return tc.tpmErr })
+	for i, tc := range testCases {
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return tc.preinstallCheckErr })
 		defer restore()
 
 		mockModel := s.mockModel(map[string]interface{}{
@@ -495,7 +503,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 
 		res, err := install.GetEncryptionSupportInfo(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil, nil)
 		c.Assert(err, IsNil)
-		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
 }
 
@@ -529,7 +537,7 @@ var gadgetUC20 = &gadget.Info{
 }
 
 func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption(c *C) {
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
@@ -627,7 +635,7 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`, device.EncryptionTypeNone},
 		// no output is invalid
 		{"", `cannot parse hook output "": unexpected end of JSON input`, device.EncryptionTypeNone},
-		// specific error
+		// specific errorTestEncryptionSupportInfoWithTPM
 		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, device.EncryptionTypeNone},
 		{`{}`, `cannot use hook: neither "features" nor "error" returned`, device.EncryptionTypeNone},
 		// valid
@@ -657,36 +665,34 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
-
 	mockModel := s.mockModel(nil)
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
 	for _, tc := range []struct {
-		hasTPM         bool
-		encryptionType device.EncryptionType
+		preinstallCheckFailure bool
+		encryptionType         device.EncryptionType
 	}{
 		// unhappy: no tpm, no hook
-		{false, device.EncryptionTypeNone},
-		// happy: tpm
-		{true, device.EncryptionTypeLUKS},
+		{true, device.EncryptionTypeNone},
+		// happy: tpm,
+		{false, device.EncryptionTypeLUKS},
 	} {
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
-			if tc.hasTPM {
-				return nil
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
+			if tc.preinstallCheckFailure {
+				return fmt.Errorf("no tpm")
 			}
-			return fmt.Errorf("tpm says no")
+			return nil
 		})
 		defer restore()
 
 		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
-		if !tc.hasTPM {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: tpm says no\n")
+		if tc.preinstallCheckFailure {
+			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: no tpm\n")
 		}
 		logbuf.Reset()
 	}
@@ -715,7 +721,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 			return []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)), nil
 		}
 
-		restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+		restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
 			if tc.hasTPM {
 				return nil
 			}
@@ -735,10 +741,9 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
 	var testCases = []struct {
@@ -773,10 +778,9 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("tpm says no") })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("no tpm") })
 	defer restore()
 
 	var testCases = []struct {
@@ -788,16 +792,16 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 		// will ensure it has a default
 		{
 			"dangerous", "encrypted",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm",
 		}, {
 			"signed", "encrypted",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: tpm says no",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm",
 		}, {
 			"secured", "",
-			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+			"cannot encrypt device storage as mandated by model grade secured: no tpm",
 		}, {
 			"secured", "encrypted",
-			"cannot encrypt device storage as mandated by model grade secured: tpm says no",
+			"cannot encrypt device storage as mandated by model grade secured: no tpm",
 		},
 	}
 	for _, tc := range testCases {
@@ -813,12 +817,9 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 
 func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
-
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
-		return fmt.Errorf("tpm says no")
-	})
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("preinstall check error: tpm says no") })
 	defer restore()
 
 	logbuf, restore := logger.MockLogger()
@@ -828,7 +829,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 
 	_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 	c.Check(err, IsNil)
-	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: tpm says no\n")
+	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: preinstall check error: tpm says no\n")
 }
 
 func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsHook(c *C) {
