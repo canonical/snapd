@@ -1,3 +1,170 @@
+snapd (2.70-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2112209
+    - FDE: Fix reseal with v1 hook key format
+    - FDE: set role in TPM keys
+    - FDE: refactor listing of the disks based on run mode model and
+      model to correctly resolve paths
+    - FDE: run snapd from snap-failure with the correct keyring mode
+    - Snap components: allow remodeling back to an old snap revision
+      that includes components
+    - Snap components: fix remodel to a kernel snap that is already
+      installed on the system, but not the current kernel due to a
+      previous remodel.
+    - Snap components: fix for snapctl inputs that can crash snapd
+    - AppArmor prompting (experimental): add handling for expiration of
+      kernel listener and requests
+    - AppArmor prompting: log the notification protocol version
+      negotiated with the kernel
+    - AppArmor prompting: implement notification protocol v5 (manually
+      disabled for now)
+    - AppArmor prompting: register listener ID with the kernel and
+      resend notifications after snapd restart (requires protocol v5+)
+    - AppArmor prompting: select interface from metadata tags and set
+      request interface accordingly (requires protocol v5+)
+    - AppArmor prompting: include request PID in prompt
+    - AppArmor prompting: move the max prompt ID file to a subdirectory
+      of the snap run directory
+    - AppArmor prompting: simplify the listener
+    - AppArmor prompting: avoid race between closing/reading socket fd
+    - AppArmor metadata tagging (disabled): probe parser support for
+      tags
+    - AppArmor metadata tagging (disabled): implement notification
+      protocol v5
+    - AppArmor: extend the probed features to include the presence of
+      files, as well as directories
+    - Confdb (experimental): make save/load hooks mandatory if affecting
+      ephemeral
+    - Confdb: add NestedEphemeral to confdb schemas
+    - Confdb: add early concurrency checks
+    - Confdb: modify 'snap sign' formats JSON in assertion bodies (e.g.
+      confdb-schema)
+    - Confdb: clear tx state on failed load
+    - Confdb: load ephemeral data when reading data via 'snapctl get'
+    - Confdb: load ephemeral data when reading data via 'snap get'
+    - Confdb: rename {plug}-view-changed hook to observe-view-{plug}
+    - Confdb: rename confdb assertion to confdb-schema
+    - Confdb: change operator grouping in confdb-control assertion
+    - Confdb: add confdb-control API
+    - Confidential VMs: sysroot.mount is now dynamically created by
+      snap-bootstrap instead of being a static file in the initramfs
+    - Confidential VMs: Add new implementation of snap integrity API
+    - Non-suid snap-confine: replace snap-confine suid with capabilities
+      to achieve the required permissions
+    - Initial support for dynamic security profiles updates
+    - Provide snap icon fallback for /v2/icons without requiring network
+      access at runtime
+    - Add eMMC gadget update support
+    - Support reexec when using /usr/libexec/snapd on the host (Arch
+      Linux, openSUSE)
+    - Auto detect snap mount dir location on unknown distributions
+    - Modify snap-confine AppArmor template to allow all glibc HWCAPS
+      subdirectories to prevent launch errors
+    - Allow providing a different base when overriding snap
+    - Add 'snap sign --update-timestamp' flag to update timestamp before
+      signing
+    - Add vfs support for snap-update-ns to use to simulate and evaluate
+      mount sequences
+    - Add refresh app awareness debug logging
+    - Avoid requiring state lock to get user, warnings, or pending
+      restarts when handling API requests
+    - Enable snapd.apparmor on Fedora
+    - Emit snapd.apparmor warning only when using apparmor backend
+    - Simplify building arch package
+    - When running snap, on system key mismatch, wait for a pending
+      security profiles regeneration
+    - Build snapd snap with libselinux
+    - Add optee bindings
+    - Update godbus version to 'v5 v5.1.0'
+    - Add snap-bootstrap scan-disk subcommand to be called from udev
+    - Modify snap-bootstrap to mount snapd snap directly to /snap
+    - Start/stop ssh.socket for core24+ when enabling/disabling the ssh
+      service
+    - Modified core-initrd to use systemctl reboot instead of
+      /sbin/reboot
+    - Add support for POST to /v2/system-info with system-key-mismatch
+      indication from the client
+    - Copy the initramfs 'manifest-initramfs.yaml' to initramfs file
+      creation directory so it can be copied to the kernel snap
+    - Added feature to inject proxy store assertions in build image
+    - Modify snap-bootstrap to mount /lib/{modules,firmware} from snap
+      as fallback
+    - Build the early initrd from installed ucode packages
+    - Fix dbx update when not using FDE
+    - Fix a regression during seeding when using early-config
+    - LP: #2107443 reset SHELL to /bin/bash in non-classic snaps
+    - Make Azure kernels reboot upon panic
+    - Fix snap-confine to not drop capabilities if the original user is
+      already root
+    - Fix data race when stopping services
+    - Fix task dependency issue by temporarily disable re-refresh on
+      prerequisite updates
+    - Fix compiling against op-tee on armhf
+    - Load gpio-aggregator module before the helper-service needs it
+    - Create drivers tree when remodeling from UC20/22 to UC24
+    - Run 'systemctl start' for mount units to ensure they are run also
+      when unchanged
+    - Fix snap-bootstrap reading kernel snap instead of base resulting
+      in bad modeenv
+    - Fix systemd dependency options target to go under 'unit' section
+    - Fix potential validation set deadlock due to bases waiting on
+      snaps
+    - LP: #2104066 only cancel notices requests on stop/shutdown
+    - LP: #2102456 update secboot to bf2f40ea35c4 and modify snap-
+      bootstrap to remove usage of go templates to reduce size by 4MB
+    - Fix snap-bootstrap to mount kernel snap from
+      /sysroot/writable/system-data
+    - LP: #2106121 fix snap-bootstrap busy loop
+    - Fix encoding of time.Time by using omitzero instead of omitempty
+      (on go 1.24+)
+    - Fix setting snapd permissions through permctl for openSUSE
+    - Fix snap struct json tags typo
+    - Fix snap pack configure hook permissions check incorrect file mode
+    - Fix gadget snap reinstall to honor existing sizes of partitions
+    - Fix to update command line when re-executing a snapd tool
+    - Fix 'snap validate' of specific missing newline and add error on
+      missed case of 'snap validate --refresh' without another action
+    - Workaround for snapd-confine time_t size differences between
+      architectures
+    - Disallow pack and install of snapd, base and os with specific
+      configure hooks
+    - Drop udev build dependency that is no longer required and add
+      missing systemd-dev dependency
+    - Build snap-bootstrap with nomanagers tag to decrease size by 1MB
+    - Interfaces: bool-file | fix gpio glob pattern as required for
+      '[XXXX]*' format
+    - Interfaces: system-packages-doc | allow access to
+      /usr/local/share/doc
+    - Interfaces: ros-snapd-support interface | added new interface
+    - Interfaces: udisks2 | allow chown capability
+    - Interfaces: system-observe | allow reading cpu.max
+    - Interfaces: serial-port | add ttyMAXX to allowed list
+    - Interfaces: modified seccomp template to disallow
+      'O_NOTIFICATION_PIPE'
+    - Interfaces: fwupd | add support for modem-manager plugin
+    - Interfaces: gpio-chardev | make unsupported and remove
+      experimental flag to hide this feature until gpio-aggregator is
+      available
+    - Interfaces: hardware-random | fix udev match rule
+    - Interfaces: timeserver-control | extend to allow timedatectl
+      timesync commands
+    - Interfaces: add symlinks backend
+    - Interfaces: system key mismatch handling
+    - Interfaces: add support for reinitialization in AppArmor security
+      backend
+    - Interfaces: polkit | support custom polkit rules
+    - Interfaces: opengl | LP: #2088456 fix GLX on nvidia when xorg is
+      confined by AppArmor
+    - Interfaces: log-observe | add missing udev rule
+    - Interfaces: hostname-control | fix call to hostnamectl in core24
+    - Interfaces: network-control | allow removing created network
+      namespaces
+    - Interfaces: scsi-generic | re-enable base declaration for scsi-
+      generic plug
+    - Interfaces: u2f | add support for Arculus AuthentiKey
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 30 May 2025 20:45:32 +0200
+
 snapd (2.69-1) unstable; urgency=medium
 
   * New upstream release, LP: #2105854
