@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -106,6 +107,7 @@ type Overlord struct {
 	startedUp  bool
 	runner     *state.TaskRunner
 	restartMgr *restart.RestartManager
+	noticeMgr  *notices.NoticeManager
 	snapMgr    *snapstate.SnapManager
 	serviceMgr *servicestate.ServiceManager
 	assertMgr  *assertstate.AssertManager
@@ -147,6 +149,14 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	o.runner.AddOptionalHandler(matchAnyUnknownTask, handleUnknownTask, nil)
 
 	o.addManager(restartMgr)
+
+	noticeMgr, err := notices.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	// It's important that noticeMgr is added before any other manager which
+	// may record a notice during StartUp(), such as ifaceMgr.
+	o.addManager(noticeMgr)
 
 	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
@@ -231,6 +241,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.shotMgr = x
 	case *restart.RestartManager:
 		o.restartMgr = x
+	case *notices.NoticeManager:
+		o.noticeMgr = x
 	case *fdestate.FDEManager:
 		o.fdeMgr = x
 	}
@@ -640,6 +652,13 @@ func (o *Overlord) TaskRunner() *state.TaskRunner {
 // RestartManager returns the manager responsible for restart state.
 func (o *Overlord) RestartManager() *restart.RestartManager {
 	return o.restartMgr
+}
+
+// NoticeManager returns the manager responsible for notice state, which is
+// stored separately from snapd state and does not require state lock to read
+// or add notices.
+func (o *Overlord) NoticeManager() *notices.NoticeManager {
+	return o.noticeMgr
 }
 
 // SnapManager returns the snap manager responsible for snaps under
