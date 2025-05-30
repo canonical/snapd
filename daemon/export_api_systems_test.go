@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -68,6 +69,10 @@ func MockDevicestateRemoveRecoverySystem(f func(*state.State, string) (*state.Ch
 	restore = testutil.Backup(&devicestateRemoveRecoverySystem)
 	devicestateRemoveRecoverySystem = f
 	return restore
+}
+
+func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label string) (rkey keys.RecoveryKey, err error)) (restore func()) {
+	return testutil.Mock(&devicestateGeneratePreInstallRecoveryKey, f)
 }
 
 func MockDeviceValidatePassphraseOrPINEntropy(f func(device.AuthMode, string) error) (restore func()) {

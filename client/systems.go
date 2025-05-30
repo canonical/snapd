@@ -232,6 +232,11 @@ const (
 	// created device mapper devices ready to use.
 	InstallStepSetupStorageEncryption InstallStep = "setup-storage-encryption"
 
+	// Generates a recovery key to be used in the "finish" step.
+	// InstallStepSetupStorageEncryption must be called before calling
+	// this step.
+	InstallStepGenerateRecoveryKey InstallStep = "generate-recovery-key"
+
 	// Creates a change to finish the installation. The change
 	// ensures all volume structure content is written to disk, it
 	// sets up boot, kernel etc and when finished the installed
@@ -290,6 +295,40 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
 	}
 	return chgID, nil
+}
+
+// GeneratePreInstallRecoveryKey generates a recovery key to be enrolled in
+// the finish step `InstallStepFinish`.
+//
+// Note: `InstallStepSetupStorageEncryption` must be called before recovery
+// key generation.
+func (client *Client) GeneratePreInstallRecoveryKey(systemLabel string) (recoveryKey string, err error) {
+	if systemLabel == "" {
+		return "", fmt.Errorf("cannot generate recovery key with an empty system label")
+	}
+
+	req := struct {
+		Action string `json:"action"`
+		*InstallSystemOptions
+	}{
+		Action: "install",
+		InstallSystemOptions: &InstallSystemOptions{
+			Step: "generate-recovery-key",
+		},
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return "", err
+	}
+
+	var rsp struct {
+		RecoveryKey string `json:"recovery-key"`
+	}
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, &rsp); err != nil {
+		return "", xerrors.Errorf("cannot generate recovery key for system %q: %v", systemLabel, err)
+	}
+	return rsp.RecoveryKey, nil
 }
 
 // CreateSystemOptions contains the options for creating a new recovery system.

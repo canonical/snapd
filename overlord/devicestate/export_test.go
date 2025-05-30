@@ -21,7 +21,6 @@ package devicestate
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -572,7 +571,7 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	return restore
 }
 
-func MockEncryptionSetupDataInCache(st *state.State, label string, volumesAuth *device.VolumesAuthOptions) (restore func()) {
+func MockEncryptionSetupDataInCache(st *state.State, label string, recoveryKeyID string, volumesAuth *device.VolumesAuthOptions) (restore func()) {
 	st.Lock()
 	defer st.Unlock()
 	var esd *install.EncryptionSetupData
@@ -586,20 +585,17 @@ func MockEncryptionSetupDataInCache(st *state.State, label string, volumesAuth *
 			EncryptedDevice: "/dev/mapper/ubuntu-data",
 		},
 	}
-	esd = install.MockEncryptionSetupData(labelToEncData, volumesAuth)
+	esd = install.MockEncryptionSetupData(labelToEncData, recoveryKeyID, volumesAuth)
 	st.Cache(encryptionSetupDataKey{label}, esd)
 	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
 }
 
-func CheckEncryptionSetupDataFromCache(st *state.State, label string) error {
+func GetEncryptionSetupDataFromCache(st *state.State, label string) *install.EncryptionSetupData {
 	cached := st.Cached(encryptionSetupDataKey{label})
 	if cached == nil {
-		return fmt.Errorf("no EncryptionSetupData found in cache")
+		return nil
 	}
-	if _, ok := cached.(*install.EncryptionSetupData); !ok {
-		return fmt.Errorf("wrong data type under encryptionSetupDataKey")
-	}
-	return nil
+	return cached.(*install.EncryptionSetupData)
 }
 
 func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
@@ -677,4 +673,12 @@ func MockSecbootRemoveOldCounterHandles(f func(node string, possibleOldKeys map[
 	return func() {
 		secbootRemoveOldCounterHandles = old
 	}
+}
+
+func MockFdestateGenerateRecoveryKey(f func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error)) (restore func()) {
+	return testutil.Mock(&fdestateGenerateRecoveryKey, f)
+}
+
+func MockFdestateGetRecoveryKey(f func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error)) (restore func()) {
+	return testutil.Mock(&fdestateGetRecoveryKey, f)
 }
