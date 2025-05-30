@@ -217,28 +217,25 @@ func (m *InterfaceManager) StartUp() error {
 			m.state.AddWarning(`"apparmor-prompting" feature flag enabled but no prompting client is present; requests will be auto-denied until a prompting client is installed`, nil)
 		}
 
-		func() {
-			// Must not hold state lock while starting interfaces requests
-			// manager, so that notices can be recorded if needed.
-			m.state.Unlock()
-			defer m.state.Lock()
-			if err := m.initInterfacesRequestsManager(); err != nil {
-				logger.Noticef("failed to start interfaces requests manager: %v", err)
-				// Set m.useAppArmorPrompting to false so external callers
-				// don't try to access nil backends.
-				m.useAppArmorPrompting = false
-				// This is done before profilesNeedRegeneration, so profiles
-				// will only be regenerated if prompting is newly enabled and
-				// the backends were successfully created.
+		// Must not hold state lock while starting interfaces requests
+		// manager, so that notices can be recorded if needed.
+		m.state.Unlock()
+		err = m.initInterfacesRequestsManager()
+		m.state.Lock()
+		if err != nil {
+			logger.Noticef("failed to start interfaces requests manager: %v", err)
+			// Set m.useAppArmorPrompting to false so external callers
+			// don't try to access nil backends.
+			m.useAppArmorPrompting = false
+			// This is done before profilesNeedRegeneration, so profiles
+			// will only be regenerated if prompting is newly enabled and
+			// the backends were successfully created.
 
-				// Do not set "apparmor-prompting" flag to false, since the
-				// user intends for prompting to be enabled, but do record a
-				// warning so the user knows prompting is not current running.
-				m.state.Lock()
-				defer m.state.Unlock()
-				m.state.AddWarning(fmt.Sprintf("cannot start prompting backend: %v; prompting will be inactive until snapd is restarted", err), nil)
-			}
-		}()
+			// Do not set "apparmor-prompting" flag to false, since the
+			// user intends for prompting to be enabled, but do record a
+			// warning so the user knows prompting is not current running.
+			m.state.AddWarning(fmt.Sprintf("cannot start prompting backend: %v; prompting will be inactive until snapd is restarted", err), nil)
+		}
 	}
 	if m.profilesNeedRegeneration() {
 		const unlockState = false
