@@ -21,6 +21,7 @@ package builtin_test
 
 import (
 	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -54,6 +55,16 @@ apps:
   plugs: [block-devices]
 `
 
+const blockDevicesWithPartitionsConsumerYaml = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [block-devices]
+plugs:
+ block-devices:
+  allow-partitions: true
+`
+
 const blockDevicesCoreYaml = `name: core
 version: 0
 type: os
@@ -80,6 +91,26 @@ func (s *blockDevicesInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *blockDevicesInterfaceSuite) TestSanitizePlugWithPartitions(c *C) {
+	_, s.plugInfo = MockConnectedPlug(c, blockDevicesWithPartitionsConsumerYaml, nil, "block-devices")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *blockDevicesInterfaceSuite) TestSanitizePlugWithInvalidPartitions(c *C) {
+	const badPartitions = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [block-devices]
+plugs:
+ block-devices:
+  allow-partitions: yes-please
+`
+	_, s.plugInfo = MockConnectedPlug(c, badPartitions, nil, "block-devices")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
+		`block-devices "allow-partitions" attribute must be boolean`)
+}
+
 func (s *blockDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -90,6 +121,17 @@ func (s *blockDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sd{,[a-h]}[a-z] rwk,`)
 }
 
+func (s *blockDevicesInterfaceSuite) TestAppArmorSpecWithPartitions(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, blockDevicesWithPartitionsConsumerYaml, nil, "block-devices")
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to raw disk block devices.`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sd[a-z][1-9]{,[0-6]} rwk,`)
+}
+
 func (s *blockDevicesInterfaceSuite) TestUDevSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -98,7 +140,26 @@ func (s *blockDevicesInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 5)
 	c.Assert(spec.Snippets()[0], Equals, `# block-devices
 KERNEL=="megaraid_sas_ioctl_node", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains,
+		fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	all := strings.Join(spec.Snippets(), "\n")
+	c.Logf("all snippets:\n%s", all)
+	c.Assert(all, Not(testutil.Contains), "partition")
+}
+
+func (s *blockDevicesInterfaceSuite) TestUDevSpecWitPartitions(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, blockDevicesWithPartitionsConsumerYaml, nil, "block-devices")
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 6)
+	all := strings.Join(spec.Snippets(), "\n")
+	c.Logf("all snippets:\n%s", all)
+	c.Assert(all, testutil.Contains,
+		`SUBSYSTEM=="block", ENV{DEVTYPE}=="partition", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains,
+		fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *blockDevicesInterfaceSuite) TestStaticInfo(c *C) {

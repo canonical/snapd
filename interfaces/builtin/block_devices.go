@@ -19,6 +19,15 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
+)
+
 // Only allow raw disk devices; not ram, CDROM, generic SCSI, network,
 // tape, raid, etc devices or disk partitions. For some devices, allow controller
 // character devices since they are used to configure the corresponding block
@@ -112,6 +121,19 @@ capability sys_admin,
 /{,usr/}sbin/mkfs.fat ixr,
 `
 
+const blockDevicesPartitionsConnectedPlugAppArmor = `
+# Access to individual partitions
+/dev/hd[a-t][1-9]{,[0-6]} rwk,                                                      # IDE, MFM, RLL
+/dev/sd[a-z][1-9]{,[0-6]} rwk,                                                      # SCSI
+/dev/sdi[a-v][1-9]{,[0-6]} rwk,                                                     # SCSI continued
+/dev/i2o/hd{,[a-c]}[a-z][1-9]{,[0-5]} rwk,                                          # I2O hard disk
+/dev/i2o/hdd[a-x][1-9]{,[0-5]} rwk,                                                 # I2O hard disk continued
+/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}p[1-9]{,[0-9]} rwk,                              # MMC
+/dev/vd[a-z][1-9]{,[0-9]} rwk,                                                      # virtio
+/dev/loop[0-9]{,[0-9],[0-9][0-9]}p[1-9]{,[0-9]} rwk,                                # loopback
+/dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]}p[1-9]{,[0-9],[0-9][0-9]} rwk, # NVMe
+`
+
 var blockDevicesConnectedPlugUDev = []string{
 	`SUBSYSTEM=="block"`,
 	// these additional subsystems may not directly be block devices but they
@@ -120,6 +142,47 @@ var blockDevicesConnectedPlugUDev = []string{
 	`SUBSYSTEM=="nvme"`,
 	`KERNEL=="mpt2ctl*"`,
 	`KERNEL=="megaraid_sas_ioctl_node"`,
+}
+
+func (iface *blockDevicesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if p, ok := plug.Attrs["allow-partitions"]; ok {
+		if _, ok := p.(bool); !ok {
+			return fmt.Errorf(`block-devices "allow-partitions" attribute must be boolean`)
+		}
+	}
+
+	return nil
+}
+
+func (iface *blockDevicesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var allowPartitions bool
+	_ = plug.Attr("allow-partitions", &allowPartitions)
+
+	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
+		return err
+	}
+
+	if allowPartitions {
+		spec.AddSnippet(blockDevicesPartitionsConnectedPlugAppArmor)
+	}
+	return nil
+}
+
+func (iface *blockDevicesInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var allowPartitions bool
+	_ = plug.Attr("allow-partitions", &allowPartitions)
+
+	if err := iface.commonInterface.UDevConnectedPlug(spec, plug, slot); err != nil {
+		return err
+	}
+
+	if !iface.controlsDeviceCgroup && allowPartitions {
+		// though the interface rules were too wide and this would already be
+		// matched by SUBSYSTEM=="block" rule present in the default set
+		spec.TagDevice(`SUBSYSTEM=="block", ENV{DEVTYPE}=="partition"`)
+	}
+
+	return nil
 }
 
 type blockDevicesInterface struct {
