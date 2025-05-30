@@ -217,7 +217,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	}
 
 	switch method {
-	case device.SealingMethodFDESetupHook:
+	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
 		// Note this is the fallback key path for old installations. The file might not exist.
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 		// All devices should have the same primary key
@@ -255,7 +255,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	}
 }
 
-func recalculateParamatersFDEHook(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
+func recalculateParamatersFDEHook(manager FDEStateManager, inputs resealInputs) error {
 	params := inputs.bootChains
 	runModels := getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 	recoveryModels := getUniqueModels(params.RecoveryBootChains)
@@ -287,7 +287,7 @@ func recalculateParamatersFDEHook(manager FDEStateManager, method device.Sealing
 	return nil
 }
 
-func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
+func recalculateParamatersTPM(manager FDEStateManager, rootdir string, inputs resealInputs, opts resealOptions) error {
 	params := inputs.bootChains
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
@@ -557,12 +557,12 @@ func resealKeys(
 	opts resealOptions,
 ) error {
 	switch method {
-	case device.SealingMethodFDESetupHook:
-		if err := recalculateParamatersFDEHook(manager, method, rootdir, inputs, opts); err != nil {
+	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
+		if err := recalculateParamatersFDEHook(manager, inputs); err != nil {
 			return err
 		}
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-		if err := recalculateParamatersTPM(manager, method, rootdir, inputs, opts); err != nil {
+		if err := recalculateParamatersTPM(manager, rootdir, inputs, opts); err != nil {
 			// TODO:FDEM:FIX: remove the save boot chains.
 			return err
 		}
