@@ -407,6 +407,10 @@ func PrepareEncryptedSystemData(
 				return err
 			}
 
+			// This is the "default" key of save partition. So it should also
+			// be saved to keyring to have similar state as unlocking in run mode.
+			saveBootstrappedContainer.RegisterKeyAsUsed(generatedPK, diskKey)
+
 			primaryKey = generatedPK
 		} else {
 			saveKey, err := keys.NewEncryptionKey()

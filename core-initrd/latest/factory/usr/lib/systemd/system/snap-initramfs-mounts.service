@@ -22,3 +22,4 @@ StandardOutput=journal+console
 StandardError=journal+console
 ImportCredential=snapd.passphrase
 ImportCredential=snapd.recovery
+KeyringMode=inherit

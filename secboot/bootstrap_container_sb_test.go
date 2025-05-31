@@ -195,3 +195,41 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerTokenWriterFailure(c *C
 	_, err = container.GetTokenWriter("")
 	c.Assert(err, ErrorMatches, `some error`)
 }
+
+func (*bootstrapContainerSuite) TestBootstrappedContainerKeyringHappy(c *C) {
+	container := secboot.CreateBootstrappedContainer([]byte{50, 51, 52, 53}, "/dev/foo")
+
+	primaryKeyRegistered := 0
+	unlockKeyRegistered := 0
+	defer secboot.MockUnixAddKey(func(keyType string, description string, payload []byte, ringid int) (int, error) {
+		switch description {
+		case "ubuntu-fde:/dev/disk/by-uuid/1234:aux":
+			primaryKeyRegistered++
+			c.Check(payload, DeepEquals, []byte{1, 2, 3, 4})
+		case "ubuntu-fde:/dev/disk/by-uuid/1234:unlock":
+			unlockKeyRegistered++
+			c.Check(payload, DeepEquals, []byte{5, 6, 7, 8})
+		default:
+			c.Errorf("unexpected description")
+			return 0, fmt.Errorf("unexpected description")
+		}
+
+		c.Check(keyType, Equals, "user")
+		c.Check(ringid, Equals, -4)
+
+		return 42, nil
+	})()
+
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/foo")
+		return []string{
+			"/dev/foo",
+			"/dev/disk/by-uuid/1234",
+		}, nil
+	})()
+
+	container.RegisterKeyAsUsed([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8})
+
+	c.Check(primaryKeyRegistered, Equals, 1)
+	c.Check(unlockKeyRegistered, Equals, 1)
+}

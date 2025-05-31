@@ -166,9 +166,8 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 
 		for _, device := range newDevices {
 			var unlockKey []byte
-			const defaultPrefix = "ubuntu-fde"
 			// always check keyring first for unlock key, otherwise fallback to using key file
-			key, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, device.node, false)
+			key, err := sbGetDiskUnlockKeyFromKernel(defaultKeyringPrefix, device.node, false)
 			if errors.Is(err, sb.ErrKernelKeyNotFound) && device.keyFile != "" {
 				key, err := os.ReadFile(device.keyFile)
 				if err != nil {
