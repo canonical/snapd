@@ -22,10 +22,11 @@
 package fdestate
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/boot"
@@ -312,29 +313,55 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 
 const recoveryKeyExpireAfter = 5 * time.Minute
 
+func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
+	hash := sha1.New()
+	n, err := hash.Write(rkey[:])
+	if err != nil {
+		return "", err
+	}
+	if n != len(rkey) {
+		return "", fmt.Errorf("internal error: %d bytes written, expected %d", n, len(rkey))
+	}
+	keyDigest := base64.URLEncoding.EncodeToString(hash.Sum(nil))
+	return keyDigest[:6], nil
+}
+
 func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
 	if m.recoveryKeyCache == nil {
 		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyCache is nil")
 	}
 
-	rkey, err = keysNewRecoveryKey()
-	if err != nil {
-		return keys.RecoveryKey{}, "", err
+	const maxRetries = 10
+	var retryCnt int
+	for {
+		if retryCnt >= maxRetries {
+			return keys.RecoveryKey{}, "", errors.New("internal error: cannot generate recovery key: max retries reached")
+		}
+		rkey, err = keysNewRecoveryKey()
+		if err != nil {
+			return keys.RecoveryKey{}, "", err
+		}
+		keyID, err = recoveryKeyID(rkey)
+		if err != nil {
+			return keys.RecoveryKey{}, "", err
+		}
+		// check for key-id hash collision
+		_, err := m.recoveryKeyCache.Key(keyID)
+		if errors.Is(err, backend.ErrNoRecoveryKey) {
+			// no collision
+			break
+		}
+		if err != nil {
+			return keys.RecoveryKey{}, "", err
+		}
+		// collision detected, retry
+		retryCnt++
 	}
 
 	rkeyInfo := backend.CachedRecoverKey{
 		Key:        rkey,
 		Expiration: timeNow().Add(recoveryKeyExpireAfter),
 	}
-
-	var lastRecoveryKeyID int
-	err = m.state.Get("last-recovery-key-id", &lastRecoveryKeyID)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return keys.RecoveryKey{}, "", err
-	}
-	lastRecoveryKeyID++
-	keyID = strconv.Itoa(lastRecoveryKeyID)
-	m.state.Set("last-recovery-key-id", lastRecoveryKeyID)
 
 	if err := m.recoveryKeyCache.AddKey(keyID, rkeyInfo); err != nil {
 		return keys.RecoveryKey{}, "", err
