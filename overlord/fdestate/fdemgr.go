@@ -109,6 +109,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		return false
 	})
 
+	runner.AddHandler("fde-repair-reseal", doReseal, nil)
+
 	return m, nil
 }
 

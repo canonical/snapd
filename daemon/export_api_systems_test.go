@@ -79,3 +79,9 @@ func MockDeviceValidatePassphraseOrPINEntropy(f func(device.AuthMode, string) er
 func ClearCachedEncryptionSupportInfoForLabel(st *state.State, systemLabel string) {
 	st.Cache(encryptionSupportInfoKey{systemLabel}, nil)
 }
+
+func MockFdestateRepair(f func(*state.State) (*state.Change, error)) (restore func()) {
+	restore = testutil.Backup(&fdestateRepair)
+	fdestateRepair = f
+	return restore
+}

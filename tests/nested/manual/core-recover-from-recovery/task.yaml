@@ -50,6 +50,11 @@ execute: |
     remote.exec "sudo snap wait system seed.loaded"
     remote.wait-for device-initialized
 
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-run.json
+
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-run.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-run.json)" = run
+
     remote.exec "sudo snap recovery --show-keys" >recovery.out
     tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
 
@@ -67,12 +72,30 @@ execute: |
 
     remote.exec true
 
-    remote.pull /run/snapd/snap-bootstrap/unlocked.json .
-    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked.json)" = recovery
-    # We must have been able to unlock the save with the plain key
-    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked.json)" = run
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-recovery.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-recovery.json)" = recovery
+    # We must have been able to unlock with the plain key
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-recovery.json)" = run
 
     # FIXME: this is a bug we always had for cleared tpm
     if [ "${BREAK_DBX}" = true ]; then
       remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
     fi
+
+    if [ "${CLEAR_TPM}" = true ]; then
+      # For now we do not have reprovidision implemented
+      exit 0
+    fi
+
+    echo '{"action": "repair"}' | remote.exec sudo snap debug api -X POST -H '"Content-Type: application/json"' /v2/systems/foobar >repair-response.json
+    remote.exec sudo snap watch --last=fde-repair
+
+    tests.nested vm set-recovery-key ""
+
+    tests.nested vm stop
+    tests.nested vm start
+
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-post-recovery.json
+
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-post-recovery.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-post-recovery.json)" = run

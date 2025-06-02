@@ -1632,6 +1632,35 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c
 	c.Check(called, check.Equals, 1)
 }
 
+func (s *systemsSuite) TestSystemActionRepair(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	calls := 0
+	defer daemon.MockFdestateRepair(func(st *state.State) (*state.Change, error) {
+		calls += 1
+		return st.NewChange("foo", "..."), nil
+	})()
+
+	body := map[string]interface{}{
+		"action": "repair",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.ID(), check.Equals, "1")
+	c.Check(calls, check.Equals, 1)
+}
+
 var _ = check.Suite(&systemsCreateSuite{})
 
 type systemsCreateSuite struct {

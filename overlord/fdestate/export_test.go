@@ -79,3 +79,9 @@ func EncryptedContainer(uuid string, containerRole string, legacyKeys map[string
 		legacyKeys:    legacyKeys,
 	}
 }
+
+func MockBackendRemoveBootChainCache(f func(rootdir string) error) (restore func()) {
+	restore = testutil.Backup(&backendRemoveBootChainCache)
+	backendRemoveBootChainCache = f
+	return restore
+}

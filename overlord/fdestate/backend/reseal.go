@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"os"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -281,6 +282,18 @@ func recalculateParamatersFDEHook(manager FDEStateManager, method device.Sealing
 		Models:    recoveryModels,
 	}
 	if err := manager.Update("recover", "system-save", recoveryParamsSave); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func RemoveBootChainCache(rootdir string) error {
+	if err := os.Remove(BootChainsFileUnder(rootdir)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.Remove(RecoveryBootChainsFileUnder(rootdir)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
