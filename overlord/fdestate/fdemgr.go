@@ -323,7 +323,7 @@ func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
 		return "", fmt.Errorf("internal error: %d bytes written, expected %d", n, len(rkey))
 	}
 	keyDigest := base64.URLEncoding.EncodeToString(hash.Sum(nil))
-	return keyDigest[:6], nil
+	return keyDigest[:10], nil
 }
 
 func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {

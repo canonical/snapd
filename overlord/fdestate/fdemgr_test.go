@@ -708,17 +708,17 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 		expiration time.Time
 	}{
 		{
-			id:         "F1DBNC",
+			id:         "F1DBNCCKlM",
 			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
 			expiration: now.Add(5 * time.Minute),
 		},
 		{
-			id:         "2JId82",
+			id:         "2JId82xFLN",
 			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
 			expiration: now.Add(5 * time.Minute),
 		},
 		{
-			id:         "Jk1rFM",
+			id:         "Jk1rFMJeuo",
 			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '3'},
 			expiration: now.Add(5 * time.Minute),
 		},
