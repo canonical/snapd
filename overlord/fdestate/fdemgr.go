@@ -343,7 +343,7 @@ func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 	return rkey, keyID, nil
 }
 
-// GenerateRecoveryKey generates a recovery key and its corrosponding id
+// GenerateRecoveryKey generates a recovery key and its corresponding id
 // with an expiration time `recoveryKeyExpireAfter`.
 //
 // The state needs to be locked by the caller.
@@ -375,7 +375,7 @@ func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err er
 
 // GetRecoveryKey retrieves a recovery key by its key-id. The key can only
 // be retrieved once and is immediately deleted after being retrieved.
-// An error is returned if the corrosponding recovery key is expired.
+// An error is returned if the corresponding recovery key is expired.
 //
 // The state needs to be locked by the caller.
 func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {

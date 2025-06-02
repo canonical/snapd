@@ -30,8 +30,6 @@ import (
 
 type keysSuite struct {
 	testutil.BaseTest
-
-	rootdir string
 }
 
 var _ = Suite(&keysSuite{})
@@ -58,7 +56,7 @@ func (k *keysSuite) TestInMemoryRecoveryKeyCache(c *C) {
 	err = cache.RemoveKey("1")
 	c.Assert(err, IsNil)
 
-	rkey, err = cache.Key("1")
+	_, err = cache.Key("1")
 	c.Assert(err, ErrorMatches, `no recovery key entry for key-id`)
 
 	// adding a deleted key works

@@ -68,8 +68,6 @@ type inMemoryRecoveryKeyCache struct {
 	mu sync.RWMutex
 }
 
-type inMemoryRecoveryKeyStoreKey struct{}
-
 func (s *inMemoryRecoveryKeyCache) AddKey(keyID string, rkeyInfo CachedRecoverKey) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
