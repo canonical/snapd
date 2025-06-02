@@ -64,7 +64,7 @@ func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDESt
 }
 
 func MockBackendNewInMemoryRecoveryKeyCache(f func() backend.RecoveryKeyCache) (restore func()) {
-	return testutil.Mock(&backendNewInMemoryRecoveryKeyStore, f)
+	return testutil.Mock(&backendNewInMemoryRecoveryKeyCache, f)
 }
 
 func MockKeysNewRecoveryKey(f func() (keys.RecoveryKey, error)) (restore func()) {

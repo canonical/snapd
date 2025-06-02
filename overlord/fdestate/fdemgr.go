@@ -45,7 +45,7 @@ import (
 
 var (
 	backendResealKeyForBootChains      = backend.ResealKeyForBootChains
-	backendNewInMemoryRecoveryKeyStore = backend.NewInMemoryRecoveryKeyCache
+	backendNewInMemoryRecoveryKeyCache = backend.NewInMemoryRecoveryKeyCache
 	disksDMCryptUUIDFromMountPoint     = disks.DMCryptUUIDFromMountPoint
 	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
 	keysNewRecoveryKey                 = keys.NewRecoveryKey
@@ -99,7 +99,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		}
 	}
 
-	m.recoveryKeyCache = backendNewInMemoryRecoveryKeyStore()
+	m.recoveryKeyCache = backendNewInMemoryRecoveryKeyCache()
 
 	st.Lock()
 	defer st.Unlock()
