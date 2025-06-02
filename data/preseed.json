@@ -24,6 +24,7 @@
         "var/cache/apparmor"
     ],
     "exclude": [
+        "snap/snapd/preseeding",
         "var/lib/snapd/snaps/*.snap",
         "var/lib/snapd/snaps/*.comp",
         "var/lib/seed/*"
