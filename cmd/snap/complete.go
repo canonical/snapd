@@ -98,7 +98,9 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 			}
 			ret = append(ret, flags.Completion{Item: installedSnap.Name})
 		}
-		if len(ret) > 1 {
+		// take into account not only if there are more than one match, but also
+		// if there are zero matches
+		if len(ret) != 1 {
 			return ret
 		}
 		// if there is only one option, then use it to find all the internal apps
