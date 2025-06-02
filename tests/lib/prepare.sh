@@ -417,6 +417,14 @@ prepare_classic() {
     fi
     snap list snapd
 
+    mount_dir="$(os.paths snap-mount-dir)"
+    if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
+        echo "snapd snap is missing file capabilities on snap-confine"
+        echo "and is not usable"
+        echo "ensure it has been correctly built (wipe snapcraft containers and rebuild)"
+        exit 1
+    fi
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
