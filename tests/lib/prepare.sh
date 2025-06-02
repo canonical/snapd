@@ -96,10 +96,12 @@ setup_snapd_proxy() {
 
 setup_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-        echo "HTTPS_PROXY=$HTTPS_PROXY" >> /etc/environment
-        echo "HTTP_PROXY=$HTTP_PROXY" >> /etc/environment
-        echo "https_proxy=$https_proxy" >> /etc/environment
-        echo "http_proxy=$http_proxy" >> /etc/environment
+        {
+            echo "HTTPS_PROXY=$HTTPS_PROXY"
+            echo "HTTP_PROXY=$HTTP_PROXY"
+            echo "https_proxy=$HTTPS_PROXY"
+            echo "http_proxy=$HTTP_PROXY"
+        } >> /etc/environment
     fi
 }
 
