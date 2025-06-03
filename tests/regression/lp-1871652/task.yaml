@@ -21,6 +21,8 @@ prepare: |
     "$TESTSTOOLS"/lxd-state prepare-snap
 
     lxc launch ubuntu:18.04 bionic
+    "$TESTSTOOLS"/lxd-state setup-proxy bionic
+
     # Install snapd inside the container and then install the core snap so that
     # we get re-execution logic to applies as snapd in the store is more recent
     # than snapd in the archive.
