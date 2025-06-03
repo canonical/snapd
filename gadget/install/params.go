@@ -65,7 +65,7 @@ type EncryptionSetupData struct {
 	// optional volume authentication options
 	volumesAuth *device.VolumesAuthOptions
 	// optional recovery key id. if set, it indicates that the
-	// corrosponding recovery key should be used for all relevant
+	// corresponding recovery key should be used for all relevant
 	// volumes during installation.
 	recoveryKeyID string
 }
