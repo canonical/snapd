@@ -1725,6 +1725,8 @@ prepare_ubuntu_core() {
             rsync_snap="test-snapd-rsync-core22"
         elif os.query is-core24; then
             rsync_snap="test-snapd-rsync-core24"
+        elif os.query is-core26; then
+            rsync_snap="test-snapd-rsync-core26"
         fi
         snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
@@ -1754,6 +1756,9 @@ prepare_ubuntu_core() {
         fi
         if os.query is-core24; then
             cache_snaps test-snapd-sh-core24
+        fi
+        if os.query is-core26; then
+            cache_snaps test-snapd-sh-core26
         fi
     fi
 
