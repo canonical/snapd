@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -666,4 +668,220 @@ func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("fdemgr.go", c, false)
+}
+
+type mockRecoveryKeyCache struct {
+	addRecoveryKey    func(keyID string, rkeyInfo backend.CachedRecoverKey) (err error)
+	getRecoveryKey    func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error)
+	deleteRecoveryKey func(keyID string) error
+}
+
+func (s *mockRecoveryKeyCache) AddKey(keyID string, rkeyInfo backend.CachedRecoverKey) (err error) {
+	if s.addRecoveryKey == nil {
+		panic("AddKey is not implemented")
+	}
+	return s.addRecoveryKey(keyID, rkeyInfo)
+}
+
+func (s *mockRecoveryKeyCache) Key(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
+	if s.getRecoveryKey == nil {
+		panic("Key is not implemented")
+	}
+	return s.getRecoveryKey(keyID)
+}
+
+func (s *mockRecoveryKeyCache) RemoveKey(keyID string) error {
+	if s.deleteRecoveryKey == nil {
+		panic("RemoveKey is not implemented")
+	}
+	return s.deleteRecoveryKey(keyID)
+}
+
+func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
+	now := time.Now()
+	defer fdestate.MockTimeNow(func() time.Time {
+		return now
+	})()
+
+	expectedKeys := []struct {
+		id         string
+		key        keys.RecoveryKey
+		expiration time.Time
+	}{
+		{
+			id:         "F1DBNCCKlM",
+			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
+			expiration: now.Add(5 * time.Minute),
+		},
+		{
+			id:         "2JId82xFLN",
+			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
+			expiration: now.Add(5 * time.Minute),
+		},
+		{
+			id:         "Jk1rFMJeuo",
+			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '3'},
+			expiration: now.Add(5 * time.Minute),
+		},
+	}
+
+	getCalled, addCalled := 0, 0
+	mockStore := &mockRecoveryKeyCache{
+		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
+			defer func() { getCalled++ }()
+			switch getCalled {
+			case 0:
+				c.Check(keyID, Equals, expectedKeys[0].id)
+				// simulate collision, key exists
+				return backend.CachedRecoverKey{
+					Key:        expectedKeys[0].key,
+					Expiration: expectedKeys[0].expiration,
+				}, nil
+			case 1:
+				c.Check(keyID, Equals, expectedKeys[1].id)
+				return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
+			case 2:
+				c.Check(keyID, Equals, expectedKeys[2].id)
+				return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
+			default:
+				c.Error("unexpected call")
+			}
+			return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
+		},
+		addRecoveryKey: func(keyID string, rkeyInfo backend.CachedRecoverKey) (err error) {
+			defer func() { addCalled++ }()
+			switch addCalled {
+			case 0:
+				c.Check(keyID, Equals, expectedKeys[1].id)
+				c.Check(rkeyInfo.Key, DeepEquals, expectedKeys[1].key)
+				c.Check(rkeyInfo.Expiration, DeepEquals, expectedKeys[1].expiration)
+				return nil
+			case 1:
+				c.Check(keyID, Equals, expectedKeys[2].id)
+				c.Check(rkeyInfo.Key, DeepEquals, expectedKeys[2].key)
+				c.Check(rkeyInfo.Expiration, DeepEquals, expectedKeys[2].expiration)
+				return nil
+			default:
+				c.Error("unexpected call")
+			}
+			return nil
+		},
+	}
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+		return mockStore
+	})()
+
+	nextKeyIdx := 0
+	defer fdestate.MockKeysNewRecoveryKey(func() (keys.RecoveryKey, error) {
+		expected := expectedKeys[nextKeyIdx]
+		nextKeyIdx++
+		return expected.key, nil
+	})()
+
+	// initialize fde manager
+	_, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	rkey, keyID, err := fdestate.GenerateRecoveryKey(s.st)
+	c.Assert(err, IsNil)
+	c.Check(addCalled, Equals, 1)
+	c.Check(getCalled, Equals, 2)              // twice due to collision
+	c.Check(keyID, Equals, expectedKeys[1].id) // first key collided with exisiting key
+	c.Check(rkey, DeepEquals, expectedKeys[1].key)
+
+	rkey, keyID, err = fdestate.GenerateRecoveryKey(s.st)
+	c.Assert(err, IsNil)
+	c.Check(addCalled, Equals, 2)
+	c.Check(getCalled, Equals, 3)
+	c.Check(keyID, Equals, expectedKeys[2].id)
+	c.Check(rkey, DeepEquals, expectedKeys[2].key)
+}
+
+func (s *fdeMgrSuite) TestGenerateRecoveryKeyMaxRetriesError(c *C) {
+	called := 0
+	mockStore := &mockRecoveryKeyCache{
+		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
+			called++
+			return backend.CachedRecoverKey{}, nil
+		},
+	}
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+		return mockStore
+	})()
+
+	defer fdestate.MockKeysNewRecoveryKey(func() (keys.RecoveryKey, error) {
+		return keys.RecoveryKey{'1', '2'}, nil
+	})()
+
+	// initialize fde manager
+	_, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	_, _, err = fdestate.GenerateRecoveryKey(s.st)
+	c.Assert(err, ErrorMatches, "internal error: cannot generate recovery key: max retries reached")
+	c.Check(called, Equals, 10)
+}
+
+func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
+	mockRecoveryKeyInfo := backend.CachedRecoverKey{
+		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
+		// not expired
+		Expiration: time.Now().Add(time.Minute),
+	}
+	mockRecoveryKeyInfoExpired := backend.CachedRecoverKey{
+		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
+		// not expired
+		Expiration: time.Now().Add(-time.Minute),
+	}
+
+	getCalled, deleteCalled := 0, 0
+	mockStore := &mockRecoveryKeyCache{
+		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
+			getCalled++
+			switch keyID {
+			case "1":
+				return mockRecoveryKeyInfo, nil
+			case "2":
+				return mockRecoveryKeyInfoExpired, nil
+			default:
+				panic("unexpected key-id")
+			}
+		},
+		deleteRecoveryKey: func(keyID string) error {
+			deleteCalled++
+			switch keyID {
+			case "1", "2":
+				return nil
+			default:
+				panic("unexpected key-id")
+			}
+		},
+	}
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+		return mockStore
+	})()
+
+	// initialize fde manager
+	_, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	rkey, err := fdestate.GetRecoveryKey(s.st, "1")
+	c.Assert(err, IsNil)
+	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'})
+	c.Check(getCalled, Equals, 1)
+	c.Check(deleteCalled, Equals, 1)
+
+	rkey, err = fdestate.GetRecoveryKey(s.st, "2")
+	c.Assert(err, ErrorMatches, "recovery key has expired")
+	c.Check(rkey, DeepEquals, keys.RecoveryKey{})
+	c.Check(getCalled, Equals, 2)
+	c.Check(deleteCalled, Equals, 2)
 }
