@@ -36,6 +36,10 @@ is_core24() {
     grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="24"' /etc/os-release
 }
 
+is_core26() {
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="26"' /etc/os-release
+}
+
 is_core_gt() {
     local VERSION=$1
     if [ -z "$VERSION" ]; then
