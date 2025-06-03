@@ -578,7 +578,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		if r.shouldSwitchWithoutRefresh(rt, needsRevisionChange) && !needsComponentChanges {
 			ts, err := snapstate.Switch(st, rt.name, &snapstate.RevisionOptions{
 				Channel: rt.channel,
-			}, nil)
+			}, r.tracker)
 			if err != nil {
 				return 0, nil, err
 			}
