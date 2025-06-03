@@ -34,12 +34,13 @@ import (
 )
 
 const (
-	hybridBootloaderShimGlob = "/cdrom/EFI/boot/boot*.efi"
-	hybridBootloaderGrubGlob = "/cdrom/EFI/boot/grub*.efi"
-	hybridKernelFile         = "/cdrom/casper/vmlinuz"
+	hybridInstallBootloaderShimGlob  = "cdrom/EFI/boot/boot*.efi"
+	hybridOInstallBootloaderGrubGlob = "cdrom/EFI/boot/grub*.efi"
+	hybridInstallKernelFile          = "cdrom/casper/vmlinuz"
 )
 
 var (
+	hybridInstallRootDir          = "/"
 	preinstallNewRunChecksContext = preinstall.NewRunChecksContext
 	preinstallRun                 = (*preinstall.RunChecksContext).Run
 )
@@ -166,14 +167,21 @@ func PreinstallCheck(model *asserts.Model, tpmMode TPMProvisionMode) error {
 	return CheckTPMKeySealingSupported(tpmMode)
 }
 
+func setHybridInstallRootDir(string rootDir) {
+	if rootDir == ""{
+		hybridInstallRootDir = "/"
+	}
+	hybridInstallRootDir = filepath.Clean(rootDir)
+}
+
 func hybridInstallerLoadedImages() ([]sb_efi.Image, error) {
 	imageInfo := []struct {
 		name string
 		glob string
 	}{
-		{"shim", hybridBootloaderShimGlob},
-		{"grub", hybridBootloaderGrubGlob},
-		{"kernel", hybridKernelFile},
+		{"shim", filepath.Join(HybridInstallRootDir, hybridInstallBootloaderShimGlob},
+		{"grub", filepath.Join(HybridInstallRootDir, hybridInstallBootloaderGrubGlob},
+		{"kernel", filepath.Join(HybridInstallRootDir, hybridInstallKernelFile},
 	}
 
 	var loadedImages []sb_efi.Image

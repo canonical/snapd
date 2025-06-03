@@ -147,7 +147,7 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 type StorageEncryptionSupport string
 
 const (
-	// forcefull disabled by the device
+	// forcefully disabled by the device
 	StorageEncryptionSupportDisabled = "disabled"
 	// encryption available and usable
 	StorageEncryptionSupportAvailable = "available"
