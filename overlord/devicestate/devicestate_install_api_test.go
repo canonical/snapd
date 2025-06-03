@@ -687,6 +687,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithPassphr
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, volumesAuth: volumesAuth})
 }
 
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithPINAuthHappy(c *C) {
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, volumesAuth: volumesAuth})
+}
+
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionAndSystemSeedHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{
 		encrypted:      true,
@@ -709,6 +714,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithPassphraseAuthHappy(c *C) {
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false, volumesAuth: volumesAuth})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithPINAuthHappy(c *C) {
+	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false, volumesAuth: volumesAuth})
 }
 
@@ -757,20 +767,29 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM, withVolumesAuth bool) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM, withVolumesAuth bool, authMode device.AuthMode) {
 	// Mock label
 	label := "classic"
 	isClassic := true
-	mockVolumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	mockVolumesAuth := &device.VolumesAuthOptions{Mode: authMode}
+	switch authMode {
+	case device.AuthModePassphrase:
+		mockVolumesAuth.Passphrase = "1234"
+	case device.AuthModePIN:
+		mockVolumesAuth.PIN = "1234"
+	}
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
 	var snapdVersionByType map[snap.Type]string
 	if withVolumesAuth {
-		// Passphrase auth requires snapd 2.68 as a minimum in target install system
-		snapdVersionByType = map[snap.Type]string{
-			snap.TypeSnapd:  "2.68",
-			snap.TypeKernel: "2.68",
+		switch authMode {
+		case device.AuthModePassphrase:
+			// Passphrase auth requires snapd 2.68 as a minimum in target install system
+			snapdVersionByType = map[snap.Type]string{snap.TypeSnapd: "2.68", snap.TypeKernel: "2.68"}
+		case device.AuthModePIN:
+			// PIN auth requires snapd 2.71 as a minimum in target install system
+			snapdVersionByType = map[snap.Type]string{snap.TypeSnapd: "2.71", snap.TypeKernel: "2.71"}
 		}
 	} else {
 		// mock other versions to cover more cases
@@ -885,19 +904,29 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
 	const hasTPM = true
 	const withVolumesAuth = false
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const authMode = ""
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth, authMode)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesAuth(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesPassphraseAuth(c *C) {
 	const hasTPM = true
 	const withVolumesAuth = true
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const authMode = device.AuthModePassphrase
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth, authMode)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesPINAuth(c *C) {
+	const hasTPM = true
+	const withVolumesAuth = true
+	const authMode = device.AuthModePIN
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth, authMode)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoCrypto(c *C) {
 	const hasTPM = false
 	const withVolumesAuth = false
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const authMode = ""
+	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth, authMode)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {
@@ -1020,7 +1049,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionBadVolumesAu
 	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c *C, snapdVersionByType map[snap.Type]string) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionAuthUnsupportedSnap(c *C, snapdVersionByType map[snap.Type]string, authMode device.AuthMode) {
 	// Mock label
 	label := "classic"
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
@@ -1059,7 +1088,13 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	encryptTask.Set("system-label", label)
 	encryptTask.Set("on-volumes", ginfo.Volumes)
 	encryptTask.Set("volumes-auth-required", true)
-	mockVolumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	mockVolumesAuth := &device.VolumesAuthOptions{Mode: authMode}
+	switch authMode {
+	case device.AuthModePassphrase:
+		mockVolumesAuth.Passphrase = "1234"
+	case device.AuthModePIN:
+		mockVolumesAuth.PIN = "1234"
+	}
 	s.state.Cache(devicestate.VolumesAuthOptionsKeyByLabel(label), mockVolumesAuth)
 	chg.AddTask(encryptTask)
 
@@ -1073,8 +1108,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	defer s.state.Unlock()
 
 	// Checks now
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
-- install API set-up encryption step \(\"passphrase\" authentication mode is not supported by target system\)`)
+	c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
+- install API set-up encryption step \("%s" authentication mode is not supported by target system\)`, authMode))
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnapd(c *C) {
@@ -1082,7 +1117,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAu
 		snap.TypeSnapd:  "2.67",
 		snap.TypeKernel: "2.68",
 	}
-	s.testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c, snapdVersionByType)
+	s.testInstallSetupStorageEncryptionAuthUnsupportedSnap(c, snapdVersionByType, device.AuthModePassphrase)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAuthUnsupportedKernel(c *C) {
@@ -1090,5 +1125,21 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPassphraseAu
 		snap.TypeSnapd:  "2.68",
 		snap.TypeKernel: "2.67",
 	}
-	s.testInstallSetupStorageEncryptionPassphraseAuthUnsupportedSnap(c, snapdVersionByType)
+	s.testInstallSetupStorageEncryptionAuthUnsupportedSnap(c, snapdVersionByType, device.AuthModePassphrase)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPINAuthUnsupportedSnapd(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.70",
+		snap.TypeKernel: "2.71",
+	}
+	s.testInstallSetupStorageEncryptionAuthUnsupportedSnap(c, snapdVersionByType, device.AuthModePIN)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionPINAuthUnsupportedKernel(c *C) {
+	snapdVersionByType := map[snap.Type]string{
+		snap.TypeSnapd:  "2.71",
+		snap.TypeKernel: "2.70",
+	}
+	s.testInstallSetupStorageEncryptionAuthUnsupportedSnap(c, snapdVersionByType, device.AuthModePIN)
 }
