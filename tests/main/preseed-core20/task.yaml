@@ -188,3 +188,9 @@ execute: |
 
   MATCH "^var/lib/extrausers/group" < files.log
   MATCH "^var/lib/extrausers/passwd" < files.log
+
+  # we're only expecting a bunch of text files, so the compressed artifact
+  # should be tiny, but even keeping some wiggle room it definitely should not
+  # be more than 1MB
+  artifact_size="$(stat -c '%s' "$ARTIFACT")"
+  (( artifact_size < 1*1024*1024))
