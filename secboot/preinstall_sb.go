@@ -35,7 +35,7 @@ import (
 
 const (
 	hybridInstallBootloaderShimGlob  = "cdrom/EFI/boot/boot*.efi"
-	hybridOInstallBootloaderGrubGlob = "cdrom/EFI/boot/grub*.efi"
+	hybridInstallBootloaderGrubGlob = "cdrom/EFI/boot/grub*.efi"
 	hybridInstallKernelFile          = "cdrom/casper/vmlinuz"
 )
 
@@ -61,7 +61,7 @@ func combineErrors(errs ...error) error {
 	return &compoundPreinstallError{errs: errs}
 }
 
-func NewPreinstallCompoundError(errorAndActions []preinstall.ErrorKindAndActions) error {
+func NewPreinstallCompoundError(errorAndActions []preinstall.WithKindAndActionsError) error {
 	var errs []error
 	for _, err := range errorAndActions {
 		errs = append(errs, &err)
@@ -79,7 +79,7 @@ func UnpackPreinstallCheckError(err error) []PreinstallErrorAndActions {
 	compoundErr, ok := err.(preinstall.CompoundError)
 	if !ok {
 		// single error
-		errorAndActions, ok := err.(*preinstall.ErrorKindAndActions)
+		errorAndActions, ok := err.(*preinstall.WithKindAndActionsError)
 		if !ok {
 			return []PreinstallErrorAndActions{
 				newInternalErrorUnexpectedType(err),
@@ -94,7 +94,7 @@ func UnpackPreinstallCheckError(err error) []PreinstallErrorAndActions {
 	errs := compoundErr.Unwrap()
 	converted := make([]PreinstallErrorAndActions, 0, len(errs))
 	for _, err := range errs {
-		errorAndActions, ok := err.(*preinstall.ErrorKindAndActions)
+		errorAndActions, ok := err.(*preinstall.WithKindAndActionsError)
 		if !ok {
 			return []PreinstallErrorAndActions{
 				newInternalErrorUnexpectedType(err),
@@ -105,11 +105,11 @@ func UnpackPreinstallCheckError(err error) []PreinstallErrorAndActions {
 	return converted
 }
 
-func convertErrorType(errorAndActions *preinstall.ErrorKindAndActions) PreinstallErrorAndActions {
+func convertErrorType(errorAndActions *preinstall.WithKindAndActionsError) PreinstallErrorAndActions {
 	return PreinstallErrorAndActions{
-		Kind:    string(errorAndActions.ErrorKind),
+		Kind:    string(errorAndActions.Kind),
 		Message: errorAndActions.Unwrap().Error(),
-		Args:    errorAndActions.ErrorArgs,
+		Args:    errorAndActions.Args,
 		Actions: convertActions(errorAndActions.Actions),
 	}
 }
@@ -167,7 +167,7 @@ func PreinstallCheck(model *asserts.Model, tpmMode TPMProvisionMode) error {
 	return CheckTPMKeySealingSupported(tpmMode)
 }
 
-func setHybridInstallRootDir(string rootDir) {
+func setHybridInstallRootDir(rootDir string) {
 	if rootDir == ""{
 		hybridInstallRootDir = "/"
 	}
@@ -179,9 +179,9 @@ func hybridInstallerLoadedImages() ([]sb_efi.Image, error) {
 		name string
 		glob string
 	}{
-		{"shim", filepath.Join(HybridInstallRootDir, hybridInstallBootloaderShimGlob},
-		{"grub", filepath.Join(HybridInstallRootDir, hybridInstallBootloaderGrubGlob},
-		{"kernel", filepath.Join(HybridInstallRootDir, hybridInstallKernelFile},
+		{"shim", filepath.Join(hybridInstallRootDir, hybridInstallBootloaderShimGlob)},
+		{"grub", filepath.Join(hybridInstallRootDir, hybridInstallBootloaderGrubGlob)},
+		{"kernel", filepath.Join(hybridInstallRootDir, hybridInstallKernelFile)},
 	}
 
 	var loadedImages []sb_efi.Image
