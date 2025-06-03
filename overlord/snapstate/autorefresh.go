@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -72,7 +73,15 @@ var (
 		}
 		return refreshSchedule
 	}()
+
+	autoRefreshChangeKind = swfeats.ChangeReg.NewChangeKind("auto-refresh")
+	preDownloadChangeKind = swfeats.ChangeReg.NewChangeKind("pre-download")
 )
+
+func init() {
+	swfeats.EnsureReg.NewEnsure("SnapManager", "autoRefresh.Ensure")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "autoRefresh.ensureLastRefreshAnchor")
+}
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
 var refreshRetryDelay = 20 * time.Minute
@@ -656,7 +665,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return nil
 	}
 
-	chg := m.state.NewChange("auto-refresh", msg)
+	chg := m.state.NewChange(autoRefreshChangeKind, msg)
 	for _, ts := range updateTss.Refresh {
 		chg.AddAll(ts)
 	}
@@ -682,7 +691,7 @@ func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, 
 		}
 
 		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(snapNames))
-		preDlChg := st.NewChange("pre-download", chgSummary)
+		preDlChg := st.NewChange(preDownloadChangeKind, chgSummary)
 		for _, ts := range updateTss.PreDownload {
 			preDlChg.AddAll(ts)
 		}

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -42,6 +43,7 @@ var (
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManageConfiguration},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManageConfiguration},
 	}
+	configureSnapChangeKind = swfeats.ChangeReg.NewChangeKind("configure-snap")
 )
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -165,7 +167,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
-	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
+	change := newChange(st, configureSnapChangeKind, summary, []*state.TaskSet{taskset}, []string{snapName})
 
 	st.EnsureBefore(0)
 
