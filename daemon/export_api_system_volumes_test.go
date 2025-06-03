@@ -25,6 +25,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func MockFdemgrGenerateRecoveryKey(f func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error)) (restore func()) {
-	return testutil.Mock(&fdemgerGenerateRecoveryKey, f)
+func MockFdeMgrGenerateRecoveryKey(f func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error)) (restore func()) {
+	return testutil.Mock(&fdeMgrGenerateRecoveryKey, f)
 }

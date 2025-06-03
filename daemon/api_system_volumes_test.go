@@ -67,10 +67,14 @@ func (s *systemVolumesSuite) TestSystemVolumesBogusAction(c *C) {
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
 	s.daemon(c)
 
 	called := 0
-	s.AddCleanup(daemon.MockFdemgrGenerateRecoveryKey(func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error) {
+	s.AddCleanup(daemon.MockFdeMgrGenerateRecoveryKey(func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error) {
 		called++
 		c.Assert(fdemgr, NotNil)
 		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, "key-id-1", nil

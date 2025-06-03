@@ -341,7 +341,7 @@ func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 		}
 		rkey, err = keysNewRecoveryKey()
 		if err != nil {
-			return keys.RecoveryKey{}, "", err
+			return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot generate recovery key: %v", err)
 		}
 		keyID, err = recoveryKeyID(rkey)
 		if err != nil {
@@ -381,10 +381,7 @@ func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, 
 	return mgr.GenerateRecoveryKey()
 }
 
-// GetRecoveryKey retrieves a recovery key by its key-id. The key can only
-// be retrieved once and is immediately deleted after being retrieved.
-// An error is returned if the corresponding recovery key is expired.
-func (m *FDEManager) GetRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
+func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
 	if m.recoveryKeyCache == nil {
 		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyCache is nil")
 	}
@@ -412,7 +409,7 @@ func (m *FDEManager) GetRecoveryKey(keyID string) (rkey keys.RecoveryKey, err er
 // The state needs to be locked by the caller.
 func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
 	mgr := fdeMgr(st)
-	return mgr.GetRecoveryKey(keyID)
+	return mgr.getRecoveryKey(keyID)
 }
 
 func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
