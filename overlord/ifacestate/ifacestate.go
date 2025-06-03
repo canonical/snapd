@@ -36,10 +36,14 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 )
 
-var connectRetryTimeout = time.Second * 5
+var (
+	connectRetryTimeout                  = time.Second * 5
+	regenerateSecurityProfilesChangeKind = swfeats.ChangeReg.NewChangeKind("regenerate-security-profiles")
+)
 
 // ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.
 type ErrAlreadyConnected struct {
@@ -649,13 +653,13 @@ func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Cha
 
 	for _, chg := range st.Changes() {
 		// if we have a change that isn't ready, return it instead
-		if chg.Kind() == "regenerate-security-profiles" && !chg.IsReady() {
+		if chg.Kind() == regenerateSecurityProfilesChangeKind && !chg.IsReady() {
 			return chg, nil
 		}
 	}
 
-	chg := st.NewChange("regenerate-security-profiles", "Regenerate security profiles")
-	t := st.NewTask("regenerate-security-profiles", "Regenerate security profiles")
+	chg := st.NewChange(regenerateSecurityProfilesChangeKind, "Regenerate security profiles")
+	t := st.NewTask(regenerateSecurityProfilesChangeKind, "Regenerate security profiles")
 	chg.AddTask(t)
 
 	return chg, nil
