@@ -28,5 +28,9 @@ if [ "$need_rebuild" = 1 ]; then
     echo "-- $(date) -- snapd snap rebuild complete"
 fi
 
+if [ -t 1 ]; then
+    export SPREAD_DEBUG_EACH=0
+fi
+
 # Run spread
 SPREAD_USE_PREBUILT_SNAPD_SNAP=true exec spread "$@"
