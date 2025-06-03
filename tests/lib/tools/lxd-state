@@ -43,8 +43,11 @@ setup_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
         lxc config set "$INSTANCE" environment.https_proxy="$https_proxy"
         lxc config set "$INSTANCE" environment.http_proxy="$http_proxy"
-        lxc config set "$INSTANCE" environment.HTTPS_PROXY="$HTTPS_PROXY"
+        # shellcheck disable=SC2153
+        lxc config set "$INSTANCE" "environment.HTTPS_PROXY=$HTTPS_PROXY"
+        # shellcheck disable=SC2153
         lxc config set "$INSTANCE" environment.HTTP_PROXY="$HTTP_PROXY"
+        # shellcheck disable=SC2154
         lxc config set "$INSTANCE" environment.no_proxy="$no_proxy"
         lxc config set "$INSTANCE" environment.NO_PROXY="$NO_PROXY"
 
