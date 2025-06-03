@@ -221,7 +221,7 @@ prepare_project() {
     # we install chrony on xenial (as its also used in later distros), so the
     # ntp service was in conflict, degrading the systemd unit and sometimes breaking
     # NTP syncs
-    if os.query is-xenial; then
+    if os.query is-xenial && systemctl is-enabled ntp; then
       systemctl stop ntp.service
       systemctl disable ntp.service
       apt-get remove --purge -y ntp

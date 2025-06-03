@@ -46,14 +46,12 @@ prepare: |
     echo "Push snapd into container"
     lxd.lxc file push --quiet prep-snapd-in-lxd.sh "my-ubuntu/root/"
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/root/"
+    
+    # wait for cloud-init to finish before doing any apt operations
+    lxd.lxc exec $cont_name -- sh -c "cloud-init status --wait"
 
-    echo "Setting up proxy *inside* the container"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc exec my-ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    fi
+    # Setup the proxy in the container
+    "$TESTSTOOLS"/lxd-state setup-proxy "$cont_name" force
 
     echo "Install snapd in container"
     lxd.lxc exec my-ubuntu -- /root/prep-snapd-in-lxd.sh

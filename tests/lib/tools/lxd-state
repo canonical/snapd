@@ -3,6 +3,7 @@
 show_help() {
     echo "usage: lxd-state undo-mount-changes"
     echo "       lxd-state prepare-snap"
+    echo "       lxd-state setup-proxy <INSTANCE-NAME>"
 }
 
 prepare_snap(){
@@ -29,6 +30,30 @@ prepare_snap(){
     fi
     if [ -n "${https_proxy:-}" ]; then
         lxd.lxc config set core.proxy_https "$http_proxy"
+    fi
+}
+
+setup_proxy() {
+    INSTANCE=$1
+    FORCE_PROXY=${2:-}
+    if [ -z "$INSTANCE" ]; then
+        echo "Lxd instance is required"
+        exit 1
+    fi
+    if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
+        lxc config set "$INSTANCE" environment.https_proxy="$https_proxy"
+        lxc config set "$INSTANCE" environment.http_proxy="$http_proxy"
+        lxc config set "$INSTANCE" environment.HTTPS_PROXY="$HTTPS_PROXY"
+        lxc config set "$INSTANCE" environment.HTTP_PROXY="$HTTP_PROXY"
+        lxc config set "$INSTANCE" environment.no_proxy="$no_proxy"
+        lxc config set "$INSTANCE" environment.NO_PROXY="$NO_PROXY"
+
+        lxc exec "$INSTANCE" -- sh -c "echo HTTPS_PROXY=$HTTPS_PROXY >> /etc/environment"
+        lxc exec "$INSTANCE" -- sh -c "echo HTTP_PROXY=$HTTP_PROXY >> /etc/environment"
+        lxc exec "$INSTANCE" -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+        lxc exec "$INSTANCE" -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+        lxc exec "$INSTANCE" -- sh -c "echo NO_PROXY=$NO_PROXY >> /etc/environment"
+        lxc exec "$INSTANCE" -- sh -c "echo no_proxy=$no_proxy >> /etc/environment"
     fi
 }
 
@@ -74,6 +99,10 @@ main() {
         prepare-snap)
                 shift
                 prepare_snap "$@"
+            ;;
+        setup-proxy)
+                shift
+                setup_proxy "$@"
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2
