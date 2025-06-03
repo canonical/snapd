@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -48,6 +49,7 @@ var (
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
 		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-themes-control"}, Polkit: polkitActionManage},
 	}
+	installThemesChangeKind = swfeats.ChangeReg.NewChangeKind("install-themes")
 )
 
 type themeStatus string
@@ -256,10 +258,10 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	var chg *state.Change
 	if len(tasksets) == 0 {
-		chg = st.NewChange("install-themes", summary)
+		chg = st.NewChange(installThemesChangeKind, summary)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, "install-themes", summary, tasksets, names)
+		chg = newChange(st, installThemesChangeKind, summary, tasksets, names)
 		ensureStateSoon(st)
 	}
 	chg.Set("api-data", map[string]any{"snap-names": names})

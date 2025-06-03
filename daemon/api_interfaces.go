@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 )
 
 var (
@@ -43,6 +44,8 @@ var (
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}
+	connectSnapChangeKind    = swfeats.ChangeReg.NewChangeKind("connect-snap")
+	disconnectSnapChangeKind = swfeats.ChangeReg.NewChangeKind("disconnect-snap")
 )
 
 // interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
@@ -182,6 +185,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 	}
 
+	var changeKind string
 	switch a.Action {
 	case "connect":
 		var connRef *interfaces.ConnRef
@@ -193,12 +197,13 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			if _, ok := err.(*ifacestate.ErrAlreadyConnected); ok {
-				change := newChange(st, a.Action+"-snap", summary, nil, affected)
+				change := newChange(st, connectSnapChangeKind, summary, nil, affected)
 				change.SetStatus(state.DoneStatus)
 				return AsyncResponse(nil, change.ID())
 			}
 			tasksets = append(tasksets, ts)
 		}
+		changeKind = connectSnapChangeKind
 	case "disconnect":
 		var conns []*interfaces.ConnRef
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
@@ -231,12 +236,13 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 			affected = snapNamesFromConns(conns)
 		}
+		changeKind = disconnectSnapChangeKind
 	}
 	if err != nil {
 		return errToResponse(err, nil, BadRequest, "%v")
 	}
 
-	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
+	change := newChange(st, changeKind, summary, tasksets, affected)
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, change.ID())

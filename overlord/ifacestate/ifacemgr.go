@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
@@ -252,6 +253,17 @@ Run "systemctl enable --now snapd.apparmor" to correct this.`)
 	snapstate.SecurityProfilesRemoveLate = m.discardSecurityProfilesLate
 
 	perfTimings.Save(s)
+
+	istrings := []string{}
+	for _, iface := range m.repo.AllHotplugInterfaces() {
+		istrings = append(istrings, fmt.Sprintf("%s", iface))
+	}
+	if ok := swfeats.ChangeReg.AddPossibleValues(hotplugAddSlotChangeKind, istrings); !ok {
+		logger.Trace("could not add possible values for change", "change", hotplugAddSlotChangeKind)
+	}
+	if ok := swfeats.ChangeReg.AddPossibleValues(hotplugRemoveChangeKind, istrings); !ok {
+		logger.Trace("could not add possible values for change", "change", hotplugRemoveChangeKind)
+	}
 
 	return nil
 }

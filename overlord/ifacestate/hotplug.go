@@ -33,7 +33,13 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	hotplugAddSlotChangeKind = swfeats.ChangeReg.NewChangeKind("hotplug-add-slot-%s")
+	hotplugRemoveChangeKind  = swfeats.ChangeReg.NewChangeKind("hotplug-remove-%s")
 )
 
 // deviceKey determines a key for given device and hotplug interface. Every interface may provide a custom HotplugDeviceKey method
@@ -230,7 +236,7 @@ InterfacesLoop:
 		setHotplugAttrs(hotplugConnect, iface.Name(), key)
 		hotplugConnect.WaitFor(hotplugAdd)
 
-		chg := st.NewChange(fmt.Sprintf("hotplug-add-slot-%s", iface), fmt.Sprintf("Add hotplug slot of interface %q for device %s with hotplug key %q", devinfo.ShortString(), iface.Name(), key.ShortString()))
+		chg := st.NewChange(fmt.Sprintf(hotplugAddSlotChangeKind, iface), fmt.Sprintf("Add hotplug slot of interface %q for device %s with hotplug key %q", devinfo.ShortString(), iface.Name(), key.ShortString()))
 		chg.AddTask(hotplugAdd)
 		chg.AddTask(hotplugConnect)
 		addHotplugSeqWaitTask(chg, key, seq)
@@ -282,7 +288,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 		}
 
 		ts := removeDevice(st, ifaceName, hotplugKey)
-		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", ifaceName), fmt.Sprintf("Remove hotplug connections and slots of device %s with interface %q", devinfo.ShortString(), ifaceName))
+		chg := st.NewChange(fmt.Sprintf(hotplugRemoveChangeKind, ifaceName), fmt.Sprintf("Remove hotplug connections and slots of device %s with interface %q", devinfo.ShortString(), ifaceName))
 		chg.AddAll(ts)
 		addHotplugSeqWaitTask(chg, hotplugKey, seq)
 		changed = true
@@ -318,7 +324,7 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 			continue
 		}
 		ts := removeDevice(st, slot.Interface, slot.HotplugKey)
-		chg := st.NewChange(fmt.Sprintf("hotplug-remove-%s", slot.Interface), fmt.Sprintf("Remove hotplug connections and slots of interface %q", slot.Interface))
+		chg := st.NewChange(fmt.Sprintf(hotplugRemoveChangeKind, slot.Interface), fmt.Sprintf("Remove hotplug connections and slots of interface %q", slot.Interface))
 		chg.AddAll(ts)
 		addHotplugSeqWaitTask(chg, slot.HotplugKey, seq)
 	}

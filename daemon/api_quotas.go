@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -62,6 +63,7 @@ var (
 	servicestateCreateQuota = servicestate.CreateQuota
 	servicestateUpdateQuota = servicestate.UpdateQuota
 	servicestateRemoveQuota = servicestate.RemoveQuota
+	quoteControlChangeKind  = swfeats.ChangeReg.NewChangeKind("quota-control")
 )
 
 var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
@@ -291,7 +293,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("unknown quota action %q", data.Action)
 	}
 
-	chg := newChange(st, "quota-control", chgSummary, []*state.TaskSet{ts}, data.Snaps)
+	chg := newChange(st, quoteControlChangeKind, chgSummary, []*state.TaskSet{ts}, data.Snaps)
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chg.ID())
 }

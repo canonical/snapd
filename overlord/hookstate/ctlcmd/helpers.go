@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -45,6 +46,9 @@ var (
 	servicestateControl        = servicestate.Control
 	snapstateInstallComponents = snapstate.InstallComponents
 	snapstateRemoveComponents  = snapstate.RemoveComponents
+	serviceControlChangeKind   = swfeats.ChangeReg.NewChangeKind("service-control")
+	snapctlInstallChangeKind   = swfeats.ChangeReg.NewChangeKind("snapctl-install")
+	snapctlRemoveChangeKind    = swfeats.ChangeReg.NewChangeKind("snapctl-remove")
 )
 
 func init() {
@@ -228,7 +232,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st.Lock()
-	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.InstanceName()))
+	chg := st.NewChange(serviceControlChangeKind, fmt.Sprintf("Running service command for snap %q", context.InstanceName()))
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
@@ -311,15 +315,18 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 	var err error
 	var cmdStr, cmdVerb string
 
+	var changeKind string
 	switch cmd.operation {
 	case installManagementCommand:
 		tss, err = createSnapctlInstallTasks(hctx, cmd)
 		cmdStr = "install"
 		cmdVerb = "Installing"
+		changeKind = snapctlInstallChangeKind
 	case removeManagementCommand:
 		tss, err = createSnapctlRemoveTasks(hctx, cmd)
 		cmdStr = "remove"
 		cmdVerb = "Removing"
+		changeKind = snapctlRemoveChangeKind
 	default:
 		err = fmt.Errorf("internal error: %q is not a valid snap management command", cmd.operation)
 	}
@@ -334,7 +341,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 	}
 
 	st.Lock()
-	chg := st.NewChange("snapctl-"+cmdStr,
+	chg := st.NewChange(changeKind,
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
 	for _, ts := range tss {

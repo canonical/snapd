@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -51,6 +52,21 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/wrappers"
 )
+
+var (
+	removeSnapChangeKind           = swfeats.ChangeReg.NewChangeKind("remove-snap")
+	transitionUbuntuCoreChangeKind = swfeats.ChangeReg.NewChangeKind("transition-ubuntu-core")
+)
+
+func init() {
+	swfeats.EnsureReg.NewEnsure("SnapManager", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "ensureForceDevmodeDropsDevmodeFromState")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "ensureUbuntuCoreTransition")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "atSeed")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "ensureMountsUpdated")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "ensureDesktopFilesUpdated")
+	swfeats.EnsureReg.NewEnsure("SnapManager", "ensureDownloadsCleaned")
+}
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -1106,7 +1122,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 
 		msg := fmt.Sprintf(i18n.G("Remove inactive vulnerable %q snap (%v)"), name, rev)
 
-		chg := m.state.NewChange("remove-snap", msg)
+		chg := m.state.NewChange(removeSnapChangeKind, msg)
 		chg.AddAll(tss)
 		chg.Set("snap-names", []string{name})
 	}
@@ -1273,7 +1289,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 
 	msg := i18n.G("Transition ubuntu-core to core")
-	chg := m.state.NewChange("transition-ubuntu-core", msg)
+	chg := m.state.NewChange(transitionUbuntuCoreChangeKind, msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
