@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -183,6 +184,9 @@ type StorageEncryption struct {
 	// encryption is required or not this should be presented to
 	// the user as either an error or as information.
 	UnavailableReason string `json:"unavailable-reason,omitempty"`
+
+	// PreinstallCheck reports errors detected during preinstall check.
+	PreinstallCheck []secboot.PreinstallErrorAndActions `json:"preinstall-check,omitempty"`
 }
 
 type SystemDetails struct {
