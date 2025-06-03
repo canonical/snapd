@@ -326,7 +326,9 @@ func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
 	return keyDigest[:10], nil
 }
 
-func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
+// GenerateRecoveryKey generates a recovery key and its corresponding id
+// with an expiration time `recoveryKeyExpireAfter`.
+func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
 	if m.recoveryKeyCache == nil {
 		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyCache is nil")
 	}
@@ -376,10 +378,13 @@ func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 // The state needs to be locked by the caller.
 func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
 	mgr := fdeMgr(st)
-	return mgr.generateRecoveryKey()
+	return mgr.GenerateRecoveryKey()
 }
 
-func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
+// GetRecoveryKey retrieves a recovery key by its key-id. The key can only
+// be retrieved once and is immediately deleted after being retrieved.
+// An error is returned if the corresponding recovery key is expired.
+func (m *FDEManager) GetRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
 	if m.recoveryKeyCache == nil {
 		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyCache is nil")
 	}
@@ -407,7 +412,7 @@ func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err er
 // The state needs to be locked by the caller.
 func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
 	mgr := fdeMgr(st)
-	return mgr.getRecoveryKey(keyID)
+	return mgr.GetRecoveryKey(keyID)
 }
 
 func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
