@@ -469,8 +469,8 @@ backends:
             HTTPS_PROXY: 'http://egress.ps7.internal:3128'
             http_proxy: 'http://egress.ps7.internal:3128'
             https_proxy: 'http://egress.ps7.internal:3128'
-            no_proxy: '127.0.0.1'
-            NO_PROXY: '127.0.0.1'
+            no_proxy: '127.0.0.1,localhost'
+            NO_PROXY: '127.0.0.1,localhost'
         systems: *openstack-systems
 
     openstack-arm-ps7:

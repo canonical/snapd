@@ -18,6 +18,7 @@ fi
 
 # shellcheck disable=SC2086
 lxc launch "ubuntu:$release" "$cname" --ephemeral -c limits.cpu=8 -c limits.memory=8GiB ${EXTRA_LXC_ARGS-}
+"$TESTSTOOLS"/lxd-state setup-proxy "$cname
 lxc exec "$cname" -- cloud-init status --wait
 echo "--- container ready"
 driver_versions=$(lxc exec "$cname" -- sh -c "apt-cache search nvidia-driver | grep nvidia-driver | grep -v -i transition | cut -f1 -d' '")

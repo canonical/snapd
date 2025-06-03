@@ -36,6 +36,7 @@ prepare: |
 
     # Launch a bionic container.
     lxc launch --quiet ubuntu:bionic mycontainer
+    "$TESTSTOOLS"/lxd-state setup-proxy mycontainer
 
     # Set the proxy inside the container.
     if [ -n "${http_proxy:-}" ]; then

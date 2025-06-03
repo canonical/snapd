@@ -88,10 +88,24 @@ disable_refreshes() {
 }
 
 setup_snapd_proxy() {
-    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-        snap set system proxy.http="$HTTPS_PROXY"
-        snap set system proxy.https="$HTTPS_PROXY"
+    local PROXY_PARAM=""
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        return
     fi
+
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
+[Service]
+Environment=PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
+EOF
+
+    # We change the service configuration so reload and restart
+    # the units to get them applied
+    systemctl daemon-reload
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket
+    # start the service (it pulls up the socket)
+    systemctl start snapd.service
 }
 
 setup_proxy() {
@@ -101,13 +115,17 @@ setup_proxy() {
             echo "HTTP_PROXY=$HTTP_PROXY"
             echo "https_proxy=$HTTPS_PROXY"
             echo "http_proxy=$HTTP_PROXY"
+            echo "NO_PROXY=$NO_PROXY"
+            echo "no_proxy=$NO_PROXY"
         } >> /etc/environment
     fi
 }
 
-
 setup_systemd_snapd_overrides() {
     local PROXY_PARAM=""
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY NO_PROXY=$NO_PROXY"
+    fi
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
@@ -1700,8 +1718,8 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
-
     setup_snapd_proxy
+
     disable_journald_rate_limiting
     disable_journald_start_limiting
 

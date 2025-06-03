@@ -88,6 +88,7 @@ execute: |
   lxd init --auto
 
   lxc launch "ubuntu:20.04" my-ubuntu
+  "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu
 
   echo "Wait for snapd to be ready in the container"
   lxc exec my-ubuntu -- snap wait system seed.loaded
@@ -166,6 +167,7 @@ execute: |
 
   echo "Checking that preseeded image runs with lxd"
   lxc launch ubuntu-preseeded my-ubuntu-preseeded
+  "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu-preseeded
 
   # it takes quite a bit before snapd is ready
   retry -n 50 --wait 5 sh -c 'lxc exec my-ubuntu-preseeded --  snap wait system seed.loaded'

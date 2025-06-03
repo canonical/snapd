@@ -29,6 +29,7 @@ execute: |
     fi
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
     lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" ubuntu
+    "$TESTSTOOLS"/lxd-state setup-proxy ubuntu
 
     echo "Setting up proxy *inside* the container"
     if [ -n "${http_proxy:-}" ]; then
