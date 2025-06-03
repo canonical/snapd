@@ -3620,7 +3620,7 @@ func (s *installStepSuite) TestGeneratePreInstallRecoveryKey(c *C) {
 	defer s.state.Unlock()
 
 	encSetupData := devicestate.GetEncryptionSetupDataFromCache(s.state, "20250528")
-	c.Check(encSetupData.GetRecoveryKeyID(), Equals, "")
+	c.Check(encSetupData.RecoveryKeyID(), Equals, "")
 
 	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
 		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}, "7", nil
@@ -3631,7 +3631,7 @@ func (s *installStepSuite) TestGeneratePreInstallRecoveryKey(c *C) {
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'})
 
 	encSetupData = devicestate.GetEncryptionSetupDataFromCache(s.state, "20250528")
-	c.Check(encSetupData.GetRecoveryKeyID(), Equals, "7")
+	c.Check(encSetupData.RecoveryKeyID(), Equals, "7")
 }
 
 func (s *installStepSuite) TestGeneratePreInstallRecoveryKeySetupNotCalledError(c *C) {

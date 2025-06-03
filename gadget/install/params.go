@@ -88,7 +88,7 @@ func (esd *EncryptionSetupData) SetRecoveryKeyID(keyID string) {
 	esd.recoveryKeyID = keyID
 }
 
-func (esd *EncryptionSetupData) GetRecoveryKeyID() string {
+func (esd *EncryptionSetupData) RecoveryKeyID() string {
 	return esd.recoveryKeyID
 }
 

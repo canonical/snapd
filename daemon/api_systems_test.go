@@ -1314,10 +1314,9 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 	s.daemon(c)
 
-	expectedRecoveryKey := keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}
 	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
 		c.Check(label, check.Equals, "20250529")
-		return expectedRecoveryKey, nil
+		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, nil
 	})()
 
 	body := map[string]interface{}{
@@ -1335,7 +1334,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 
 	res := rsp.Result.(map[string]string)
 	c.Check(res, check.DeepEquals, map[string]string{
-		"recovery-key": expectedRecoveryKey.String(),
+		"recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593",
 	})
 }
 
