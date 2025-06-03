@@ -15,49 +15,54 @@ from typing import Any, Iterable
 from features import SystemFeatures
 
 
-FEATURES = ['cmds', 'endpoints', 'ensures', 'tasks', 'changes', 'interfaces']
+KNOWN_FEATURES = ['cmds', 'endpoints', 'ensures', 'tasks', 'changes', 'interfaces']
 
 
 class TaskId:
-    def __init__(self, suite, task_name):
+    suite: str
+    task_name: str
+
+    def __init__(self, suite: str, task_name: str) -> None:
         self.suite = suite
         self.task_name = task_name
 
-    def __eq__(self, value):
+    def __eq__(self, value) -> bool:
         if not isinstance(value, TaskId):
             return False
         return self.suite == value.suite and self.task_name == value.task_name
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.suite, self.task_name))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.suite + ":" + self.task_name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.suite + ":" + self.task_name
 
 
 class TaskIdVariant(TaskId):
-    def __init__(self, suite, task_name, variant):
+    variant: str
+
+    def __init__(self, suite: str, task_name: str, variant: str) -> None:
         super().__init__(suite, task_name)
         self.variant = variant
 
-    def __eq__(self, value):
-        if not isinstance(value, TaskId):
-            return False
+    def __eq__(self, value) -> bool:
         if isinstance(value, TaskIdVariant):
             return self.suite == value.suite and self.task_name == value.task_name and self.variant == value.variant
-        else:
+        elif isinstance(value, TaskId):
             return self.suite == value.suite and self.task_name == value.task_name
+        else:
+            return False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.suite, self.task_name, self.variant))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.suite + ":" + self.task_name + ":" + self.variant
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.suite + ":" + self.task_name + ":" + self.variant
 
 
@@ -71,7 +76,6 @@ class Retriever(ABC):
     '''
     Retrieves features tags from a data source.
     '''
-    @classmethod
     @abstractmethod
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
         '''
@@ -79,7 +83,6 @@ class Retriever(ABC):
         Format: [{"timestamp":<timestamp>,"systems":[<system1>,...,<systemN>]}]
         '''
 
-    @classmethod
     @abstractmethod
     def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         '''
@@ -88,7 +91,6 @@ class Retriever(ABC):
         :raises RuntimeError: when there is not exactly one entry for the system at the timestamp
         '''
 
-    @classmethod
     @abstractmethod
     def get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
         '''
@@ -211,7 +213,7 @@ def consolidate_system_features(system_json: SystemFeatures, include_tasks: Iter
             continue
 
         for feature_name in test.keys():
-            if feature_name not in FEATURES:
+            if feature_name not in KNOWN_FEATURES:
                 continue
             for feature in test[feature_name]:
                 if feature not in features[feature_name]:
@@ -288,7 +290,7 @@ def check_duplicate(args):
     # task have identical features.
     task_id = TaskId(suite=task['suite'], task_name=task['task_name'])
     features = consolidate_system_features(system_json, exclude_tasks=[task_id])
-    to_check = {key: value for key, value in task.items() if key in FEATURES}
+    to_check = {key: value for key, value in task.items() if key in KNOWN_FEATURES}
     mns = minus(to_check, features)
     if to_check and not mns:
         return TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant'])
