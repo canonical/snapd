@@ -24,11 +24,15 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var snapstateMigrateHome = snapstate.MigrateHome
+var (
+	snapstateMigrateHome  = snapstate.MigrateHome
+	migrateHomeChangeKind = swfeats.ChangeReg.NewChangeKind("migrate-home")
+)
 
 func migrateHome(st *state.State, snaps []string) Response {
 	if len(snaps) == 0 {
@@ -44,7 +48,7 @@ func migrateHome(st *state.State, snaps []string) Response {
 		return InternalError(err.Error())
 	}
 
-	chg := st.NewChange("migrate-home", fmt.Sprintf("Migrate snap homes to ~/Snap for snaps %s", strutil.Quoted(snaps)))
+	chg := st.NewChange(migrateHomeChangeKind, fmt.Sprintf("Migrate snap homes to ~/Snap for snaps %s", strutil.Quoted(snaps)))
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
