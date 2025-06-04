@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/snapcore/snapd/progress"
 )
 
@@ -37,6 +38,9 @@ var _ = check.Suite(ansiSuite{})
 func (ansiSuite) TestNorm(c *check.C) {
 	msg := []rune(strings.Repeat("0123456789", 100))
 	high := []rune("🤗🤗🤗🤗🤗")
+	chinese := []rune("我The能quick吞下brown玻璃fox而jumps不over伤the身体lazy。dog")
+	japanese := []rune("いろはにほへと ちりぬるを わかよたれそ つねならむ うゐのおくやま けふこえて あさきゆめみし ゑひもせす")
+	korean := []rune("키스의 고유조건은 입술끼리 만나야 하고 특별한 기술은 필요치 않다")
 	c.Assert(msg, check.HasLen, 1000)
 	for i := 1; i < 1000; i += 1 {
 		long := progress.Norm(i, msg)
@@ -48,7 +52,11 @@ func (ansiSuite) TestNorm(c *check.C) {
 		c.Check(short, check.HasLen, i)
 		c.Check(string(short), check.Equals, strings.Repeat(" ", i))
 		// high unicode? no problem
-		c.Check(progress.Norm(i, high), check.HasLen, i)
+		c.Check(runewidth.StringWidth(string(progress.Norm(i, high))), check.Equals, i)
+		// CJK
+		c.Check(runewidth.StringWidth(string(progress.Norm(i, chinese))), check.Equals, i)
+		c.Check(runewidth.StringWidth(string(progress.Norm(i, japanese))), check.Equals, i)
+		c.Check(runewidth.StringWidth(string(progress.Norm(i, korean))), check.Equals, i)
 	}
 	// check it doesn't panic for negative nor zero widths
 	c.Check(progress.Norm(0, []rune("hello")), check.HasLen, 0)
@@ -133,9 +141,10 @@ func (ansiSuite) TestSetLayoutMultibyte(c *check.C) {
 	var buf bytes.Buffer
 	var duration string
 	var msg = "0123456789"
+	const termWidth = 80
 	defer progress.MockStdout(&buf)()
 	defer progress.MockEmptyEscapes()()
-	defer progress.MockTermWidth(func() int { return 80 })()
+	defer progress.MockTermWidth(func() int { return termWidth })()
 	defer progress.MockFormatDuration(func(_ float64) string {
 		return duration
 	})()
@@ -148,7 +157,7 @@ func (ansiSuite) TestSetLayoutMultibyte(c *check.C) {
 		p.Start(msg, 1e300)
 		p.Set(0.99 * 1e300)
 		out := buf.String()
-		c.Check([]rune(out), check.HasLen, 80+1, check.Commentf("unexpected length: %v", len(out)))
+		c.Check(runewidth.StringWidth(out), check.Equals, termWidth, check.Commentf("unexpected width: %v", runewidth.StringWidth(out)))
 		c.Check(out, check.Matches,
 			fmt.Sprintf("\r0123456789 \\s+  99%% +[0-9]+(\\.[0-9]+)?[kMGTPEZY]?B/s %s", dstr))
 	}
