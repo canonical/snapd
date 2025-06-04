@@ -244,7 +244,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 // snapInstancesAndComponentsFromNames splits a slice of names of the form
 // <snap_instance>+<comp1>...+<compN> into a slice of snap instances and a map
-// from these instances to components.
+// from these instances to components. Snap names are de-duplicated.
 func snapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]string, map[string][]string, error) {
 	snaps := make([]string, 0, len(names))
 	allComps := make(map[string][]string, len(names))
