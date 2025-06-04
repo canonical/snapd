@@ -22,6 +22,9 @@ class DictRetriever(query_features.Retriever):
     def __init__(self, data):
         self.data = data
 
+    def close(self):
+        pass
+
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, list[str]]]:
         pass
 

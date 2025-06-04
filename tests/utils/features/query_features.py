@@ -4,6 +4,7 @@ from abc import abstractmethod, ABC
 import argparse
 from collections import defaultdict
 import concurrent.futures
+from contextlib import closing
 import datetime
 import json
 import os
@@ -15,7 +16,8 @@ from typing import Any, Iterable
 from features import SystemFeatures
 
 
-KNOWN_FEATURES = ['cmds', 'endpoints', 'ensures', 'tasks', 'changes', 'interfaces']
+KNOWN_FEATURES = ['cmds', 'endpoints',
+                  'ensures', 'tasks', 'changes', 'interfaces']
 
 
 class TaskId:
@@ -33,9 +35,6 @@ class TaskId:
 
     def __hash__(self) -> int:
         return hash((self.suite, self.task_name))
-
-    def __repr__(self) -> str:
-        return self.suite + ":" + self.task_name
 
     def __str__(self) -> str:
         return self.suite + ":" + self.task_name
@@ -58,9 +57,6 @@ class TaskIdVariant(TaskId):
 
     def __hash__(self) -> int:
         return hash((self.suite, self.task_name, self.variant))
-
-    def __repr__(self) -> str:
-        return self.suite + ":" + self.task_name + ":" + self.variant
 
     def __str__(self) -> str:
         return self.suite + ":" + self.task_name + ":" + self.variant
@@ -99,6 +95,10 @@ class Retriever(ABC):
         all dictionary entries for all systems at the given timestamp.
         '''
 
+    @abstractmethod
+    def close(self) -> None:
+        pass
+
 
 class MongoRetriever(Retriever):
     '''
@@ -114,7 +114,7 @@ class MongoRetriever(Retriever):
             host=config['host'], port=config['port'], username=config['user'], password=config['password'])
         self.collection = self.client.snapd.features
 
-    def __del__(self):
+    def close(self):
         self.client.close()
 
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
@@ -164,6 +164,9 @@ class DirRetriever(Retriever):
     @staticmethod
     def __get_filename_without_last_ext(filename):
         return filename.rsplit('.', 1)[0]
+
+    def close(self):
+        pass
 
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
         dictionary = defaultdict(list)
@@ -226,9 +229,10 @@ def minus(first: dict[str, list], second: dict[str, list]) -> dict:
     Creates a new dictionary of first - second calculated on values.
 
     Ex: 
-    first = {"a":["b","c"],"d":["e"]}; second = {"a":["c"], "q":[]}
-
-    first - second == {"a":["b"],"d":["e"]}
+    >>> first = {'a':['b','c'],'d':['e']}
+    >>> second = {'a':['c'], 'q':[]}
+    >>> minus(first, second)
+    {'a': ['b'], 'd': ['e']}
     '''
     minus = {}
     for feature, feature_list in first.items():
@@ -263,22 +267,22 @@ def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, s
     :param remove_failed: if true, will remove all instances of tests where success == False
     :param only_same: if true, will only calculate difference between tests run on both systems
     '''
-    system1 = retriever.get_single_json(timestamp1, system1)
-    system2 = retriever.get_single_json(timestamp2, system2)
+    system_json1 = retriever.get_single_json(timestamp1, system1)
+    system_json2 = retriever.get_single_json(timestamp2, system2)
 
     include_tasks1 = None
     include_tasks2 = None
     if remove_failed or only_same:
-        include_tasks1 = list_tasks(system1, remove_failed)
-        include_tasks2 = list_tasks(system2, remove_failed)
+        include_tasks1 = list_tasks(system_json1, remove_failed)
+        include_tasks2 = list_tasks(system_json2, remove_failed)
         if only_same:
             include_tasks2 = include_tasks1 = include_tasks1.intersection(
                 include_tasks2)
 
     features1 = consolidate_system_features(
-        system1, include_tasks=include_tasks1)
+        system_json1, include_tasks=include_tasks1)
     features2 = consolidate_system_features(
-        system2, include_tasks=include_tasks2)
+        system_json2, include_tasks=include_tasks2)
     mns = minus(features1, features2)
     return mns
 
@@ -289,8 +293,10 @@ def check_duplicate(args):
     # it isn't flagged as a duplicate when variants of the same
     # task have identical features.
     task_id = TaskId(suite=task['suite'], task_name=task['task_name'])
-    features = consolidate_system_features(system_json, exclude_tasks=[task_id])
-    to_check = {key: value for key, value in task.items() if key in KNOWN_FEATURES}
+    features = consolidate_system_features(
+        system_json, exclude_tasks=[task_id])
+    to_check = {key: value for key,
+                value in task.items() if key in KNOWN_FEATURES}
     mns = minus(to_check, features)
     if to_check and not mns:
         return TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant'])
@@ -311,7 +317,8 @@ def dup(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) 
 
     duplicates = []
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        results = executor.map(check_duplicate, [(task, system_json) for task in system_json['tests']])
+        results = executor.map(
+            check_duplicate, [(task, system_json) for task in system_json['tests']])
         for result in results:
             if result is not None:
                 duplicates.append(result)
@@ -333,7 +340,7 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
                 json.dump(system_json, f, cls=DateTimeEncoder)
 
 
-def add_diff_parser(subparsers):
+def add_diff_parser(subparsers: argparse._SubParsersAction):
     diff_description = '''
         Calculates feature diff between two systems: set(features_1) - set(features_2).
         You can specify either a json file with credentials for mongodb or a directory with features output.
@@ -360,7 +367,7 @@ def add_diff_parser(subparsers):
     return cmd
 
 
-def add_dup_parser(subparsers):
+def add_dup_parser(subparsers: argparse._SubParsersAction):
     dup_description = '''
         For each task present in the indicated system under the indicated timestamp,
         calculates the difference between that task's features and the system's 
@@ -383,7 +390,7 @@ def add_dup_parser(subparsers):
     return cmd
 
 
-def add_export_parser(subparsers):
+def add_export_parser(subparsers: argparse._SubParsersAction):
     cmd = 'export'
     export: argparse.ArgumentParser = subparsers.add_parser(cmd, help='export data to output local directory',
                                    description='Grabs system json files by timestamps and systems and saves them to the folder indicated in the output arguement.')
@@ -395,7 +402,7 @@ def add_export_parser(subparsers):
     return cmd
 
 
-def add_list_parser(subparsers):
+def add_list_parser(subparsers: argparse._SubParsersAction):
     cmd = 'list'
     lst: argparse.ArgumentParser = subparsers.add_parser(cmd, help='lists all timestamps with systems present in data source',
                                 description='Lists all timestamps with systems present in data source.')
@@ -416,34 +423,35 @@ def main():
 
     args = parser.parse_args()
 
-    retriever = None
+    retriever_creator = None
     if args.dir:
-        retriever = DirRetriever(args.dir)
+        def retriever_creator(): return DirRetriever(args.dir)
     elif args.file:
-        retriever = MongoRetriever(args.file)
+        def retriever_creator(): return MongoRetriever(args.file)
     else:
         raise RuntimeError(
             'you must specify either a mongodb credential file (-f) or a directory with feature tagging results (-d)')
 
-    if args.command == diff_cmd:
-        result = diff(retriever, args.timestamp1, args.system1,
-                              args.timestamp2, args.system2, args.remove_failed, args.only_same)
-        json.dump(result, sys.stdout, cls=DateTimeEncoder)
-        print()
-    elif args.command == dup_cmd:
-        results = dup(retriever, args.timestamp,
-                              args.system, args.remove_failed)
-        if results:
-            json.dump(results, sys.stdout, default=lambda x: str(x))
+    with closing(retriever_creator()) as retriever:
+        if args.command == diff_cmd:
+            result = diff(retriever, args.timestamp1, args.system1,
+                          args.timestamp2, args.system2, args.remove_failed, args.only_same)
+            json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
-    elif args.command == export_cmd:
-        export(retriever, args.output, args.timestamps, args.systems)
-    elif args.command == list_cmd:
-        result = retriever.get_sorted_timestamps_and_systems()
-        json.dump(result, sys.stdout, cls=DateTimeEncoder)
-        print()
-    else:
-        raise RuntimeError(f'command not recognized: {args.command}')
+        elif args.command == dup_cmd:
+            results = dup(retriever, args.timestamp,
+                          args.system, args.remove_failed)
+            if results:
+                json.dump(results, sys.stdout, default=lambda x: str(x))
+                print()
+        elif args.command == export_cmd:
+            export(retriever, args.output, args.timestamps, args.systems)
+        elif args.command == list_cmd:
+            result = retriever.get_sorted_timestamps_and_systems()
+            json.dump(result, sys.stdout, cls=DateTimeEncoder)
+            print()
+        else:
+            raise RuntimeError(f'command not recognized: {args.command}')
 
 
 if __name__ == '__main__':
