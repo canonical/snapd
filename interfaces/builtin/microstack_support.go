@@ -126,8 +126,6 @@ const microStackSupportConnectedPlugAppArmor = `
 
 @{PROC}/*/status r,
 
-@{PROC}/sys/fs/nr_open r,
-
 # Libvirt needs access to the PCI config space in order to be able to reset devices.
 /sys/devices/pci*/**/config rw,
 

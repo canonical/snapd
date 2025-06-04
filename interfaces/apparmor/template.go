@@ -220,6 +220,9 @@ var templateCommon = `
   # information leak.
   #deny /{,var/}run/utmp r,
 
+  # Allow reading the maximum number of open file descriptors.
+  @{PROC}/sys/fs/nr_open r,
+
   # java
   @{PROC}/@{pid}/ r,
   @{PROC}/@{pid}/fd/ r,
