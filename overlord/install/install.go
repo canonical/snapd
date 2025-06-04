@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/snapcore/secboot/efi"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -118,8 +120,10 @@ type SystemSnapdVersions struct {
 var (
 	timeNow = time.Now
 
-	secbootPreinstallCheck         = secboot.PreinstallCheck
-	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
+	hybridInstallRootDir               = "/"
+	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
+	secbootPreinstallCheck             = secboot.PreinstallCheck
+	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
 
 	bootUseTokens = boot.UseTokens
 )
@@ -169,7 +173,7 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 }
 
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(*asserts.Model, secboot.TPMProvisionMode) error) (restore func()) {
+func MockSecbootPreinstallCheck(f func(*asserts.Model, []efi.Image) error) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -239,7 +243,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkSecbootEncryption:
 		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
 		// is covered by PreinstallCheck.
-		checkEncryptionErr = secbootPreinstallCheck(model, tpmMode)
+		checkEncryptionErr = encryptionAvailabilityCheck(model, tpmMode)
 		if checkEncryptionErr == nil {
 			res.Type = device.EncryptionTypeLUKS
 		} else {
@@ -294,6 +298,81 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	}
 
 	return res, nil
+}
+
+func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
+	if preinstallCheckSupported(model) {
+		images, err := orderedCurrentBootImages(model)
+		if err != nil {
+			return err
+		}
+		err = secbootPreinstallCheck(model, images)
+		if err != nil {
+			return err
+		}
+	}
+
+	return secbootCheckTPMKeySealingSupported(tpmMode)
+}
+
+func preinstallCheckSupported(model *asserts.Model) bool {
+	if !model.IsHybrid() {
+		return false
+	}
+
+	if release.ReleaseInfo.ID != "ubuntu" {
+		logger.Noticef("unexpected OS release ID %s", release.ReleaseInfo.ID)
+		return false
+	}
+
+	const minSupportedVersion = "24.10"
+	cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minSupportedVersion)
+	if err != nil {
+		logger.Noticef("cannot compare ubuntu release version %q to minimum required %q: %v", release.ReleaseInfo.ID, minSupportedVersion, err)
+		return false
+	}
+
+	return cmp >= 0
+}
+
+func orderedCurrentBootImages(model *asserts.Model) ([]efi.Image, error) {
+	if model.IsHybrid() {
+		images, err := orderedCurrentBootImagesHybrid()
+		if err != nil {
+			return nil, fmt.Errorf("cannot locate hybrid system installer current boot images: %v", err)
+		}
+		return images, nil
+	}
+	// TODO: consider support for core systems
+	return nil, nil
+}
+
+func orderedCurrentBootImagesHybrid() ([]efi.Image, error) {
+	imageInfo := []struct {
+		name string
+		glob string
+	}{
+		{"shim", filepath.Join(hybridInstallRootDir, "cdrom/EFI/boot/boot*.efi")},
+		{"grub", filepath.Join(hybridInstallRootDir, "cdrom/EFI/boot/grub*.efi")},
+		{"kernel", filepath.Join(hybridInstallRootDir, "cdrom/casper/vmlinuz")},
+	}
+
+	var loadedImages []efi.Image
+	for _, info := range imageInfo {
+		matches, err := filepath.Glob(info.glob)
+		if err != nil {
+			return nil, fmt.Errorf("cannot use globbing pattern %q: %v", info.glob, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("cannot locate installer %s using globbing pattern %q", info.name, info.glob)
+		}
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
+		}
+		loadedImages = append(loadedImages, efi.NewFileImage(matches[0]))
+	}
+
+	return loadedImages, nil
 }
 
 // GetEncryptionSupportInfo returns the encryption support information
@@ -364,7 +443,7 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		// comprehensive preinstall check
 		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
 		// is covered by PreinstallCheck.
-		if err := secbootPreinstallCheck(model, tpmMode); err != nil {
+		if err := encryptionAvailabilityCheck(model, tpmMode); err != nil {
 			// XXX: Remove this comment once agreed if the compound error will have simple high level message.
 			setUnavailableErrorOrWarning(fmt.Errorf("cannot use TPM based encryption: preinstall check failed"))
 			encInfo.PreinstallCheckErr = err
