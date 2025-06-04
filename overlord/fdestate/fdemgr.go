@@ -326,7 +326,9 @@ func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
 	return keyDigest[:10], nil
 }
 
-func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
+// GenerateRecoveryKey generates a recovery key and its corresponding id
+// with an expiration time `recoveryKeyExpireAfter`.
+func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
 	if m.recoveryKeyCache == nil {
 		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyCache is nil")
 	}
@@ -339,7 +341,7 @@ func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 		}
 		rkey, err = keysNewRecoveryKey()
 		if err != nil {
-			return keys.RecoveryKey{}, "", err
+			return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot generate recovery key: %v", err)
 		}
 		keyID, err = recoveryKeyID(rkey)
 		if err != nil {
@@ -376,7 +378,7 @@ func (m *FDEManager) generateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 // The state needs to be locked by the caller.
 func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
 	mgr := fdeMgr(st)
-	return mgr.generateRecoveryKey()
+	return mgr.GenerateRecoveryKey()
 }
 
 func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
