@@ -826,7 +826,11 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	// changedSnaps might be nil in some operations with the fakestore
-	if changedSnaps != nil && changedSnaps.hasChanges() {
+	if changedSnaps == nil {
+		changedSnaps = &changedSnapsData{}
+	}
+
+	if changedSnaps.hasChanges() {
 		if err := showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
@@ -837,22 +841,52 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		return nil
 	}
 
-	// show skipped
+	compareChangedToRequested(*changedSnaps, names)
+
+	return nil
+}
+
+// compareChangedToRequested compares the changed snaps to the requested set of
+// snap and component changes. A message is printed to stdout for unchanged
+// snaps and components.
+func compareChangedToRequested(changed changedSnapsData, requested []string) {
 	seen := make(map[string]bool)
-	if changedSnaps != nil {
-		for _, name := range changedSnaps.names {
-			seen[name] = true
+	for _, name := range changed.names {
+		seen[name] = true
+	}
+
+	for sn, comps := range changed.comps {
+		for _, comp := range comps {
+			seen[snap.SnapComponentName(sn, comp)] = true
 		}
 	}
+
+	names, components, err := snapInstancesAndComponentsFromNames(requested, true)
+	if err != nil { // this should never happen, since the names have already been validated
+		return
+	}
+
+	var compNames []string
+	for sn, comps := range components {
+		for _, comp := range comps {
+			compNames = append(compNames, snap.SnapComponentName(sn, comp))
+		}
+	}
+
 	for _, name := range names {
 		if !seen[name] {
-			// FIXME: this is the only reason why a name can be
-			// skipped, but it does feel awkward
+			// FIXME: this is the only reason why a name can be skipped, but it
+			// does feel awkward.
 			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
 		}
 	}
 
-	return nil
+	for _, name := range compNames {
+		if !seen[name] {
+			// FIXME: same as above
+			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+		}
+	}
 }
 
 func (x *cmdInstall) Execute([]string) error {
