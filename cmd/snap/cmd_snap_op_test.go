@@ -466,7 +466,7 @@ func (s *SnapOpSuite) TestInstallManyWithComponents(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one+comp1+comp2", "two+comp3+comp4", "three"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one+comp1", "one+comp2", "two+comp3+comp4", "three"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 
@@ -559,7 +559,7 @@ func (s *SnapOpSuite) TestRemoveManyWithComponents(c *check.C) {
 	})
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs(
-		[]string{"remove", "one+comp1+comp2", "two+comp3+comp4", "three"})
+		[]string{"remove", "one+comp1", "one+comp2", "two+comp3+comp4", "three"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 
