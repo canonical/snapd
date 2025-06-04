@@ -118,7 +118,10 @@ type DeviceManager struct {
 
 	seedTimings *timings.Timings
 	// this is used during early phases until seeding is under way
-	earlyDeviceSeed     seed.Seed
+	earlyDeviceSeed seed.Seed
+	// these are details about the chosen seed we will be seeding from,
+	// set and valid only before seeding has happened. Should not be
+	// used by tasks that are not explicitly happening prior to system being marked seeded.
 	seedLabel, seedMode string
 	seedChosen          bool
 
