@@ -846,6 +846,9 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	return nil
 }
 
+// compareChangedToRequested compares the changed snaps to the requested set of
+// snap and component changes. A message is printed to stdout for unchanged
+// snaps and components.
 func compareChangedToRequested(changed changedSnapsData, requested []string) {
 	seen := make(map[string]bool)
 	for _, name := range changed.names {
@@ -870,10 +873,17 @@ func compareChangedToRequested(changed changedSnapsData, requested []string) {
 		}
 	}
 
-	for _, name := range append(names, compNames...) {
+	for _, name := range names {
 		if !seen[name] {
 			// FIXME: this is the only reason why a name can be skipped, but it
 			// does feel awkward.
+			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+		}
+	}
+
+	for _, name := range compNames {
+		if !seen[name] {
+			// FIXME: same as above
 			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
 		}
 	}
