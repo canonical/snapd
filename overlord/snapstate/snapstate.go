@@ -2924,7 +2924,9 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 		return nil, err
 	}
 
-	// TODO: maybe we don't do this
+	// note, the prereq tracker doesn't use the channel given here. however, for
+	// the sake of correctness, and if we ever do use the channel in the prereq
+	// tracker, we update the channel to be what it is being switched to.
 	current.SideInfo.Channel = snapsup.Channel
 	prqt.Add(current)
 
