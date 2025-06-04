@@ -1312,6 +1312,10 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 }
 
 func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
 	s.daemon(c)
 
 	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
