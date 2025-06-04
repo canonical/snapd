@@ -22,9 +22,10 @@ import (
 	"encoding/json"
 )
 
-// PreinstallErrorAndActions represents a preinstall check error, including its
-// kind, message, and optionally arguments and recovery actions.
-type PreinstallErrorAndActions struct {
+// PreinstallErrorInfo represents the information contained within
+// a preinstall check error, including its kind, message, and optionally
+// arguments and recovery actions.
+type PreinstallErrorInfo struct {
 	Kind    string                     `json:"kind"`
 	Message string                     `json:"message"`
 	Args    map[string]json.RawMessage `json:"args,omitempty"`

@@ -79,13 +79,15 @@ type EncryptionSupportInfo struct {
 	// the this device and used gadget do not match the
 	// storage safety requirements.
 	UnavailableErr error
+
 	// UnavailbleWarning describes why encryption support is not
 	// available in case it is optional.
 	UnavailableWarning string
 
-	// PreinstallCheckErr holds either a single preinstall check error or a
-	// compound error containing preinstall check errors.
-	PreinstallCheckErr error
+	// AvailabilityCheckErrorInfos holds information about
+	// encryption availability errors identified during
+	// preinstall check.
+	AvailabilityCheckErrorInfos []secboot.PreinstallErrorInfo
 
 	// PassphraseAuthAvailable is set if the passphrase authentication
 	// is supported.
@@ -173,7 +175,7 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 }
 
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(*asserts.Model, []efi.Image) error) (restore func()) {
+func MockSecbootPreinstallCheck(f func(*asserts.Model, []efi.Image) ([]secboot.PreinstallErrorInfo, error)) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -243,11 +245,16 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkSecbootEncryption:
 		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
 		// is covered by PreinstallCheck.
-		checkEncryptionErr = encryptionAvailabilityCheck(model, tpmMode)
-		if checkEncryptionErr == nil {
+		unavailableReason, preinstallErrorInfos, err := encryptionAvailabilityCheck(model, tpmMode)
+		if err != nil {
+			return res, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
+		}
+
+		if unavailableReason == "" {
 			res.Type = device.EncryptionTypeLUKS
 		} else {
-			res.PreinstallCheckErr = checkEncryptionErr
+			checkEncryptionErr = fmt.Errorf(unavailableReason)
+			res.AvailabilityCheckErrorInfos = preinstallErrorInfos
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
@@ -300,46 +307,65 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	return res, nil
 }
 
-func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
-	if preinstallCheckSupported(model) {
+func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) (string, []secboot.PreinstallErrorInfo, error) {
+	supported, err := preinstallCheckSupported(model)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot confirm preinstall support: %v", err)
+	}
+	if supported {
+		// use comprehensive preinstall check
 		images, err := orderedCurrentBootImages(model)
 		if err != nil {
-			return err
+			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
-		err = secbootPreinstallCheck(model, images)
+
+		preinstallErrorInfos, err := secbootPreinstallCheck(model, images)
 		if err != nil {
-			return err
+			return "", nil, err
+		}
+
+		switch len(preinstallErrorInfos) {
+		case 0:
+			return "", nil, nil
+		case 1:
+			return fmt.Sprintf("preinstall check error: %s", preinstallErrorInfos[0].Message), preinstallErrorInfos, nil
+		default:
+			return fmt.Sprintf("preinstall check identified %d errors", len(preinstallErrorInfos)), preinstallErrorInfos, nil
 		}
 	}
 
-	return secbootCheckTPMKeySealingSupported(tpmMode)
+	// use general availability check
+	err = secbootCheckTPMKeySealingSupported(tpmMode)
+	if err != nil {
+		return fmt.Sprintf("general availability check: %v", err.Error()), nil, nil
+	}
+	return "", nil, nil
 }
 
-func preinstallCheckSupported(model *asserts.Model) bool {
+func preinstallCheckSupported(model *asserts.Model) (bool, error) {
 	if !model.IsHybrid() {
-		return false
+		return false, nil
 	}
 
 	if release.ReleaseInfo.ID != "ubuntu" {
 		logger.Noticef("unexpected OS release ID %s", release.ReleaseInfo.ID)
-		return false
+		return false, nil
 	}
 
 	const minSupportedVersion = "24.10"
 	cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minSupportedVersion)
 	if err != nil {
-		logger.Noticef("cannot compare ubuntu release version %q to minimum required %q: %v", release.ReleaseInfo.ID, minSupportedVersion, err)
-		return false
+		return false, fmt.Errorf("cannot compare ubuntu release version %q to minimum required %q: %v", release.ReleaseInfo.ID, minSupportedVersion, err)
 	}
 
-	return cmp >= 0
+	return cmp >= 0, nil
 }
 
 func orderedCurrentBootImages(model *asserts.Model) ([]efi.Image, error) {
 	if model.IsHybrid() {
 		images, err := orderedCurrentBootImagesHybrid()
 		if err != nil {
-			return nil, fmt.Errorf("cannot locate hybrid system installer current boot images: %v", err)
+			return nil, fmt.Errorf("cannot locate hybrid system boot images: %v", err)
 		}
 		return images, nil
 	}
@@ -423,7 +449,7 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		EncryptedData: true,
 	}
 	if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
-		setUnavailableErrorOrWarning(fmt.Errorf("cannot use encryption with the gadget: %v", err))
+		setUnavailableErrorOrWarning(fmt.Errorf("cannot use encryption with the provided gadget: %v", err))
 		return encInfo, nil
 	}
 
@@ -443,10 +469,13 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		// comprehensive preinstall check
 		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
 		// is covered by PreinstallCheck.
-		if err := encryptionAvailabilityCheck(model, tpmMode); err != nil {
-			// XXX: Remove this comment once agreed if the compound error will have simple high level message.
-			setUnavailableErrorOrWarning(fmt.Errorf("cannot use TPM based encryption: preinstall check failed"))
-			encInfo.PreinstallCheckErr = err
+		unavailableReason, preinstallErrorInfos, err := encryptionAvailabilityCheck(model, tpmMode)
+		if err != nil {
+			return encInfo, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
+		}
+		if unavailableReason != "" {
+			setUnavailableErrorOrWarning(fmt.Errorf(unavailableReason))
+			encInfo.AvailabilityCheckErrorInfos = preinstallErrorInfos
 			return encInfo, nil
 		}
 		encInfo.Type = device.EncryptionTypeLUKS

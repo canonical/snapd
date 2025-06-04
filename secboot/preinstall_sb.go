@@ -38,7 +38,7 @@ var (
 	preinstallRun                 = (*preinstall.RunChecksContext).Run
 )
 
-type compoundPreinstallError struct {
+/*type compoundPreinstallError struct {
 	errs []error
 }
 
@@ -60,76 +60,71 @@ func NewPreinstallCompoundError(errorAndActions []preinstall.WithKindAndActionsE
 		errs = append(errs, &err)
 	}
 
-	return combineErrors()
+	return combineErrors(errs)
+}*/
+
+/*
+// PreinstallCompoundError wraps the preinstall check error which itself can be
+// either a single error or a compound error. In the case of a single underlying
+// error, it presents that error message and in the case of a compound underlying
+// error, it indicates the number of contained errors. In all cases it the error
+// message prefix indicates that the error originates from a preinstall check.
+type PreinstallCompoundError struct {
+	runError error
 }
 
-// UnpackPreinstallCheckError converts a single or compound preinstall check
-// error into a slice of PreinstallErrorAndActions. If the provided error or any
-// contained error is not of type *preinstall.ErrorKindAndActions, the function
-// returns a slice containing a single internal error describing the type.
-func UnpackPreinstallCheckError(err error) []PreinstallErrorAndActions {
+func (c *PreinstallCompoundError) Error() string {
+	errorInfo := c.Unpack()
+	if len(errorInfo) > 1 {
+		return fmt.Sprintf("preinstall check identified %d errors", len(errorInfo))
+	}
+
+	return fmt.Sprintf("preinstall check error: %s", errorInfo[0].Message)
+}*/
+
+/*
+// Unpack converts a single or compound preinstall check error into a slice of
+// PreinstallErrorAndActions. If the provided error or any contained error is
+// not of type *preinstall.ErrorKindAndActions, the function returns a slice
+// containing a single internal error describing the unexpected type.
+func (c *PreinstallCompoundError) Unpack() []PreinstallErrorInfo {
 	// expect either a single or compound error
-	compoundErr, ok := err.(preinstall.CompoundError)
+	compoundErr, ok := c.runError.(preinstall.CompoundError)
 	if !ok {
 		// single error
-		errorAndActions, ok := err.(*preinstall.WithKindAndActionsError)
+		kindAndActions, ok := c.runError.(*preinstall.WithKindAndActionsError)
 		if !ok {
-			return []PreinstallErrorAndActions{
-				newInternalErrorUnexpectedType(err),
+			return []PreinstallErrorInfo{
+				newInternalErrorUnexpectedType(c.runError),
 			}
 		}
-		return []PreinstallErrorAndActions{
-			convertErrorType(errorAndActions),
+		return []PreinstallErrorInfo{
+			convertErrorType(kindAndActions),
 		}
 	}
 
 	// unpack compound error
 	errs := compoundErr.Unwrap()
-	converted := make([]PreinstallErrorAndActions, 0, len(errs))
+	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
 	for _, err := range errs {
-		errorAndActions, ok := err.(*preinstall.WithKindAndActionsError)
+		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
 		if !ok {
-			return []PreinstallErrorAndActions{
+			return []PreinstallErrorInfo{
 				newInternalErrorUnexpectedType(err),
 			}
 		}
-		converted = append(converted, convertErrorType(errorAndActions))
+		unpacked = append(unpacked, convertErrorType(kindAndActions))
 	}
-	return converted
+	return unpacked
 }
-
-func convertErrorType(errorAndActions *preinstall.WithKindAndActionsError) PreinstallErrorAndActions {
-	return PreinstallErrorAndActions{
-		Kind:    string(errorAndActions.Kind),
-		Message: errorAndActions.Unwrap().Error(),
-		Args:    errorAndActions.Args,
-		Actions: convertActions(errorAndActions.Actions),
-	}
-}
-
-func convertActions(actions []preinstall.Action) []string {
-	convActions := make([]string, len(actions))
-	for i, action := range actions {
-		convActions[i] = string(action)
-	}
-	return convActions
-}
-
-func newInternalErrorUnexpectedType(err error) PreinstallErrorAndActions {
-	message := fmt.Sprintf("cannot convert error of unexpected type %[1]T (%[1]v)", err)
-
-	return PreinstallErrorAndActions{
-		Kind:    string(preinstall.ErrorKindInternal),
-		Message: message,
-	}
-}
+*/
 
 // PreinstallCheck runs the default preinstall checks to evaluate whether the host
 // environment is an EFI system suitable for TPM-based full disk encryption (FDE).
 // It uses standard check and PCR profile options, without customizing TCG-compliant
 // PCR profiles. When running in a virtual machine during testing, VM checks are
 // permitted. Returns an error on failure and logs any warnings encountered.
-func PreinstallCheck(model *asserts.Model, images []sb_efi.Image) error {
+func PreinstallCheck(model *asserts.Model, images []sb_efi.Image) ([]PreinstallErrorInfo, error) {
 	checkCustomizationFlags := preinstall.CheckFlagsDefault
 	if snapdenv.Testing() && systemd.IsVirtualMachine() {
 		// allow virtual machine when testing
@@ -144,15 +139,63 @@ func PreinstallCheck(model *asserts.Model, images []sb_efi.Image) error {
 
 	// no actions args due to no actions for preinstall checks
 	args := []any{}
-	// Ignore the returned *preinstall.CheckResult
+	// ignore the returned *preinstall.CheckResult
 	result, err := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args...)
 	if err != nil {
-		return err
+		return unpackPreinstallCheckError(err)
 	}
 	if result.Warnings != nil {
 		for _, warn := range result.Warnings.Unwrap() {
 			logger.Noticef("preinstall check warning: %v", warn)
 		}
 	}
-	return nil
+	return nil, nil
+}
+
+// unpackPreinstallCheckError converts a single or compound preinstall check
+// error into a slice of PreinstallErrorInfo. This function returns an error
+// if the provided error or any compounded error is not of type
+// *preinstall.ErrorKindAndActions.
+func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
+	// expect either a single or compound error
+	compoundErr, ok := err.(preinstall.CompoundError)
+	if !ok {
+		// single error
+		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
+		if !ok {
+			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
+		}
+		return []PreinstallErrorInfo{
+			convertErrorType(kindAndActions),
+		}, nil
+	}
+
+	// unpack compound error
+	errs := compoundErr.Unwrap()
+	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
+	for _, err := range errs {
+		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
+		if !ok {
+			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
+		}
+		unpacked = append(unpacked, convertErrorType(kindAndActions))
+	}
+	return unpacked, nil
+}
+
+func convertErrorType(errorAndActions *preinstall.WithKindAndActionsError) PreinstallErrorInfo {
+	return PreinstallErrorInfo{
+		Kind:    string(errorAndActions.Kind),
+		Message: errorAndActions.Unwrap().Error(),
+		Args:    errorAndActions.Args,
+		Actions: convertActions(errorAndActions.Actions),
+	}
+}
+
+func convertActions(actions []preinstall.Action) []string {
+	convActions := make([]string, len(actions))
+	for i, action := range actions {
+		convActions[i] = string(action)
+	}
+	return convActions
 }
