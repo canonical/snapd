@@ -24,7 +24,7 @@ execute: |
     ip netns add testns
 
     # Make sure we don't use a proxy to access http endpoint, otherwise the NoNetwork will be false
-    http_proxy= HTTP_PROXY= SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt 2>stderr
+    http_proxy="" HTTP_PROXY="" SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt 2>stderr
 
     # XXX: ShouldRetryError is slightly misbehaving, if we know we don't have
     #      a network connection we should not retry. However we keep it as
@@ -40,7 +40,7 @@ execute: |
     if echo "$NO_PROXY" | MATCH 'ubuntu.com'; then
         export NO_PROXY="$NO_PROXY","$UBUNTU_IP"
     fi
-    http_proxy= HTTP_PROXY= SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt 2>stderr
+    http_proxy="" HTTP_PROXY="" SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt 2>stderr
     # XXX: ShouldRetryError is slightly misbehaving, see comment above
     MATCH "ShouldRetryError: true" < output.txt
     MATCH "NoNetwork: true" < output.txt
@@ -59,7 +59,7 @@ execute: |
     if echo "$NO_PROXY" | MATCH 'ubuntu.com'; then
         export NO_PROXY="$NO_PROXY","$UBUNTU_IP"
     fi
-    http_proxy= HTTP_PROXY= SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://[$UBUNTU_IP]" > output.txt 2>stderr
+    http_proxy="" HTTP_PROXY="" SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://[$UBUNTU_IP]" > output.txt 2>stderr
     # XXX: ShouldRetryError is slightly misbehaving, see comment above
     MATCH "ShouldRetryError: true" < output.txt
     MATCH "NoNetwork: true" < output.txt

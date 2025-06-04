@@ -88,7 +88,6 @@ disable_refreshes() {
 }
 
 setup_snapd_proxy() {
-    local PROXY_PARAM=""
     if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         return
     fi
@@ -96,7 +95,7 @@ setup_snapd_proxy() {
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
-Environment=PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
+Environment="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
 EOF
 
     # We change the service configuration so reload and restart
@@ -122,15 +121,10 @@ setup_proxy() {
 }
 
 setup_systemd_snapd_overrides() {
-    local PROXY_PARAM=""
-    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-        PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY NO_PROXY=$NO_PROXY"
-    fi
-
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE $PROXY_PARAM
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 
 [Unit]
@@ -450,6 +444,8 @@ prepare_classic() {
         snap wait system seed.loaded
     fi
     snap list snapd
+
+    setup_snapd_proxy
 
     mount_dir="$(os.paths snap-mount-dir)"
     if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
