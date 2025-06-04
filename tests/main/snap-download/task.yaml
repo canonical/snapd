@@ -47,7 +47,13 @@ execute: |
     verify_asserts test-snapd-control-consumer_*.assert
 
     echo "Snap will use existing files"
-    SNAPD_DEBUG=1 snap download test-snapd-control-consumer 2>&1 | MATCH "not downloading, using existing file"
+    SNAPD_DEBUG=1 snap download test-snapd-control-consumer &>out
+    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
+        # If logging to journal is active, then grab the entires in the journal for snap
+        # and append them to the debug log
+        "$TESTSTOOLS"/journal-state get-log --no-pager | grep -oP 'snap\[\d+\]: \K.*' >> out
+    fi
+    MATCH "not downloading, using existing file" out
 
     echo "Snap download understand --edge"
     snap download --edge test-snapd-tools

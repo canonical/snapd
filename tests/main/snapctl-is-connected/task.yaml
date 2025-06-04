@@ -13,6 +13,11 @@ restore: |
 
 execute: |
   check_empty() {
+    if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ]; then
+        # When structured trace logging is active, the output
+        # will contain debug logs so exit early
+        exit 0
+    fi
     local OUT="$1"
     if [ -n "$OUT" ]; then
         echo "Expected no output, but got: $OUT"
@@ -38,4 +43,4 @@ execute: |
   if OUT=$(test-snap.checkconn home 2>&1); then
     echo "home is not expected"
   fi
-  echo "$OUT" | MATCH "error: snapctl: snap \"test-snap\" has no plug or slot named \"home\""
+  echo "$OUT" | MATCH 'error: snapctl: snap [\]?"test-snap[\]?" has no plug or slot named [\]?"home[\]?"'

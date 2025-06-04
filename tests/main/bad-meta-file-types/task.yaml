@@ -12,12 +12,12 @@ execute: |
     # snap pack should fail
     echo "Packing snap with pipe disguised as a desktop file should fail"
     not snap pack test-bad-file-types > pack.out 2>&1
-    MATCH "\"meta/gui/test-bad-file-types.desktop\" should be a regular file \(or a symlink\) and isn't" < pack.out
+    MATCH "[\]?\"meta/gui/test-bad-file-types.desktop[\]?\" should be a regular file \(or a symlink\) and isn't" < pack.out
     # snap install should also fail
     echo "Installing snap with pipe disguised as a desktop file should fail"
     mksquashfs test-bad-file-types test-bad-file-types.snap
     not snap install --dangerous test-bad-file-types.snap
-    journalctl -u snapd | MATCH "\"meta/gui/test-bad-file-types.desktop\" should be a regular file \(or a symlink\) and isn't"
+    journalctl -u snapd | MATCH "[\]?\"meta/gui/test-bad-file-types.desktop[\]?\" should be a regular file \(or a symlink\) and isn't"
     # clean up
     rm test-bad-file-types.snap
     rm test-bad-file-types/meta/gui/test-bad-file-types.desktop
@@ -43,12 +43,12 @@ execute: |
     # snap pack should fail
     echo "Packing snap with pipe disguised as an icon file should fail"
     not snap pack test-bad-file-types > pack.out 2>&1
-    MATCH "\"meta/gui/icons/snap.test-bad-file-types.png\" should be a regular file \(or a symlink\) and isn't" < pack.out
+    MATCH "[\]?\"meta/gui/icons/snap.test-bad-file-types.png[\]?\" should be a regular file \(or a symlink\) and isn't" < pack.out
     # snap install should also fail
     echo "Installing snap with pipe disguised as an icon file should fail"
     mksquashfs test-bad-file-types test-bad-file-types.snap
     not snap install --dangerous test-bad-file-types.snap
-    journalctl -u snapd | MATCH "\"meta/gui/icons/snap.test-bad-file-types.png\" should be a regular file \(or a symlink\) and isn't"
+    journalctl -u snapd | MATCH "[\]?\"meta/gui/icons/snap.test-bad-file-types.png[\]?\" should be a regular file \(or a symlink\) and isn't"
     # clean up
     rm test-bad-file-types.snap
     rm test-bad-file-types/meta/gui/icons/snap.test-bad-file-types.png

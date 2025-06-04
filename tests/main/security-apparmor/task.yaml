@@ -21,4 +21,4 @@ execute: |
         echo "Expected error"
         exit 1
     fi
-    [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-sh.foo': Permission denied" ]
+    MATCH "touch: cannot touch '/dev/shm/snap.not-test-snapd-sh.foo': Permission denied" <touch.error
