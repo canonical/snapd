@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -1308,6 +1309,60 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	})
 
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	s.daemon(c)
+
+	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
+		c.Check(label, check.Equals, "20250529")
+		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, nil
+	})()
+
+	body := map[string]interface{}{
+		"action": "install",
+		"step":   "generate-recovery-key",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20250529", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	res := rsp.Result.(map[string]string)
+	c.Check(res, check.DeepEquals, map[string]string{
+		"recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593",
+	})
+}
+
+func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
+		c.Check(label, check.Equals, "20250529")
+		return keys.RecoveryKey{}, errors.New("boom!")
+	})()
+
+	body := map[string]interface{}{
+		"action": "install",
+		"step":   "generate-recovery-key",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20250529", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `cannot generate recovery key for "20250529": boom!`)
 }
 
 func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {

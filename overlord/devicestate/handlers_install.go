@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -79,6 +80,8 @@ var (
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 	secbootRemoveOldCounterHandles       = secboot.RemoveOldCounterHandles
 	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
+	fdestateGetRecoveryKey               = fdestate.GetRecoveryKey
+	fdestateGenerateRecoveryKey          = fdestate.GenerateRecoveryKey
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -964,6 +967,17 @@ func kBootInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mnt
 			IsCore: isCore, NeedsDriversTree: kernel.NeedsKernelDriversTree(systemAndSnaps.Model)})
 }
 
+func addPreInstallRecoveryKey(dataBootstrappedContainer, saveBootstrappedContainer secboot.BootstrappedContainer, rkey keys.RecoveryKey) error {
+	if dataBootstrappedContainer == nil || saveBootstrappedContainer == nil {
+		return errors.New("internal error: system encryption keys are unset")
+	}
+
+	if err := dataBootstrappedContainer.AddRecoveryKey("default-recovery", rkey); err != nil {
+		return err
+	}
+	return saveBootstrappedContainer.AddRecoveryKey("default-recovery", rkey)
+}
+
 // doInstallFinish performs the finish step of the install. It will
 // - install missing volumes structure content
 // - copy seed (only for UC)
@@ -1165,8 +1179,20 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
+		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encryptSetupData)
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, install.BootstrappedContainersForRole(encryptSetupData), encryptSetupData.VolumesAuth(), trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, bootstrappedContainersForRole, encryptSetupData.VolumesAuth(), trustedInstallObserver); err != nil {
+				return err
+			}
+		}
+
+		recoveryKeyID := encryptSetupData.RecoveryKeyID()
+		if recoveryKeyID != "" {
+			rkey, err := fdestateGetRecoveryKey(st, recoveryKeyID)
+			if err != nil {
+				return err
+			}
+			if err := addPreInstallRecoveryKey(bootstrappedContainersForRole[gadget.SystemData], bootstrappedContainersForRole[gadget.SystemSave], rkey); err != nil {
 				return err
 			}
 		}
@@ -1471,4 +1497,35 @@ func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 		return fmt.Errorf("cannot remove old disk keys: %w", err)
 	}
 	return nil
+}
+
+// GeneratePreInstallRecoveryKey generates a recovery key and embeds
+// its corresponding id in the storage encryption setup data.
+//
+// Note: InstallSetupStorageEncryption must be called before calling
+// this helper.
+func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
+	var encryptSetupData *install.EncryptionSetupData
+	cached := st.Cached(encryptionSetupDataKey{label})
+	if cached == nil {
+		return keys.RecoveryKey{}, fmt.Errorf("storage encryption setup step was not called")
+	}
+
+	// XXX: just let it panic?
+	encryptSetupData, ok := cached.(*install.EncryptionSetupData)
+	if !ok {
+		return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
+	}
+
+	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	// attach key-id to encryption setup data so it can be used
+	// in the install finish step.
+	encryptSetupData.SetRecoveryKeyID(keyID)
+	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
+
+	return rkey, err
 }

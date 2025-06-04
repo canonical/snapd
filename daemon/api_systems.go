@@ -154,6 +154,7 @@ var (
 	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
 	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
 	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
+	devicestateGeneratePreInstallRecoveryKey = devicestate.GeneratePreInstallRecoveryKey
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -338,6 +339,14 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		}
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
+	case client.InstallStepGenerateRecoveryKey:
+		rkey, err := devicestateGeneratePreInstallRecoveryKey(st, systemLabel)
+		if err != nil {
+			return BadRequest("cannot generate recovery key for %q: %v", systemLabel, err)
+		}
+		return SyncResponse(map[string]string{
+			"recovery-key": rkey.String(),
+		})
 	case client.InstallStepFinish:
 		var optional *devicestate.OptionalContainers
 		if req.OptionalInstall != nil {

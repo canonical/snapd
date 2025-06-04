@@ -29,6 +29,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type bootstrappedContainer struct {
@@ -61,6 +62,21 @@ func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte) error {
 	}
 
 	if err := sbAddLUKS2ContainerUnlockKey(bc.devicePath, slotNameOrDefault(slotName), sb.DiskUnlockKey(bc.key), sb.DiskUnlockKey(newKey)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (bc *bootstrappedContainer) AddRecoveryKey(slotName string, rkey keys.RecoveryKey) error {
+	if bc.finished {
+		return fmt.Errorf("internal error: bootstrapped container was a already finished")
+	}
+
+	if slotName == "" {
+		slotName = "default-recovery"
+	}
+
+	if err := sbAddLUKS2ContainerRecoveryKey(bc.devicePath, slotName, sb.DiskUnlockKey(bc.key), sb.RecoveryKey(rkey)); err != nil {
 		return err
 	}
 	return nil
