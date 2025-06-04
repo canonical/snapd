@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
@@ -154,6 +155,7 @@ var (
 	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
 	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
 	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
+	fdestateRepair                           = fdestate.Repair
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -277,6 +279,8 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCheckPassphrase(c, systemLabel, &req)
 	case "check-pin":
 		return postSystemActionCheckPIN(c, systemLabel, &req)
+	case "repair":
+		return postSystemActionRepair(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -711,4 +715,21 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 	}
 
 	return SyncResponse(nil)
+}
+
+func postSystemActionRepair(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg, err := fdestateRepair(st)
+	if err != nil {
+		return InternalError("cannot reprovision system %q: %v", systemLabel, err)
+	}
+
+	return AsyncResponse(nil, chg.ID())
 }

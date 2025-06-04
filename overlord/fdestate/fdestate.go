@@ -23,13 +23,17 @@ import (
 	"errors"
 	"fmt"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -37,6 +41,7 @@ var (
 	secbootGetPrimaryKeyDigest    = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest = secboot.VerifyPrimaryKeyDigest
 	secbootGetPCRHandle           = secboot.GetPCRHandle
+	backendRemoveBootChainCache   = backend.RemoveBootChainCache
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -402,4 +407,43 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 	return func() {
 		secbootGetPCRHandle = old
 	}
+}
+
+func Repair(st *state.State) (*state.Change, error) {
+	repair := st.NewTask("fde-repair-reseal", "Repair FDE encryption")
+	chg := st.NewChange("fde-repair", "Reseal FDE keys")
+	chg.AddTask(repair)
+
+	st.EnsureBefore(0)
+
+	return chg, nil
+}
+
+func doReseal(t *state.Task, tomb *tomb.Tomb) error {
+	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err == device.ErrNoSealedKeys {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	mgr := fdeMgr(st)
+
+	switch method {
+	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		if err := backendRemoveBootChainCache(dirs.GlobalRootDir); err != nil {
+			return err
+		}
+	}
+
+	unlocker := st.Unlocker()
+
+	return boot.WithBootChains(func(bc *boot.ResealKeyForBootChainsParams) error {
+		const expectReseal = true
+		return mgr.resealKeyForBootChains(unlocker, method, dirs.GlobalRootDir, bc, expectReseal)
+	}, method)
 }

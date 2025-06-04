@@ -17,9 +17,31 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: "true"
     NESTED_KEEP_FIRMWARE_STATE: "true"
 
+    # Clearing TPM tests the case where a full reprovision is required.
+    CLEAR_TPM: "false"
+    CLEAR_TPM/clear_tpm: "true"
+
+    # Updating dbx tests the case where a simple repair is required.
+    BREAK_DBX: "false"
+    BREAK_DBX/break_dbx: "true"
+
 prepare: |
     tests.nested build-image core
     tests.nested create-vm core
+
+    if [ "${BREAK_DBX}" = true ]; then
+      tests.pkgs install efitools
+      remote.exec sudo snap install --devmode test-snapd-efitools
+
+      keys_dir="$(tests.nested get assets-path)/ovmf/secboot/"
+
+      MYGUID="11111111-0000-1111-0000-000000000000"
+      openssl req -new -x509 -newkey rsa:2048 -subj "/CN=bad key/" \
+          -keyout "bad-key.key" -out "bad-key.crt" -days 3650 -nodes -sha256
+      cert-to-efi-sig-list -g "${MYGUID}" "bad-key.crt" "bad-key.esl"
+      sign-efi-sig-list -a -c "${keys_dir}/KEK.crt" -k "${keys_dir}/KEK.key" dbx \
+              "bad-key.esl" "dbx-update.auth"
+    fi
 
 execute: |
     # We will manually clear things
@@ -28,19 +50,52 @@ execute: |
     remote.exec "sudo snap wait system seed.loaded"
     remote.wait-for device-initialized
 
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-run.json
+
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-run.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-run.json)" = run
+
     remote.exec "sudo snap recovery --show-keys" >recovery.out
     tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
 
+    if [ "${BREAK_DBX}" = true ]; then
+      remote.push dbx-update.auth
+      remote.exec "sudo chattr -i /sys/firmware/efi/efivars/dbx-*"
+      remote.exec sudo test-snapd-efitools.tool efi-updatevar -a -f dbx-update.auth dbx
+    fi
+
     tests.nested vm stop
-    tests.nested vm clear-tpm
+    if [ "${CLEAR_TPM}" = true ]; then
+      tests.nested vm clear-tpm
+    fi
     tests.nested vm start
 
     remote.exec true
 
-    remote.pull /run/snapd/snap-bootstrap/unlocked.json .
-    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked.json)" = recovery
-    # We must have been able to unlock the save with the plain key
-    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked.json)" = run
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-recovery.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-recovery.json)" = recovery
+    # We must have been able to unlock with the plain key
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-recovery.json)" = run
 
-    # FIXME: this is a bug we always had
-    # remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
+    # FIXME: this is a bug we always had for cleared tpm
+    if [ "${BREAK_DBX}" = true ]; then
+      remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
+    fi
+
+    if [ "${CLEAR_TPM}" = true ]; then
+      # For now we do not have reprovidision implemented
+      exit 0
+    fi
+
+    echo '{"action": "repair"}' | remote.exec sudo snap debug api -X POST -H '"Content-Type: application/json"' /v2/systems/foobar >repair-response.json
+    remote.exec sudo snap watch --last=fde-repair
+
+    tests.nested vm set-recovery-key ""
+
+    tests.nested vm stop
+    tests.nested vm start
+
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-post-recovery.json
+
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-post-recovery.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-post-recovery.json)" = run
