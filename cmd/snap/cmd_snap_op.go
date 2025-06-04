@@ -257,11 +257,11 @@ func snapInstancesAndComponentsFromNames(names []string, forInstall bool) ([]str
 		// we have specified also components, but when removing we
 		// actually want to remove only components if any of them have
 		// been specified.
-		if forInstall || len(comps) == 0 {
+		if (forInstall || len(comps) == 0) && !strutil.ListContains(snaps, snap) {
 			snaps = append(snaps, snap)
 		}
 		if len(comps) > 0 {
-			allComps[snap] = comps
+			allComps[snap] = append(allComps[snap], comps...)
 		}
 	}
 	return snaps, allComps, nil
