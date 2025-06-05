@@ -1599,9 +1599,7 @@ var errUnexpectedConnCheckResponse = errors.New("unexpected response during conn
 
 func (s *Store) snapConnCheck() ([]string, error) {
 	var hosts []string
-	// NOTE: "core" is possibly the only snap that's sure to be in all stores
-	//       when we drop "core" in the move to snapd/core18/etc, change this
-	infoURL, err := s.endpointURL(path.Join(snapInfoEndpPath, "core"), url.Values{
+	infoURL, err := s.endpointURL(path.Join(snapInfoEndpPath, "snapd"), url.Values{
 		// we only want the download URL
 		"fields": {"download"},
 		// we only need *one* (but can't filter by channel ... yet)
