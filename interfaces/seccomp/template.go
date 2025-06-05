@@ -614,6 +614,7 @@ writev
 pwrite
 pwrite64
 pwritev
+pwritev2
 `)
 
 // Go's net package attempts to bind early to check whether IPv6 is available or not.
