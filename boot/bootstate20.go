@@ -21,14 +21,17 @@ package boot
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -217,6 +220,38 @@ func (u20 *bootStateUpdate20) commit() error {
 			return err
 		}
 		expectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
+	}
+
+	autoRepair, err := IsUnlockedWithRecoveryKey()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else if autoRepair {
+		// Remove cache to force resealing
+		for _, cache := range []string{
+			filepath.Join(dirs.SnapFDEDir, "boot-chains"),
+			filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"),
+		} {
+			if err := os.Remove(cache); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+
+		method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+		if err == device.ErrNoSealedKeys {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		switch method {
+		case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+			lockoutAuthFile := device.TpmLockoutAuthUnder(InstallHostFDESaveDir)
+			if err := secboot.ProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
+				return err
+			}
+		}
 	}
 
 	// next reseal using the modeenv values, we do this before any
