@@ -42,9 +42,9 @@ var (
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{},
 	}
-	aliasChangeKind   = swfeats.ChangeReg.NewChangeKind("alias")
-	unaliasChangeKind = swfeats.ChangeReg.NewChangeKind("unalias")
-	preferChangeKind  = swfeats.ChangeReg.NewChangeKind("prefer")
+	aliasChangeKind   = swfeats.ChangeReg.Add("alias")
+	unaliasChangeKind = swfeats.ChangeReg.Add("unalias")
+	preferChangeKind  = swfeats.ChangeReg.Add("prefer")
 )
 
 // aliasAction is an action performed on aliases

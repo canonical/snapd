@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var updateRevisionsChangeKind = swfeats.ChangeReg.NewChangeKind("update-revisions")
+var updateRevisionsChangeKind = swfeats.ChangeReg.Add("update-revisions")
 
 // UpdateBootRevisions synchronizes the active kernel and OS snap versions
 // with the versions that actually booted. This is needed because a

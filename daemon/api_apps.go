@@ -56,7 +56,7 @@ var (
 		GET:        getLogs,
 		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
-	serviceControlChangeKind = swfeats.ChangeReg.NewChangeKind("service-control")
+	serviceControlChangeKind = swfeats.ChangeReg.Add("service-control")
 )
 
 var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {

@@ -87,12 +87,12 @@ var (
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
-	installSnapChangeKind  = swfeats.ChangeReg.NewChangeKind(installCmdAction + "-snap")
-	refreshSnapChangeKind  = swfeats.ChangeReg.NewChangeKind(refreshCmdAction + "-snap")
-	switchSnapChangeKind   = swfeats.ChangeReg.NewChangeKind(switchCmdAction + "-snap")
-	holdSnapChangeKind     = swfeats.ChangeReg.NewChangeKind(holdCmdAction + "-snap")
-	snapshotSnapChangeKind = swfeats.ChangeReg.NewChangeKind(snapshotCmdAction + "-snap")
-	removeSnapChangeKind   = swfeats.ChangeReg.NewChangeKind(removeCmdAction + "-snap")
+	installSnapChangeKind  = swfeats.ChangeReg.Add(installCmdAction + "-snap")
+	refreshSnapChangeKind  = swfeats.ChangeReg.Add(refreshCmdAction + "-snap")
+	switchSnapChangeKind   = swfeats.ChangeReg.Add(switchCmdAction + "-snap")
+	holdSnapChangeKind     = swfeats.ChangeReg.Add(holdCmdAction + "-snap")
+	snapshotSnapChangeKind = swfeats.ChangeReg.Add(snapshotCmdAction + "-snap")
+	removeSnapChangeKind   = swfeats.ChangeReg.Add(removeCmdAction + "-snap")
 )
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {

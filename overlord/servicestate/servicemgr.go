@@ -45,7 +45,7 @@ import (
 )
 
 func init() {
-	swfeats.EnsureReg.NewEnsure("ServiceManager", "ensureSnapServicesUpdated")
+	swfeats.EnsureReg.Add("ServiceManager", "ensureSnapServicesUpdated")
 }
 
 // ServiceManager is responsible for starting and stopping snap services.

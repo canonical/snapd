@@ -70,11 +70,11 @@ var (
 	snapstatePathUpdateGoal                     = snapstate.PathUpdateGoal
 	snapstateInstallComponents                  = snapstate.InstallComponents
 	snapstateInstallComponentPath               = snapstate.InstallComponentPath
-	remodelChangeKind                           = swfeats.ChangeReg.NewChangeKind("remodel")
-	removeRecoverySystemChangeKind              = swfeats.ChangeReg.NewChangeKind("remove-recovery-system")
-	createRecoverySystemChangeKind              = swfeats.ChangeReg.NewChangeKind("create-recovery-system")
-	installStepFinishChangeKind                 = swfeats.ChangeReg.NewChangeKind("install-step-finish")
-	installStepSetupStorageEncryptionChangeKind = swfeats.ChangeReg.NewChangeKind("install-step-setup-storage-encryption")
+	remodelChangeKind                           = swfeats.ChangeReg.Add("remodel")
+	removeRecoverySystemChangeKind              = swfeats.ChangeReg.Add("remove-recovery-system")
+	createRecoverySystemChangeKind              = swfeats.ChangeReg.Add("create-recovery-system")
+	installStepFinishChangeKind                 = swfeats.ChangeReg.Add("install-step-finish")
+	installStepSetupStorageEncryptionChangeKind = swfeats.ChangeReg.Add("install-step-setup-storage-encryption")
 )
 
 // findModel returns the device model assertion.

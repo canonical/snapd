@@ -46,9 +46,9 @@ var (
 	servicestateControl        = servicestate.Control
 	snapstateInstallComponents = snapstate.InstallComponents
 	snapstateRemoveComponents  = snapstate.RemoveComponents
-	serviceControlChangeKind   = swfeats.ChangeReg.NewChangeKind("service-control")
-	snapctlInstallChangeKind   = swfeats.ChangeReg.NewChangeKind("snapctl-install")
-	snapctlRemoveChangeKind    = swfeats.ChangeReg.NewChangeKind("snapctl-remove")
+	serviceControlChangeKind   = swfeats.ChangeReg.Add("service-control")
+	snapctlInstallChangeKind   = swfeats.ChangeReg.Add("snapctl-install")
+	snapctlRemoveChangeKind    = swfeats.ChangeReg.Add("snapctl-remove")
 )
 
 func init() {

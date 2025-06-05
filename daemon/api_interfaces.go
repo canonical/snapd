@@ -44,8 +44,8 @@ var (
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}
-	connectSnapChangeKind    = swfeats.ChangeReg.NewChangeKind("connect-snap")
-	disconnectSnapChangeKind = swfeats.ChangeReg.NewChangeKind("disconnect-snap")
+	connectSnapChangeKind    = swfeats.ChangeReg.Add("connect-snap")
+	disconnectSnapChangeKind = swfeats.ChangeReg.Add("disconnect-snap")
 )
 
 // interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).
