@@ -22,9 +22,14 @@ package secboot
 
 import (
 	"fmt"
+	"strings"
+
+	"golang.org/x/sys/unix"
 
 	sb "github.com/snapcore/secboot"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type bootstrappedContainer struct {
@@ -38,7 +43,10 @@ func newLUKS2KeyDataWriterImpl(devicePath string, name string) (KeyDataWriter, e
 	return sb.NewLUKS2KeyDataWriter(devicePath, name)
 }
 
-var newLUKS2KeyDataWriter = newLUKS2KeyDataWriterImpl
+var (
+	newLUKS2KeyDataWriter = newLUKS2KeyDataWriterImpl
+	unixAddKey            = unix.AddKey
+)
 
 func slotNameOrDefault(slotName string) string {
 	if slotName == "" {
@@ -59,6 +67,21 @@ func (bc *bootstrappedContainer) AddKey(slotName string, newKey []byte) error {
 	return nil
 }
 
+func (bc *bootstrappedContainer) AddRecoveryKey(slotName string, rkey keys.RecoveryKey) error {
+	if bc.finished {
+		return fmt.Errorf("internal error: bootstrapped container was a already finished")
+	}
+
+	if slotName == "" {
+		slotName = "default-recovery"
+	}
+
+	if err := sbAddLUKS2ContainerRecoveryKey(bc.devicePath, slotName, sb.DiskUnlockKey(bc.key), sb.RecoveryKey(rkey)); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (bc *bootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWriter, error) {
 	return newLUKS2KeyDataWriter(bc.devicePath, slotNameOrDefault(slotName))
 }
@@ -74,6 +97,41 @@ func (bc *bootstrappedContainer) RemoveBootstrapKey() error {
 	}
 
 	return nil
+}
+
+func (bc *bootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
+	// secboot unlocking does not fail when it cannot save keys to the kerying. So
+	// we also want to have a similar behavior and just print warnings in this function.
+	devlinks, err := disksDevlinks(bc.devicePath)
+	if err != nil {
+		logger.Noticef("warning: cannot find symlinks for %s: %v", bc.devicePath, err)
+		return
+	}
+
+	var uuidDevlink string
+	for _, devlink := range devlinks {
+		if strings.HasPrefix(devlink, "/dev/disk/by-uuid/") {
+			uuidDevlink = devlink
+			break
+		}
+	}
+	if uuidDevlink == "" {
+		logger.Noticef("warning: missing by-uuid symlink for %s", bc.devicePath)
+		return
+	}
+
+	logger.Debugf("registering kerying keys for %s (%s)", bc.devicePath, uuidDevlink)
+
+	// Format of key for secboot is <prefix>:<path>:<purpose>.
+	// See internal/keyring/keyring.go in secboot.
+	// "purpose" is either "aux" or "unlock".
+	// See crypt.go in secboot.
+	if _, err := unixAddKey("user", fmt.Sprintf("%s:%s:unlock", defaultKeyringPrefix, uuidDevlink), unlockKey, unix.KEY_SPEC_USER_KEYRING); err != nil {
+		logger.Noticef("warning: cannot register unlock key for %s: %v", uuidDevlink, err)
+	}
+	if _, err := unixAddKey("user", fmt.Sprintf("%s:%s:aux", defaultKeyringPrefix, uuidDevlink), primaryKey, unix.KEY_SPEC_USER_KEYRING); err != nil {
+		logger.Noticef("warning: cannot register primary key for %s: %v", uuidDevlink, err)
+	}
 }
 
 func createBootstrappedContainerImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {

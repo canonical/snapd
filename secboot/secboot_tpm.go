@@ -587,6 +587,11 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 			return nil, err
 		}
 
+		if key.SlotName == "default" {
+			// "default" key will only be TPM on data disk. "save" disk will be handled
+			// with the protector key.
+			key.BootstrappedContainer.RegisterKeyAsUsed(primaryKeyOut, unlockKey)
+		}
 	}
 
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {

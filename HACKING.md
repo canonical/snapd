@@ -325,61 +325,15 @@ There is more to read about the testing framework on the [website](https://labix
 #### Downloading spread framework
 
 To run the integration tests locally via QEMU, you need the latest version of
-the [spread](https://github.com/snapcore/spread) framework. 
-You can get spread, QEMU, and the build tools to build QEMU images with:
+the [spread](https://github.com/snapcore/spread) framework. For local testing
+you can install the `image-garden` snap that comes with pre-built releases of
+upstream spread, qemu and all the support tools. Alternatively you may install
+[image-garden](https://gitlab.com/zygoon/image-garden) from source or from a
+distribution package.
 
-    $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest
-    $ curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C <target-directory>
-
-> `<target-directory>` can be any directory that is listed in `$PATH`, 
-as it is assumed further in the guidelines of this document. 
-You may consider creating a dedicated directory and adding it to `$PATH`, 
-or you may choose to use one of the conventional Linux directories (e.g. `/usr/local/bin`)
-
-#### Building spread VM images
-
-To run the spread tests via QEMU you need to create VM images in the
-`~/.spread/qemu` directory:
-
-    $ mkdir -p ~/.spread/qemu
-    $ cd ~/.spread/qemu
-
-Assuming you are building on Ubuntu 18.04 LTS ([Bionic Beaver](https://releases.ubuntu.com/18.04/)) 
-(or later), run the following to build a 64-bit Ubuntu 16.04 LTS (or later):
-
-    $ autopkgtest-buildvm-ubuntu-cloud -r <release-short-name>
-    $ mv autopkgtest-<release-short-name>-amd64.img ubuntu-<release-version>-64.img  
-
-For the correct values of `<release-short-name>` and `<release-version>`, please refer
-to the official list of [Ubuntu releases](https://wiki.ubuntu.com/Releases). 
-
-> `<release-short-name>` is the first word in the release's full name, 
-e.g. for "Bionic Beaver" it is `bionic`.
-
-To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
-
-    $ autopkgtest-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
-    $ mv autopkgtest-trusty-amd64.img ubuntu-14.04-64.img
-
-> This is because we need at least 4.4+ kernel for snapd to run on Ubuntu 14.04 
-LTS, which is available through the `linux-generic-lts-xenial` package.
-
-If you are running Ubuntu 16.04 LTS, use 
-`adt-buildvm-ubuntu-cloud` instead of `autopkgtest-buildvm-ubuntu-cloud` (the
-latter replaced the former in 18.04):
-
-    $ adt-buildvm-ubuntu-cloud -r xenial
-    $ mv adt-<release-name>-amd64-cloud.img ubuntu-<release-version>-64.img
-
-#### Downloading spread VM images
-
-Alternatively, instead of building the QEMU images manually, you can download
-pre-built and somewhat maintained images from 
-[spread.zygoon.pl](https://spread.zygoon.pl/). The images will need to be extracted 
-with `gunzip` and placed into `~/.spread/qemu` as above.
-
-> An image for Ubuntu Core 20 that is pre-built for KVM can be downloaded from 
-[here](https://cdimage.ubuntu.com/ubuntu-core/20/stable/current/ubuntu-core-20-amd64.img.xz).
+To install `image-garden` as a snap run `sudo snap install image-garden`. To
+use the bundled copy of spread from image-garden separately run `sudo snap
+alias image-garden.spread spread`.
 
 #### Running spread
 
@@ -404,27 +358,29 @@ be rebuilt, the tests may be invoked with `NO_REBUILD=1` like so:
 
     $ NO_REBUILD=1 ./run-spread <spread-args>
 
-#### Running spread with QEMU
+#### Running spread without a cloud account
 
-Finally, you can run the spread tests for Ubuntu 18.04 LTS 64-bit with:
+You can run most of the tests locally, using the `garden` backend. For example,
+to run integration tests for Ubuntu 18.04 LTS 64-bit, invoke spread as follows:
 
-    $ ./run-spread -v qemu:ubuntu-18.04-64
+    $ ./run-spread -v garden:ubuntu-18.04-64
 
->To run for a different system, replace `ubuntu-18.04-64` with a different system
-name, which should be a basename of the [built](#building-spread-vm-images) or 
-[downloaded](#downloading-spread-vm-images) Ubuntu image file.
+> Look at the `spread.yaml` file for a list of systems that are supported by
+> the garden backend.
+
+The `garden` backend automatically downloads and initializes each base system.
+During testing additional scratch space is used to hold ephemeral chances to
+the disk image. This may require significant amount of space in `/tmp` so if
+your system uses `tmpfs` in `/tmp` you may want look at available free space.
+This especially affects the snap version of `image-garden`, as snap
+packages cannot use `/var/tmp` for scratch space.
 
 For quick reuse you can use:
 
-    $ ./run-spread -reuse qemu:ubuntu-18.04-64
+    $ ./run-spread -reuse garden:ubuntu-18.04-64
 
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
-
-> Spread tests can be exercised on Ubuntu Core 20, but need UEFI.
-UEFI support with QEMU backend of spread requires a BIOS from the 
-[OVMF](https://wiki.ubuntu.com/UEFI/OVMF) package, 
-which can be installed with `sudo apt install ovmf`.
 
 ### Testing the snapd daemon
 

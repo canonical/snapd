@@ -25,6 +25,7 @@ import (
 	"io"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 // KeyDataWriter is an interface used by KeyData to write the data to
@@ -43,10 +44,14 @@ type KeyDataWriter interface {
 type BootstrappedContainer interface {
 	// AddKey adds a key "newKey" to "slotName".
 	AddKey(slotName string, newKey []byte) error
+	// AddRecoveryKey adds a recovery key "rkey" to "slotName".
+	AddRecoveryKey(slotName string, rkey keys.RecoveryKey) error
 	// GetTokenWriter returns a keydata writer that writes to the token.
 	GetTokenWriter(slotName string) (KeyDataWriter, error)
 	// RemoveBootstrapKey removes the bootstrap key.
 	RemoveBootstrapKey() error
+	// RegisterKeyAsUsed registers an unlock key and its primary key in the kernel keyring.
+	RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte)
 }
 
 func createBootstrappedContainerMockImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
@@ -95,6 +100,20 @@ func (m *MockBootstrappedContainer) AddKey(slotName string, newKey []byte) error
 	return nil
 }
 
+func (m *MockBootstrappedContainer) AddRecoveryKey(slotName string, rkey keys.RecoveryKey) error {
+	if m.BootstrapKeyRemoved {
+		return fmt.Errorf("internal error: bootstrapped container was a already finished")
+	}
+
+	_, ok := m.Slots[slotName]
+	if ok {
+		return fmt.Errorf("slot already taken")
+	}
+	m.Slots[slotName] = rkey[:]
+
+	return nil
+}
+
 func (m *MockBootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWriter, error) {
 	return &mockKeyDataWriter{m: m, slotName: slotName}, nil
 }
@@ -102,4 +121,7 @@ func (m *MockBootstrappedContainer) GetTokenWriter(slotName string) (KeyDataWrit
 func (l *MockBootstrappedContainer) RemoveBootstrapKey() error {
 	l.BootstrapKeyRemoved = true
 	return nil
+}
+
+func (l *MockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
 }

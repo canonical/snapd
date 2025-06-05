@@ -29,14 +29,14 @@ import (
 
 func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 	tt := []struct {
-		r         main.RecoverDegradedState
+		r         main.DiskUnlockState
 		encrypted bool
 		degraded  bool
 		comment   string
 	}{
 		// unencrypted happy
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -57,7 +57,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:  "happy unencrypted no save",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -79,7 +79,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		},
 		// unencrypted unhappy
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "error-mounting",
@@ -103,7 +103,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:  "unencrypted, error mounting boot",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -127,7 +127,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:  "unencrypted, error mounting data",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -153,7 +153,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 
 		// encrypted happy
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -180,7 +180,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 		},
 		// encrypted unhappy
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "error-mounting",
@@ -209,7 +209,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:   "encrypted, no boot, fallback data",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -238,7 +238,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:   "encrypted, fallback data",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -267,7 +267,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:   "encrypted, fallback save",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -296,7 +296,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:   "encrypted, recovery save",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",
@@ -325,7 +325,7 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 			comment:   "encrypted, fallback data, fallback save",
 		},
 		{
-			r: main.RecoverDegradedState{
+			r: main.DiskUnlockState{
 				UbuntuBoot: main.PartitionState{
 					PartitionState: boot.PartitionState{
 						MountState: "mounted",

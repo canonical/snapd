@@ -42,8 +42,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
@@ -88,6 +90,7 @@ type finishStepOpts struct {
 	hasPartial         bool
 	hasSystemSeed      bool
 	hasKernelModsComps bool
+	hasRecoveryKey     bool
 	optionalContainers *seed.OptionalContainers
 	volumesAuth        *device.VolumesAuthOptions
 }
@@ -325,6 +328,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		c.Fatal("explicitly setting hasSystemSeed is only supported with installClassic")
 	}
 
+	if opts.hasRecoveryKey && !opts.encrypted {
+		c.Fatal("explicitly setting hasRecoveryKey is only supported with encrypted")
+	}
+
 	// The installer API is used on classic images only for the moment
 	restore := release.MockOnClassic(true)
 	s.AddCleanup(restore)
@@ -338,6 +345,16 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	label := "core"
 	if opts.installClassic {
 		label = "classic"
+	}
+
+	recoveryKeyID := ""
+	if opts.hasRecoveryKey {
+		recoveryKeyID = "7"
+		restore = devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+			c.Check(keyID, Equals, "7")
+			return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7'}, nil
+		})
+		s.AddCleanup(restore)
 	}
 
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
@@ -511,7 +528,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		s.AddCleanup(restore)
 
 		// Insert encryption set-up data in state cache
-		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, opts.volumesAuth)
+		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, recoveryKeyID, opts.volumesAuth)
 		s.AddCleanup(restore)
 
 		// Write expected boot assets needed when creating bootchain
@@ -667,6 +684,18 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	for _, f := range expectedFiles {
 		c.Check(f, testutil.FilePresent)
 	}
+
+	if opts.hasRecoveryKey {
+		encSetupData := devicestate.GetEncryptionSetupDataFromCache(s.state, label)
+		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encSetupData)
+		c.Assert(bootstrappedContainersForRole, HasLen, 2)
+
+		dataBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemData].(*secboot.MockBootstrappedContainer)
+		c.Check(dataBootstrappedContainer.Slots["default-recovery"], DeepEquals, []byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7', 0, 0, 0, 0, 0, 0})
+
+		saveBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemSave].(*secboot.MockBootstrappedContainer)
+		c.Check(saveBootstrappedContainer.Slots["default-recovery"], DeepEquals, []byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7', 0, 0, 0, 0, 0, 0})
+	}
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionHappy(c *C) {
@@ -685,6 +714,10 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionWithKMods
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithPassphraseAuthHappy(c *C) {
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, volumesAuth: volumesAuth})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithRecoveryKeyHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, hasRecoveryKey: true})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionAndSystemSeedHappy(c *C) {
@@ -710,6 +743,10 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithPassphraseAuthHappy(c *C) {
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false, volumesAuth: volumesAuth})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithRecoveryKeyHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false, hasRecoveryKey: true})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishWithOptionalContainers(c *C) {
@@ -877,7 +914,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	_, ok := apiData["encrypted-devices"]
 	c.Check(ok, Equals, true)
 	// Check that state has been stored in the cache
-	c.Check(devicestate.CheckEncryptionSetupDataFromCache(s.state, label), IsNil)
+	c.Check(devicestate.GetEncryptionSetupDataFromCache(s.state, label), NotNil)
 	// Cached auth options are cleaned
 	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }

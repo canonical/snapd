@@ -286,6 +286,20 @@ jobs:
           # TODO add arch?
           - fedora:latest
           - opensuse/tumbleweed
+
+  unit-tests-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '>=3.9'
+          cache: 'pip'
+          cache-dependency-path: '**/requirements.txt'
+      - run: |
+          find tests/ -name 'requirements.txt' -exec pip install -r {} \;
+          pytest tests
+
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit

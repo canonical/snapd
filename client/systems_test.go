@@ -429,3 +429,50 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		},
 	})
 }
+
+func (cs *clientSuite) TestRequestGeneratePreInstallRecoveryKey(c *check.C) {
+	cs.rsp = `{
+	    "type": "sync",
+	    "status-code": 200,
+	    "result": {
+			"recovery-key": "some-key"
+		}
+	}`
+
+	rkey, err := cs.cli.GeneratePreInstallRecoveryKey("1234")
+	c.Assert(err, check.IsNil)
+	c.Check(rkey, check.Equals, "some-key")
+
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+
+	body, err := io.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action": "install",
+		"step":   "generate-recovery-key",
+	})
+}
+
+func (cs *clientSuite) TestRequestGeneratePreInstallRecoveryKeyNoLabel(c *check.C) {
+	_, err := cs.cli.GeneratePreInstallRecoveryKey("")
+	c.Assert(err, check.ErrorMatches, "cannot generate recovery key with an empty system label")
+	// no request was performed
+	c.Check(cs.req, check.IsNil)
+}
+
+func (cs *clientSuite) TestRequestGeneratePreInstallRecoveryKeyError(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "boom!"}
+	}`
+
+	_, err := cs.cli.GeneratePreInstallRecoveryKey("1234")
+	c.Assert(err, check.ErrorMatches, `cannot generate recovery key for system "1234": boom!`)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}

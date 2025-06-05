@@ -1547,6 +1547,63 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 	c.Assert(mgr.Stop(), IsNil)
 }
 
+func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadying(c *C) {
+	readyChan, _, _, restore := apparmorprompting.MockListener()
+	defer restore()
+
+	handleStarted := make(chan struct{})
+	finishHandle := make(chan struct{})
+	restore = apparmorprompting.MockPromptsHandleReadying(func(pdb *requestprompts.PromptDB) error {
+		close(handleStarted)
+		<-finishHandle
+		return nil
+	})
+	defer restore()
+
+	mgr, err := apparmorprompting.New(s.st)
+	c.Assert(err, IsNil)
+
+	// Check that the callback has not started yet
+	select {
+	case <-handleStarted:
+		c.Errorf("HandleReadying started before ready was signalled")
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		// all good
+	}
+
+	// Signal ready
+	close(readyChan)
+
+	// Check that the callback has now started
+	select {
+	case <-handleStarted:
+		// all good
+	case <-time.NewTimer(time.Second).C:
+		c.Errorf("HandleReadying failed to start after ready was signalled")
+	}
+
+	// Check that the manager is not yet ready
+	select {
+	case <-mgr.Ready():
+		c.Errorf("manager is ready before HandleReadying returned")
+	case <-time.NewTimer(10 * time.Millisecond).C:
+		// all good
+	}
+
+	// Tell the HandleReadying to return
+	close(finishHandle)
+
+	// Check that the manager is now ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.NewTimer(time.Second).C:
+		c.Errorf("manager failed to become ready after HandleReadying returned")
+	}
+
+	c.Assert(mgr.Stop(), IsNil)
+}
+
 func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
 		prompts, err := mgr.Prompts(1000, false)

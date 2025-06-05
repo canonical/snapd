@@ -54,11 +54,11 @@ type OverlayFsOptions = overlayFsOptions
 type DmVerityOptions = dmVerityOptions
 type SystemdMountOptions = systemdMountOptions
 
-type RecoverDegradedState = recoverDegradedState
+type DiskUnlockState = diskUnlockState
 
 type PartitionState = partitionState
 
-func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
+func (r *DiskUnlockState) Degraded(isEncrypted bool) bool {
 	m := recoverModeStateMachine{
 		isEncryptedDev: isEncrypted,
 		degradedState:  r,

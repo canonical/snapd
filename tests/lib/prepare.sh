@@ -417,6 +417,14 @@ prepare_classic() {
     fi
     snap list snapd
 
+    mount_dir="$(os.paths snap-mount-dir)"
+    if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
+        echo "snapd snap is missing file capabilities on snap-confine"
+        echo "and is not usable"
+        echo "ensure it has been correctly built (wipe snapcraft containers and rebuild)"
+        exit 1
+    fi
+
     setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
@@ -1717,6 +1725,8 @@ prepare_ubuntu_core() {
             rsync_snap="test-snapd-rsync-core22"
         elif os.query is-core24; then
             rsync_snap="test-snapd-rsync-core24"
+        elif os.query is-core26; then
+            rsync_snap="test-snapd-rsync-core26"
         fi
         snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
@@ -1746,6 +1756,9 @@ prepare_ubuntu_core() {
         fi
         if os.query is-core24; then
             cache_snaps test-snapd-sh-core24
+        fi
+        if os.query is-core26; then
+            cache_snaps test-snapd-sh-core26
         fi
     fi
 

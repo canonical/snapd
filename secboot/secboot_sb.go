@@ -331,8 +331,7 @@ func DeactivateVolume(volumeName string) error {
 // temporary and is expected to be used with a BootstrappedContainer,
 // and removed by calling RemoveBootstrapKey.
 func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error {
-	const defaultPrefix = "ubuntu-fde"
-	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultPrefix, node, false)
+	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultKeyringPrefix, node, false)
 	if err != nil {
 		return fmt.Errorf("cannot get key for unlocked disk %s: %v", node, err)
 	}
