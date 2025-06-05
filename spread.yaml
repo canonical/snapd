@@ -407,52 +407,52 @@ backends:
                 image: auto-sync/ubuntu-bionic-18.04-amd64-server 
                 workers: 8
             - ubuntu-20.04-64:
-                  image: snapd-spread/ubuntu-20.04-64
-                  workers: 8
+                image: snapd-spread/ubuntu-20.04-64
+                workers: 8
             - ubuntu-22.04-64:
-                  image: snapd-spread/ubuntu-22.04-64
-                  workers: 8
+                image: snapd-spread/ubuntu-22.04-64
+                workers: 8
             - ubuntu-24.04-64:
-                  image: snapd-spread/ubuntu-24.04-64
-                  workers: 8
+                image: snapd-spread/ubuntu-24.04-64
+                workers: 8
 
             - ubuntu-core-18-64:
-                  image: auto-sync/ubuntu-bionic-18.04-amd64-server
-                  workers: 8
+                image: auto-sync/ubuntu-bionic-18.04-amd64-server
+                workers: 8
             - ubuntu-core-20-64:
-                  image: snapd-spread/ubuntu-20.04-64-uefi
-                  workers: 8
+                image: snapd-spread/ubuntu-20.04-64-uefi
+                workers: 8
             - ubuntu-core-22-64:
-                  image: snapd-spread/ubuntu-22.04-64-uefi
-                  workers: 8
+                image: snapd-spread/ubuntu-22.04-64-uefi
+                workers: 8
             - ubuntu-core-24-64:
-                  image: snapd-spread/ubuntu-24.04-64-uefi
-                  workers: 8
+                image: snapd-spread/ubuntu-24.04-64-uefi
+                workers: 8
 
             - fedora-41-64:
-                  image: snapd-spread/fedora-41-64
-                  workers: 6
+                image: snapd-spread/fedora-41-64
+                workers: 6
             - fedora-42-64:
                   image: snapd-spread/fedora-42-64
                   workers: 12
 
             - opensuse-15.6-64:
-                  image: snapd-spread/opensuse-15.6-64
-                  workers: 6
+                image: snapd-spread/opensuse-15.6-64
+                workers: 6
             - opensuse-tumbleweed-64:
-                  image: snapd-spread/opensuse-tumbleweed-64
-                  workers: 6
+                image: snapd-spread/opensuse-tumbleweed-64
+                workers: 6
 
             - centos-9-64:
-                  image: snapd-spread/centos-9-64
-                  workers: 6
+                image: snapd-spread/centos-9-64
+                workers: 6
 
             - debian-12-64:
-                  image: snapd-spread/debian-12-64
-                  workers: 6
+                image: snapd-spread/debian-12-64
+                workers: 6
             - debian-sid-64:
-                  image: snapd-spread/debian-sid-64
-                  workers: 6
+                image: snapd-spread/debian-sid-64
+                workers: 6
 
     openstack-ps7:
         type: openstack
@@ -472,6 +472,9 @@ backends:
             no_proxy: '127.0.0.1'
             NO_PROXY: '127.0.0.1'
         systems:
+            - ubuntu-18.04-64:
+                image: auto-sync/ubuntu-bionic-18.04-amd64-server
+                workers: 8
             - ubuntu-20.04-64:
                 image: auto-sync/ubuntu-focal-20.04-amd64-server
                 workers: 8
@@ -483,17 +486,17 @@ backends:
                 workers: 8
 
             - ubuntu-core-18-64:
-                  image: snapd-spread/ubuntu-20.04-64-uefi
-                  workers: 8
+                image: auto-sync/ubuntu-bionic-18.04-amd64-server
+                workers: 8
             - ubuntu-core-20-64:
-                  image: snapd-spread/ubuntu-20.04-64-uefi
-                  workers: 8
+                image: snapd-spread/ubuntu-20.04-64-uefi
+                workers: 8
             - ubuntu-core-22-64:
-                  image: snapd-spread/ubuntu-22.04-64-uefi
-                  workers: 8
+                image: snapd-spread/ubuntu-22.04-64-uefi
+                workers: 8
             - ubuntu-core-24-64:
-                  image: snapd-spread/ubuntu-24.04-64-uefi
-                  workers: 8
+                image: snapd-spread/ubuntu-24.04-64-uefi
+                workers: 8
 
     openstack-arm-ps7:
         type: openstack
@@ -521,6 +524,13 @@ backends:
                 workers: 8
             - ubuntu-24.04-arm-64:
                 image: auto-sync/ubuntu-noble-24.04-arm64-server
+                workers: 8
+
+            - ubuntu-core-22-arm-64:
+                image: snapd-spread/ubuntu-22.04-arm-64-uefi
+                workers: 8
+            - ubuntu-core-24-arm-64:
+                image: snapd-spread/ubuntu-24.04-arm-64-uefi
                 workers: 8
 
     qemu-nested:
