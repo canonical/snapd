@@ -168,7 +168,11 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			switch sealKeysCalls {
 			case 1:
 				// the run object seals only the ubuntu-data key
-				c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
+				if tc.disableTokens {
+					c.Check(params.TPMPolicyAuthKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"))
+				} else {
+					c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
+				}
 
 				expectedSKR := secboot.SealKeyRequest{BootstrappedContainer: myKey, KeyName: "ubuntu-data", SlotName: "default", BootModes: []string{"run", "recover"}}
 				if tc.disableTokens {
@@ -453,7 +457,11 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	restore = fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
+		if useTokens {
+			c.Check(params.AuxKeyFile, Equals, "")
+		} else {
+			c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
+		}
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 		for _, skr := range skrs {
 			var expectedBootstrappedContainer secboot.BootstrappedContainer

@@ -106,9 +106,12 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 		ModelParams:            modelParams,
 		PrimaryKey:             maybePrimaryKey,
 		VolumesAuth:            volumesAuth,
-		TPMPolicyAuthKeyFile:   filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key"),
 		PCRPolicyCounterHandle: pcrHandle,
 		KeyRole:                keyRole,
+	}
+
+	if !useTokens {
+		sealKeyParams.TPMPolicyAuthKeyFile = filepath.Join(boot.InstallHostFDESaveDir, "tpm-policy-auth-key")
 	}
 
 	logger.Debugf("sealing run key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
@@ -152,8 +155,11 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 
 func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
 	sealingParams := secboot.SealKeysWithFDESetupHookParams{
-		AuxKeyFile: filepath.Join(boot.InstallHostFDESaveDir, "aux-key"),
 		PrimaryKey: params.PrimaryKey,
+	}
+
+	if !params.UseTokens {
+		sealingParams.AuxKeyFile = filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 	}
 
 	for _, runChain := range params.RunModeBootChains {
