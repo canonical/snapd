@@ -871,12 +871,31 @@ func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
 		Active:  false,
 	})
 
-	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
+	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
 	c.Assert(ts.MaybeEdge(snapstate.SnapSetupEdge), NotNil)
+}
+
+func (s *snapmgrTestSuite) TestSwitchPrereqTracker(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		}),
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	prqt := &testPrereqTracker{}
+	_, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, prqt)
+	c.Assert(err, IsNil)
+
+	c.Assert(prqt.infos[0].Channel, Equals, "some-channel")
 }
 
 func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
@@ -891,12 +910,12 @@ func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
 		Active:  false,
 	})
 
-	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
+	ts, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, nil)
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("switch-snap", "...").AddAll(ts)
 
-	_, err = snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "other-channel"})
+	_, err = snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "other-channel"}, nil)
 	c.Check(err, ErrorMatches, `snap "some-snap" has "switch-snap" change in progress`)
 }
 
@@ -904,7 +923,7 @@ func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Switch(s.state, "non-existing-snap", &snapstate.RevisionOptions{Channel: "some-channel"})
+	_, err := snapstate.Switch(s.state, "non-existing-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, nil)
 	c.Assert(err, ErrorMatches, `snap "non-existing-snap" is not installed`)
 }
 
@@ -919,7 +938,7 @@ func (s *snapmgrTestSuite) TestSwitchRevision(c *C) {
 		Current: snap.R(11),
 	})
 
-	_, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(42)})
+	_, err := snapstate.Switch(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(42)}, nil)
 	c.Assert(err, ErrorMatches, "cannot switch revision")
 }
 
@@ -938,7 +957,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 		Active:          true,
 	})
 
-	_, err := snapstate.Switch(s.state, "kernel", &snapstate.RevisionOptions{Channel: "new-channel"})
+	_, err := snapstate.Switch(s.state, "kernel", &snapstate.RevisionOptions{Channel: "new-channel"}, nil)
 	c.Assert(err, ErrorMatches, `cannot switch from kernel track "18" as specified for the \(device\) model to "new-channel"`)
 }
 
@@ -957,7 +976,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 		Active:          true,
 	})
 
-	_, err := snapstate.Switch(s.state, "kernel", &snapstate.RevisionOptions{Channel: "18/beta"})
+	_, err := snapstate.Switch(s.state, "kernel", &snapstate.RevisionOptions{Channel: "18/beta"}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -976,7 +995,7 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyDefaultTrackIsOK(c *C) {
 		Active:          true,
 	})
 
-	_, err := snapstate.Switch(s.state, "kernel", &snapstate.RevisionOptions{Channel: "beta"})
+	_, err := snapstate.Switch(s.state, "kernel", &snapstate.RevisionOptions{Channel: "beta"}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -995,7 +1014,7 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
 		Active:          true,
 	})
 
-	_, err := snapstate.Switch(s.state, "brand-gadget", &snapstate.RevisionOptions{Channel: "new-channel"})
+	_, err := snapstate.Switch(s.state, "brand-gadget", &snapstate.RevisionOptions{Channel: "new-channel"}, nil)
 	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "new-channel"`)
 }
 
@@ -1014,7 +1033,7 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
 		Active:          true,
 	})
 
-	_, err := snapstate.Switch(s.state, "brand-gadget", &snapstate.RevisionOptions{Channel: "18/beta"})
+	_, err := snapstate.Switch(s.state, "brand-gadget", &snapstate.RevisionOptions{Channel: "18/beta"}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1033,7 +1052,7 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyDefaultTrackIsOK(c *C) {
 		Active:          true,
 	})
 
-	_, err := snapstate.Switch(s.state, "brand-gadget", &snapstate.RevisionOptions{Channel: "beta"})
+	_, err := snapstate.Switch(s.state, "brand-gadget", &snapstate.RevisionOptions{Channel: "beta"}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -3433,7 +3452,7 @@ func (s *snapmgrTestSuite) testSwitchScenario(c *C, desc string, t switchScenari
 		Channel:     t.chanTo,
 		CohortKey:   t.cohTo,
 		LeaveCohort: t.cohFrom != "" && t.cohTo == "",
-	})
+	}, nil)
 	c.Assert(err, IsNil, comment)
 	chg.AddAll(ts)
 
@@ -3486,7 +3505,7 @@ func (s *snapmgrTestSuite) TestParallelInstallSwitchRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("switch-snap", "switch snap to some-channel")
-	ts, err := snapstate.Switch(s.state, "some-snap_instance", &snapstate.RevisionOptions{Channel: "some-channel"})
+	ts, err := snapstate.Switch(s.state, "some-snap_instance", &snapstate.RevisionOptions{Channel: "some-channel"}, nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
