@@ -22,6 +22,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -402,4 +403,72 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 	return func() {
 		secbootGetPCRHandle = old
 	}
+}
+
+// KeyslotTarget uniquely identifies a target key slot by
+// its container role and name.
+type KeyslotTarget struct {
+	ContainerRole string `json:"container-role"`
+	Name          string `json:"name"`
+}
+
+func (k KeyslotTarget) String() string {
+	return fmt.Sprintf("(container-role: %q, name: %q)", k.ContainerRole, k.Name)
+}
+
+func (k KeyslotTarget) Validate() error {
+	if len(k.ContainerRole) == 0 {
+		return errors.New("key slot container role cannot be empty")
+	}
+	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
+		return fmt.Errorf(`invalid key slot container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
+	}
+
+	if len(k.Name) == 0 {
+		return errors.New("key slot name cannot be empty")
+	}
+	return nil
+}
+
+func checkRecoveryKeyIDExists(st *state.State, recoveryKeyID string) error {
+	mgr := fdeMgr(st)
+	rkeyInfo, err := mgr.recoveryKeyCache.Key(recoveryKeyID)
+	if err != nil {
+		return err
+	}
+	if rkeyInfo.Expired(time.Now()) {
+		return errors.New("recovery key has expired")
+	}
+	return nil
+}
+
+// ReplaceRecoveryKey creates a change that replaces the
+// recovery key for the specified target key slots with
+// the recovery key referenced to by recoveryKeyID.
+func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []KeyslotTarget) (*state.Change, error) {
+	if len(keyslots) == 0 {
+		return nil, fmt.Errorf("internal error: keyslots cannot be empty")
+	}
+
+	for _, keyslot := range keyslots {
+		if err := keyslot.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot %s: %v", keyslot.String(), err)
+		}
+		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		if keyslot.Name != "default-recovery" {
+			return nil, fmt.Errorf(`invalid key slot %s: invalid key slot name %q, expected "default-recovery"`, keyslot.String(), keyslot.Name)
+		}
+	}
+
+	if err := checkRecoveryKeyIDExists(st, recoveryKeyID); err != nil {
+		return nil, fmt.Errorf("invalid recovery key id: %v", err)
+	}
+
+	chg := st.NewChange("replace-recovery-key", fmt.Sprintf("Replace recovery key"))
+	replaceRecoveryKeyTask := st.NewTask("replace-recovery-key", fmt.Sprintf("Replace recovery key"))
+	replaceRecoveryKeyTask.Set("recovery-key-id", recoveryKeyID)
+	replaceRecoveryKeyTask.Set("keyslots", keyslots)
+	chg.AddTask(replaceRecoveryKeyTask)
+
+	return chg, nil
 }

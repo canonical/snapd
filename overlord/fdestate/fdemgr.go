@@ -120,6 +120,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		return false
 	})
 
+	runner.AddHandler("replace-recovery-key", m.doReplaceRecoveryKey, nil)
+
 	return m, nil
 }
 
