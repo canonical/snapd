@@ -31,7 +31,7 @@ import (
 
 var (
 	snapstateMigrateHome  = snapstate.MigrateHome
-	migrateHomeChangeKind = swfeats.ChangeReg.NewChangeKind("migrate-home")
+	migrateHomeChangeKind = swfeats.ChangeReg.Add("migrate-home")
 )
 
 func migrateHome(st *state.State, snaps []string) Response {

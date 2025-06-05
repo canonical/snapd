@@ -20,6 +20,6 @@
 package swfeats
 
 var (
-	NewChangeRegistry = newChangeRegistry
-	NewEnsureRegistry = newEnsureRegistry
+	NewChangeKindRegistry = newChangeKindRegistry
+	AddRegistry           = newEnsureRegistry
 )
