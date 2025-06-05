@@ -72,9 +72,8 @@ func NewJournalStreamFile(params JournalStreamFileParams) (*os.File, error) {
 	// journald actually tries to force this into 8mb in spite of kernel
 	// limits, however let us not do that.
 	// https://github.com/systemd/systemd/blob/2e8a581b9cc1132743c2341fc334461096266ad4/src/core/exec-invoke.c#L231
-	if err := conn.SetWriteBuffer(int(8 * quantity.SizeMiB)); err != nil {
-		// intentionally ignore the error like systemd does.
-	}
+	// intentionally ignore the error like systemd does.
+	_ = conn.SetWriteBuffer(int(8 * quantity.SizeMiB))
 
 	var levelPrefix int
 	if params.LevelPrefix {
