@@ -73,26 +73,26 @@ var (
 	restrictCloudInit = sysconfig.RestrictCloudInit
 
 	secbootMarkSuccessful       = secboot.MarkSuccessful
-	becomeOperationalChangeKind = swfeats.ChangeReg.NewChangeKind("become-operational")
-	seedChangeKind              = swfeats.ChangeReg.NewChangeKind("seed")
-	installSystemChangeKind     = swfeats.ChangeReg.NewChangeKind("install-system")
-	factoryResetChangeKind      = swfeats.ChangeReg.NewChangeKind("factory-reset")
+	becomeOperationalChangeKind = swfeats.ChangeReg.Add("become-operational")
+	seedChangeKind              = swfeats.ChangeReg.Add("seed")
+	installSystemChangeKind     = swfeats.ChangeReg.Add("install-system")
+	factoryResetChangeKind      = swfeats.ChangeReg.Add("factory-reset")
 )
 
 func init() {
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureOperational")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureSeeded")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureAutoImportAssertions")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureBootOk")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureCloudInitRestricted")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureInstalled")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureFactoryReset")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureSeedInConfig")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureSeedInConfig")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureTriedRecoverySystem")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensurePostFactoryReset")
-	swfeats.EnsureReg.NewEnsure("DeviceManager", "ensureExpiredUsersRemoved")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureOperational")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSeeded")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureAutoImportAssertions")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureBootOk")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureCloudInitRestricted")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureInstalled")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureFactoryReset")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSeedInConfig")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSeedInConfig")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureTriedRecoverySystem")
+	swfeats.EnsureReg.Add("DeviceManager", "ensurePostFactoryReset")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureExpiredUsersRemoved")
 }
 
 // EarlyConfig is a hook set by configstate that can process early configuration

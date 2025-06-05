@@ -17,6 +17,8 @@
  *
  */
 
+// The swfeats package implements registries for features
+// not tracked in other places
 package swfeats
 
 import (
@@ -25,24 +27,32 @@ import (
 )
 
 var (
-	ChangeReg = newChangeRegistry()
-	EnsureReg = newEnsureRegistry()
+	ChangeReg *ChangeKindRegistry = newChangeKindRegistry()
+	EnsureReg *EnsureRegistry     = newEnsureRegistry()
 )
 
-type ChangeRegistry struct {
+// ChangeKindRegistry contains the set of all change kind strings
+// along with all their possible variants if the change kind is
+// a template
+type ChangeKindRegistry struct {
 	changes map[string][]string
 }
 
-func newChangeRegistry() *ChangeRegistry {
-	return &ChangeRegistry{changes: make(map[string][]string)}
+func newChangeKindRegistry() *ChangeKindRegistry {
+	return &ChangeKindRegistry{changes: make(map[string][]string)}
 }
 
-func (r *ChangeRegistry) NewChangeKind(kind string) string {
+// Add a change kind string to the registry
+func (r *ChangeKindRegistry) Add(kind string) string {
 	r.changes[kind] = nil
 	return kind
 }
 
-func (r *ChangeRegistry) AddPossibleValues(kind string, values []string) bool {
+// AddVariants attaches the list of variants to the already
+// registered change kind template. If the template is not
+// present or does not contain exactly one string placeholder,
+// then the method fails and returns false
+func (r *ChangeKindRegistry) AddVariants(kind string, values []string) bool {
 	if strings.Count(kind, "%s") != 1 {
 		return false
 	}
@@ -53,7 +63,9 @@ func (r *ChangeRegistry) AddPossibleValues(kind string, values []string) bool {
 	return true
 }
 
-func (r *ChangeRegistry) KnownChangeKinds() []string {
+// KnownChangeKinds retrieves the complete list of all registered
+// change kinds, including their variants, if present
+func (r *ChangeKindRegistry) KnownChangeKinds() []string {
 	kinds := make([]string, 0, len(r.changes))
 	for key, values := range r.changes {
 		if values == nil {
@@ -67,10 +79,14 @@ func (r *ChangeRegistry) KnownChangeKinds() []string {
 	return kinds
 }
 
+// EnsureRegistry contains the set of all ensure helper
+// functions and their manager
 type EnsureRegistry struct {
 	ensures map[EnsureEntry]any
 }
 
+// EnsureEntry represents a single ensure helper function
+// by containing manager and function name
 type EnsureEntry struct {
 	Manager  string `json:"manager"`
 	Function string `json:"function"`
@@ -80,10 +96,13 @@ func newEnsureRegistry() *EnsureRegistry {
 	return &EnsureRegistry{ensures: make(map[EnsureEntry]any)}
 }
 
-func (r *EnsureRegistry) NewEnsure(manager, function string) {
+// Add a ensure helper function to the registry
+func (r *EnsureRegistry) Add(manager, function string) {
 	r.ensures[EnsureEntry{Manager: manager, Function: function}] = nil
 }
 
+// KnownEnsures retrieves the complete list of ensure
+// helper functions from the registry
 func (r *EnsureRegistry) KnownEnsures() []EnsureEntry {
 	ensures := make([]EnsureEntry, 0, len(r.ensures))
 	for k := range r.ensures {

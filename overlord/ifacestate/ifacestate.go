@@ -42,7 +42,7 @@ import (
 
 var (
 	connectRetryTimeout                  = time.Second * 5
-	regenerateSecurityProfilesChangeKind = swfeats.ChangeReg.NewChangeKind("regenerate-security-profiles")
+	regenerateSecurityProfilesChangeKind = swfeats.ChangeReg.Add("regenerate-security-profiles")
 )
 
 // ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.

@@ -39,8 +39,8 @@ import (
 
 var (
 	assertstateConfdbSchema = assertstate.ConfdbSchema
-	setConfdbChangeKind     = swfeats.ChangeReg.NewChangeKind("set-confdb")
-	getConfdbChangeKind     = swfeats.ChangeReg.NewChangeKind("get-confdb")
+	setConfdbChangeKind     = swfeats.ChangeReg.Add("set-confdb")
+	getConfdbChangeKind     = swfeats.ChangeReg.Add("get-confdb")
 )
 
 // SetViaView uses the view to set the requests in the transaction's databag.
