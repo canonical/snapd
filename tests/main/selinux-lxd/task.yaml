@@ -37,6 +37,7 @@ execute: |
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
     lxd.lxc launch --quiet "ubuntu:18.04" my-ubuntu
+    "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd

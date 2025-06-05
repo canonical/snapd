@@ -28,17 +28,8 @@ if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
     sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
 fi
 
-# wait for cloud-init to finish before doing any apt operations, since it will
-# re-write the apt sources.list file and we will be racing with the re-write 
-# trying to do apt operations before cloud-init is done
-# TODO: we should eventually use `cloud-init status --wait`, but that doesn't work
-# in nested containers, see https://bugs.launchpad.net/cloud-init/+bug/1905493
-for _ in $(seq 1 60); do
-    if python3 -c "import apt;apt.apt_pkg.SourceList().read_main_list()"; then
-        break
-    fi
-    sleep 1
-done
+# wait for cloud-init to finish before doing any apt operations
+cloud-init status --wait
 
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
