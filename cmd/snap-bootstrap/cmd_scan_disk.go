@@ -70,6 +70,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
@@ -236,6 +237,17 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 	return nil
 }
 
+func isCVM() (bool, error) {
+	m, err := kcmdline.KeyValues("snapd_recovery_mode")
+	if err != nil {
+		return false, err
+	}
+
+	mode, hasMode := m["snapd_recovery_mode"]
+
+	return hasMode && mode == boot.ModeRunCVM, nil
+}
+
 func scanDiskNode(output io.Writer, node string) error {
 	/*
 	 * We need to find out if the given node contains the ESP that
@@ -276,10 +288,16 @@ func scanDiskNode(output io.Writer, node string) error {
 		}
 	}
 
+	cvm, err := isCVM()
+	if err != nil {
+		logger.Noticef("WARNING: error while reading recovery mode: %v", err)
+		return nil
+	}
+
 	/*
 	 * We now print the result if we confirmed we found the boot ESP.
 	 */
-	if found && (hasSeed || hasBoot) {
+	if found && (hasSeed || hasBoot || cvm) {
 		fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 	}
 
