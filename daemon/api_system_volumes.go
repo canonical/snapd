@@ -34,8 +34,17 @@ var systemVolumesCmd = &Command{
 	WriteAccess: rootAccess{},
 }
 
+var (
+	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
+)
+
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
+
+	Keyslots []fdestate.KeyslotTarget `json:"keyslots,omitempty"`
+
+	// KeyID is the recovery key id.
+	KeyID string `json:"key-id"`
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -65,6 +74,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 	switch req.Action {
 	case "generate-recovery-key":
 		return postSystemVolumesActionGenerateRecoveryKey(c)
+	case "replace-recovery-key":
+		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
@@ -86,4 +97,30 @@ func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 		"recovery-key": rkey.String(),
 		"key-id":       keyID,
 	})
+}
+
+var keyIDRequiredErr = BadRequest("system volume action requires key-id to be provided")
+
+func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
+	if req.KeyID == "" {
+		return keyIDRequiredErr
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if len(req.Keyslots) == 0 {
+		// target default-recovery key slots by default if no key slot targets are specified
+		req.Keyslots = append(req.Keyslots,
+			fdestate.KeyslotTarget{ContainerRole: "system-data", Name: "default-recovery"},
+			fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "default-recovery"},
+		)
+	}
+
+	chg, err := fdestateReplaceRecoveryKey(st, req.KeyID, req.Keyslots)
+	if err != nil {
+		return BadRequest("cannot change recovery key: %v", err)
+	}
+	return AsyncResponse(nil, chg.ID())
 }
