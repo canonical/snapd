@@ -141,6 +141,11 @@ static void test_group_policy_nomatch_user(void) {
 }
 
 static void test_group_policy_root(void) {
+    if (geteuid() != 0) {
+        g_test_skip("test can only be run by real root user");
+        return;
+    }
+
     char *root_dir = mock_root_dir();
 
     int root_fd = open(root_dir, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
@@ -148,9 +153,8 @@ static void test_group_policy_root(void) {
     g_test_queue_destroy((GDestroyNotify)close_noerr, GINT_TO_POINTER(root_fd));
 
     /* no need to mock snap-confine */
-
     struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
-    bool ret = _sc_assert_host_local_group_policy(root_fd, 0, NULL, 0, &err);
+    bool ret = sc_assert_host_local_group_policy(root_fd, &err);
     g_assert_null(err);
     g_assert_true(ret);
 }

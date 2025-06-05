@@ -69,7 +69,7 @@ static bool sc_fstatat_host_snap_confine(int root_fd, struct stat *buf, sc_error
         return true;
     }
 
-    debug("s-c not found");
+    debug("snap-confine not found in the host system");
     sc_error_forward(errorp, sc_error_init_from_errno(ENOENT, "cannot locate snap-confine in host root filesystem"));
     return false;
 }
@@ -79,11 +79,6 @@ static bool _sc_assert_host_local_group_policy(int root_fd, gid_t real_gid, gid_
                                                sc_error **errorp) {
     struct stat buf;
     sc_error *err = NULL;
-
-    if (real_gid == 0) {
-        debug("the user is member of root group");
-        return true;
-    }
 
     if (!sc_fstatat_host_snap_confine(root_fd, &buf, &err)) {
         sc_error_forward(errorp, err);
@@ -117,7 +112,14 @@ static bool _sc_assert_host_local_group_policy(int root_fd, gid_t real_gid, gid_
 }
 
 bool sc_assert_host_local_group_policy(int root_fd, sc_error **errorp) {
-    /* check supplementary groups */
+    gid_t real_gid = getgid();
+
+    if (real_gid == 0) {
+        debug("the user is member of root group");
+        return true;
+    }
+
+    /* collect supplementary groups */
     int cnt = getgroups(0, NULL);
     if (cnt < 0) {
         sc_error_forward(errorp, sc_error_init_from_errno(errno, "cannot list supplementary groups"));
