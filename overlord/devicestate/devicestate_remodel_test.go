@@ -7538,6 +7538,118 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 	})
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelOfflineSwitchChannelOfInstalledBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore, _ = mockSnapstateUpdateOneFromFile(c, map[string]expectedSnap{})
+	defer restore()
+
+	currentModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core22",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "pc-kernel",
+				"id":   fakeSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   fakeSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "pc",
+				"id":   fakeSnapID("pc"),
+				"type": "gadget",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   fakeSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, currentModel)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core22", nil, nil)
+
+	// make core24 installed already, and make it not have a channel set
+	snapstatetest.InstallSnap(c, s.state, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", "core24"), nil, &snap.SideInfo{
+		SnapID:   fakeSnapID("core24"),
+		Revision: snap.R(1),
+		RealName: "core24",
+		Channel:  "",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	// overwrite pc to have core24 as its base so that it doesn't get installed
+	snapstatetest.InstallSnap(c, s.state, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", "core24"), nil, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc"),
+		Revision: snap.R(1),
+		RealName: "pc",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "pc-kernel",
+				"id":   fakeSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": "core24",
+				"id":   fakeSnapID("core22"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "pc",
+				"id":   fakeSnapID("pc"),
+				"type": "gadget",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   fakeSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	_, err = devicestate.RemodelTasks(
+		context.Background(),
+		s.state,
+		currentModel,
+		newModel,
+		&snapstatetest.TrivialDeviceContext{
+			Remodeling:     true,
+			DeviceModel:    newModel,
+			OldDeviceModel: currentModel,
+		},
+		"99",
+		devicestate.RemodelOptions{
+			Offline: true,
+		},
+	)
+	c.Assert(err, IsNil)
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
