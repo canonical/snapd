@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -31,4 +32,8 @@ func MockFdeMgrGenerateRecoveryKey(f func(fdemgr *fdestate.FDEManager) (rkey key
 
 func MockFdeMgrCheckRecoveryKey(f func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error)) (restore func()) {
 	return testutil.Mock(&fdeMgrCheckRecoveryKey, f)
+}
+
+func MockFdestateReplaceRecoveryKey(f func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.Change, error)) (restore func()) {
+	return testutil.Mock(&fdestateReplaceRecoveryKey, f)
 }

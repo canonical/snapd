@@ -21,13 +21,16 @@ package daemon_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
-	. "gopkg.in/check.v1"
 )
 
 type systemVolumesSuite struct {
@@ -197,4 +200,86 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	c.Assert(rsp.Message, Equals, "cannot find matching recovery key: boom!")
 
 	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, defaultKeyslots bool) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	called := 0
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.Change, error) {
+		called++
+		c.Check(recoveryKeyID, Equals, "some-key-id")
+		if defaultKeyslots {
+			c.Check(keyslots, DeepEquals, []fdestate.KeyslotTarget{
+				{ContainerRole: "system-data", Name: "default-recovery"},
+				{ContainerRole: "system-save", Name: "default-recovery"},
+			})
+		} else {
+			c.Check(keyslots, DeepEquals, []fdestate.KeyslotTarget{
+				{ContainerRole: "some-container-role", Name: "some-name"},
+			})
+		}
+		return st.NewChange("some-change", ""), nil
+	}))
+
+	keyslotJSON := ""
+	if !defaultKeyslots {
+		keyslotJSON = `, "keyslots": [{"container-role": "some-container-role", "name": "some-name"}]`
+	}
+	body := strings.NewReader(fmt.Sprintf(`{"action": "replace-recovery-key", "key-id": "some-key-id"%s}`, keyslotJSON))
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 202)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg, NotNil)
+	c.Check(chg.ID(), Equals, "1")
+	c.Check(chg.Kind(), Equals, "some-change")
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
+	const defaultKeyslots = false
+	s.testSystemVolumesActionReplaceRecoveryKey(c, defaultKeyslots)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyDefaultKeyslots(c *C) {
+	const defaultKeyslots = true
+	s.testSystemVolumesActionReplaceRecoveryKey(c, defaultKeyslots)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
+	s.daemon(c)
+
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.Change, error) {
+		return nil, errors.New("boom!")
+	}))
+
+	body := strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "cannot change recovery key: boom!")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "replace-recovery-key"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
 }
