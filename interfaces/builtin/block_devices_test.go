@@ -137,7 +137,7 @@ func (s *blockDevicesInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 5)
+	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets()[0], Equals, `# block-devices
 KERNEL=="megaraid_sas_ioctl_node", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains,
