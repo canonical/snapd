@@ -50,6 +50,11 @@ execute: |
     remote.exec "sudo snap wait system seed.loaded"
     remote.wait-for device-initialized
 
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-run.json
+
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-run.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-run.json)" = run
+
     remote.exec "sudo snap recovery --show-keys" >recovery.out
     tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
 
@@ -65,14 +70,32 @@ execute: |
     fi
     tests.nested vm start
 
-    remote.exec true
+    remote.wait-for snap-command
 
-    remote.pull /run/snapd/snap-bootstrap/unlocked.json .
-    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked.json)" = recovery
-    # We must have been able to unlock the save with the plain key
-    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked.json)" = run
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-recovery.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-recovery.json)" = recovery
+    # We must have been able to unlock with the plain key
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-recovery.json)" = run
 
     # FIXME: this is a bug we always had for cleared tpm
     if [ "${BREAK_DBX}" = true ]; then
       remote.exec sudo journalctl -b0 -u snapd | NOMATCH TPM_RC_LOCKOUT
+
+      # FIXME: we should have a way to detect when auto repair has been done
+      sleep 120
     fi
+
+    if [ "${CLEAR_TPM}" = true ]; then
+      # For now we do not have reprovision implemented
+      exit 0
+    fi
+
+    tests.nested vm set-recovery-key ""
+
+    tests.nested vm stop
+    tests.nested vm start
+
+    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-post-recovery.json
+
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-post-recovery.json)" = run
+    test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-post-recovery.json)" = run

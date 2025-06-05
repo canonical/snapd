@@ -509,13 +509,15 @@ func updateFallbackProtectionProfile(
 }
 
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
-func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
 			bootChains: params.BootChains,
 		},
 		resealOptions{
-			ExpectReseal: expectReseal,
+			ExpectReseal:      options.ExpectReseal,
+			Force:             options.IgnoreCache,
+			EnsureProvisioned: options.EnsureProvisioned,
 		})
 }
 
@@ -547,8 +549,9 @@ type resealInputs struct {
 }
 
 type resealOptions struct {
-	ExpectReseal bool
-	Force        bool
+	ExpectReseal      bool
+	Force             bool
+	EnsureProvisioned bool
 }
 
 func resealKeys(
@@ -562,6 +565,13 @@ func resealKeys(
 			return err
 		}
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		if opts.EnsureProvisioned {
+			lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
+			if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
+				return err
+			}
+		}
+
 		if err := recalculateParamatersTPM(manager, method, rootdir, inputs, opts); err != nil {
 			// TODO:FDEM:FIX: remove the save boot chains.
 			return err

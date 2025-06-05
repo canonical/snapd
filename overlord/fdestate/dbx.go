@@ -295,8 +295,8 @@ func postUpdateReseal(mgr *FDEManager, unlocker boot.Unlocker, method device.Sea
 		params := &boot.ResealKeyForBootChainsParams{
 			BootChains: bc,
 		}
-		const expectReseal = true
-		return mgr.resealKeyForBootChains(unlocker, method, dirs.GlobalRootDir, params, expectReseal)
+		opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true}
+		return mgr.resealKeyForBootChains(unlocker, method, dirs.GlobalRootDir, params, opts)
 	}, method)
 }
 
