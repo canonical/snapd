@@ -258,10 +258,10 @@ Run "systemctl enable --now snapd.apparmor" to correct this.`)
 	for _, iface := range m.repo.AllHotplugInterfaces() {
 		istrings = append(istrings, fmt.Sprintf("%s", iface))
 	}
-	if ok := swfeats.ChangeReg.AddPossibleValues(hotplugAddSlotChangeKind, istrings); !ok {
+	if ok := swfeats.ChangeReg.AddVariants(hotplugAddSlotChangeKind, istrings); !ok {
 		logger.Trace("could not add possible values for change", "change", hotplugAddSlotChangeKind)
 	}
-	if ok := swfeats.ChangeReg.AddPossibleValues(hotplugRemoveChangeKind, istrings); !ok {
+	if ok := swfeats.ChangeReg.AddVariants(hotplugRemoveChangeKind, istrings); !ok {
 		logger.Trace("could not add possible values for change", "change", hotplugRemoveChangeKind)
 	}
 

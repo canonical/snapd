@@ -49,7 +49,7 @@ var (
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
 		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-themes-control"}, Polkit: polkitActionManage},
 	}
-	installThemesChangeKind = swfeats.ChangeReg.NewChangeKind("install-themes")
+	installThemesChangeKind = swfeats.ChangeReg.Add("install-themes")
 )
 
 type themeStatus string
