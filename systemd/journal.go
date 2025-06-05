@@ -73,7 +73,7 @@ func NewJournalStreamFile(params JournalStreamFileParams) (*os.File, error) {
 	// limits, however let us not do that.
 	// https://github.com/systemd/systemd/blob/2e8a581b9cc1132743c2341fc334461096266ad4/src/core/exec-invoke.c#L231
 	if err := conn.SetWriteBuffer(int(8 * quantity.SizeMiB)); err != nil {
-		return nil, err
+		// intentionally ignore the error like systemd does.
 	}
 
 	var levelPrefix int
