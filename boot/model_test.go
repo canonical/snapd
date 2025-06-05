@@ -89,7 +89,7 @@ func makeEncodableModel(signingAccounts *assertstest.SigningAccounts, overrides 
 func (s *modelSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -204,7 +204,7 @@ func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -267,7 +267,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -318,7 +318,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -371,7 +371,7 @@ func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -467,7 +467,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
@@ -586,7 +586,7 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		// timeline & calls:
 		// 1 - pre reboot, run & recovery keys, try model set
@@ -706,7 +706,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 		"model: my-model-uc20\n")
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
@@ -849,7 +849,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 
 	writeModelToBootCalls := 0
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -972,7 +972,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 
 	writeModelToBootCalls := 0
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		if resealKeysCalls == 2 {
 			m, err := boot.ReadModeenv("")
@@ -1059,7 +1059,7 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	}))
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")

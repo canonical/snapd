@@ -392,7 +392,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			// normally executed by the backend code
@@ -522,7 +522,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			// normally executed by the backend code
@@ -681,7 +681,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			return nil
@@ -797,7 +797,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 			return fmt.Errorf("mock error")
 		})()
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			return nil
@@ -861,7 +861,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 			return nil
 		})()
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			return fmt.Errorf("mock error")
@@ -968,7 +968,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			return fmt.Errorf("mock error")
@@ -1300,7 +1300,7 @@ func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			c.Check(params.RevokeOldKeys, Equals, true)
 			return fmt.Errorf("mock error")
