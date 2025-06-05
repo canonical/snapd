@@ -2868,13 +2868,18 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 }
 
 // Switch switches a snap to a new channel and/or cohort
-func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet, error) {
+func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTracker) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
 	if !opts.Revision.Unset() {
 		return nil, errRevisionSwitch
 	}
+
+	if prqt == nil {
+		prqt = snap.SimplePrereqTracker{}
+	}
+
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -2913,6 +2918,17 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	if opts.LeaveCohort {
 		snapsup.CohortKey = ""
 	}
+
+	current, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	// note, the prereq tracker doesn't use the channel given here. however, for
+	// the sake of correctness, and if we ever do use the channel in the prereq
+	// tracker, we update the channel to be what it is being switched to.
+	current.SideInfo.Channel = snapsup.Channel
+	prqt.Add(current)
 
 	summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 	switchSnap := st.NewTask("switch-snap", summary)

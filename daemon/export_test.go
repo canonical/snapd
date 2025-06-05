@@ -209,7 +209,7 @@ func MockSnapstateTryPath(mock func(*state.State, string, string, snapstate.Flag
 	}
 }
 
-func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateSwitch := snapstateSwitch
 	snapstateSwitch = mock
 	return func() {
