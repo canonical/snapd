@@ -7528,6 +7528,80 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 	})
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelCore18ToCore18NoEssentialChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	restore, _ = mockSnapstateUpdateOne(c, map[string]expectedSnap{})
+	defer restore()
+
+	restore, _ = mockSnapstateInstallOne(c, map[string]expectedSnap{})
+	defer restore()
+
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel=18",
+		"gadget":       "pc=18",
+		"base":         "core18",
+		"required-snaps": []any{
+			"some-snap",
+		},
+	})
+
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+
+	err = devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	c.Assert(err, IsNil)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
+
+	snapstatetest.InstallSnap(c, s.state, "name: snapd\nversion: 1\ntype: snapd", nil, &snap.SideInfo{
+		SnapID:   fakeSnapID("snapd"),
+		Revision: snap.R(1),
+		RealName: "snapd",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	next := s.brands.Model("canonical", "pc-model", map[string]any{
+		"revision":     "2",
+		"architecture": "amd64",
+		"kernel":       "pc-kernel=18",
+		"gadget":       "pc=18",
+		"base":         "core18",
+	})
+
+	tss, err := devicestate.RemodelTasks(
+		context.Background(),
+		s.state,
+		current,
+		next,
+		&snapstatetest.TrivialDeviceContext{
+			Remodeling:     true,
+			DeviceModel:    next,
+			OldDeviceModel: current,
+		},
+		"99",
+		devicestate.RemodelOptions{},
+	)
+	c.Assert(err, IsNil)
+
+	c.Assert(tss, HasLen, 1)
+	checkTaskSetKinds(c, tss[0], []string{
+		"set-model",
+	})
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelOfflineSwitchChannelOfInstalledBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
