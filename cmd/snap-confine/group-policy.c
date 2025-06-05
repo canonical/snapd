@@ -138,5 +138,5 @@ bool sc_assert_host_local_group_policy(int root_fd, sc_error **errorp) {
         }
     }
 
-    return _sc_assert_host_local_group_policy(root_fd, getgid(), groups, cnt, errorp);
+    return _sc_assert_host_local_group_policy(root_fd, real_gid, groups, cnt, errorp);
 }

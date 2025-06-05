@@ -431,7 +431,9 @@ int main(int argc, char **argv) {
     }
 
     /* Some distributions choose to limit the ability of regular users to run
-     * snaps to members of a specific local group */
+     * snaps to members of a specific local group. Note we need to keep elevated
+     * privileges as the code peeks into pid 1 root filesystem to locate
+     * snap-confine */
     sc_assert_host_local_group_policy(AT_FDCWD, &err);
     sc_die_on_error(err);
 
