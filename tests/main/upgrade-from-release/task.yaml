@@ -9,7 +9,7 @@ systems: [ubuntu-1*-64, ubuntu-2*-64]
 prepare: |
     if os.query is-arm; then
         tests.exec skip-test "there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64)" && exit 0
-    elif os.query is-ubuntu 25.04; then
+    elif os.query is-ubuntu 25.10; then
         tests.exec skip-test "there is no updates content for daily images in repo http://archive.ubuntu.com/ubuntu" && exit 0
     fi
 
@@ -48,6 +48,7 @@ execute: |
     fi
 
     declare -A EXPECTED_SNAPD_VERSIONS=(
+        ["25.04"]='2.67.1\+25.04'
         ["24.10"]='2.65.3\+24.10'
         ["24.04"]='2.62\+24.04'
         ["22.04"]='2.55.3\+22.04'
