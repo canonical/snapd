@@ -1030,6 +1030,8 @@ uc24_build_initramfs_kernel_snap() {
     ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
                           --firmwaredir pc-kernel/firmware --output initrd.img
 
+    # Check that manifest is generated
+    stat manifest-initramfs.yaml-"$kernelver"
     initrd_f=initrd.img-"$kernelver"
     unmkinitramfs "$initrd_f" initrd
 
