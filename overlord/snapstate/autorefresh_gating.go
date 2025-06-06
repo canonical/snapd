@@ -823,7 +823,7 @@ func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
 	// note, we do not update last-refresh timestamp because this auto-refresh
 	// is not treated as a full auto-refresh.
 
-	chg := st.NewChange("auto-refresh", msg)
+	chg := st.NewChange(autoRefreshChangeKind, msg)
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}

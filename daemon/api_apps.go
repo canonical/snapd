@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -54,6 +55,7 @@ var (
 		GET:        getLogs,
 		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
+	serviceControlChangeKind = swfeats.ChangeReg.Add("service-control")
 )
 
 var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
@@ -328,7 +330,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	// names received in the request can be snap or snap.app, we need to
 	// extract the actual snap names before associating them with a change
-	chg := newChange(st, "service-control", "Running service command", tss, namesToSnapNames(inst))
+	chg := newChange(st, serviceControlChangeKind, "Running service command", tss, namesToSnapNames(inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, chg.ID())
 }
