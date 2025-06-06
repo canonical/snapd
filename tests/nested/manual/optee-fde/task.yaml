@@ -6,7 +6,7 @@ details: |
     exercise this functionality. Their sources can be found in
     github.com/canonical/optee-uc-fde.
 
-systems: [ubuntu-24.04-arm-64]
+systems: [-ubuntu-22.04-arm-64]
 
 environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -56,10 +56,13 @@ prepare: |
 
     snap download --revision "${kernel_revision}" --basename "${kernel_name}" "${kernel_name}"
     snap download --revision "${gadget_revision}" --basename "${gadget_name}" "${gadget_name}"
-    snap download --basename core24 core24
+    snap download --edge --basename core24 core24
 
     unsquashfs -d "./${kernel_name}" "${kernel_name}.snap"
 
+    # TODO: update this to use something like uc24_build_initramfs_kernel_snap,
+    # but for arm
+    #
     # repack the FIT image in the kernel snap so that we can use the
     # snap-bootstrap from this branch
     mkdir ./repack
@@ -95,6 +98,9 @@ prepare: |
     # already have been set up, so we need to install these snaps here
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+
+    # some of the scripts install this stuff (even though we won't use it on
+    # arm) and our usage of the fake store makes it fail
     nested_ensure_ovmf
     snap install test-snapd-swtpm --edge
 
@@ -160,6 +166,8 @@ prepare: |
 
     tests.nested build-image core
 
+    # TODO: bios is a bad name here, but it comes from the gadget snap, which is
+    # a bit annoying to update
     unsquashfs -d . ./${gadget_name}.snap qemu_fw.bios
     truncate -s 64M qemu_fw.bios
     NESTED_BIOS_FILE="$(realpath ./qemu_fw.bios)"
