@@ -1,6 +1,7 @@
 name: test-snapd-sandbox
 summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
+base: core24
 
 apps:
     test-snapd-sandbox:
