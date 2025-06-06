@@ -14,6 +14,7 @@ systems:
   - -amazon-linux-2023-* # fails to start service daemon-containerd
   - -centos-9-*          # fails to start service daemon-containerd
   - -fedora-41-*         # fails to start service daemon-containerd
+  - -fedora-42-*         # fails to start service daemon-containerd
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
   - -ubuntu-*-arm*       # not available on arm
