@@ -173,11 +173,8 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 	}
 }
 
-func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, error) {
+func checkPassphraseSupportedByTargetSystem(sysVer SystemSnapdVersions) (bool, error) {
 	const minSnapdVersion = "2.68"
-	if sysVer == nil {
-		return false, nil
-	}
 	if sysVer.SnapdVersion == "" || sysVer.SnapdInitramfsVersion == "" {
 		return false, nil
 	}
@@ -202,17 +199,28 @@ func checkPassphraseSupportedByTargetSystem(sysVer *SystemSnapdVersions) (bool, 
 	return true, nil
 }
 
+type EncryptionConstraints struct {
+	Model         *asserts.Model
+	Kernel        *snap.Info
+	Gadget        *gadget.Info
+	TPMMode       secboot.TPMProvisionMode
+	SnapdVersions SystemSnapdVersions
+
+	// TODO: naming
+	StandaloneInstall bool
+}
+
 // GetEncryptionSupportInfo returns the encryption support information
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
 // any is available, leaving the caller to decide how, based on the environment.
-func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *SystemSnapdVersions, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
-	secured := model.Grade() == asserts.ModelSecured
-	dangerous := model.Grade() == asserts.ModelDangerous
-	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
+func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+	secured := constraints.Model.Grade() == asserts.ModelSecured
+	dangerous := constraints.Model.Grade() == asserts.ModelDangerous
+	encrypted := constraints.Model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	res := EncryptionSupportInfo{
-		StorageSafety: model.StorageSafety(),
+		StorageSafety: constraints.Model.StorageSafety(),
 	}
 
 	// check if we should disable encryption non-secured devices
@@ -222,23 +230,22 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		return res, nil
 	}
 
-	// check encryption: this can either be provided by the fde-setup
-	// hook mechanism or by the built-in secboot based encryption
-	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
-	// Note that having a fde-setup hook will disable the internal
-	// secboot based encryption
-	checkSecbootEncryption := !checkFDESetupHookEncryption
+	_, hasFDEHook := constraints.Kernel.Hooks["fde-setup"]
+	sealingMethod := secboot.DetermineSealingMethod(hasFDEHook, constraints.StandaloneInstall)
+
 	var checkEncryptionErr error
-	switch {
-	case checkFDESetupHookEncryption:
+	switch sealingMethod {
+	case device.SealingMethodFDESetupHook:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
-	case checkSecbootEncryption:
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
+	case device.SealingMethodOPTEE:
+		res.Type = device.EncryptionTypeLUKS
+	case device.SealingMethodTPM:
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported(constraints.TPMMode)
 		if checkEncryptionErr == nil {
 			res.Type = device.EncryptionTypeLUKS
 		}
 	default:
-		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
+		return res, fmt.Errorf("internal error: unknown sealing method: %v", sealingMethod)
 	}
 	res.Available = (checkEncryptionErr == nil)
 
@@ -248,9 +255,9 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		case encrypted:
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		case checkFDESetupHookEncryption:
+		case sealingMethod == device.SealingMethodFDESetupHook:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		case checkSecbootEncryption:
+		case sealingMethod == device.SealingMethodTPM:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
 		default:
 			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
@@ -264,8 +271,8 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		// Hook based setup support does not make sense (at least for now) because
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
-		if checkSecbootEncryption {
-			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(systemSnapdVersions)
+		if sealingMethod == device.SealingMethodTPM {
+			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(constraints.SnapdVersions)
 			if err != nil {
 				return res, fmt.Errorf("cannot check passphrase support: %v", err)
 			}
@@ -274,7 +281,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}
-		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+		if err := gadget.Validate(constraints.Gadget, constraints.Model, opts); err != nil {
 			if secured || encrypted {
 				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
 			} else {
@@ -286,11 +293,6 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	}
 
 	return res, nil
-}
-
-func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok
 }
 
 func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et device.EncryptionType, err error) {
@@ -316,13 +318,10 @@ func checkFDEFeatures(runSetupHook fde.RunSetupHookFunc) (et device.EncryptionTy
 // available if any and returns the corresponding device.EncryptionType,
 // internally it uses GetEncryptionSupportInfo with the provided parameters.
 func CheckEncryptionSupport(
-	model *asserts.Model,
-	tpmMode secboot.TPMProvisionMode,
-	kernelInfo *snap.Info,
-	gadgetInfo *gadget.Info,
+	constraints EncryptionConstraints,
 	runSetupHook fde.RunSetupHookFunc,
 ) (device.EncryptionType, error) {
-	res, err := GetEncryptionSupportInfo(model, tpmMode, kernelInfo, gadgetInfo, nil, runSetupHook)
+	res, err := GetEncryptionSupportInfo(constraints, runSetupHook)
 	if err != nil {
 		return "", err
 	}

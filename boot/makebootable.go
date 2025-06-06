@@ -345,6 +345,7 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 
 type makeRunnableOptions struct {
 	Standalone     bool
+	FromInitrd     bool
 	AfterDataReset bool
 	SeedDir        string
 	StateUnlocker  Unlocker
@@ -647,13 +648,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		}
 
 		flags := sealKeyToModeenvFlags{
-			HasFDESetupHook: hasHook,
-			FactoryReset:    makeOpts.AfterDataReset,
-			SeedDir:         makeOpts.SeedDir,
-			StateUnlocker:   makeOpts.StateUnlocker,
-			UseTokens:       tokens,
+			HasFDESetupHook:   hasHook,
+			FactoryReset:      makeOpts.AfterDataReset,
+			StandaloneInstall: makeOpts.Standalone,
+			SeedDir:           makeOpts.SeedDir,
+			StateUnlocker:     makeOpts.StateUnlocker,
+			UseTokens:         tokens,
 		}
-		if makeOpts.Standalone {
+		if makeOpts.Standalone || makeOpts.FromInitrd {
 			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
@@ -747,13 +749,13 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, o
 	})
 }
 
-// MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
-// but uses seed dir path expected in initrd.
-func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
+// MakeRunnableSystemFromInitrd is the same as MakeRunnableSystem, but uses seed
+// dir path expected in initrd.
+func MakeRunnableSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
 	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
-		Standalone: true,
+		FromInitrd: true,
 		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
 }

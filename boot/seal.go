@@ -87,6 +87,10 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 type sealKeyToModeenvFlags struct {
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool
+	// StandaloneInstall indicates that the sealing is happening when installing
+	// a standalone system. Installing a standalone system doesn't assume that
+	// the run system being set up is related to the current system.
+	StandaloneInstall bool
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
@@ -132,14 +136,11 @@ func sealKeyToModeenvImpl(
 		}
 	}
 
-	method := device.SealingMethodTPM
-	if flags.HasFDESetupHook {
-		method = device.SealingMethodFDESetupHook
-	} else {
-		if flags.StateUnlocker != nil {
-			relock := flags.StateUnlocker()
-			defer relock()
-		}
+	method := secboot.DetermineSealingMethod(flags.HasFDESetupHook, flags.StandaloneInstall)
+
+	if flags.StateUnlocker != nil {
+		relock := flags.StateUnlocker()
+		defer relock()
 	}
 
 	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, model, modeenv, flags)
@@ -197,7 +198,7 @@ func sealKeyToModeenvForMethod(
 
 	var tbl bootloader.TrustedAssetsBootloader
 	var bl bootloader.Bootloader
-	if method != device.SealingMethodFDESetupHook {
+	if method != device.SealingMethodFDESetupHook && method != device.SealingMethodOPTEE {
 		// build the recovery mode boot chain
 		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 			Role: bootloader.RoleRecovery,
@@ -320,7 +321,7 @@ func WithBootChains(f func(bc *ResealKeyForBootChainsParams) error, method devic
 func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBootChainsParams, error) {
 	requiresBootLoaders := true
 	switch method {
-	case device.SealingMethodFDESetupHook:
+	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
 		requiresBootLoaders = false
 	}
 

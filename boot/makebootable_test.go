@@ -498,6 +498,51 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
+func (s *makeBootable20Suite) TestMakeSystemRunnableSealStandaloneSystem(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	basePath, baseInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: core24\ntype: base\nversion: 1", nil, nil)
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc-kernel\ntype: kernel\nversion: 1", nil, nil)
+	gadgetPath, gadgetInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc\ntype: gadget\nversion: 1", nil, nil)
+
+	bootWith := &boot.BootableSet{
+		Recovery:            true,
+		Base:                baseInfo,
+		BasePath:            basePath,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelPath,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetPath,
+		RecoverySystemLabel: "label",
+	}
+	observer := boot.TrustedAssetsInstallObserverWithEncryption()
+
+	restore := boot.MockHasFDESetupHook(func(*snap.Info) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+
+	var gotFlags boot.MockSealKeyToModeenvFlags
+	restore = boot.MockSealKeyToModeenv(func(
+		key, saveKey secboot.BootstrappedContainer,
+		primaryKey []byte,
+		volumesAuth *device.VolumesAuthOptions,
+		model *asserts.Model,
+		modeenv *boot.Modeenv,
+		flags boot.MockSealKeyToModeenvFlags,
+	) error {
+		gotFlags = flags
+		return nil
+	})
+	defer restore()
+
+	err := boot.MakeRunnableStandaloneSystem(model, bootWith, &observer, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotFlags.HasFDESetupHook, Equals, true)
+	c.Assert(gotFlags.StandaloneInstall, Equals, true)
+}
+
 type testMakeSystemRunnable20Opts struct {
 	standalone    bool
 	factoryReset  bool
@@ -761,7 +806,7 @@ version: 5.0
 
 	switch {
 	case opts.standalone && opts.fromInitrd:
-		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
+		err = boot.MakeRunnableSystemFromInitrd(model, bootWith, obs)
 	case opts.standalone && !opts.fromInitrd:
 		u := mockUnlocker{}
 		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)

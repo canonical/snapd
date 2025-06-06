@@ -1913,6 +1913,18 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 }
 
 func (s *resealTestSuite) TestHooksResealHappy(c *C) {
+	s.testHooksOrOPTEEResealHappy(device.SealingMethodFDESetupHook, c)
+}
+
+func (s *resealTestSuite) TestOPTEEResealHappy(c *C) {
+	s.testHooksOrOPTEEResealHappy(device.SealingMethodOPTEE, c)
+}
+
+func (s *resealTestSuite) testHooksOrOPTEEResealHappy(method device.SealingMethod, c *C) {
+	if method != device.SealingMethodFDESetupHook && method != device.SealingMethodOPTEE {
+		c.Fatalf("unexpected method %v", method)
+	}
+
 	model := boottest.MakeMockUC20Model()
 	params := &boot.ResealKeyForBootChainsParams{
 		RunModeBootChains: []boot.BootChain{
