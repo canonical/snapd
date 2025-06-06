@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -243,37 +244,38 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	updated, appsToRestart, _, err := servicestate.QuotaStateAlreadyUpdated(t)
+	data, err := internal.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, true)
-	c.Assert(appsToRestart, HasLen, 1)
-	for info, apps := range appsToRestart {
+	c.Check(data, NotNil)
+	c.Assert(data.AppsToRestartBySnap, HasLen, 1)
+	for info, apps := range data.AppsToRestartBySnap {
 		c.Check(info.InstanceName(), Equals, "test-snap")
 		c.Assert(apps, HasLen, 1)
 		c.Check(apps[0], Equals, info.Apps["svc1"])
 	}
 
 	// rebooted
-	r = servicestate.MockOsutilBootID("other-boot")
+	r = internal.MockOsutilBootID("other-boot")
 	defer r()
 
-	updated, appsToRestart, _, err = servicestate.QuotaStateAlreadyUpdated(t)
+	data, err = internal.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, true)
-	c.Check(appsToRestart, HasLen, 0)
+	c.Check(data, NotNil)
+	c.Check(data.AppsToRestartBySnap, HasLen, 0)
 	r()
 
 	// restored
-	_, appsToRestart, _, err = servicestate.QuotaStateAlreadyUpdated(t)
+	data, err = internal.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
-	c.Check(appsToRestart, HasLen, 1)
+	c.Check(data, NotNil)
+	c.Check(data.AppsToRestartBySnap, HasLen, 1)
 
 	// snap went missing
 	snapstate.Set(s.state, "test-snap", nil)
-	updated, appsToRestart, _, err = servicestate.QuotaStateAlreadyUpdated(t)
+	data, err = internal.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, true)
-	c.Check(appsToRestart, HasLen, 0)
+	c.Check(data, NotNil)
+	c.Check(data.AppsToRestartBySnap, HasLen, 0)
 }
 
 func (s *quotaHandlersSuite) TestDoQuotaControlUpdate(c *C) {
