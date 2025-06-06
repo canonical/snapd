@@ -41,6 +41,9 @@ execute: |
     echo "And also a specific snap /v2/snaps/<instance-name>"
     api-client --socket /run/snapd-snap.socket "/v2/snaps/api-client" | gojq '."status-code"' | MATCH '^200$'
 
+    echo "Check that snap can access /v2/icons"
+    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^404$'
+
     echo "Without snap-refresh-observe the snap cannot access those API endpoints"
     snap disconnect api-client:snap-refresh-observe
 
@@ -49,3 +52,4 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/changes/$CHANGE_ID" | gojq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/snaps" | gojq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/snaps/api-client" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^403$'

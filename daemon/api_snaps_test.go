@@ -72,11 +72,11 @@ func (s *snapsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *snapsSuite) expectSnapsReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}})
 }
 
 func (s *snapsSuite) expectSnapsNameReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe", "desktop-launch"}})
 }
 
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {

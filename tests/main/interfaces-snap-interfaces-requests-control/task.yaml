@@ -141,6 +141,9 @@ execute: |
     # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
     # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | gojq '."status-code"' | MATCH '^200$'
 
+    echo "Check that snap can access icons info via /v2/icons and gets 404 if icon is not found"
+    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^404$'
+
     echo "Without snap-interfaces-requests-control the snap cannot access those API endpoints"
     snap disconnect api-client:snap-interfaces-requests-control
 
@@ -164,4 +167,6 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | \
         gojq '."status-code"' | MATCH '^403$'
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | \
+        gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | \
         gojq '."status-code"' | MATCH '^403$'

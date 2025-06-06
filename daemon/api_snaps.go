@@ -51,7 +51,7 @@ var (
 		Path:        "/v2/snaps/{name}",
 		GET:         getSnapInfo,
 		POST:        postSnap,
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe"}},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
@@ -59,7 +59,7 @@ var (
 		Path:        "/v2/snaps",
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
