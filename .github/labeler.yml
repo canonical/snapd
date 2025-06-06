@@ -4,9 +4,9 @@
 # - https://github.com/actions/labeler/issues/104
 
 # Add 'Needs Documentation -auto-' label to indicate a change needs changes in the docs
-Needs Documentation -auto-:
-    - changed-files:
-        - cmd/snap/**/*"
-        - daemon/**/*
-        - overlord/hookstate/ctlcmd/**/*
-        - overlord/configstate/configcore/**/*
+Needs Documentation:
+  - changed-files:
+    - cmd/snap/**/*"
+    - daemon/**/*
+    - overlord/hookstate/ctlcmd/**/*
+    - overlord/configstate/configcore/**/*
