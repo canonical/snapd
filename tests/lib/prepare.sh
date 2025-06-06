@@ -502,7 +502,16 @@ prepare_classic() {
         # prevent these issues, and we do that before we get the list of
         # installed packages to make sure we do not re-install it again.
         if ( os.query is-ubuntu || os.query is-debian ) && tests.pkgs is-installed lxd-installer; then
-            apt remove -y --purge lxd-installer
+            extra=
+            if os.query is-ubuntu-ge 25.10; then
+                # the following dependency is in place in 25.10:
+                # ubuntu-server:amd64 Depends lxd-installer
+                #
+                # NOTE: this will leave some packages without explicit
+                # dependency pulling them in
+                extra=ubuntu-server
+            fi
+            apt remove -y --purge lxd-installer $extra
         fi
 
         setup_experimental_features

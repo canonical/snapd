@@ -164,7 +164,11 @@ backends:
                   storage: 15G
                   workers: 8
             - ubuntu-25.04-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2504-amd64
+                  image: ubuntu-2504-amd64
+                  storage: 15G
+                  workers: 8
+            - ubuntu-25.10-64:
+                  image: ubuntu-os-cloud-devel/ubuntu-2510-amd64
                   storage: 15G
                   workers: 8
 

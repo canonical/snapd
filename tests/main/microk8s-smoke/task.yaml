@@ -17,7 +17,11 @@ systems:
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
   - -ubuntu-*-arm*       # not available on arm
-  - -ubuntu-25.04-*      # currently failing due to old apparmor parser not recognizing kernel features
+  # 25.04 and 25.10 failing due to old apparmor parser not recognizing kernel
+  # features https://bugs.launchpad.net/apparmor/+bug/2105986 and microk8s uses
+  # core18/core20 base which ships apparmor 2.12
+  - -ubuntu-25.04-*
+  - -ubuntu-25.10-*
 
 environment:
     CHANNEL/edge: 1.26-strict/edge

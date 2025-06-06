@@ -28,7 +28,7 @@
         "group": "ubuntu-interim (fundamental)",
         "backend": "google",
         "alternative-backend": "google",
-        "systems": "ubuntu-24.10-64",
+        "systems": "ubuntu-24.10-64 ubuntu-25.04-64",
         "tasks": "tests/...",
         "rules": "main"
       },
