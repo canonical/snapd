@@ -739,18 +739,19 @@ pkg_dependencies_fedora_centos_common(){
         strace
         zsh
         "
-    if ! os.query is-centos 9; then
-        echo "
-            fish
-            redhat-lsb-core
-        "
-    fi
 }
 
 pkg_dependencies_fedora(){
     echo "
-         libcap-static
+        fish
+        libcap-static
+        script
+    "
+    if os.query is-fedora 41; then
+        echo "
+            redhat-lsb-core
         "
+    fi
 }
 
 pkg_dependencies_amazon(){
