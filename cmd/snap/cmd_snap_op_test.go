@@ -466,7 +466,7 @@ func (s *SnapOpSuite) TestInstallManyWithComponents(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one+comp1+comp2", "two+comp3+comp4", "three"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one+comp1", "one+comp2", "two+comp3+comp4", "three"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 
@@ -559,7 +559,7 @@ func (s *SnapOpSuite) TestRemoveManyWithComponents(c *check.C) {
 	})
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs(
-		[]string{"remove", "one+comp1+comp2", "two+comp3+comp4", "three"})
+		[]string{"remove", "one+comp1", "one+comp2", "two+comp3+comp4", "three"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 
@@ -3252,8 +3252,11 @@ func (s *SnapOpSuite) TestInstallManyNoChanges(c *check.C) {
 		case 0:
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action":      "install",
-				"snaps":       []interface{}{"one", "two"},
+				"action": "install",
+				"snaps":  []interface{}{"one", "two", "three"},
+				"components": map[string]interface{}{
+					"three": []interface{}{"comp1", "comp2"},
+				},
 				"transaction": string(client.TransactionPerSnap),
 			})
 
@@ -3275,12 +3278,15 @@ func (s *SnapOpSuite) TestInstallManyNoChanges(c *check.C) {
 		n++
 	})
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one", "two"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one", "two", "three+comp1+comp2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	// note that (stable) is omitted
 	c.Check(s.Stdout(), check.Matches, `(?sm).*one already installed`)
 	c.Check(s.Stdout(), check.Matches, `(?sm).*two already installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*three already installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*three\+comp1 already installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*three\+comp2 already installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
