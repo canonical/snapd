@@ -153,10 +153,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	// TODO: better name for this, since this isn't just a hook now. really, we
 	// need a name that is representative of an abstraction over both the hooks
 	// and the integrated optee implementation, since they are both so similar.
-	hintExpectFDEHook := fdeHookPresent || opteePresent
+	hintExpectFDEHookOrTEE := fdeHookPresent || opteePresent
 
 	loadedKey := &defaultKeyLoader{}
-	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
+	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHookOrTEE); err != nil {
 		if !os.IsNotExist(err) {
 			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
 		}
