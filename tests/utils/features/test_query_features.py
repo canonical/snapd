@@ -188,10 +188,10 @@ class TestQueryFeatures(unittest.TestCase):
         j = {"tests": [
             {"task_name": "task1",
              "cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
-             "ensures": [{"manager": "SnapManager", "functions": []}]},
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc1"}]},
             {"task_name": "task2",
              "cmds": [{"cmd": "snap do things"}, {"cmd": "snap list --all"}],
-             "ensures": [{"manager": "SnapManager", "functions": ["ensureThings"]}]
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}]
              }
         ]}
         c = query_features.consolidate_system_features(j)
@@ -203,18 +203,18 @@ class TestQueryFeatures(unittest.TestCase):
         self.assertTrue({"cmd": "snap do things"} in c["cmds"])
         self.assertTrue("ensures" in c)
         self.assertEqual(len(c["ensures"]), 2)
-        self.assertTrue({"manager":"SnapManager","functions":[]} in c["ensures"])
-        self.assertTrue({"manager":"SnapManager","functions":["ensureThings"]} in c["ensures"])
+        self.assertTrue({"manager":"SnapManager","function":"ensureFunc1"} in c["ensures"])
+        self.assertTrue({"manager":"SnapManager","function":"ensureFunc2"} in c["ensures"])
 
 
     def test_consolidate_features_exclude_task(self):
         j = {"tests": [
             {"suite": "suite", "task_name": "task1", "variant": "a",
              "cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
-             "ensures": [{"manager": "SnapManager", "functions": []}]},
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc1"}]},
             {"suite": "suite", "task_name": "task2", "variant": "",
              "cmds": [{"cmd": "snap do things"}, {"cmd": "snap list --all"}],
-             "ensures": [{"manager": "SnapManager", "functions": ["ensureThings"]}]
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}]
              }
         ]}
         c = query_features.consolidate_system_features(j, exclude_tasks=[query_features.TaskId(suite='suite',task_name="task1")])
@@ -225,17 +225,16 @@ class TestQueryFeatures(unittest.TestCase):
         self.assertTrue({"cmd": "snap do things"} in c["cmds"])
         self.assertTrue("ensures" in c)
         self.assertEqual(len(c["ensures"]), 1)
-        self.assertTrue({"manager": "SnapManager", "functions": [
-                        "ensureThings"]} in c["ensures"])
+        self.assertTrue({"manager": "SnapManager", "function": "ensureFunc2"} in c["ensures"])
 
     def test_consolidate_features_include_task(self):
         j = {"tests": [
             {"suite": "suite", "task_name": "task1", "variant": "a",
              "cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
-             "ensures": [{"manager": "SnapManager", "functions": []}]},
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc1"}]},
             {"suite": "suite", "task_name": "task2", "variant": "",
              "cmds": [{"cmd": "snap do things"}, {"cmd": "snap list --all"}],
-             "ensures": [{"manager": "SnapManager", "functions": ["ensureThings"]}]
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}]
              }
         ]}
         c = query_features.consolidate_system_features(j, include_tasks=[query_features.TaskId(suite='suite',task_name="task2")])
@@ -246,15 +245,14 @@ class TestQueryFeatures(unittest.TestCase):
         self.assertTrue({"cmd": "snap do things"} in c["cmds"])
         self.assertTrue("ensures" in c)
         self.assertEqual(len(c["ensures"]), 1)
-        self.assertTrue({"manager": "SnapManager", "functions": [
-                        "ensureThings"]} in c["ensures"])
+        self.assertTrue({"manager": "SnapManager", "function": "ensureFunc2"} in c["ensures"])
 
     def test_features_minus(self):
         j = {"cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
-             "ensures": [{"manager": "SnapManager", "functions": []}],
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc1"}],
              }
         k = {"cmds": [{"cmd": "snap list --all"}],
-             "ensures": [{"manager": "SnapManager", "functions": ["ensureFunc"]}],
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}],
              }
         minus = query_features.minus(j, k)
         self.assertEqual(len(minus), 2)
@@ -264,7 +262,7 @@ class TestQueryFeatures(unittest.TestCase):
         self.assertTrue({"cmd": "snap ack file"} in minus["cmds"])
         self.assertEqual(len(minus["ensures"]), 1)
         self.assertTrue({"manager": "SnapManager",
-                        "functions": []} in minus["ensures"])
+                        "function": "ensureFunc1"} in minus["ensures"])
 
     def test_list_tasks(self):
         sys_json = SystemFeatures(tests=[

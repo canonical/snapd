@@ -61,18 +61,17 @@ class TestExtract(unittest.TestCase):
     def test_extract_ensure(self):
         mgr = 'my-manager'
         loglines = [
-            {"msg":EnsureFeature.msg, EnsureLogLine.manager:mgr},
             {"msg":EnsureFeature.msg, EnsureLogLine.manager:mgr, EnsureLogLine.func:'1'},
             {"msg":EnsureFeature.msg, EnsureLogLine.manager:mgr, EnsureLogLine.func:'2'},
-            {"msg":EnsureFeature.msg, EnsureLogLine.manager:mgr},
             {"msg":EnsureFeature.msg, EnsureLogLine.manager:mgr, EnsureLogLine.func:'3'},
                     ]
         logs = _get_stringio_from_loglines(loglines)
         d = featextractor.get_feature_dictionary(logs, ['ensure'], State({}))
-        self.assertDictEqual({"ensures":[
-            Ensure(manager=mgr, functions=['1','2']),
-            Ensure(manager=mgr, functions=['3'])]}
-                             , d)
+        self.assertIn("ensures", d)
+        self.assertEqual(3, len(d['ensures']))
+        self.assertIn(Ensure(manager=mgr, function='1'), d['ensures'])
+        self.assertIn(Ensure(manager=mgr, function='2'), d['ensures'])
+        self.assertIn(Ensure(manager=mgr, function='3'), d['ensures'])
         
     def test_extract_task(self):
         loglines = [

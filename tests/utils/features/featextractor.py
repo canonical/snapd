@@ -80,15 +80,8 @@ class EnsureFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
-        if EnsureLogLine.func in json_entry:
-            for ensure_list in reversed(feature_dict[EnsureFeature.parent]):
-                if ensure_list['manager'] == json_entry[EnsureLogLine.manager]:
-                    ensure_list['functions'].append(
-                        json_entry[EnsureLogLine.func])
-                    break
-        else:
-            feature_dict[EnsureFeature.parent].append(
-                Ensure(manager=json_entry[EnsureLogLine.manager], functions=[]))
+        feature_dict[EnsureFeature.parent].append(
+                Ensure(manager=json_entry[EnsureLogLine.manager], function=json_entry[EnsureLogLine.func]))
 
     @staticmethod
     def cleanup_dict(_):
