@@ -137,7 +137,7 @@ func sealKeyToModeenvImpl(
 
 	method := secboot.DetermineSealingMethod(flags.HasFDESetupHook, flags.StandaloneInstall)
 
-	if flags.StateUnlocker != nil {
+	if flags.StateUnlocker != nil && method == device.SealingMethodTPM {
 		relock := flags.StateUnlocker()
 		defer relock()
 	}
