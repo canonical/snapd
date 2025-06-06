@@ -4,7 +4,7 @@
 # - https://github.com/actions/labeler/issues/104
 
 # Add 'Needs Documentation -auto-' label to indicate a change needs changes in the docs
-Needs Documentation:
+Needs Documentation -auto-:
   - changed-files:
     - cmd/snap/**/*"
     - daemon/**/*
