@@ -5,7 +5,9 @@
 
 # Add 'Needs Documentation -auto-' label to indicate a change needs changes in the docs
 Needs Documentation -auto-:
-  - cmd/snap/**/*"
-  - daemon/**/*
-  - overlord/hookstate/ctlcmd/**/*
-  - overlord/configstate/configcore/**/*
+  - changed-files:
+    -  any-glob-to-any-file: 
+        - cmd/snap/**
+        - daemon/**
+        - overlord/hookstate/ctlcmd/**
+        - overlord/configstate/configcore/**
