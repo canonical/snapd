@@ -749,8 +749,8 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, o
 	})
 }
 
-// MakeRunnableSystemFromInitrd is the same as MakeRunnableStandaloneSystem
-// but uses seed dir path expected in initrd.
+// MakeRunnableSystemFromInitrd is the same as MakeRunnableSystem, but uses seed
+// dir path expected in initrd.
 func MakeRunnableSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
