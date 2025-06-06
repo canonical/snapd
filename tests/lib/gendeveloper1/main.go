@@ -36,6 +36,8 @@
 //	    "kernel": "pc-kernel=18",
 //	    "timestamp": "2018-09-11T22:00:00+00:00"
 //	}
+//
+// --root-key can be used with any of the commands to use the testrootorg key instead.
 package main
 
 import (
@@ -44,26 +46,42 @@ import (
 	"log"
 	"os"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 )
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "command argument missing\n")
-		os.Exit(1)
-	}
-	if os.Args[1] == "show-key" {
-		fmt.Printf("%s", assertstest.DevKey)
-		return
-	}
-	if os.Args[1] != "sign-model" {
-		fmt.Fprintf(os.Stderr, "unknown command %q, use show-key or sign-model\n", os.Args[1])
-		os.Exit(1)
+type cmdShowKey struct {
+	RootKey bool `long:"root-key" description:"show the test root key instead of the developer key"`
+}
+
+// ShowKey is a command that prints a key to stdout.
+func (c *cmdShowKey) Execute(args []string) error {
+	key := assertstest.DevKey
+	if c.RootKey {
+		key = systestkeys.TestRootPrivKey
 	}
 
-	devKey, _ := assertstest.ReadPrivKey(assertstest.DevKey)
-	devSigning := assertstest.NewSigningDB("developer1", devKey)
+	fmt.Printf("%s", key)
+	return nil
+}
+
+type cmdSignModel struct {
+	RootKey bool `long:"root-key" description:"use the test root key instead of the developer key for signing"`
+}
+
+// SignModel is a command that signs a model assertion based on the headers.
+func (c *cmdSignModel) Execute(args []string) error {
+	var devKey asserts.PrivateKey
+	var devSigning *assertstest.SigningDB
+	if c.RootKey {
+		devKey, _ = assertstest.ReadPrivKey(systestkeys.TestRootPrivKey)
+		devSigning = assertstest.NewSigningDB("testrootorg", devKey)
+	} else {
+		devKey, _ = assertstest.ReadPrivKey(assertstest.DevKey)
+		devSigning = assertstest.NewSigningDB("developer1", devKey)
+	}
 
 	var headers map[string]interface{}
 	dec := json.NewDecoder(os.Stdin)
@@ -92,4 +110,29 @@ func main() {
 		log.Fatalf("failed to sign the model: %v", err)
 	}
 	os.Stdout.Write(asserts.Encode(clModel))
+
+	return nil
+}
+
+type Options struct {
+	ShowKey   cmdShowKey   `command:"show-key" description:"Print the developer key to stdout"`
+	SignModel cmdSignModel `command:"sign-model" description:"Sign a model assertion"`
+}
+
+var options Options
+
+var parser = flags.NewParser(&options, flags.Default)
+
+func main() {
+	if _, err := parser.Parse(); err != nil {
+		switch flagsErr := err.(type) {
+		case flags.ErrorType:
+			if flagsErr == flags.ErrHelp {
+				os.Exit(0)
+			}
+			os.Exit(1)
+		default:
+			os.Exit(1)
+		}
+	}
 }
