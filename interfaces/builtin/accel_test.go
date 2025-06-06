@@ -130,7 +130,6 @@ func (s *accelSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to devices in the compute accelerators subsystem`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: false")
 }
 
 func (s *accelSuite) TestInterfaces(c *C) {

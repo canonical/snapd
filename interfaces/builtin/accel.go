@@ -26,7 +26,6 @@ const accelBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    deny-auto-connection: false
 `
 
 const accelConnectedPlugAppArmor = `
