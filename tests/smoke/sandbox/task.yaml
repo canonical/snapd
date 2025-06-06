@@ -8,8 +8,17 @@ details: |
     works for both the main architecture, and for the 32-bit sub-architecture if
     the CPU supports one.
 
+prepare: |
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test prepare
+    fi
+
 restore: |
     tests.exec is-skipped && exit 0
+
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test restore
+    fi
 
     rm -f /home/test/foo
     # required! in autopkgtest no suite restore is run at all
@@ -50,14 +59,23 @@ execute: |
     done
 
     echo "Ensure the apparmor sandbox for snaps works for users"
-    not su -l -c 'test-snapd-sandbox -c "touch /home/test/foo"' test 2>stderr.log
+    if tests.session has-session-systemd-and-dbus; then
+        not tests.session -u test exec sh -c 'test-snapd-sandbox -c "touch /home/test/foo"' 2>stderr.log
+    else
+        not su -l -c 'test-snapd-sandbox -c "touch /home/test/foo"' test 2>stderr.log
+    fi
     MATCH <stderr.log '.* Permission denied'
 
-    echo "But with the right plug the user can put files into home"
-    su -l -c  'test-snapd-sandbox.with-home-plug -c "echo good >/home/test/foo"' test
-    test -e /home/test/foo
-    echo "and also read them back"
-    su -l -c  'test-snapd-sandbox.with-home-plug -c "cat /home/test/foo"' test | MATCH good
+    echo "But with the right plug the user can put files into home and read them back"
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test exec sh -c 'test-snapd-sandbox.with-home-plug -c "echo good > /home/test/foo"'
+        test -e /home/test/foo
+        tests.session -u test exec sh -c 'test-snapd-sandbox.with-home-plug -c "cat /home/test/foo"' | MATCH good
+    else
+        su -l -c  'test-snapd-sandbox.with-home-plug -c "echo good >/home/test/foo"' test
+        test -e /home/test/foo
+        su -l -c  'test-snapd-sandbox.with-home-plug -c "cat /home/test/foo"' test | MATCH good
+    fi
 
 
     ############## SECCOMP
