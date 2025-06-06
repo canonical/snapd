@@ -373,7 +373,7 @@ func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map
 			if needsf[path] || strings.HasPrefix(path, "meta/") {
 				if mode&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
 					err := fmt.Errorf("%q should be a regular file (or a symlink) and isn't", path)
-					logf("in %s %q: ", contType, name, err)
+					logf("in %s %q: %v", contType, name, err)
 					if firstBadModeErr == nil {
 						firstBadModeErr = err
 					}
