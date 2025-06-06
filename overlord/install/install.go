@@ -33,7 +33,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/snapcore/secboot/efi"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -175,7 +174,7 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 }
 
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(*asserts.Model, []efi.Image) ([]secboot.PreinstallErrorInfo, error)) (restore func()) {
+func MockSecbootPreinstallCheck(f func([]string) ([]secboot.PreinstallErrorInfo, error)) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -319,7 +318,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
 
-		preinstallErrorInfos, err := secbootPreinstallCheck(model, images)
+		preinstallErrorInfos, err := secbootPreinstallCheck(images)
 		if err != nil {
 			return "", nil, err
 		}
@@ -361,7 +360,7 @@ func preinstallCheckSupported(model *asserts.Model) (bool, error) {
 	return cmp >= 0, nil
 }
 
-func orderedCurrentBootImages(model *asserts.Model) ([]efi.Image, error) {
+func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
 	if model.IsHybrid() {
 		images, err := orderedCurrentBootImagesHybrid()
 		if err != nil {
@@ -373,7 +372,7 @@ func orderedCurrentBootImages(model *asserts.Model) ([]efi.Image, error) {
 	return nil, nil
 }
 
-func orderedCurrentBootImagesHybrid() ([]efi.Image, error) {
+func orderedCurrentBootImagesHybrid() ([]string, error) {
 	imageInfo := []struct {
 		name string
 		glob string
@@ -383,7 +382,7 @@ func orderedCurrentBootImagesHybrid() ([]efi.Image, error) {
 		{"kernel", filepath.Join(hybridInstallRootDir, "cdrom/casper/vmlinuz")},
 	}
 
-	var loadedImages []efi.Image
+	var bootImagePaths []string
 	for _, info := range imageInfo {
 		matches, err := filepath.Glob(info.glob)
 		if err != nil {
@@ -395,10 +394,10 @@ func orderedCurrentBootImagesHybrid() ([]efi.Image, error) {
 		if len(matches) > 1 {
 			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
 		}
-		loadedImages = append(loadedImages, efi.NewFileImage(matches[0]))
+		bootImagePaths = append(bootImagePaths, matches[0])
 	}
 
-	return loadedImages, nil
+	return bootImagePaths, nil
 }
 
 // GetEncryptionSupportInfo returns the encryption support information

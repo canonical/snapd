@@ -2,7 +2,7 @@
 //go:build nosecboot
 
 /*
- * Copyright (C) 2018-2025 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,12 +20,10 @@
 
 package secboot
 
-// XXX: Revisit after final implementation
-func UnpackPreinstallCheckError(err error) []PreinstallErrorAndActions {
-	return []PreinstallErrorAndActions{}
-}
+import (
+	"errors"
+)
 
-// XXX: Revisit after final implementation
-func PreinstallCheck(tpmMode TPMProvisionMode) error {
-	return errBuildWithoutSecboot
+func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
+	return nil, errors.New("preinstall check not supported without secboot")
 }

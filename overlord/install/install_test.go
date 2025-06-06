@@ -819,7 +819,9 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("preinstall check error: tpm says no") })
+	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error {
+		return fmt.Errorf("preinstall check error: tpm says no")
+	})
 	defer restore()
 
 	logbuf, restore := logger.MockLogger()

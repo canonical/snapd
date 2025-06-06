@@ -2,7 +2,7 @@
 //go:build !nosecboot
 
 /*
- * Copyright (C) 2018-2025 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,10 +24,9 @@ import (
 	"context"
 	"fmt"
 
-	sb_efi "github.com/snapcore/secboot/efi"
+	"github.com/snapcore/secboot/efi"
 	"github.com/snapcore/secboot/efi/preinstall"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
@@ -35,115 +34,41 @@ import (
 
 var (
 	preinstallNewRunChecksContext = preinstall.NewRunChecksContext
-	preinstallRun                 = (*preinstall.RunChecksContext).Run
+	preinstallRunChecks           = (*preinstall.RunChecksContext).Run
 )
-
-/*type compoundPreinstallError struct {
-	errs []error
-}
-
-func (c *compoundPreinstallError) Error() string {
-	return fmt.Sprintf("preinstall check detected %d errors", len(c.errs))
-}
-
-func (c *compoundPreinstallError) Unwrap() []error {
-	return c.errs
-}
-
-func combineErrors(errs ...error) error {
-	return &compoundPreinstallError{errs: errs}
-}
-
-func NewPreinstallCompoundError(errorAndActions []preinstall.WithKindAndActionsError) error {
-	var errs []error
-	for _, err := range errorAndActions {
-		errs = append(errs, &err)
-	}
-
-	return combineErrors(errs)
-}*/
-
-/*
-// PreinstallCompoundError wraps the preinstall check error which itself can be
-// either a single error or a compound error. In the case of a single underlying
-// error, it presents that error message and in the case of a compound underlying
-// error, it indicates the number of contained errors. In all cases it the error
-// message prefix indicates that the error originates from a preinstall check.
-type PreinstallCompoundError struct {
-	runError error
-}
-
-func (c *PreinstallCompoundError) Error() string {
-	errorInfo := c.Unpack()
-	if len(errorInfo) > 1 {
-		return fmt.Sprintf("preinstall check identified %d errors", len(errorInfo))
-	}
-
-	return fmt.Sprintf("preinstall check error: %s", errorInfo[0].Message)
-}*/
-
-/*
-// Unpack converts a single or compound preinstall check error into a slice of
-// PreinstallErrorAndActions. If the provided error or any contained error is
-// not of type *preinstall.ErrorKindAndActions, the function returns a slice
-// containing a single internal error describing the unexpected type.
-func (c *PreinstallCompoundError) Unpack() []PreinstallErrorInfo {
-	// expect either a single or compound error
-	compoundErr, ok := c.runError.(preinstall.CompoundError)
-	if !ok {
-		// single error
-		kindAndActions, ok := c.runError.(*preinstall.WithKindAndActionsError)
-		if !ok {
-			return []PreinstallErrorInfo{
-				newInternalErrorUnexpectedType(c.runError),
-			}
-		}
-		return []PreinstallErrorInfo{
-			convertErrorType(kindAndActions),
-		}
-	}
-
-	// unpack compound error
-	errs := compoundErr.Unwrap()
-	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
-	for _, err := range errs {
-		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
-		if !ok {
-			return []PreinstallErrorInfo{
-				newInternalErrorUnexpectedType(err),
-			}
-		}
-		unpacked = append(unpacked, convertErrorType(kindAndActions))
-	}
-	return unpacked
-}
-*/
 
 // PreinstallCheck runs the default preinstall checks to evaluate whether the host
 // environment is an EFI system suitable for TPM-based full disk encryption (FDE).
 // It uses standard check and PCR profile options, without customizing TCG-compliant
-// PCR profiles. When running in a virtual machine during testing, VM checks are
-// permitted. Returns an error on failure and logs any warnings encountered.
-func PreinstallCheck(model *asserts.Model, images []sb_efi.Image) ([]PreinstallErrorInfo, error) {
-	checkCustomizationFlags := preinstall.CheckFlagsDefault
+// PCR profiles. To support testing, the check configuration is modified to permit
+// running in a Virtual Machine (VM) when detecting test mode and running in a VM.
+//
+// Returns structured information about errors identified by the secboot checks
+// and logs any warnings. If the errors returned by the secboot checks cannot be
+// processed, this function returns an error.
+func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
+	// do not customize check configuration
+	checkFlags := preinstall.CheckFlagsDefault
 	if snapdenv.Testing() && systemd.IsVirtualMachine() {
-		// allow virtual machine when testing
-		checkCustomizationFlags |= preinstall.PermitVirtualMachine
+		// with exception of testing in virtual machine
+		checkFlags |= preinstall.PermitVirtualMachine
 	}
 
 	// do not customize TCG compliant PCR profile generation
 	profileOptionFlags := preinstall.PCRProfileOptionsDefault
-	// no image required because we avoid profile option flags WithBootManagerCodeProfile and WithSecureBootPolicyProfile
-	loadedImages := []sb_efi.Image{}
-	checksContext := preinstallNewRunChecksContext(checkCustomizationFlags, loadedImages, profileOptionFlags)
+	// create boot file images from provided paths
+	var bootImages []efi.Image
+	for _, image := range bootImagePaths {
+		bootImages = append(bootImages, efi.NewFileImage(image))
+	}
+	checksContext := preinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)
 
-	// no actions args due to no actions for preinstall checks
-	args := []any{}
-	// ignore the returned *preinstall.CheckResult
-	result, err := preinstallRun(checksContext, context.Background(), preinstall.ActionNone, args...)
+	// no actions or action args for preinstall checks
+	result, err := preinstallRunChecks(checksContext, context.Background(), preinstall.ActionNone)
 	if err != nil {
 		return unpackPreinstallCheckError(err)
 	}
+
 	if result.Warnings != nil {
 		for _, warn := range result.Warnings.Unwrap() {
 			logger.Noticef("preinstall check warning: %v", warn)
@@ -172,6 +97,9 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 
 	// unpack compound error
 	errs := compoundErr.Unwrap()
+	if errs == nil {
+		return nil, fmt.Errorf("unexpected compound error wraps nil")
+	}
 	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
 	for _, err := range errs {
 		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
@@ -183,16 +111,20 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	return unpacked, nil
 }
 
-func convertErrorType(errorAndActions *preinstall.WithKindAndActionsError) PreinstallErrorInfo {
+func convertErrorType(kindAndActionsErr *preinstall.WithKindAndActionsError) PreinstallErrorInfo {
 	return PreinstallErrorInfo{
-		Kind:    string(errorAndActions.Kind),
-		Message: errorAndActions.Unwrap().Error(),
-		Args:    errorAndActions.Args,
-		Actions: convertActions(errorAndActions.Actions),
+		Kind:    string(kindAndActionsErr.Kind),
+		Message: kindAndActionsErr.Error(), // safely handles kindAndActionsErr.Unwrap() == nil
+		Args:    kindAndActionsErr.Args,
+		Actions: convertActions(kindAndActionsErr.Actions),
 	}
 }
 
 func convertActions(actions []preinstall.Action) []string {
+	if actions == nil {
+		return nil
+	}
+
 	convActions := make([]string, len(actions))
 	for i, action := range actions {
 		convActions[i] = string(action)

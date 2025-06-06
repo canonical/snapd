@@ -22,6 +22,7 @@ package secboot
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -37,22 +38,43 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+// Preinstall
+type CompoundError struct {
+	Errs []error
+}
+
 var (
+	// Preinstall
+	UnpackPreinstallCheckError = unpackPreinstallCheckError
+	ConvertErrorType           = convertErrorType
+	ConvertActions             = convertActions
+
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
-
-	// Preinstall
-	ConvertErrorType               = convertErrorType
-	ConvertActions                 = convertActions
-	NewInternalErrorUnexpectedType = newInternalErrorUnexpectedType
 )
 
 // Preinstall
-func MockSbPreinstallRun(f func(_ *preinstall.RunChecksContext, ctx context.Context, action preinstall.Action, args ...any) (*preinstall.CheckResult, error)) (restore func()) {
-	old := preinstallRun
-	preinstallRun = f
+func (e *CompoundError) Error() string {
+	return fmt.Sprintf("%v", e.Errs)
+}
+
+func (e *CompoundError) Unwrap() []error {
+	return e.Errs
+}
+
+func MockSbPreinstallNewRunChecksContext(f func(initialFlags preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts preinstall.PCRProfileOptionsFlags) *preinstall.RunChecksContext) (restore func()) {
+	old := preinstallNewRunChecksContext
+	preinstallNewRunChecksContext = f
 	return func() {
-		preinstallRun = old
+		preinstallNewRunChecksContext = old
+	}
+}
+
+func MockSbPreinstallRun(f func(checkCtx *preinstall.RunChecksContext, ctx context.Context, action preinstall.Action, args ...any) (*preinstall.CheckResult, error)) (restore func()) {
+	old := preinstallRunChecks
+	preinstallRunChecks = f
+	return func() {
+		preinstallRunChecks = old
 	}
 }
 
