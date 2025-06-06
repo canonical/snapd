@@ -119,6 +119,14 @@ capability sys_admin,
 # Allow to use mkfs utils to format partitions
 /{,usr/}sbin/mke2fs ixr,
 /{,usr/}sbin/mkfs.fat ixr,
+
+# Allow access to zfs module information, pool and dataset properties
+/sys/module/zfs/features.*/{,**} r,
+/sys/module/zfs/properties.*/{,**} r,
+# ZFS' SPL module
+@{PROC}/sys/kernel/spl/hostid r,
+# hostid for tracking the system where the pool was created
+/etc/hostid r,
 `
 
 const blockDevicesPartitionsConnectedPlugAppArmor = `
@@ -142,6 +150,7 @@ var blockDevicesConnectedPlugUDev = []string{
 	`SUBSYSTEM=="nvme"`,
 	`KERNEL=="mpt2ctl*"`,
 	`KERNEL=="megaraid_sas_ioctl_node"`,
+	`KERNEL=="zfs"`,
 }
 
 func (iface *blockDevicesInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
