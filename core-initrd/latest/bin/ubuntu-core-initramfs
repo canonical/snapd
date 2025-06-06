@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import argparse
 import os
-from subprocess import run, check_call, check_output
+from subprocess import check_call, check_output
 import subprocess
 import tempfile
 import pathlib
@@ -842,6 +842,8 @@ def create_initrd(parser, args):
         manifest_path = create_initrd_pkg_list(main, rootfs)
         out_dir = os.path.dirname(args.output)
         manifest_out_path = os.path.join(out_dir, "manifest-initramfs.yaml")
+        if args.kernelver:
+            manifest_out_path = "-".join([manifest_out_path, args.kernelver])
         shutil.copyfile(manifest_path, manifest_out_path)
 
         arch = dpkg_architecture(args.root, "DEB_HOST_ARCH")
@@ -861,6 +863,7 @@ def create_initrd(parser, args):
                     mkcpio(d, output, compress=False)
 
             mkcpio(main, output)
+
 
 def create_efi(parser, args):
     if args.root:
