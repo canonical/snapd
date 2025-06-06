@@ -88,7 +88,8 @@ type sealKeyToModeenvFlags struct {
 	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
 	HasFDESetupHook bool
 	// StandaloneInstall indicates that the sealing is happening when installing
-	// a standalone system.
+	// a standalone system. Installing a standalone system doesn't assume that
+	// the run system being set up is related to the current system.
 	StandaloneInstall bool
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
