@@ -129,6 +129,47 @@ func (s *scanDiskSuite) TestDetectBootDisk(c *C) {
 	c.Assert(len(lines), Equals, 1)
 }
 
+func (s *scanDiskSuite) TestDetectBootDiskCVM(c *C) {
+	main.MockPartitionUUIDForBootedKernelDisk("29261148-b8ba-4335-b934-417ed71e9e91")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	s.probeMap = make(map[string]*blkid.FakeBlkidProbe)
+	defer blkid.MockBlkidMap(s.probeMap)()
+
+	disk_values := make(map[string]string)
+	disk_values["PTTYPE"] = "gpt"
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	for _, partition := range []struct {
+		node  string
+		label string
+		uuid  string
+	}{
+		{"/dev/foop1", "SEED", "6ae5a792-912e-43c9-ac92-e36723bbda12"},
+		{"/dev/foop2", "BOOT", "29261148-b8ba-4335-b934-417ed71e9e91"},
+	} {
+		values := make(map[string]string)
+		values["PART_ENTRY_UUID"] = partition.uuid
+		s.probeMap[partition.node] = blkid.BuildFakeProbe(values)
+		disk_probe.AddPartition(partition.label, partition.uuid)
+	}
+	s.probeMap["/dev/foo"] = disk_probe
+
+	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
+	c.Assert(os.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=cloudimg-rootfs"), 0644), IsNil)
+	defer kcmdline.MockProcCmdline(mockProcCmdline)()
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, true)
+	c.Assert(len(lines), Equals, 1)
+}
+
 func (s *scanDiskSuite) TestDetectBootDiskNotUEFIBoot(c *C) {
 	main.MockPartitionUUIDForBootedKernelDisk("ffffffff-ffff-ffff-ffff-ffffffffffff")
 
