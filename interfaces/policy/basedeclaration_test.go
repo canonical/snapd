@@ -163,6 +163,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
+		"accel":                   true,
 		"audio-playback":          true,
 		"browser-support":         true,
 		"desktop-legacy":          true,
