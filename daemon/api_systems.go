@@ -144,7 +144,7 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	}
 
 	if !encInfo.Available {
-		storageEnc.AvailabilityCheckErrors = encInfo.AvailabilityCheckErrorInfos
+		storageEnc.AvailabilityCheckErrors = encInfo.AvailabilityCheckErrors
 	}
 
 	if encInfo.PassphraseAuthAvailable {

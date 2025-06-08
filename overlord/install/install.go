@@ -83,10 +83,9 @@ type EncryptionSupportInfo struct {
 	// available in case it is optional.
 	UnavailableWarning string
 
-	// AvailabilityCheckErrorInfos holds information about
-	// encryption availability errors identified during
-	// preinstall check.
-	AvailabilityCheckErrorInfos []secboot.PreinstallErrorInfo
+	// AvailabilityCheckErrors holds information about encryption
+	// availability errors identified during preinstall check.
+	AvailabilityCheckErrors []secboot.PreinstallErrorInfo
 
 	// PassphraseAuthAvailable is set if the passphrase authentication
 	// is supported.
@@ -173,8 +172,17 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 	}
 }
 
+// MockSecbootCheckTPMKeySealingSupported mocks secboot.CheckTPMKeySealingSupported usage by the package for testing.
+func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
+	old := secbootCheckTPMKeySealingSupported
+	secbootCheckTPMKeySealingSupported = f
+	return func() {
+		secbootCheckTPMKeySealingSupported = old
+	}
+}
+
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func([]string) ([]secboot.PreinstallErrorInfo, error)) (restore func()) {
+func MockSecbootPreinstallCheck(f func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error)) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -253,7 +261,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 			res.Type = device.EncryptionTypeLUKS
 		} else {
 			checkEncryptionErr = fmt.Errorf(unavailableReason)
-			res.AvailabilityCheckErrorInfos = preinstallErrorInfos
+			res.AvailabilityCheckErrors = preinstallErrorInfos
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
@@ -341,7 +349,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 	return "", nil, nil
 }
 
-func preinstallCheckSupported(model *asserts.Model) (bool, error) {
+var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
 	if !model.IsHybrid() {
 		return false, nil
 	}
@@ -474,7 +482,7 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		}
 		if unavailableReason != "" {
 			setUnavailableErrorOrWarning(fmt.Errorf(unavailableReason))
-			encInfo.AvailabilityCheckErrorInfos = preinstallErrorInfos
+			encInfo.AvailabilityCheckErrors = preinstallErrorInfos
 			return encInfo, nil
 		}
 		encInfo.Type = device.EncryptionTypeLUKS
