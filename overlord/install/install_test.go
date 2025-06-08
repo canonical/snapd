@@ -234,7 +234,27 @@ var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
 	},
 }
 
-func MockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected) (restore func()) {
+// mockHelperForEncryptionAvailabilityCheck simplifies mocking that is required to excercise all core parts of encryptionAvailabilityCheck.
+//
+// isSupportedUbuntuHybrid: modify model, system release information and current boot images to simulate supported Ubuntu hybrid install
+// errorsDetected: simulate realistic encryption availability errors for both secboot.PreinstallCheck and secboot.CheckTPMKeySealingSupported (None, Single, Multiple)
+// modelMods: model modifications to extend a model to be Ubuntu hybrid
+func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected, modelMods map[string]interface{}) (*asserts.Model, func()) {
+	// extend model modifications if required to indicate hybrid as required
+	var extendedModelMods map[string]interface{}
+	if modelMods != nil || isSupportedUbuntuHybrid {
+		extendedModelMods = map[string]interface{}{}
+	}
+	if modelMods != nil {
+		for k, v := range modelMods {
+			extendedModelMods[k] = v
+		}
+	}
+	if isSupportedUbuntuHybrid {
+		extendedModelMods["classic"] = "true"
+		extendedModelMods["distribution"] = "ubuntu"
+	}
+
 	// mock release info to simulate support for preinstall check
 	releaseInfo := &release.OS{
 		ID:        "ubuntu*",
@@ -305,14 +325,14 @@ func MockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool
 		}
 	})
 
-	// return cleanup closure
-	return func() {
-		//fmt.Println("cleanup closure")
-		restore4()
-		restore3()
-		restore2()
-		restore1()
-	}
+	return s.mockModel(extendedModelMods),
+		// cleanup closure
+		func() {
+			restore4()
+			restore3()
+			restore2()
+			restore1()
+		}
 }
 
 func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
@@ -472,19 +492,12 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 		},
 	}
 	for i, tc := range testCases {
-		restore := MockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors)
-		defer restore()
-
-		modelMods := map[string]interface{}{
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, map[string]interface{}{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
-		}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
+		})
+		defer restore()
 
-		mockModel := s.mockModel(modelMods)
 		mockSystemSnapdVersions := &install.SystemSnapdVersions{
 			SnapdVersion:          tc.snapdVersion,
 			SnapdInitramfsVersion: tc.kernelSnapdVersion,
@@ -612,18 +625,11 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 	}
 
 	for i, tc := range testCases {
-		restore := MockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors)
-		defer restore()
-
-		modelMods := map[string]interface{}{
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, map[string]interface{}{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
-		}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
-		mockModel := s.mockModel(modelMods)
+		})
+		defer restore()
 
 		forceUnencryptedPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
 		if tc.forceUnencrypted == "" {
@@ -828,15 +834,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		// happy: encryption available as determined by secboot.PreinstallCheck
 		{true, ErrorsDetectedNone, device.EncryptionTypeLUKS},
 	} {
-		restore := MockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors)
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, nil)
 		defer restore()
-
-		modelMods := map[string]interface{}{}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
-		mockModel := s.mockModel(modelMods)
 
 		encryptionType, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Assert(err, IsNil)
@@ -871,15 +870,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 		if !tc.hasTPM {
 			detectedErrors = ErrorsDetectedSingle
 		}
-		restore := MockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, detectedErrors)
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, detectedErrors, nil)
 		defer restore()
-
-		modelMods := map[string]interface{}{}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
-		mockModel := s.mockModel(modelMods)
 
 		runFDESetup := func(_ *fde.SetupRequest) ([]byte, error) {
 			return []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)), nil
@@ -970,18 +962,11 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 			"cannot encrypt device storage as mandated by model grade secured: preinstall check identified 2 errors",
 		},
 	} {
-		restore := MockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors)
-		defer restore()
-
-		modelMods := map[string]interface{}{
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, map[string]interface{}{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
-		}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
-		mockModel := s.mockModel(modelMods)
+		})
+		defer restore()
 
 		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
@@ -1008,15 +993,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 		// unhappy: no hook, encryption unavailable as determined by secboot.PreinstallCheck when detecting multiple errors
 		{true, ErrorsDetectedCompound, device.EncryptionTypeNone},
 	} {
-		restore := MockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors)
+		mockModel, restore := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, nil)
 		defer restore()
-
-		modelMods := map[string]interface{}{}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
-		mockModel := s.mockModel(modelMods)
 
 		_, err := install.CheckEncryptionSupport(mockModel, secboot.TPMProvisionFull, kernelInfo, gadgetInfo, nil)
 		c.Check(err, IsNil)
