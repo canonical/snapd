@@ -27,3 +27,10 @@ import (
 func (k RecoveryKey) String() string {
 	return sb.RecoveryKey(k).String()
 }
+
+// ParseRecoveryKey interprets the supplied string and returns the
+// corresponding RecoveryKey.
+func ParseRecoveryKey(rkey string) (RecoveryKey, error) {
+	out, err := sb.ParseRecoveryKey(rkey)
+	return RecoveryKey(out), err
+}
