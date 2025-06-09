@@ -167,7 +167,12 @@ execute: |
 
     echo "configuring ssh access"
     ssh-keygen -t rsa -N "" -f "$HOME"/.ssh/id_rsa
+    mkdir -p /home/ubuntu/.ssh
+    chmod 700 /home/ubuntu/.ssh
     cat "$HOME"/.ssh/id_rsa.pub >> /home/ubuntu/.ssh/authorized_keys
+    # If the .ssh directory didn't exist, then the .ssh
+    # directory is now owned by root. Change owner to ubuntu
+    chown -R ubuntu:ubuntu /home/ubuntu/.ssh
     # For some reason this directory has the wrong user on UC18
     chown ubuntu:ubuntu /home/ubuntu
 
