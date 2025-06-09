@@ -545,3 +545,10 @@ func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 	}
 	return primaryKey, nil
 }
+
+// CheckRecoveryKey tests that the specified recovery key unlocks the
+// device at the specified path.
+func CheckRecoveryKey(devicePath string, rkey keys.RecoveryKey) error {
+	// TODO:FDEM: use secboot helper when available
+	return nil
+}
