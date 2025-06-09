@@ -168,7 +168,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyBadRecoveryK
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
 	// rest of error is coming from secboot
-	c.Assert(rsp.Message, Equals, "invalid recovery key: incorrectly formatted: insufficient characters")
+	c.Assert(rsp.Message, Equals, "cannot parse recovery key: incorrectly formatted: insufficient characters")
 
 	c.Check(called, Equals, 0)
 }
@@ -194,7 +194,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
 	// rest of error is coming from secboot
-	c.Assert(rsp.Message, Equals, "invalid recovery key: boom!")
+	c.Assert(rsp.Message, Equals, "cannot find matching recovery key: boom!")
 
 	c.Check(called, Equals, 1)
 }

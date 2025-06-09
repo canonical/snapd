@@ -37,8 +37,8 @@ var systemVolumesCmd = &Command{
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
 
-	RecoveryKey    string   `json:"recovery-key,omitempty"`
-	ContainerRoles []string `json:"container-roles,omitempty"`
+	RecoveryKey    string   `json:"recovery-key"`
+	ContainerRoles []string `json:"container-roles"`
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -104,7 +104,7 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 
 	rkey, err := keys.ParseRecoveryKey(req.RecoveryKey)
 	if err != nil {
-		return BadRequest("invalid recovery key: %v", err)
+		return BadRequest("cannot parse recovery key: %v", err)
 	}
 
 	st := c.d.overlord.State()
@@ -113,7 +113,7 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 
 	fdemgr := c.d.overlord.FDEManager()
 	if err := fdeMgrCheckRecoveryKey(fdemgr, rkey, req.ContainerRoles); err != nil {
-		return BadRequest("invalid recovery key: %v", err)
+		return BadRequest("cannot find matching recovery key: %v", err)
 	}
 
 	return SyncResponse(nil)
