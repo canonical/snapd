@@ -21,7 +21,6 @@ package daemon_test
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -202,7 +201,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	c.Check(called, Equals, 1)
 }
 
-func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, defaultKeyslots bool) {
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
@@ -213,24 +212,21 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, def
 	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.TaskSet, error) {
 		called++
 		c.Check(recoveryKeyID, Equals, "some-key-id")
-		if defaultKeyslots {
-			c.Check(keyslots, DeepEquals, []fdestate.KeyslotTarget{
-				{ContainerRole: "system-data", Name: "default-recovery"},
-				{ContainerRole: "system-save", Name: "default-recovery"},
-			})
-		} else {
-			c.Check(keyslots, DeepEquals, []fdestate.KeyslotTarget{
-				{ContainerRole: "some-container-role", Name: "some-name"},
-			})
-		}
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotTarget{
+			{ContainerRole: "some-container-role", Name: "some-name"},
+		})
+
 		return state.NewTaskSet(), nil
 	}))
 
-	keyslotJSON := ""
-	if !defaultKeyslots {
-		keyslotJSON = `, "keyslots": [{"container-role": "some-container-role", "name": "some-name"}]`
-	}
-	body := strings.NewReader(fmt.Sprintf(`{"action": "replace-recovery-key", "key-id": "some-key-id"%s}`, keyslotJSON))
+	body := strings.NewReader(`
+{
+	"action": "replace-recovery-key",
+	"key-id": "some-key-id",
+	"keyslots": [
+		{"container-role": "some-container-role", "name": "some-name"}
+	]
+}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
@@ -247,16 +243,6 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, def
 	c.Check(called, Equals, 1)
 }
 
-func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
-	const defaultKeyslots = false
-	s.testSystemVolumesActionReplaceRecoveryKey(c, defaultKeyslots)
-}
-
-func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyDefaultKeyslots(c *C) {
-	const defaultKeyslots = true
-	s.testSystemVolumesActionReplaceRecoveryKey(c, defaultKeyslots)
-}
-
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
 	s.daemon(c)
 
@@ -271,7 +257,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, "cannot change recovery key: boom!")
+	c.Assert(rsp.Message, Equals, "cannot replace recovery key: boom!")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {

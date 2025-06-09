@@ -56,14 +56,17 @@ func (s *fdeMgrSuite) TestKeyslotTargetValidate(c *C) {
 	c.Assert(k.Validate(), ErrorMatches, "key slot name cannot be empty")
 }
 
-func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
+func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	keyslots := []fdestate.KeyslotTarget{
 		{ContainerRole: "system-data", Name: "default-recovery"},
-		{ContainerRole: "system-save", Name: "default-recovery"},
 	}
 	tmpKeyslots := []fdestate.KeyslotTarget{
 		{ContainerRole: "system-data", Name: "snapd-tmp:default-recovery"},
-		{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"},
+	}
+	if defaultKeyslots {
+		// system-save also
+		keyslots = append(keyslots, fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "default-recovery"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"})
 	}
 
 	// initialize fde manager
@@ -76,7 +79,12 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	ts, err := fdestate.ReplaceRecoveryKey(s.st, recoveryKeyID, keyslots)
+	var ts *state.TaskSet
+	if defaultKeyslots {
+		ts, err = fdestate.ReplaceRecoveryKey(s.st, recoveryKeyID, nil)
+	} else {
+		ts, err = fdestate.ReplaceRecoveryKey(s.st, recoveryKeyID, keyslots)
+	}
 	c.Assert(err, IsNil)
 	c.Assert(ts, NotNil)
 	tsks := ts.Tasks()
@@ -107,7 +115,11 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
 	// and renames are also passed
 	var renames []string
 	c.Assert(tsks[2].Get("renames", &renames), IsNil)
-	c.Check(renames, DeepEquals, []string{"default-recovery", "default-recovery"})
+	if defaultKeyslots {
+		c.Check(renames, DeepEquals, []string{"default-recovery", "default-recovery"})
+	} else {
+		c.Check(renames, DeepEquals, []string{"default-recovery"})
+	}
 
 	chg := s.st.NewChange("", "")
 	chg.AddAll(ts)
@@ -120,6 +132,16 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
 	c.Check(tsks[2].Status(), Equals, state.DoneStatus)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
+}
+
+func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
+	const defaultKeyslots = false
+	s.testReplaceRecoveryKey(c, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestReplaceRecoveryKeyDefaultKeyslots(c *C) {
+	const defaultKeyslots = true
+	s.testReplaceRecoveryKey(c, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
@@ -158,10 +180,6 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	// expired recovery key id
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "expired-key-id", keyslots)
 	c.Assert(err, ErrorMatches, "invalid recovery key ID: recovery key has expired")
-
-	// no keyslots
-	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", nil)
-	c.Assert(err, ErrorMatches, "internal error: keyslots cannot be empty")
 
 	// invalid keyslot
 	badKeyslot := fdestate.KeyslotTarget{ContainerRole: "", Name: "some-name"}

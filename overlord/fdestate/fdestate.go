@@ -452,11 +452,19 @@ func tmpKeyslotTarget(keyslot KeyslotTarget) KeyslotTarget {
 }
 
 // ReplaceRecoveryKey creates a taskset that replaces the
-// recovery key for the specified target key slots with
-// the recovery key referenced to by recoveryKeyID.
+// recovery key for the specified target key slots using
+// the recovery key identified by recoveryKeyID.
+//
+// If keyslots is empty, the "default-recovery" key slot is
+// used by default for both the "system-data" and "system-save"
+// container roles.
 func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []KeyslotTarget) (*state.TaskSet, error) {
 	if len(keyslots) == 0 {
-		return nil, fmt.Errorf("internal error: keyslots cannot be empty")
+		// target default-recovery key slots by default if no key slot targets are specified
+		keyslots = append(keyslots,
+			KeyslotTarget{ContainerRole: "system-data", Name: "default-recovery"},
+			KeyslotTarget{ContainerRole: "system-save", Name: "default-recovery"},
+		)
 	}
 
 	tmpKeyslots := make([]KeyslotTarget, 0, len(keyslots))

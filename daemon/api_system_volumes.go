@@ -41,7 +41,7 @@ var (
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
 
-	Keyslots []fdestate.KeyslotTarget `json:"keyslots,omitempty"`
+	Keyslots []fdestate.KeyslotTarget `json:"keyslots"`
 
 	RecoveryKey    string   `json:"recovery-key"`
 	ContainerRoles []string `json:"container-roles"`
@@ -136,17 +136,9 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 	st.Lock()
 	defer st.Unlock()
 
-	if len(req.Keyslots) == 0 {
-		// target default-recovery key slots by default if no key slot targets are specified
-		req.Keyslots = append(req.Keyslots,
-			fdestate.KeyslotTarget{ContainerRole: "system-data", Name: "default-recovery"},
-			fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "default-recovery"},
-		)
-	}
-
 	ts, err := fdestateReplaceRecoveryKey(st, req.KeyID, req.Keyslots)
 	if err != nil {
-		return BadRequest("cannot change recovery key: %v", err)
+		return BadRequest("cannot replace recovery key: %v", err)
 	}
 
 	chg := st.NewChange("replace-recovery-key", "Replace recovery key")
