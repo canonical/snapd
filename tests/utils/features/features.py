@@ -42,7 +42,7 @@ class Change(TypedDict):
 
 class Ensure(TypedDict):
     manager: str
-    functions: list[str]
+    function: str
 
 
 class EnvVariables(TypedDict):
