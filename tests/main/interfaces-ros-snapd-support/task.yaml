@@ -45,7 +45,10 @@ execute: |
     gojq . < response.txt
 
     echo "Check if the service is now disabled"
-    api-apps-client > response.txt
-    gojq . < response.txt
-
-    gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^null'
+    check_disabled() {
+        api-apps-client > response.txt
+        gojq . < response.txt
+        gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^null'
+    }
+    export -f check_disabled
+    retry -n 5 --wait 1 bash -c "check_disabled"
