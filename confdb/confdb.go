@@ -449,8 +449,13 @@ func validateRequestStoragePair(request, storage string) error {
 		return fmt.Errorf("request %q and storage %q have mismatched placeholders", request, storage)
 	}
 
-	for placeholder := range reqPlaceholders {
-		if !storagePlaceholders[placeholder] {
+	for placeholder, count := range reqPlaceholders {
+		if count != 1 {
+			return fmt.Errorf("request cannot have more than one placeholder with the same name %q: %s",
+				placeholder, request)
+		}
+
+		if storagePlaceholders[placeholder] == 0 {
 			return fmt.Errorf("placeholder %q from request %q is absent from storage %q",
 				placeholder, request, storage)
 		}
@@ -491,17 +496,19 @@ func validateViewDottedPath(path string, opts *validationOptions) (err error) {
 
 // getPlaceholders returns the set of placeholders in the string or nil, if
 // there is none.
-func getPlaceholders(viewStr string) map[string]bool {
-	var placeholders map[string]bool
+func getPlaceholders(viewStr string) map[string]int {
+	var placeholders map[string]int
+	count := func(key string) {
+		if placeholders == nil {
+			placeholders = make(map[string]int)
+		}
+		placeholders[key]++
+	}
 
 	subkeys := strings.Split(viewStr, ".")
 	for _, subkey := range subkeys {
 		if isPlaceholder(subkey) {
-			if placeholders == nil {
-				placeholders = make(map[string]bool)
-			}
-
-			placeholders[subkey] = true
+			count(subkey[1 : len(subkey)-1])
 		}
 	}
 

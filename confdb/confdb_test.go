@@ -128,6 +128,35 @@ func (*viewSuite) TestNewConfdb(c *C) {
 				},
 			},
 		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "a.{bar}[{bar}]", "storage": "foo[{bar}].{bar}"},
+					},
+				},
+			},
+			err: `cannot define view "bar": cannot use same name "bar" for key and index placeholder: a.{bar}[{bar}]`,
+		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "{bar}.a.{bar}", "storage": "foo.{bar}"},
+					},
+				},
+			},
+			err: `cannot define view "bar": request cannot have more than one placeholder with the same name "bar": {bar}.a.{bar}`,
+		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "a.{bar}", "storage": "foo.{bar}.{bar}"},
+					},
+				},
+			},
+		},
 	}
 
 	for i, tc := range tcs {
