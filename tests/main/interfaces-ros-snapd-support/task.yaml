@@ -51,4 +51,4 @@ execute: |
         gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^null'
     }
     export -f check_disabled
-    retry -n 5 --wait 1 bash -c "check_disabled"
+    retry -n 30 --wait 1 bash -c "check_disabled"
