@@ -23,6 +23,7 @@ package fdestate_test
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -884,4 +885,133 @@ func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{})
 	c.Check(getCalled, Equals, 2)
 	c.Check(deleteCalled, Equals, 2)
+}
+
+func (s *fdeMgrSuite) testCheckRecoveryKey(c *C, defaultContainerRoles bool) {
+	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
+
+	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	c.Assert(err, IsNil)
+
+	onClassic := false
+	mgr := s.startedManager(c, onClassic)
+
+	model := &asserts.Model{}
+	s.mockDeviceInState(model, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case dataPath:
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockBootHostUbuntuDataForMode(func(mode string, mod gadget.Model) ([]string, error) {
+		c.Check(mode, Equals, "run")
+		c.Check(mod, Equals, model)
+		return []string{dataPath}, nil
+	})()
+
+	var foundDevPaths []string
+	defer fdestate.MockSecbootCheckRecoveryKey(func(devicePath string, rkey keys.RecoveryKey) error {
+		c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'})
+		foundDevPaths = append(foundDevPaths, devicePath)
+		return nil
+	})()
+
+	var containerRoles []string
+	if !defaultContainerRoles {
+		containerRoles = []string{"system-data"}
+	}
+	err = mgr.CheckRecoveryKey(keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}, containerRoles)
+	c.Assert(err, IsNil)
+
+	if defaultContainerRoles {
+		c.Check(foundDevPaths, DeepEquals, []string{"/dev/disk/by-uuid/aaa", "/dev/disk/by-uuid/bbb"})
+	} else {
+		// system-data only
+		c.Check(foundDevPaths, DeepEquals, []string{"/dev/disk/by-uuid/aaa"})
+	}
+}
+
+func (s *fdeMgrSuite) TestCheckRecoveryKey(c *C) {
+	const defaultContainerRoles = false
+	s.testCheckRecoveryKey(c, defaultContainerRoles)
+}
+
+func (s *fdeMgrSuite) TestCheckRecoveryKeyDefaultContainerRole(c *C) {
+	const defaultContainerRoles = true
+	s.testCheckRecoveryKey(c, defaultContainerRoles)
+}
+
+func (s *fdeMgrSuite) TestCheckRecoveryKeyMissingContainerRole(c *C) {
+	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
+
+	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	c.Assert(err, IsNil)
+
+	onClassic := false
+	mgr := s.startedManager(c, onClassic)
+
+	model := &asserts.Model{}
+	s.mockDeviceInState(model, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case dataPath:
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockBootHostUbuntuDataForMode(func(mode string, mod gadget.Model) ([]string, error) {
+		c.Check(mode, Equals, "run")
+		c.Check(mod, Equals, model)
+		return []string{dataPath}, nil
+	})()
+
+	err = mgr.CheckRecoveryKey(keys.RecoveryKey{}, []string{"missing-container-role"})
+	c.Assert(err, ErrorMatches, `container role "missing-container-role" does not exist`)
+}
+
+func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
+	dataPath := filepath.Join(dirs.GlobalRootDir, "path/to/data")
+
+	err := os.MkdirAll(filepath.Dir(dataPath), 0755)
+	c.Assert(err, IsNil)
+
+	onClassic := false
+	mgr := s.startedManager(c, onClassic)
+
+	model := &asserts.Model{}
+	s.mockDeviceInState(model, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case dataPath:
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockBootHostUbuntuDataForMode(func(mode string, mod gadget.Model) ([]string, error) {
+		c.Check(mode, Equals, "run")
+		c.Check(mod, Equals, model)
+		return []string{dataPath}, nil
+	})()
+
+	defer fdestate.MockSecbootCheckRecoveryKey(func(devicePath string, rkey keys.RecoveryKey) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/aaa")
+		return errors.New("boom!")
+	})()
+
+	err = mgr.CheckRecoveryKey(keys.RecoveryKey{}, []string{"system-data"})
+	c.Assert(err, ErrorMatches, `recovery key failed for "system-data": boom!`)
 }

@@ -50,6 +50,7 @@ var (
 	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
 	keysNewRecoveryKey                 = keys.NewRecoveryKey
 	timeNow                            = time.Now
+	secbootCheckRecoveryKey            = secboot.CheckRecoveryKey
 )
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -410,6 +411,41 @@ func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err er
 func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
 	mgr := fdeMgr(st)
 	return mgr.getRecoveryKey(keyID)
+}
+
+// CheckRecoveryKey tests that the specified recovery key unlocks the
+// specified container roles. If no container roles are passed, the recovery
+// key will be tested against all container roles.
+//
+// The state must be locked by the caller.
+func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []string) error {
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return err
+	}
+
+	allContainers := len(containerRoles) == 0
+
+	devPathByContainerRole := make(map[string]string, len(containers))
+	for _, container := range containers {
+		devPathByContainerRole[container.ContainerRole()] = container.DevPath()
+		if allContainers {
+			containerRoles = append(containerRoles, container.ContainerRole())
+		}
+	}
+
+	for _, containerRole := range containerRoles {
+		devPath, ok := devPathByContainerRole[containerRole]
+		if !ok {
+			return fmt.Errorf("container role %q does not exist", containerRole)
+		}
+
+		if err := secbootCheckRecoveryKey(devPath, rkey); err != nil {
+			return fmt.Errorf("recovery key failed for %q: %v", containerRole, err)
+		}
+	}
+
+	return nil
 }
 
 func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
