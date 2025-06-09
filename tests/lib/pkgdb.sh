@@ -747,11 +747,6 @@ pkg_dependencies_fedora(){
         libcap-static
         script
     "
-    if os.query is-fedora 41; then
-        echo "
-            redhat-lsb-core
-        "
-    fi
 }
 
 pkg_dependencies_amazon(){
