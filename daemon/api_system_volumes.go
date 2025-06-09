@@ -144,9 +144,15 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 		)
 	}
 
-	chg, err := fdestateReplaceRecoveryKey(st, req.KeyID, req.Keyslots)
+	ts, err := fdestateReplaceRecoveryKey(st, req.KeyID, req.Keyslots)
 	if err != nil {
 		return BadRequest("cannot change recovery key: %v", err)
 	}
+
+	chg := st.NewChange("replace-recovery-key", "Replace recovery key")
+	chg.AddAll(ts)
+
+	st.EnsureBefore(0)
+
 	return AsyncResponse(nil, chg.ID())
 }

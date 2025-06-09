@@ -47,7 +47,7 @@ func (s *fdeMgrSuite) TestKeyslotTargetValidate(c *C) {
 	c.Assert(k.Validate(), IsNil)
 
 	k = fdestate.KeyslotTarget{ContainerRole: "some-container", Name: "some-keyslot"}
-	c.Assert(k.Validate(), ErrorMatches, `invalid key slot container role "some-container", expected "system-data" or "system-save"`)
+	c.Assert(k.Validate(), ErrorMatches, `unsupported key slot container role "some-container", expected "system-data" or "system-save"`)
 
 	k = fdestate.KeyslotTarget{Name: "some-keyslot"}
 	c.Assert(k.Validate(), ErrorMatches, "key slot container role cannot be empty")
@@ -61,6 +61,10 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
 		{ContainerRole: "system-data", Name: "default-recovery"},
 		{ContainerRole: "system-save", Name: "default-recovery"},
 	}
+	tmpKeyslots := []fdestate.KeyslotTarget{
+		{ContainerRole: "system-data", Name: "snapd-tmp:default-recovery"},
+		{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"},
+	}
 
 	// initialize fde manager
 	onClassic := true
@@ -72,25 +76,48 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	chg, err := fdestate.ReplaceRecoveryKey(s.st, recoveryKeyID, keyslots)
+	ts, err := fdestate.ReplaceRecoveryKey(s.st, recoveryKeyID, keyslots)
 	c.Assert(err, IsNil)
-	c.Assert(chg, NotNil)
-	c.Check(chg.Kind(), Equals, "replace-recovery-key")
-	c.Check(chg.Summary(), Matches, "Replace recovery key")
-	tsks := chg.Tasks()
-	c.Check(tsks, HasLen, 1)
-	tskReplaceRecoveryKey := tsks[0]
-	c.Check(tskReplaceRecoveryKey.Summary(), Matches, "Replace recovery key")
-	c.Check(tskReplaceRecoveryKey.Kind(), Equals, "replace-recovery-key")
+	c.Assert(ts, NotNil)
+	tsks := ts.Tasks()
+	c.Check(tsks, HasLen, 3)
+
+	c.Check(tsks[0].Summary(), Matches, "Add temporary recovery key slots")
+	c.Check(tsks[0].Kind(), Equals, "add-recovery-keys")
+	// check recovery key ID is passed to task
 	var tskRecoveryKeyID string
-	err = tskReplaceRecoveryKey.Get("recovery-key-id", &tskRecoveryKeyID)
-	c.Assert(err, IsNil)
-	c.Assert(tskRecoveryKeyID, Equals, recoveryKeyID)
+	c.Assert(tsks[0].Get("recovery-key-id", &tskRecoveryKeyID), IsNil)
+	c.Check(tskRecoveryKeyID, Equals, recoveryKeyID)
+	// check tmp key slots are passed to task
+	var tskKeyslots []fdestate.KeyslotTarget
+	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
+
+	c.Check(tsks[1].Summary(), Matches, "Remove old recovery key slots")
+	c.Check(tsks[1].Kind(), Equals, "remove-keys")
+	// check target key slots are passed to task
+	c.Assert(tsks[1].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, keyslots)
+
+	c.Check(tsks[2].Summary(), Matches, "Rename temporary recovery key slots")
+	c.Check(tsks[2].Kind(), Equals, "rename-keys")
+	// check tmp key slots are passed to task
+	c.Assert(tsks[2].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
+	// and renames are also passed
+	var renames []string
+	c.Assert(tsks[2].Get("renames", &renames), IsNil)
+	c.Check(renames, DeepEquals, []string{"default-recovery", "default-recovery"})
+
+	chg := s.st.NewChange("", "")
+	chg.AddAll(ts)
 
 	s.settle(c)
 
-	// TODO:FDEM: this should intentionally break after "replace-recovery-key" task is implemented
-	c.Check(tskReplaceRecoveryKey.Status(), Equals, state.DoneStatus)
+	// TODO:FDEM: this should intentionally break after relevant tasks are implemented
+	c.Check(tsks[0].Status(), Equals, state.DoneStatus)
+	c.Check(tsks[1].Status(), Equals, state.DoneStatus)
+	c.Check(tsks[2].Status(), Equals, state.DoneStatus)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
 }
@@ -126,11 +153,11 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 
 	// invalid recovery key id
 	_, err := fdestate.ReplaceRecoveryKey(s.st, "bad-key-id", keyslots)
-	c.Assert(err, ErrorMatches, "invalid recovery key id: no recovery key entry for key-id")
+	c.Assert(err, ErrorMatches, "invalid recovery key ID: no recovery key entry for key-id")
 
 	// expired recovery key id
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "expired-key-id", keyslots)
-	c.Assert(err, ErrorMatches, "invalid recovery key id: recovery key has expired")
+	c.Assert(err, ErrorMatches, "invalid recovery key ID: recovery key has expired")
 
 	// no keyslots
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", nil)
@@ -144,7 +171,7 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	// invalid keyslot
 	badKeyslot = fdestate.KeyslotTarget{ContainerRole: "system-data", Name: "default-fallback"}
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotTarget{badKeyslot})
-	c.Assert(err, ErrorMatches, `invalid key slot \(container-role: "system-data", name: "default-fallback"\): invalid key slot name "default-fallback", expected "default-recovery"`)
+	c.Assert(err, ErrorMatches, `unsupported key slot \(container-role: "system-data", name: "default-fallback"\): invalid key slot name, expected "default-recovery"`)
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {

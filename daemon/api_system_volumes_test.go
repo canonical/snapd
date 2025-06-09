@@ -206,8 +206,11 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, def
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
+	d.Overlord().Loop()
+	defer d.Overlord().Stop()
+
 	called := 0
-	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.Change, error) {
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.TaskSet, error) {
 		called++
 		c.Check(recoveryKeyID, Equals, "some-key-id")
 		if defaultKeyslots {
@@ -220,7 +223,7 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, def
 				{ContainerRole: "some-container-role", Name: "some-name"},
 			})
 		}
-		return st.NewChange("some-change", ""), nil
+		return state.NewTaskSet(), nil
 	}))
 
 	keyslotJSON := ""
@@ -240,7 +243,7 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplaceRecoveryKey(c *C, def
 	st.Unlock()
 	c.Check(chg, NotNil)
 	c.Check(chg.ID(), Equals, "1")
-	c.Check(chg.Kind(), Equals, "some-change")
+	c.Check(chg.Kind(), Equals, "replace-recovery-key")
 	c.Check(called, Equals, 1)
 }
 
@@ -257,7 +260,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyDefaultKey
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
 	s.daemon(c)
 
-	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.Change, error) {
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.TaskSet, error) {
 		return nil, errors.New("boom!")
 	}))
 

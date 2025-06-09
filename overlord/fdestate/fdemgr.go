@@ -122,7 +122,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		return false
 	})
 
-	runner.AddHandler("replace-recovery-key", m.doReplaceRecoveryKey, nil)
+	runner.AddHandler("add-recovery-keys", m.doAddRecoveryKeys, nil)
+	runner.AddHandler("remove-keys", m.doRemoveKeys, nil)
+	runner.AddHandler("rename-keys", m.doRenameKeys, nil)
 
 	return m, nil
 }

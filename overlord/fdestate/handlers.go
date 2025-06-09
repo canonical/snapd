@@ -23,8 +23,23 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-func (m *FDEManager) doReplaceRecoveryKey(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO:FDEM: implement recovery key replacement, this is currently only a
+func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) error {
+	// TODO:FDEM: implement recovery key addition, this is currently only a
+	// mock task for testing.
+
+	// TODO:FDEM:
+	//   - this might be a re-run, make task idempotent to be reselient to
+	//     abrupt reboot/shutdown.
+	//   - important to detect absence of recovery key ID and do cleanup
+	//     of added key slots on re-run and returning an error.
+	//   - distinguish between errors (undo) and pure-reboots (re-run).
+	//   - conflict detection for key slot tasks is important because it
+	//     reduces the possible states we could end up in.
+	return nil
+}
+
+func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
+	// TODO:FDEM: implement recovery key removal, this is currently only a
 	// mock task for testing.
 
 	// TODO:FDEM:
@@ -33,6 +48,18 @@ func (m *FDEManager) doReplaceRecoveryKey(t *state.Task, tomb *tomb.Tomb) error 
 	//   - distinguish between errors (undo) and pure-reboots (re-run).
 	//   - conflict detection for key slot tasks is important because it
 	//     reduces the possible states we could end up in.
+	return nil
+}
 
+func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
+	// TODO:FDEM: implement recovery key renaming, this is currently only a
+	// mock task for testing.
+
+	// TODO:FDEM:
+	//   - this might be a re-run, make task idempotent to be reselient to
+	//     abrupt reboot/shutdown.
+	//   - distinguish between errors (undo) and pure-reboots (re-run).
+	//   - conflict detection for key slot tasks is important because it
+	//     reduces the possible states we could end up in.
 	return nil
 }
