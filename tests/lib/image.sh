@@ -37,7 +37,13 @@ build_ubuntu_image() {
 
 
 get_ubuntu_image() {
-    wget -q -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
+    if os.query is-arm; then
+        wget -q -c -O ubuntu-image-withtestkeys.tar.gz \
+            https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-arm64.tar.gz
+    else
+        wget -q -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
+    fi
+
     tar xvzf ubuntu-image-withtestkeys.tar.gz
     rm -f ubuntu-image-withtestkeys.tar.gz
 
