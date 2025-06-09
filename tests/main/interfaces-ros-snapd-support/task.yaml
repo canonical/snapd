@@ -18,6 +18,9 @@ environment:
     # In this test we pipe the outputs to gojq.
     PYTHONIOENCODING: utf-8
 
+debug: |
+    api-apps-client | gojq . || true
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local api-apps-client
     echo "The ros-snapd-support plugs on the api-app-sclient snap is initially disconnected"
@@ -45,10 +48,4 @@ execute: |
     gojq . < response.txt
 
     echo "Check if the service is now disabled"
-    check_disabled() {
-        api-apps-client > response.txt
-        gojq . < response.txt
-        gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^null'
-    }
-    export -f check_disabled
-    retry -n 30 --wait 1 bash -c "check_disabled"
+    retry -n 30 --wait 1 sh -c "api-apps-client | gojq -r '.result[] | select(.snap == \"test-snapd-simple-service\").enabled' | MATCH '^null'"
