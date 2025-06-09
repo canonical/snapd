@@ -20,6 +20,7 @@
 package daemon_test
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -91,6 +92,109 @@ func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 		"recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593",
 		"key-id":       "key-id-1",
 	})
+
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKey(c *C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	d := s.daemon(c)
+
+	called := 0
+	s.AddCleanup(daemon.MockFdeMgrCheckRecoveryKey(func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
+		called++
+		// check that state is locked before calling
+		d.Overlord().State().Unlock()
+		d.Overlord().State().Lock()
+		c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'})
+		c.Check(containerRoles, DeepEquals, []string{"system-data"})
+		return nil
+	}))
+
+	body := strings.NewReader(`
+{
+	"action": "check-recovery-key",
+	"recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593",
+	"container-roles": ["system-data"]
+}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 200)
+
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyMissingKey(c *C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "check-recovery-key"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires recovery-key to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyBadRecoveryKeyFormat(c *C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	s.daemon(c)
+
+	called := 0
+	s.AddCleanup(daemon.MockFdeMgrCheckRecoveryKey(func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
+		called++
+		return nil
+	}))
+
+	body := strings.NewReader(`{"action": "check-recovery-key", "recovery-key": "aa"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	// rest of error is coming from secboot
+	c.Assert(rsp.Message, Equals, "invalid recovery key: incorrectly formatted: insufficient characters")
+
+	c.Check(called, Equals, 0)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	s.daemon(c)
+
+	called := 0
+	s.AddCleanup(daemon.MockFdeMgrCheckRecoveryKey(func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
+		called++
+		return errors.New("boom!")
+	}))
+
+	body := strings.NewReader(`{"action": "check-recovery-key", "recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	// rest of error is coming from secboot
+	c.Assert(rsp.Message, Equals, "invalid recovery key: boom!")
 
 	c.Check(called, Equals, 1)
 }

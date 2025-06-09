@@ -36,6 +36,9 @@ var systemVolumesCmd = &Command{
 
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
+
+	RecoveryKey    string   `json:"recovery-key,omitempty"`
+	ContainerRoles []string `json:"container-roles,omitempty"`
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -65,6 +68,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 	switch req.Action {
 	case "generate-recovery-key":
 		return postSystemVolumesActionGenerateRecoveryKey(c)
+	case "check-recovery-key":
+		return postSystemVolumesActionCheckRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
@@ -86,4 +91,30 @@ func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 		"recovery-key": rkey.String(),
 		"key-id":       keyID,
 	})
+}
+
+var fdeMgrCheckRecoveryKey = func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
+	return fdemgr.CheckRecoveryKey(rkey, containerRoles)
+}
+
+func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
+	if req.RecoveryKey == "" {
+		return BadRequest("system volume action requires recovery-key to be provided")
+	}
+
+	rkey, err := keys.ParseRecoveryKey(req.RecoveryKey)
+	if err != nil {
+		return BadRequest("invalid recovery key: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	fdemgr := c.d.overlord.FDEManager()
+	if err := fdeMgrCheckRecoveryKey(fdemgr, rkey, req.ContainerRoles); err != nil {
+		return BadRequest("invalid recovery key: %v", err)
+	}
+
+	return SyncResponse(nil)
 }
