@@ -1576,10 +1576,6 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                UBUNTU_IMAGE_ALLOW_API_BREAK=false build_ubuntu_image
             else
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
