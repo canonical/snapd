@@ -729,6 +729,54 @@ backends:
             - amazon-linux-2023-64:
                   username: root
                   password: root
+    garden-nested:
+        type: adhoc
+        allocate: |
+            # Spread automatically injects /snap/bin to PATH. When we are
+            # running from the image-garden snap then SPREAD_HOST_PATH is the
+            # original path before such modifications were applied. Snap
+            # applications cannot normally run /snap/bin/* entry-points
+            # successfully so re-set PATH to the original value, as provided by
+            # snapcraft.
+            if [ -n "${SPREAD_HOST_PATH-}" ]; then
+                PATH="${SPREAD_HOST_PATH}"
+            fi
+            # Spread does not expose any settings to ad-hoc backends.
+            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_SMP_OPTION="-smp 4"
+            # Convert convention of system names used by snapd to corresponding image-garden name:
+            # - ubuntu-24.04-64         => ubuntu-cloud-24.04.$(uname -m)
+            exec image-garden allocate "$(echo "$SPREAD_SYSTEM" | sed \
+              -e 's/\(\w\+\)/\1-cloud/' \
+              -e 's/-64$/.'"$(uname -m)"'/g')"
+        discard: |
+            # Spread automatically injects /snap/bin to PATH. When we are
+            # running from the image-garden snap then SPREAD_HOST_PATH is the
+            # original path before such modifications were applied. Snap
+            # applications cannot normally run /snap/bin/* entry-points
+            # successfully so re-set PATH to the original value, as provided by
+            # snapcraft.
+            if [ -n "${SPREAD_HOST_PATH-}" ]; then
+                PATH="${SPREAD_HOST_PATH}"
+            fi
+            # Stop the running qemu instance corresponding to the given address.
+            exec image-garden discard "$SPREAD_SYSTEM_ADDRESS"
+        systems:
+            - ubuntu-16.04-64:
+                  username: root
+                  password: root
+            - ubuntu-18.04-64:
+                  username: root
+                  password: root
+            - ubuntu-20.04-64:
+                  username: root
+                  password: root
+            - ubuntu-22.04-64:
+                  username: root
+                  password: root
+            - ubuntu-24.04-64:
+                  username: root
+                  password: root
     autopkgtest:
         type: adhoc
         allocate: |
@@ -1503,6 +1551,7 @@ suites:
             - google-nested
             - google-nested-dev
             - qemu-nested
+            - garden-nested
             - google-nested-arm
         environment:
             NESTED_TYPE: "classic"
@@ -1578,6 +1627,7 @@ suites:
             - google-nested
             - google-nested-dev
             - qemu-nested
+            - garden-nested
             - google-nested-arm
         environment:
             NESTED_TYPE: "classic"
@@ -1634,6 +1684,7 @@ suites:
             - google-nested
             - google-nested-dev
             - qemu-nested
+            - garden-nested
             - google-nested-arm
         environment:
             NESTED_TYPE: "core"
@@ -1697,7 +1748,7 @@ suites:
 
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
-        backends: [google-nested, google-nested-dev, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested, garden-nested]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
