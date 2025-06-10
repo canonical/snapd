@@ -21,7 +21,7 @@ environment:
 
 prepare: |
   device=ens4
-  if [ "$SPREAD_BACKEND" = openstack ]; then
+  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
     device=ens3
   fi
 
@@ -38,7 +38,7 @@ prepare: |
 
 restore: |
   device=ens4
-  if [ "$SPREAD_BACKEND" = openstack ]; then
+  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
     device=ens3
   fi
 
@@ -60,7 +60,7 @@ restore: |
 
 execute: |
   device=ens4
-  if [ "$SPREAD_BACKEND" = openstack ]; then
+  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
     device=ens3
   fi
 

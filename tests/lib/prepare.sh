@@ -87,16 +87,44 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 }
 
-setup_systemd_snapd_overrides() {
-    local PROXY_PARAM=""
-    if [ -n "$HTTPS_PROXY" ] && [ "${SNAPD_USE_PROXY:-}" == true ]; then
-        PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY"
+setup_snapd_proxy() {
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        return
     fi
 
     mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
+[Service]
+Environment="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
+EOF
+
+    # We change the service configuration so reload and restart
+    # the units to get them applied
+    systemctl daemon-reload
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket
+    # start the service (it pulls up the socket)
+    systemctl start snapd.service
+}
+
+setup_proxy() {
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        {
+            echo "HTTPS_PROXY=$HTTPS_PROXY"
+            echo "HTTP_PROXY=$HTTP_PROXY"
+            echo "https_proxy=$HTTPS_PROXY"
+            echo "http_proxy=$HTTP_PROXY"
+            echo "NO_PROXY=$NO_PROXY"
+            echo "no_proxy=$NO_PROXY"
+        } >> /etc/environment
+    fi
+}
+
+setup_systemd_snapd_overrides() {
+    mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE $PROXY_PARAM
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 
 [Unit]
@@ -416,6 +444,8 @@ prepare_classic() {
         snap wait system seed.loaded
     fi
     snap list snapd
+
+    setup_snapd_proxy
 
     mount_dir="$(os.paths snap-mount-dir)"
     if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
@@ -1684,6 +1714,7 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
+    setup_snapd_proxy
 
     disable_journald_rate_limiting
     disable_journald_start_limiting

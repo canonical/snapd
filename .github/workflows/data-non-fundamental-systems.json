@@ -58,7 +58,7 @@
       },
       {
         "group": "ubuntu-xenial-bionic",
-        "backend": "google",
+        "backend": "openstack-ps7",
         "alternative-backend": "google",
         "systems": "ubuntu-16.04-64 ubuntu-18.04-64",
         "tasks": "tests/...",
@@ -74,7 +74,7 @@
       },
       {
         "group": "ubuntu-daily",
-        "backend": "google",
+        "backend": "openstack-ps7",
         "alternative-backend": "google",
         "systems": "ubuntu-25.10-64",
         "tasks": "tests/...",
@@ -82,7 +82,7 @@
       },
       {
         "group": "ubuntu-core-22",
-        "backend": "google-core",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-22-64",
         "tasks": "tests/...",

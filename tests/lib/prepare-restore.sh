@@ -221,7 +221,7 @@ prepare_project() {
     # we install chrony on xenial (as its also used in later distros), so the
     # ntp service was in conflict, degrading the systemd unit and sometimes breaking
     # NTP syncs
-    if os.query is-xenial; then
+    if os.query is-xenial && systemctl is-enabled ntp; then
       systemctl stop ntp.service
       systemctl disable ntp.service
       apt-get remove --purge -y ntp
@@ -626,6 +626,10 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
+
+    # Configure the proxy in the system when it is required
+    setup_proxy
+
     # os.query cannot be used because first time the suite is prepared, the current system
     # is classic ubuntu, so it is needed to check the system set in $SPREAD_SYSTEM
     if is_test_target_core; then
