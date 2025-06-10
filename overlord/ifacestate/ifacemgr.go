@@ -146,9 +146,7 @@ func (m *InterfaceManager) AppArmorPromptingRunning() bool {
 }
 
 // Allow m.UseAppArmorPrompting to be mocked in tests
-var assessAppArmorPrompting = func(m *InterfaceManager) bool {
-	return m.assesAppArmorPrompting()
-}
+var assessAppArmorPrompting = (*InterfaceManager).assessAppArmorPrompting
 
 // InterfacesRequestsManager returns the interfaces requests manager associated
 // with the receiver. This method may only be called after StartUp has been
