@@ -474,3 +474,36 @@ func (s *SnapSuite) TestCompletionHandlerSkipsHidden(c *C) {
 	})
 	c.Check(s.Stdout(), Equals, "foo\nbaz\n")
 }
+
+func (s *SnapSuite) TestCommandHandlerOneLevel(c *C) {
+	cmd0 := &flags.Command{Name: "level0"}
+	restore := mockArgs("snap", "level0", "other", "arguments")
+	defer restore()
+	name := snap.WholeCommandName(cmd0)
+	c.Assert(name, Equals, "level0")
+}
+
+func (s *SnapSuite) TestCommandHandlerTwoLevels(c *C) {
+	cmd0 := &flags.Command{Name: "level0"}
+	type emptyStruct struct{}
+	_, err := cmd0.AddCommand("level1", "l1", "l1", &emptyStruct{})
+	c.Assert(err, IsNil)
+	c.Assert(err, IsNil)
+	restore := mockArgs("snap", "level0", "level1", "other", "arguments")
+	defer restore()
+	name := snap.WholeCommandName(cmd0)
+	c.Assert(name, Equals, "level0 level1")
+}
+
+func (s *SnapSuite) TestCommandHandlerThreeLevels(c *C) {
+	cmd0 := &flags.Command{Name: "level0"}
+	type emptyStruct struct{}
+	cmd1, err := cmd0.AddCommand("level1", "l1", "l1", &emptyStruct{})
+	c.Assert(err, IsNil)
+	_, err = cmd1.AddCommand("level2", "l2", "l2", &emptyStruct{})
+	c.Assert(err, IsNil)
+	restore := mockArgs("snap", "level0", "level1", "level2", "other", "arguments")
+	defer restore()
+	name := snap.WholeCommandName(cmd0)
+	c.Assert(name, Equals, "level0 level1 level2")
+}

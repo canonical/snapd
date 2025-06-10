@@ -567,12 +567,61 @@ func loggerWithJournalMaybe() error {
 	return nil
 }
 
+func composeFormatString(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	parts := make([]string, n)
+	for i := 0; i < n; i++ {
+		parts[i] = "%s"
+	}
+	return strings.Join(parts, " ")
+}
+
+func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []any) string {
+	subcmds := cmd.Commands()
+	if len(subcmds) > 0 && len(os.Args) > subArgIndex {
+		for _, subcmd := range subcmds {
+			if subcmd.Name == os.Args[subArgIndex] {
+				return composeSubCmd(subcmd, subArgIndex+1, append(cmdNames, subcmd.Name))
+			}
+		}
+	}
+	template := composeFormatString(len(cmdNames))
+	return fmt.Sprintf(template, cmdNames...)
+}
+
+func wholeCommandName(cmd *flags.Command) string {
+	subcmds := cmd.Commands()
+	if len(subcmds) > 0 && len(os.Args) > 2 {
+		for _, subcmd := range subcmds {
+			if os.Args[2] == subcmd.Name {
+				return composeSubCmd(subcmd, 3, []any{cmd.Name, subcmd.Name})
+			}
+		}
+	}
+	return cmd.Name
+}
+
+func makeCommandHandler(allCommands []*flags.Command) func(flags.Commander, []string) error {
+	return func(command flags.Commander, args []string) error {
+		for _, cmd := range allCommands {
+			if cmd.Name == os.Args[1] {
+				logger.Trace("command-execution", "cmd", wholeCommandName(cmd))
+			}
+		}
+		return command.Execute(args)
+	}
+}
+
 var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
-	logger.Trace("command-execution", "cmd", strings.Join(os.Args[1:], " "))
+	if osutil.GetenvBool("SNAPD_TRACE") {
+		parser.CommandHandler = makeCommandHandler(parser.Command.Commands())
+	}
 	xtra, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {

@@ -101,6 +101,8 @@ var (
 	SnapInstancesAndComponentsFromNames = snapInstancesAndComponentsFromNames
 
 	GetSystemKeyRetryCount = getSystemKeyRetryCount
+
+	WholeCommandName = wholeCommandName
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
