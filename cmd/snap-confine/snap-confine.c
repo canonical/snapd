@@ -50,6 +50,7 @@
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "cookie-support.h"
+#include "group-policy.h"
 #include "mount-support.h"
 #include "ns-support.h"
 #include "seccomp-support.h"
@@ -428,6 +429,13 @@ int main(int argc, char **argv) {
     if (sc_cap_reset_ambient() != 0) {
         die("cannot reset ambient capabilities");
     }
+
+    /* Some distributions choose to limit the ability of regular users to run
+     * snaps to members of a specific local group. Note we need to keep elevated
+     * privileges as the code peeks into pid 1 root filesystem to locate
+     * snap-confine */
+    sc_assert_host_local_group_policy(AT_FDCWD, &err);
+    sc_die_on_error(err);
 
     // Figure out what is the SNAP_MOUNT_DIR in practice.
     sc_probe_snap_mount_dir_from_pid_1_mount_ns(AT_FDCWD, &err);
