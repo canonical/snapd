@@ -98,6 +98,20 @@ jobs:
             echo "$env" >> $GITHUB_ENV
           done
 
+    - name: Set PR labels as environment variables
+      if: ${{ github.event.pull_request.number }}
+      run: |
+          labels=$(curl "https://api.github.com/repos/canonical/snapd/pulls/${{ github.event.pull_request.number }}" 2>/dev/null | jq -r '.labels.[].name')
+          if grep -q '^Skip spread$' <<<$labels; then
+            echo "SKIP_SPREAD_LABEL=true" >> $GITHUB_ENV
+          fi
+          if grep -q '^Run all$' <<<$labels; then
+            echo "RUN_ALL_LABEL=true" >> $GITHUB_ENV
+          fi
+          if grep -q '^Run nested$' <<<$labels; then
+            echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
+          fi
+
     - name: Get previous attempt
       id: get-previous-attempt
       run: |
@@ -125,7 +139,7 @@ jobs:
           mkdir -p "$TEST_RESULTS_DIR"
 
     - name: Prepare nested env vars
-      if: contains(github.event.pull_request.labels.*.name, 'Run nested') && startsWith(inputs.group, 'nested-')
+      if: ${{ env.RUN_NESTED_LABEL == 'true' && startsWith(inputs.group, 'nested-') }}
       run: |
           echo "RUN_NESTED=true" >> "$GITHUB_ENV"
 
@@ -140,7 +154,7 @@ jobs:
           echo "The changed files found are: $CHANGED_FILES"
 
     - name: Check failed tests to run
-      if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
+      if: ${{ env.RUN_ALL_LABEL != 'true' }}
       run: |
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS=""
@@ -152,7 +166,7 @@ jobs:
           fi
 
     - name: Setup run tests variable
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       run: |
           get_new_tasks() {
             local prefix=$1
@@ -214,7 +228,7 @@ jobs:
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
@@ -235,7 +249,7 @@ jobs:
 
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
@@ -243,7 +257,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built snap (arm64)
-      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       uses: actions/download-artifact@v4
       with:
         name: snap-files-arm64-default-test
@@ -254,7 +268,7 @@ jobs:
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
       # eg. ubuntu-fips
-      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
@@ -262,14 +276,14 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Rename imported snap
-      if: "${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') && !inputs.use-snapd-snap-from-master }}"
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master }}"
       run: |
         for snap in built-snap/snapd_1337.*.snap; do
           mv -v "${snap}" "${snap}.keep"
         done
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
