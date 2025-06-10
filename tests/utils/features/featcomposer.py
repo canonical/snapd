@@ -251,8 +251,8 @@ if __name__ == '__main__':
                         help='List of useful metadata tags to describe the testing scenario', default='')
     parser.add_argument('-e', '--env-variables', type=str, nargs='*',
                         help='List of environment variables as key=value', default='')
-    parser.add_argument('-f', '--failed-tests', type=str,
-                        help='String containing the names of failed tests', default='')
+    parser.add_argument('-f', '--failed-tests', type=argparse.FileType('r'),
+                        help='File containing the space-separated names of failed tests')
     parser.add_argument('--run-attempt', type=int, choices=range(1, 10), help='''
                         Run attempt number of the json files contained in the folder [1,10). 
                         Only needed when rerunning spread for failed tests. When specified, will append the run attempt 
@@ -273,7 +273,10 @@ if __name__ == '__main__':
         attempt = '_%s' % args.run_attempt
     systems = get_system_list(args.dir)
     for system in systems:
-        composed = compose_system(dir=args.dir, system=system,
-                                  failed_tests=args.failed_tests, env_variables=args.env_variables, scenarios=args.scenarios)
+        composed = compose_system(dir=args.dir, 
+                                  system=system,
+                                  failed_tests=args.failed_tests if args.failed_tests else '', 
+                                  env_variables=args.env_variables, 
+                                  scenarios=args.scenarios)
         with open(os.path.join(args.output, system + attempt + '.json'), 'w', encoding='utf-8') as f:
             json.dump(composed, f)
