@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+
+import subprocess
+import os
+import sys
+
+
+def _snapctl(action : str, settings : list[str]):
+    args = ["snapctl", action]
+    args.extend(settings)
+
+    snapctl = subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+    )
+
+    if snapctl.returncode != 0:
+        return ''
+
+    output = snapctl.stdout
+    if action == "get" and output[-1] == '\n':
+        output = output[:-1]
+
+    return output
+
+def set_defaults(config_var, config_val):
+   if not config_var or config_var == "\n":
+        return config_val
+   else:
+       return config_var
+
+
+SNAP_COMMON = os.environ['SNAP_COMMON']
+ENV_FILE=f"{SNAP_COMMON}/etc/.env"
+
+sys.stdout = open(f'{SNAP_COMMON}/etc/logfile', 'w')
+# default values
+DEFAULT_WITHOUT_TLS_ADDRESS=":1884"
+DEFAULT_WITHOUT_TLS_TARGET="localhost:1883"
+
+DEFAULT_WITH_TLS_ADDRESS=":8883"
+DEFAULT_WITH_TLS_TARGET="localhost:1883"
+DEFAULT_WITH_TLS_CERT_FILE=f"/home/omar/go_snap/snap/mproxy/ssl/certs/server.crt"
+DEFAULT_WITH_TLS_KEY_FILE=f"/home/omar/go_snap/snap/mproxy/ssl/certs/server.key"
+DEFAULT_WITH_TLS_SERVER_CA_FILE=f"/home/omar/go_snap/snap/mproxy/ssl/certs/ca.crt"
+
+# snapctl values
+notls_tls_address=_snapctl("get", ["--view", ":agent-control",  "notls.address"])
+notls_tls_target=_snapctl("get", ["--view", ":agent-control",  "notls.target"])
+
+with_tls_address=_snapctl("get", ["--view", ":agent-control",  "tls.address"])
+with_tls_target=_snapctl("get", ["--view", ":agent-control",  "tls.target"])
+with_tls_cert_file=_snapctl("get", ["--view", ":agent-control",  "tls.cert"])
+with_tls_key_file=_snapctl("get", ["--view", ":agent-control",  "tls.key"])
+with_tls_server_ca_file=_snapctl("get", ["--view", ":agent-control",  "tls.serverca"])
+
+notls_tls_address=set_defaults(notls_tls_address, DEFAULT_WITHOUT_TLS_ADDRESS)
+notls_tls_target=set_defaults(notls_tls_target, DEFAULT_WITHOUT_TLS_TARGET)
+
+
+with_tls_address=set_defaults(with_tls_address, DEFAULT_WITH_TLS_ADDRESS)
+with_tls_target=set_defaults(with_tls_target, DEFAULT_WITH_TLS_TARGET)
+with_tls_cert_file=set_defaults(with_tls_cert_file, DEFAULT_WITH_TLS_CERT_FILE)
+with_tls_key_file=set_defaults(with_tls_key_file, DEFAULT_WITH_TLS_KEY_FILE)
+with_tls_server_ca_file=set_defaults(with_tls_server_ca_file, DEFAULT_WITH_TLS_SERVER_CA_FILE)
+
+with open(ENV_FILE, 'w') as writer:
+    writer.write(f"MPROXY_MQTT_WITHOUT_TLS_ADDRESS=\"{notls_tls_address}\"\n")
+    writer.write(f"MPROXY_MQTT_WITHOUT_TLS_TARGET=\"{notls_tls_target}\"\n")
+
+    writer.write(f"MPROXY_MQTT_WITH_TLS_ADDRESS=\"{with_tls_address}\"\n")
+    writer.write(f"MPROXY_MQTT_WITH_TLS_TARGET=\"{with_tls_target}\"\n")
+    writer.write(f"MPROXY_MQTT_WITH_TLS_CERT_FILE=\"{with_tls_cert_file}\"\n")
+    writer.write(f"MPROXY_MQTT_WITH_TLS_KEY_FILE=\"{with_tls_key_file}\"\n")
+    writer.write(f"MPROXY_MQTT_WITH_TLS_SERVER_CA_FILE=\"{with_tls_server_ca_file}\"\n")
+    
+_snapctl("restart", ["telem-agent"])

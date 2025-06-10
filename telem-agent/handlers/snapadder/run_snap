@@ -1,0 +1,11 @@
+#!/bin/sh
+nohup firefox &
+snap_pid=$!
+nohup netstat -c &
+nonsnap_pid=$!
+
+cat  > "./handlers/snapadder/pid.txt" << EOF
+$snap_pid
+$nonsnap_pid
+EOF
+sleep 1

@@ -1,0 +1,130 @@
+// Copyright (c) Abstract Machines
+// SPDX-License-Identifier: Apache-2.0
+
+package testhandler_test
+
+import (
+	"context"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"log/slog"
+	"os"
+	"testing"
+
+	"github.com/canonical/mqtt.golang/packets"
+	"github.com/canonical/telem-agent/handlers/testhandler"
+	"github.com/canonical/telem-agent/pkg/session"
+	. "gopkg.in/check.v1"
+)
+
+// Hook up gocheck into the "go test" runner.
+func Test(t *testing.T) { TestingT(t) }
+
+type testhandlerSuite struct {
+	topic     string
+	payload   []byte
+	userProps []packets.User
+	handler   testhandler.Handler
+	ctx       context.Context
+}
+
+var _ = Suite(&testhandlerSuite{})
+
+func (s *testhandlerSuite) SetUpSuite(c *C) {
+	logHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+
+	s.topic = "test/topic"
+	s.payload = []byte("Hello World")
+	s.handler = *testhandler.New(slog.New(logHandler))
+	s.ctx = session.NewContext(context.Background(), &session.Session{})
+	s.userProps = []packets.User{{Key: "version", Value: "3.1.1"}}
+}
+
+func (ss *testhandlerSuite) TestAuthConnect(c *C) {
+	err := ss.handler.AuthConnect(ss.ctx, false, nil)
+	c.Check(err, NotNil)
+}
+
+func (ss *testhandlerSuite) TestAuthPublish(c *C) {
+	err := ss.handler.AuthPublish(ss.ctx, &ss.topic, &ss.payload, &ss.userProps)
+	c.Assert(err, NotNil)
+
+	payloadAsString := string(ss.payload)
+	c.Check(payloadAsString, Equals, "Hello World")
+	c.Check(ss.userProps[0].Key, Equals, "version")
+	c.Check(ss.userProps[0].Value, Equals, "3.1.1")
+}
+
+func (ss *testhandlerSuite) TestAuthSubscribe(c *C) {
+	subs := []packets.SubOptions{{Topic: ss.topic}}
+	err := ss.handler.AuthSubscribe(ss.ctx, &subs, nil)
+	c.Assert(err, NotNil)
+
+	c.Check(ss.topic, Equals, "test/topic")
+}
+
+func (ss *testhandlerSuite) TestAuthUnsubscribe(c *C) {
+	err := ss.handler.AuthUnsubscribe(ss.ctx, &[]string{ss.topic}, nil)
+	c.Assert(err, NotNil)
+
+	c.Check(ss.topic, Equals, "test/topic")
+}
+
+func (ss *testhandlerSuite) TestDownSubscribe(c *C) {
+	err := ss.handler.DownPublish(ss.ctx, &ss.topic, nil)
+
+	c.Assert(err, NotNil)
+
+	c.Check(ss.topic, Equals, "test/topic")
+}
+
+func (ss *testhandlerSuite) TestConnect(c *C) {
+	err := ss.handler.Connect(ss.ctx)
+
+	c.Assert(err, NotNil)
+}
+
+func (ss *testhandlerSuite) TestPublish(c *C) {
+	err := ss.handler.Publish(ss.ctx, &ss.topic, &ss.payload)
+	c.Assert(err, NotNil)
+
+	payloadAsString := string(ss.payload)
+	c.Check(payloadAsString, Equals, "Hello World")
+}
+
+func (ss *testhandlerSuite) TestSubscribe(c *C) {
+	subs := []packets.SubOptions{{Topic: ss.topic}}
+	err := ss.handler.Subscribe(ss.ctx, &subs)
+	c.Assert(err, NotNil)
+
+	c.Check(ss.topic, Equals, "test/topic")
+}
+
+func (ss *testhandlerSuite) TestUnsubscribe(c *C) {
+	subs := []packets.SubOptions{{Topic: ss.topic}}
+	err := ss.handler.Unsubscribe(ss.ctx, &subs)
+	c.Assert(err, NotNil)
+
+	c.Check(ss.topic, Equals, "test/topic")
+}
+
+func (ss *testhandlerSuite) TestDisconnect(c *C) {
+	err := ss.handler.Disconnect(ss.ctx)
+
+	c.Assert(err, NotNil)
+}
+
+func (ss *testhandlerSuite) TestNoSession(c *C) {
+	err := ss.handler.AuthConnect(context.Background(), false, nil)
+	c.Check(err, IsNil)
+}
+
+func (ss *testhandlerSuite) TestAuthConnectWithCertificate(c *C) {
+	fakeCertificate := x509.Certificate{Subject: pkix.Name{CommonName: "fake_cert"}}
+	ctxWithCertificate := session.NewContext(context.Background(), &session.Session{Cert: fakeCertificate})
+
+	err := ss.handler.AuthConnect(ctxWithCertificate, false, nil)
+	c.Check(err, NotNil)
+}

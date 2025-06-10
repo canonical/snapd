@@ -1,0 +1,2 @@
+topic write spotify/hello
+topic readwrite my-topic/hello
