@@ -7,7 +7,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/eclipse/paho.golang/autopaho"
+	"github.com/canonical/mqtt.golang/autopaho"
 )
 
 func MockEchoHandler(writer http.ResponseWriter, request *http.Request, s *Server) {

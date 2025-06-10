@@ -40,7 +40,6 @@ require (
 require (
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/canonical/mqtt.golang v0.1.7
-	github.com/eclipse/paho.golang v0.22.0
 	github.com/joho/godotenv v1.5.1
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/sync v0.7.0
