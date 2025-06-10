@@ -75,9 +75,7 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 	}
 }
 
-var fdeMgrGenerateRecoveryKey = func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error) {
-	return fdemgr.GenerateRecoveryKey()
-}
+var fdeMgrGenerateRecoveryKey = (*fdestate.FDEManager).GenerateRecoveryKey
 
 func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 	fdemgr := c.d.overlord.FDEManager()
@@ -93,9 +91,7 @@ func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 	})
 }
 
-var fdeMgrCheckRecoveryKey = func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
-	return fdemgr.CheckRecoveryKey(rkey, containerRoles)
-}
+var fdeMgrCheckRecoveryKey = (*fdestate.FDEManager).CheckRecoveryKey
 
 func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
 	if req.RecoveryKey == "" {
