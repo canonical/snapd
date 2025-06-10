@@ -309,7 +309,7 @@ jobs:
           fi
 
           # If all spread tests are skipped, exit
-          if [ -z "$RUN_TESTS" ]; then
+          if [ -z "${RUN_TESTS// /}" ]; then
             echo "All tests are skipped, exiting..."
             exit 0
           fi
