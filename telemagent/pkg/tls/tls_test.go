@@ -6,7 +6,7 @@ import (
 	ctls "crypto/tls"
 	"testing"
 
-	"github.com/canonical/telem-agent/pkg/tls"
+	"github.com/snapcore/snapd/telemagent/pkg/tls"
 	. "gopkg.in/check.v1"
 )
 

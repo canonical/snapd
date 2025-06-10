@@ -11,11 +11,11 @@ import (
 	"github.com/canonical/mqtt.golang/mock/basictestserver"
 	"github.com/canonical/mqtt.golang/packets"
 	"github.com/canonical/mqtt.golang/paho"
-	"github.com/canonical/telem-agent/handlers/simple"
-	"github.com/canonical/telem-agent/handlers/testhandler"
-	"github.com/canonical/telem-agent/interceptors/permissioncontroller"
-	"github.com/canonical/telem-agent/internal/utils"
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/handlers/simple"
+	"github.com/snapcore/snapd/telemagent/handlers/testhandler"
+	"github.com/snapcore/snapd/telemagent/interceptors/permissioncontroller"
+	"github.com/snapcore/snapd/telemagent/internal/utils"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 	. "gopkg.in/check.v1"
 )
 

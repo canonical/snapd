@@ -19,8 +19,8 @@ import (
 	"github.com/canonical/mqtt.golang/autopaho"
 	"github.com/canonical/mqtt.golang/autopaho/extensions/rpc"
 	"github.com/canonical/mqtt.golang/paho"
-	"github.com/canonical/telem-agent/internal/utils"
-	mptls "github.com/canonical/telem-agent/pkg/tls"
+	"github.com/snapcore/snapd/telemagent/internal/utils"
+	mptls "github.com/snapcore/snapd/telemagent/pkg/tls"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -64,7 +64,7 @@ type Server struct {
 	mux *http.ServeMux
 }
 
-func NewServer(cfg Config, logger *slog.Logger, detectSnap func(string) (string, string, error), brokerConn *net.Conn) (*Server, error) {
+func NewServer(cfg Config, logger *slog.Logger, brokerConn *net.Conn) (*Server, error) {
 	u, err := url.Parse(cfg.Endpoint)
 	if err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func NewServer(cfg Config, logger *slog.Logger, detectSnap func(string) (string,
 
 	mux := http.NewServeMux()
 
-	return &Server{config: cfg, mqttConfig: cliCfg, mux: mux, logger: logger, router: router, detectSnap: detectSnap}, nil
+	return &Server{config: cfg, mqttConfig: cliCfg, mux: mux, logger: logger, router: router, detectSnap: utils.GetSnapInfoFromConn}, nil
 }
 
 func (s *Server) echoHandler(writer http.ResponseWriter, request *http.Request) {

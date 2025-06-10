@@ -7,7 +7,7 @@ import (
 	"crypto/tls"
 
 	"github.com/caarlos0/env/v11"
-	mptls "github.com/canonical/telem-agent/pkg/tls"
+	mptls "github.com/snapcore/snapd/telemagent/pkg/tls"
 )
 
 type Config struct {

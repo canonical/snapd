@@ -8,7 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/canonical/mqtt.golang/packets"
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 )
 
 var _ session.Handler = (*Handler)(nil)

@@ -185,7 +185,7 @@ The service is configured using the environment variables presented in the follo
 
 ## Adding Prefix to Environmental Variables
 
-TelemAgent relies on the [caarlos0/env](https://github.com/caarlos0/env) package to load environmental variables into its [configuration](https://github.com/canonical/telem-agent/blob/main/config/config.go#L13).
+TelemAgent relies on the [caarlos0/env](https://github.com/caarlos0/env) package to load environmental variables into its [configuration](https://github.com/snapcore/snapd/telemagent/blob/main/config/config.go#L13).
 You can control how these variables are loaded by passing `env.Options` to the `config.EnvParse` function.
 
 To add a prefix to environmental variables, use `env.Options{Prefix: "MPROXY_"}` from the [caarlos0/env](https://github.com/caarlos0/env) package. For example:

@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 	. "gopkg.in/check.v1"
 )
 

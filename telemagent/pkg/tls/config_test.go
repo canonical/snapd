@@ -4,7 +4,7 @@ package tls_test
 
 import (
 	"github.com/caarlos0/env/v11"
-	"github.com/canonical/telem-agent/pkg/tls"
+	"github.com/snapcore/snapd/telemagent/pkg/tls"
 	. "gopkg.in/check.v1"
 )
 

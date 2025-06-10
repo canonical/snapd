@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/canonical/mqtt.golang/packets"
-	"github.com/canonical/telem-agent/interceptors/permissioncontroller"
-	"github.com/canonical/telem-agent/internal/utils"
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/interceptors/permissioncontroller"
+	"github.com/snapcore/snapd/telemagent/internal/utils"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 	"github.com/snapcore/snapd/client"
 )
 
@@ -268,28 +268,7 @@ func isAllowedTopic(snapClient *client.Client, topic, snapName, snapPublisher, a
 		return false, nil
 	}
 
-	request := fmt.Sprintf("%s.%s", snapName, action)
-	AllowedTopics, err := snapClient.ConfdbGetViaView("6mluykWFsbpSV8RGPGjH7KFAkAOvdRyN/telem-agent/control-topics", []string{request})
-	if err != nil {
-		if strings.Contains(err.Error(), "no view data") {
-			return false, nil
-		}
-		return false, err
-	}
 
-	if topics, ok := AllowedTopics[request].([]interface{}); ok {
-		for _, allowedTopic := range topics {
-			if stringTopic, ok := allowedTopic.(string); ok {
-				if isContainedIn(stringTopic, topic) {
-					return true, nil
-				} else {
-					return false, nil
-				}
-			} else {
-				return false, fmt.Errorf("was unable to convert interface to string")
-			}
-		}
-	}
 
 	return false, nil
 }

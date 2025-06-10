@@ -11,9 +11,9 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/canonical/telem-agent/config"
-	"github.com/canonical/telem-agent/pkg/session"
-	mptls "github.com/canonical/telem-agent/pkg/tls"
+	"github.com/snapcore/snapd/telemagent/config"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
+	mptls "github.com/snapcore/snapd/telemagent/pkg/tls"
 	"golang.org/x/sync/errgroup"
 )
 

@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/canonical/mqtt.golang/paho"
-	"github.com/canonical/telem-agent/internal/utils"
-	"github.com/canonical/telem-agent/pkg/rest"
+	"github.com/snapcore/snapd/telemagent/internal/utils"
+	"github.com/snapcore/snapd/telemagent/pkg/rest"
 	. "gopkg.in/check.v1"
 )
 
@@ -103,13 +103,13 @@ func sendResponse(ctx context.Context, responseTopic string, client *paho.Client
 }
 
 func (ss *restSuite) TestValidEndpoint(c *C) {
-	_, err := rest.NewServer(rest.Config{Endpoint: "localhost:1883"}, nil, nil, nil)
+	_, err := rest.NewServer(rest.Config{Endpoint: "localhost:1883"}, nil, nil)
 
 	c.Check(err, IsNil)
 }
 
 func (ss *restSuite) TestSendingResponse(c *C) {
-	server, err := rest.NewServer(rest.Config{Endpoint: "mqtt://"+ss.Endpoint}, ss.logger, mockSnapGetInfo, nil)
+	server, err := rest.NewServer(rest.Config{Endpoint: "mqtt://"+ss.Endpoint}, ss.logger, nil)
 	c.Assert(err, IsNil)
 	
 

@@ -18,7 +18,6 @@ import (
 	"github.com/snapcore/snapd/telemagent/handlers/snapadder"
 	"github.com/snapcore/snapd/telemagent/handlers/userinjector"
 	"github.com/snapcore/snapd/telemagent/interceptors/permissioncontroller"
-	"github.com/snapcore/snapd/telemagent/internal/utils"
 	"github.com/snapcore/snapd/telemagent/pkg/mqtt"
 	"github.com/snapcore/snapd/telemagent/pkg/rest"
 	"github.com/snapcore/snapd/telemagent/pkg/session"
@@ -33,7 +32,7 @@ const (
 	restPrefix     = "REST_"
 )
 
-func main() {
+func telemagent() {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -114,7 +113,7 @@ func main() {
 		panic(err)
 	}
 	if restConfig.Enabled {
-		restServer, err := rest.NewServer(restConfig, logger, utils.GetSnapInfoFromConn, nil)
+		restServer, err := rest.NewServer(restConfig, logger, nil)
 		if err != nil {
 			panic(err)
 		}

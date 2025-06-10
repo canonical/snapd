@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/canonical/mqtt.golang/packets"
-	"github.com/canonical/telem-agent/interceptors/permissioncontroller"
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/interceptors/permissioncontroller"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 	. "gopkg.in/check.v1"
 )
 

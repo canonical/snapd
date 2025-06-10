@@ -11,7 +11,7 @@ import (
 	"net"
 
 	"github.com/canonical/mqtt.golang/packets"
-	"github.com/canonical/telem-agent/internal/utils"
+	"github.com/snapcore/snapd/telemagent/internal/utils"
 	"golang.org/x/sync/errgroup"
 )
 

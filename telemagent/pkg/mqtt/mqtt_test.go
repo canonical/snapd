@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/canonical/mqtt.golang/mock/testserver"
-	"github.com/canonical/telem-agent/config"
-	"github.com/canonical/telem-agent/pkg/mqtt"
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/config"
+	"github.com/snapcore/snapd/telemagent/pkg/mqtt"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 	. "gopkg.in/check.v1"
 )
 

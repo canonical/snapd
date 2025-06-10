@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/canonical/telem-agent/config"
+	"github.com/snapcore/snapd/telemagent/config"
 	. "gopkg.in/check.v1"
 )
 

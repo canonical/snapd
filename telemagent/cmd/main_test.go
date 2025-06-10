@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	main "github.com/canonical/telem-agent/cmd"
+	main "github.com/snapcore/snapd/telemagent/cmd"
 	. "gopkg.in/check.v1"
 )
 

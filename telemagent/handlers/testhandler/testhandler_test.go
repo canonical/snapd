@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/canonical/mqtt.golang/packets"
-	"github.com/canonical/telem-agent/handlers/testhandler"
-	"github.com/canonical/telem-agent/pkg/session"
+	"github.com/snapcore/snapd/telemagent/handlers/testhandler"
+	"github.com/snapcore/snapd/telemagent/pkg/session"
 	. "gopkg.in/check.v1"
 )
 
