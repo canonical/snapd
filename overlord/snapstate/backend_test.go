@@ -66,6 +66,7 @@ type fakeOp struct {
 	componentRev                    snap.Revision
 	componentSideInfo               snap.ComponentSideInfo
 	componentSkipAssertionsDownload bool
+	componentRemoveOpts             backend.RemoveComponentOpts
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
@@ -1160,12 +1161,13 @@ func (f *fakeSnappyBackend) SetupKernelModulesComponents(currentComps, finalComp
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, removeOpts backend.RemoveComponentOpts, meter progress.Meter) error {
 	meter.Notify("undo-setup-component")
 	f.appendOp(&fakeOp{
-		op:                "undo-setup-component",
-		containerName:     cpi.ContainerName(),
-		containerFileName: cpi.Filename(),
+		op:                  "undo-setup-component",
+		containerName:       cpi.ContainerName(),
+		containerFileName:   cpi.Filename(),
+		componentRemoveOpts: removeOpts,
 	})
 	if strings.HasSuffix(cpi.ContainerName(), "+brokenundo") {
 		return fmt.Errorf("cannot undo set-up of component %q", cpi.ContainerName())

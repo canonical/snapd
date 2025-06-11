@@ -301,8 +301,8 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 		timings.Run(perfTimings, "undo-setup-component",
 			fmt.Sprintf("Undo setup of component %q", csi.Component),
 			func(timings.Measurer) {
-				err = m.backend.UndoSetupComponent(cpi,
-					installRecord, deviceCtx, pm)
+				err = m.backend.UndoSetupComponent(cpi, installRecord, deviceCtx,
+					backend.RemoveComponentOpts{MaybeInitramfsMounted: false}, pm)
 			})
 		if err != nil {
 			st.Lock()
@@ -356,10 +356,15 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.undoSetupComponent(t, compSetup.CompSideInfo, snapsup.InstanceName())
+	return m.undoSetupComponent(t, compSetup.CompSideInfo, snapsup.InstanceName(),
+		undoComponentOpts{maybeInitramfsMounted: false})
 }
 
-func (m *SnapManager) undoSetupComponent(t *state.Task, csi *snap.ComponentSideInfo, instanceName string) error {
+type undoComponentOpts struct {
+	maybeInitramfsMounted bool
+}
+
+func (m *SnapManager) undoSetupComponent(t *state.Task, csi *snap.ComponentSideInfo, instanceName string, opts undoComponentOpts) error {
 	st := t.State()
 	st.Lock()
 	deviceCtx, err := DeviceCtx(st, t, nil)
@@ -381,7 +386,8 @@ func (m *SnapManager) undoSetupComponent(t *state.Task, csi *snap.ComponentSideI
 		csi.Revision, instanceName)
 
 	pm := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx, pm); err != nil {
+	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx,
+		backend.RemoveComponentOpts{MaybeInitramfsMounted: opts.maybeInitramfsMounted}, pm); err != nil {
 		return err
 	}
 
@@ -789,7 +795,7 @@ func (m *SnapManager) undoPrepareKernelModulesComponents(t *state.Task, _ *tomb.
 	return nil
 }
 
-func infoForCompUndo(t *state.Task) (*snap.ComponentSideInfo, string, error) {
+func infoForCompUndo(t *state.Task) (*sequence.ComponentState, string, error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -809,15 +815,17 @@ func infoForCompUndo(t *state.Task) (*snap.ComponentSideInfo, string, error) {
 		return nil, "", fmt.Errorf("internal error: no component to discard: %w", err)
 	}
 
-	return unlinkedComp.SideInfo, snapsup.InstanceName(), nil
+	return &unlinkedComp, snapsup.InstanceName(), nil
 }
 
 func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {
-	compSideInfo, instanceName, err := infoForCompUndo(t)
+	compState, instanceName, err := infoForCompUndo(t)
 	if err != nil {
 		return err
 	}
 
 	// Discard the previously unlinked component
-	return m.undoSetupComponent(t, compSideInfo, instanceName)
+	isKernModsComp := compState.CompType == snap.KernelModulesComponent
+	return m.undoSetupComponent(t, compState.SideInfo, instanceName,
+		undoComponentOpts{maybeInitramfsMounted: isKernModsComp})
 }
