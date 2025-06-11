@@ -64,7 +64,8 @@ jobs:
   run-spread:
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
-      
+      GH_TOKEN: ${{ github.token }}
+
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
 
@@ -101,7 +102,7 @@ jobs:
     - name: Set PR labels as environment variables
       if: ${{ github.event.pull_request.number }}
       run: |
-          labels=$(curl "https://api.github.com/repos/canonical/snapd/pulls/${{ github.event.pull_request.number }}" 2>/dev/null | jq -r '.labels.[].name')
+          labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels.[].name')
           if grep -q '^Skip spread$' <<<$labels; then
             echo "SKIP_SPREAD_LABEL=true" >> $GITHUB_ENV
           fi
