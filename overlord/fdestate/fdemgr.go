@@ -414,49 +414,34 @@ func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err e
 	return mgr.getRecoveryKey(keyID)
 }
 
-// devPathByContainerRole returned a map from container role to corresponding
-// device path. If containerRoles is nil, all encrypted containers are returned.
-// If any encrypted container role from containerRoles does not exist, an error
-// is returned.
-func (m *FDEManager) devPathByContainerRole(containerRoles []string) (map[string]string, error) {
+// CheckRecoveryKey tests that the specified recovery key unlocks the
+// specified container roles. If containerRoles is empty, the recovery
+// key will be tested against all container roles. Also, If a container
+// role from containerRoles does not exist, an error is returned.
+//
+// The state must be locked by the caller.
+func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []string) error {
 	containers, err := m.GetEncryptedContainers()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	allContainers := len(containerRoles) == 0
-	devPathByContainerRole := make(map[string]string, len(containers))
+	found := make(map[string]bool, len(containerRoles))
 	for _, container := range containers {
 		if allContainers || strutil.ListContains(containerRoles, container.ContainerRole()) {
-			devPathByContainerRole[container.ContainerRole()] = container.DevPath()
+			if err := secbootCheckRecoveryKey(container.DevPath(), rkey); err != nil {
+				return fmt.Errorf("recovery key failed for %q: %v", container.ContainerRole(), err)
+			}
+			found[container.ContainerRole()] = true
 		}
 	}
 
 	if !allContainers {
 		for _, containerRole := range containerRoles {
-			if _, ok := devPathByContainerRole[containerRole]; !ok {
-				return nil, fmt.Errorf("encrypted container role %q does not exist", containerRole)
+			if !found[containerRole] {
+				return fmt.Errorf("encrypted container role %q does not exist", containerRole)
 			}
-		}
-	}
-
-	return devPathByContainerRole, nil
-}
-
-// CheckRecoveryKey tests that the specified recovery key unlocks the
-// specified container roles. If containerRoles is nil, the recovery
-// key will be tested against all container roles.
-//
-// The state must be locked by the caller.
-func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []string) error {
-	devPathByContainerRole, err := m.devPathByContainerRole(containerRoles)
-	if err != nil {
-		return err
-	}
-
-	for containerRole, devPath := range devPathByContainerRole {
-		if err := secbootCheckRecoveryKey(devPath, rkey); err != nil {
-			return fmt.Errorf("recovery key failed for %q: %v", containerRole, err)
 		}
 	}
 
