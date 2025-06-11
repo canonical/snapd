@@ -158,6 +158,7 @@ func (et EncryptionType) IsLUKS() bool {
 type AuthMode string
 
 const (
+	AuthModeNone       AuthMode = "none"
 	AuthModePassphrase AuthMode = "passphrase"
 	AuthModePIN        AuthMode = "pin"
 )

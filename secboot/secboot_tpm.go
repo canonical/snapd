@@ -374,7 +374,7 @@ func (key KeyDataLocation) readTokenAndGetWriter() (*sb.KeyData, sb.KeyDataWrite
 	return kd, writer, nil
 }
 
-// readKeyData reads key data or sealed key object from a token or a
+// readKeyDataAndGetWriter reads key data or sealed key object from a token or a
 // file. The key data could be placed either way since the
 // installation decides where to store it. When resealing, we do not
 // know about this decision that might have been done with another
@@ -384,7 +384,7 @@ func (key KeyDataLocation) readTokenAndGetWriter() (*sb.KeyData, sb.KeyDataWrite
 // file. It will return only a KeyData if found in a token. If a
 // KeyData is returned, then a KeyDataWriter is also returned.
 // TODO:FDEM: consider moving this to secboot_sb.go
-func readKeyData(key KeyDataLocation) (*sb.KeyData, *sb_tpm2.SealedKeyObject, sb.KeyDataWriter, error) {
+func readKeyDataAndGetWriter(key KeyDataLocation) (*sb.KeyData, *sb_tpm2.SealedKeyObject, sb.KeyDataWriter, error) {
 	// We try with the token first. If we find it, we will ignore
 	// the file.
 	kd, writer, tokenErr := key.readTokenAndGetWriter()
@@ -629,7 +629,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
 	writers := make([]sb.KeyDataWriter, 0, numSealedKeyObjects)
 	for _, key := range params.Keys {
-		keyData, keyObject, writer, err := readKeyData(key)
+		keyData, keyObject, writer, err := readKeyDataAndGetWriter(key)
 		if err != nil {
 			return err
 		}

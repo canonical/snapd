@@ -3698,3 +3698,54 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }
+
+func (s *secbootSuite) TestReadKeyData(c *C) {
+	called := 0
+	defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		called++
+		c.Check(devicePath, Equals, "/dev/some-device")
+		c.Check(slotName, Equals, "some-slot")
+		return &sb.KeyData{}, nil
+	})()
+
+	kd, err := secboot.ReadKeyData("/dev/some-device", "some-slot")
+	c.Assert(err, IsNil)
+	c.Check(kd, NotNil)
+	c.Check(called, Equals, 1)
+
+	// it is not possible to mock the internal secboot key data
+	c.Check(kd.AuthMode(), Equals, device.AuthModeNone)
+	c.Check(kd.PlatformName(), Equals, "")
+	c.Check(kd.Role(), Equals, "")
+}
+
+func (s *secbootSuite) TestReadKeyDataError(c *C) {
+	defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	_, err := secboot.ReadKeyData("/dev/some-device", "some-slot")
+	c.Assert(err, ErrorMatches, "boom!")
+}
+
+func (s *secbootSuite) TestListContainerRecoveryKeyNames(c *C) {
+	defer secboot.MockListLUKS2ContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/some-device")
+		return []string{"some-slot-1", "some-slot-2"}, nil
+	})()
+
+	keyNames, err := secboot.ListContainerRecoveryKeyNames("/dev/some-device")
+	c.Assert(err, IsNil)
+	c.Check(keyNames, DeepEquals, []string{"some-slot-1", "some-slot-2"})
+}
+
+func (s *secbootSuite) TestListContainerUnlockKeyNames(c *C) {
+	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		c.Check(devicePath, Equals, "/dev/some-device")
+		return []string{"some-slot-1", "some-slot-2"}, nil
+	})()
+
+	keyNames, err := secboot.ListContainerUnlockKeyNames("/dev/some-device")
+	c.Assert(err, IsNil)
+	c.Check(keyNames, DeepEquals, []string{"some-slot-1", "some-slot-2"})
+}
