@@ -21,6 +21,7 @@
 package devicestate_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -322,6 +323,66 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 	UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
 }
 
+// representative sample of a list of information about preinstall check errors identified by secboot
+var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
+	{
+		Kind:    "tpm-hierarchies-owned",
+		Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
+		Args: map[string]json.RawMessage{
+			"with-auth-value":  json.RawMessage(`[1073741834]`),
+			"with-auth-policy": json.RawMessage(`[1073741825]`),
+		},
+		Actions: []string{"reboot-to-fw-settings"},
+	},
+	{
+		Kind:    "tpm-device-lockout",
+		Message: "error with TPM2 device: TPM is in DA lockout mode",
+		Args: map[string]json.RawMessage{
+			"interval-duration": json.RawMessage(`7200000000000`),
+			"total-duration":    json.RawMessage(`230400000000000`),
+		},
+		Actions: []string{"reboot-to-fw-settings"},
+	},
+}
+
+// mockHelperForEncryptionAvailabilityCheck simplifies mocking an encryption availability check error from encryptionAvailabilityCheck.
+// This level of testing does not focus on excercising both the specialized secboot.PreinstallCheck (Ubuntu hybrid on Ubuntu installer >= 25.10) and
+// and the general secboot.CheckTPMKeySealingSupported (Ubuntu Core).
+//
+// hasTPM: indicates if we simulate having a TPM (no error detected) or no TPM (some representative error)
+func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C, hasTPM bool) func() {
+	count := 0
+	paramCheck := false
+
+	restore1 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+		paramCheck = len(bootImagePaths) == 3
+		count++
+		if hasTPM {
+			return nil, nil
+		} else {
+			return preinstallErrorInfos[:1], nil
+		}
+	})
+
+	restore2 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		paramCheck = tpmMode != secboot.TPMProvisionNone
+		count++
+		if hasTPM {
+			return nil
+		} else {
+			return fmt.Errorf("cannot connect to TPM device")
+		}
+	})
+
+	// cleanup closure
+	return func() {
+		c.Assert(paramCheck, Equals, true)
+		c.Assert(count, Equals, 1)
+		restore1()
+		restore2()
+	}
+}
+
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
 func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
 	if opts.hasSystemSeed && !opts.installClassic {
@@ -502,18 +563,8 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock TPM and sealing
-		restore = installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
-			c.Assert(bootImagePaths, HasLen, 3)
-			c.Check(true, Equals, false)
-			return nil, nil
-		})
-		s.AddCleanup(restore)
-
-		restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-			c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
-			return nil
-		})
-		s.AddCleanup(restore)
+		restore = s.mockHelperForEncryptionAvailabilityCheck(c, true)
+		defer restore()
 
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
@@ -836,18 +887,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
-			c.Assert(bootImagePaths, HasLen, 3)
-			c.Check(true, Equals, false)
-			return nil, nil
-		})
-		s.AddCleanup(restore)
-
-		restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-			c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
-			return nil
-		})
-		s.AddCleanup(restore)
+		restore := s.mockHelperForEncryptionAvailabilityCheck(c, true)
+		defer restore()
 	}
 
 	// Mock encryption of partitions
@@ -1091,18 +1132,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
-		c.Assert(bootImagePaths, HasLen, 3)
-		c.Check(true, Equals, false)
-		return nil, nil
-	})
-	s.AddCleanup(restore)
-
-	restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-		c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
-		return nil
-	})
-	s.AddCleanup(restore)
+	restore := s.mockHelperForEncryptionAvailabilityCheck(c, true)
+	defer restore()
 
 	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
 		return &install.EncryptionSetupData{}, nil
