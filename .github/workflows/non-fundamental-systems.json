@@ -76,7 +76,7 @@
         "group": "ubuntu-daily",
         "backend": "google",
         "alternative-backend": "google",
-        "systems": "ubuntu-25.04-64",
+        "systems": "ubuntu-25.10-64",
         "tasks": "tests/...",
         "rules": "main"
       },
