@@ -396,7 +396,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	restore := s.mockSystemdMountSequence(c, mounts, nil)
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	// We write files in the moked kernel mount, remove on unmount
+	cmd := testutil.MockCommand(c, "systemd-mount", `
+if [ "$1" = --umount ] && [ "${2##*/}" = kernel ]; then rm -rf "$2"/meta; echo SEEN; fi
+`)
 	defer cmd.Restore()
 
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
@@ -450,6 +453,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
 			},
 		})
+		// Kernel unit is removed
+		kernUnit := filepath.Join(s.tmpDir, "/run/systemd/transient", "run-mnt-kernel.mount")
+		c.Assert(kernUnit, testutil.FileAbsent)
+		c.Assert(filepath.Join(s.tmpDir, "/run/mnt/kernel"), testutil.FileAbsent)
 		checkSnapdMountUnit(c)
 	}
 

@@ -526,6 +526,16 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		if err != nil {
 			return osutil.OutputErrCombine(stdout, stderr, err)
 		}
+		// Remove the unit file so it is not re-mounted after switch root
+		kernMntUnit := filepath.Join(dirs.SnapSystemdRunDir, "transient", "run-mnt-kernel.mount")
+		logger.Debugf("removing transient unit file %s", kernMntUnit)
+		if err := os.Remove(kernMntUnit); err != nil {
+			logger.Noticef("warning: cannot delete %s: %v", kernMntUnit, err)
+		}
+		// We do not need the directory either
+		if err := os.Remove(kernelMountDir); err != nil {
+			logger.Noticef("warning: cannot remove %s: %v", kernelMountDir, err)
+		}
 	}
 
 	if err := bootEnsureNextBootToRunMode(mst.recoverySystem); err != nil {
