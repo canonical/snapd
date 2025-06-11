@@ -109,6 +109,8 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 
 	fdemgr := c.d.overlord.FDEManager()
 	if err := fdeMgrCheckRecoveryKey(fdemgr, rkey, req.ContainerRoles); err != nil {
+		// TODO:FDEM: distinguish between failure due to a bad key and an
+		// actual internal error where snapd fails to do the check.
 		return BadRequest("cannot find matching recovery key: %v", err)
 	}
 

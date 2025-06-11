@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -413,33 +414,47 @@ func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err e
 	return mgr.getRecoveryKey(keyID)
 }
 
+// devPathByContainerRole returned a map from container role to corresponding
+// device path. If containerRoles is nil, all encrypted containers are returned.
+// If any encrypted container role from containerRoles does not exist, an error
+// is returned.
+func (m *FDEManager) devPathByContainerRole(containerRoles []string) (map[string]string, error) {
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	allContainers := len(containerRoles) == 0
+	devPathByContainerRole := make(map[string]string, len(containers))
+	for _, container := range containers {
+		if allContainers || strutil.ListContains(containerRoles, container.ContainerRole()) {
+			devPathByContainerRole[container.ContainerRole()] = container.DevPath()
+		}
+	}
+
+	if !allContainers {
+		for _, containerRole := range containerRoles {
+			if _, ok := devPathByContainerRole[containerRole]; !ok {
+				return nil, fmt.Errorf("encrypted container role %q does not exist", containerRole)
+			}
+		}
+	}
+
+	return devPathByContainerRole, nil
+}
+
 // CheckRecoveryKey tests that the specified recovery key unlocks the
-// specified container roles. If no container roles are passed, the recovery
+// specified container roles. If containerRoles is nil, the recovery
 // key will be tested against all container roles.
 //
 // The state must be locked by the caller.
 func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []string) error {
-	containers, err := m.GetEncryptedContainers()
+	devPathByContainerRole, err := m.devPathByContainerRole(containerRoles)
 	if err != nil {
 		return err
 	}
 
-	allContainers := len(containerRoles) == 0
-
-	devPathByContainerRole := make(map[string]string, len(containers))
-	for _, container := range containers {
-		devPathByContainerRole[container.ContainerRole()] = container.DevPath()
-		if allContainers {
-			containerRoles = append(containerRoles, container.ContainerRole())
-		}
-	}
-
-	for _, containerRole := range containerRoles {
-		devPath, ok := devPathByContainerRole[containerRole]
-		if !ok {
-			return fmt.Errorf("container role %q does not exist", containerRole)
-		}
-
+	for containerRole, devPath := range devPathByContainerRole {
 		if err := secbootCheckRecoveryKey(devPath, rkey); err != nil {
 			return fmt.Errorf("recovery key failed for %q: %v", containerRole, err)
 		}

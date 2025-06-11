@@ -976,7 +976,7 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyMissingContainerRole(c *C) {
 	})()
 
 	err = mgr.CheckRecoveryKey(keys.RecoveryKey{}, []string{"missing-container-role"})
-	c.Assert(err, ErrorMatches, `container role "missing-container-role" does not exist`)
+	c.Assert(err, ErrorMatches, `encrypted container role "missing-container-role" does not exist`)
 }
 
 func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
