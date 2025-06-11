@@ -124,9 +124,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid timeout: %v", err)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
+	noticeMgr := c.d.overlord.NoticeManager()
 
 	var notices []*state.Notice
 
@@ -137,7 +135,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		ctx, cancel := context.WithTimeout(c.d.tomb.Context(r.Context()), timeout)
 		defer cancel()
 
-		notices, err = st.WaitNotices(ctx, filter)
+		notices, err = noticeMgr.WaitNotices(ctx, filter)
 		if errors.Is(err, context.Canceled) {
 			return InternalError("request canceled")
 		}
@@ -148,7 +146,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	} else {
 		// No timeout given, fetch currently-available notices
-		notices = st.Notices(filter)
+		notices = noticeMgr.Notices(filter)
 	}
 
 	if notices == nil {
@@ -318,10 +316,8 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot determine UID of request, so cannot retrieve notice")
 	}
 	noticeID := muxVars(r)["id"]
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	notice := st.Notice(noticeID)
+	noticeMgr := c.d.overlord.NoticeManager()
+	notice := noticeMgr.Notice(noticeID)
 	if notice == nil {
 		return NotFound("cannot find notice with id %q", noticeID)
 	}
@@ -339,7 +335,7 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 // root, but at the moment we do not have a level of notice visibility which
 // grants access to those admins, as well as root and the notice's user.
 func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
-	userID, isSet := notice.UserID()
+	userID, isSet := notice.HasUserID()
 	if !isSet {
 		return true
 	}
