@@ -194,7 +194,7 @@ var profilesNeedRegenerationImpl = func(m *InterfaceManager) bool {
 }
 
 // Checks whether AppArmor Prompting should be used. Caller must lock m.state.
-func (m *InterfaceManager) assesAppArmorPrompting() bool {
+func (m *InterfaceManager) assessAppArmorPrompting() bool {
 	tr := config.NewTransaction(m.state)
 	if promptingEnabled, err := features.Flag(tr, features.AppArmorPrompting); err == nil {
 		supported, _ := features.AppArmorPrompting.IsSupported()
