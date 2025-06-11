@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -71,8 +72,28 @@ var (
 	cloudInitStatus   = sysconfig.CloudInitStatus
 	restrictCloudInit = sysconfig.RestrictCloudInit
 
-	secbootMarkSuccessful = secboot.MarkSuccessful
+	secbootMarkSuccessful       = secboot.MarkSuccessful
+	becomeOperationalChangeKind = swfeats.ChangeReg.Add("become-operational")
+	seedChangeKind              = swfeats.ChangeReg.Add("seed")
+	installSystemChangeKind     = swfeats.ChangeReg.Add("install-system")
+	factoryResetChangeKind      = swfeats.ChangeReg.Add("factory-reset")
 )
+
+func init() {
+	swfeats.EnsureReg.Add("DeviceManager", "ensureOperational")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSeeded")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureAutoImportAssertions")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureBootOk")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureCloudInitRestricted")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureInstalled")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureFactoryReset")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSeedInConfig")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureSeedInConfig")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureTriedRecoverySystem")
+	swfeats.EnsureReg.Add("DeviceManager", "ensurePostFactoryReset")
+	swfeats.EnsureReg.Add("DeviceManager", "ensureExpiredUsersRemoved")
+}
 
 // EarlyConfig is a hook set by configstate that can process early configuration
 // during managers' startup.
@@ -736,7 +757,7 @@ func (m *DeviceManager) ensureOperational() error {
 		tasks = append(tasks, requestSerial)
 	}
 
-	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
+	chg := m.state.NewChange(becomeOperationalChangeKind, i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
 	state.TagTimingsWithChange(perfTimings, chg)
@@ -1018,7 +1039,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeeded")
 
-	chg := m.state.NewChange("seed", "Initialize system state")
+	chg := m.state.NewChange(seedChangeKind, "Initialize system state")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
@@ -1454,7 +1475,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	addTask(restartSystem)
 
-	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
+	chg := m.state.NewChange(installSystemChangeKind, i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
 	state.TagTimingsWithChange(perfTimings, chg)
@@ -1533,7 +1554,7 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	addTask(restartSystem)
 
-	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
+	chg := m.state.NewChange(factoryResetChangeKind, i18n.G("Perform factory reset"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
 	state.TagTimingsWithChange(perfTimings, chg)

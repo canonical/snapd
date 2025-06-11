@@ -32,11 +32,16 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var assertstateConfdbSchema = assertstate.ConfdbSchema
+var (
+	assertstateConfdbSchema = assertstate.ConfdbSchema
+	setConfdbChangeKind     = swfeats.ChangeReg.Add("set-confdb")
+	getConfdbChangeKind     = swfeats.ChangeReg.Add("get-confdb")
+)
 
 // SetViaView uses the view to set the requests in the transaction's databag.
 func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]interface{}) error {
@@ -211,7 +216,7 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 	commitTx := func() (string, <-chan struct{}, error) {
 		var chg *state.Change
 		if ctx == nil || ctx.IsEphemeral() {
-			chg = st.NewChange("set-confdb", fmt.Sprintf("Set confdb through %q", view.ID()))
+			chg = st.NewChange(setConfdbChangeKind, fmt.Sprintf("Set confdb through %q", view.ID()))
 		} else {
 			// we're running in the context of a non-confdb hook, add the tasks to that change
 			task, _ := ctx.Task()
@@ -565,7 +570,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 
 	var chg *state.Change
 	if ctx.IsEphemeral() {
-		chg = st.NewChange("get-confdb", fmt.Sprintf("Get confdb through %q", view.ID()))
+		chg = st.NewChange(getConfdbChangeKind, fmt.Sprintf("Get confdb through %q", view.ID()))
 	} else {
 		// we're running in the context of a non-confdb hook, add the tasks to that change
 		task, _ := ctx.Task()
@@ -637,7 +642,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		return "", err
 	}
 
-	chg := st.NewChange("get-confdb", fmt.Sprintf(`Get confdb through %q`, view.ID()))
+	chg := st.NewChange(getConfdbChangeKind, fmt.Sprintf(`Get confdb through %q`, view.ID()))
 	if ts != nil {
 		// if there are hooks to run, link the read-confdb task to those tasks
 		clearTxTask, err := ts.Edge(clearTxEdge)
