@@ -41,7 +41,7 @@ var (
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
 
-	Keyslots []fdestate.KeyslotTarget `json:"keyslots"`
+	Keyslots []fdestate.KeyslotRef `json:"keyslots"`
 
 	RecoveryKey    string   `json:"recovery-key"`
 	ContainerRoles []string `json:"container-roles"`

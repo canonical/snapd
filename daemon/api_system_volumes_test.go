@@ -209,10 +209,10 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	defer d.Overlord().Stop()
 
 	called := 0
-	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.TaskSet, error) {
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
 		called++
 		c.Check(recoveryKeyID, Equals, "some-key-id")
-		c.Check(keyslots, DeepEquals, []fdestate.KeyslotTarget{
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
 			{ContainerRole: "some-container-role", Name: "some-name"},
 		})
 
@@ -246,7 +246,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
 	s.daemon(c)
 
-	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.TaskSet, error) {
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
 		return nil, errors.New("boom!")
 	}))
 

@@ -405,27 +405,28 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 	}
 }
 
-// KeyslotTarget uniquely identifies a target key slot by
+// KeyslotRef uniquely identifies a target key slot by
 // its container role and name.
-type KeyslotTarget struct {
+type KeyslotRef struct {
 	ContainerRole string `json:"container-role"`
 	Name          string `json:"name"`
 }
 
-func (k KeyslotTarget) String() string {
+func (k KeyslotRef) String() string {
 	return fmt.Sprintf("(container-role: %q, name: %q)", k.ContainerRole, k.Name)
 }
 
-func (k KeyslotTarget) Validate() error {
+// Validate that the key slot reference points to expected key slots.
+func (k KeyslotRef) Validate() error {
 	if len(k.ContainerRole) == 0 {
-		return errors.New("key slot container role cannot be empty")
+		return errors.New("container role cannot be empty")
 	}
-	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
-		return fmt.Errorf(`unsupported key slot container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
-	}
-
 	if len(k.Name) == 0 {
-		return errors.New("key slot name cannot be empty")
+		return errors.New("name cannot be empty")
+	}
+	// this constraint could be relaxed later when snapd supports user containers.
+	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
+		return fmt.Errorf(`unsupported container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
 	}
 	return nil
 }
@@ -444,8 +445,8 @@ func checkRecoveryKeyIDExists(st *state.State, recoveryKeyID string) error {
 
 const tmpKeyslotPrefix = "snapd-tmp"
 
-func tmpKeyslotTarget(keyslot KeyslotTarget) KeyslotTarget {
-	return KeyslotTarget{
+func tmpKeyslotTarget(keyslot KeyslotRef) KeyslotRef {
+	return KeyslotRef{
 		ContainerRole: keyslot.ContainerRole,
 		Name:          fmt.Sprintf("%s:%s", tmpKeyslotPrefix, keyslot.Name),
 	}
@@ -458,24 +459,24 @@ func tmpKeyslotTarget(keyslot KeyslotTarget) KeyslotTarget {
 // If keyslots is empty, the "default-recovery" key slot is
 // used by default for both the "system-data" and "system-save"
 // container roles.
-func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []KeyslotTarget) (*state.TaskSet, error) {
+func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []KeyslotRef) (*state.TaskSet, error) {
 	if len(keyslots) == 0 {
 		// target default-recovery key slots by default if no key slot targets are specified
 		keyslots = append(keyslots,
-			KeyslotTarget{ContainerRole: "system-data", Name: "default-recovery"},
-			KeyslotTarget{ContainerRole: "system-save", Name: "default-recovery"},
+			KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-recovery"},
 		)
 	}
 
-	tmpKeyslots := make([]KeyslotTarget, 0, len(keyslots))
+	tmpKeyslots := make([]KeyslotRef, 0, len(keyslots))
 	tmpKeyslotRenames := make([]string, 0, len(keyslots))
 	for _, keyslot := range keyslots {
 		if err := keyslot.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid key slot %s: %v", keyslot.String(), err)
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslot.String(), err)
 		}
 		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
 		if keyslot.Name != "default-recovery" {
-			return nil, fmt.Errorf(`unsupported key slot %s: invalid key slot name, expected "default-recovery"`, keyslot.String())
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslot.String())
 		}
 
 		tmpKeyslot := tmpKeyslotTarget(keyslot)

@@ -39,34 +39,34 @@ func (s *fdeMgrSuite) settle(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *fdeMgrSuite) TestKeyslotTargetValidate(c *C) {
-	k := fdestate.KeyslotTarget{ContainerRole: "system-data", Name: "some-keyslot"}
+func (s *fdeMgrSuite) TestKeyslotRefValidate(c *C) {
+	k := fdestate.KeyslotRef{ContainerRole: "system-data", Name: "some-keyslot"}
 	c.Assert(k.Validate(), IsNil)
 
-	k = fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "some-other-keyslot"}
+	k = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "some-other-keyslot"}
 	c.Assert(k.Validate(), IsNil)
 
-	k = fdestate.KeyslotTarget{ContainerRole: "some-container", Name: "some-keyslot"}
-	c.Assert(k.Validate(), ErrorMatches, `unsupported key slot container role "some-container", expected "system-data" or "system-save"`)
+	k = fdestate.KeyslotRef{ContainerRole: "some-container", Name: "some-keyslot"}
+	c.Assert(k.Validate(), ErrorMatches, `unsupported container role "some-container", expected "system-data" or "system-save"`)
 
-	k = fdestate.KeyslotTarget{Name: "some-keyslot"}
-	c.Assert(k.Validate(), ErrorMatches, "key slot container role cannot be empty")
+	k = fdestate.KeyslotRef{Name: "some-keyslot"}
+	c.Assert(k.Validate(), ErrorMatches, "container role cannot be empty")
 
-	k = fdestate.KeyslotTarget{ContainerRole: "system-save", Name: ""}
-	c.Assert(k.Validate(), ErrorMatches, "key slot name cannot be empty")
+	k = fdestate.KeyslotRef{ContainerRole: "system-save", Name: ""}
+	c.Assert(k.Validate(), ErrorMatches, "name cannot be empty")
 }
 
 func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
-	keyslots := []fdestate.KeyslotTarget{
+	keyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-recovery"},
 	}
-	tmpKeyslots := []fdestate.KeyslotTarget{
+	tmpKeyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "snapd-tmp:default-recovery"},
 	}
 	if defaultKeyslots {
 		// system-save also
-		keyslots = append(keyslots, fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "default-recovery"})
-		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotTarget{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"})
+		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-recovery"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"})
 	}
 
 	// initialize fde manager
@@ -97,7 +97,7 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	c.Assert(tsks[0].Get("recovery-key-id", &tskRecoveryKeyID), IsNil)
 	c.Check(tskRecoveryKeyID, Equals, recoveryKeyID)
 	// check tmp key slots are passed to task
-	var tskKeyslots []fdestate.KeyslotTarget
+	var tskKeyslots []fdestate.KeyslotRef
 	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
 
@@ -165,7 +165,7 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	onClassic := true
 	s.startedManager(c, onClassic)
 
-	keyslots := []fdestate.KeyslotTarget{
+	keyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-recovery"},
 		{ContainerRole: "system-save", Name: "default-recovery"},
 	}
@@ -182,14 +182,14 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	c.Assert(err, ErrorMatches, "invalid recovery key ID: recovery key has expired")
 
 	// invalid keyslot
-	badKeyslot := fdestate.KeyslotTarget{ContainerRole: "", Name: "some-name"}
-	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotTarget{badKeyslot})
-	c.Assert(err, ErrorMatches, `invalid key slot \(container-role: "", name: "some-name"\): key slot container role cannot be empty`)
+	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
 
 	// invalid keyslot
-	badKeyslot = fdestate.KeyslotTarget{ContainerRole: "system-data", Name: "default-fallback"}
-	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotTarget{badKeyslot})
-	c.Assert(err, ErrorMatches, `unsupported key slot \(container-role: "system-data", name: "default-fallback"\): invalid key slot name, expected "default-recovery"`)
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-fallback"\): unsupported name, expected "default-recovery"`)
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {

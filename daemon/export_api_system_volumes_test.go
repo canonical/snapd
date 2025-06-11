@@ -34,6 +34,6 @@ func MockFdeMgrCheckRecoveryKey(f func(fdemgr *fdestate.FDEManager, rkey keys.Re
 	return testutil.Mock(&fdeMgrCheckRecoveryKey, f)
 }
 
-func MockFdestateReplaceRecoveryKey(f func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotTarget) (*state.TaskSet, error)) (restore func()) {
+func MockFdestateReplaceRecoveryKey(f func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error)) (restore func()) {
 	return testutil.Mock(&fdestateReplaceRecoveryKey, f)
 }
