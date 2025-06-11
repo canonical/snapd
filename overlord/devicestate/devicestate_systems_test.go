@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"encoding/json"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -3020,8 +3021,28 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
-	defer restore()
+	restore := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+                c.Assert(bootImagePaths, HasLen, 3)
+
+                return []secboot.PreinstallErrorInfo{
+                                {
+                                        Kind:    "tpm-hierarchies-owned",
+                                        Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
+                                        Args: map[string]json.RawMessage{
+                                                "with-auth-value":  json.RawMessage(`[1073741834]`),
+                                                "with-auth-policy": json.RawMessage(`[1073741825]`),
+                                        },              
+                                        Actions: []string{"reboot-to-fw-settings"}, 
+                                },                              
+                }, nil                                  
+        })                                              
+        s.AddCleanup(restore)                   
+                                        
+	restore = install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+                c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
+                return fmt.Errorf("cannot connect to TPM device")
+        })
+        s.AddCleanup(restore)
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
@@ -3039,7 +3060,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 		Available:          false,
 		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
-		PreinstallCheckErr: fmt.Errorf("really no tpm"),
 	})
 }
 
@@ -3060,9 +3080,19 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseS
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootPreinstallCheck(func(*asserts.Model, secboot.TPMProvisionMode) error { return nil })
-	defer restore()
+	restore := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+                c.Assert(bootImagePaths, HasLen, 3)
 
+                return nil, nil                                  
+        })                                              
+        s.AddCleanup(restore)                   
+                                        
+        restore = install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+                c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
+                return nil
+        })
+        s.AddCleanup(restore)
+	
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
