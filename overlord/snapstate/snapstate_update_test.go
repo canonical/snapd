@@ -18471,6 +18471,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 				op:                "undo-setup-component",
 				containerName:     containerName,
 				containerFileName: removedFilename,
+				componentRemoveOpts: backend.RemoveComponentOpts{
+					MaybeInitramfsMounted: compName == "kernel-modules-component"},
 			},
 			{
 				op:                "remove-component-dir",

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
@@ -161,7 +162,8 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 
 		// this may remove the component from /var/lib/snapd/snaps
 		// depending on installRecord
-		if e := b.RemoveComponentFiles(compPi, installRecord, dev, meter); e != nil {
+		if e := b.RemoveComponentFiles(compPi, installRecord, dev,
+			RemoveComponentOpts{MaybeInitramfsMounted: false}, meter); e != nil {
 			meter.Notify(fmt.Sprintf(
 				"while trying to clean up due to previous failure: %v", e))
 		}
@@ -236,8 +238,40 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 	return nil
 }
 
+// RemoveComponentOpts are options considered when removing a component.
+type RemoveComponentOpts struct {
+	// MaybeInitramfsMounted is set if the component was mounted also from
+	// the initramfs, which can be the case for kernel-modules components.
+	MaybeInitramfsMounted bool
+}
+
 // RemoveComponentFiles unmounts and removes component files from the disk.
-func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
+func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, opts RemoveComponentOpts, meter progress.Meter) error {
+	if opts.MaybeInitramfsMounted {
+		// Stop unit created from initramfs for kernel-modules components, if
+		// existing (if we have not rebooted after installation it will not
+		// be there either). Note that this mount can exist only on UC, on
+		// hybrid the initramfs will create the mount exactly in the same place
+		// as snapd, so there is no duplication.
+		mntPoint := filepath.Join(dirs.GlobalRootDir, "writable", "system-data",
+			dirs.StripRootDir(cpi.MountDir()))
+		isMounted, err := osutil.IsMounted(mntPoint)
+		if err != nil {
+			return err
+		}
+		// We do not use systemd as there is no associated unit file - the
+		// unit file created by the initramfs has a "sysroot-" prefix to the
+		// real mount path, so systemd does not consider it associated with
+		// the mount. This unit file is inactive therefore. We leave it as it
+		// is, it will disappear in next reboot and it would be a waste to
+		// remove it and do a daemon-reload.
+		if isMounted {
+			if output, err := exec.Command("umount", "--lazy", mntPoint).CombinedOutput(); err != nil {
+				return osutil.OutputErr(output, err)
+			}
+		}
+	}
+
 	// this also ensures that the mount unit stops
 	if err := removeMountUnit(cpi.MountDir(), meter); err != nil {
 		return err
@@ -298,8 +332,8 @@ func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *I
 }
 
 // UndoSetupComponent undoes the work of SetupComponent using RemoveComponentFiles.
-func (b Backend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
-	return b.RemoveComponentFiles(cpi, installRecord, dev, meter)
+func (b Backend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, removeOpts RemoveComponentOpts, meter progress.Meter) error {
+	return b.RemoveComponentFiles(cpi, installRecord, dev, removeOpts, meter)
 }
 
 // RemoveSnapInhibitLock removes the file controlling inhibition of "snap run".

@@ -456,9 +456,9 @@ func (s *setupSuite) TestSetupComponentUndoIdempotent(c *C) {
 		compRev, snapRev)
 
 	s.testSetupComponentUndo(c, "mycomp", "mysnap", "mysnap_inst",
-		compRev, snapRev, installRecord)
+		compRev, installRecord)
 	s.testSetupComponentUndo(c, "mycomp", "mysnap", "mysnap_inst",
-		compRev, snapRev, installRecord)
+		compRev, installRecord)
 }
 
 func (s *setupSuite) testSetupComponentDo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision) *backend.InstallRecord {
@@ -493,11 +493,12 @@ version: 1.0
 	return installRecord
 }
 
-func (s *setupSuite) testSetupComponentUndo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision, installRecord *backend.InstallRecord) {
+func (s *setupSuite) testSetupComponentUndo(c *C, compName, snapName, instanceName string, compRev snap.Revision, installRecord *backend.InstallRecord) {
 	// undo undoes the mount unit and the instdir creation
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 
-	err := s.be.UndoSetupComponent(cpi, installRecord, mockDev, progress.Null)
+	err := s.be.UndoSetupComponent(cpi, installRecord, mockDev,
+		backend.RemoveComponentOpts{MaybeInitramfsMounted: false}, progress.Null)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
@@ -513,7 +514,7 @@ func (s *setupSuite) testSetupComponentDoUndo(c *C, compName, snapName, instance
 		compRev, snapRev)
 
 	s.testSetupComponentUndo(c, compName, snapName, instanceName,
-		compRev, snapRev, installRecord)
+		compRev, installRecord)
 }
 
 func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
@@ -558,9 +559,17 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 	snapInstance := "mysnap_inst"
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance)
 
+	var sysdCalls [][]string
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdCalls = append(sysdCalls, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer restore()
+
 	installRecord := s.testSetupComponentDo(c, compName, "mysnap", snapInstance, compRev, snapRev)
 
-	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev, progress.Null)
+	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev,
+		backend.RemoveComponentOpts{MaybeInitramfsMounted: false}, progress.Null)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
@@ -576,6 +585,70 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 	c.Assert(osutil.FileExists(compDir), Equals, false)
 	c.Assert(osutil.FileExists(mntDir), Equals, false)
 	c.Assert(osutil.FileExists(compsDir), Equals, false)
+
+	c.Assert(s.umount.Calls(), IsNil)
+
+	c.Assert(sysdCalls, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--no-reload", "enable", "var-lib-snapd-snap-mysnap_inst-components-mnt-mycomp-33.mount"},
+		{"restart", "var-lib-snapd-snap-mysnap_inst-components-mnt-mycomp-33.mount"},
+		{"--no-reload", "disable", "var-lib-snapd-snap-mysnap_inst-components-mnt-mycomp-33.mount"},
+		{"daemon-reload"},
+	})
+}
+
+func (s *setupSuite) TestSetupComponentWithInitramfsMount(c *C) {
+	snapRev := snap.R(11)
+	compRev := snap.R(33)
+	compName := "mycomp"
+	snapInstance := "mysnap_inst"
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance)
+
+	// Simulate the initramfs mount
+	extraMount := filepath.Join(dirs.GlobalRootDir, "writable", "system-data", dirs.StripRootDir(cpi.MountDir()))
+	content := fmt.Sprintf("189 102 7:2 / %s ro,nodev,relatime shared:3 - squashfs /dev/loop2 ro,errors=continue,threads=single\n", extraMount)
+
+	restore := osutil.MockMountInfo(content)
+	defer restore()
+
+	var sysdCalls [][]string
+	restore = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdCalls = append(sysdCalls, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer restore()
+
+	installRecord := s.testSetupComponentDo(c, compName, "mysnap", snapInstance, compRev, snapRev)
+
+	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev,
+		backend.RemoveComponentOpts{MaybeInitramfsMounted: true}, progress.Null)
+	c.Assert(err, IsNil)
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountFile()), Equals, false)
+
+	err = s.be.RemoveComponentDir(cpi)
+	c.Assert(err, IsNil)
+	// Directories components/mnt/<comp_name>/ should be gone
+	compDir := filepath.Dir(cpi.MountDir())
+	mntDir := filepath.Dir(compDir)
+	compsDir := filepath.Dir(mntDir)
+	c.Assert(osutil.FileExists(compDir), Equals, false)
+	c.Assert(osutil.FileExists(mntDir), Equals, false)
+	c.Assert(osutil.FileExists(compsDir), Equals, false)
+
+	c.Assert(s.umount.Calls(), DeepEquals, [][]string{
+		{"umount", "--lazy", extraMount},
+	})
+
+	c.Assert(sysdCalls, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--no-reload", "enable", "var-lib-snapd-snap-mysnap_inst-components-mnt-mycomp-33.mount"},
+		{"restart", "var-lib-snapd-snap-mysnap_inst-components-mnt-mycomp-33.mount"},
+		{"--no-reload", "disable", "var-lib-snapd-snap-mysnap_inst-components-mnt-mycomp-33.mount"},
+		{"daemon-reload"},
+	})
 }
 
 func (s *setupSuite) TestSetupComponentFilesDirNotRemoved(c *C) {
@@ -589,7 +662,8 @@ func (s *setupSuite) TestSetupComponentFilesDirNotRemoved(c *C) {
 	installRecord := s.testSetupComponentDo(c, compName, "mysnap", snapInstance, compRev, snapRev)
 	s.testSetupComponentDo(c, compName, "mysnap", snapInstance, secondCompRev, snapRev)
 
-	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev, progress.Null)
+	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev,
+		backend.RemoveComponentOpts{MaybeInitramfsMounted: false}, progress.Null)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	// Still a mount file for the second component
