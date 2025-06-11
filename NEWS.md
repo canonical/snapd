@@ -1,3 +1,7 @@
+# New in snapd 2.68.5.1
+* LP: #2104254 fix a regression during seeding when using early-config
+* Interfaces: hostname_control | fix for UC24 by adding required unix socket and dbus permissions
+
 # New in snapd 2.68.5
 * LP: #2109843 fix missing preseed files when running in a container
 

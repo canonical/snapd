@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.68.5
+Version:        2.68.5.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1002,6 +1002,13 @@ fi
 
 
 %changelog
+* Wed Jun 11 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.68.5.1
+ - LP: #2104254 fix a regression during seeding when using early-
+   config
+ - Interfaces: hostname_control | fix for UC24 by adding required
+   unix socket and dbus permissions
+
 * Wed May 21 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68.5
  - LP: #2109843 fix missing preseed files when running in a container
