@@ -502,12 +502,19 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock TPM and sealing
-		restore := installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
-			c.Check(model.Classic(), Equals, false)
-			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+		restore = installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+			c.Assert(bootImagePaths, HasLen, 3)
+			c.Check(true, Equals, false)
+			return nil, nil
+		})
+		s.AddCleanup(restore)
+
+		restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+			c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
 			return nil
 		})
 		s.AddCleanup(restore)
+
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
@@ -829,8 +836,15 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
-			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+		restore := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+			c.Assert(bootImagePaths, HasLen, 3)
+			c.Check(true, Equals, false)
+			return nil, nil
+		})
+		s.AddCleanup(restore)
+
+		restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+			c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
 			return nil
 		})
 		s.AddCleanup(restore)
@@ -1077,9 +1091,15 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// Simulate system with TPM
-	restore := installLogic.MockSecbootPreinstallCheck(func(model *asserts.Model, tpmMode secboot.TPMProvisionMode) error {
-		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+	restore := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+		c.Assert(bootImagePaths, HasLen, 3)
+		c.Check(true, Equals, false)
+		return nil, nil
+	})
+	s.AddCleanup(restore)
+
+	restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Assert(tpmMode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
 	s.AddCleanup(restore)
