@@ -9,10 +9,11 @@ systems:
     - ubuntu-2*
 
 prepare: |
-    dd if=/dev/zero of=disk bs=1M count=2048
+    dd if=/dev/zero of=disk bs=1M count=1024
     parted ./disk mklabel gpt
-    parted ./disk unit MB mkpart 83 2MB 1000MB
-    parted ./disk unit MB mkpart 83 1002MB 2002MB
+    # 83 - Linux partition
+    parted ./disk unit MB mkpart 83 2MB 502MB
+    parted ./disk unit MB mkpart 83 502MB 1002MB
     losetup --show -f -P ./disk > loop.txt
 
     tests.pkgs install zfsutils
@@ -38,9 +39,11 @@ execute: |
     test-snapd-zfsutils.zfs create testpool/data
     test-snapd-zfsutils.zfs list | MATCH testpool/data
 
-    # set mountpoint but do not mount
+    # set mountpoint
     test-snapd-zfsutils.zfs set -u mountpoint=/mnt  testpool/data
-    # as this would require mount control
+    # but mounts would require mount contro
+    not test-snapd-zfsutils.zfs mount testpool/data
+    # so do a mount outside of the snap
     zfs mount testpool/data
     touch /mnt/aaa
     zfs umount testpool/data
