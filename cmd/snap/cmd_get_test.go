@@ -242,8 +242,8 @@ func (s *confdbSuite) TestConfdbGet(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
-			fields := strutil.CommaSeparatedList(q.Get("fields"))
-			c.Check(fields, DeepEquals, []string{"abc"})
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"abc"})
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
@@ -287,8 +287,8 @@ func (s *confdbSuite) TestConfdbGetAsDocument(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
-			fields := strutil.CommaSeparatedList(q.Get("fields"))
-			c.Check(fields, DeepEquals, []string{"abc"})
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"abc"})
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
@@ -336,8 +336,8 @@ func (s *confdbSuite) TestConfdbGetMany(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
-			fields := strutil.CommaSeparatedList(q.Get("fields"))
-			c.Check(fields, DeepEquals, []string{"abc", "xyz"})
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"abc", "xyz"})
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
@@ -385,8 +385,8 @@ func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
-			fields := strutil.CommaSeparatedList(q.Get("fields"))
-			c.Check(fields, DeepEquals, []string{"abc", "xyz"})
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"abc", "xyz"})
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
@@ -459,8 +459,8 @@ func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
-			fields := strutil.CommaSeparatedList(q.Get("fields"))
-			c.Check(fields, HasLen, 0)
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, HasLen, 0)
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
@@ -514,8 +514,8 @@ func (s *confdbSuite) TestConfdbGetNoDataError(c *check.C) {
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
 			q := r.URL.Query()
-			fields := strutil.CommaSeparatedList(q.Get("fields"))
-			c.Check(fields, DeepEquals, []string{"foo"})
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"foo"})
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
