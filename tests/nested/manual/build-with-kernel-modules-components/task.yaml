@@ -56,6 +56,13 @@ execute: |
   # Additionally, check that modules loaded by systemd right after switch root could be loaded
   lsmod | MATCH ip_tables
 
+  # reboot and check again
+  boot_id=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
+  tests.nested wait-for reboot "$boot_id"
+  check_efi_pstore
+  lsmod | MATCH ip_tables
+
   # remove kernel component
   remote.exec sudo snap remove pc-kernel+"$KMOD_COMP"
 
