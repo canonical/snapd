@@ -2942,6 +2942,78 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	})
 }
 
+func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, label, gadgetYaml string, snapdVersionByType map[snap.Type]string) *asserts.Model {
+	seed20 := &seedtest.TestingSeed20{
+		SeedSnaps: seedtest.SeedSnaps{
+			StoreSigning: s.storeSigning,
+			Brands:       s.brands,
+		},
+		SeedDir: dirs.SnapSeedDir,
+	}
+	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
+
+	if snapdVersionByType == nil {
+		snapdVersionByType = map[snap.Type]string{
+			snap.TypeSnapd:  "1",
+			snap.TypeKernel: "1",
+		}
+	}
+
+	seed20.MakeAssertedSnap(c,
+		"name: snapd\nversion: 1\ntype: snapd",
+		[][]string{{"usr/lib/snapd/info",
+			fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeSnapd])}},
+		snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base",
+		nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	gadgetFiles := [][]string{
+		{"meta/gadget.yaml", string(gadgetYaml)},
+	}
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20",
+		gadgetFiles, snap.R(1), "my-brand", s.storeSigning.Database)
+
+	compsSnapPath := snaptest.MakeTestSnapWithFiles(c,
+		"name: pc-kernel\nversion: 1\ntype: kernel\ncomponents:\n  comp1:\n    type: kernel-modules\n", nil)
+	compPath := snaptest.MakeTestComponent(c,
+		"component: pc-kernel+comp1\ntype: kernel-modules\nversion: 1.0.2")
+
+	return seed20.MakeSeedWithLocalComponents(c, label, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   seed20.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              seed20.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}, []*seedwriter.OptionsSnap{
+		{
+			Path: compsSnapPath,
+		},
+	}, map[string][]string{
+		"pc-kernel": {
+			compPath,
+		},
+	})
+}
+
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
 	isClassic := false
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
@@ -2968,6 +3040,17 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
 	})
+}
+
+func (s *modelAndGadgetInfoSuite) TestLoadSeedSetsRevisionForLocalContainers(c *C) {
+	s.makeMockUC20SeedWithLocalContainers(c, "some-label", mockGadgetUCYaml, nil)
+
+	sysSnaps, err := devicestate.LoadSystemAndEssentialSnaps(s.mgr, "some-label", []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeGadget}, "run")
+	c.Assert(err, IsNil)
+	localRev := snap.R(-1)
+	c.Check(sysSnaps.InfosByType[snap.TypeKernel].SnapRevision(), Equals, localRev)
+	c.Check(sysSnaps.CompsByType[snap.TypeKernel][0].Seed.CompSideInfo.Revision, Equals, localRev)
+	c.Check(sysSnaps.CompsByType[snap.TypeKernel][0].Info.Revision, Equals, localRev)
 }
 
 func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c *C, snapdVersionByType map[snap.Type]string, hasPassphraseSupport bool) {

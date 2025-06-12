@@ -120,6 +120,10 @@ func EnsureOperationalShouldBackoff(m *DeviceManager, now time.Time) bool {
 	return m.ensureOperationalShouldBackoff(now)
 }
 
+func LoadSystemAndEssentialSnaps(m *DeviceManager, wantedSystemLabel string, types []snap.Type, modeForComps string) (*systemAndEssentialSnaps, error) {
+	return m.loadSystemAndEssentialSnaps(wantedSystemLabel, types, modeForComps)
+}
+
 func BecomeOperationalBackoff(m *DeviceManager) time.Duration {
 	return m.becomeOperationalBackoff
 }

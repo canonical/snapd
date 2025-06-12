@@ -395,9 +395,11 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 					Revision: 2,
 				}},
 			}, {
-				Name: "foo",
+				Name:     "foo",
+				Revision: -1,
 				Components: []asserts.PreseedComponent{{
-					Name: "comp1",
+					Name:     "comp1",
+					Revision: -1,
 				}},
 			}})
 		default:

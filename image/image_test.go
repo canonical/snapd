@@ -5264,16 +5264,17 @@ func (s *imageSuite) TestSetupSeedLocalComponents(c *C) {
 		Path: filepath.Join(extraSnapsDir, "required20_1.0.snap"),
 		SideInfo: &snap.SideInfo{
 			RealName: "required20",
+			Revision: snap.R(-1),
 		},
 		Required: true,
 		Components: []seed.Component{
 			{
 				Path:         filepath.Join(extraSnapsDir, "required20+comp1_1.0.comp"),
-				CompSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(0)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref1, snap.R(-1)),
 			},
 			{
 				Path:         filepath.Join(extraSnapsDir, "required20+comp2_2.0.comp"),
-				CompSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(0)),
+				CompSideInfo: *snap.NewComponentSideInfo(cref2, snap.R(-1)),
 			},
 		},
 	})
