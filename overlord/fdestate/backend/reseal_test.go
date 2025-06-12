@@ -367,7 +367,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		resealCalls++
 
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
@@ -404,7 +404,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 		default:
 			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -718,7 +718,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 
 		// set mock key resealing
 		resealKeysCalls := 0
-		restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 			c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 			resealKeysCalls++
@@ -765,7 +765,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 				c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 			}
 
-			return tc.resealErr
+			return nil, tc.resealErr
 		})
 		defer restore()
 
@@ -1172,7 +1172,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 		resealKeysCalls++
@@ -1207,7 +1207,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 		}
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -1519,7 +1519,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
 
 		resealKeysCalls++
@@ -1554,7 +1554,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 		}
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -1783,7 +1783,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		resealKeysCalls++
 
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1795,7 +1795,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		default:
 			c.Fatalf("unexpected number of reseal calls, %v", params)
 		}
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -2163,13 +2163,13 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		resealKeysCalls++
 
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile-with-dbx"`))
 		c.Logf("reseal: %+v", params)
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 

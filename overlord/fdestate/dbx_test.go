@@ -369,7 +369,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 			return nil
 		})()
 
-	defer fdestate.MockBackendResealKeyForBootChains(
+	defer fdestate.MockBackendResealKeyForBootChainsAndRevoke(
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			resealForBootChainsCalls++
 			// normally executed by the backend code
@@ -497,7 +497,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 			return nil
 		})()
 
-	defer fdestate.MockBackendResealKeyForBootChains(
+	defer fdestate.MockBackendResealKeyForBootChainsAndRevoke(
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			resealForBootChainsCalls++
 			// normally executed by the backend code
@@ -632,7 +632,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 			return nil
 		})()
 
-	defer fdestate.MockBackendResealKeyForBootChains(
+	defer fdestate.MockBackendResealKeyForBootChainsAndRevoke(
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			resealForBootChainsCalls++
 			return nil
@@ -736,7 +736,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 			resealForDBUPdateCalls++
 			return fmt.Errorf("mock error")
 		})()
-	defer fdestate.MockBackendResealKeyForBootChains(
+	defer fdestate.MockBackendResealKeyForBootChainsAndRevoke(
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			resealForBootChainsCalls++
 			return nil
@@ -798,7 +798,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 			resealForDBUPdateCalls++
 			return nil
 		})()
-	defer fdestate.MockBackendResealKeyForBootChains(
+	defer fdestate.MockBackendResealKeyForBootChainsAndRevoke(
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			resealForBootChainsCalls++
 			return fmt.Errorf("mock error")
@@ -877,7 +877,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 			return nil
 		})()
 
-	defer fdestate.MockBackendResealKeyForBootChains(
+	defer fdestate.MockBackendResealKeyForBootChainsAndRevoke(
 		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 			resealForBootChainsCalls++
 			return fmt.Errorf("mock error")

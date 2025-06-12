@@ -46,6 +46,7 @@ import (
 
 var (
 	backendResealKeyForBootChains      = backend.ResealKeyForBootChains
+	backendResealKeyForBootChainsAndRevoke = backend.ResealKeyForBootChainsAndRevoke
 	backendNewInMemoryRecoveryKeyCache = backend.NewInMemoryRecoveryKeyCache
 	disksDMCryptUUIDFromMountPoint     = disks.DMCryptUUIDFromMountPoint
 	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
@@ -289,6 +290,14 @@ func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method devic
 		unlocker:   unlocker,
 	}
 	return backendResealKeyForBootChains(wrapped, method, rootdir, params, expectReseal)
+}
+
+func (m *FDEManager) resealKeyForBootChainsAndRevoke(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	wrapped := &unlockedStateManager{
+		FDEManager: m,
+		unlocker:   unlocker,
+	}
+	return backendResealKeyForBootChainsAndRevoke(wrapped, method, rootdir, params, expectReseal)
 }
 
 func fdeMgr(st *state.State) *FDEManager {
