@@ -40,12 +40,12 @@ var assertstateConfdbSchema = assertstate.ConfdbSchema
 
 // SetViaView uses the view to set the requests in the transaction's databag.
 func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]interface{}) error {
-	for field, value := range requests {
+	for request, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(bag, field)
+			err = view.Unset(bag, request)
 		} else {
-			err = view.Set(bag, field, value)
+			err = view.Set(bag, request, value)
 		}
 
 		if err != nil {
@@ -77,10 +77,10 @@ func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.V
 	return view, nil
 }
 
-// GetViaView uses the view to get values for the fields from the databag in
+// GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
-func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interface{}, error) {
-	if len(fields) == 0 {
+func GetViaView(bag confdb.Databag, view *confdb.View, requests []string) (interface{}, error) {
+	if len(requests) == 0 {
 		val, err := view.Get(bag, "")
 		if err != nil {
 			return nil, err
@@ -89,32 +89,32 @@ func GetViaView(bag confdb.Databag, view *confdb.View, fields []string) (interfa
 		return val, nil
 	}
 
-	results := make(map[string]interface{}, len(fields))
-	for _, field := range fields {
-		value, err := view.Get(bag, field)
+	results := make(map[string]interface{}, len(requests))
+	for _, request := range requests {
+		value, err := view.Get(bag, request)
 		if err != nil {
-			if errors.Is(err, &confdb.NotFoundError{}) && len(fields) > 1 {
-				// keep looking; return partial result if only some fields are found
+			if errors.Is(err, &confdb.NotFoundError{}) && len(requests) > 1 {
+				// keep looking; return partial result if only some requests are found
 				continue
 			}
 
 			return nil, err
 		}
 
-		results[field] = value
+		results[request] = value
 	}
 
 	if len(results) == 0 {
 		var reqStr string
-		switch len(fields) {
+		switch len(requests) {
 		case 0:
 			// leave empty, so the message reflects the request gets the whole view
 		case 1:
 			// we should error out of the check in the loop before we hit this, but
 			// let's be robust in case we do
-			reqStr = fmt.Sprintf(i18n.G(" %q through"), fields[0])
+			reqStr = fmt.Sprintf(i18n.G(" %q through"), requests[0])
 		default:
-			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(fields))
+			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(requests))
 		}
 
 		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s: no data"), reqStr, view.ID())

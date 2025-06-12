@@ -454,7 +454,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 }
 
 func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
-	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=my-field", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=my-key", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -463,7 +463,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
-func (s *confdbSuite) TestGetNoFields(c *C) {
+func (s *confdbSuite) TestGetNoKeys(c *C) {
 	s.setFeatureFlag(c)
 
 	restore := daemon.MockConfdbstateGetView(func(_ *state.State, acc, confdbSchema, viewName string) (*confdb.View, error) {
