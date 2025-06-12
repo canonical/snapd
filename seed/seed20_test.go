@@ -1551,7 +1551,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
 			Path:     filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "required20_1.0.snap"),
-			SideInfo: &snap.SideInfo{RealName: "required20"},
+			SideInfo: &snap.SideInfo{RealName: "required20", Revision: snap.R(-1)},
 			Required: true,
 		},
 	})
@@ -1646,7 +1646,7 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandler(c *C) {
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
 			Path:     filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "required20_1.0.snap"),
-			SideInfo: &snap.SideInfo{RealName: "required20"},
+			SideInfo: &snap.SideInfo{RealName: "required20", Revision: snap.R(-1)},
 			Required: true,
 		},
 	})
@@ -1752,7 +1752,7 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
 			Path:     "/tmp/.." + filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "required20_1.0.snap"),
-			SideInfo: &snap.SideInfo{RealName: "required20"},
+			SideInfo: &snap.SideInfo{RealName: "required20", Revision: snap.R(-1)},
 			Required: true,
 		},
 	})
@@ -2004,7 +2004,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
 			Path:          filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "snapd_1.0.snap"),
-			SideInfo:      &snap.SideInfo{RealName: "snapd"},
+			SideInfo:      &snap.SideInfo{RealName: "snapd", Revision: snap.R(-1)},
 			Essential:     true,
 			EssentialType: snap.TypeSnapd,
 			Required:      true,
@@ -2313,7 +2313,7 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
 			Path:     filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "optional20-b_1.0.snap"),
-			SideInfo: &snap.SideInfo{RealName: "optional20-b"},
+			SideInfo: &snap.SideInfo{RealName: "optional20-b", Revision: snap.R(-1)},
 
 			Required: false,
 		},
@@ -2418,7 +2418,7 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
 		},
 		{
 			Path:     filepath.Join(sysSnapsDir, "cont-consumer_1.0.snap"),
-			SideInfo: &snap.SideInfo{RealName: "cont-consumer"},
+			SideInfo: &snap.SideInfo{RealName: "cont-consumer", Revision: snap.R(-1)},
 		},
 	})
 
@@ -4338,13 +4338,14 @@ func (s *seed20Suite) TestModeSnaps(c *C) {
 	}
 	localComponentTestRun := &seed.Snap{
 		Path:     filepath.Join(unassertedSnapsDir, "local-component-test_1.0.snap"),
-		SideInfo: &snap.SideInfo{RealName: "local-component-test"},
+		SideInfo: &snap.SideInfo{RealName: "local-component-test", Revision: snap.R(-1)},
 		Required: false,
 		Components: []seed.Component{
 			{
 				Path: filepath.Join(unassertedSnapsDir, "local-component-test+comp4_1.0.comp"),
 				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("local-component-test", "comp4"),
+					Revision:  snap.R(-1),
 				},
 			},
 		},
@@ -5082,6 +5083,7 @@ func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
 					"snaps", "required20+comp1_1.0.comp"),
 				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("required20", "comp1"),
+					Revision:  snap.R(-1),
 				},
 			})
 			checked[0] = true
@@ -5091,6 +5093,7 @@ func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
 					"snaps", "required20+comp2_2.0.comp"),
 				CompSideInfo: snap.ComponentSideInfo{
 					Component: naming.NewComponentRef("required20", "comp2"),
+					Revision:  snap.R(-1),
 				},
 			})
 			checked[1] = true
