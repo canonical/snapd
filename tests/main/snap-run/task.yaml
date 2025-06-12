@@ -100,8 +100,10 @@ execute: |
     snap run --debug-log test-snapd-sh.sh -c 'echo hello' 2> stderr
     if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_JSON_LOGGING" ] && [ -n "$SNAP_LOG_TO_JOURNAL" ]; then
         # If logging to journal is active, then grab the entires in the journal for snap
-        # and append them to the debug log
-        "$TESTSTOOLS"/journal-state get-log --no-pager | grep -oP 'snap\[\d+\]: \K.*' >> stderr
+        # and add them to the head of the stderr output
+        mv stderr tmp
+        "$TESTSTOOLS"/journal-state get-log --no-pager | grep -oP 'snap\[\d+\]: \K.*' > stderr
+        cat tmp >> stderr
     fi
     MATCH -- '-- snap startup .*"stage".*"time"' < stderr
     if ! os.query is-trusty ; then
