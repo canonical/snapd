@@ -102,7 +102,7 @@ jobs:
     - name: Set PR labels as environment variables
       if: ${{ github.event.pull_request.number }}
       run: |
-          labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels.[].name')
+          labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
           if grep -q '^Skip spread$' <<<$labels; then
             echo "SKIP_SPREAD_LABEL=true" >> $GITHUB_ENV
           fi
