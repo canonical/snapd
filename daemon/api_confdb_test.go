@@ -205,24 +205,77 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 	s.setFeatureFlag(c)
 
 	type test struct {
-		name string
-		err  error
-		code int
+		name   string
+		err    error
+		status int
+		kind   client.ErrorKind
+	}
+
+	notFoundErr := &asserts.NotFoundError{
+		Type:    asserts.ConfdbSchemaType,
+		Headers: map[string]string{"name": "network", "account-id": "system"},
 	}
 
 	for _, t := range []test{
-		{name: "confdb not found", err: confdb.NewNotFoundError("boom"), code: 404},
-		{name: "internal", err: errors.New("internal"), code: 500},
+		{name: "no assertion", err: notFoundErr, status: 400, kind: client.ErrorKindAssertionNotFound},
+		{name: "no view", err: &confdbstate.NoViewError{}, status: 400, kind: client.ErrorKindConfdbViewNotFound},
+		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
 		restore := daemon.MockConfdbstateGetView(func(_ *state.State, _, _, _ string) (*confdb.View, error) {
 			return nil, t.err
 		})
 
+		cmt := Commentf("%s test", t.name)
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
-		c.Assert(err, IsNil, Commentf("%s test", t.name))
+		c.Assert(err, IsNil, cmt)
 
 		rspe := s.errorReq(c, req, nil)
-		c.Check(rspe.Status, Equals, t.code, Commentf("%s test", t.name))
+		c.Check(rspe.Status, Equals, t.status, cmt)
+		c.Check(rspe.Kind, Equals, t.kind, cmt)
+
+		buf := bytes.NewBufferString(`{"ssid": "foo", "password": "bar"}`)
+		req, err = http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
+		c.Assert(err, IsNil, cmt)
+
+		rspe = s.errorReq(c, req, nil)
+		c.Check(rspe.Status, Equals, t.status, cmt)
+		c.Check(rspe.Kind, Equals, t.kind, cmt)
+		restore()
+	}
+}
+
+func (s *confdbSuite) TestGetTxError(c *C) {
+	s.setFeatureFlag(c)
+
+	type test struct {
+		name   string
+		err    error
+		status int
+		kind   client.ErrorKind
+	}
+
+	view := s.schema.View("wifi-setup")
+	restore := daemon.MockConfdbstateGetView(func(_ *state.State, acc, confdbSchema, viewName string) (*confdb.View, error) {
+		return view, nil
+	})
+	defer restore()
+
+	for _, t := range []test{
+		{name: "no data", err: confdb.NewNoDataError(view, nil), status: 400, kind: client.ErrorKindConfigNoSuchOption},
+		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindConfdbNoMatchingRule},
+		{name: "internal", err: errors.New("internal"), status: 500},
+	} {
+		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string) (string, error) {
+			return "", t.err
+		})
+
+		cmt := Commentf("%s test", t.name)
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
+		c.Assert(err, IsNil, cmt)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, Equals, t.status, cmt)
+		c.Check(rspe.Kind, Equals, t.kind, cmt)
 		restore()
 	}
 }
@@ -373,14 +426,18 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 	defer restore()
 
 	type test struct {
-		name string
-		err  error
-		code int
+		name   string
+		err    error
+		status int
+		kind   client.ErrorKind
 	}
 
+	view := s.schema.View("wifi-setup")
 	for _, t := range []test{
-		{name: "not found", err: &confdb.NotFoundError{}, code: 404},
-		{name: "internal", err: errors.New("internal"), code: 500},
+		{name: "no data", err: confdb.NewNoDataError(view, nil), status: 400, kind: client.ErrorKindConfigNoSuchOption},
+		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindConfdbNoMatchingRule},
+		{name: "internal", err: errors.New("internal"), status: 500},
+		{name: "bad query", err: &confdb.BadRequestError{}, status: 400},
 	} {
 		restore := daemon.MockConfdbstateGetTransaction(func(ctx *hookstate.Context, st *state.State, view *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
 			return nil, nil, t.err
@@ -393,7 +450,8 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 		req.Header.Set("Content-Type", "application/json")
 
 		rspe := s.errorReq(c, req, nil)
-		c.Check(rspe.Status, Equals, t.code, cmt)
+		c.Check(rspe.Status, Equals, t.status, cmt)
+		c.Check(rspe.Kind, Equals, t.kind, cmt)
 		restore()
 	}
 }

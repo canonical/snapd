@@ -60,21 +60,66 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be either %s or empty but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
-type NotFoundError struct {
-	msg string
+type NoDataError struct {
+	requests []string
+	view     string
 }
 
-func (e *NotFoundError) Error() string {
-	return e.msg
-}
-
-func (e *NotFoundError) Is(err error) bool {
-	_, ok := err.(*NotFoundError)
+func (e *NoDataError) Is(err error) bool {
+	_, ok := err.(*NoDataError)
 	return ok
 }
 
-func NewNotFoundError(msg string, v ...any) *NotFoundError {
-	return &NotFoundError{msg: fmt.Sprintf(msg, v...)}
+func (e *NoDataError) Error() string {
+	var reqStr string
+	switch len(e.requests) {
+	case 0:
+		// leave empty, so the message reflects the whole view
+	case 1:
+		reqStr = fmt.Sprintf(i18n.G(" %q through"), e.requests[0])
+	default:
+		reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(e.requests))
+	}
+
+	return fmt.Sprintf(i18n.G("cannot get%s %s: no data"), reqStr, e.view)
+}
+
+func NewNoDataError(view *View, requests []string) *NoDataError {
+	return &NoDataError{
+		requests: requests,
+		view:     view.ID(),
+	}
+}
+
+type NoMatchError struct {
+	operation string
+	requests  []string
+	view      string
+}
+
+func (e *NoMatchError) Is(err error) bool {
+	_, ok := err.(*NoMatchError)
+	return ok
+}
+
+func (e *NoMatchError) Error() string {
+	var reqStr string
+	switch len(e.requests) {
+	case 1:
+		reqStr = "\"" + e.requests[0] + "\""
+	default:
+		reqStr = strutil.Quoted(e.requests)
+	}
+
+	return fmt.Sprintf(i18n.G("cannot %s %s through %s: no matching rule"), e.operation, reqStr, e.view)
+}
+
+func NewNoMatchError(view *View, operation string, requests []string) *NoMatchError {
+	return &NoMatchError{
+		operation: operation,
+		requests:  requests,
+		view:      view.ID(),
+	}
 }
 
 type BadRequestError struct {
@@ -553,7 +598,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot set %q through %s: no matching rule"), request, v.ID())
+		return NewNoMatchError(v, "set", []string{request})
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -620,7 +665,7 @@ func (v *View) Unset(databag Databag, request string) error {
 	}
 
 	if len(matches) == 0 {
-		return NewNotFoundError(i18n.G("cannot unset %q through %s: no matching rule"), request, v.ID())
+		return NewNoMatchError(v, "unset", []string{request})
 	}
 
 	for _, match := range matches {
@@ -982,8 +1027,9 @@ func namespaceResult(res any, suffixParts []string) (any, error) {
 	return map[string]any{part: nested}, nil
 }
 
-// Get returns the view value identified by the request. If either the named
-// view or the corresponding value can't be found, a NotFoundError is returned.
+// Get returns the view value identified by the request. Returns a NoMatchError
+// if the view can't be found. Returns a NoDataError if there's no data for
+// the request.
 func (v *View) Get(databag Databag, request string) (any, error) {
 	if request != "" {
 		if err := validateViewDottedPath(request, nil); err != nil {
@@ -1020,12 +1066,11 @@ func (v *View) Get(databag Databag, request string) (any, error) {
 	}
 
 	if merged == nil {
-		var reqStr string
+		var requests []string
 		if request != "" {
-			reqStr = fmt.Sprintf(" %q through", request)
+			requests = []string{request}
 		}
-
-		return nil, NewNotFoundError(i18n.G("cannot get%s %s: no data"), reqStr, v.ID())
+		return nil, NewNoDataError(v, requests)
 	}
 
 	return merged, nil
@@ -1075,7 +1120,7 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 	for _, request := range requests {
 		reqMatches, err := v.matchGetRequest(request)
 		if err != nil {
-			if errors.Is(err, &NotFoundError{}) {
+			if errors.Is(err, &NoMatchError{}) {
 				// we serve partial reads so check other paths
 				continue
 			}
@@ -1089,7 +1134,7 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 	}
 
 	if len(matches) == 0 {
-		return false, NewNotFoundError(i18n.G("cannot get %s through %s: no matching rule"), strutil.Quoted(requests), v.ID())
+		return false, NewNoMatchError(v, "get", requests)
 	}
 
 	schema := []DatabagSchema{v.schema.DatabagSchema}
@@ -1175,7 +1220,7 @@ type requestMatch struct {
 
 // matchGetRequest either returns the first exact match for the request or, if
 // no entry is an exact match, one or more entries that the request matches a
-// prefix of. If no match is found, a NotFoundError is returned.
+// prefix of. If no match is found, a NoMatchError is returned.
 func (v *View) matchGetRequest(request string) (matches []requestMatch, err error) {
 	var subkeys []string
 	if request != "" {
@@ -1206,7 +1251,7 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 	}
 
 	if len(matches) == 0 {
-		return nil, NewNotFoundError(i18n.G("cannot get %q through %s: no matching rule"), request, v.ID())
+		return nil, NewNoMatchError(v, "get", []string{request})
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
