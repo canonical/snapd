@@ -238,7 +238,7 @@ var bootImageDuplicateName = []string{
 	"vmlinuz",
 }
 
-// mockHelperForOrderedCurrentBootImagesHybrid simplifies mocking that is required to excercise orderedCurrentBootImagesHybrid.
+// mockHelperForOrderedCurrentBootImagesHybrid simplifies mocking that is required to exercise orderedCurrentBootImagesHybrid.
 //
 // isSupportedUbuntuHybrid: place current boot images to simulate supported Ubuntu hybrid install
 // errorDetected: simulate glob pattern matching errors (not filepath.Glob error itself)
@@ -518,7 +518,7 @@ var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
 	},
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies mocking that is required to excercise all core parts of encryptionAvailabilityCheck.
+// mockHelperForEncryptionAvailabilityCheck simplifies mocking that is required to exercise all core parts of encryptionAvailabilityCheck.
 //
 // isSupportedUbuntuHybrid: modify model, system release information and place current boot images to simulate supported Ubuntu hybrid install
 // errorsDetected: simulate realistic encryption availability errors for both secboot.PreinstallCheck and secboot.CheckTPMKeySealingSupported (None, Single, Multiple)
