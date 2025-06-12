@@ -172,6 +172,15 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 	}
 }
 
+// MockHybridInstallRootDir modifies the root directory used when searching for hybrid installer boot images.
+func MockHybridInstallRootDir(newRoot string) (restore func()) {
+	old := hybridInstallRootDir
+	hybridInstallRootDir = newRoot
+	return func() {
+		hybridInstallRootDir = old
+	}
+}
+
 // MockSecbootCheckTPMKeySealingSupported mocks secboot.CheckTPMKeySealingSupported usage by the package for testing.
 func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
 	old := secbootCheckTPMKeySealingSupported
