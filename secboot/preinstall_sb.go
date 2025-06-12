@@ -24,8 +24,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/snapcore/secboot/efi"
-	"github.com/snapcore/secboot/efi/preinstall"
+	sb_efi "github.com/snapcore/secboot/efi"
+	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdenv"
@@ -33,8 +33,8 @@ import (
 )
 
 var (
-	preinstallNewRunChecksContext = preinstall.NewRunChecksContext
-	preinstallRunChecks           = (*preinstall.RunChecksContext).Run
+	sbPreinstallNewRunChecksContext = sb_preinstall.NewRunChecksContext
+	sbPreinstallRunChecks           = (*sb_preinstall.RunChecksContext).Run
 )
 
 // PreinstallCheck runs preinstall checks using default check configuration and
@@ -50,25 +50,25 @@ var (
 // treating it as an error.
 func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
 	// do not customize check configuration
-	checkFlags := preinstall.CheckFlagsDefault
+	checkFlags := sb_preinstall.CheckFlagsDefault
 	if snapdenv.Testing() && systemd.IsVirtualMachine() {
 		// with exception of testing in virtual machine
-		checkFlags |= preinstall.PermitVirtualMachine
+		checkFlags |= sb_preinstall.PermitVirtualMachine
 	}
 
 	// do not customize TCG compliant PCR profile generation
-	profileOptionFlags := preinstall.PCRProfileOptionsDefault
+	profileOptionFlags := sb_preinstall.PCRProfileOptionsDefault
 
 	// create boot file images from provided paths
-	var bootImages []efi.Image
+	var bootImages []sb_efi.Image
 	for _, image := range bootImagePaths {
-		bootImages = append(bootImages, efi.NewFileImage(image))
+		bootImages = append(bootImages, sb_efi.NewFileImage(image))
 	}
 
-	checksContext := preinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)
+	checksContext := sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)
 
 	// no actions or action args for preinstall checks
-	result, err := preinstallRunChecks(checksContext, context.Background(), preinstall.ActionNone)
+	result, err := sbPreinstallRunChecks(checksContext, context.Background(), sb_preinstall.ActionNone)
 	if err != nil {
 		return unpackPreinstallCheckError(err)
 	}
@@ -87,10 +87,10 @@ func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
 // *preinstall.ErrorKindAndActions.
 func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	// expect either a single or compound error
-	compoundErr, ok := err.(preinstall.CompoundError)
+	compoundErr, ok := err.(sb_preinstall.CompoundError)
 	if !ok {
 		// single error
-		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
+		kindAndActions, ok := err.(*sb_preinstall.WithKindAndActionsError)
 		if !ok {
 			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
 		}
@@ -106,7 +106,7 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	}
 	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
 	for _, err := range errs {
-		kindAndActions, ok := err.(*preinstall.WithKindAndActionsError)
+		kindAndActions, ok := err.(*sb_preinstall.WithKindAndActionsError)
 		if !ok {
 			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
 		}
@@ -115,7 +115,7 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	return unpacked, nil
 }
 
-func convertPreinstallCheckErrorType(kindAndActionsErr *preinstall.WithKindAndActionsError) PreinstallErrorInfo {
+func convertPreinstallCheckErrorType(kindAndActionsErr *sb_preinstall.WithKindAndActionsError) PreinstallErrorInfo {
 	return PreinstallErrorInfo{
 		Kind:    string(kindAndActionsErr.Kind),
 		Message: kindAndActionsErr.Error(), // safely handles kindAndActionsErr.Unwrap() == nil
@@ -124,7 +124,7 @@ func convertPreinstallCheckErrorType(kindAndActionsErr *preinstall.WithKindAndAc
 	}
 }
 
-func convertPreinstallCheckErrorActions(actions []preinstall.Action) []string {
+func convertPreinstallCheckErrorActions(actions []sb_preinstall.Action) []string {
 	if actions == nil {
 		return nil
 	}

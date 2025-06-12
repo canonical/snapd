@@ -26,8 +26,8 @@ import (
 	"errors"
 
 	"github.com/canonical/go-tpm2"
-	"github.com/snapcore/secboot/efi"
-	"github.com/snapcore/secboot/efi/preinstall"
+	sb_efi "github.com/snapcore/secboot/efi"
+	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
@@ -47,12 +47,12 @@ func (s *preinstallSuite) SetUpTest(c *C) {
 
 func (s *preinstallSuite) TestConvertPreinstallCheckErrorActions(c *C) {
 	testCases := []struct {
-		actions  []preinstall.Action
+		actions  []sb_preinstall.Action
 		expected []string
 	}{
 		{nil, nil},
-		{[]preinstall.Action{}, []string{}},
-		{[]preinstall.Action{preinstall.ActionReboot, preinstall.ActionShutdown}, []string{"reboot", "shutdown"}},
+		{[]sb_preinstall.Action{}, []string{}},
+		{[]sb_preinstall.Action{sb_preinstall.ActionReboot, sb_preinstall.ActionShutdown}, []string{"reboot", "shutdown"}},
 	}
 
 	for _, tc := range testCases {
@@ -62,10 +62,10 @@ func (s *preinstallSuite) TestConvertPreinstallCheckErrorActions(c *C) {
 }
 
 func (s *preinstallSuite) TestConvertPreinstallCheckErrorType(c *C) {
-	kindAndActionsErr := preinstall.NewWithKindAndActionsError(
-		preinstall.ErrorKindTPMHierarchiesOwned,
-		preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout}, WithAuthPolicy: tpm2.HandleList{tpm2.HandleOwner}},
-		[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+	kindAndActionsErr := sb_preinstall.NewWithKindAndActionsError(
+		sb_preinstall.ErrorKindTPMHierarchiesOwned,
+		sb_preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout}, WithAuthPolicy: tpm2.HandleList{tpm2.HandleOwner}},
+		[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 		errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 	)
 
@@ -86,20 +86,20 @@ func (s *preinstallSuite) TestConvertPreinstallCheckErrorType(c *C) {
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
 	compoundError := &secboot.CompoundPreinstallCheckError{
 		[]error{
-			preinstall.NewWithKindAndActionsError(
-				preinstall.ErrorKindTPMHierarchiesOwned,
-				preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout}},
-				[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+			sb_preinstall.NewWithKindAndActionsError(
+				sb_preinstall.ErrorKindTPMHierarchiesOwned,
+				sb_preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout}},
+				[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 				errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 			),
-			preinstall.NewWithKindAndActionsError(
-				preinstall.ErrorKindTPMDeviceLockout,
-				&preinstall.TPMDeviceLockoutArgs{IntervalDuration: 7200000000000, TotalDuration: 230400000000000},
-				[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+			sb_preinstall.NewWithKindAndActionsError(
+				sb_preinstall.ErrorKindTPMDeviceLockout,
+				&sb_preinstall.TPMDeviceLockoutArgs{IntervalDuration: 7200000000000, TotalDuration: 230400000000000},
+				[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 				errors.New("error with TPM2 device: TPM is in DA lockout mode"),
 			),
-			preinstall.NewWithKindAndActionsError(
-				preinstall.ErrorKindNone,
+			sb_preinstall.NewWithKindAndActionsError(
+				sb_preinstall.ErrorKindNone,
 				nil,
 				nil,
 				nil,
@@ -174,13 +174,13 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundUnexpectedType(c *C) {
 	compoundError := &secboot.CompoundPreinstallCheckError{
 		[]error{
-			preinstall.NewWithKindAndActionsError(
-				preinstall.ErrorKindTPMHierarchiesOwned,
-				preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout}},
-				[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+			sb_preinstall.NewWithKindAndActionsError(
+				sb_preinstall.ErrorKindTPMHierarchiesOwned,
+				sb_preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout}},
+				[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 				errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 			),
-			preinstall.ErrInsufficientDMAProtection,
+			sb_preinstall.ErrInsufficientDMAProtection,
 		},
 	}
 
@@ -198,10 +198,10 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundWrapsNil(c *
 }
 
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorSingle(c *C) {
-	singleError := preinstall.NewWithKindAndActionsError(
-		preinstall.ErrorKindTPMDeviceDisabled,
+	singleError := sb_preinstall.NewWithKindAndActionsError(
+		sb_preinstall.ErrorKindTPMDeviceDisabled,
 		nil,
-		[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+		[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 		errors.New("error with TPM2 device: TPM2 device is present but is currently disabled by the platform firmware"),
 	)
 
@@ -230,7 +230,7 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorSingle(c *C) {
 }
 
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailSingleUnexpectedType(c *C) {
-	errorInfos, err := secboot.UnpackPreinstallCheckError(preinstall.ErrInsufficientDMAProtection)
+	errorInfos, err := secboot.UnpackPreinstallCheckError(sb_preinstall.ErrInsufficientDMAProtection)
 	c.Assert(err, ErrorMatches, `cannot unpack error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
 	c.Assert(errorInfos, IsNil)
 }
@@ -246,13 +246,13 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permi
 	defer systemdCmd.Restore()
 
 	restore = secboot.MockSbPreinstallNewRunChecksContext(
-		func(initialFlags preinstall.CheckFlags, loadedImages []efi.Image, profileOpts preinstall.PCRProfileOptionsFlags) *preinstall.RunChecksContext {
+		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			if permitVM {
-				c.Assert(initialFlags&preinstall.PermitVirtualMachine, Equals, preinstall.PermitVirtualMachine)
+				c.Assert(initialFlags&sb_preinstall.PermitVirtualMachine, Equals, sb_preinstall.PermitVirtualMachine)
 			} else {
-				c.Assert(initialFlags, Equals, preinstall.CheckFlagsDefault)
+				c.Assert(initialFlags, Equals, sb_preinstall.CheckFlagsDefault)
 			}
-			c.Assert(profileOpts, Equals, preinstall.PCRProfileOptionsDefault)
+			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, IsNil)
 
 			return nil
@@ -260,13 +260,13 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permi
 	defer restore()
 
 	restore = secboot.MockSbPreinstallRun(
-		func(checkCtx *preinstall.RunChecksContext, ctx context.Context, action preinstall.Action, args ...any) (*preinstall.CheckResult, error) {
+		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error) {
 			c.Assert(checkCtx, IsNil)
 			c.Assert(ctx, NotNil)
-			c.Assert(action, Equals, preinstall.ActionNone)
+			c.Assert(action, Equals, sb_preinstall.ActionNone)
 			c.Assert(args, IsNil)
 
-			return &preinstall.CheckResult{}, nil
+			return &sb_preinstall.CheckResult{}, nil
 		})
 	defer restore()
 
@@ -303,49 +303,49 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack boo
 	defer restore()
 
 	restore = secboot.MockSbPreinstallNewRunChecksContext(
-		func(initialFlags preinstall.CheckFlags, loadedImages []efi.Image, profileOpts preinstall.PCRProfileOptionsFlags) *preinstall.RunChecksContext {
-			c.Assert(initialFlags, Equals, preinstall.CheckFlagsDefault)
-			c.Assert(profileOpts, Equals, preinstall.PCRProfileOptionsDefault)
+		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
+			c.Assert(initialFlags, Equals, sb_preinstall.CheckFlagsDefault)
+			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, HasLen, len(bootImagePaths))
 			for i, image := range loadedImages {
 				c.Check(image.String(), Equals, bootImagePaths[i])
 			}
 
-			return &preinstall.RunChecksContext{}
+			return &sb_preinstall.RunChecksContext{}
 		})
 	defer restore()
 
 	restore = secboot.MockSbPreinstallRun(
-		func(checkCtx *preinstall.RunChecksContext, ctx context.Context, action preinstall.Action, args ...any) (*preinstall.CheckResult, error) {
+		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error) {
 			c.Assert(checkCtx, NotNil)
 			c.Assert(checkCtx.Errors(), IsNil)
 			c.Assert(checkCtx.Result(), IsNil)
 			c.Assert(ctx, NotNil)
-			c.Assert(action, Equals, preinstall.ActionNone)
+			c.Assert(action, Equals, sb_preinstall.ActionNone)
 			c.Assert(args, IsNil)
 
 			if detectErrors {
 				return nil, &secboot.CompoundPreinstallCheckError{
 					[]error{
-						preinstall.NewWithKindAndActionsError(
-							preinstall.ErrorKindTPMHierarchiesOwned,
-							preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout},
+						sb_preinstall.NewWithKindAndActionsError(
+							sb_preinstall.ErrorKindTPMHierarchiesOwned,
+							sb_preinstall.TPM2OwnedHierarchiesError{WithAuthValue: tpm2.HandleList{tpm2.HandleLockout},
 								WithAuthPolicy: tpm2.HandleList{tpm2.HandleOwner}},
-							[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+							[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 							errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 						),
-						preinstall.NewWithKindAndActionsError(
-							preinstall.ErrorKindTPMDeviceLockout,
-							&preinstall.TPMDeviceLockoutArgs{IntervalDuration: 7200000000000, TotalDuration: 230400000000000},
-							[]preinstall.Action{preinstall.ActionRebootToFWSettings},
+						sb_preinstall.NewWithKindAndActionsError(
+							sb_preinstall.ErrorKindTPMDeviceLockout,
+							&sb_preinstall.TPMDeviceLockoutArgs{IntervalDuration: 7200000000000, TotalDuration: 230400000000000},
+							[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
 							errors.New("error with TPM2 device: TPM is in DA lockout mode"),
 						),
 					},
 				}
 			} else if failUnpack {
-				return nil, preinstall.ErrInsufficientDMAProtection
+				return nil, sb_preinstall.ErrInsufficientDMAProtection
 			} else {
-				return &preinstall.CheckResult{
+				return &sb_preinstall.CheckResult{
 					Warnings: &secboot.CompoundPreinstallCheckError{
 						[]error{
 							errors.New("warning 1"),

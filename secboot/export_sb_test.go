@@ -31,7 +31,7 @@ import (
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
-	"github.com/snapcore/secboot/efi/preinstall"
+	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 
@@ -59,19 +59,19 @@ func (e *CompoundPreinstallCheckError) Unwrap() []error {
 	return e.Errs
 }
 
-func MockSbPreinstallNewRunChecksContext(f func(initialFlags preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts preinstall.PCRProfileOptionsFlags) *preinstall.RunChecksContext) (restore func()) {
-	old := preinstallNewRunChecksContext
-	preinstallNewRunChecksContext = f
+func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext) (restore func()) {
+	old := sbPreinstallNewRunChecksContext
+	sbPreinstallNewRunChecksContext = f
 	return func() {
-		preinstallNewRunChecksContext = old
+		sbPreinstallNewRunChecksContext = old
 	}
 }
 
-func MockSbPreinstallRun(f func(checkCtx *preinstall.RunChecksContext, ctx context.Context, action preinstall.Action, args ...any) (*preinstall.CheckResult, error)) (restore func()) {
-	old := preinstallRunChecks
-	preinstallRunChecks = f
+func MockSbPreinstallRun(f func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error)) (restore func()) {
+	old := sbPreinstallRunChecks
+	sbPreinstallRunChecks = f
 	return func() {
-		preinstallRunChecks = old
+		sbPreinstallRunChecks = old
 	}
 }
 
