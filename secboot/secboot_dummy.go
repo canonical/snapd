@@ -141,6 +141,6 @@ func ListContainerUnlockKeyNames(devicePath string) ([]string, error) {
 	return nil, errBuildWithoutSecboot
 }
 
-func ReadKeyData(devicePath, slotName string) (KeyData, error) {
+func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	return nil, errBuildWithoutSecboot
 }

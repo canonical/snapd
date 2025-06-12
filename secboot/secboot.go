@@ -178,7 +178,7 @@ type KeyDataLocation struct {
 // KeyData represents a disk unlock key protected by a platform's secure device.
 type KeyData interface {
 	PlatformName() string
-	Role() string
+	Roles() []string
 	AuthMode() device.AuthMode
 }
 
