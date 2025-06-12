@@ -61,6 +61,17 @@ GO_TAGS += withtestkeys
 GO_TAGS += structuredlogging
 endif
 
+# Any additional tags common to all targets
+GO_TAGS += $(EXTRA_GO_BUILD_TAGS)
+
+GO_MOD=-mod=vendor
+ifeq ($(with_vendor),0)
+GO_MOD=-mod=readonly
+endif
+
+# Go -ldflags settings for static build. Can be overridden in snapd.defines.mk.
+EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="-static" $(EXTRA_GO_LDFLAGS)
+
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
@@ -74,7 +85,7 @@ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
-		-mod=vendor \
+		$(GO_MOD) \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
@@ -82,11 +93,10 @@ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
 $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
-	# Explicit request to use an external linker, otherwise extldflags may not be
-	# used
-	go build -o $@ -buildmode=default -mod=vendor \
+	go build -o $@ -buildmode=default \
+		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		-ldflags '-linkmode external -extldflags "-static" $(EXTRA_GO_LDFLAGS)' \
+		-ldflags="$(EXTRA_GO_STATIC_LDFLAGS)" \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
@@ -96,7 +106,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 $(builddir)/snapd:
 	go build -o $@ -buildmode=pie \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
-		-mod=vendor \
+		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
@@ -202,7 +212,7 @@ endif
 # output that unit tests do not mock.
 .PHONY: check
 check:
-	LC_ALL=C.UTF-8 go test -mod=vendor $(import_path)/...
+	LC_ALL=C.UTF-8 go test $(GO_MOD) $(import_path)/...
 
 .PHONY: clean
 clean:
