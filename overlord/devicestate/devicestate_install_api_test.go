@@ -345,17 +345,54 @@ var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
 	},
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies mocking an encryption availability check error from encryptionAvailabilityCheck.
-// This level of testing does not focus on excercising both the specialized secboot.PreinstallCheck (Ubuntu hybrid on Ubuntu installer >= 25.10) and
-// and the general secboot.CheckTPMKeySealingSupported (Ubuntu Core).
+// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error information returned
+// by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
+// (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
+// (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
 //
-// hasTPM: indicates if we simulate having a TPM (no error detected) or no TPM (some representative error)
-func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C, hasTPM bool) func() {
+// isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
+// hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
+func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid, hasTPM bool) func() {
 	count := 0
-	paramCheck := false
 
-	restore1 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
-		paramCheck = len(bootImagePaths) == 3
+	releaseInfo := &release.OS{
+		ID:        "ubuntu*",
+		VersionID: "24.04",
+	}
+	if isSupportedUbuntuHybrid {
+		// preinstall check is supported for Ubuntu hybrid >= 25.10
+		releaseInfo = &release.OS{
+			ID:        "ubuntu",
+			VersionID: "25.10",
+		}
+	}
+	restore1 := release.MockReleaseInfo(releaseInfo)
+
+	restore2 := func() {}
+	if isSupportedUbuntuHybrid {
+		// create dummy boot images for supported Ubuntu hybrid system
+		rootDir := c.MkDir()
+		restore2 = installLogic.MockHybridInstallRootDir(rootDir)
+
+		for _, path := range []string{
+			"cdrom/EFI/boot/bootXXX.efi",
+			"cdrom/EFI/boot/grubXXX.efi",
+			"cdrom/casper/vmlinuz",
+		} {
+			bootImagePath := filepath.Join(rootDir, path)
+			bootImageDir := filepath.Dir(bootImagePath)
+			err := os.MkdirAll(bootImageDir, 0755)
+			c.Assert(err, IsNil)
+
+			f, err := os.Create(bootImagePath)
+			c.Assert(err, IsNil)
+			f.Close()
+		}
+	}
+
+	restore3 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+		c.Assert(bootImagePaths, HasLen, 3)
+		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		count++
 		if hasTPM {
 			return nil, nil
@@ -364,8 +401,9 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 		}
 	})
 
-	restore2 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-		paramCheck = tpmMode != secboot.TPMProvisionNone
+	restore4 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Assert(tpmMode, Not(Equals), secboot.TPMProvisionNone)
+		c.Assert(isSupportedUbuntuHybrid, Equals, false)
 		count++
 		if hasTPM {
 			return nil
@@ -374,12 +412,12 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 		}
 	})
 
-	// cleanup closure
 	return func() {
-		c.Assert(paramCheck, Equals, true)
 		c.Assert(count, Equals, 1)
-		restore1()
+		restore4()
+		restore3()
 		restore2()
+		restore1()
 	}
 }
 
@@ -562,10 +600,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Insert encryption data when enabled
 	if opts.encrypted {
-		// Mock TPM and sealing
-		restore = s.mockHelperForEncryptionAvailabilityCheck(c, true)
-		defer restore()
-
+		// Mock sealing, not required to mock encryption check because install finish step uses encryption information from cache
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
@@ -853,7 +888,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM, withVolumesAuth bool) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSupportedHybrid, hasTPM, withVolumesAuth bool) {
 	// Mock label
 	label := "classic"
 	isClassic := true
@@ -887,7 +922,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := s.mockHelperForEncryptionAvailabilityCheck(c, true)
+		restore := s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, true)
 		defer restore()
 	}
 
@@ -975,22 +1010,52 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappy(c *C) {
+	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
 	const withVolumesAuth = false
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const isSupportedHybrid = true
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesAuth(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappy(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const hasTPM = true
+	const withVolumesAuth = false
+	const isSupportedHybrid = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithVolumesAuth(c *C) {
+	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
 	const withVolumesAuth = true
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const isSupportedHybrid = true
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoCrypto(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappyWithVolumesAuth(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const hasTPM = true
+	const withVolumesAuth = true
+	const isSupportedHybrid = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridNoCrypto(c *C) {
+	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = false
 	const withVolumesAuth = false
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const isSupportedHybrid = true
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridNoCrypto(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const hasTPM = false
+	const withVolumesAuth = false
+	const isSupportedHybrid = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {
@@ -1132,7 +1197,8 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := s.mockHelperForEncryptionAvailabilityCheck(c, true)
+	// Simulate system with TPM
+	restore := s.mockHelperForEncryptionAvailabilityCheck(c, true, true)
 	defer restore()
 
 	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {

@@ -352,7 +352,6 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 
 	s.prepareRunSystemDataGadgetDirs = nil
 	s.prepareRunSystemDataErr = nil
-
 	restore := devicestate.MockInstallLogicPrepareRunSystemData(func(mod *asserts.Model, gadgetDir string, _ timings.Measurer) error {
 		c.Check(mod, NotNil)
 		s.prepareRunSystemDataGadgetDirs = append(s.prepareRunSystemDataGadgetDirs, gadgetDir)
@@ -603,20 +602,19 @@ func (s *deviceMgrInstallModeSuite) makeMockInstallModelWithKMods(c *C, grade st
 	return mockModel
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies mocking an encryption availability check error from encryptionAvailabilityCheck.
-// This level of testing does not focus on excercising both the specialized secboot.PreinstallCheck (Ubuntu hybrid on Ubuntu installer >= 25.10) and
-// and the general secboot.CheckTPMKeySealingSupported (Ubuntu Core).
+// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error information returned
+// by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
+// (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
+// (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
 //
-// hasTPM: indicates if we simulate having a TPM (no error detected) or no TPM (some representative error)
-//
-// Note: preinstallErrorInfos declared in devicestate_install_mode_test.go
+// hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
 func (s *deviceMgrInstallModeSuite) mockHelperForEncryptionAvailabilityCheck(c *C, hasTPM bool) func() {
-	count := 0
-	paramCheck := false
+	//count := 0
+	//paramCheck := false
 
 	restore1 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
-		paramCheck = len(bootImagePaths) == 3
-		count++
+		//paramCheck = len(bootImagePaths) == 3
+		//count++
 		if hasTPM {
 			return nil, nil
 		} else {
@@ -625,8 +623,8 @@ func (s *deviceMgrInstallModeSuite) mockHelperForEncryptionAvailabilityCheck(c *
 	})
 
 	restore2 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-		paramCheck = tpmMode != secboot.TPMProvisionNone
-		count++
+		//paramCheck = tpmMode != secboot.TPMProvisionNone
+		//count++
 		if hasTPM {
 			return nil
 		} else {
@@ -634,15 +632,12 @@ func (s *deviceMgrInstallModeSuite) mockHelperForEncryptionAvailabilityCheck(c *
 		}
 	})
 
-	_ = paramCheck
-	_ = count
-
-	// cleanup closure
 	return func() {
+		// TODO: fix panic when using asserts here
 		//c.Assert(paramCheck, Equals, true)
 		//c.Assert(count, Equals, 1)
-		restore1()
 		restore2()
+		restore1()
 	}
 }
 
@@ -2774,11 +2769,9 @@ echo "mock output of: $(basename "$0") $*"
 		return nil
 	})()
 
-	// TODO: Fix this test causing panic when check mocks use assert
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		tpm: true, encrypt: true, trustedBootloader: true,
 	})
-
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
 
