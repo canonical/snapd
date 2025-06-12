@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -29,6 +30,7 @@ import (
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
+	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 
@@ -36,9 +38,29 @@ import (
 )
 
 var (
+	UnpackPreinstallCheckError         = unpackPreinstallCheckError
+	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
+	ConvertPreinstallCheckErrorActions = convertPreinstallCheckErrorActions
+
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
 )
+
+func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext) (restore func()) {
+	old := sbPreinstallNewRunChecksContext
+	sbPreinstallNewRunChecksContext = f
+	return func() {
+		sbPreinstallNewRunChecksContext = old
+	}
+}
+
+func MockSbPreinstallRun(f func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error)) (restore func()) {
+	old := sbPreinstallRunChecks
+	sbPreinstallRunChecks = f
+	return func() {
+		sbPreinstallRunChecks = old
+	}
+}
 
 func MockSbConnectToDefaultTPM(f func() (*sb_tpm2.Connection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
