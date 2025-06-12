@@ -45,6 +45,20 @@ var _ = Suite(&preinstallSuite{})
 func (s *preinstallSuite) SetUpTest(c *C) {
 }
 
+// CompoundPreinstallCheckError implements sb_preinstall.CompoundError and is
+// used to mimic compound errors that would normally be returned by secboot.
+type CompoundPreinstallCheckError struct {
+	Errs []error
+}
+
+func (e *CompoundPreinstallCheckError) Error() string {
+	return "n/a"
+}
+
+func (e *CompoundPreinstallCheckError) Unwrap() []error {
+	return e.Errs
+}
+
 func (s *preinstallSuite) TestConvertPreinstallCheckErrorActions(c *C) {
 	testCases := []struct {
 		actions  []sb_preinstall.Action
@@ -84,7 +98,7 @@ func (s *preinstallSuite) TestConvertPreinstallCheckErrorType(c *C) {
 }
 
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
-	compoundError := &secboot.CompoundPreinstallCheckError{
+	compoundError := &CompoundPreinstallCheckError{
 		[]error{
 			sb_preinstall.NewWithKindAndActionsError(
 				sb_preinstall.ErrorKindTPMHierarchiesOwned,
@@ -172,7 +186,7 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
 }
 
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundUnexpectedType(c *C) {
-	compoundError := &secboot.CompoundPreinstallCheckError{
+	compoundError := &CompoundPreinstallCheckError{
 		[]error{
 			sb_preinstall.NewWithKindAndActionsError(
 				sb_preinstall.ErrorKindTPMHierarchiesOwned,
@@ -190,7 +204,7 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundUnexpectedTy
 }
 
 func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundWrapsNil(c *C) {
-	compoundError := &secboot.CompoundPreinstallCheckError{nil}
+	compoundError := &CompoundPreinstallCheckError{nil}
 
 	errorInfos, err := secboot.UnpackPreinstallCheckError(compoundError)
 	c.Assert(err, ErrorMatches, "compound error does not wrap any error")
@@ -294,8 +308,8 @@ func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 
 func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack bool) {
 	bootImagePaths := []string{
-		"/cdrom/EFI/boot/boot*.efi",
-		"/cdrom/EFI/boot/grub*.efi",
+		"/cdrom/EFI/boot/bootXXX.efi",
+		"/cdrom/EFI/boot/grubXXX.efi",
 		"/cdrom/casper/vmlinuz",
 	}
 
@@ -325,7 +339,7 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack boo
 			c.Assert(args, IsNil)
 
 			if detectErrors {
-				return nil, &secboot.CompoundPreinstallCheckError{
+				return nil, &CompoundPreinstallCheckError{
 					[]error{
 						sb_preinstall.NewWithKindAndActionsError(
 							sb_preinstall.ErrorKindTPMHierarchiesOwned,
@@ -346,7 +360,7 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack boo
 				return nil, sb_preinstall.ErrInsufficientDMAProtection
 			} else {
 				return &sb_preinstall.CheckResult{
-					Warnings: &secboot.CompoundPreinstallCheckError{
+					Warnings: &CompoundPreinstallCheckError{
 						[]error{
 							errors.New("warning 1"),
 							errors.New("warning 2"),
