@@ -100,8 +100,8 @@ func MockSecbootCheckRecoveryKey(f func(devicePath string, rkey keys.RecoveryKey
 	return testutil.Mock(&secbootCheckRecoveryKey, f)
 }
 
-func MockSecbootReadKeyData(f func(devicePath string, slotName string) (secboot.KeyData, error)) (restore func()) {
-	return testutil.Mock(&secbootReadKeyData, f)
+func MockSecbootReadContainerKeyData(f func(devicePath string, slotName string) (secboot.KeyData, error)) (restore func()) {
+	return testutil.Mock(&secbootReadContainerKeyData, f)
 }
 
 func (k *Keyslot) SetDevPath(devPath string) {

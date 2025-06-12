@@ -594,14 +594,17 @@ func (k *keyData) PlatformName() string {
 }
 
 // Role indicates the role of this key.
-func (k *keyData) Role() string {
-	return k.kd.Role()
+func (k *keyData) Roles() []string {
+	if k.kd.Role() == "" {
+		return nil
+	}
+	return []string{k.kd.Role()}
 }
 
-// ReadKeyData reads key slot key data for the specified device and slot name.
+// ReadContainerKeyData reads key slot key data for the specified device and slot name.
 //
 // Note: This only supports key datas stored in LUKS2 tokens.
-func ReadKeyData(devicePath, slotName string) (KeyData, error) {
+func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	kd, err := readKeyToken(devicePath, slotName)
 	if err != nil {
 		return nil, err

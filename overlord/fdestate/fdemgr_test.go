@@ -1018,7 +1018,7 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
 type mockKeyData struct {
 	authMode     device.AuthMode
 	platformName string
-	role         string
+	roles        []string
 }
 
 // AuthMode indicates the authentication mechanisms enabled for this key data.
@@ -1032,20 +1032,20 @@ func (k *mockKeyData) PlatformName() string {
 }
 
 // Role indicates the role of this key.
-func (k *mockKeyData) Role() string {
-	return k.role
+func (k *mockKeyData) Roles() []string {
+	return k.roles
 }
 
 func (s *fdeMgrSuite) TestKeyslotKeyDataLazyLoad(c *C) {
 	called := 0
-	defer fdestate.MockSecbootReadKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
 		called++
 		c.Check(devicePath, Equals, "/dev/some-device")
 		c.Check(slotName, Equals, "some-slot")
 		return &mockKeyData{
 			authMode:     device.AuthModePassphrase,
 			platformName: "tpm2",
-			role:         "run+recover",
+			roles:        []string{"run+recover"},
 		}, nil
 	})()
 
@@ -1063,7 +1063,7 @@ func (s *fdeMgrSuite) TestKeyslotKeyDataLazyLoad(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(kd.AuthMode(), Equals, device.AuthModePassphrase)
 	c.Check(kd.PlatformName(), Equals, "tpm2")
-	c.Check(kd.Role(), Equals, "run+recover")
+	c.Check(kd.Roles(), DeepEquals, []string{"run+recover"})
 	// lazy loaded once, then reused
 	c.Check(called, Equals, 1)
 }
@@ -1079,7 +1079,7 @@ func (s *fdeMgrSuite) TestKeyslotKeyDataErrors(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: Keyslot.KeyData\(\) is only available for KeyslotTypePlatform, found "recovery"`)
 
 	keyslot.Type = fdestate.KeyslotTypePlatform
-	defer fdestate.MockSecbootReadKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
 		return nil, errors.New("boom!")
 	})()
 	_, err = keyslot.KeyData()

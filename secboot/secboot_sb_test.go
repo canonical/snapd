@@ -3699,7 +3699,7 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }
 
-func (s *secbootSuite) TestReadKeyData(c *C) {
+func (s *secbootSuite) TestReadContainerKeyData(c *C) {
 	called := 0
 	defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
 		called++
@@ -3708,7 +3708,7 @@ func (s *secbootSuite) TestReadKeyData(c *C) {
 		return &sb.KeyData{}, nil
 	})()
 
-	kd, err := secboot.ReadKeyData("/dev/some-device", "some-slot")
+	kd, err := secboot.ReadContainerKeyData("/dev/some-device", "some-slot")
 	c.Assert(err, IsNil)
 	c.Check(kd, NotNil)
 	c.Check(called, Equals, 1)
@@ -3716,15 +3716,15 @@ func (s *secbootSuite) TestReadKeyData(c *C) {
 	// it is not possible to mock the internal secboot key data
 	c.Check(kd.AuthMode(), Equals, device.AuthModeNone)
 	c.Check(kd.PlatformName(), Equals, "")
-	c.Check(kd.Role(), Equals, "")
+	c.Check(kd.Roles(), IsNil)
 }
 
-func (s *secbootSuite) TestReadKeyDataError(c *C) {
+func (s *secbootSuite) TestReadContainerKeyDataError(c *C) {
 	defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
 		return nil, errors.New("boom!")
 	})()
 
-	_, err := secboot.ReadKeyData("/dev/some-device", "some-slot")
+	_, err := secboot.ReadContainerKeyData("/dev/some-device", "some-slot")
 	c.Assert(err, ErrorMatches, "boom!")
 }
 

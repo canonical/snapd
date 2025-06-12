@@ -52,7 +52,7 @@ var (
 	keysNewRecoveryKey                   = keys.NewRecoveryKey
 	timeNow                              = time.Now
 	secbootCheckRecoveryKey              = secboot.CheckRecoveryKey
-	secbootReadKeyData                   = secboot.ReadKeyData
+	secbootReadContainerKeyData          = secboot.ReadContainerKeyData
 	secbootListContainerRecoveryKeyNames = secboot.ListContainerRecoveryKeyNames
 	secbootListContainerUnlockKeyNames   = secboot.ListContainerUnlockKeyNames
 )
@@ -295,9 +295,13 @@ const (
 	KeyslotTypePlatform KeyslotType = "platform"
 )
 
+// Keyslot represents a key associated with an encrypted container.
 type Keyslot struct {
-	Name          string
-	Type          KeyslotType
+	// The unique key slot name on the corresponding encrypted container.
+	Name string
+	// This indicates whether this is a recovery or platform protected key.
+	Type KeyslotType
+	// This indicates the container role of the corresponding encrypted container.
 	ContainerRole string
 
 	devPath string
@@ -307,8 +311,7 @@ type Keyslot struct {
 // KeyData returns secboot.KeyData corresponding the keyslot.
 // This can only be called for KeyslotTypePlatform.
 //
-// Note: KeyData is lazy loaded once then reused in subsequent
-// calls, reload the entire keyslot when needed.
+// Note: KeyData is lazy loaded once then reused in subsequent calls.
 func (k *Keyslot) KeyData() (secboot.KeyData, error) {
 	if k.keyData != nil {
 		return k.keyData, nil
@@ -318,7 +321,7 @@ func (k *Keyslot) KeyData() (secboot.KeyData, error) {
 		return nil, fmt.Errorf("internal error: Keyslot.KeyData() is only available for KeyslotTypePlatform, found %q", k.Type)
 	}
 
-	keyData, err := secbootReadKeyData(k.devPath, k.Name)
+	keyData, err := secbootReadContainerKeyData(k.devPath, k.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key data for %q from %q: %v", k.Name, k.devPath, err)
 	}
