@@ -114,3 +114,13 @@ func (s *keysSuite) TestNewAuxKeySad(c *C) {
 	_, err := keys.NewAuxKey()
 	c.Check(err, ErrorMatches, "fail")
 }
+
+func (s *keysSuite) TestParseRecoveryKey(c *C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	rkey, err := keys.ParseRecoveryKey("25970-28515-25974-31090-12593-12593-12593-12593")
+	c.Assert(err, IsNil)
+	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'})
+}

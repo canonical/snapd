@@ -128,3 +128,7 @@ func DeleteOldKeys(devicePath string) error {
 func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 	return nil, errBuildWithoutSecboot
 }
+
+func CheckRecoveryKey(devicePath string, rkey keys.RecoveryKey) error {
+	return errBuildWithoutSecboot
+}

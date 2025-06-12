@@ -94,3 +94,7 @@ func EncryptedContainer(uuid string, containerRole string, legacyKeys map[string
 		legacyKeys:    legacyKeys,
 	}
 }
+
+func MockSecbootCheckRecoveryKey(f func(devicePath string, rkey keys.RecoveryKey) error) (restore func()) {
+	return testutil.Mock(&secbootCheckRecoveryKey, f)
+}

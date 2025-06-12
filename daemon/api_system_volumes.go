@@ -36,6 +36,9 @@ var systemVolumesCmd = &Command{
 
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
+
+	RecoveryKey    string   `json:"recovery-key"`
+	ContainerRoles []string `json:"container-roles"`
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -65,14 +68,14 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 	switch req.Action {
 	case "generate-recovery-key":
 		return postSystemVolumesActionGenerateRecoveryKey(c)
+	case "check-recovery-key":
+		return postSystemVolumesActionCheckRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
 }
 
-var fdeMgrGenerateRecoveryKey = func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error) {
-	return fdemgr.GenerateRecoveryKey()
-}
+var fdeMgrGenerateRecoveryKey = (*fdestate.FDEManager).GenerateRecoveryKey
 
 func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 	fdemgr := c.d.overlord.FDEManager()
@@ -86,4 +89,30 @@ func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 		"recovery-key": rkey.String(),
 		"key-id":       keyID,
 	})
+}
+
+var fdeMgrCheckRecoveryKey = (*fdestate.FDEManager).CheckRecoveryKey
+
+func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
+	if req.RecoveryKey == "" {
+		return BadRequest("system volume action requires recovery-key to be provided")
+	}
+
+	rkey, err := keys.ParseRecoveryKey(req.RecoveryKey)
+	if err != nil {
+		return BadRequest("cannot parse recovery key: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	fdemgr := c.d.overlord.FDEManager()
+	if err := fdeMgrCheckRecoveryKey(fdemgr, rkey, req.ContainerRoles); err != nil {
+		// TODO:FDEM: distinguish between failure due to a bad key and an
+		// actual internal error where snapd fails to do the check.
+		return BadRequest("cannot find matching recovery key: %v", err)
+	}
+
+	return SyncResponse(nil)
 }

@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -50,6 +51,7 @@ var (
 	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
 	keysNewRecoveryKey                 = keys.NewRecoveryKey
 	timeNow                            = time.Now
+	secbootCheckRecoveryKey            = secboot.CheckRecoveryKey
 )
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -410,6 +412,40 @@ func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err er
 func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
 	mgr := fdeMgr(st)
 	return mgr.getRecoveryKey(keyID)
+}
+
+// CheckRecoveryKey tests that the specified recovery key unlocks the
+// specified container roles. If containerRoles is empty, the recovery
+// key will be tested against all container roles. Also, If a container
+// role from containerRoles does not exist, an error is returned.
+//
+// The state must be locked by the caller.
+func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []string) error {
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return err
+	}
+
+	allContainers := len(containerRoles) == 0
+	found := make(map[string]bool, len(containerRoles))
+	for _, container := range containers {
+		if allContainers || strutil.ListContains(containerRoles, container.ContainerRole()) {
+			if err := secbootCheckRecoveryKey(container.DevPath(), rkey); err != nil {
+				return fmt.Errorf("recovery key failed for %q: %v", container.ContainerRole(), err)
+			}
+			found[container.ContainerRole()] = true
+		}
+	}
+
+	if !allContainers {
+		for _, containerRole := range containerRoles {
+			if !found[containerRole] {
+				return fmt.Errorf("encrypted container role %q does not exist", containerRole)
+			}
+		}
+	}
+
+	return nil
 }
 
 func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {

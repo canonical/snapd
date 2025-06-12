@@ -20,6 +20,12 @@
 
 package keys
 
+import "errors"
+
 func (k RecoveryKey) String() string {
 	return "not-implemented"
+}
+
+func ParseRecoveryKey(rkey string) (RecoveryKey, error) {
+	return RecoveryKey{}, errors.New("not-implemented")
 }

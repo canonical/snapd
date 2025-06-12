@@ -28,3 +28,7 @@ import (
 func MockFdeMgrGenerateRecoveryKey(f func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error)) (restore func()) {
 	return testutil.Mock(&fdeMgrGenerateRecoveryKey, f)
 }
+
+func MockFdeMgrCheckRecoveryKey(f func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error)) (restore func()) {
+	return testutil.Mock(&fdeMgrCheckRecoveryKey, f)
+}
