@@ -48,14 +48,14 @@ type QuotaStateItems struct {
 	RefreshProfiles     bool
 }
 
-type quotaStateUpdated struct {
+type quotaState struct {
 	BootID              string              `json:"boot-id"`
 	QuotaGroupName      string              `json:"quota-group-name"`
 	AppsToRestartBySnap map[string][]string `json:"apps-to-restart,omitempty"`
 	RefreshProfiles     bool                `json:"refresh-profiles,omitempty"`
 }
 
-func QuotaStateUpdate(t *state.Task, data *QuotaStateItems) error {
+func SetQuotaState(t *state.Task, data *QuotaStateItems) error {
 	bootID, err := osutilBootID()
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func QuotaStateUpdate(t *state.Task, data *QuotaStateItems) error {
 		}
 		appNamesBySnapName[info.InstanceName()] = appNames
 	}
-	t.Set("state-updated", quotaStateUpdated{
+	t.Set("state-updated", quotaState{
 		BootID:              bootID,
 		QuotaGroupName:      data.QuotaGroupName,
 		AppsToRestartBySnap: appNamesBySnapName,
@@ -77,7 +77,7 @@ func QuotaStateUpdate(t *state.Task, data *QuotaStateItems) error {
 	return nil
 }
 
-func sortAppsBySnap(t *state.Task, apps map[string][]string) (map[*snap.Info][]*snap.AppInfo, error) {
+func appsToAppInfos(t *state.Task, apps map[string][]string) (map[*snap.Info][]*snap.AppInfo, error) {
 	appsToRestartBySnap := make(map[*snap.Info][]*snap.AppInfo, len(apps))
 	st := t.State()
 	// best effort, ignore missing snaps and apps
@@ -103,8 +103,8 @@ func sortAppsBySnap(t *state.Task, apps map[string][]string) (map[*snap.Info][]*
 	return appsToRestartBySnap, nil
 }
 
-func QuotaStateAlreadyUpdated(t *state.Task) (data *QuotaStateItems, err error) {
-	var updated quotaStateUpdated
+func GetQuotaState(t *state.Task) (data *QuotaStateItems, err error) {
+	var updated quotaState
 	if err := t.Get("state-updated", &updated); err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return nil, nil
@@ -126,7 +126,7 @@ func QuotaStateAlreadyUpdated(t *state.Task) (data *QuotaStateItems, err error) 
 	}
 
 	var appsToRestartBySnap map[*snap.Info][]*snap.AppInfo
-	appsToRestartBySnap, err = sortAppsBySnap(t, updated.AppsToRestartBySnap)
+	appsToRestartBySnap, err = appsToAppInfos(t, updated.AppsToRestartBySnap)
 	if err != nil {
 		return nil, err
 	}
@@ -137,8 +137,8 @@ func QuotaStateAlreadyUpdated(t *state.Task) (data *QuotaStateItems, err error) 
 	}, nil
 }
 
-func QuotaStateSnaps(t *state.Task) (snaps []string, err error) {
-	var updated quotaStateUpdated
+func GetQuotaStateSnaps(t *state.Task) (snaps []string, err error) {
+	var updated quotaState
 	if err := t.Get("state-updated", &updated); err != nil {
 		return nil, err
 	}

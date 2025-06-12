@@ -103,7 +103,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	data, err := internal.QuotaStateAlreadyUpdated(t)
+	data, err := internal.GetQuotaState(t)
 	if err != nil {
 		return err
 	}
@@ -159,35 +159,31 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		// restarting. There is a small chance that services
 		// will be restarted again but is preferable to the
 		// quota not applying to them.
-		if err := internal.QuotaStateUpdate(t, data); err != nil {
+		if err := internal.SetQuotaState(t, data); err != nil {
 			return err
 		}
 	}
 
-	// retrieve the updated group
-	grp = allGrps[data.QuotaGroupName]
-
-	ts := state.NewTaskSet()
-	var prevTask *state.Task
-	queueTask := func(task *state.Task) {
-		if prevTask != nil {
-			task.WaitFor(prevTask)
-		}
-		ts.AddTask(task)
-		prevTask = task
-	}
-
 	if len(data.AppsToRestartBySnap) > 0 {
+		ts := state.NewTaskSet()
+		var prevTask *state.Task
+		queueTask := func(task *state.Task) {
+			if prevTask != nil {
+				task.WaitFor(prevTask)
+			}
+			ts.AddTask(task)
+			prevTask = task
+		}
+
 		if data.RefreshProfiles {
 			addRefreshProfileTasks(st, queueTask, data.AppsToRestartBySnap)
 		}
 		addRestartServicesTasks(st, queueTask, qc.QuotaName, data.AppsToRestartBySnap)
-	}
 
-	if len(ts.Tasks()) > 0 {
-		snapstate.InjectTasks(t, ts)
+		if len(ts.Tasks()) > 0 {
+			snapstate.InjectTasks(t, ts)
+		}
 	}
-
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
@@ -954,7 +950,10 @@ func affectedSnapsForQuotaControl(t *state.Task) (snaps []string, err error) {
 	}
 
 	// if state-updated was already set we can use it
-	if snaps, err := internal.QuotaStateSnaps(t); !errors.Is(err, state.ErrNoState) {
+	if snaps, err := internal.GetQuotaStateSnaps(t); !errors.Is(err, state.ErrNoState) {
+		if err != nil {
+			return nil, err
+		}
 		return snaps, nil
 	}
 

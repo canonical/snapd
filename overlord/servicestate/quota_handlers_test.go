@@ -244,7 +244,7 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	data, err := internal.QuotaStateAlreadyUpdated(t)
+	data, err := internal.GetQuotaState(t)
 	c.Assert(err, IsNil)
 	c.Check(data, NotNil)
 	c.Assert(data.AppsToRestartBySnap, HasLen, 1)
@@ -258,21 +258,21 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	r = internal.MockOsutilBootID("other-boot")
 	defer r()
 
-	data, err = internal.QuotaStateAlreadyUpdated(t)
+	data, err = internal.GetQuotaState(t)
 	c.Assert(err, IsNil)
 	c.Check(data, NotNil)
 	c.Check(data.AppsToRestartBySnap, HasLen, 0)
 	r()
 
 	// restored
-	data, err = internal.QuotaStateAlreadyUpdated(t)
+	data, err = internal.GetQuotaState(t)
 	c.Assert(err, IsNil)
 	c.Check(data, NotNil)
 	c.Check(data.AppsToRestartBySnap, HasLen, 1)
 
 	// snap went missing
 	snapstate.Set(s.state, "test-snap", nil)
-	data, err = internal.QuotaStateAlreadyUpdated(t)
+	data, err = internal.GetQuotaState(t)
 	c.Assert(err, IsNil)
 	c.Check(data, NotNil)
 	c.Check(data.AppsToRestartBySnap, HasLen, 0)

@@ -91,11 +91,11 @@ func (s *quotaStateSuite) TestQuotaStateUpdate(c *C) {
 	task := st.NewTask("foo", "...")
 
 	// check that the quota state is not already updated
-	data, err := internal.QuotaStateAlreadyUpdated(task)
+	data, err := internal.GetQuotaState(task)
 	c.Assert(data, IsNil)
 	c.Assert(err, IsNil)
 
-	c.Check(internal.QuotaStateUpdate(task, &internal.QuotaStateItems{
+	c.Check(internal.SetQuotaState(task, &internal.QuotaStateItems{
 		QuotaGroupName: "test-group",
 		AppsToRestartBySnap: map[*snap.Info][]*snap.AppInfo{
 			s.testSnapInfo: {s.testSnapInfo.Apps["svc1"]},
@@ -111,7 +111,7 @@ func (s *quotaStateSuite) TestQuotaStateUpdate(c *C) {
 	c.Check(updated.AppsToRestartBySnap, HasLen, 1)
 	c.Check(updated.AppsToRestartBySnap[s.testSnapInfo.InstanceName()], DeepEquals, []string{"svc1"})
 
-	data, err = internal.QuotaStateAlreadyUpdated(task)
+	data, err = internal.GetQuotaState(task)
 	c.Assert(err, IsNil)
 	c.Assert(data, NotNil)
 }
@@ -124,7 +124,7 @@ func (s *quotaStateSuite) TestQuotaStateAlreadyUpdated(c *C) {
 	task := st.NewTask("foo", "...")
 
 	// check that the quota state is not already updated
-	data, err := internal.QuotaStateAlreadyUpdated(task)
+	data, err := internal.GetQuotaState(task)
 	c.Assert(data, IsNil)
 	c.Assert(err, IsNil)
 
@@ -139,7 +139,7 @@ func (s *quotaStateSuite) TestQuotaStateAlreadyUpdated(c *C) {
 	// mock a different boot id we set for the state, meaning
 	// that a restart has happened, and thus no apps should be restarted
 	r := internal.MockOsutilBootID("different-boot-id")
-	data, err = internal.QuotaStateAlreadyUpdated(task)
+	data, err = internal.GetQuotaState(task)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, &internal.QuotaStateItems{
 		QuotaGroupName: "test-group",
@@ -150,7 +150,7 @@ func (s *quotaStateSuite) TestQuotaStateAlreadyUpdated(c *C) {
 	r = internal.MockOsutilBootID("mock-boot-id")
 	defer r()
 
-	data, err = internal.QuotaStateAlreadyUpdated(task)
+	data, err = internal.GetQuotaState(task)
 	c.Assert(err, IsNil)
 	c.Check(data.QuotaGroupName, Equals, "test-group")
 	c.Assert(data.AppsToRestartBySnap, HasLen, 1)
@@ -174,7 +174,7 @@ func (s *quotaStateSuite) TestQuotaStateSnaps(c *C) {
 		AppsToRestartBySnap: map[string][]string{"test-snap": {"svc1"}},
 	})
 
-	data, err := internal.QuotaStateSnaps(task)
+	data, err := internal.GetQuotaStateSnaps(task)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, []string{"test-snap"})
 }

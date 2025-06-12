@@ -19,4 +19,4 @@
 
 package internal
 
-type QuotaStateUpdated = quotaStateUpdated
+type QuotaStateUpdated = quotaState

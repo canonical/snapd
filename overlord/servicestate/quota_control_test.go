@@ -1095,7 +1095,7 @@ func (s *quotaControlSuite) TestRemoveQuotaLateSnapOpConflict(c *C) {
 	// the group is already gone, but the task is not finished
 	s.state.Set("quotas", nil)
 	task := ts.Tasks()[0]
-	internal.QuotaStateUpdate(task, &internal.QuotaStateItems{
+	internal.SetQuotaState(task, &internal.QuotaStateItems{
 		AppsToRestartBySnap: map[*snap.Info][]*snap.AppInfo{
 			info: {info.Apps["svc1"]},
 		},
