@@ -2384,6 +2384,11 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 		if snapInfo.SnapType != typ {
 			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
+		// Unset revision here actually means that the snap is local.
+		// Assign then a local revision as seeding/installing the snap would do.
+		if snapInfo.Revision.Unset() {
+			snapInfo.Revision = snap.R(-1)
+		}
 		// Read components in the seed too, for the mode we are interested in
 		snapForMode, err := s.ModeSnap(seedSnap.SnapName(), modeForComps)
 		if err != nil {
@@ -2403,6 +2408,12 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 					compf, snapInfo, &seedComp.CompSideInfo)
 				if err != nil {
 					return nil, err
+				}
+				// Unset revision here actually means that the component is local.
+				// Assign then a local revision as seeding/installing the snap would do.
+				if seedComp.CompSideInfo.Revision.Unset() {
+					seedComp.CompSideInfo.Revision = snap.R(-1)
+					compInfo.Revision = snap.R(-1)
 				}
 				compInfosForType = append(compInfosForType, install.ComponentSeedInfo{
 					Info: compInfo,
