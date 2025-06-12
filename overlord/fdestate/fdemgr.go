@@ -583,3 +583,8 @@ func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error
 		disksDMCryptUUIDFromMountPoint = old
 	}
 }
+
+func MockKeyslotKeyData(keyslot *Keyslot, kd secboot.KeyData) {
+	// osutil.MustBeTestBinary("mocking Keyslot.keyDaya can be done only from tests")
+	keyslot.keyData = kd
+}
