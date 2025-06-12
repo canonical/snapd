@@ -21,7 +21,6 @@ import (
 	"github.com/snapcore/snapd/telemagent/pkg/mqtt"
 	"github.com/snapcore/snapd/telemagent/pkg/rest"
 	"github.com/snapcore/snapd/telemagent/pkg/session"
-	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -33,6 +32,8 @@ const (
 )
 
 func telemagent() {
+	addEnv()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -53,7 +54,6 @@ func telemagent() {
 
 	interceptor := permissioncontroller.New(logger)
 
-	pathPtr := flag.String("env", "", "The .env path")
 	flag.Parse()
 
 	var handler session.Handler
@@ -69,19 +69,6 @@ func telemagent() {
 		handler = snapadder.New(logger)
 	}
 
-	if *pathPtr == "" {
-		// Loading .env file to environment
-		err := godotenv.Load()
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		// Loading specified file to environment
-		err := godotenv.Load(*pathPtr)
-		if err != nil {
-			panic(err)
-		}
-	}
 
 	// mProxy server Configuration for MQTT without TLS
 	mqttConfig, err := config.NewConfig(env.Options{Prefix: mqttWithoutTLS})
@@ -143,4 +130,21 @@ func StopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger *s
 	case <-ctx.Done():
 		return nil
 	}
+}
+
+func addEnv() {
+	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_ADDRESS",":1884")
+	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_TARGET","localhost:1883")
+
+	os.Setenv("MPROXY_MQTT_WITH_TLS_ADDRESS",":8883")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_TARGET","localhost:1883")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_CERT_FILE","/home/omar/telem-agent/ssl/certs/server.crt")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_KEY_FILE","/home/omar/telem-agent/ssl/certs/server.key")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_SERVER_CA_FILE","/home/omar/telem-agent/ssl/certs/ca.crt")
+
+
+	os.Setenv("REST_ENABLED","true")
+	os.Setenv("REST_ENDPOINT","mqtts://broker.emqx.io:8883")
+	os.Setenv("REST_SERVER_CA_FILE","/home/omar/telem-agent/ssl/certs/broker.emqx.io-ca.crt")
+
 }

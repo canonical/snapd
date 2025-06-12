@@ -162,8 +162,11 @@ func run(ch chan os.Signal) error {
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
-	go telemagent()
-
+	go func() {
+		logger.Debug("Starting TelemAgent")
+		telemagent()
+	}()
+	
 out:
 	for {
 		select {
