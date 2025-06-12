@@ -310,6 +310,11 @@ func (grp *Group) JournalServiceName() string {
 	return fmt.Sprintf("systemd-journald@%s.service", grp.JournalNamespaceName())
 }
 
+// JournalServiceName returns the systemd service name for the quota group.
+func (grp *Group) JournalSocketName() string {
+	return fmt.Sprintf("systemd-journald@%s.socket", grp.JournalNamespaceName())
+}
+
 // JournalServiceFile returns the directory specific to this quota group for
 // its journal service unit drop-in.
 func (grp *Group) JournalServiceDropInDir() string {
