@@ -145,7 +145,7 @@ func sealKeyToModeenvImpl(
 	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, model, modeenv, flags)
 }
 
-type SealKeyForBootChainsParams struct {
+type BootChains struct {
 	// RunModeBootChains are the boot chains run key role
 	RunModeBootChains []BootChain
 	// RecoveryBootChainsForRunKey are the extra boot chains for
@@ -155,6 +155,10 @@ type SealKeyForBootChainsParams struct {
 	RecoveryBootChains []BootChain
 	// RoleToBlName maps bootloader role to the name of its bootloader
 	RoleToBlName map[bootloader.Role]string
+}
+
+type SealKeyForBootChainsParams struct {
+	BootChains
 	// FactoryReset...
 	FactoryReset bool
 	// UseTokens indicates that key data should be saved to the
@@ -282,22 +286,14 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 }
 
 type ResealKeyForBootChainsParams struct {
-	// RunModeBootChains are the boot chains run for key role
-	RunModeBootChains []BootChain
-	// RecoveryBootChainsForRunKey are the extra boot chains for
-	// run+recover key role
-	RecoveryBootChainsForRunKey []BootChain
-	// RecoveryBootChains are the boot chains for recover key role
-	RecoveryBootChains []BootChain
-	// RoleToBlName maps bootloader role to the name of its bootloader
-	RoleToBlName map[bootloader.Role]string
+	BootChains
 }
 
 // WithBootChains calls the provided function passing the boot chains which may
 // be observed when booting as an input. The boot can be used as an input for
 // resealing of disk encryption keys. The modeenv is locked internally, hence
 // resealing is safe to perform
-func WithBootChains(f func(bc *ResealKeyForBootChainsParams) error, method device.SealingMethod) error {
+func WithBootChains(f func(bc BootChains) error, method device.SealingMethod) error {
 	modeenvLock()
 	defer modeenvUnlock()
 
@@ -317,14 +313,14 @@ func WithBootChains(f func(bc *ResealKeyForBootChainsParams) error, method devic
 // bootChains constructs the boot chains which may be observed when booting the
 // device such that they can be used as an input for resealing of encryption
 // keys.
-func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBootChainsParams, error) {
+func bootChains(modeenv *Modeenv, method device.SealingMethod) (BootChains, error) {
 	requiresBootLoaders := true
 	switch method {
 	case device.SealingMethodFDESetupHook:
 		requiresBootLoaders = false
 	}
 
-	params := &ResealKeyForBootChainsParams{}
+	var bc BootChains
 
 	var tbl bootloader.TrustedAssetsBootloader
 
@@ -334,13 +330,13 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 			Role: bootloader.RoleRecovery,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("cannot find the recovery bootloader: %v", err)
+			return BootChains{}, fmt.Errorf("cannot find the recovery bootloader: %v", err)
 		}
 		var ok bool
 		tbl, ok = rbl.(bootloader.TrustedAssetsBootloader)
 		if !ok {
 			// TODO:UC20: later the exact kind of bootloaders we expect here might change
-			return nil, fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
+			return BootChains{}, fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
 		}
 	}
 	// derive the allowed modes for each system mentioned in the modeenv
@@ -352,10 +348,10 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 	// accommodate the dynamics of a remodel
 	includeTryModel := true
 	var err error
-	params.RecoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
+	bc.RecoveryBootChainsForRunKey, err = recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
 		modeenv, includeTryModel, dirs.SnapSeedDir)
 	if err != nil {
-		return nil, fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
+		return BootChains{}, fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
 	}
 
 	// the boot chains for recovery keys include only those system that were
@@ -371,9 +367,9 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 	// use the current model as the recovery keys are not expected to be
 	// used during a remodel
 	includeTryModel = false
-	params.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
+	bc.RecoveryBootChains, err = recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
 	if err != nil {
-		return nil, fmt.Errorf("cannot compose recovery boot chains: %v", err)
+		return BootChains{}, fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
 
 	var bl bootloader.Bootloader
@@ -384,7 +380,7 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 			NoSlashBoot: true,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("cannot find the bootloader: %v", err)
+			return BootChains{}, fmt.Errorf("cannot find the bootloader: %v", err)
 		}
 	}
 
@@ -392,32 +388,32 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (*ResealKeyForBoo
 	if requiresBootLoaders {
 		cmdlines, err = kernelCommandLinesForResealWithFallback(modeenv)
 		if err != nil {
-			return nil, err
+			return BootChains{}, err
 		}
 	}
 
-	params.RunModeBootChains, err = runModeBootChains(tbl, bl, modeenv, cmdlines, "")
+	bc.RunModeBootChains, err = runModeBootChains(tbl, bl, modeenv, cmdlines, "")
 	if err != nil {
-		return nil, fmt.Errorf("cannot compose run mode boot chains: %v", err)
+		return BootChains{}, fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
 
 	if requiresBootLoaders {
-		params.RoleToBlName = map[bootloader.Role]string{
+		bc.RoleToBlName = map[bootloader.Role]string{
 			bootloader.RoleRecovery: tbl.Name(),
 			bootloader.RoleRunMode:  bl.Name(),
 		}
 	}
 
-	return params, nil
+	return bc, nil
 }
 
 func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool) error {
-	params, err := bootChains(modeenv, method)
+	bootChains, err := bootChains(modeenv, method)
 	if err != nil {
 		return err
 	}
 
-	return ResealKeyForBootChains(unlocker, method, rootdir, params, expectReseal)
+	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 }
 
 func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error {

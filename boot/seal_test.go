@@ -2029,14 +2029,14 @@ func (s *sealSuite) TestWithBootChains(c *C) {
 	})
 	defer restore()
 
-	var chains *boot.ResealKeyForBootChainsParams
-	err = boot.WithBootChains(func(ch *boot.ResealKeyForBootChainsParams) error {
+	var chains boot.BootChains
+	err = boot.WithBootChains(func(ch boot.BootChains) error {
 		chains = ch
 		return nil
 	}, device.SealingMethodTPM)
 	c.Assert(err, IsNil)
 
-	c.Check(chains, DeepEquals, &boot.ResealKeyForBootChainsParams{
+	c.Check(chains, DeepEquals, boot.BootChains{
 		RunModeBootChains: []boot.BootChain{
 			{
 				BrandID:        "my-brand",

@@ -512,7 +512,7 @@ func updateFallbackProtectionProfile(
 func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
-			bootChains: params,
+			bootChains: params.BootChains,
 		},
 		resealOptions{
 			ExpectReseal: expectReseal,
@@ -527,7 +527,7 @@ func ResealKeysForSignaturesDBUpdate(
 ) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
-			bootChains:        params,
+			bootChains:        params.BootChains,
 			signatureDBUpdate: dbUpdate,
 		},
 		resealOptions{
@@ -542,7 +542,7 @@ func ResealKeysForSignaturesDBUpdate(
 }
 
 type resealInputs struct {
-	bootChains        *boot.ResealKeyForBootChainsParams
+	bootChains        boot.BootChains
 	signatureDBUpdate []byte
 }
 

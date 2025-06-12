@@ -212,7 +212,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	}
 
 	model := boottest.MakeMockUC20Model()
-	params := &boot.ResealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains: []boot.BootChain{
 			{
 				BrandID:        model.BrandID(),
@@ -434,7 +434,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	})()
 
 	const expectReseal = true
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
@@ -442,12 +442,12 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 	c.Assert(err, IsNil)
 	c.Assert(cnt, Equals, 1)
-	c.Check(pbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))))
+	c.Check(pbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))))
 
 	recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
 	c.Assert(err, IsNil)
 	c.Assert(cnt, Equals, 1)
-	c.Check(recoveryPbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(params.RecoveryBootChains)))
+	c.Check(recoveryPbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(bootChains.RecoveryBootChains)))
 }
 
 func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
@@ -1024,7 +1024,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 
 		}
 
-		params := &boot.ResealKeyForBootChainsParams{
+		bootChains := boot.BootChains{
 			RunModeBootChains:           runBootChains,
 			RecoveryBootChainsForRunKey: recoveryBootChainsForRun,
 			RecoveryBootChains:          recoveryBootChains,
@@ -1041,7 +1041,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		})()
 
 		const expectReseal = false
-		err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, params, expectReseal)
+		err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -1328,7 +1328,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		},
 	}
 
-	params := &boot.ResealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains:           runBootChains,
 		RecoveryBootChainsForRunKey: recoveryBootChainsForRun,
 		RecoveryBootChains:          recoveryBootChains,
@@ -1364,7 +1364,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	})()
 
 	const expectReseal = false
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1665,7 +1665,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		},
 	}
 
-	params := &boot.ResealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains:           runBootChains,
 		RecoveryBootChainsForRunKey: recoveryBootChainsForRun,
 		RecoveryBootChains:          recoveryBootChains,
@@ -1701,7 +1701,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	})()
 
 	const expectReseal = false
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1865,7 +1865,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		},
 	}
 
-	params := &boot.ResealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains:           runBootChains,
 		RecoveryBootChainsForRunKey: recoveryBootChainsForRun,
 		RecoveryBootChains:          recoveryBootChains,
@@ -1901,7 +1901,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	})()
 
 	const expectReseal = false
-	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, params, expectReseal)
+	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1914,7 +1914,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 
 func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	model := boottest.MakeMockUC20Model()
-	params := &boot.ResealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains: []boot.BootChain{
 			{
 				BrandID:        model.BrandID(),
@@ -2035,7 +2035,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	})()
 
 	const expectReseal = true
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, params, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
@@ -2139,7 +2139,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	c.Assert(needed, Equals, false)
 	c.Assert(next, Equals, 1)
 
-	params := &boot.ResealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains:           runBootChains,
 		RecoveryBootChainsForRunKey: recoveryBootChainsForRun,
 		RecoveryBootChains:          recoveryBootChains,
@@ -2199,7 +2199,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	})()
 
 	err = backend.ResealKeysForSignaturesDBUpdate(myState, device.SealingMethodTPM, dirs.GlobalRootDir,
-		params, []byte("dbx-payload"))
+		&boot.ResealKeyForBootChainsParams{BootChains: bootChains}, []byte("dbx-payload"))
 	c.Assert(err, IsNil)
 
 	// reseal was called

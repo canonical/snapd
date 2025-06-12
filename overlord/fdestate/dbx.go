@@ -289,11 +289,14 @@ func completeEFISecurebootDBUpdateChange(chg *state.Change) error {
 
 // postUpdateReseal performs a reseal after a DBX update.
 func postUpdateReseal(mgr *FDEManager, unlocker boot.Unlocker, method device.SealingMethod) error {
-	return boot.WithBootChains(func(bc *boot.ResealKeyForBootChainsParams) error {
+	return boot.WithBootChains(func(bc boot.BootChains) error {
 		logger.Debugf("attempting post DBX update reseal")
 
+		params := &boot.ResealKeyForBootChainsParams{
+			BootChains: bc,
+		}
 		const expectReseal = true
-		return mgr.resealKeyForBootChains(unlocker, method, dirs.GlobalRootDir, bc, expectReseal)
+		return mgr.resealKeyForBootChains(unlocker, method, dirs.GlobalRootDir, params, expectReseal)
 	}, method)
 }
 
@@ -325,19 +328,22 @@ func (m *FDEManager) doEFISecurebootDBUpdatePrepare(t *state.Task, tomb *tomb.To
 	err = func() error {
 		mgr := fdeMgr(st)
 
-		return boot.WithBootChains(func(bc *boot.ResealKeyForBootChainsParams) error {
+		return boot.WithBootChains(func(bc boot.BootChains) error {
 			// TODO: are we logging too much?
 			logger.Debugf("attempting reseal for DBX update")
 			logger.Debugf("boot chains: %v\n", bc)
 			logger.Debugf("DBX update payload: %x", updateData.Payload)
 
+			params := &boot.ResealKeyForBootChainsParams{
+				BootChains: bc,
+			}
 			// unlocks the state internally as needed
 			return backendResealKeysForSignaturesDBUpdate(
 				&unlockedStateManager{
 					FDEManager: mgr,
 					unlocker:   st.Unlocker(),
 				},
-				updateData.Method, dirs.GlobalRootDir, bc, updateData.Payload,
+				updateData.Method, dirs.GlobalRootDir, params, updateData.Payload,
 			)
 		}, updateData.Method)
 	}()
