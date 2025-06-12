@@ -88,7 +88,7 @@ execute: |
 
   # Ensure that the unit file is correct
   echo "Ensuring the unit file is correct"
-  systemctl show --property=LogNamespace snap.test-snapd-journal-quota.logger.service | MATCH "LogNamespace=snap-group-one"
+  MATCH "Environment=SNAPD_LOG_NAMESPACE=snap-group-one" < /etc/systemd/system/snap.test-snapd-journal-quota.logger.service
 
   echo "Removing the quota will stop the slice and the service will be restarted"
   LOGGER_PID=$(systemctl show --property=MainPID --value snap.test-snapd-journal-quota.logger.service)
