@@ -24,10 +24,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -124,9 +127,34 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 func toAPIError(err error) *apiError {
 	switch {
-	case errors.Is(err, &confdb.NotFoundError{}):
-		return NotFound(err.Error())
-
+	case errors.Is(err, &asserts.NotFoundError{}):
+		return &apiError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    client.ErrorKindAssertionNotFound,
+			Value:   err,
+		}
+	case errors.Is(err, &confdb.NoMatchError{}):
+		return &apiError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    client.ErrorKindConfdbNoMatchingRule,
+			Value:   err,
+		}
+	case errors.Is(err, &confdb.NoDataError{}):
+		return &apiError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    client.ErrorKindConfigNoSuchOption,
+			Value:   err,
+		}
+	case errors.Is(err, &confdbstate.NoViewError{}):
+		return &apiError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    client.ErrorKindConfdbViewNotFound,
+			Value:   err,
+		}
 	case errors.Is(err, &confdb.BadRequestError{}):
 		return BadRequest(err.Error())
 

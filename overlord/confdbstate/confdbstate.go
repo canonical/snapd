@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -56,22 +55,36 @@ func SetViaView(bag confdb.Databag, view *confdb.View, requests map[string]inter
 	return nil
 }
 
-// GetView returns the view identified by the account, confdb schema and view name.
-func GetView(st *state.State, account, dbSchemaName, viewName string) (*confdb.View, error) {
-	confdbSchemaAs, err := assertstateConfdbSchema(st, account, dbSchemaName)
-	if err != nil {
-		if errors.Is(err, &asserts.NotFoundError{}) {
-			// replace the not found error so the output matches the usual confdb ID layout
-			return nil, confdb.NewNotFoundError(i18n.G("cannot find confdb-schema %s/%s: assertion not found"), account, dbSchemaName)
-		}
+type NoViewError struct {
+	view       string
+	account    string
+	schemaName string
+}
 
-		return nil, fmt.Errorf(i18n.G("cannot find confdb-schema assertion %s/%s: %v"), account, dbSchemaName, err)
+func (e *NoViewError) Is(err error) bool {
+	_, ok := err.(*NoViewError)
+	return ok
+}
+
+func (e *NoViewError) Error() string {
+	return fmt.Sprintf(i18n.G("cannot find view %q in confdb schema %s/%s"), e.view, e.account, e.schemaName)
+}
+
+// GetView returns the view identified by the account, confdb schema and view name.
+func GetView(st *state.State, account, schemaName, viewName string) (*confdb.View, error) {
+	confdbSchemaAs, err := assertstateConfdbSchema(st, account, schemaName)
+	if err != nil {
+		return nil, err
 	}
 	dbSchema := confdbSchemaAs.Schema()
 
 	view := dbSchema.View(viewName)
 	if view == nil {
-		return nil, confdb.NewNotFoundError(i18n.G("cannot find view %q in confdb schema %s/%s"), viewName, account, dbSchemaName)
+		return nil, &NoViewError{
+			view:       viewName,
+			account:    account,
+			schemaName: schemaName,
+		}
 	}
 
 	return view, nil
@@ -93,8 +106,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string) (inter
 	for _, request := range requests {
 		value, err := view.Get(bag, request)
 		if err != nil {
-			if errors.Is(err, &confdb.NotFoundError{}) && len(requests) > 1 {
-				// keep looking; return partial result if only some requests are found
+			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
 			}
 
@@ -105,19 +117,7 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string) (inter
 	}
 
 	if len(results) == 0 {
-		var reqStr string
-		switch len(requests) {
-		case 0:
-			// leave empty, so the message reflects the request gets the whole view
-		case 1:
-			// we should error out of the check in the loop before we hit this, but
-			// let's be robust in case we do
-			reqStr = fmt.Sprintf(i18n.G(" %q through"), requests[0])
-		default:
-			reqStr = fmt.Sprintf(i18n.G(" %s through"), strutil.Quoted(requests))
-		}
-
-		return nil, confdb.NewNotFoundError(i18n.G("cannot get%s %s: no data"), reqStr, view.ID())
+		return nil, confdb.NewNoDataError(view, requests)
 	}
 
 	return results, nil

@@ -121,12 +121,19 @@ const (
 
 	// ErrorKindBadQuery: a bad query was provided.
 	ErrorKindBadQuery ErrorKind = "bad-query"
+
 	// ErrorKindConfigNoSuchOption: the given configuration option
 	// does not exist.
 	ErrorKindConfigNoSuchOption ErrorKind = "option-not-found"
 
 	// ErrorKindAssertionNotFound: assertion can not be found.
 	ErrorKindAssertionNotFound ErrorKind = "assertion-not-found"
+
+	// ErrorKindConfdbViewNotFound: the confdb view can not be found.
+	ErrorKindConfdbViewNotFound ErrorKind = "confdb-view-not-found"
+
+	// ErrorKindConfdbNoMatchingRule: no view rule matches the request.
+	ErrorKindConfdbNoMatchingRule ErrorKind = "confdb-no-matching-rule"
 
 	// ErrorKindUnsuccessful: snapctl command was unsuccessful.
 	ErrorKindUnsuccessful ErrorKind = "unsuccessful"
