@@ -22,7 +22,6 @@ package secboot
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -38,10 +37,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type CompoundPreinstallCheckError struct {
-	Errs []error
-}
-
 var (
 	UnpackPreinstallCheckError         = unpackPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
@@ -50,14 +45,6 @@ var (
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
 )
-
-func (e *CompoundPreinstallCheckError) Error() string {
-	return fmt.Sprintf("%v", e.Errs)
-}
-
-func (e *CompoundPreinstallCheckError) Unwrap() []error {
-	return e.Errs
-}
 
 func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext) (restore func()) {
 	old := sbPreinstallNewRunChecksContext
