@@ -1,16 +1,20 @@
 
+import argparse
+from io import StringIO
+import json
 import os
+import tempfile
+from typing import Any
+import unittest
+from unittest.mock import Mock, patch
 import sys
+
 # To ensure the unit test can be run from any point in the filesystem,
 # add parent folder to path to permit relative imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import featcomposer
 from features import *
-import json
-import tempfile
-from typing import Any
-import unittest
 
 
 class TestCompose(unittest.TestCase):
@@ -65,6 +69,61 @@ class TestCompose(unittest.TestCase):
                                       tests=[TestCompose.get_json('path/to', 'task1', 'variant1', False, 'task1variant1'),
                                              TestCompose.get_json('path/to', 'task2', '', True, 'task2')])
             self.assertDictEqual(expected, composed)
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_compose_features(self, parse_args_mock: Mock):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            res = os.path.join(tmpdir, 'res')
+            os.mkdir(res)
+            sys1test1 = TestCompose.get_features('sys1test1')
+            sys1test2 = TestCompose.get_features('sys1test2')
+            sys2test1 = TestCompose.get_features('sys2test1')
+            sys2test3 = TestCompose.get_features('sys2test3')
+
+            with open(os.path.join(res, 'backend:system1:tests--test1'), mode='w', encoding='utf-8') as f:
+                json.dump(sys1test1, f)
+            with open(os.path.join(res, 'backend:system1:tests--test2:variant1'), mode='w', encoding='utf-8') as f:
+                json.dump(sys1test2, f)
+            with open(os.path.join(res, 'backend:system2:tests--test1'), mode='w', encoding='utf-8') as f:
+                json.dump(sys2test1, f)
+            with open(os.path.join(res, 'backend:system2:tests--test3'), mode='w', encoding='utf-8') as f:
+                json.dump(sys2test3, f)
+            out = os.path.join(tmpdir, 'out')
+            os.mkdir(out)
+            failed=StringIO('backend:system1:tests/test1 backend:system1:tests/test2:variant1 backend:system2:tests/test3')
+            parse_args_mock.return_value = argparse.Namespace(
+                    dir=res,
+                    output=out,
+                    failed_tests=failed,
+                    run_attempt=1,
+                    replace_old_runs=False,
+                    env_variables='',
+                    scenarios=''
+                )
+            featcomposer.main()
+
+            def check_test_equal(expected, actual, succeeded):
+                self.assertEqual(succeeded, actual['success'])
+                for k in expected.keys():
+                    self.assertTrue(k in actual)
+                    self.assertEqual(actual[k], expected[k])
+
+            with open(os.path.join(out, 'backend:system1_1.json'), mode='r', encoding='utf-8') as f:
+                sys1 = json.load(f)
+                for test in sys1['tests']:
+                    self.assertTrue('test1' in test['task_name'] or 'test2' in test['task_name'])
+                    if test['task_name'] == 'test1':
+                        check_test_equal(sys1test1, test, False)
+                    if test['task_name'] == 'test2':
+                        check_test_equal(sys1test2, test, False)
+            with open(os.path.join(out, 'backend:system2_1.json'), mode='r', encoding='utf-8') as f:
+                sys1 = json.load(f)
+                for test in sys1['tests']:
+                    self.assertTrue('test1' in test['task_name'] or 'test3' in test['task_name'])
+                    if test['task_name'] == 'test1':
+                        check_test_equal(sys2test1, test, True)
+                    if test['task_name'] == 'test3':
+                        check_test_equal(sys2test3, test, False)
 
 
 class TestReplace(unittest.TestCase):
