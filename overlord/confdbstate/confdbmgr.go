@@ -159,7 +159,7 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 
 	result, err := GetViaView(tx, view, requests)
 	if err != nil {
-		if errors.Is(err, &confdb.NotFoundError{}) {
+		if errors.Is(err, &confdb.NoDataError{}) || errors.Is(err, &confdb.NoMatchError{}) {
 			apiData["confdb-error"] = err.Error()
 			chg.Set("api-data", apiData)
 			return nil

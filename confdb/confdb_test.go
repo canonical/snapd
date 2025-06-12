@@ -308,7 +308,7 @@ func (*viewSuite) TestSetWithNilValueFail(c *C) {
 	c.Check(ssid, DeepEquals, "value")
 }
 
-func (s *viewSuite) TestConfdbNotFound(c *C) {
+func (s *viewSuite) TestConfdbNotFoundErrors(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"bar": map[string]any{
@@ -324,23 +324,23 @@ func (s *viewSuite) TestConfdbNotFound(c *C) {
 	view := schema.View("bar")
 
 	_, err = view.Get(databag, "missing")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, `cannot get "missing" through acc/foo/bar: no matching rule`)
 
 	err = view.Set(databag, "missing", "thing")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, `cannot set "missing" through acc/foo/bar: no matching rule`)
 
 	err = view.Unset(databag, "missing")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, `cannot unset "missing" through acc/foo/bar: no matching rule`)
 
 	_, err = view.Get(databag, "top-level")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, `cannot get "top-level" through acc/foo/bar: no data`)
 
 	_, err = view.Get(databag, "")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, `cannot get acc/foo/bar: no data`)
 
 	err = view.Set(databag, "nested", "thing")
@@ -350,7 +350,7 @@ func (s *viewSuite) TestConfdbNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "other-nested")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, `cannot get "other-nested" through acc/foo/bar: no data`)
 }
 
@@ -629,7 +629,7 @@ func (s *viewSuite) TestViewUnsetTopLevelEntry(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "foo")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	value, err := view.Get(databag, "bar")
 	c.Assert(err, IsNil)
@@ -659,7 +659,7 @@ func (s *viewSuite) TestViewUnsetLeafWithSiblings(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "bar")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	// doesn't affect the other leaf entry under "foo"
 	value, err := view.Get(databag, "baz")
@@ -687,10 +687,10 @@ func (s *viewSuite) TestViewUnsetWithNestedEntry(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "foo")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	_, err = view.Get(databag, "bar")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
@@ -904,7 +904,7 @@ func (s *viewSuite) TestViewGetNoMatchRequestLongerThanPattern(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "snapd.status")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 }
 
 func (s *viewSuite) TestViewManyPrefixMatches(c *C) {
@@ -1899,7 +1899,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "foo")
-	c.Assert(err, testutil.ErrorIs, &confdb.NotFoundError{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, `cannot get "foo" through acc/confdb/foo: no data`)
 }
 

@@ -190,7 +190,7 @@ func (s *confdbTestSuite) TestGetNotFound(c *C) {
 	bag := confdb.NewJSONDatabag()
 
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "other-view")
-	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &confdbstate.NoViewError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb schema %s/network`, s.devAccID))
 	c.Check(view, IsNil)
 
@@ -198,17 +198,17 @@ func (s *confdbTestSuite) TestGetNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	res, err := confdbstate.GetViaView(bag, view, []string{"ssid"})
-	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = confdbstate.GetViaView(bag, view, []string{"ssid", "ssids"})
-	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "ssid", "ssids" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Check(res, IsNil)
 
 	res, err = confdbstate.GetViaView(bag, view, []string{"other-field"})
-	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "other-field" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 	c.Check(res, IsNil)
 }
@@ -238,11 +238,11 @@ func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	err = confdbstate.SetViaView(bag, view, map[string]any{"foo": "bar"})
-	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &confdb.NoMatchError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
 	view, err = confdbstate.GetView(s.state, s.devAccID, "network", "other-view")
-	c.Assert(err, FitsTypeOf, &confdb.NotFoundError{})
+	c.Assert(err, FitsTypeOf, &confdbstate.NoViewError{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find view "other-view" in confdb schema %s/network`, s.devAccID))
 	c.Check(view, IsNil)
 }
@@ -351,12 +351,18 @@ func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
 
 	restore := confdbstate.MockFetchConfdbSchemaAssertion(func(*state.State, int, string, string) error {
 		// to avoid mocking the store for this one test
-		return &asserts.NotFoundError{}
+		return &asserts.NotFoundError{
+			Headers: map[string]string{
+				"account-id": s.devAccID,
+				"name":       "network",
+			},
+			Type: asserts.ConfdbSchemaType,
+		}
 	})
 	defer restore()
 
 	_, err = confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find confdb-schema %s/network: assertion not found", s.devAccID))
+	c.Assert(err.Error(), Equals, fmt.Sprintf("confdb-schema (network; account-id:%s) not found", s.devAccID))
 }
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *snap.Info {
