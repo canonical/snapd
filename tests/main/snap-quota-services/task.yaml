@@ -72,4 +72,4 @@ execute: |
   systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep -F "Slice=$SUB_SLICENAME"
 
   echo "Verify that stress-sc service mention the journal namespace"
-  systemctl show --property=LogNamespace snap.test-snapd-stressd.stress-sc.service | MATCH "LogNamespace=snap-test-top"
+  MATCH "Environment=SNAPD_LOG_NAMESPACE=snap-test-top" < /etc/systemd/system/snap.test-snapd-stressd.stress-sc.service

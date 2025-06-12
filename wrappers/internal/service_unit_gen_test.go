@@ -843,7 +843,7 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(string(generatedWrapper), testutil.Contains, "Slice=snap.foo-foosub.slice", Commentf("test failed: %s", t.description))
 		if t.expectedLog != "" {
-			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("SNAPD_LOG_NAMESPACE=%s", t.expectedLog), Commentf("test failed: %s", t.description))
+			c.Check(string(generatedWrapper), testutil.Contains, "Requires=systemd-journald@snap-foo.socket", Commentf("test failed: %s", t.description))
 			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("SNAPD_LOG_NAMESPACE=%s", t.expectedLog), Commentf("test failed: %s", t.description))
 		} else {
 			// no negative check? :(
