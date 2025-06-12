@@ -242,7 +242,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		recoveryKernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 		runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
-		params := &boot.SealKeyForBootChainsParams{
+		bootChains := boot.BootChains{
 			RunModeBootChains: []boot.BootChain{
 				{
 					BrandID:        model.BrandID(),
@@ -322,6 +322,9 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 				bootloader.RoleRecovery: "grub",
 				bootloader.RoleRunMode:  "grub",
 			},
+		}
+		params := &boot.SealKeyForBootChainsParams{
+			BootChains:             bootChains,
 			FactoryReset:           tc.factoryReset,
 			InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 			UseTokens:              !tc.disableTokens,
@@ -485,7 +488,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	})
 	defer restore()
 
-	params := &boot.SealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains: []boot.BootChain{
 			{
 				BrandID:        model.BrandID(),
@@ -505,7 +508,10 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 				ModelSignKeyID: model.SignKeyID(),
 			},
 		},
-		RoleToBlName:           nil,
+		RoleToBlName: nil,
+	}
+	params := &boot.SealKeyForBootChainsParams{
+		BootChains:             bootChains,
 		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 		UseTokens:              useTokens,
@@ -569,7 +575,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	key := secboot.CreateMockBootstrappedContainer()
 	saveKey := secboot.CreateMockBootstrappedContainer()
 
-	params := &boot.SealKeyForBootChainsParams{
+	bootChains := boot.BootChains{
 		RunModeBootChains: []boot.BootChain{
 			{
 				BrandID:        model.BrandID(),
@@ -589,7 +595,10 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 				ModelSignKeyID: model.SignKeyID(),
 			},
 		},
-		RoleToBlName:           nil,
+		RoleToBlName: nil,
+	}
+	params := &boot.SealKeyForBootChainsParams{
+		BootChains:             bootChains,
 		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 	}
