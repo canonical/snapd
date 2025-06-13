@@ -45,13 +45,16 @@ import (
 )
 
 var (
-	backendResealKeyForBootChains      = backend.ResealKeyForBootChains
-	backendNewInMemoryRecoveryKeyCache = backend.NewInMemoryRecoveryKeyCache
-	disksDMCryptUUIDFromMountPoint     = disks.DMCryptUUIDFromMountPoint
-	bootHostUbuntuDataForMode          = boot.HostUbuntuDataForMode
-	keysNewRecoveryKey                 = keys.NewRecoveryKey
-	timeNow                            = time.Now
-	secbootCheckRecoveryKey            = secboot.CheckRecoveryKey
+	backendResealKeyForBootChains        = backend.ResealKeyForBootChains
+	backendNewInMemoryRecoveryKeyCache   = backend.NewInMemoryRecoveryKeyCache
+	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
+	bootHostUbuntuDataForMode            = boot.HostUbuntuDataForMode
+	keysNewRecoveryKey                   = keys.NewRecoveryKey
+	timeNow                              = time.Now
+	secbootCheckRecoveryKey              = secboot.CheckRecoveryKey
+	secbootReadContainerKeyData          = secboot.ReadContainerKeyData
+	secbootListContainerRecoveryKeyNames = secboot.ListContainerRecoveryKeyNames
+	secbootListContainerUnlockKeyNames   = secboot.ListContainerUnlockKeyNames
 )
 
 // FDEManager is responsible for managing full disk encryption keys.
@@ -283,6 +286,125 @@ func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, e
 	}
 
 	return foundDisks, nil
+}
+
+type KeyslotType string
+
+const (
+	KeyslotTypeRecovery KeyslotType = "recovery"
+	KeyslotTypePlatform KeyslotType = "platform"
+)
+
+// Keyslot represents a key associated with an encrypted container.
+type Keyslot struct {
+	// The unique key slot name on the corresponding encrypted container.
+	Name string
+	// This indicates whether this is a recovery or platform protected key.
+	Type KeyslotType
+	// This indicates the container role of the corresponding encrypted container.
+	ContainerRole string
+
+	devPath string
+	keyData secboot.KeyData
+}
+
+// KeyData returns secboot.KeyData corresponding to the keyslot.
+// This can only be called for KeyslotTypePlatform.
+//
+// Note: KeyData is lazy loaded once then reused in subsequent calls.
+func (k *Keyslot) KeyData() (secboot.KeyData, error) {
+	if k.keyData != nil {
+		return k.keyData, nil
+	}
+
+	if k.Type != KeyslotTypePlatform {
+		return nil, fmt.Errorf("internal error: Keyslot.KeyData() is only available for KeyslotTypePlatform, found %q", k.Type)
+	}
+
+	keyData, err := secbootReadContainerKeyData(k.devPath, k.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key data for %q from %q: %v", k.Name, k.devPath, err)
+	}
+	k.keyData = keyData
+	return keyData, nil
+}
+
+// GetKeyslots returns the key slots for the specified key slot references.
+// If keyslotRefs is empty, all key slots on all encrypted containers will
+// be returned.
+func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, missingRefs []KeyslotRef, err error) {
+	allKeyslots := len(keyslotRefs) == 0
+
+	targetKeyslotNamesByContainerRole := make(map[string][]string)
+	for _, keyslotRef := range keyslotRefs {
+		targetKeyslotNamesByContainerRole[keyslotRef.ContainerRole] = append(targetKeyslotNamesByContainerRole[keyslotRef.ContainerRole], keyslotRef.Name)
+	}
+
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keyslots = make([]Keyslot, 0, len(keyslotRefs))
+	missingRefs = make([]KeyslotRef, 0)
+	for _, container := range containers {
+		targetKeyslotNames := targetKeyslotNamesByContainerRole[container.ContainerRole()]
+		if !allKeyslots && len(targetKeyslotNames) == 0 {
+			continue
+		}
+
+		var matchedContainerKeyslots []Keyslot
+
+		// collect recovery key slots
+		recoveryKeyNames, err := secbootListContainerRecoveryKeyNames(container.DevPath())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to obtain recovery keys for %q: %v", container.DevPath(), err)
+		}
+		for _, recoveryKeyName := range recoveryKeyNames {
+			if allKeyslots || strutil.ListContains(targetKeyslotNames, recoveryKeyName) {
+				matchedContainerKeyslots = append(matchedContainerKeyslots, Keyslot{
+					Name:          recoveryKeyName,
+					Type:          KeyslotTypeRecovery,
+					ContainerRole: container.ContainerRole(),
+					devPath:       container.DevPath(),
+				})
+			}
+		}
+
+		// collect platform key slots
+		platformKeyNames, err := secbootListContainerUnlockKeyNames(container.DevPath())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to obtain platform keys for %q: %v", container.DevPath(), err)
+		}
+		for _, platformKeyName := range platformKeyNames {
+			if allKeyslots || strutil.ListContains(targetKeyslotNames, platformKeyName) {
+				matchedContainerKeyslots = append(matchedContainerKeyslots, Keyslot{
+					Name:          platformKeyName,
+					Type:          KeyslotTypePlatform,
+					ContainerRole: container.ContainerRole(),
+					devPath:       container.DevPath(),
+				})
+			}
+		}
+
+		// detect missing key slot references
+		for _, targetKeyslotName := range targetKeyslotNames {
+			found := false
+			for _, keyslot := range matchedContainerKeyslots {
+				if keyslot.Name == targetKeyslotName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingRefs = append(missingRefs, KeyslotRef{ContainerRole: container.ContainerRole(), Name: targetKeyslotName})
+			}
+		}
+
+		keyslots = append(keyslots, matchedContainerKeyslots...)
+	}
+
+	return keyslots, missingRefs, nil
 }
 
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
