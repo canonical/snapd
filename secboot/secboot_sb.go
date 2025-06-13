@@ -34,6 +34,7 @@ import (
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -551,4 +552,63 @@ func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 func CheckRecoveryKey(devicePath string, rkey keys.RecoveryKey) error {
 	// TODO:FDEM: use secboot helper when available
 	return nil
+}
+
+// ListContainerRecoveryKeyNames lists the names of key slots on the specified
+// device configured as recovery slots.
+//
+// Note: This only supports LUKS2 containers.
+func ListContainerRecoveryKeyNames(devicePath string) ([]string, error) {
+	return sbListLUKS2ContainerRecoveryKeyNames(devicePath)
+}
+
+// ListContainerUnlockKeyNames lists the names of key slots on the specified
+// device configured as normal unlock slots (the keys associated with these
+// should be protected by the platform's secure device).
+//
+// Note: This only supports LUKS2 containers.
+func ListContainerUnlockKeyNames(devicePath string) ([]string, error) {
+	return sbListLUKS2ContainerUnlockKeyNames(devicePath)
+}
+
+type keyData struct {
+	kd *sb.KeyData
+}
+
+// AuthMode indicates the authentication mechanisms enabled for this key data.
+func (k *keyData) AuthMode() device.AuthMode {
+	switch k.kd.AuthMode() {
+	case sb.AuthModeNone:
+		return device.AuthModeNone
+	case sb.AuthModePassphrase:
+		return device.AuthModePassphrase
+	// TODO:FDEM: add AuthModePIN when it lands in secboot
+	default:
+		return ""
+	}
+}
+
+// PlatformName returns the name of the platform that handles this key data.
+func (k *keyData) PlatformName() string {
+	return k.kd.PlatformName()
+}
+
+// Role indicates the role of this key.
+func (k *keyData) Roles() []string {
+	if k.kd.Role() == "" {
+		return nil
+	}
+	return []string{k.kd.Role()}
+}
+
+// ReadContainerKeyData reads key slot key data for the specified device and slot name.
+//
+// Note: This only supports key datas stored in LUKS2 tokens.
+func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
+	kd, err := readKeyToken(devicePath, slotName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &keyData{kd: kd}, nil
 }
