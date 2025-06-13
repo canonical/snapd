@@ -19,7 +19,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 name="${1}"
-modeenv="${2:-/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv}"
+modeenv="${2:-/run/mnt/data/system-data/var/lib/snapd/modeenv}"
 
 while read -r line; do
   case "${line}" in
