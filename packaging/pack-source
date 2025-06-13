@@ -52,12 +52,19 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 if [[ "$single" == 0 ]]; then
-    tar -cJf "$tmpdir"/snapd_"$version".no-vendor.tar.xz --exclude='./vendor/*' --exclude='./c-vendor/*' --exclude='.git/*' --transform "s#^#snapd-$version/#" .
-    tar -cJf "$tmpdir"/snapd_"$version".only-vendor.tar.xz --exclude='.git/*' --transform "s#^#snapd-$version/#" vendor
+    tar -cJf "$tmpdir"/snapd_"$version".no-vendor.tar.xz \
+        --exclude='./vendor/*' --exclude='./c-vendor/*' \
+        --exclude='.git' --exclude='.git/*' \
+        --transform "s#^#snapd-$version/#" .
+    tar -cJf "$tmpdir"/snapd_"$version".only-vendor.tar.xz \
+        --exclude='.git' --exclude='.git/*' \
+        --transform "s#^#snapd-$version/#" vendor
 
     mv "$tmpdir"/snapd_"$version".no-vendor.tar.xz "$outdir"/
     mv "$tmpdir"/snapd_"$version".only-vendor.tar.xz "$outdir"/
 else
-    tar -cJf "$tmpdir"/snapd_"$version".vendor.tar.xz --exclude='.git/*' --transform "s#^#snapd-$version/#" .
+    tar -cJf "$tmpdir"/snapd_"$version".vendor.tar.xz \
+        --exclude='.git' --exclude='.git/*' \
+        --transform "s#^#snapd-$version/#" .
     mv "$tmpdir"/snapd_"$version".vendor.tar.xz "$outdir"/
 fi
