@@ -1447,3 +1447,25 @@ func (s *grubTestSuite) TestConstructShimEfiLoadOptionOldBootchain(c *C) {
 	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/boot/bootx64.efi", s.rootdir))
 	c.Assert(optionalData, HasLen, 0)
 }
+
+func (s *grubTestSuite) TestRevocationTriggeringAssets(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	assets, err := tab.RevocationTriggeringAssets()
+	c.Assert(err, IsNil)
+	c.Check(assets, DeepEquals, []string{"ubuntu:shimx64.efi", "bootx64.efi"})
+}
+
+func (s *grubTestSuite) TestRevocationTriggeringAssetsRun(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	assets, err := tab.RevocationTriggeringAssets()
+	c.Assert(err, IsNil)
+	c.Check(assets, IsNil)
+}
