@@ -85,3 +85,11 @@ func MockTransactionTimeout(dur time.Duration) func() {
 		transactionTimeout = old
 	}
 }
+
+func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
+	old := assertstateFetchConfdbSchemaAssertion
+	assertstateFetchConfdbSchemaAssertion = f
+	return func() {
+		assertstateFetchConfdbSchemaAssertion = old
+	}
+}
