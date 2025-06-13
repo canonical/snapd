@@ -537,25 +537,29 @@ func (o *TrustedAssetsUpdateObserver) modeenvUnlock() {
 	o.modeenvLocked = false
 }
 
-func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets map[string]string, managedAssets []string, err error) {
+func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets map[string]string, managedAssets []string, revokingAssets []string, err error) {
 	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		trustedAssets, err = tbl.TrustedAssets()
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot list %q bootloader trusted assets: %v", bl.Name(), err)
+			return nil, nil, nil, fmt.Errorf("cannot list %q bootloader trusted assets: %v", bl.Name(), err)
 		}
 		managedAssets = tbl.ManagedAssets()
+		revokingAssets, err = tbl.RevocationTriggeringAssets()
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("cannot list %q bootloader revoking assets: %v", bl.Name(), err)
+		}
 	}
-	return trustedAssets, managedAssets, nil
+	return trustedAssets, managedAssets, revokingAssets, nil
 }
 
-func findMaybeTrustedBootloaderAndAssets(rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets map[string]string, err error) {
+func findMaybeTrustedBootloaderAndAssets(rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets map[string]string, revokingAssets []string, err error) {
 	foundBl, err = bootloader.Find(rootDir, opts)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
 	}
-	trustedAssets, _, err = trustedAndManagedAssetsOfBootloader(foundBl)
-	return foundBl, trustedAssets, err
+	trustedAssets, _, revokingAssets, err = trustedAndManagedAssetsOfBootloader(foundBl)
+	return foundBl, trustedAssets, revokingAssets, err
 }
 
 func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets map[string]string, managedAssets []string, err error) {
@@ -563,7 +567,7 @@ func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *boot
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
 	}
-	trustedAssets, managedAssets, err = trustedAndManagedAssetsOfBootloader(foundBl)
+	trustedAssets, managedAssets, _, err = trustedAndManagedAssetsOfBootloader(foundBl)
 	return foundBl, trustedAssets, managedAssets, err
 }
 
@@ -785,7 +789,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		return nil
 	}
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal, nil); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal, nil, false); err != nil {
 		return err
 	}
 	return nil
@@ -851,13 +855,13 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal, nil); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal, nil, false); err != nil {
 		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil
 }
 
-func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, err error) {
+func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *bootloader.Options) (drop []*trackedAsset, revokeOldKeys bool, err error) {
 	trustedAssetsMap := &m.CurrentTrustedBootAssets
 	otherTrustedAssetsMap := m.CurrentTrustedRecoveryBootAssets
 	whichBootloader := "run mode"
@@ -870,17 +874,17 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 	if len(*trustedAssetsMap) == 0 {
 		// bootloader may have trusted assets, but we are not tracking
 		// any for the boot process
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// let's find the bootloader first
-	bl, trustedAssets, err := findMaybeTrustedBootloaderAndAssets(root, opts)
+	bl, trustedAssets, revokingAssets, err := findMaybeTrustedBootloaderAndAssets(root, opts)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if len(trustedAssets) == 0 {
 		// not a trusted assets bootloader, nothing to do
-		return nil, nil
+		return nil, false, nil
 	}
 
 	cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
@@ -892,12 +896,12 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 			// TrustedAssetsBootloader.TrustedAssets
 			// should not map different paths to the same
 			// name. If it does it is a bug.
-			return nil, fmt.Errorf("internal error: bootloader %s has several asset of the same name %s", whichBootloader, assetName)
+			return nil, false, fmt.Errorf("internal error: bootloader %s has several asset of the same name %s", whichBootloader, assetName)
 		}
 		assetHash, err := cache.fileHash(filepath.Join(root, trustedAsset))
 		if err != nil {
 			if !os.IsNotExist(err) {
-				return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
+				return nil, false, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
 			}
 			_, inModeenv := (*trustedAssetsMap)[assetName]
 			if inModeenv {
@@ -932,6 +936,18 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 					name:   assetName,
 					hash:   hash,
 				})
+				for _, revokingAsset := range revokingAssets {
+					if revokingAsset == assetName {
+						// When we drop an old version of shim that means
+						// we have updated it. It is likely that the sbatlevel
+						// has been updated then. So we should revoke old TPM
+						// keys. That will help will attacks resetting the secure boot and
+						// reinstalling the older shim and reusing old sealed keys.
+						// In the future, we could verify that the shim we dropped
+						// had a sbatlevel that is older that the current one.
+						revokeOldKeys = true
+					}
+				}
 			}
 		}
 
@@ -940,28 +956,28 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 			// is not listed among the ones we expect
 
 			// TODO:UC20: try to restore the asset from cache
-			return nil, fmt.Errorf("system booted with unexpected %v bootloader asset %q hash %v", whichBootloader, trustedAsset, assetHash)
+			return nil, false, fmt.Errorf("system booted with unexpected %v bootloader asset %q hash %v", whichBootloader, trustedAsset, assetHash)
 		}
 
 		// update the list of what we booted with
 		(*trustedAssetsMap)[assetName] = bootedWith
 
 	}
-	return drop, nil
+	return drop, revokeOldKeys, nil
 }
 
 // observeSuccessfulBootAssets observes the state of the trusted boot assets
 // after a successful boot. Returns a modified modeenv reflecting a new state,
 // and a list of assets that can be dropped from the cache.
-func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, revokeOldKeys bool, err error) {
 	// TODO:UC20 only care about run mode for now
 	if m.Mode != "run" {
-		return m, nil, nil
+		return m, nil, false, nil
 	}
 
 	newM, err = m.Copy()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	for _, bl := range []struct {
@@ -978,11 +994,12 @@ func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsse
 			opts: &bootloader.Options{Role: bootloader.RoleRecovery, NoSlashBoot: true},
 		},
 	} {
-		dropForBootloader, err := observeSuccessfulBootAssetsForBootloader(newM, bl.root, bl.opts)
+		dropForBootloader, revoke, err := observeSuccessfulBootAssetsForBootloader(newM, bl.root, bl.opts)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
+		revokeOldKeys = revokeOldKeys || revoke
 		drop = append(drop, dropForBootloader...)
 	}
-	return newM, drop, nil
+	return newM, drop, revokeOldKeys, nil
 }

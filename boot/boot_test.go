@@ -2190,7 +2190,7 @@ func (s *bootenv20Suite) bootloaderWithTrustedAssets(c *C, trustedAssets map[str
 	return tab
 }
 
-func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
+func (s *bootenv20Suite) testMarkBootSuccessful20BootAssetsUpdateHappy(c *C, revoke bool) {
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
@@ -2198,6 +2198,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		"asset": "asset",
 		"shim":  "shim",
 	})
+
+	if revoke {
+		tab.RevocationTriggeringAssetsReturn = []string{"shim"}
+	}
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2283,6 +2287,8 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
 		resealCalls++
 
+		c.Check(params.RevokeOldKeys, Equals, revoke)
+
 		c.Assert(params.RunModeBootChains, HasLen, 1)
 
 		runBootChain := params.RunModeBootChains[0]
@@ -2354,6 +2360,16 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-"+shimHash),
 	})
 	c.Check(resealCalls, Equals, 1)
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
+	const revoke = false
+	s.testMarkBootSuccessful20BootAssetsUpdateHappy(c, revoke)
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappyRevoke(c *C) {
+	const revoke = true
+	s.testMarkBootSuccessful20BootAssetsUpdateHappy(c, revoke)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C) {
@@ -4337,7 +4353,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
 		s.normalDefaultState,
 	)
 	defer r()
-	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool, _ boot.Unlocker) error {
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool, _ boot.Unlocker, revokeOldKeys bool) error {
 		c.Assert(expectReseal, Equals, false)
 		return nil
 	})
@@ -4372,7 +4388,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
 		s.normalDefaultState,
 	)
 	defer r()
-	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool, _ boot.Unlocker) error {
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool, _ boot.Unlocker, revokeOldKeys bool) error {
 		c.Assert(expectReseal, Equals, false)
 		return nil
 	})

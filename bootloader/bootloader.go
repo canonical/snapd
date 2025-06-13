@@ -239,6 +239,13 @@ type TrustedAssetsBootloader interface {
 	// It should be called on a RoleRecovery bootloader passing
 	// the RoleRunMode bootloader.
 	BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, error)
+
+	// RevocationTriggeringAssets provides the identifiers
+	// for assets that want revocation of keys on update.
+	// The identifiers correspond to identifiers used in the
+	// modeenv (CurrentTrustedBootAssets and
+	// CurrentTrustedRecoveryBootAssets).
+	RevocationTriggeringAssets() ([]string, error)
 }
 
 // NotScriptableBootloader cannot change the bootloader environment

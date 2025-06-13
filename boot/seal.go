@@ -63,7 +63,7 @@ var (
 )
 
 // MockResealKeyToModeenv is only useful in testing.
-func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) (restore func()) {
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker, revokeOldKeys bool) error) (restore func()) {
 	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
 	old := resealKeyToModeenv
 	resealKeyToModeenv = f
@@ -268,7 +268,7 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker, revokeOldKeys bool) error {
 	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
@@ -282,7 +282,7 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 		return err
 	}
 
-	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, expectReseal)
+	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, expectReseal, revokeOldKeys)
 }
 
 type ResealKeyForBootChainsParams struct {
@@ -409,13 +409,13 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (BootChains, erro
 	return bc, nil
 }
 
-func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, expectReseal bool, revokeOldKeys bool) error {
 	bootChains, err := bootChains(modeenv, method)
 	if err != nil {
 		return err
 	}
 
-	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
+	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains, RevokeOldKeys: revokeOldKeys}, expectReseal)
 }
 
 func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, expectReseal bool) error {
