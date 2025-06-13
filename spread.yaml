@@ -723,6 +723,9 @@ backends:
             - fedora-41-64:
                   username: root
                   password: root
+            - fedora-42-64:
+                  username: root
+                  password: root
             - centos-9-64:
                   username: root
                   password: root
