@@ -163,10 +163,12 @@ func (ps *preseedSuite) TestDecodeOKComponents(c *C) {
 			},
 		},
 		{
-			Name: "foo-linux",
+			Name:     "foo-linux",
+			Revision: -1,
 			Components: []asserts.PreseedComponent{
 				{
-					Name: "comp2",
+					Name:     "comp2",
+					Revision: -1,
 				},
 			},
 		},

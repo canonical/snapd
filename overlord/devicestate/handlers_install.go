@@ -903,13 +903,6 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essenti
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	// Unset revision here actually means that the snap is local.
-	// Assign then a local revision as seeding/installing the snap would do.
-	for _, snInfo := range systemAndSnaps.InfosByType {
-		if snInfo.Revision.Unset() {
-			snInfo.Revision = snap.R(-1)
-		}
-	}
 
 	// Mount gadget, kernel and kernel-modules components
 	var unmountFuncs []func() error

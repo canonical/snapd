@@ -131,7 +131,8 @@ func checkPreseedSnap(snap map[string]interface{}) (*PreseedSnap, error) {
 		}
 	}
 
-	var snapRevision int
+	// Revision is x1 if unasserted, as that is what we will get on first installation
+	snapRevision := -1
 	if _, ok := snap["revision"]; ok {
 		var err error
 		snapRevision, err = checkSnapRevisionWhat(snap, "revision", what)
@@ -206,7 +207,8 @@ func checkPreseedComponent(comp map[string]interface{}, snapRevision int) (Prese
 	}
 	what := fmt.Sprintf("of component %q", name)
 
-	var revision int
+	// Revision is x1 if unasserted, as that is what we will get on first installation
+	revision := -1
 	if _, ok := comp["revision"]; ok {
 		revision, err = checkSnapRevisionWhat(comp, "revision", what)
 		if err != nil {
@@ -214,11 +216,11 @@ func checkPreseedComponent(comp map[string]interface{}, snapRevision int) (Prese
 		}
 	}
 
-	if revision == 0 && snapRevision > 0 {
+	if revision <= 0 && snapRevision > 0 {
 		return PreseedComponent{}, fmt.Errorf("component %q must have a revision since its snap has a revision", name)
 	}
 
-	if revision > 0 && snapRevision == 0 {
+	if revision > 0 && snapRevision <= 0 {
 		return PreseedComponent{}, fmt.Errorf("component %q cannot have a revision since its snap has no revision", name)
 	}
 
