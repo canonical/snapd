@@ -22,10 +22,10 @@ import (
 	"encoding/json"
 )
 
-// PreinstallErrorInfo represents the information contained within
-// a preinstall check error, including its kind, message, and optionally
-// arguments and recovery actions.
-type PreinstallErrorInfo struct {
+// PreinstallErrorDetails describes an individual error detected during a
+// preinstall check. It includes the error kind, a human-readable message,
+// and optional structured arguments and suggested recovery actions.
+type PreinstallErrorDetails struct {
 	Kind    string                     `json:"kind"`
 	Message string                     `json:"message"`
 	Args    map[string]json.RawMessage `json:"args,omitempty"`

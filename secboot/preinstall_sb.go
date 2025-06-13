@@ -40,15 +40,15 @@ var (
 // PreinstallCheck runs preinstall checks using default check configuration and
 // TCG-compliant PCR profile generation options to evaluate whether the host
 // environment is an EFI system suitable for TPM-based Full Disk Encryption. On
-// success, it returns a list with information on all errors identified by
-// secboot or nil if no errors were found. Any warnings contained in the secboot
-// result are logged. On failure, it returns the error encountered while
-// interpreting the secboot error.
+// success, it returns a list with details on all errors identified by secboot
+// or nil if no errors were found. Any warnings contained in the secboot result
+// are logged. On failure, it returns the error encountered while interpreting
+// the secboot error.
 //
 // To support testing, when test mode is detected and the system is running in a
 // Virtual Machine, the check configuration is modified to permit this without
 // treating it as an error.
-func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
+func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorDetails, error) {
 	// do not customize check configuration
 	checkFlags := sb_preinstall.CheckFlagsDefault
 	if snapdenv.Testing() && systemd.IsVirtualMachine() {
@@ -82,10 +82,10 @@ func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
 }
 
 // unpackPreinstallCheckError converts a single or compound preinstall check
-// error into a slice of PreinstallErrorInfo. This function returns an error
+// error into a slice of PreinstallErrorDetails. This function returns an error
 // if the provided error or any compounded error is not of type
 // *preinstall.ErrorKindAndActions.
-func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
+func unpackPreinstallCheckError(err error) ([]PreinstallErrorDetails, error) {
 	// expect either a single or compound error
 	compoundErr, ok := err.(sb_preinstall.CompoundError)
 	if !ok {
@@ -94,7 +94,7 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 		if !ok {
 			return nil, fmt.Errorf("cannot unpack error of unexpected type %[1]T (%[1]v)", err)
 		}
-		return []PreinstallErrorInfo{
+		return []PreinstallErrorDetails{
 			convertPreinstallCheckErrorType(kindAndActions),
 		}, nil
 	}
@@ -104,7 +104,7 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	if errs == nil {
 		return nil, fmt.Errorf("compound error does not wrap any error")
 	}
-	unpacked := make([]PreinstallErrorInfo, 0, len(errs))
+	unpacked := make([]PreinstallErrorDetails, 0, len(errs))
 	for _, err := range errs {
 		kindAndActions, ok := err.(*sb_preinstall.WithKindAndActionsError)
 		if !ok {
@@ -115,8 +115,8 @@ func unpackPreinstallCheckError(err error) ([]PreinstallErrorInfo, error) {
 	return unpacked, nil
 }
 
-func convertPreinstallCheckErrorType(kindAndActionsErr *sb_preinstall.WithKindAndActionsError) PreinstallErrorInfo {
-	return PreinstallErrorInfo{
+func convertPreinstallCheckErrorType(kindAndActionsErr *sb_preinstall.WithKindAndActionsError) PreinstallErrorDetails {
+	return PreinstallErrorDetails{
 		Kind:    string(kindAndActionsErr.Kind),
 		Message: kindAndActionsErr.Error(), // safely handles kindAndActionsErr.Unwrap() == nil
 		Args:    kindAndActionsErr.Args,
