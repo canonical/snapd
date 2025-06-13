@@ -275,9 +275,12 @@ func (nm *NoticeManager) doNotices(now time.Time, backendsToCheck []NoticeBacken
 	// between one backend returning its existing notices and then another
 	// backend recording a new notice. As such, if the filter has Before set in
 	// the future, replace it with the current timestamp.
-	if filter.Before.IsZero() || filter.Before.After(now) {
-		// Don't mutate the existing filter, so make a copy
-		newFilter := *filter
+	if filter == nil || filter.Before.IsZero() || filter.Before.After(now) {
+		// Don't mutate any existing filter, so make a copy
+		var newFilter state.NoticeFilter
+		if filter != nil {
+			newFilter = *filter
+		}
 		newFilter.Before = now
 		filter = &newFilter
 	}
@@ -298,7 +301,7 @@ func (nm *NoticeManager) doNotices(now time.Time, backendsToCheck []NoticeBacken
 //
 // The caller must ensure that the notice manager lock is held for reading.
 func (nm *NoticeManager) relevantBackendsForFilter(filter *state.NoticeFilter) []NoticeBackend {
-	if len(filter.Types) == 0 {
+	if filter == nil || len(filter.Types) == 0 {
 		// No types specified, so assume all backends are relevant
 		return nm.backends
 	}
@@ -415,7 +418,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		return notices, nil
 	}
 
-	if !filter.Before.IsZero() && !filter.Before.After(now) {
+	if filter != nil && !filter.Before.IsZero() && !filter.Before.After(now) {
 		// Since each backend returned, none can create a notice with a
 		// timestamp before now, and since the original filter's Before field
 		// is <= now, no notices can be created matching the filter.
