@@ -543,13 +543,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
-Requires=%[1]s
+Requires=systemd-journald@snap-foogroup.socket %[1]s
 Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+After=%[1]s network.target systemd-journald@snap-foogroup.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-foogroup
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
@@ -559,7 +560,6 @@ ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
 Type=forking
 Slice=snap.foogroup.slice
-LogNamespace=snap-foogroup
 
 [Install]
 WantedBy=multi-user.target
@@ -657,13 +657,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
-Requires=%[1]s
+Requires=systemd-journald@snap-foogroup.socket %[1]s
 Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+After=%[1]s network.target systemd-journald@snap-foogroup.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-foogroup
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
@@ -673,7 +674,6 @@ ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
 Type=forking
 Slice=snap.foogroup.slice
-LogNamespace=snap-foogroup
 
 [Install]
 WantedBy=multi-user.target
@@ -774,13 +774,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
-Requires=%[1]s
+Requires=systemd-journald@snap-foogroup.socket %[1]s
 Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+After=%[1]s network.target systemd-journald@snap-foogroup.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-foogroup
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
@@ -790,7 +791,6 @@ ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
 Type=forking
 Slice=snap.foogroup.slice
-LogNamespace=snap-foogroup
 
 [Install]
 WantedBy=multi-user.target
@@ -919,13 +919,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 	svc1Content := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
-Requires=%[1]s
+Requires=systemd-journald@snap-my-root.socket %[1]s
 Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+After=%[1]s network.target systemd-journald@snap-my-root.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-my-root
 ExecStart=/usr/bin/snap run hello-snap.svc1
 SyslogIdentifier=hello-snap.svc1
 Restart=on-failure
@@ -933,7 +934,6 @@ WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Slice=snap.%[2]s.slice
-LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
@@ -944,13 +944,14 @@ WantedBy=multi-user.target
 	svc2Content := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc2
-Requires=%[1]s
+Requires=systemd-journald@snap-my-root.socket %[1]s
 Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+After=%[1]s network.target systemd-journald@snap-my-root.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-my-root
 ExecStart=/usr/bin/snap run hello-snap.svc2
 SyslogIdentifier=hello-snap.svc2
 Restart=on-failure
@@ -958,7 +959,6 @@ WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Slice=snap.%[2]s.slice
-LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
@@ -1111,13 +1111,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 	svc2Content := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc2
-Requires=%[1]s
+Requires=systemd-journald@snap-my-root.socket %[1]s
 Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+After=%[1]s network.target systemd-journald@snap-my-root.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-my-root
 ExecStart=/usr/bin/snap run hello-snap.svc2
 SyslogIdentifier=hello-snap.svc2
 Restart=on-failure
@@ -1125,7 +1126,6 @@ WorkingDirectory=/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Slice=snap.%[2]s.slice
-LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target

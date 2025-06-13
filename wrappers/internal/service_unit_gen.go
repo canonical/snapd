@@ -124,9 +124,9 @@ func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOp
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
-{{- if .MountUnit }}
-Requires={{.MountUnit}}
-{{- end }}
+{{- if .Requires}}
+Requires={{ stringsJoin .Requires " " }}
+{{- end}}
 {{- if .PrerequisiteTarget}}
 Wants={{.PrerequisiteTarget}}
 {{- end}}
@@ -147,6 +147,9 @@ X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+{{- if .LogNamespace}}
+Environment=SNAPD_LOG_NAMESPACE={{.LogNamespace}}
+{{- end}}
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
@@ -193,9 +196,6 @@ OOMScoreAdjust={{.OOMAdjustScore}}
 {{- end}}
 {{- if .SliceUnit}}
 Slice={{.SliceUnit}}
-{{- end}}
-{{- if .LogNamespace}}
-LogNamespace={{.LogNamespace}}
 {{- end}}
 {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
@@ -267,6 +267,7 @@ WantedBy={{.ServicesTarget}}
 		BusName                  string
 		Before                   []string
 		After                    []string
+		Requires                 []string
 		InterfaceServiceSnippets string
 		InterfaceUnitSnippets    string
 		SliceUnit                string
@@ -302,6 +303,7 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(dirs.StripRootDir(appInfo.Snap.MountDir())))
+		wrapperData.Requires = append(wrapperData.Requires, wrapperData.MountUnit)
 		wrapperData.WorkingDir = dirs.StripRootDir(appInfo.Snap.DataDir())
 		wrapperData.After = append(wrapperData.After, "snapd.apparmor.service")
 	case snap.UserDaemon:
@@ -318,6 +320,8 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
 		if opts.QuotaGroup.JournalQuotaSet() {
 			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
+			wrapperData.Requires = append([]string{opts.QuotaGroup.JournalSocketName()}, wrapperData.Requires...)
+			wrapperData.After = append([]string{opts.QuotaGroup.JournalSocketName()}, wrapperData.After...)
 		}
 	}
 

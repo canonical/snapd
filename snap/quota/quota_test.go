@@ -386,6 +386,12 @@ func (ts *quotaTestSuite) TestJournalServiceName(c *C) {
 	c.Check(grp.JournalServiceName(), Equals, "systemd-journald@snap-foo.service")
 }
 
+func (ts *quotaTestSuite) TestJournalSocketName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalSocketName(), Equals, "systemd-journald@snap-foo.socket")
+}
+
 func (ts *quotaTestSuite) TestJournalServiceDropInDir(c *C) {
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
