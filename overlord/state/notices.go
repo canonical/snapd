@@ -494,6 +494,8 @@ func (s *State) unflattenNotices(flat []*Notice) {
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
 	s.reading()
 
+	now := time.Now()
+
 	// If there are existing notices, return them right away.
 	//
 	// State is already locked here by the caller, so notices won't be added
@@ -501,6 +503,11 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	notices := s.Notices(filter)
 	if len(notices) > 0 {
 		return notices, nil
+	}
+
+	if filter != nil && !filter.Before.IsZero() && !filter.Before.After(now) {
+		// No new notices can be added with a timestamp before the Before filter
+		return []*Notice{}, nil
 	}
 
 	// When the context is done/cancelled, wake up the waiters so that they
