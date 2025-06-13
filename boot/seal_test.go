@@ -546,7 +546,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		defer restore()
 
 		opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
-		err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
+		const revokeOldKeys = false
+		err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil, revokeOldKeys)
 		if !tc.sealedKeys {
 			// did nothing
 			c.Assert(err, IsNil)
@@ -770,7 +771,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
+	const revokeOldKeys = false
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil, revokeOldKeys)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 1)
 }
@@ -919,7 +921,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	defer restore()
 
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
+	const revokeOldKeys = false
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil, revokeOldKeys)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 1)
 }
@@ -1719,7 +1722,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
+	const revokeOldKeys = false
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil, revokeOldKeys)
 	c.Assert(err, IsNil)
 	c.Check(mockResealKeyForBootChainsCalls, Equals, 1)
 }
@@ -1756,7 +1760,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
+	const revokeOldKeys = false
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil, revokeOldKeys)
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(mockResealKeyForBootChainsCalls, Equals, 1)
 }
@@ -1964,7 +1969,8 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: false}
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil)
+	const revokeOldKeys = false
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, opts, nil, revokeOldKeys)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 1)
 }

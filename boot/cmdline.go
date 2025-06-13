@@ -374,7 +374,7 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	}
 
 	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil, false); err != nil {
 		return false, err
 	}
 	return true, nil
