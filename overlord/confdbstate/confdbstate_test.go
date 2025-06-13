@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -49,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -311,6 +313,30 @@ func (s *confdbTestSuite) TestGetViewUsesFetchedAssertion(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 	c.Assert(view, NotNil)
+}
+
+func (s *confdbTestSuite) TestGetViewFetchingStoreOffline(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	buf, restore := logger.MockLogger()
+	defer restore()
+
+	emptyDb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.state, emptyDb)
+
+	restore = confdbstate.MockFetchConfdbSchemaAssertion(func(*state.State, int, string, string) error {
+		return store.ErrStoreOffline
+	})
+	defer restore()
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err.Error(), Equals, fmt.Sprintf("confdb-schema (network; account-id:%s) not found", s.devAccID))
+	c.Assert(buf.String(), Matches, fmt.Sprintf(".*confdb-schema %s/network not found locally, fetching from store\n.*", s.devAccID)+store.ErrStoreOffline.Error()+"\n")
+	c.Assert(view, IsNil)
 }
 
 func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
