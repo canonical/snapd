@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -67,16 +68,19 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 		if !errors.Is(err, &asserts.NotFoundError{}) {
 			return nil, err
 		}
-		logger.Debugf("confdb-schema %s/%s not found locally, fetching from store", account, schemaName)
+		logger.Noticef("confdb-schema %s/%s not found locally, fetching from store", account, schemaName)
 
 		userID := 0
-		err = assertstateFetchConfdbSchemaAssertion(st, userID, account, schemaName)
-		if err != nil {
-			// replace the not found error so the output matches the usual confdb ID layout
-			if errors.Is(err, &asserts.NotFoundError{}) {
+		fetchErr := assertstateFetchConfdbSchemaAssertion(st, userID, account, schemaName)
+		if fetchErr != nil {
+			if errors.Is(fetchErr, store.ErrStoreOffline) {
+				logger.Noticef(fetchErr.Error())
+				return nil, err
+			} else if errors.Is(fetchErr, &asserts.NotFoundError{}) {
+				// replace the not found error so the output matches the usual confdb ID layout
 				return nil, confdb.NewNotFoundError(i18n.G("cannot find confdb-schema %s/%s: assertion not found"), account, schemaName)
 			}
-			return nil, err
+			return nil, fetchErr
 		}
 
 		confdbSchemaAs, err = assertstateConfdbSchema(st, account, schemaName)
