@@ -253,21 +253,24 @@ func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord
 		// be there either). Note that this mount can exist only on UC, on
 		// hybrid the initramfs will create the mount exactly in the same place
 		// as snapd, so there is no duplication.
-		mntPoint := filepath.Join(dirs.GlobalRootDir, "writable", "system-data",
-			dirs.StripRootDir(cpi.MountDir()))
-		isMounted, err := osutil.IsMounted(mntPoint)
-		if err != nil {
-			return err
-		}
-		// We do not use systemd as there is no associated unit file - the
-		// unit file created by the initramfs has a "sysroot-" prefix to the
-		// real mount path, so systemd does not consider it associated with
-		// the mount. This unit file is inactive therefore. We leave it as it
-		// is, it will disappear in next reboot and it would be a waste to
-		// remove it and do a daemon-reload.
-		if isMounted {
-			if output, err := exec.Command("umount", "--lazy", mntPoint).CombinedOutput(); err != nil {
-				return osutil.OutputErr(output, err)
+		for _, mntPoint := range []string{
+			filepath.Join(dirs.GlobalRootDir, "writable", "system-data",
+				dirs.StripRootDir(cpi.MountDir())),
+			filepath.Join(boot.InitramfsDataDir, "system-data", dirs.StripRootDir(cpi.MountDir()))} {
+			isMounted, err := osutil.IsMounted(mntPoint)
+			if err != nil {
+				return err
+			}
+			// We do not use systemd as there is no associated unit file - the
+			// unit file created by the initramfs has a "sysroot-" prefix to the
+			// real mount path, so systemd does not consider it associated with
+			// the mount. This unit file is inactive therefore. We leave it as it
+			// is, it will disappear in next reboot and it would be a waste to
+			// remove it and do a daemon-reload.
+			if isMounted {
+				if output, err := exec.Command("umount", "--lazy", mntPoint).CombinedOutput(); err != nil {
+					return osutil.OutputErr(output, err)
+				}
 			}
 		}
 	}
