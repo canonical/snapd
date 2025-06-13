@@ -913,7 +913,8 @@ func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 
 func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 	// take this to mean that the parsing succeeded (to avoid mocking assertion, plugs, etc)
-	success := fmt.Sprintf(`cannot find confdb-schema %s/other: assertion not found`, s.devAccID)
+	success := fmt.Sprintf(`confdb-schema \(other; account-id:%s\) not found`, s.devAccID)
+	fail := `cannot use --previous outside of save-view, change-view or observe-view hooks`
 
 	type testcase struct {
 		hook string
@@ -927,7 +928,7 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		},
 		{
 			hook: "load-view-plug",
-			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+			err:  fail,
 		},
 		{
 			hook: "change-view-plug",
@@ -935,7 +936,7 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		},
 		{
 			hook: "query-view-pug",
-			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+			err:  fail,
 		},
 		{
 			hook: "observe-view-plug",
@@ -943,7 +944,7 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 		},
 		{
 			hook: "",
-			err:  `cannot use --previous outside of save-view, change-view or observe-view hooks`,
+			err:  fail,
 		},
 	}
 
