@@ -342,7 +342,12 @@ func (nm *NoticeManager) Notice(id string) *state.Notice {
 		// All backends returned, so either one sent a notice over the
 		// channel or none sent anything. In the latter case, send nil so
 		// the parent thread knows to stop waiting.
-		noticeChan <- nil
+		select {
+		case noticeChan <- nil:
+			// No other backend sent a notice, so we sent the caller nil
+		case <-ctx.Done():
+			// Some other backend sent a notice
+		}
 	}()
 	// Now query each backend
 	queryBackend := func(bknd NoticeBackend) {
