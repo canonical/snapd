@@ -430,14 +430,17 @@ func (c *Change) Status() Status {
 	panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 }
 
+type AddChangeUpdateNoticeKey struct{}
+
 // addNotice records an occurrence of a change-update notice for this change.
 // The notice key is set to the change ID.
 func (c *Change) addNotice() error {
-	opts := &AddNoticeOptions{
-		Data: map[string]string{"kind": c.Kind()},
+	cached := c.state.Cached(AddChangeUpdateNoticeKey{})
+	if cached == nil {
+		panic("internal error: cannot add change update notice before notice manager initialized")
 	}
-	_, err := c.state.AddNotice(nil, ChangeUpdateNotice, c.id, opts)
-	return err
+	addChangeUpdateNotice := cached.(func(ch *Change) error)
+	return addChangeUpdateNotice(c)
 }
 
 func shouldSkipChangeUpdateNotice(old, new Status) bool {

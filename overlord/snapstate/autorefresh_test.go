@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1251,7 +1252,7 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	c.Assert(err, IsNil)
 	// empty set of inhibited snaps unchanged -> []
 	// no notice recorded
-	c.Assert(st.Notices(nil), HasLen, 0)
+	c.Assert(notices.GetNotices(st, nil), HasLen, 0)
 	// no "refresh inhibition" warnings recorded
 	checkNoRefreshInhibitWarning(c, st)
 	// Verify list is empty
