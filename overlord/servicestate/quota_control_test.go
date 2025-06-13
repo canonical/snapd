@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -1069,13 +1070,16 @@ func (s *quotaControlSuite) TestRemoveQuotaLateSnapOpConflict(c *C) {
 	))
 	defer r()
 
+	r = internal.MockOsutilBootID("boot-id")
+	defer r()
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
 
 	// setup test-snap
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	info := snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	// create a quota group
 	defer s.se.Stop()
@@ -1091,10 +1095,9 @@ func (s *quotaControlSuite) TestRemoveQuotaLateSnapOpConflict(c *C) {
 	// the group is already gone, but the task is not finished
 	s.state.Set("quotas", nil)
 	task := ts.Tasks()[0]
-	task.Set("state-updated", servicestate.QuotaStateUpdated{
-		BootID: "boot-id",
-		AppsToRestartBySnap: map[string][]string{
-			"test-snap": {"svc1"},
+	internal.SetQuotaState(task, &internal.QuotaStateItems{
+		AppsToRestartBySnap: map[*snap.Info][]*snap.AppInfo{
+			info: {info.Apps["svc1"]},
 		},
 	})
 
