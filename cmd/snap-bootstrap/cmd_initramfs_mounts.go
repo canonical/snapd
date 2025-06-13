@@ -494,6 +494,16 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, dataMountOpts); err != nil {
 		return err
 	}
+	// We do not need anymore the extra data partition mount created on installation
+	if output, err := exec.Command("umount", boot.InstallUbuntuDataDir).CombinedOutput(); err != nil {
+		logger.Noticef("cannot unmount install data mount %s: %v",
+			boot.InstallUbuntuDataDir, osutil.OutputErr(output, err))
+		return osutil.OutputErr(output, err)
+	}
+	// We do not need the directory either
+	if err := os.Remove(boot.InstallUbuntuDataDir); err != nil {
+		logger.Noticef("warning: cannot remove %s: %v", boot.InstallUbuntuDataDir, err)
+	}
 
 	// Now we can write the snapd mount unit (needed as this is the first boot)
 	// It is debatable if we are in run mode or not as after installation
