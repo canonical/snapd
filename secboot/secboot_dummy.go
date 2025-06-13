@@ -44,8 +44,14 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	return errBuildWithoutSecboot
 }
 
-func ResealKeys(params *ResealKeysParams) error {
+type UpdatedKeys []interface{}
+
+func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return errBuildWithoutSecboot
+}
+
+func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
+	return nil, errBuildWithoutSecboot
 }
 
 func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {

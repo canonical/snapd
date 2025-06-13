@@ -43,7 +43,7 @@ var (
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
 // level call and may need significant environment setup.
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
+func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootResealKeys only can be mocked in tests")
 	old := secbootResealKeys
 	secbootResealKeys = f
@@ -147,7 +147,7 @@ type resealParamsAndLocation struct {
 	location secboot.KeyDataLocation
 }
 
-func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string) error {
+func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string, revokeOldKeys bool) error {
 	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
@@ -168,6 +168,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				return err
 			}
 			if parameters == nil {
+				revokeOldKeys = false
 				logger.Debugf("there was no parameters for run+recover/%s", container.ContainerRole())
 				continue
 			}
@@ -194,6 +195,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				return err
 			}
 			if parameters == nil {
+				revokeOldKeys = false
 				logger.Debugf("there was no parameters for recover/%s", container.ContainerRole())
 				continue
 			}
@@ -238,6 +240,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		if err != nil {
 			return err
 		}
+		var allResealedKeys secboot.UpdatedKeys
 		for _, key := range keys {
 			keyParams := &secboot.ResealKeysParams{
 				PCRProfile: key.params.TpmPCRProfile,
@@ -245,8 +248,17 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				PrimaryKey: primaryKey,
 			}
 
-			if err := secbootResealKeys(keyParams); err != nil {
+			resealedKeys, err := secbootResealKeys(keyParams, revokeOldKeys)
+			if err != nil {
 				return fmt.Errorf("cannot reseal the encryption key: %v", err)
+			}
+			if revokeOldKeys {
+				allResealedKeys = append(allResealedKeys, resealedKeys...)
+			}
+		}
+		if revokeOldKeys {
+			if err := allResealedKeys.RevokeOldKeys(primaryKey); err != nil {
+				return fmt.Errorf("cannot revoke older keys: %v", err)
 			}
 		}
 		return nil
@@ -519,6 +531,18 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 		})
 }
 
+// ResealKeyForBootChainsAndRevoke reseals disk encryption keys with the given bootchains.
+func ResealKeyForBootChainsAndRevoke(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+	return resealKeys(manager, method, rootdir,
+		resealInputs{
+			bootChains: params,
+		},
+		resealOptions{
+			ExpectReseal: expectReseal,
+			Revoke:       true,
+		})
+}
+
 // ResealKeysForSignaturesDBUpdate reseals disk encryption keys for the provided
 // boot chains and an optional signature DB update
 func ResealKeysForSignaturesDBUpdate(
@@ -549,6 +573,7 @@ type resealInputs struct {
 type resealOptions struct {
 	ExpectReseal bool
 	Force        bool
+	Revoke       bool
 }
 
 func resealKeys(
@@ -570,7 +595,7 @@ func resealKeys(
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 
-	return doReseal(manager, method, rootdir)
+	return doReseal(manager, method, rootdir, opts.Revoke)
 }
 
 func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {

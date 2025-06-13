@@ -1500,7 +1500,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
-		err = secboot.ResealKeys(myParams)
+		_, err = secboot.ResealKeys(myParams, false)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 1)
