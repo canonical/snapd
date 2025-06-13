@@ -40,7 +40,7 @@ var (
 // PreinstallCheck runs preinstall checks using default check configuration and
 // TCG-compliant PCR profile generation options to evaluate whether the host
 // environment is an EFI system suitable for TPM-based Full Disk Encryption. The
-// caller must supply the current boot images in boot order via loadedImages.
+// caller must supply the current boot images in boot order via bootImagePaths.
 // On success, it returns a list with details on all errors identified by secboot
 // or nil if no errors were found. Any warnings contained in the secboot result
 // are logged. On failure, it returns the error encountered while interpreting
