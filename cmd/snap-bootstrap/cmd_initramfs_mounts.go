@@ -383,7 +383,8 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	kernelSeed := sysSnaps[snap.TypeKernel]
 	kernCompsMntPts := make(map[string]string)
 	compSeedInfos := []install.ComponentSeedInfo{}
-	for _, sc := range kernelSeed.Components {
+	compsDir := filepath.Join(boot.InitramfsRunMntDir, "snap-content")
+	for i, sc := range kernelSeed.Components {
 		seedComp := sc
 		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
 		if !ok {
@@ -397,8 +398,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		// Mount ephemerally the kernel-modules components to read
 		// their metadata and also to make them accessible if building
 		// the drivers tree.
-		mntPt := filepath.Join(filepath.Join(boot.InitramfsRunMntDir, "snap-content",
-			seedComp.CompSideInfo.Component.String()))
+		mntPt := filepath.Join(filepath.Join(compsDir, seedComp.CompSideInfo.Component.String()))
 		if err := doSystemdMount(seedComp.Path, mntPt, &systemdMountOptions{
 			ReadOnly:  true,
 			Private:   true,
@@ -407,11 +407,22 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 		kernCompsMntPts[seedComp.CompSideInfo.Component.String()] = mntPt
 
+		idx := i
 		defer func() {
 			stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", mntPt)
 			if err != nil {
 				logger.Noticef("cannot unmount component in %s: %v",
 					mntPt, osutil.OutputErrCombine(stdout, stderr, err))
+			}
+			// We do not need the directory either
+			if err := os.Remove(mntPt); err != nil {
+				logger.Noticef("warning: cannot remove %s: %v", mntPt, err)
+			}
+			// Last one to run removes parent too
+			if idx == 0 {
+				if err := os.Remove(compsDir); err != nil {
+					logger.Noticef("warning: cannot remove %s: %v", compsDir, err)
+				}
 			}
 		}()
 

@@ -398,7 +398,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 
 	// We write files in the moked kernel mount, remove on unmount
 	cmd := testutil.MockCommand(c, "systemd-mount", `
-if [ "$1" = --umount ] && [ "${2##*/}" = kernel ]; then rm -rf "$2"/meta; echo SEEN; fi
+if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
 `)
 	defer cmd.Restore()
 
@@ -457,6 +457,9 @@ if [ "$1" = --umount ] && [ "${2##*/}" = kernel ]; then rm -rf "$2"/meta; echo S
 		kernUnit := filepath.Join(s.tmpDir, "/run/systemd/transient", "run-mnt-kernel.mount")
 		c.Assert(kernUnit, testutil.FileAbsent)
 		c.Assert(filepath.Join(s.tmpDir, "/run/mnt/kernel"), testutil.FileAbsent)
+		// And the temporary dir. for component mounts
+		c.Assert(filepath.Join(s.tmpDir, "/run/mnt/snap-content"), testutil.FileAbsent)
+		// And the snapd mount unit
 		checkSnapdMountUnit(c)
 	}
 
