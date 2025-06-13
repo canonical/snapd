@@ -91,6 +91,7 @@ type fakeStore struct {
 
 	snapActionErr         error
 	downloadAssertionsErr error
+	assertionErr          error
 }
 
 func (sto *fakeStore) pokeStateLock() {
@@ -101,6 +102,9 @@ func (sto *fakeStore) pokeStateLock() {
 }
 
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	if sto.assertionErr != nil {
+		return nil, sto.assertionErr
+	}
 	sto.pokeStateLock()
 
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
@@ -5905,4 +5909,17 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 
 func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("assertmgr.go", c, false)
+}
+
+func (s *assertMgrSuite) TestOfflineErrorSurfaced(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sto := s.fakeStore.(*fakeStore)
+	sto.assertionErr = store.ErrStoreOffline
+
+	s.setupModelAndStore(c)
+
+	err := assertstate.FetchConfdbSchemaAssertion(s.state, 0, "foo", "bar")
+	c.Assert(err, testutil.ErrorIs, store.ErrStoreOffline)
 }
