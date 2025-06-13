@@ -20,6 +20,6 @@
 
 package secboot
 
-func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorInfo, error) {
+func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorDetails, error) {
 	return nil, errBuildWithoutSecboot
 }
