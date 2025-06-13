@@ -127,7 +127,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return "123", nil
 		})
 
-		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
 		rspe := s.asyncReq(c, req, nil)
@@ -158,7 +158,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid,password", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid,password", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.asyncReq(c, req, nil)
@@ -218,7 +218,7 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 			return nil, t.err
 		})
 
-		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, Commentf("%s test", t.name))
 
 		rspe := s.errorReq(c, req, nil)
@@ -245,7 +245,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=,foo.bar,,[1].foo,foo,", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=,foo.bar,,[1].foo,foo,", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.asyncReq(c, req, nil)
@@ -454,7 +454,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 }
 
 func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
-	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=my-field", nil)
+	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=my-key", nil)
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -463,7 +463,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
-func (s *confdbSuite) TestGetNoFields(c *C) {
+func (s *confdbSuite) TestGetNoKeys(c *C) {
 	s.setFeatureFlag(c)
 
 	restore := daemon.MockConfdbstateGetView(func(_ *state.State, acc, confdbSchema, viewName string) (*confdb.View, error) {

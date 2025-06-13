@@ -40,7 +40,7 @@ func (cs *clientSuite) TestConfdbGet(c *C) {
 	c.Assert(chgID, Equals, "123")
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
-	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"fields": []string{"foo,bar"}})
+	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"keys": []string{"foo,bar"}})
 }
 
 func (cs *clientSuite) TestConfdbSet(c *C) {

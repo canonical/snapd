@@ -60,11 +60,11 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	vars := muxVars(r)
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
-	fieldStr := r.URL.Query().Get("fields")
+	keysStr := r.URL.Query().Get("keys")
 
-	var fields []string
-	if fieldStr != "" {
-		fields = strutil.CommaSeparatedList(fieldStr)
+	var keys []string
+	if keysStr != "" {
+		keys = strutil.CommaSeparatedList(keysStr)
 	}
 
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
@@ -72,7 +72,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, fields)
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys)
 	if err != nil {
 		return toAPIError(err)
 	}
