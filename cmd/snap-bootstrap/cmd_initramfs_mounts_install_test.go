@@ -397,10 +397,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	defer restore()
 
 	// We write files in the moked kernel mount, remove on unmount
-	cmd := testutil.MockCommand(c, "systemd-mount", `
+	cmdSystemdMount := testutil.MockCommand(c, "systemd-mount", `
 if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
 `)
-	defer cmd.Restore()
+	defer cmdSystemdMount.Restore()
+	cmdUmount := testutil.MockCommand(c, "umount", "rm -rf \"$1\"/system-data\n")
+	defer cmdUmount.Restore()
 
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
 
@@ -428,7 +430,7 @@ if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
 	}
 
 	if failMount {
-		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		c.Assert(cmdSystemdMount.Calls(), DeepEquals, [][]string{
 			{
 				"systemd-mount",
 				"--umount",
@@ -436,7 +438,10 @@ if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
 			},
 		})
 	} else {
-		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		dataInstallDir := filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data")
+		c.Assert(cmdUmount.Calls(), DeepEquals, [][]string{{"umount", dataInstallDir}})
+		c.Assert(dataInstallDir, testutil.FileAbsent)
+		c.Assert(cmdSystemdMount.Calls(), DeepEquals, [][]string{
 			{
 				"systemd-mount",
 				"--umount",
