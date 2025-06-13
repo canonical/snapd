@@ -1,0 +1,91 @@
+summary: Verify that when we update shim, the TPM keys are revoked
+
+details: |
+    When updating shim, we should revoke older TPM tokens by incrementing
+    the TPM revocation counter. We test it by reinstalling the keys of
+    the old keys and old shim.
+
+systems: [ubuntu-24.04-64]
+
+environment:
+    NESTED_ENABLE_TPM: "true"
+    NESTED_ENABLE_SECURE_BOOT: "true"
+    NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=1
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    unsquashfs -d pc "$(tests.nested get extra-snaps-path)"/pc.snap
+    cp pc/shim.efi.signed old-shim.efi
+
+    gojq --yaml-input --yaml-output  '(.volumes.pc.structure[] | select(.name == "ubuntu-seed") | .update.edition) |= . + 1' <pc/meta/gadget.yaml >pc/meta/gadget.yaml.new
+    mv pc/meta/gadget.yaml.new pc/meta/gadget.yaml
+
+    tests.nested secboot-remove-signature pc/shim.efi.signed
+    objcopy -O binary -j .data.ident pc/shim.efi.signed ident
+    sed -i '/Commit: [a-f0-9]*/s//Commit: 0000000000000000000000000000000000000000/' ident
+    objcopy --update-section=.data.ident=ident pc/shim.efi.signed
+    KEY_NAME=$(tests.nested download snakeoil-key)
+    SNAKEOIL_KEY="${PWD}/${KEY_NAME}.key"
+    SNAKEOIL_CERT="${PWD}/${KEY_NAME}.pem"
+    tests.nested secboot-sign gadget pc "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+    snap pack pc --filename=pc-new.snap
+    rm -rf pc
+
+execute: |
+    export NESTED_KEEP_FIRMWARE_STATE=1
+
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.wait-for device-initialized
+
+    remote.exec "sudo snap recovery --show-keys" >recovery.out
+    tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
+
+    # We need to shutdown the machine to backup keys
+    tests.nested vm stop
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    image="${NESTED_IMAGES_DIR}/$(nested_get_current_image_name)"
+
+    lodevice=$(losetup -f --show -P "${image}")
+    python3 load_old_tokens.py --read "${lodevice}p4" backup-save.json
+    python3 load_old_tokens.py --read "${lodevice}p5" backup-data.json
+    losetup -d "${lodevice}"
+
+    tests.nested vm start
+    remote.wait-for snap-command
+
+    # Normal boot. We should have unlocked with a run key.
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-before-update.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-before-update.json)" = run
+
+    remote.push pc-new.snap
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo snap install --dangerous pc-new.snap"
+    remote.wait-for reboot "${boot_id}"
+    remote.wait-for snap-command
+
+    # Normal boot after the update of shim
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-after-update.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-after-update.json)" = run
+
+    # Now we shutdown and reinstall the old keys and old shim.
+    tests.nested vm stop
+
+    lodevice=$(losetup -f --show -P "${image}")
+    mkdir ./esp
+    mount "${lodevice}p2" ./esp
+    cp old-shim.efi ./esp/EFI/ubuntu/shimx64.efi
+    umount ./esp
+    python3 load_old_tokens.py "${lodevice}p4" backup-save.json
+    python3 load_old_tokens.py "${lodevice}p5" backup-data.json
+    losetup -d "${lodevice}"
+
+    tests.nested vm start
+    remote.wait-for snap-command
+
+    # The old keys should be revoked and the recovery must be used
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-after-rollback.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-after-rollback.json)" = recovery

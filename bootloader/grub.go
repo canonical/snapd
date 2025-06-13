@@ -691,6 +691,22 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 	return chains, nil
 }
 
+func (g *grub) RevocationTriggeringAssets() ([]string, error) {
+	if !g.recovery {
+		return nil, nil
+	}
+
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return nil, err
+	}
+
+	// We also add defaultShimBinary in case some new installation
+	// still use an old custom gadget that does not have the new
+	// boot chain yet.
+	return []string{assets.shimBinary.Id(), assets.defaultShimBinary.Id()}, nil
+}
+
 // ParametersForEfiLoadOption returns a serialized load option for the
 // shim binary. It should be called on a UefiBootloader.
 // updatedAssets is a list of assets that were installed/updated. This

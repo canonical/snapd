@@ -426,6 +426,10 @@ type MockTrustedAssetsMixin struct {
 	BootChainRunBl         []bootloader.Bootloader
 	BootChainKernelPath    []string
 
+	RevocationTriggeringAssetsCalls  int
+	RevocationTriggeringAssetsReturn []string
+	RevocationTriggeringAssetsError  error
+
 	KernelBootFileBuilder         func(kernelPath string) bootloader.BootFile
 	RecoveryKernelBootFileBuilder func(kernelPath string) bootloader.BootFile
 
@@ -560,6 +564,12 @@ func (b *MockTrustedAssetsMixin) BootChains(runBl bootloader.Bootloader, kernelP
 	}
 
 	return [][]bootloader.BootFile{bootchain}, b.BootChainErr
+}
+
+func (b *MockTrustedAssetsMixin) RevocationTriggeringAssets() ([]string, error) {
+	b.RevocationTriggeringAssetsCalls++
+
+	return b.RevocationTriggeringAssetsReturn, b.RevocationTriggeringAssetsError
 }
 
 // MockRecoveryAwareTrustedAssetsBootloader implements the
