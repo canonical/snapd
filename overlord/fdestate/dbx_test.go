@@ -146,7 +146,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 1)
-	c.Check(fdeSt.PendingExternalOperations, HasLen, 1)
+	c.Assert(fdeSt.PendingExternalOperations, HasLen, 1)
 	c.Check(fdeSt.PendingExternalOperations[0], DeepEquals, fdestate.ExternalOperation{
 		Kind:     "fde-efi-secureboot-db-update",
 		ChangeID: "1",
@@ -232,7 +232,7 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 1)
-	c.Check(fdeSt.PendingExternalOperations, HasLen, 1)
+	c.Assert(fdeSt.PendingExternalOperations, HasLen, 1)
 
 	// running prepare again will cause a conflicts
 	err = func() error {
@@ -397,7 +397,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 
 	c.Check(resealForDBUPdateCalls, Equals, 1)
 	c.Check(resealForBootChainsCalls, Equals, 0)
-	c.Check(fdeSt.PendingExternalOperations, HasLen, 1)
+	c.Assert(fdeSt.PendingExternalOperations, HasLen, 1)
 	c.Check(fdeSt.KeyslotRoles["run"], DeepEquals, fdestate.KeyslotRoleInfo{
 		PrimaryKeyID: 0,
 		Parameters: map[string]fdestate.KeyslotRoleParameters{
@@ -552,10 +552,28 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 	st.Unlock()
 	defer st.Lock()
 
+	// first reach a known steady state
+	iterateUnlockedStateWaitingFor(st, func() bool {
+		return tsks[0].Status() == state.DoneStatus
+	})
+
+	// keep kicking the ensure loop, until we reach the desired state
+	doneC := make(chan struct{})
+	go func() {
+		iterateUnlockedStateWaitingFor(st, func() bool {
+			status := tsks[0].Status()
+			return status == state.UndoingStatus || status == state.UndoneStatus
+		})
+		close(doneC)
+	}()
+
 	// startup aborts the change and reseals with current boot chains, waits for
 	// change to be complete
 	err = fdestate.EFISecureBootDBManagerStartup(st)
 	c.Assert(err, IsNil)
+
+	// wait for helper to complete
+	<-doneC
 
 	st.Lock()
 	defer st.Unlock()
@@ -566,8 +584,12 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 
 	c.Check(resealForDBUPdateCalls, Equals, 1)
 	c.Check(resealForBootChainsCalls, Equals, 1)
-	c.Assert(fdeStAfter.PendingExternalOperations, HasLen, 1)
-	c.Check(fdeStAfter.PendingExternalOperations[0].Status, Equals, fdestate.ErrorStatus)
+	// task cleanup may have run
+	if l := len(fdeStAfter.PendingExternalOperations); l == 1 {
+		c.Check(fdeStAfter.PendingExternalOperations[0].Status, Equals, fdestate.ErrorStatus)
+	} else if l > 1 {
+		c.Fatalf("unexpected number of operations in the state: %v", l)
+	}
 	c.Check(fdeStAfter.KeyslotRoles["run"], DeepEquals, fdestate.KeyslotRoleInfo{
 		PrimaryKeyID: 0,
 		Parameters: map[string]fdestate.KeyslotRoleParameters{
@@ -655,7 +677,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 
 	c.Check(resealForDBUpdateCalls, Equals, 1)
 	c.Check(resealForBootChainsCalls, Equals, 0)
-	c.Check(fdeSt.PendingExternalOperations, HasLen, 1)
+	c.Assert(fdeSt.PendingExternalOperations, HasLen, 1)
 	c.Check(fdeSt.PendingExternalOperations[0].Status, Equals, fdestate.DoingStatus)
 
 	// and we have change in the state
@@ -676,9 +698,16 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	})
 
 	st.Lock()
+	c.Check(chg.IsReady(), Equals, false)
 	chg.Abort()
 	st.EnsureBefore(0)
 	st.Unlock()
+
+	// iterate the state as much as needed to reach the desired state
+	iterateUnlockedStateWaitingFor(st, func() bool {
+		status := tsks[0].Status()
+		return status == state.UndoingStatus || status == state.UndoneStatus
+	})
 
 	c.Logf("-- wait ready")
 	<-chg.Ready()
@@ -702,8 +731,11 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 	c.Check(resealForDBUpdateCalls, Equals, 1)
 	// but one post-update reseal
 	c.Check(resealForBootChainsCalls, Equals, 1)
-	c.Check(fdeStAfter.PendingExternalOperations, HasLen, 1)
-	c.Check(fdeStAfter.PendingExternalOperations[0].Status, Equals, fdestate.ErrorStatus)
+	if l := len(fdeStAfter.PendingExternalOperations); l == 1 {
+		c.Check(fdeStAfter.PendingExternalOperations[0].Status, Equals, fdestate.ErrorStatus)
+	} else if l != 0 {
+		c.Fatalf("unexpected number of pending external operations: %v", l)
+	}
 
 	st.Unlock()
 	// wait for change to become clean
@@ -817,12 +849,41 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	c.Check(resealForDBUPdateCalls, Equals, 1)
 	c.Check(resealForBootChainsCalls, Equals, 0)
 
+	chgs := st.Changes()
+	c.Assert(chgs, HasLen, 1)
+	chg := chgs[0]
+	c.Check(chg.IsReady(), Equals, false)
+	tsks := chg.Tasks()
+	c.Assert(tsks, HasLen, 2)
+	c.Assert(tsks[0].Kind(), Equals, "efi-secureboot-db-update-prepare")
+	c.Assert(tsks[1].Kind(), Equals, "efi-secureboot-db-update")
+
 	st.Unlock()
 	defer st.Lock()
 
-	// cleanup triggers post update reseal
+	// first reach a known steady state
+	iterateUnlockedStateWaitingFor(st, func() bool {
+		return tsks[0].Status() == state.DoneStatus
+	})
+
+	// keep kicking the ensure loop, until we reach the desired state
+	doneC := make(chan struct{})
+	go func() {
+		iterateUnlockedStateWaitingFor(st, func() bool {
+			status := tsks[0].Status()
+			// the reseal in update task fails, so we're expecting
+			// the prepare task to be undone
+			return status == state.UndoneStatus || status == state.UndoingStatus
+		})
+		close(doneC)
+	}()
+
+	// blocks internally waiting for change to complete
 	err = fdestate.EFISecureBootDBUpdateCleanup(st)
 	c.Assert(err, IsNil)
+
+	// wait for helper to complete
+	<-doneC
 
 	st.Lock()
 	defer st.Unlock()
@@ -842,9 +903,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 	}
 
 	// and we have change in the state, but it is in an error status already
-	chgs := st.Changes()
-	c.Assert(chgs, HasLen, 1)
-	chg := chgs[0]
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
@@ -893,15 +951,44 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	chgs := st.Changes()
+	c.Assert(chgs, HasLen, 1)
+	chg := chgs[0]
+	c.Check(chg.IsReady(), Equals, false)
+	tsks := chg.Tasks()
+	c.Assert(tsks, HasLen, 2)
+	c.Assert(tsks[0].Kind(), Equals, "efi-secureboot-db-update-prepare")
+	c.Assert(tsks[1].Kind(), Equals, "efi-secureboot-db-update")
+
 	c.Check(resealForDBUPdateCalls, Equals, 1)
 	c.Check(resealForBootChainsCalls, Equals, 0)
 
 	st.Unlock()
 	defer st.Lock()
 
-	// 'external' DBX manger restarted
+	// first reach a known steady state
+	iterateUnlockedStateWaitingFor(st, func() bool {
+		return tsks[0].Status() == state.DoneStatus
+	})
+
+	// keep kicking the ensure loop, until we reach the desired state
+	doneC := make(chan struct{})
+	go func() {
+		iterateUnlockedStateWaitingFor(st, func() bool {
+			status := tsks[0].Status()
+			// the reseal in undo of the prepare task fails, so we're expecting
+			// an error status
+			return status == state.ErrorStatus
+		})
+		close(doneC)
+	}()
+
+	// 'external' DBX manger restarted, blocks internally waiting for the change to complete
 	err = fdestate.EFISecureBootDBManagerStartup(st)
 	c.Assert(err, IsNil)
+
+	// wait for helper to complete
+	<-doneC
 
 	st.Lock()
 	defer st.Unlock()
@@ -921,9 +1008,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 	}
 
 	// and we have change in the state, but it is in an error status already
-	chgs := st.Changes()
-	c.Assert(chgs, HasLen, 1)
-	chg := chgs[0]
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
