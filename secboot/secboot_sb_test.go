@@ -3699,21 +3699,75 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }
 
+type mockPlatformKeyDataHandler struct{}
+
+func (h *mockPlatformKeyDataHandler) RecoverKeys(data *sb.PlatformKeyData, encryptedPayload []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (h *mockPlatformKeyDataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData, encryptedPayload, key []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (h *mockPlatformKeyDataHandler) ChangeAuthKey(data *sb.PlatformKeyData, old, new []byte, context any) ([]byte, error) {
+	return nil, nil
+}
+
+func (s *secbootSuite) mockSecbootPassphraseKeyData(c *C, role, platform string) *sb.KeyData {
+	keyParams := sb.KeyParams{Role: role, PlatformName: platform, KDFAlg: crypto.SHA256}
+	passphraseParams := sb.KeyWithPassphraseParams{
+		KeyParams:  keyParams,
+		KDFOptions: &sb.PBKDF2Options{},
+	}
+	sb.RegisterPlatformKeyDataHandler(platform, &mockPlatformKeyDataHandler{}, 0)
+	s.AddCleanup(func() {
+		sb.RegisterPlatformKeyDataHandler(platform, nil, 0)
+	})
+	kd, err := sb.NewKeyDataWithPassphrase(&passphraseParams, "passphrase")
+	c.Assert(err, IsNil)
+	return kd
+}
+
 func (s *secbootSuite) TestReadContainerKeyData(c *C) {
 	called := 0
 	defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
 		called++
 		c.Check(devicePath, Equals, "/dev/some-device")
-		c.Check(slotName, Equals, "some-slot")
-		return &sb.KeyData{}, nil
+		switch slotName {
+		case "some-slot-1":
+			return sb.NewKeyData(&sb.KeyParams{Role: "recover", PlatformName: "mock-platform-1"})
+		case "some-slot-2":
+			return s.mockSecbootPassphraseKeyData(c, "run+recover", "mock-platform-2"), nil
+		case "no-data":
+			return &sb.KeyData{}, nil
+		default:
+			return nil, fmt.Errorf("unexpected slot name %q", slotName)
+		}
 	})()
 
-	kd, err := secboot.ReadContainerKeyData("/dev/some-device", "some-slot")
+	kd, err := secboot.ReadContainerKeyData("/dev/some-device", "some-slot-1")
 	c.Assert(err, IsNil)
 	c.Check(kd, NotNil)
 	c.Check(called, Equals, 1)
 
-	// it is not possible to mock the internal secboot key data
+	c.Check(kd.AuthMode(), Equals, device.AuthModeNone)
+	c.Check(kd.PlatformName(), Equals, "mock-platform-1")
+	c.Check(kd.Roles(), DeepEquals, []string{"recover"})
+
+	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "some-slot-2")
+	c.Assert(err, IsNil)
+	c.Check(kd, NotNil)
+	c.Check(called, Equals, 2)
+
+	c.Check(kd.AuthMode(), Equals, device.AuthModePassphrase)
+	c.Check(kd.PlatformName(), Equals, "mock-platform-2")
+	c.Check(kd.Roles(), DeepEquals, []string{"run+recover"})
+
+	kd, err = secboot.ReadContainerKeyData("/dev/some-device", "no-data")
+	c.Assert(err, IsNil)
+	c.Check(kd, NotNil)
+	c.Check(called, Equals, 3)
+
 	c.Check(kd.AuthMode(), Equals, device.AuthModeNone)
 	c.Check(kd.PlatformName(), Equals, "")
 	c.Check(kd.Roles(), IsNil)

@@ -308,7 +308,7 @@ type Keyslot struct {
 	keyData secboot.KeyData
 }
 
-// KeyData returns secboot.KeyData corresponding the keyslot.
+// KeyData returns secboot.KeyData corresponding to the keyslot.
 // This can only be called for KeyslotTypePlatform.
 //
 // Note: KeyData is lazy loaded once then reused in subsequent calls.
@@ -329,34 +329,8 @@ func (k *Keyslot) KeyData() (secboot.KeyData, error) {
 	return keyData, nil
 }
 
-// KeyslotRef uniquely identifies a target key slot by
-// its container role and name.
-type KeyslotRef struct {
-	ContainerRole string `json:"container-role"`
-	Name          string `json:"name"`
-}
-
-func (k KeyslotRef) String() string {
-	return fmt.Sprintf("(container-role: %q, name: %q)", k.ContainerRole, k.Name)
-}
-
-// Validate that the key slot reference points to expected key slots.
-func (k KeyslotRef) Validate() error {
-	if len(k.ContainerRole) == 0 {
-		return errors.New("container role cannot be empty")
-	}
-	if len(k.Name) == 0 {
-		return errors.New("name cannot be empty")
-	}
-	// this constraint could be relaxed later when snapd supports user containers.
-	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
-		return fmt.Errorf(`unsupported container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
-	}
-	return nil
-}
-
 // GetKeyslots returns the key slots for the specified key slot references.
-// If keyslotRefs is empty, all key slota on all encrypted containers will
+// If keyslotRefs is empty, all key slots on all encrypted containers will
 // be returned.
 func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, missingRefs []KeyslotRef, err error) {
 	allKeyslots := len(keyslotRefs) == 0

@@ -1182,3 +1182,40 @@ func (s *fdeMgrSuite) TestGetKeyslotsAll(c *C) {
 	const allKeyslots = true
 	s.testGetKeyslots(c, allKeyslots)
 }
+
+func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	const onClassic = true
+	manager := s.startedManager(c, onClassic)
+
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return nil, errors.New("boom!")
+	})()
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return nil, nil
+	})()
+
+	_, _, err := manager.GetKeyslots(nil)
+	c.Assert(err, ErrorMatches, `failed to obtain recovery keys for "/dev/disk/by-uuid/aaa": boom!`)
+
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return nil, nil
+	})()
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	_, _, err = manager.GetKeyslots(nil)
+	c.Assert(err, ErrorMatches, `failed to obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
+}
