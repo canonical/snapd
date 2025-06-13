@@ -200,7 +200,7 @@ jobs:
             ./tests/utils/features/featcomposer.py \
                 --dir "$featdir" \
                 --output "$composedir" \
-                --failed-tests "$(cat "working/spread-artifacts/failed-tests.txt")" \
+                --failed-tests "working/spread-artifacts/failed-tests.txt" \
                 --run-attempt "$(cat "working/spread-artifacts/run-attempt.txt")" \
                 --env-variables "$(cat "working/spread-artifacts/env-variables.txt")"
             rm -r working

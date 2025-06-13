@@ -43,7 +43,7 @@ def _parse_file_name(file_name: str) -> SpreadTaskNames:
     return SpreadTaskNames(original_name, suite_name, task_name, variant_name)
 
 
-def _compose_test(dir: str, file: str, failed_tests: str) -> features.TaskFeatures:
+def _compose_test(dir: str, file: str, failed_tests: set[str]) -> features.TaskFeatures:
     '''
     Creates a dictionary with the features of a test and test information.
     The features are read from the file and the test information is extracted from the file name.
@@ -84,7 +84,7 @@ def _compose_env_variables(env_variables: list[str]) -> list[features.EnvVariabl
     return composed
 
 
-def compose_system(dir: str, system: str, failed_tests: str, env_variables: list[str], scenarios: list[str]) -> features.SystemFeatures:
+def compose_system(dir: str, system: str, failed_tests: set[str], env_variables: list[str], scenarios: list[str]) -> features.SystemFeatures:
     '''
     Given a containing directory, a system-identifying string, and other information
     about failed tests, environment variables, and scenarios, it creates a dictionary 
@@ -221,7 +221,7 @@ def replace_old_runs(dir: str, output_dir: str) -> None:
                             os.path.join(output_dir, _get_name_without_run_number(file) + '.json'))
 
 
-if __name__ == '__main__':
+def main():
     description = '''
     Can be run in two modes: composed feature generation or composed feature consolidation
 
@@ -251,8 +251,8 @@ if __name__ == '__main__':
                         help='List of useful metadata tags to describe the testing scenario', default='')
     parser.add_argument('-e', '--env-variables', type=str, nargs='*',
                         help='List of environment variables as key=value', default='')
-    parser.add_argument('-f', '--failed-tests', type=str,
-                        help='String containing the names of failed tests', default='')
+    parser.add_argument('-f', '--failed-tests', type=argparse.FileType('r'),
+                        help='File containing the space-separated names of failed tests')
     parser.add_argument('--run-attempt', type=int, choices=range(1, 10), help='''
                         Run attempt number of the json files contained in the folder [1,10). 
                         Only needed when rerunning spread for failed tests. When specified, will append the run attempt 
@@ -268,12 +268,24 @@ if __name__ == '__main__':
         replace_old_runs(args.dir, args.output)
         exit(0)
 
+    failed_tests = set()
+    if args.failed_tests:
+        for failed_test in args.failed_tests:
+            failed_tests.update(failed_test.split())
+
     attempt = ''
     if args.run_attempt:
         attempt = '_%s' % args.run_attempt
     systems = get_system_list(args.dir)
     for system in systems:
-        composed = compose_system(dir=args.dir, system=system,
-                                  failed_tests=args.failed_tests, env_variables=args.env_variables, scenarios=args.scenarios)
+        composed = compose_system(dir=args.dir, 
+                                  system=system,
+                                  failed_tests=failed_tests,
+                                  env_variables=args.env_variables, 
+                                  scenarios=args.scenarios)
         with open(os.path.join(args.output, system + attempt + '.json'), 'w', encoding='utf-8') as f:
             json.dump(composed, f)
+
+
+if __name__ == '__main__':
+    main()
