@@ -436,6 +436,10 @@ pivot_root,
 
 # use 'privileged-containers: true' to support --security-opts
 
+# Support operations on /snap
+# see https://github.com/canonical/docker-snap/issues/281
+/snap/ rwm,
+
 # defaults for docker-default
 # Unfortunately, the docker snap is currently (by design?) setup to have both 
 # the privileged and unprivileged variant of the docker-support interface 
