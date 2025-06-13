@@ -446,6 +446,9 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		// Ignore error, as it should only ever be the context cancellation
 		// error, which we'll handle below.
 		backendNotices, _ := bknd.BackendWaitNotices(backendCtx, filter)
+		if len(backendNotices) == 0 {
+			return
+		}
 		select {
 		case noticesChan <- backendNotices:
 			// Successfully sent notices back to caller
@@ -457,26 +460,22 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		go queryBackend(backend)
 	}
 
-	for len(notices) == 0 {
-		select {
-		case notices = <-noticesChan:
-			// A backend returned one or more notices
-		case <-allBackendsReturned:
-			// All backends sent empty notices over their respective channels,
-			// so none were capable of producing notices matching the filter.
+	select {
+	case notices = <-noticesChan:
+		// A backend returned one or more notices
+	case <-allBackendsReturned:
+		// All backends sent empty notices over their respective channels,
+		// so none were capable of producing notices matching the filter.
 
-			// XXX: should this be an error, or empty list? Or should the
-			// request just hang indefinitely? (The latter is what the API states)
-			//return nil, fmt.Errorf("filter cannot match any notices")
-			return []*state.Notice{}, nil
-		case <-ctx.Done():
-			// Request was cancelled
-			return nil, ctx.Err()
-		}
-		// It's possible a backend returned no notices (e.g. because it
-		// determined that it's impossible for any notices to match the filter)
-		// so try again -- that backend should not try to send another
+		// XXX: should this be an error, or empty list? Or should the
+		// request just hang indefinitely? (The latter is what the API states)
+		//return nil, fmt.Errorf("filter cannot match any notices")
+		return []*state.Notice{}, nil
+	case <-ctx.Done():
+		// Request was cancelled
+		return nil, ctx.Err()
 	}
+
 	// Cancel the requests to the other backends
 	cancel()
 
