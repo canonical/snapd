@@ -179,8 +179,8 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 		nm.noticeTypeBackends[typ] = append(typeBackends, bknd)
 	}
 
-	// XXX: should we automatically call Notices() on this backend with a
-	// filter for this type and use this to bump the last notice timestamp
+	// XXX: should we automatically call BackendNotices() on this backend with
+	// a filter for this type and use this to bump the last notice timestamp
 	// (if necessary), rather than requiring the backends to do it manually?
 	// That would require that the backend has reloaded all its notices by the
 	// time it is registered. Which is true of both state and the prompting
@@ -261,12 +261,20 @@ func (nm *NoticeManager) Notices(filter *state.NoticeFilter) []*state.Notice {
 	defer nm.lock.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
+	now := time.Now()
 
+	return nm.doNotices(now, backendsToCheck, filter)
+}
+
+// doNotices checks the given backends for notices matching the given filter
+// which occurred before the given timestamp.
+//
+// The caller must ensure that the notice manager lock is held for reading.
+func (nm *NoticeManager) doNotices(now time.Time, backendsToCheck []NoticeBackend, filter *state.NoticeFilter) []*state.Notice {
 	// Ensure all backends have the same Before time so there is no race
 	// between one backend returning its existing notices and then another
 	// backend recording a new notice. As such, if the filter has Before set in
 	// the future, replace it with the current timestamp.
-	now := time.Now()
 	if filter.Before.IsZero() || filter.Before.After(now) {
 		// Don't mutate the existing filter, so make a copy
 		newFilter := *filter
@@ -388,21 +396,30 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	nm.lock.RLock()
 	defer nm.lock.RUnlock()
 
-	// If there are existing notices, return them right away.
-	// Notices() sets a Before filter if there isn't one already set, so there
-	// can be no race between one backend returning its existing notices and
-	// then another backend recording a new notice.
-	notices := nm.Notices(filter)
-	if len(notices) > 0 {
-		return notices, nil
-	}
-
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
 	if len(backendsToCheck) == 0 {
 		// XXX: should this be an error, or empty list? Or should the request
 		// just hang indefinitely? (The latter is what the API states)
 		//return nil, fmt.Errorf("no backends can produce notices matching the filter")
 		return []*state.Notice{}, nil
+	}
+
+	now := time.Now()
+
+	// If there are existing notices, return them right away.
+	// Notices() sets a Before filter if there isn't one already set, so there
+	// can be no race between one backend returning its existing notices and
+	// then another backend recording a new notice.
+	notices := nm.doNotices(now, backendsToCheck, filter)
+	if len(notices) > 0 {
+		return notices, nil
+	}
+
+	if !filter.Before.IsZero() && !filter.Before.After(now) {
+		// Since each backend returned, none can create a notice with a
+		// timestamp before now, and since the original filter's Before field
+		// is <= now, no notices can be created matching the filter.
+		return notices, nil
 	}
 
 	// Ask each backend to return the first notice it finds, unless cancelled
@@ -467,17 +484,16 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	lastRepeated := notices[len(notices)-1].LastRepeated
 
 	// Re-query all backends for any notices which occurred before the last
-	// repeated timestamp.
-	// Don't mutate the existing filter, so make a copy.
-	newFilter := *filter
-	newFilter.Before = lastRepeated.Add(time.Nanosecond)
+	// repeated timestamp. Add a nanosecond to it so that that notice can still
+	// be included.
+	now = lastRepeated.Add(time.Nanosecond)
 	// XXX: there's a chance some notices will be excluded here. In particular,
 	// a notice previously returned from one of the backends could have
 	// re-occurred since then, thus making its last-repeated timestamp after
-	// the new Before filter and causing it to be omitted from the final
+	// the now timestamp and causing it to be omitted from the final
 	// response. This is acceptable, as the new occurrence can be retrieved by
 	// a future request, and potentially has more up-to-date data, so it
 	// supercedes the occurrence of the notice which is being omitted.
-	notices = nm.Notices(&newFilter)
+	notices = nm.doNotices(now, backendsToCheck, filter)
 	return notices, nil
 }
