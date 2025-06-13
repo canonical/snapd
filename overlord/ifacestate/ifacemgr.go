@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -69,12 +70,15 @@ type InterfaceManager struct {
 	interfacesRequestsManagerMu sync.Mutex
 	interfacesRequestsManager   *apparmorprompting.InterfacesRequestsManager
 
+	// Notice Manager (because interfacesRequestsManager may be a backend)
+	noticeManager *notices.NoticeManager
+
 	preseed bool
 }
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
-func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, noticeManager *notices.NoticeManager) (*InterfaceManager, error) {
 	delayedCrossMgrInit()
 
 	// NOTE: hookManager is nil only when testing.
@@ -93,6 +97,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		extraInterfaces: extraInterfaces,
 		extraBackends:   extraBackends,
 		preseed:         snapdenv.Preseeding(),
+		// notice manager (because InterfacesRequestsManager may be a backend)
+		noticeManager: noticeManager,
 	}
 
 	taskKinds := map[string]bool{}
@@ -582,16 +588,16 @@ var interfacesRequestsControlHandlerServicePresent = func(m *InterfaceManager) (
 // initInterfacesRequestsManager initializes the prompting backends which make
 // up the interfaces requests manager.
 //
+// Pass the notice manager so that the backends can be registered as notice
+// backends for prompting-related notices.
+//
 // This function should only be called if prompting is supported and enabled,
 // and at least one installed snap has a "snap-interfaces-requests-control"
 // connection with the "handler-service" attribute declared.
-//
-// The state lock must not be held when this function is called, so that
-// notices can be recorded if necessary.
 func (m *InterfaceManager) initInterfacesRequestsManager() error {
 	m.interfacesRequestsManagerMu.Lock()
 	defer m.interfacesRequestsManagerMu.Unlock()
-	interfacesRequestsManager, err := createInterfacesRequestsManager(m.state)
+	interfacesRequestsManager, err := createInterfacesRequestsManager(m.noticeManager)
 	if err != nil {
 		return err
 	}
