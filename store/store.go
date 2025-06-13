@@ -630,7 +630,7 @@ func cancelled(ctx context.Context) bool {
 	}
 }
 
-var expectedCatalogPreamble = []interface{}{
+var expectedCatalogPreamble = []any{
 	json.Delim('{'),
 	"_embedded",
 	json.Delim('{'),
@@ -700,7 +700,7 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 	return nil
 }
 
-func decodeJSONBody(resp *http.Response, success interface{}, failure interface{}) error {
+func decodeJSONBody(resp *http.Response, success any, failure any) error {
 	ok := (resp.StatusCode == 200 || resp.StatusCode == 201)
 	// always decode on success; decode failures only if body is not empty
 	if !ok && resp.ContentLength == 0 {
@@ -717,7 +717,7 @@ func decodeJSONBody(resp *http.Response, success interface{}, failure interface{
 }
 
 // retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
-func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success interface{}, failure interface{}) (resp *http.Response, err error) {
+func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success any, failure any) (resp *http.Response, err error) {
 	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
 		return s.doRequest(ctx, s.client, reqOptions, user)
 	}, func(resp *http.Response) error {

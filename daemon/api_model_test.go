@@ -54,7 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-var modelDefaults = map[string]interface{}{
+var modelDefaults = map[string]any{
 	"architecture": "amd64",
 	"gadget":       "gadget",
 	"kernel":       "kernel",
@@ -113,7 +113,7 @@ func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	s.expectRootAccess()
 
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
-	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]any{
 		"revision": "2",
 	})
 
@@ -376,7 +376,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(st, theModel)
 
-	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
@@ -444,7 +444,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(st, theModel)
 
-	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]any{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
@@ -577,7 +577,7 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	s.expectRootAccess()
 
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
-	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]any{
 		"revision": "2",
 	})
 
@@ -636,7 +636,7 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	}
 
 	// valid revision assertion to make it part of the arguments
-	revAssert := assertstest.FakeAssertion(map[string]interface{}{
+	revAssert := assertstest.FakeAssertion(map[string]any{
 		"type":          "snap-revision",
 		"authority-id":  "can0nical",
 		"snap-id":       "snap-id-1",
@@ -685,7 +685,7 @@ func (s *modelSuite) TestPostOfflineRemodelWithComponents(c *check.C) {
 	s.expectRootAccess()
 
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
-	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]any{
 		"revision": "2",
 	})
 
@@ -724,7 +724,7 @@ func (s *modelSuite) TestPostOfflineRemodelWithComponents(c *check.C) {
 	c.Assert(err, check.IsNil)
 	snapFormData[filepath.Base(snapPath)] = string(content)
 
-	rev := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapRevisionType, map[string]interface{}{
+	rev := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapRevisionType, map[string]any{
 		"snap-id":       snapID,
 		"snap-sha3-384": digest,
 		"developer-id":  account.AccountID(),
@@ -732,7 +732,7 @@ func (s *modelSuite) TestPostOfflineRemodelWithComponents(c *check.C) {
 		"snap-revision": "10",
 	})
 
-	decl := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapDeclarationType, map[string]interface{}{
+	decl := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snapID,
 		"snap-name":    snapName,
@@ -747,7 +747,7 @@ func (s *modelSuite) TestPostOfflineRemodelWithComponents(c *check.C) {
 	// we handle components that are not associated with any of the snaps that
 	// are being uploaded a little differently, this part of the test helps
 	// cover that case
-	extraSnapDecl := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapDeclarationType, map[string]interface{}{
+	extraSnapDecl := mockStoreAssertion(c, signer, signer.AuthorityID, account.AccountID(), asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-id":      snaptest.AssertedSnapID("other-snap"),
 		"snap-name":    "other-snap",

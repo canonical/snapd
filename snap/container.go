@@ -221,7 +221,7 @@ func evalAndValidateSymlink(c Container, path string) (symlinkInfo, error) {
 }
 
 // ValidateComponentContainer does a minimal quick check on a snap component container.
-func ValidateComponentContainer(c Container, contName string, logf func(format string, v ...interface{})) error {
+func ValidateComponentContainer(c Container, contName string, logf func(format string, v ...any)) error {
 	needsrx := map[string]bool{
 		".":    true,
 		"meta": true,
@@ -235,7 +235,7 @@ func ValidateComponentContainer(c Container, contName string, logf func(format s
 }
 
 // ValidateSnapContainer does a minimal quick check on a snap container.
-func ValidateSnapContainer(c Container, s *Info, logf func(format string, v ...interface{})) error {
+func ValidateSnapContainer(c Container, s *Info, logf func(format string, v ...any)) error {
 	needsrx := map[string]bool{
 		".":    true,
 		"meta": true,
@@ -313,7 +313,7 @@ func ValidateSnapContainer(c Container, s *Info, logf func(format string, v ...i
 // - noskipd tracks directories we want to descend into despite not being in needs*
 // The function also takes the type and name for the container (for logging
 // purposes) and a log function.
-func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map[string]bool, contType, name string, logf func(format string, v ...interface{})) error {
+func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map[string]bool, contType, name string, logf func(format string, v ...any)) error {
 	seen := make(map[string]bool, len(needsx)+len(needsrx)+len(needsr))
 
 	// bad modes are logged instead of being returned because the end user

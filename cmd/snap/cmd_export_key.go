@@ -77,7 +77,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 			return fmt.Errorf("cannot find key named %q: %v", keyName, err)
 		}
 		pubKey := privKey.PublicKey()
-		headers := map[string]interface{}{
+		headers := map[string]any{
 			"account-id":          x.Account,
 			"name":                keyName,
 			"public-key-sha3-384": pubKey.ID(),

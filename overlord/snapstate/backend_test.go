@@ -391,7 +391,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			Snap:      info,
 			Name:      "dbus-slot",
 			Interface: "dbus",
-			Attrs: map[string]interface{}{
+			Attrs: map[string]any{
 				"bus":  "system",
 				"name": "org.example.Foo",
 			},
@@ -416,7 +416,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Snap:      info,
 				Interface: "confdb",
 				Name:      "my-plug",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"account": "my-publisher",
 					"view":    "my-reg/my-view",
 				},
@@ -442,8 +442,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Snap:      info,
 				Interface: "desktop",
 				Name:      "desktop",
-				Attrs: map[string]interface{}{
-					"desktop-file-ids": []interface{}{"org.example.Foo"},
+				Attrs: map[string]any{
+					"desktop-file-ids": []any{"org.example.Foo"},
 				},
 			},
 		}
@@ -643,7 +643,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 			"content-plug": {
 				Snap:      info,
 				Interface: "content",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"content":          "some-content",
 					"default-provider": "outdated-producer",
 				},
@@ -654,7 +654,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 			"content-slot": {
 				Snap:      info,
 				Interface: "content",
-				Attrs:     map[string]interface{}{"content": "some-content"},
+				Attrs:     map[string]any{"content": "some-content"},
 			},
 		}
 	} else if name == "provenance-snap" {
@@ -681,7 +681,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Snap:      info,
 				Interface: "confdb",
 				Name:      "my-plug",
-				Attrs: map[string]interface{}{
+				Attrs: map[string]any{
 					"account": "my-publisher",
 					"view":    "my-reg/my-view",
 				},

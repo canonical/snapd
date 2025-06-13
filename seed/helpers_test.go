@@ -58,7 +58,7 @@ func (s *helpersSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(s.assertsDir, 0755)
 	c.Assert(err, IsNil)
 
-	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
+	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]any{
 		"account-id": "developerid",
 	}, "")
 

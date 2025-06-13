@@ -122,12 +122,12 @@ func (s *writerSuite) SetUpTest(c *C) {
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+	s.Brands.Register("my-brand", brandPrivKey, map[string]any{
 		"verification": "verified",
 	})
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
 
-	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
+	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]any{
 		"account-id": "developerid",
 	}, "")
 	assertstest.AddMany(s.StoreSigning, s.devAcct)
@@ -291,12 +291,12 @@ func (s *writerSuite) fillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *see
 }
 
 func (s *writerSuite) TestNewDefaultChannelError(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	s.opts.DefaultChannel = "foo/bar"
@@ -306,12 +306,12 @@ func (s *writerSuite) TestNewDefaultChannelError(c *C) {
 }
 
 func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	tests := []struct {
@@ -336,26 +336,26 @@ func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 }
 
 func (s writerSuite) TestSetOptionsSnapsIgnoreExtensions(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			},
@@ -392,12 +392,12 @@ func (s writerSuite) TestSetOptionsSnapsIgnoreExtensions(c *C) {
 }
 
 func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	w, err := seedwriter.New(model, s.opts)
@@ -422,12 +422,12 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 }
 
 func (s *writerSuite) TestSnapsToDownloadOptionTrack(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	w, err := seedwriter.New(model, s.opts)
@@ -448,12 +448,12 @@ func (s *writerSuite) TestSnapsToDownloadOptionTrack(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCore16(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	s.makeSnap(c, "core", "")
@@ -492,13 +492,13 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCore18(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -542,13 +542,13 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 }
 
 func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -572,13 +572,13 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 }
 
 func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -639,7 +639,7 @@ func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C,
 }
 
 func (s *writerSuite) TestDownloadedCheckBaseGadget(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core18",
@@ -658,12 +658,12 @@ func (s *writerSuite) TestDownloadedCheckBaseGadget(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCheckBase(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"cont-producer"},
+		"required-snaps": []any{"cont-producer"},
 	})
 
 	s.makeSnap(c, "core", "")
@@ -679,12 +679,12 @@ func (s *writerSuite) TestDownloadedCheckBase(c *C) {
 }
 
 func (s *writerSuite) TestOutOfOrder(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	w, err := seedwriter.New(model, s.opts)
@@ -707,12 +707,12 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 }
 
 func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	w, err := seedwriter.New(model, s.opts)
@@ -737,12 +737,12 @@ func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	doNothingFill := func(*C, *seedwriter.Writer, *seedwriter.SeedSnap) {}
@@ -752,12 +752,12 @@ func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedUnexpectedClassicSnap(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"classic-snap"},
+		"required-snaps": []any{"classic-snap"},
 	})
 
 	s.makeSnap(c, "core", "")
@@ -772,7 +772,7 @@ func (s *writerSuite) TestDownloadedUnexpectedClassicSnap(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedPublisherMismatchKernel(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc",
@@ -790,7 +790,7 @@ func (s *writerSuite) TestDownloadedPublisherMismatchKernel(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedPublisherMismatchGadget(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc",
@@ -808,13 +808,13 @@ func (s *writerSuite) TestDownloadedPublisherMismatchGadget(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer"},
+		"required-snaps": []any{"cont-consumer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -836,13 +836,13 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	core18headers := map[string]interface{}{
+	core18headers := map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	}
 
 	tests := []struct {
@@ -858,11 +858,11 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 	}
 
 	for _, t := range tests {
-		var wrongTypeSnap interface{} = t.wrongTypeSnap
+		var wrongTypeSnap any = t.wrongTypeSnap
 		if t.header == "required-snaps" {
-			wrongTypeSnap = []interface{}{wrongTypeSnap}
+			wrongTypeSnap = []any{wrongTypeSnap}
 		}
-		model := s.Brands.Model("my-brand", "my-model", core18headers, map[string]interface{}{
+		model := s.Brands.Model("my-brand", "my-model", core18headers, map[string]any{
 			t.header: wrongTypeSnap,
 		})
 
@@ -874,7 +874,7 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCheckTypeSnapd(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core18",
@@ -894,7 +894,7 @@ func (s *writerSuite) TestDownloadedCheckTypeSnapd(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc",
@@ -912,7 +912,7 @@ func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc",
@@ -1023,13 +1023,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -1143,7 +1143,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -1152,7 +1152,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core18",
@@ -1184,13 +1184,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
 }
 
 func (s *writerSuite) TestLocalSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	core18Fn := s.makeLocalSnap(c, "core18")
@@ -1222,13 +1222,13 @@ func (s *writerSuite) TestLocalSnaps(c *C) {
 }
 
 func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -1367,13 +1367,13 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"required18"},
+		"required-snaps": []any{"required18"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -1432,13 +1432,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 }
 
 func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"required18"},
+		"required-snaps": []any{"required18"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -1468,13 +1468,13 @@ func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
 }
 
 func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	core18Fn := s.makeLocalSnap(c, "core18")
@@ -1502,13 +1502,13 @@ func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
 }
 
 func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	core18Fn := s.makeLocalSnap(c, "core18")
@@ -1546,13 +1546,13 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 }
 
 func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	core18Fn := s.makeLocalSnap(c, "core18")
@@ -1590,7 +1590,7 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 }
 
 func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core18",
@@ -1628,11 +1628,11 @@ func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"classic":        "true",
 		"architecture":   "amd64",
 		"gadget":         "classic-gadget",
-		"required-snaps": []interface{}{"required"},
+		"required-snaps": []any{"required"},
 	})
 
 	s.makeSnap(c, "core", "")
@@ -1693,11 +1693,11 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"classic":        "true",
 		"architecture":   "amd64",
 		"gadget":         "classic-gadget18",
-		"required-snaps": []interface{}{"core18", "required18"},
+		"required-snaps": []any{"core18", "required18"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -1754,7 +1754,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelNoSysSnap(c *C) {
 	// this is a degenerate case but has been historically supported,
 	// see image_test.go TestPrepareClassicModelNoModelAssertion
-	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]any{
 		"classic": "true",
 	})
 
@@ -1825,7 +1825,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelNoSysSnap(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelCore(c *C) {
-	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]any{
 		"classic": "true",
 	})
 
@@ -1895,7 +1895,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelCore(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromOptionsWins(c *C) {
-	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]any{
 		"classic": "true",
 	})
 
@@ -1967,9 +1967,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromOptionsWins(
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c *C) {
-	model := s.Brands.Model("my-brand", "my-min-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-min-model", map[string]any{
 		"classic":        "true",
-		"required-snaps": []interface{}{"core", "required", "snapd"},
+		"required-snaps": []any{"core", "required", "snapd"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -2028,13 +2028,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c 
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -2153,13 +2153,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
 		"architecture":   "amd64",
 		"base":           "core18",
 		"gadget":         "pc=18",
 		"kernel":         "pc-kernel=18",
-		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+		"required-snaps": []any{"cont-consumer", "cont-producer"},
 	})
 
 	s.makeSnap(c, "snapd", "")
@@ -2297,7 +2297,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -2306,34 +2306,34 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "cont-consumer",
 				"id":   s.AssertedSnapID("cont-consumer"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "cont-producer",
 				"id":   s.AssertedSnapID("cont-producer"),
 			},
@@ -2478,16 +2478,16 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 
 	b, err := os.ReadFile(filepath.Join(systemDir, "snaps", "aux-info.json"))
 	c.Assert(err, IsNil)
-	var auxInfos map[string]map[string]interface{}
+	var auxInfos map[string]map[string]any
 	err = json.Unmarshal(b, &auxInfos)
 	c.Assert(err, IsNil)
-	c.Check(auxInfos, DeepEquals, map[string]map[string]interface{}{
+	c.Check(auxInfos, DeepEquals, map[string]map[string]any{
 		s.AssertedSnapID("cont-consumer"): {
 			"private": true,
 		},
 		s.AssertedSnapID("cont-producer"): {
-			"links": map[string]interface{}{
-				"contact": []interface{}{"mailto:author@cont-producer.net"},
+			"links": map[string]any{
+				"contact": []any{"mailto:author@cont-producer.net"},
 			},
 			"contact": "mailto:author@cont-producer.net",
 		},
@@ -2502,19 +2502,19 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 }
 
 func (s *writerSuite) TestCore20InvalidLabel(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2538,25 +2538,25 @@ func (s *writerSuite) TestCore20InvalidLabel(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "cont-producer",
 				"id":   s.AssertedSnapID("cont-producer"),
 			},
@@ -2579,33 +2579,33 @@ func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "cont-producer",
 				"id":    s.AssertedSnapID("cont-producer"),
-				"modes": []interface{}{"run", "ephemeral"},
+				"modes": []any{"run", "ephemeral"},
 			},
 		},
 	})
@@ -2626,34 +2626,34 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCore20CheckBaseEphemeralOK(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "core18",
 				"id":    s.AssertedSnapID("core18"),
 				"type":  "base",
-				"modes": []interface{}{"ephemeral"},
+				"modes": []any{"ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "cont-producer",
 				"id":    s.AssertedSnapID("cont-producer"),
-				"modes": []interface{}{"recover"},
+				"modes": []any{"recover"},
 			},
 		},
 	})
@@ -2681,35 +2681,35 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 	s.makeSnap(c, "core", "")
 	s.makeSnap(c, "required", "")
 
-	coreEnt := map[string]interface{}{
+	coreEnt := map[string]any{
 		"name": "core",
 		"id":   s.AssertedSnapID("core"),
 		"type": "core",
 	}
-	requiredEnt := map[string]interface{}{
+	requiredEnt := map[string]any{
 		"name": "required",
 		"id":   s.AssertedSnapID("required"),
 	}
 
 	tests := []struct {
-		snaps []interface{}
+		snaps []any
 		err   string
 	}{
-		{[]interface{}{coreEnt, requiredEnt}, ""},
-		{[]interface{}{requiredEnt}, `cannot add snap "required" without also adding its base "core" explicitly`},
+		{[]any{coreEnt, requiredEnt}, ""},
+		{[]any{requiredEnt}, `cannot add snap "required" without also adding its base "core" explicitly`},
 	}
 
 	baseLabel := "20191003"
 	for idx, t := range tests {
 		s.opts.Label = fmt.Sprintf("%s%d", baseLabel, idx)
-		snaps := []interface{}{
-			map[string]interface{}{
+		snaps := []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2719,7 +2719,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 
 		snaps = append(snaps, t.snaps...)
 
-		model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		model := s.Brands.Model("my-brand", "my-model", map[string]any{
 			"display-name": "my model",
 			"architecture": "amd64",
 			"store":        "my-store",
@@ -2736,38 +2736,38 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 	}
 }
 func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "core18",
 				"id":    s.AssertedSnapID("core18"),
 				"type":  "base",
-				"modes": []interface{}{"run", "ephemeral"},
+				"modes": []any{"run", "ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "cont-producer",
 				"id":   s.AssertedSnapID("cont-producer"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "cont-consumer",
 				"id":    s.AssertedSnapID("cont-consumer"),
-				"modes": []interface{}{"recover"},
+				"modes": []any{"recover"},
 			},
 		},
 	})
@@ -2789,43 +2789,43 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 }
 
 func (s *writerSuite) TestDownloadedCore20AlternativeProviderModes(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "core18",
 				"id":    s.AssertedSnapID("core18"),
 				"type":  "base",
-				"modes": []interface{}{"run", "ephemeral"},
+				"modes": []any{"run", "ephemeral"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "cont-producer",
 				"id":   s.AssertedSnapID("cont-producer"),
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "cont-consumer",
 				"id":    s.AssertedSnapID("cont-consumer"),
-				"modes": []interface{}{"recover"},
+				"modes": []any{"recover"},
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":  "alt-cont-producer",
 				"id":    s.AssertedSnapID("alt-cont-producer"),
-				"modes": []interface{}{"recover"},
+				"modes": []any{"recover"},
 			},
 		},
 	})
@@ -2855,25 +2855,25 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 
 	s.makeSnap(c, "my-devmode", "canonical")
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "my-devmode",
 				"id":   s.AssertedSnapID("my-devmode"),
 				"type": "app",
@@ -2908,19 +2908,19 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -2993,19 +2993,19 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 }
 
 func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3033,7 +3033,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnapsWithComps(c *C) {
 
 func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps bool) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -3042,26 +3042,26 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			},
@@ -3200,7 +3200,7 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20LocalSnaps(c *C, withComps boo
 
 func (s *writerSuite) TestSetComponentOptionsBad(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -3209,29 +3209,29 @@ func (s *writerSuite) TestSetComponentOptionsBad(c *C) {
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "required",
 					"comp2": "optional",
 				},
@@ -3305,7 +3305,7 @@ func (s *writerSuite) TestSetComponentOptionsBad(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -3314,26 +3314,26 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			},
@@ -3419,24 +3419,24 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "snapd",
 				"id":              s.AssertedSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/edge",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3510,34 +3510,34 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 }
 
 func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core18",
 				"id":   s.AssertedSnapID("core18"),
 				"type": "base",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-a",
 				"id":       s.AssertedSnapID("optional20-a"),
 				"presence": "optional",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "optional20-b",
 				"id":       s.AssertedSnapID("optional20-b"),
 				"presence": "optional",
@@ -3572,25 +3572,25 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "component-test",
 				"id":   s.AssertedSnapID("component-test"),
 			},
@@ -3828,19 +3828,19 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -3962,28 +3962,28 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnapsWithCo
 }
 
 func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C, withComps bool) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "signed",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
-				"components": map[string]interface{}{
+				"components": map[string]any{
 					"comp1": "optional",
 					"comp2": "optional",
 				},
@@ -4108,19 +4108,19 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C,
 }
 
 func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "signed",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4141,15 +4141,15 @@ func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 }
 
 func (s *writerSuite) testDownloadedCore20CheckClassic(c *C, modelGrade asserts.ModelGrade, classicFlag bool) error {
-	classicSnap := map[string]interface{}{
+	classicSnap := map[string]any{
 		"name":  "classic-snap",
 		"id":    s.AssertedSnapID("classic-snap"),
-		"modes": []interface{}{"run"},
+		"modes": []any{"run"},
 	}
 	if classicFlag {
 		classicSnap["classic"] = "true"
 	}
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
@@ -4157,20 +4157,20 @@ func (s *writerSuite) testDownloadedCore20CheckClassic(c *C, modelGrade asserts.
 		"classic":      "true",
 		"distribution": "ubuntu",
 		"grade":        string(modelGrade),
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "core",
 				"id":   s.AssertedSnapID("core"),
 				"type": "core",
@@ -4210,21 +4210,21 @@ func (s *writerSuite) TestDownloadedCore20CheckClassicSignedWithFlag(c *C) {
 }
 
 func (s *writerSuite) setupValidationSets(c *C) {
-	valSetA, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	valSetA, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       s.AssertedSnapID("pc-kernel"),
 				"presence": "required",
 				"revision": "7",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       s.AssertedSnapID("pc"),
 				"presence": "required",
@@ -4237,21 +4237,21 @@ func (s *writerSuite) setupValidationSets(c *C) {
 	err = s.StoreSigning.Add(valSetA)
 	c.Check(err, IsNil)
 
-	valSetB, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	valSetB, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "base-set",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "pc-kernel",
 				"id":       s.AssertedSnapID("pc-kernel"),
 				"presence": "required",
 				"revision": "1",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":     "pc",
 				"id":       s.AssertedSnapID("pc"),
 				"presence": "required",
@@ -4264,15 +4264,15 @@ func (s *writerSuite) setupValidationSets(c *C) {
 	err = s.StoreSigning.Add(valSetB)
 	c.Check(err, IsNil)
 
-	valSetC, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+	valSetC, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",
 		"series":       "16",
 		"account-id":   "canonical",
 		"name":         "opt-set",
 		"sequence":     "2",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":     "my-snap",
 				"id":       "mysnapididididididididididididid",
 				"presence": "required",
@@ -4287,32 +4287,32 @@ func (s *writerSuite) setupValidationSets(c *C) {
 }
 
 func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				"sequence":   "1",
 				"mode":       "enforce",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "opt-set",
 				"mode":       "prefer-enforce",
@@ -4393,26 +4393,26 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 }
 
 func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				// Enforce sequence 2 instead, which requires revision
@@ -4514,14 +4514,14 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 }
 
 func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core18",
 		"gadget":       "pc=18",
 		"kernel":       "pc-kernel=18",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				// Enforce sequence 2, which requires revision
@@ -4618,14 +4618,14 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 }
 
 func (s *writerSuite) TestCheckValidateValidationSetsToEarly(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core18",
 		"gadget":       "pc=18",
 		"kernel":       "pc-kernel=18",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				// Enforce sequence 2, which requires revision
@@ -4660,19 +4660,19 @@ func (s *writerSuite) TestCheckValidateValidationSetsToEarly(c *C) {
 }
 
 func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4747,19 +4747,19 @@ snapd 1
 }
 
 func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -4829,26 +4829,26 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 }
 
 func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelSequence(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				"sequence":   "2",
@@ -4870,26 +4870,26 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelSequence(c 
 }
 
 func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				"mode":       "enforce",
@@ -4910,26 +4910,26 @@ func (s *writerSuite) TestManifestPreProvidedSequenceNotMatchingModelPinned(c *C
 }
 
 func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-		"validation-sets": []interface{}{
-			map[string]interface{}{
+		"validation-sets": []any{
+			map[string]any{
 				"account-id": "canonical",
 				"name":       "base-set",
 				"mode":       "enforce",
@@ -5037,29 +5037,29 @@ snapd 1
 }
 
 func (s *writerSuite) TestOptionalComponentNotIncluded(c *C) {
-	comps := map[string]interface{}{
+	comps := map[string]any{
 		"comp1": "required",
 		"comp2": "optional",
 	}
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "24",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "24",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":       "required20",
 				"id":         s.AssertedSnapID("required20"),
 				"components": comps,
@@ -5137,7 +5137,7 @@ func (s *writerSuite) TestOptionalComponentNotIncluded(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20BadLocalComps(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -5146,26 +5146,26 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20BadLocalComps(c *C) {
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			},
@@ -5227,31 +5227,31 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20BadLocalComps(c *C) {
 }
 
 func (s *writerSuite) TestVerifySnapBootstrapCompatibility(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core24",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "24/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "24/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              s.AssertedSnapID("snapd"),
 				"type":            "snapd",
 				"default-channel": "latest/stable",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "core24",
 				"id":              s.AssertedSnapID("core24"),
 				"type":            "base",
@@ -5296,7 +5296,7 @@ func (s *writerSuite) TestVerifySnapBootstrapCompatibility(c *C) {
 }
 
 func (s *writerSuite) testSeedWriterExtraAssertionsCore18(c *C, reverseOrder bool) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc=18",
@@ -5309,7 +5309,7 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore18(c *C, reverseOrder boo
 	s.makeSnap(c, "pc-kernel=18", "")
 	s.makeSnap(c, "pc=18", "")
 
-	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":        "my-proxy-store",
 		"operator-id":  "other-brand",
 		"authority-id": "canonical",
@@ -5318,7 +5318,7 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore18(c *C, reverseOrder boo
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]any{
 		"type":         "account",
 		"authority-id": "canonical",
 		"account-id":   "other-brand",
@@ -5387,24 +5387,24 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsCore18ReverseOrder(c *C) {
 }
 
 func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder bool) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "snapd",
 				"id":              s.AssertedSnapID("snapd"),
 				"type":            "snapd",
@@ -5418,7 +5418,7 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder boo
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":        "my-proxy-store",
 		"operator-id":  "other-brand",
 		"authority-id": "canonical",
@@ -5427,7 +5427,7 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder boo
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]any{
 		"type":         "account",
 		"authority-id": "canonical",
 		"account-id":   "other-brand",
@@ -5523,7 +5523,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsCore20ReverseOrder(c *C) {
 }
 
 func (s *writerSuite) TestSeedWriterExtraAssertionsErrorPrerequisites(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc=20",
@@ -5536,7 +5536,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsErrorPrerequisites(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":        "my-proxy-store",
 		"operator-id":  "other-brand",
 		"authority-id": "canonical",
@@ -5555,7 +5555,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsErrorPrerequisites(c *C) {
 }
 
 func (s *writerSuite) TestSeedWriterExtraAssertionsPrerequisitesError(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"gadget":       "pc=20",
@@ -5568,7 +5568,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsPrerequisitesError(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	proxyStoreAssertion, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":        "my-proxy-store",
 		"operator-id":  "other-brand",
 		"authority-id": "canonical",
@@ -5577,7 +5577,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsPrerequisitesError(c *C) {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]interface{}{
+	accountAssertion, err := s.StoreSigning.Sign(asserts.AccountType, map[string]any{
 		"type":         "account",
 		"authority-id": "not-canonical",
 		"account-id":   "other-brand",
@@ -5600,7 +5600,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsPrerequisitesError(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20OptionsOldLatest(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -5609,20 +5609,20 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20OptionsOldLatest(c *C) {
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5715,7 +5715,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20OptionsOldLatest(c *C) {
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverride(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -5724,26 +5724,26 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverride(c *C
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "oldlatest",
 				"id":              s.AssertedSnapID("oldlatest"),
 				"default-channel": "20/stable",
@@ -5835,7 +5835,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverride(c *C
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideMissingCore(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -5844,26 +5844,26 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideMissi
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "oldlatest",
 				"id":              s.AssertedSnapID("oldlatest"),
 				"default-channel": "20/stable",
@@ -5904,7 +5904,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideMissi
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideLocalCore(c *C) {
 	// add store assertion
-	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]any{
 		"store":       "my-store",
 		"operator-id": "canonical",
 		"timestamp":   time.Now().UTC().Format(time.RFC3339),
@@ -5913,26 +5913,26 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideLocal
 	err = s.StoreSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"store":        "my-store",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "oldlatest",
 				"id":              s.AssertedSnapID("oldlatest"),
 				"default-channel": "20/stable",

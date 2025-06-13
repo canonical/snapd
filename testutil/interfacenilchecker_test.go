@@ -52,7 +52,7 @@ func (*interfaceNilCheckerSuite) TestIsInterfaceNilMatchesIntendedNilComparison(
 	// assigning nil to a typed variable and then returning it fails the '== nil' check
 	err3 := typedErrWithNilValue()
 	c.Assert(err3 == nil, Equals, false)
-	res, errMsg := IsInterfaceNil.Check([]interface{}{err3}, []string{"value"})
+	res, errMsg := IsInterfaceNil.Check([]any{err3}, []string{"value"})
 	c.Assert(res, Equals, false)
 	c.Assert(errMsg, Equals, "expected <nil> but got *testutil_test.someError type")
 }

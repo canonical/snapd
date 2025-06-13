@@ -30,7 +30,7 @@ import (
 // applied.
 type Number uint32
 
-func (e *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (e *Number) UnmarshalYAML(unmarshal func(any) error) error {
 	var es string
 	if err := unmarshal(&es); err != nil {
 		return errors.New(`cannot unmarshal "edition"`)

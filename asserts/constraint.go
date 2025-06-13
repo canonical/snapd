@@ -46,7 +46,7 @@ type attrMatchingContext struct {
 }
 
 type attrMatcher interface {
-	match(apath string, v interface{}, ctx *attrMatchingContext) error
+	match(apath string, v any, ctx *attrMatchingContext) error
 
 	feature(flabel string) bool
 }
@@ -94,11 +94,11 @@ func (cc compileContext) alt(alt int) compileContext {
 }
 
 // compileAttrMatcher compiles an attrMatcher derived from constraints,
-func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher, error) {
+func compileAttrMatcher(cc compileContext, constraints any) (attrMatcher, error) {
 	switch x := constraints.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return compileMapAttrMatcher(cc, x)
-	case []interface{}:
+	case []any:
 		if cc.wasAlt {
 			return nil, fmt.Errorf("cannot nest alternative constraints directly at %q", cc)
 		}
@@ -127,7 +127,7 @@ func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher
 
 type mapAttrMatcher map[string]attrMatcher
 
-func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMatcher, error) {
+func compileMapAttrMatcher(cc compileContext, m map[string]any) (attrMatcher, error) {
 	matcher := make(mapAttrMatcher)
 	for k, constraint := range m {
 		matcher1, err := compileAttrMatcher(cc.keyEntry(k), constraint)
@@ -139,7 +139,7 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 	return matcher, nil
 }
 
-func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx *attrMatchingContext) error {
+func matchEntry(apath, k string, matcher1 attrMatcher, v any, ctx *attrMatchingContext) error {
 	apath = chain(apath, k)
 	// every entry matcher expects the attribute to be set except for $MISSING
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
@@ -151,7 +151,7 @@ func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx *attrM
 	return nil
 }
 
-func matchList(apath string, matcher attrMatcher, l []interface{}, ctx *attrMatchingContext) error {
+func matchList(apath string, matcher attrMatcher, l []any, ctx *attrMatchingContext) error {
 	for i, elem := range l {
 		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
 			return err
@@ -169,7 +169,7 @@ func (matcher mapAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+func (matcher mapAttrMatcher) match(apath string, v any, ctx *attrMatchingContext) error {
 	switch x := v.(type) {
 	case Attrer:
 		// we get Atter from root-level Check (apath is "")
@@ -179,13 +179,13 @@ func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx *attrMatchi
 				return err
 			}
 		}
-	case map[string]interface{}: // maps in attributes look like this
+	case map[string]any: // maps in attributes look like this
 		for k, matcher1 := range matcher {
 			if err := matchEntry(apath, k, matcher1, x[k], ctx); err != nil {
 				return err
 			}
 		}
-	case []interface{}:
+	case []any:
 		return matchList(apath, matcher, x, ctx)
 	default:
 		return fmt.Errorf("%s %q must be a map", ctx.attrWord, apath)
@@ -199,7 +199,7 @@ func (matcher missingAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+func (matcher missingAttrMatcher) match(apath string, v any, ctx *attrMatchingContext) error {
 	if v != nil {
 		return fmt.Errorf("%s %q is constrained to be missing but is set", ctx.attrWord, apath)
 	}
@@ -256,11 +256,11 @@ func (matcher evalAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+func (matcher evalAttrMatcher) match(apath string, v any, ctx *attrMatchingContext) error {
 	if ctx.helper == nil {
 		return fmt.Errorf("%s %q cannot be matched without context", ctx.attrWord, apath)
 	}
-	var comp func(string) (interface{}, error)
+	var comp func(string) (any, error)
 	switch matcher.op {
 	case "SLOT":
 		comp = ctx.helper.SlotAttr
@@ -286,7 +286,7 @@ func (m refAttrMatcher) feature(flabel string) bool {
 	return flabel == publisherIDConstraintsFeature
 }
 
-func (m refAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+func (m refAttrMatcher) match(apath string, v any, ctx *attrMatchingContext) error {
 	if ctx.helper == nil {
 		return fmt.Errorf("%s %q cannot be matched without context", ctx.attrWord, apath)
 	}
@@ -327,7 +327,7 @@ func (matcher regexpAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+func (matcher regexpAttrMatcher) match(apath string, v any, ctx *attrMatchingContext) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -336,7 +336,7 @@ func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx *attrMat
 		s = strconv.FormatBool(x)
 	case int64:
 		s = strconv.FormatInt(x, 10)
-	case []interface{}:
+	case []any:
 		return matchList(apath, matcher, x, ctx)
 	default:
 		return fmt.Errorf("%s %q must be a scalar or list", ctx.attrWord, apath)
@@ -352,7 +352,7 @@ type altAttrMatcher struct {
 	alts []attrMatcher
 }
 
-func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, error) {
+func compileAltAttrMatcher(cc compileContext, l []any) (attrMatcher, error) {
 	alts := make([]attrMatcher, len(l))
 	for i, constraint := range l {
 		matcher1, err := compileAttrMatcher(cc.alt(i), constraint)
@@ -377,11 +377,11 @@ func (matcher altAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher altAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+func (matcher altAttrMatcher) match(apath string, v any, ctx *attrMatchingContext) error {
 	// if the value is a list apply the alternative matcher to each element
 	// like we do for other matchers
 	switch x := v.(type) {
-	case []interface{}:
+	case []any:
 		return matchList(apath, matcher, x, ctx)
 	default:
 	}
@@ -429,7 +429,7 @@ var (
 	}
 )
 
-func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
+func detectDeviceScopeConstraint(cMap map[string]any) bool {
 	// for consistency and simplicity we support all of on-store,
 	// on-brand, and on-model to appear together. The interpretation
 	// layer will AND them as usual
@@ -444,7 +444,7 @@ func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
 // compileDeviceScopeConstraint compiles a DeviceScopeConstraint out of cMap,
 // it returns nil and no error if there are no on-store/on-brand/on-model
 // constraints in cMap
-func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
+func compileDeviceScopeConstraint(cMap map[string]any, context string) (constr *DeviceScopeConstraint, err error) {
 	if !detectDeviceScopeConstraint(cMap) {
 		return nil, nil
 	}

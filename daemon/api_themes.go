@@ -87,7 +87,7 @@ func installedThemes(overlord *overlord.Overlord) (gtkThemes, iconThemes, soundT
 			default:
 				continue
 			}
-			var sources []interface{}
+			var sources []any
 			if err := slot.Attr("source.read", &sources); err != nil {
 				continue
 			}
@@ -262,6 +262,6 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg = newChange(st, "install-themes", summary, tasksets, names)
 		ensureStateSoon(st)
 	}
-	chg.Set("api-data", map[string]interface{}{"snap-names": names})
+	chg.Set("api-data", map[string]any{"snap-names": names})
 	return AsyncResponse(nil, chg.ID())
 }

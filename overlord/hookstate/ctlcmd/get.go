@@ -103,8 +103,8 @@ func init() {
 	})
 }
 
-func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error)) error {
-	patch := make(map[string]interface{})
+func (c *getCommand) printValues(getByKey func(string) (any, bool, error)) error {
+	patch := make(map[string]any)
 	for _, key := range c.Positional.Keys {
 		value, output, err := getByKey(key)
 		if err == nil {
@@ -119,10 +119,10 @@ func (c *getCommand) printValues(getByKey func(string) (interface{}, bool, error
 	return c.printPatch(patch)
 }
 
-func (c *getCommand) printPatch(patch interface{}) error {
-	var confToPrint interface{} = patch
+func (c *getCommand) printPatch(patch any) error {
+	var confToPrint any = patch
 	if !c.Document && len(c.Positional.Keys) == 1 {
-		if confMap, ok := patch.(map[string]interface{}); ok {
+		if confMap, ok := patch.(map[string]any); ok {
 			confToPrint = confMap[c.Positional.Keys[0]]
 		}
 	}
@@ -218,8 +218,8 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 	transaction := configstate.ContextTransaction(context)
 	context.Unlock()
 
-	return c.printValues(func(key string) (interface{}, bool, error) {
-		var value interface{}
+	return c.printValues(func(key string) (any, bool, error) {
+		var value any
 		err := transaction.Get(c.context().InstanceName(), key, &value)
 		if err == nil {
 			return value, true, nil
@@ -349,7 +349,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	st.Lock()
 	defer st.Unlock()
 
-	var staticAttrs, dynamicAttrs map[string]interface{}
+	var staticAttrs, dynamicAttrs map[string]any
 	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
@@ -357,13 +357,13 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
-	return c.printValues(func(key string) (interface{}, bool, error) {
+	return c.printValues(func(key string) (any, bool, error) {
 		subkeys, err := config.ParseKey(key)
 		if err != nil {
 			return nil, false, err
 		}
 
-		var value interface{}
+		var value any
 		err = getAttribute(context.InstanceName(), subkeys, 0, staticAttrs, &value)
 		if err == nil {
 			return value, true, nil

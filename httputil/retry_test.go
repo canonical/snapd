@@ -94,7 +94,7 @@ func (s *retrySuite) TestRetryRequestOnEOF(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -108,7 +108,7 @@ func (s *retrySuite) TestRetryRequestOnEOF(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(failure, Equals, false)
-	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
+	c.Check(got, DeepEquals, map[string]any{"ok": true})
 	c.Assert(n, Equals, 4)
 }
 
@@ -132,7 +132,7 @@ func (s *retrySuite) TestRetryRequestFailWithEOF(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -172,7 +172,7 @@ func (s *retrySuite) TestRetryRequestOn500(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -186,7 +186,7 @@ func (s *retrySuite) TestRetryRequestOn500(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(failure, Equals, false)
-	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
+	c.Check(got, DeepEquals, map[string]any{"ok": true})
 	c.Assert(n, Equals, 4)
 }
 
@@ -209,7 +209,7 @@ func (s *retrySuite) TestRetryRequestFailOn500(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -257,7 +257,7 @@ func (s *retrySuite) TestRetryRequestUnexpectedEOFHandling(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -286,7 +286,7 @@ func (s *retrySuite) TestRetryRequestUnexpectedEOFHandling(c *C) {
 	c.Assert(err, IsNil)
 	// check that we retried 4 times
 	c.Check(failure, Equals, false)
-	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
+	c.Check(got, DeepEquals, map[string]any{"ok": true})
 	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
 }
 
@@ -307,7 +307,7 @@ func (s *retrySuite) TestRetryRequestFailOnReadResponseBody(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -340,7 +340,7 @@ func (s *retrySuite) TestRetryRequestReadResponseBodyFailure(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -392,7 +392,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	}
 
 	failure := false
-	var got interface{}
+	var got any
 	readResponseBody := func(resp *http.Response) error {
 		failure = false
 		if resp.StatusCode != 200 {
@@ -423,7 +423,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	c.Assert(err, IsNil)
 	// check that we retried 4 times
 	c.Check(failure, Equals, false)
-	c.Check(got, DeepEquals, map[string]interface{}{"ok": true})
+	c.Check(got, DeepEquals, map[string]any{"ok": true})
 	c.Assert(somewhatBrokenSrvCalls.Count(), Equals, 3)
 }
 

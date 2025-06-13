@@ -188,11 +188,11 @@ type StorageEncryption struct {
 type SystemDetails struct {
 	// First part is designed to look like `client.System` - the
 	// only difference is how the model is represented
-	Current bool                   `json:"current,omitempty"`
-	Label   string                 `json:"label,omitempty"`
-	Model   map[string]interface{} `json:"model,omitempty"`
-	Brand   snap.StoreAccount      `json:"brand,omitempty"`
-	Actions []SystemAction         `json:"actions,omitempty"`
+	Current bool              `json:"current,omitempty"`
+	Label   string            `json:"label,omitempty"`
+	Model   map[string]any    `json:"model,omitempty"`
+	Brand   snap.StoreAccount `json:"brand,omitempty"`
+	Actions []SystemAction    `json:"actions,omitempty"`
 
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`

@@ -92,8 +92,8 @@ func (b byPlugRef) Less(i, j int) bool {
 
 // mergeAttrs merges attributes from 2 disjoint sets of static and dynamic slot or
 // plug attributes into a single map.
-func mergeAttrs(one map[string]interface{}, other map[string]interface{}) map[string]interface{} {
-	merged := make(map[string]interface{}, len(one)+len(other))
+func mergeAttrs(one map[string]any, other map[string]any) map[string]any {
+	merged := make(map[string]any, len(one)+len(other))
 	for k, v := range one {
 		merged[k] = v
 	}
