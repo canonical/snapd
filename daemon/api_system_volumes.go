@@ -34,11 +34,19 @@ var systemVolumesCmd = &Command{
 	WriteAccess: rootAccess{},
 }
 
+var (
+	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
+)
+
 type systemVolumesActionRequest struct {
 	Action string `json:"action"`
 
+	Keyslots []fdestate.KeyslotRef `json:"keyslots"`
+
 	RecoveryKey    string   `json:"recovery-key"`
 	ContainerRoles []string `json:"container-roles"`
+	// KeyID is the recovery key id.
+	KeyID string `json:"key-id"`
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -70,6 +78,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesActionGenerateRecoveryKey(c)
 	case "check-recovery-key":
 		return postSystemVolumesActionCheckRecoveryKey(c, &req)
+	case "replace-recovery-key":
+		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
@@ -115,4 +125,26 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 	}
 
 	return SyncResponse(nil)
+}
+
+func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesActionRequest) Response {
+	if req.KeyID == "" {
+		return BadRequest("system volume action requires key-id to be provided")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := fdestateReplaceRecoveryKey(st, req.KeyID, req.Keyslots)
+	if err != nil {
+		return BadRequest("cannot replace recovery key: %v", err)
+	}
+
+	chg := st.NewChange("replace-recovery-key", "Replace recovery key")
+	chg.AddAll(ts)
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, chg.ID())
 }

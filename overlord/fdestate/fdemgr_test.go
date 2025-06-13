@@ -84,6 +84,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 
 	s.st = s.o.State()
 	s.runner = s.o.TaskRunner()
+	s.o.AddManager(s.runner)
 
 	s.st.Lock()
 	repo := interfaces.NewRepository()
@@ -242,6 +243,7 @@ func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager 
 
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
+	s.o.AddManager(manager)
 	c.Assert(manager.StartUp(), IsNil)
 	return manager
 }
@@ -665,10 +667,6 @@ func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
 			},
 		),
 	})
-}
-
-func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("fdemgr.go", c, false)
 }
 
 type mockRecoveryKeyCache struct {

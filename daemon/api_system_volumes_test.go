@@ -24,10 +24,12 @@ import (
 	"net/http"
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
-	. "gopkg.in/check.v1"
 )
 
 type systemVolumesSuite struct {
@@ -197,4 +199,76 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	c.Assert(rsp.Message, Equals, "cannot find matching recovery key: boom!")
 
 	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	d.Overlord().Loop()
+	defer d.Overlord().Stop()
+
+	called := 0
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		called++
+		c.Check(recoveryKeyID, Equals, "some-key-id")
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
+			{ContainerRole: "some-container-role", Name: "some-name"},
+		})
+
+		return state.NewTaskSet(), nil
+	}))
+
+	body := strings.NewReader(`
+{
+	"action": "replace-recovery-key",
+	"key-id": "some-key-id",
+	"keyslots": [
+		{"container-role": "some-container-role", "name": "some-name"}
+	]
+}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 202)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg, NotNil)
+	c.Check(chg.ID(), Equals, "1")
+	c.Check(chg.Kind(), Equals, "replace-recovery-key")
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
+	s.daemon(c)
+
+	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		return nil, errors.New("boom!")
+	}))
+
+	body := strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "cannot replace recovery key: boom!")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "replace-recovery-key"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
 }

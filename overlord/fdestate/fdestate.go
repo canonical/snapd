@@ -22,6 +22,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -402,4 +403,108 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 	return func() {
 		secbootGetPCRHandle = old
 	}
+}
+
+// KeyslotRef uniquely identifies a target key slot by
+// its container role and name.
+type KeyslotRef struct {
+	ContainerRole string `json:"container-role"`
+	Name          string `json:"name"`
+}
+
+func (k KeyslotRef) String() string {
+	return fmt.Sprintf("(container-role: %q, name: %q)", k.ContainerRole, k.Name)
+}
+
+// Validate that the key slot reference points to expected key slots.
+func (k KeyslotRef) Validate() error {
+	if len(k.ContainerRole) == 0 {
+		return errors.New("container role cannot be empty")
+	}
+	if len(k.Name) == 0 {
+		return errors.New("name cannot be empty")
+	}
+	// this constraint could be relaxed later when snapd supports user containers.
+	if k.ContainerRole != "system-data" && k.ContainerRole != "system-save" {
+		return fmt.Errorf(`unsupported container role %q, expected "system-data" or "system-save"`, k.ContainerRole)
+	}
+	return nil
+}
+
+func checkRecoveryKeyIDExists(st *state.State, recoveryKeyID string) error {
+	mgr := fdeMgr(st)
+	rkeyInfo, err := mgr.recoveryKeyCache.Key(recoveryKeyID)
+	if err != nil {
+		return err
+	}
+	if rkeyInfo.Expired(time.Now()) {
+		return errors.New("recovery key has expired")
+	}
+	return nil
+}
+
+const tmpKeyslotPrefix = "snapd-tmp"
+
+func tmpKeyslotTarget(keyslot KeyslotRef) KeyslotRef {
+	return KeyslotRef{
+		ContainerRole: keyslot.ContainerRole,
+		Name:          fmt.Sprintf("%s:%s", tmpKeyslotPrefix, keyslot.Name),
+	}
+}
+
+// ReplaceRecoveryKey creates a taskset that replaces the
+// recovery key for the specified target key slots using
+// the recovery key identified by recoveryKeyID.
+//
+// If keyslots is empty, the "default-recovery" key slot is
+// used by default for both the "system-data" and "system-save"
+// container roles.
+func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []KeyslotRef) (*state.TaskSet, error) {
+	if len(keyslots) == 0 {
+		// target default-recovery key slots by default if no key slot targets are specified
+		keyslots = append(keyslots,
+			KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-recovery"},
+		)
+	}
+
+	tmpKeyslots := make([]KeyslotRef, 0, len(keyslots))
+	tmpKeyslotRenames := make([]string, 0, len(keyslots))
+	for _, keyslot := range keyslots {
+		if err := keyslot.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslot.String(), err)
+		}
+		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		if keyslot.Name != "default-recovery" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslot.String())
+		}
+
+		tmpKeyslot := tmpKeyslotTarget(keyslot)
+		tmpKeyslots = append(tmpKeyslots, tmpKeyslot)
+		tmpKeyslotRenames = append(tmpKeyslotRenames, keyslot.Name)
+	}
+
+	if err := checkRecoveryKeyIDExists(st, recoveryKeyID); err != nil {
+		return nil, fmt.Errorf("invalid recovery key ID: %v", err)
+	}
+
+	ts := state.NewTaskSet()
+
+	addTemporaryRecoveryKeys := st.NewTask("add-recovery-keys", "Add temporary recovery key slots")
+	addTemporaryRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
+	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslots)
+	ts.AddTask(addTemporaryRecoveryKeys)
+
+	removeOldRecoveryKeys := st.NewTask("remove-keys", "Remove old recovery key slots")
+	removeOldRecoveryKeys.Set("keyslots", keyslots)
+	removeOldRecoveryKeys.WaitFor(addTemporaryRecoveryKeys)
+	ts.AddTask(removeOldRecoveryKeys)
+
+	renameTemporaryRecoveryKeys := st.NewTask("rename-keys", "Rename temporary recovery key slots")
+	renameTemporaryRecoveryKeys.Set("keyslots", tmpKeyslots)
+	renameTemporaryRecoveryKeys.Set("renames", tmpKeyslotRenames)
+	renameTemporaryRecoveryKeys.WaitFor(removeOldRecoveryKeys)
+	ts.AddTask(renameTemporaryRecoveryKeys)
+
+	return ts, nil
 }
