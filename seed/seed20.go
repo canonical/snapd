@@ -999,7 +999,8 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 	}
 	compName := cinfo.Component.ComponentName
 	cref := naming.NewComponentRef(info.SnapName(), compName)
-	csi := snap.NewComponentSideInfo(cref, snap.R(0))
+	// Unasserted components from the seed will have an x1 revision when installed
+	csi := snap.NewComponentSideInfo(cref, snap.R(-1))
 	cpi := snap.MinimalComponentContainerPlaceInfo(
 		compName, snap.R(-1), info.SnapName())
 	newCompPath, err := handler.HandleUnassertedContainer(cpi, compPath, tm)
@@ -1099,7 +1100,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 			seedComps = append(seedComps, comp)
 		}
 
-		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName(), snap.Revision{N: -1})
+		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName(), snap.R(-1))
 		newPath, err := handler.HandleUnassertedContainer(pinfo, path, tm)
 		if err != nil {
 			return nil, err
@@ -1107,7 +1108,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 		if newPath != "" {
 			path = newPath
 		}
-		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
+		// Unasserted snaps from the seed will have an x1 revision when installed
+		sideInfo = &snap.SideInfo{RealName: info.SnapName(), Revision: snap.R(-1)}
 		// suppress channel
 		channel = ""
 	} else {
