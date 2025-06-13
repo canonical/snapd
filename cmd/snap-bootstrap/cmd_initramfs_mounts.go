@@ -383,6 +383,13 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	kernelSeed := sysSnaps[snap.TypeKernel]
 	kernCompsMntPts := make(map[string]string)
 	compSeedInfos := []install.ComponentSeedInfo{}
+	compsDir := filepath.Join(boot.InitramfsRunMntDir, "snap-content")
+	defer func() {
+		// Remove dirs used by ancillary mounts
+		if err := os.RemoveAll(compsDir); err != nil {
+			logger.Noticef("warning: cannot remove %s: %v", compsDir, err)
+		}
+	}()
 	for _, sc := range kernelSeed.Components {
 		seedComp := sc
 		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
@@ -397,8 +404,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		// Mount ephemerally the kernel-modules components to read
 		// their metadata and also to make them accessible if building
 		// the drivers tree.
-		mntPt := filepath.Join(filepath.Join(boot.InitramfsRunMntDir, "snap-content",
-			seedComp.CompSideInfo.Component.String()))
+		mntPt := filepath.Join(filepath.Join(compsDir, seedComp.CompSideInfo.Component.String()))
 		if err := doSystemdMount(seedComp.Path, mntPt, &systemdMountOptions{
 			ReadOnly:  true,
 			Private:   true,
