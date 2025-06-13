@@ -27,34 +27,31 @@ import (
 
 // NoticeBackend defines the functionality required to serve notices.
 type NoticeBackend interface {
-	// IsNoticeBackend is a no-op marker method to ensure that nothing can be
-	// unintentionally registered as a backend.
-	IsNoticeBackend()
+	// BackendNotices returns the list of notices that match the filter
+	// (if any), ordered by the last-repeated time.
+	BackendNotices(filter *state.NoticeFilter) []*state.Notice
 
-	// Notices returns the list of notices that match the filter (if any),
-	// ordered by the last-repeated time.
-	Notices(filter *state.NoticeFilter) []*state.Notice
+	// BackendNotice returns a single notice by ID, or nil if not found.
+	BackendNotice(id string) *state.Notice
 
-	// Notice returns a single notice by ID, or nil if not found.
-	Notice(id string) *state.Notice
-
-	// WaitNotices waits for notices that match the filter to exist or occur,
-	// returning the list of matching notices ordered by last-repeated time.
+	// BackendWaitNotices waits for notices that match the filter to exist or
+	// occur, returning the list of matching notices ordered by last-repeated
+	// time.
 	//
 	// It waits till there is at least one matching notice or the context is
 	// cancelled. If there are existing notices that match the filter,
 	// WaitNotices will return them immediately.
-	WaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error)
+	BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error)
 }
 
 // NoticeManager provides an abstraction layer over multiple notice backends,
 // ensuring correctness and consistency of notices and providing functions to
 // query notices across those backends.
 type NoticeManager struct {
-	// state is a reference to the snapd state so that the manager can provide
-	// unique notice IDs and timestamps to all backends, and because state is
-	// itself a notice backend.
-	state *state.State
+	// state is a wrapper around the snapd state so that the manager can provide
+	// unique notice IDs and timestamps to all backends, and to make the state
+	// itself be a notice backend.
+	state stateBackend
 
 	// lock guards against new backends being registered. It must be held for
 	// writing when adding a new backend, and held for reading when using any
@@ -90,34 +87,33 @@ type backendWithType struct {
 // stateBackend wraps a state to ensure that the state lock is acquired when
 // checking notices.
 type stateBackend struct {
-	st *state.State
+	*state.State
 }
 
-func (sb stateBackend) IsNoticeBackend() {}
-
-func (sb stateBackend) Notices(filter *state.NoticeFilter) []*state.Notice {
-	sb.st.Lock()
-	defer sb.st.Unlock()
-	return sb.st.Notices(filter)
+func (sb stateBackend) BackendNotices(filter *state.NoticeFilter) []*state.Notice {
+	sb.Lock()
+	defer sb.Unlock()
+	return sb.Notices(filter)
 }
 
-func (sb stateBackend) Notice(id string) *state.Notice {
-	sb.st.Lock()
-	defer sb.st.Unlock()
-	return sb.st.Notice(id)
+func (sb stateBackend) BackendNotice(id string) *state.Notice {
+	sb.Lock()
+	defer sb.Unlock()
+	return sb.Notice(id)
 }
 
-func (sb stateBackend) WaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
-	sb.st.Lock()
-	defer sb.st.Unlock()
-	return sb.st.WaitNotices(ctx, filter)
+func (sb stateBackend) BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
+	sb.Lock()
+	defer sb.Unlock()
+	return sb.WaitNotices(ctx, filter)
 }
 
 // NewNoticeManager returns a new NoticeManager based on the given state, and
 // registers that state as a NoticeBackend for notice types it provides.
 func NewNoticeManager(st *state.State) *NoticeManager {
+	wrapper := stateBackend{st}
 	nm := &NoticeManager{
-		state:                  st,
+		state:                  wrapper,
 		backends:               make([]NoticeBackend, 0, 1),
 		idNamespaceToBackend:   make(map[string]NoticeBackend),
 		backendTypeToNamespace: make(map[backendWithType]string),
@@ -125,7 +121,6 @@ func NewNoticeManager(st *state.State) *NoticeManager {
 	}
 
 	// The state is always a backend for several notice types, with no namespace
-	wrapper := stateBackend{st: st}
 	for _, typ := range []state.NoticeType{
 		state.ChangeUpdateNotice,
 		state.WarningNotice,
@@ -282,7 +277,7 @@ func (nm *NoticeManager) Notices(filter *state.NoticeFilter) []*state.Notice {
 	var notices []*state.Notice
 	// TODO: if backends are slow, query each backend in its own goroutine
 	for _, backend := range backendsToCheck {
-		notices = append(notices, backend.Notices(filter)...)
+		notices = append(notices, backend.BackendNotices(filter)...)
 	}
 	state.SortNotices(notices)
 
@@ -352,7 +347,7 @@ func (nm *NoticeManager) Notice(id string) *state.Notice {
 	// Now query each backend
 	queryBackend := func(bknd NoticeBackend) {
 		defer wg.Done()
-		notice := bknd.Notice(id)
+		notice := bknd.BackendNotice(id)
 		if notice == nil {
 			return
 		}
@@ -433,7 +428,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		defer wg.Done()
 		// Ignore error, as it should only ever be the context cancellation
 		// error, which we'll handle below.
-		backendNotices, _ := bknd.WaitNotices(backendCtx, filter)
+		backendNotices, _ := bknd.BackendWaitNotices(backendCtx, filter)
 		select {
 		case noticesChan <- backendNotices:
 			// Successfully sent notices back to caller

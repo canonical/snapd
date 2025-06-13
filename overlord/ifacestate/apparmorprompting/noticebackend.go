@@ -83,14 +83,14 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 	}
 
 	filter := &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsPromptNotice}}
-	notices := nb.promptBackend.Notices(filter)
+	notices := nb.promptBackend.BackendNotices(filter)
 	if len(notices) > 0 {
 		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated
 		noticeMgr.ReportLastNoticeTimestamp(lastNoticeTimestamp)
 	}
 
 	filter = &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice}}
-	notices = nb.ruleBackend.Notices(filter)
+	notices = nb.ruleBackend.BackendNotices(filter)
 	if len(notices) > 0 {
 		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated
 		noticeMgr.ReportLastNoticeTimestamp(lastNoticeTimestamp)
@@ -329,14 +329,11 @@ func sliceContains[T comparable](haystack []T, needle T) bool {
 	return false
 }
 
-// IsNoticeBackend is a no-op method marking that the receiver is a notice backend.
-func (ntb *noticeTypeBackend) IsNoticeBackend() {}
-
-// Notices returns the list of notices that match the filter (if any), ordered
-// by the last-repeated time.
+// BackendNotices returns the list of notices that match the filter (if any),
+// ordered by the last-repeated time.
 //
 // The caller must not mutate the data within the returned slice.
-func (ntb *noticeTypeBackend) Notices(filter *state.NoticeFilter) []*state.Notice {
+func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*state.Notice {
 	simplifiedFilter, matchPossible := ntb.simplifyFilter(filter)
 	if !matchPossible {
 		return []*state.Notice{}
@@ -368,8 +365,8 @@ func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*sta
 	return notices
 }
 
-// Notice returns a single notice by ID, or nil if not found.
-func (ntb *noticeTypeBackend) Notice(id string) *state.Notice {
+// BackendNotice returns a single notice by ID, or nil if not found.
+func (ntb *noticeTypeBackend) BackendNotice(id string) *state.Notice {
 	for _, userNotices := range ntb.userNotices {
 		for _, n := range userNotices {
 			if n.ID == id {
@@ -380,13 +377,13 @@ func (ntb *noticeTypeBackend) Notice(id string) *state.Notice {
 	return nil
 }
 
-// WaitNotices waits for notices that match the filter to exist or occur,
+// BackendWaitNotices waits for notices that match the filter to exist or occur,
 // returning the list of matching notices ordered by last-repeated time.
 //
 // It waits till there is at least one matching notice or the context is
 // cancelled. If there are existing notices that match the filter, WaitNotices
 // will return them immediately.
-func (ntb *noticeTypeBackend) WaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
+func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
 	simplifiedFilter, matchPossible := ntb.simplifyFilter(filter)
 	if !matchPossible {
 		// XXX: if a match is not possible, should this return an empty list,
