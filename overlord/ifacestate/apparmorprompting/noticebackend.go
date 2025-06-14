@@ -289,6 +289,9 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 // simplifyFilter creates a new simplified filter with only the information
 // relevant to this backend. If no notices can match this backend, returns false.
 func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simplified *ntbFilter, matchPossible bool) {
+	if filter == nil {
+		return &ntbFilter{}, true
+	}
 	if len(filter.Types) > 0 && !sliceContains(filter.Types, ntb.noticeType) {
 		return nil, false
 	}
@@ -307,7 +310,7 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 			return nil, false
 		}
 	}
-	if !filter.Before.IsZero() && !filter.After.IsZero() && (filter.After.Equal(filter.Before) || filter.After.After(filter.Before)) {
+	if !filter.Before.IsZero() && !filter.After.IsZero() && !filter.After.Before(filter.Before) {
 		// No possible timestamp can satisfy both After and Before filters
 		return nil, false
 	}
