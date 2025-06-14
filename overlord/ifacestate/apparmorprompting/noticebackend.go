@@ -401,6 +401,11 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		return notices, nil
 	}
 
+	if !simplifiedFilter.before.IsZero() && !simplifiedFilter.before.After(now) {
+		// No new notices can be added with a timestamp before the Before filter
+		return []*state.Notice{}, nil
+	}
+
 	// When the context is done/cancelled, wake up the waiters so that they can
 	// check their ctx.Err() and return if they're cancelled.
 	//
