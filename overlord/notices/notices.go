@@ -242,8 +242,16 @@ func (nm *NoticeManager) Notices(filter *state.NoticeFilter) []*state.Notice {
 	defer nm.lock.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
-	now := time.Now()
+	switch len(backendsToCheck) {
+	case 0:
+		// This should be impossible, since state is always an implicit backend
+		// if no other backend is registered for a given type.
+		return []*state.Notice{}
+	case 1:
+		return backendsToCheck[0].BackendNotices(filter)
+	}
 
+	now := time.Now()
 	return nm.doNotices(now, backendsToCheck, filter)
 }
 
@@ -282,6 +290,9 @@ func (nm *NoticeManager) doNotices(now time.Time, backendsToCheck []NoticeBacken
 //
 // The caller must ensure that the notice manager lock is held for reading.
 func (nm *NoticeManager) relevantBackendsForFilter(filter *state.NoticeFilter) []NoticeBackend {
+	// TODO: check filter.Keys against namespaces as well to further refine
+	// which backends are capable of producing notices matching the filter
+
 	if filter == nil || len(filter.Types) == 0 {
 		// No types specified, so assume all backends are relevant
 		return nm.backends
@@ -323,6 +334,15 @@ func (nm *NoticeManager) relevantBackendsForFilter(filter *state.NoticeFilter) [
 func (nm *NoticeManager) Notice(id string) *state.Notice {
 	nm.lock.RLock()
 	defer nm.lock.RUnlock()
+
+	switch len(nm.backends) {
+	case 0:
+		// This should be impossible, since state is always an implicit backend
+		// if no other backend is registered for a given type.
+		return nil
+	case 1:
+		return nm.backends[0].BackendNotice(id)
+	}
 
 	noticeChan := make(chan *state.Notice)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -387,11 +407,13 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	defer nm.lock.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
-	if len(backendsToCheck) == 0 {
-		// XXX: should this be an error, or empty list? Or should the request
-		// just hang indefinitely? (The latter is what the API states)
-		//return nil, fmt.Errorf("no backends can produce notices matching the filter")
+	switch len(backendsToCheck) {
+	case 0:
+		// This should be impossible, since state is always an implicit backend
+		// if no other backend is registered for a given type.
 		return []*state.Notice{}, nil
+	case 1:
+		return backendsToCheck[0].BackendWaitNotices(ctx, filter)
 	}
 
 	now := time.Now()
