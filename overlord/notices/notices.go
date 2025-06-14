@@ -470,7 +470,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	cancel()
 
 	// Get the last repeated timestamp of the newest received notice
-	lastRepeated := notices[len(notices)-1].LastRepeated
+	lastRepeated := notices[len(notices)-1].LastRepeated()
 
 	// Re-query all backends for any notices which occurred before the last
 	// repeated timestamp. Add a nanosecond to it so that that notice can still

@@ -335,7 +335,7 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 // root, but at the moment we do not have a level of notice visibility which
 // grants access to those admins, as well as root and the notice's user.
 func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
-	userID, isSet := notice.HasUserID()
+	userID, isSet := notice.UserID()
 	if !isSet {
 		return true
 	}

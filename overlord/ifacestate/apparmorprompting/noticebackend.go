@@ -85,14 +85,14 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 	filter := &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsPromptNotice}}
 	notices := nb.promptBackend.BackendNotices(filter)
 	if len(notices) > 0 {
-		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated
+		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated()
 		noticeMgr.ReportLastNoticeTimestamp(lastNoticeTimestamp)
 	}
 
 	filter = &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice}}
 	notices = nb.ruleBackend.BackendNotices(filter)
 	if len(notices) > 0 {
-		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated
+		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated()
 		noticeMgr.ReportLastNoticeTimestamp(lastNoticeTimestamp)
 	}
 
@@ -173,26 +173,17 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 			expiredIndex.index = i
 			break
 		}
-		if n.Key == key {
+		if n.Key() == key {
 			notice = n
 			noticeIndex.found = true
 			noticeIndex.index = i
 		}
 	}
 	if !noticeIndex.found {
-		notice = &state.Notice{
-			ID:            noticeID,
-			UserID:        &userID,
-			NoticeType:    ntb.noticeType,
-			Key:           key,
-			FirstOccurred: timestamp,
-			ExpireAfter:   defaultExpireAfter,
-		}
+		notice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
+	} else {
+		notice.Reoccur(timestamp, data, 0)
 	}
-	notice.LastOccurred = timestamp
-	notice.LastRepeated = timestamp
-	notice.Occurrences++
-	notice.LastData = data
 
 	newNotices := userNotices
 	if expiredIndex.found {
@@ -246,7 +237,7 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 		if notice.Expired(now) {
 			continue
 		}
-		if !f.after.IsZero() && !notice.LastRepeated.After(f.after) {
+		if !f.after.IsZero() && !notice.LastRepeated().After(f.after) {
 			continue
 		}
 		filteredNotices = notices[i:]
@@ -259,7 +250,7 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 	// Discard notices with last repeated timestamp after f.before (if given)
 	if !f.before.IsZero() {
 		for i, notice := range filteredNotices {
-			if !notice.LastRepeated.Before(f.before) {
+			if !notice.LastRepeated().Before(f.before) {
 				filteredNotices = filteredNotices[:i]
 				break
 			}
@@ -275,7 +266,7 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 	// Look for the keys from the filter
 	keyNotices := make([]*state.Notice, 0, len(f.keys))
 	for _, notice := range filteredNotices {
-		if !sliceContains(f.keys, notice.Key) {
+		if !sliceContains(f.keys, notice.Key()) {
 			continue
 		}
 		keyNotices = append(keyNotices, notice)
@@ -372,7 +363,7 @@ func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*sta
 func (ntb *noticeTypeBackend) BackendNotice(id string) *state.Notice {
 	for _, userNotices := range ntb.userNotices {
 		for _, n := range userNotices {
-			if n.ID == id {
+			if n.ID() == id {
 				return n
 			}
 		}

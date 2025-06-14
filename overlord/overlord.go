@@ -215,7 +215,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	// Set lastNoticeTimestamp
 	stateNotices := s.Notices(nil)
 	if len(stateNotices) > 0 {
-		lastTimestamp := stateNotices[len(stateNotices)-1].LastRepeated
+		lastTimestamp := stateNotices[len(stateNotices)-1].LastRepeated()
 		o.noticeMgr.ReportLastNoticeTimestamp(lastTimestamp)
 	}
 
