@@ -43,3 +43,17 @@ func (*detectSuite) TestIsContainer_No(c *C) {
 
 	c.Check(systemd.IsContainer(), Equals, false)
 }
+
+func (*detectSuite) TestIsVirtualMachine_Yes(c *C) {
+	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", `exit 0`)
+	defer systemdCmd.Restore()
+
+	c.Check(systemd.IsVirtualMachine(), Equals, true)
+}
+
+func (*detectSuite) TestIsVirtualMachine_No(c *C) {
+	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", `exit 1`)
+	defer systemdCmd.Restore()
+
+	c.Check(systemd.IsVirtualMachine(), Equals, false)
+}
