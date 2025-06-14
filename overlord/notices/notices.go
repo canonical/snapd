@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -50,7 +49,8 @@ type NoticeBackend interface {
 type NoticeManager struct {
 	// state is a wrapper around the snapd state so that the manager can provide
 	// unique notice IDs and timestamps to all backends, and to make the state
-	// itself be a notice backend.
+	// itself be a notice backend. State is an implicit notice backend for any
+	// notice types which have no backends registered for them.
 	state stateBackend
 
 	// lock guards against new backends being registered. It must be held for
@@ -114,25 +114,10 @@ func NewNoticeManager(st *state.State) *NoticeManager {
 	wrapper := stateBackend{st}
 	nm := &NoticeManager{
 		state:                  wrapper,
-		backends:               make([]NoticeBackend, 0, 1),
+		backends:               []NoticeBackend{wrapper},
 		idNamespaceToBackend:   make(map[string]NoticeBackend),
 		backendTypeToNamespace: make(map[backendWithType]string),
 		noticeTypeBackends:     make(map[state.NoticeType][]NoticeBackend),
-	}
-
-	// The state is always a backend for several notice types, with no namespace
-	for _, typ := range []state.NoticeType{
-		state.ChangeUpdateNotice,
-		state.WarningNotice,
-		state.RefreshInhibitNotice,
-		state.SnapRunInhibitNotice,
-	} {
-		// State validates its own notices, so ignore the validateNotices closure
-		_, err := nm.RegisterBackend(wrapper, typ, "")
-		if err != nil {
-			// Should not occur
-			logger.Panicf("failed to register state as a notice backend for type %v", typ)
-		}
 	}
 
 	return nm
@@ -146,6 +131,9 @@ func NewNoticeManager(st *state.State) *NoticeManager {
 // added by that backend. The backend is responsible for ensuring that the
 // notices which it serves are valid according to the closure.
 func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeType, namespace string) (validateNotice func(id string, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) error, retErr error) {
+	if namespace == "" {
+		return nil, fmt.Errorf("internal error: cannot register notice backend with empty namespace")
+	}
 	nm.lock.Lock()
 	defer nm.lock.Unlock()
 	// Check that this namespace is not already registered to another backend
@@ -197,17 +185,10 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 		// Check that the ID starts with the namespace prefix or, if the
 		// namespace is empty, check that the ID has no prefix.
 		prefix, ok := prefixFromID(id)
-		if ok {
-			if namespace == "" {
-				return fmt.Errorf("cannot add notice with ID prefix to notice backend registered with empty namespace: %q", id)
-			}
-			if prefix != namespace {
-				return fmt.Errorf("cannot add notice with ID prefix not matching the namespace registered to the notice backend: %q != %q", id, namespace)
-			}
-		} else {
-			if namespace != "" {
-				return fmt.Errorf("cannot add notice with no ID prefix to notice backend registered with namespace %q: %q", namespace, id)
-			}
+		if !ok {
+			return fmt.Errorf("cannot add notice without ID prefix to notice backend registered with namespace: %q", namespace)
+		} else if prefix != namespace {
+			return fmt.Errorf("cannot add notice with ID prefix not matching the namespace registered to the notice backend: %q != %q", id, namespace)
 		}
 		return nil
 	}
@@ -309,11 +290,17 @@ func (nm *NoticeManager) relevantBackendsForFilter(filter *state.NoticeFilter) [
 	for _, typ := range filter.Types {
 		backends, ok := nm.noticeTypeBackends[typ]
 		if !ok {
-			// No backend registered for this type, so there's no way notices
-			// of this type can exist.
+			// No backend registered for this type, so the state is the
+			// implicit provider of notices of this type.
+			backendsSet[nm.state] = true
 			continue
 		}
 		for _, backend := range backends {
+			// If there are backends registered with this type, then state must
+			// will not be checked.
+			// TODO: If in the future we want to allow state and another backend
+			// to both provide notices of the same type, we need to allow state
+			// to be registered as a backend with an empty namespace.
 			backendsSet[backend] = true
 		}
 	}
