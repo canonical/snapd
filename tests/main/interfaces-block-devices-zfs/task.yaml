@@ -1,0 +1,53 @@
+summary: Ensure correctness of block-devices interface.
+
+details: |
+    The block-devices interface allows direct access to block devices, such as
+    /dev/sda, and optionally to partitions on said devices, e.g. /dev/sda1.
+
+systems:
+    # limit to systems where we know ZFS support is present OOTB
+    - ubuntu-2*
+
+prepare: |
+    dd if=/dev/zero of=disk bs=1M count=1024
+    parted ./disk mklabel gpt
+    # 83 - Linux partition
+    parted ./disk unit MB mkpart 83 2MB 502MB
+    parted ./disk unit MB mkpart 83 502MB 1002MB
+    losetup --show -f -P ./disk > loop.txt
+
+    tests.pkgs install zfsutils
+
+restore: |
+    zpool destroy testpool || true
+    losetup -d "$(cat loop.txt)"
+
+execute: |
+    snap install --edge test-snapd-zfsutils
+
+    snap connect test-snapd-zfsutils:block-devices
+    snap connect test-snapd-zfsutils:mount-observe
+
+    # starting without any pools
+    test-snapd-zfsutils.zpool list | MATCH "no pools available"
+
+    # we are able to create a pool
+    test-snapd-zfsutils.zpool create -m none testpool "$(cat loop.txt)p1" "$(cat loop.txt)p2"
+    test-snapd-zfsutils.zpool list | MATCH testpool
+
+    # we are able to create a dataset
+    test-snapd-zfsutils.zfs create testpool/data
+    test-snapd-zfsutils.zfs list | MATCH testpool/data
+
+    # set mountpoint
+    test-snapd-zfsutils.zfs set -u mountpoint=/mnt  testpool/data
+    # but mounts would require mount contro
+    not test-snapd-zfsutils.zfs mount testpool/data
+    # so do a mount outside of the snap
+    zfs mount testpool/data
+    touch /mnt/aaa
+    zfs umount testpool/data
+
+    # we are able to destroy the pool
+    test-snapd-zfsutils.zpool destroy testpool
+    test-snapd-zfsutils.zpool list | MATCH "no pools available"
