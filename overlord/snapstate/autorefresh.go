@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -885,7 +886,7 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 	}
 
 	if changed {
-		if _, err := st.AddNotice(nil, state.RefreshInhibitNotice, "-", nil); err != nil {
+		if _, err := notices.AddNotice(st, nil, notices.RefreshInhibitNotice, "-", nil); err != nil {
 			return err
 		}
 		st.Set("last-recorded-inhibited-snaps", curInhibitedSnaps)
