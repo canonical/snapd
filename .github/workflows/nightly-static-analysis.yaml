@@ -87,7 +87,8 @@ jobs:
       run: |
         set -x
 
-        export TICSAUTHTOKEN="${{ secrets.TICSAUTHTOKEN }}"
         source ~/.profile
+        export TICSAUTHTOKEN="${{ secrets.TICSAUTHTOKEN }}"
+        export TICS=https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=GoProjects
 
         TICSQServer -project snapd -tmpdir /tmp/tics -branchdir "${{ github.workspace }}/src/github.com/snapcore/snapd"
