@@ -283,3 +283,5 @@ func MarkSuccessful() error {
 const (
 	defaultKeyringPrefix = "ubuntu-fde"
 )
+
+type UpdatedKeys []any
