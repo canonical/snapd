@@ -90,8 +90,13 @@ type State struct {
 	lastNoticeId int
 	// lastHandlerId is not serialized, it's only used during runtime
 	// for registering runtime callbacks
-	lastHandlerId       int
-	lastNoticeTimestamp time.Time
+	lastHandlerId int
+
+	// lastNoticeTimestamp is protected by a mutex, and is unique and
+	// monotonically increasing timestamp. It is not saved to disk along with
+	// the other state, and is instead populated during startup.
+	lastNoticeTimestampMu sync.Mutex
+	lastNoticeTimestamp   time.Time
 
 	backend Backend
 	data    customData
@@ -186,8 +191,6 @@ type marshalledState struct {
 	LastTaskId   int `json:"last-task-id"`
 	LastLaneId   int `json:"last-lane-id"`
 	LastNoticeId int `json:"last-notice-id"`
-
-	LastNoticeTimestamp time.Time `json:"last-notice-timestamp,omitzero"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -204,8 +207,6 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastChangeId: s.lastChangeId,
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
-
-		LastNoticeTimestamp: s.lastNoticeTimestamp,
 	})
 }
 
@@ -226,7 +227,6 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
-	s.lastNoticeTimestamp = unmarshalled.LastNoticeTimestamp
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
@@ -486,7 +486,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 	s.pruneWarnings(now)
 
 	for k, n := range s.notices {
-		if n.expired(now) {
+		if n.Expired(now) {
 			delete(s.notices, k)
 		}
 	}
