@@ -1,0 +1,98 @@
+summary: Verify that when we update dbx, the TPM keys are revoked
+
+details: |
+    When updating the DBX, the second resealing should revoke
+    older TPM tokens by incrementing the TPM revocation counter.
+    We test it by reinstalling the keys of the first resealing
+    (that include old dbx+new dbx).
+
+systems: [ubuntu-24.04-64]
+
+environment:
+    NESTED_ENABLE_TPM: "true"
+    NESTED_ENABLE_SECURE_BOOT: "true"
+    NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=1
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    tests.pkgs install efitools
+    remote.exec sudo snap install --devmode test-snapd-efitools
+
+    keys_dir="$(tests.nested get assets-path)/ovmf/secboot/"
+
+    MYGUID="11111111-0000-1111-0000-000000000000"
+    openssl req -new -x509 -newkey rsa:2048 -subj "/CN=bad key/" \
+      -keyout "bad-key.key" -out "bad-key.crt" -days 3650 -nodes -sha256
+    cert-to-efi-sig-list -g "${MYGUID}" "bad-key.crt" "bad-key.esl"
+    sign-efi-sig-list -a -c "${keys_dir}/KEK.crt" -k "${keys_dir}/KEK.key" dbx \
+      "bad-key.esl" "dbx-update.auth"
+
+execute: |
+    export NESTED_KEEP_FIRMWARE_STATE=1
+
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.wait-for device-initialized
+
+    remote.exec "sudo snap recovery --show-keys" >recovery.out
+    tests.nested vm set-recovery-key "$(sed '/recovery: */{;s///;q;};d' recovery.out)"
+
+    update_payload="$(base64 -w0 dbx-update.auth)"
+    echo "{\"action\":\"efi-secureboot-update-db-prepare\",\"key-database\":\"DBX\",\"payload\":\"${update_payload}\"}" | \
+        remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > prepare.out
+    jq -r .status < prepare.out | MATCH "OK"
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Done .* Prepare for external EFI DBX update'
+    remote.exec snap change --last=fde-efi-secureboot-db-update | \
+        MATCH 'Do .* Reseal after external EFI DBX update'
+
+    remote.push dbx-update.auth
+    remote.exec "sudo chattr -i /sys/firmware/efi/efivars/dbx-*"
+    remote.exec sudo test-snapd-efitools.tool efi-updatevar -a -f dbx-update.auth dbx
+
+    # We need to shutdown the machine to backup keys
+    tests.nested vm stop
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    image="${NESTED_IMAGES_DIR}/$(nested_get_current_image_name)"
+
+    lodevice=$(losetup -f --show -P "${image}")
+    python3 load_old_tokens.py --read "${lodevice}p4" backup-save.json
+    python3 load_old_tokens.py --read "${lodevice}p5" backup-data.json
+    losetup -d "${lodevice}"
+
+    tests.nested vm start
+    remote.wait-for snap-command
+
+    # Normal boot. We should have unlocked with a run key.
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-dbx-applied.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-dbx-applied.json)" = run
+
+    echo '{"action":"efi-secureboot-update-db-cleanup"}' | \
+        remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/system-secureboot" > cleanup.out
+    jq -r .status < cleanup.out | MATCH "OK"
+    remote.exec snap change --last=fde-efi-secureboot-db-update | MATCH 'Done .* Reseal after external EFI DBX update'
+
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo reboot" || true
+    remote.wait-for reboot "${boot_id}"
+
+    # Boot after normal dbx update. We still unlock with the run key.
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-dbx-cleaned-up.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-dbx-cleaned-up.json)" = run
+
+    # Now we stop the machine to restore revoked key.
+    tests.nested vm stop
+
+    lodevice=$(losetup -f --show -P "${image}")
+    python3 load_old_tokens.py "${lodevice}p4" backup-save.json
+    python3 load_old_tokens.py "${lodevice}p5" backup-data.json
+    losetup -d "${lodevice}"
+
+    tests.nested vm start
+
+    # Bad boot with revoked key. We can only boot with recovery keys
+    remote.pull /run/snapd/snap-bootstrap/unlocked.json unlocked-old-keys.json
+    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-old-keys.json)" = recovery

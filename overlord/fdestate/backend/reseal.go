@@ -39,11 +39,13 @@ var (
 	secbootBuildPCRProtectionProfile  = secboot.BuildPCRProtectionProfile
 	secbootResealKeysWithFDESetupHook = secboot.ResealKeysWithFDESetupHook
 	secbootGetPrimaryKey              = secboot.GetPrimaryKey
+	secbootRevokeOldKeys              = (*secboot.UpdatedKeys).RevokeOldKeys
+	bootIsResealNeeded                = boot.IsResealNeeded
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
 // level call and may need significant environment setup.
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
+func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootResealKeys only can be mocked in tests")
 	old := secbootResealKeys
 	secbootResealKeys = f
@@ -147,7 +149,7 @@ type resealParamsAndLocation struct {
 	location secboot.KeyDataLocation
 }
 
-func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string) error {
+func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string, revokeOldKeys bool) error {
 	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
@@ -169,22 +171,31 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 			}
 			if parameters == nil {
 				logger.Debugf("there was no parameters for run+recover/%s", container.ContainerRole())
-				continue
-			}
+				if revokeOldKeys {
+					// After installation, on first boot, we have an incomplete FDE state.
+					// This is fine. In this case we are not supposed to revoke old keys.
+					// And we cannot revoke old keys because we probably did not update
+					// the expected counter value in the profile. Otherwise incrementing
+					// the counter would revoke the current keys. So as a safety
+					// precaution, we should just ignore revocation attempt in this case.
+					logger.Noticef("warning: we are trying to revoke old keys while we have an incomplete FDE state")
+					revokeOldKeys = false
+				}
+			} else {
+				defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
 
-			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
-
-			runKey := secboot.KeyDataLocation{
-				DevicePath: container.DevPath(),
-				SlotName:   "default",
+				runKey := secboot.KeyDataLocation{
+					DevicePath: container.DevPath(),
+					SlotName:   "default",
+				}
+				if hasDefaultLegacyKey {
+					runKey.KeyFile = defaultLegacyKey
+				}
+				keys = append(keys, resealParamsAndLocation{
+					params:   parameters,
+					location: runKey,
+				})
 			}
-			if hasDefaultLegacyKey {
-				runKey.KeyFile = defaultLegacyKey
-			}
-			keys = append(keys, resealParamsAndLocation{
-				params:   parameters,
-				location: runKey,
-			})
 		}
 
 		switch container.ContainerRole() {
@@ -195,24 +206,33 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 			}
 			if parameters == nil {
 				logger.Debugf("there was no parameters for recover/%s", container.ContainerRole())
-				continue
+				if revokeOldKeys {
+					// After installation, on first boot, we have an incomplete FDE state.
+					// This is fine. In this case we are not supposed to revoke old keys.
+					// And we cannot revoke old keys because we probably did not update
+					// the expected counter value in the profile. Otherwise incrementing
+					// the counter would revoke the current keys. So as a safety
+					// precaution, we should just ignore revocation attempt in this case.
+					logger.Noticef("warning: we are trying to revoke old keys while we have an incomplete FDE state")
+					revokeOldKeys = false
+				}
+			} else {
+				fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
+
+				fallbackKey := secboot.KeyDataLocation{
+					DevicePath: container.DevPath(),
+					SlotName:   "default-fallback",
+				}
+
+				if hasFallbackLegacyKey {
+					fallbackKey.KeyFile = fallbackLegacyKey
+				}
+
+				keys = append(keys, resealParamsAndLocation{
+					params:   parameters,
+					location: fallbackKey,
+				})
 			}
-
-			fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
-
-			fallbackKey := secboot.KeyDataLocation{
-				DevicePath: container.DevPath(),
-				SlotName:   "default-fallback",
-			}
-
-			if hasFallbackLegacyKey {
-				fallbackKey.KeyFile = fallbackLegacyKey
-			}
-
-			keys = append(keys, resealParamsAndLocation{
-				params:   parameters,
-				location: fallbackKey,
-			})
 		}
 	}
 
@@ -238,6 +258,7 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		if err != nil {
 			return err
 		}
+		var allResealedKeys secboot.UpdatedKeys
 		for _, key := range keys {
 			keyParams := &secboot.ResealKeysParams{
 				PCRProfile: key.params.TpmPCRProfile,
@@ -245,8 +266,17 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				PrimaryKey: primaryKey,
 			}
 
-			if err := secbootResealKeys(keyParams); err != nil {
+			resealedKeys, err := secbootResealKeys(keyParams, revokeOldKeys)
+			if err != nil {
 				return fmt.Errorf("cannot reseal the encryption key: %v", err)
+			}
+			if revokeOldKeys {
+				allResealedKeys = append(allResealedKeys, resealedKeys...)
+			}
+		}
+		if revokeOldKeys {
+			if err := secbootRevokeOldKeys(&allResealedKeys, primaryKey); err != nil {
+				return fmt.Errorf("cannot revoke older keys: %v", err)
 			}
 		}
 		return nil
@@ -292,7 +322,7 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 
-	needed, nextCount, err := boot.IsResealNeeded(pbc, BootChainsFileUnder(rootdir), opts.ExpectReseal)
+	needed, nextCount, err := bootIsResealNeeded(pbc, BootChainsFileUnder(rootdir), opts.ExpectReseal)
 	if err != nil {
 		return err
 	}
@@ -321,7 +351,7 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 	rpbc := boot.ToPredictableBootChains(params.RecoveryBootChains)
 
 	var nextFallbackCount int
-	needed, nextFallbackCount, err = boot.IsResealNeeded(rpbc, RecoveryBootChainsFileUnder(rootdir), opts.ExpectReseal)
+	needed, nextFallbackCount, err = bootIsResealNeeded(rpbc, RecoveryBootChainsFileUnder(rootdir), opts.ExpectReseal)
 	if err != nil {
 		return err
 	}
@@ -516,6 +546,7 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 		},
 		resealOptions{
 			ExpectReseal: expectReseal,
+			Revoke:       params.RevokeOldKeys,
 		})
 }
 
@@ -549,6 +580,7 @@ type resealInputs struct {
 type resealOptions struct {
 	ExpectReseal bool
 	Force        bool
+	Revoke       bool
 }
 
 func resealKeys(
@@ -570,7 +602,7 @@ func resealKeys(
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 
-	return doReseal(manager, method, rootdir)
+	return doReseal(manager, method, rootdir, opts.Revoke)
 }
 
 func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {

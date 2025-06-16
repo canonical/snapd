@@ -7634,12 +7634,12 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	c.Assert(err, IsNil)
 
 	secbootResealCalls := 0
-	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = fdeBackend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		secbootResealCalls++
 		if !encrypted {
-			return fmt.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected call")
 		}
-		return nil
+		return nil, nil
 	})
 	defer restore()
 

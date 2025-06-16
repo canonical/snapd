@@ -1234,6 +1234,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		oldKeyFiles            bool
 		buildProfileErr        string
 		dbxUpdate              []byte
+		revoke                 bool
 	}{
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
@@ -1243,6 +1244,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, resealCalls: 1, dbxUpdate: []byte("dbx-update")},
 		// happy case, old keys
 		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, oldKeyFiles: true},
+		// happy case, revoke (new keys)
+		{tpmEnabled: true, resealCalls: 1, revoke: true},
 
 		// unhappy cases
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
@@ -1496,11 +1499,23 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Check(authKey, DeepEquals, sb.PrimaryKey(mockTPMPolicyAuthKey))
 			c.Check(tpm, Equals, tpm)
 			c.Check(keys, DeepEquals, mockKeyDatas)
+			if tc.revoke {
+				c.Check(policyVersionOption, Equals, sb_tpm2.NewPCRPolicyVersion)
+			} else {
+				c.Check(policyVersionOption, Equals, sb_tpm2.NoNewPCRPolicyVersion)
+			}
 			return tc.resealErr
 		})
 		defer restore()
 
-		err = secboot.ResealKeys(myParams)
+		sealedKeysRequested := 0
+		restore = secboot.MockSbNewSealedKeyData(func(k *sb.KeyData) (secboot.MaybeSealedKeyData, error) {
+			sealedKeysRequested++
+			return &fakeWrappedSealedKeyData{sealedKeysRequested}, nil
+		})
+		defer restore()
+
+		updatedKeys, err := secboot.ResealKeys(myParams, tc.revoke)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 1)
@@ -1514,6 +1529,13 @@ func (s *secbootSuite) TestResealKey(c *C) {
 				c.Check(tokenWritten, Equals, 2)
 				c.Check(keyFile, Not(testutil.FilePresent))
 				c.Check(keyFile2, Not(testutil.FilePresent))
+			}
+			if !tc.revoke {
+				c.Check(sealedKeysRequested, Equals, 0)
+				c.Check(updatedKeys, IsNil)
+			} else {
+				c.Check(sealedKeysRequested, Equals, 2)
+				c.Assert(updatedKeys, HasLen, 2)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
@@ -3839,4 +3861,107 @@ func (s *secbootSuite) TestEntropyBitsError(c *C) {
 	entropy, err := secboot.EntropyBits("some-passphrase")
 	c.Assert(err, ErrorMatches, "boom!")
 	c.Check(entropy, Equals, uint32(0))
+}
+
+type fakeWrappedSealedKeyData struct {
+	unique int
+}
+
+func (f *fakeWrappedSealedKeyData) Unwrap() *sb_tpm2.SealedKeyData {
+	panic("unexpected")
+}
+
+func (s *secbootSuite) TestRevokeOldKeys(c *C) {
+	key1 := &fakeWrappedSealedKeyData{1}
+	key2 := &fakeWrappedSealedKeyData{2}
+	key3 := &fakeWrappedSealedKeyData{3}
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{key1, key2, key3})
+
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	defer secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return true
+	})()
+
+	var calls []*fakeWrappedSealedKeyData
+	defer secboot.MockTPMRevokeOldPCRProtectionPolicies(func(key secboot.MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error {
+		c.Check(tpm, Equals, mockTpm)
+		calls = append(calls, key.(*fakeWrappedSealedKeyData))
+		c.Check(primaryKey, DeepEquals, []byte{9, 10, 11, 12})
+
+		return nil
+	})()
+
+	err := keys.RevokeOldKeys([]byte{9, 10, 11, 12})
+	c.Check(err, IsNil)
+
+	c.Check(calls, DeepEquals, []*fakeWrappedSealedKeyData{key1, key2, key3})
+}
+
+func (s *secbootSuite) TestRevokeOldKeysErrorTPM(c *C) {
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{
+		&fakeWrappedSealedKeyData{1},
+		&fakeWrappedSealedKeyData{2},
+		&fakeWrappedSealedKeyData{3},
+	})
+
+	_, restore := mockSbTPMConnection(c, fmt.Errorf("bad tpm"))
+	defer restore()
+
+	err := keys.RevokeOldKeys([]byte{9, 10, 11, 12})
+	c.Check(err, ErrorMatches, `cannot connect to TPM: bad tpm`)
+}
+
+func (s *secbootSuite) TestRevokeOldKeysErrorTPMDisabled(c *C) {
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{
+		&fakeWrappedSealedKeyData{1},
+		&fakeWrappedSealedKeyData{2},
+		&fakeWrappedSealedKeyData{3},
+	})
+
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	defer secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return false
+	})()
+
+	err := keys.RevokeOldKeys([]byte{9, 10, 11, 12})
+	c.Check(err, ErrorMatches, `TPM device is not enabled`)
+}
+
+func (s *secbootSuite) TestRevokeOldKeysError(c *C) {
+	key1 := &fakeWrappedSealedKeyData{1}
+	key2 := &fakeWrappedSealedKeyData{2}
+	key3 := &fakeWrappedSealedKeyData{3}
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{key1, key2, key3})
+
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	defer secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return true
+	})()
+
+	var calls []*fakeWrappedSealedKeyData
+	defer secboot.MockTPMRevokeOldPCRProtectionPolicies(func(key secboot.MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error {
+		c.Check(tpm, Equals, mockTpm)
+		calls = append(calls, key.(*fakeWrappedSealedKeyData))
+		c.Check(primaryKey, DeepEquals, []byte{9, 10, 11, 12})
+
+		if key.(*fakeWrappedSealedKeyData) == key2 {
+			return fmt.Errorf("bad key")
+		}
+
+		return nil
+	})()
+
+	err := keys.RevokeOldKeys([]byte{9, 10, 11, 12})
+	c.Check(err, ErrorMatches, `bad key`)
+
+	c.Check(calls, DeepEquals, []*fakeWrappedSealedKeyData{key1, key2})
 }

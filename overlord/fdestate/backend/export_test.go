@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -36,5 +37,21 @@ func MockSsecbootFindFreeHandle(f func() (uint32, error)) (restore func()) {
 	secbootFindFreeHandle = f
 	return func() {
 		secbootFindFreeHandle = old
+	}
+}
+
+func MockSecbootRevokeOldKeys(f func(uk *secboot.UpdatedKeys, primaryKey []byte) error) (restore func()) {
+	old := secbootRevokeOldKeys
+	secbootRevokeOldKeys = f
+	return func() {
+		secbootRevokeOldKeys = old
+	}
+}
+
+func MockBootIsResealNeeded(f func(pbc boot.PredictableBootChains, bootChainsFile string, expectReseal bool) (ok bool, nextCount int, err error)) (restore func()) {
+	old := bootIsResealNeeded
+	bootIsResealNeeded = f
+	return func() {
+		bootIsResealNeeded = old
 	}
 }
