@@ -2980,23 +2980,23 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, labe
 	compPath := snaptest.MakeTestComponent(c,
 		"component: pc-kernel+comp1\ntype: kernel-modules\nversion: 1.0.2")
 
-	return seed20.MakeSeedWithLocalComponents(c, label, "my-brand", "my-model", map[string]interface{}{
+	return seed20.MakeSeedWithLocalComponents(c, label, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name": "snapd",
 				"id":   seed20.AssertedSnapID("snapd"),
 				"type": "snapd",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc-kernel",
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              seed20.AssertedSnapID("pc"),
 				"type":            "gadget",
