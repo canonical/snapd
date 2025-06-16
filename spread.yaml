@@ -423,6 +423,9 @@ backends:
             - fedora-41-64:
                   image: snapd-spread/fedora-41-64
                   workers: 6
+            - fedora-42-64:
+                  image: snapd-spread/fedora-42-64
+                  workers: 12
 
             - opensuse-15.6-64:
                   image: snapd-spread/opensuse-15.6-64
