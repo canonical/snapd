@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Canonical Ltd.
+name: VFS
+on:
+    pull_request:
+        paths:
+            - '.github/workflows/spread-vfs.yaml'
+            - 'osutil/vfs/.image-garden.mk'
+            - 'osutil/vfs/spread.yaml'
+            - 'osutil/vfs/tests/**'
+    workflow_dispatch:
+        inputs:
+            image-garden-risk-level:
+                description: 'Risk level of the image-garden snap'
+                type: string
+                default: edge
+                required: true
+jobs:
+    spread:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Inspect the system
+              run: |
+                set -x
+                uname -a
+                free -m
+                nproc
+                snap version
+                groups
+                ip addr list
+                ls -l /dev/kvm || true
+            - name: Checkout code
+              uses: actions/checkout@v4
+            - name: Make permissions on /dev/kvm more lax
+              run: sudo chmod -v 666 /dev/kvm
+            - name: Install image-garden snap
+              run: sudo snap install --channel=latest/${{ inputs.image-garden-risk-level || 'edge' }} image-garden
+            - name: Prepare disk images needed for testing
+              run: |
+                cd osutil/vfs
+                image-garden make alpine-cloud-3."$(uname -m)".run
+            - name: Use spread from image-garden snap
+              run: sudo snap alias image-garden.spread spread
+            - name: Display version of spread used
+              run: cat /snap/image-garden/current/usr/share/spread/version-info
+            - name: Run VFS integration tests
+              run: |
+                cd osutil/vfs
+                spread -v

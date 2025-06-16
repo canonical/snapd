@@ -1,0 +1,30 @@
+summary: observe how mount --rbind silently skips unbindable entries.
+details: |
+  When mount --rbind encounters a unbindable mount entry, it silently ignores
+  it.  Interesting complexity arises when a mount tree a/1/2/3, where each
+  directory is a mount point. Should 3 be bind-mounted or should it be skipped,
+  when the parent mount entry 2 is unbindable?
+prepare: |
+  mkdir a
+  mount -t tmpfs tmpfs-a a
+  mkdir a/1
+  mount -t tmpfs tmpfs-a-1 a/1
+  mkdir a/1/2
+  mount -t tmpfs tmpfs-a-1-2 a/1/2
+  mount --make-unbindable a/1/2
+  mkdir a/1/2/3
+  mount -t tmpfs tmpfs-a-1-2-3 a/1/2/3
+  mkdir b
+  mount --rbind a b
+restore: |
+  umount -l a
+  rmdir a
+  umount -l b
+  rmdir b
+debug: |
+  cat mountinfo
+execute: |
+  cat /proc/self/mountinfo >mountinfo
+  # Field 5 is the mount point path.
+  tail -n 6 mountinfo | awk '{ print substr($5, '"$(pwd | wc -c)"') }' >actual.txt
+  diff -u actual.txt expected.txt
