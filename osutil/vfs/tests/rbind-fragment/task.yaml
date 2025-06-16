@@ -1,0 +1,30 @@
+summary: show how a fraction of a mount point affects propagation
+details: |
+  Mounts propagate within their peer group. When mount has sharing enabled,
+  bind mount not only replicates the mount in another location, but also
+  establishes a peer group shared by both points. Interesting situation arises
+  when a fragment of a mount "a/1" is replicated to "b-1". How is propagation
+  affected when a new mount is added in "a/2" which is not visible in "b-1"?
+prepare: |
+  mkdir a
+  mount -t tmpfs tmpfs-a a
+  mount --make-shared a
+  mkdir a/1
+  mkdir a/2
+  mkdir b-1
+  mount --rbind a/1 b-1
+  # We rely on propagation for mounts from "a/1" to propagate to "b-1"
+  mount -t tmpfs tmpfs-a-1 a/1
+  mount -t tmpfs tmpfs-a-2 a/2
+restore: |
+  umount -l a
+  rmdir a
+  umount -l b-1
+  rmdir b-1
+debug: |
+  cat mountinfo
+execute: |
+  cat /proc/self/mountinfo >mountinfo
+  # Field 5 is the mount point path.
+  tail -n 5 mountinfo | cut -d ' ' -f 5 | cut -c "$(pwd | wc -c)"- >actual.txt
+  diff -u actual.txt expected.txt

@@ -1,0 +1,35 @@
+summary: construct a tree of mounts in a specific order and observe the how mount --rbind replicates it
+details: |
+  There is no documentation that states how rbind works _exactly_, especially
+  when one considers order of operations. This test constructs a mount tree at
+  "a/" consisting of numbered tmpfs file systems mounted in the order 1, 2,
+  1-1, 3 and 2-2. It is shown that mount --rbind reproduces the order 1, 1-1,
+  2, 2-2 and 3, suggesting Linux uses depth-first iteration of the mount tree.
+prepare: |
+  mkdir a
+  mount -t tmpfs tmpfs-a a
+  mount --make-shared a
+  mkdir a/1
+  mount -t tmpfs tmpfs-a-1 a/1
+  mkdir a/2
+  mount -t tmpfs tmpfs-a-2 a/2
+  mkdir a/1/1
+  mount -t tmpfs tmpfs-a-1-1 a/1/1
+  mkdir a/3
+  mount -t tmpfs tmpfs-a-3 a/3
+  mkdir a/2/2
+  mount -t tmpfs tmpfs-a-2-2 a/2/2
+  mkdir b
+  mount --rbind a b
+restore: |
+  umount -l a
+  rmdir a
+  umount -l b
+  rmdir b
+debug: |
+  cat mountinfo
+execute: |
+  cat /proc/self/mountinfo >mountinfo
+  # Field 5 is the mount point path.
+  tail -n 12 mountinfo | cut -d ' ' -f 5 | cut -c "$(pwd | wc -c)"- >actual.txt
+  diff -u actual.txt expected.txt

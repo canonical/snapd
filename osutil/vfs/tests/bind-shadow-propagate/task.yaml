@@ -1,0 +1,36 @@
+summary: observe how propagation and shadowing interact
+details: |
+  A slave mount receives mount events from the master. What happens
+  when a part of the slave tree is shadowed by another mount, possibly
+  one that makes the destination directory inaccessible?
+prepare: |
+  mkdir a
+  mount -t tmpfs tmpfs-a a
+  mount --make-shared a
+  mkdir a/1
+  mount -t tmpfs tmpfs-a-1 a/1
+  mkdir a/1/1
+  # We stopped short of mounting at a/1/1.
+  mkdir b
+  mount --rbind a b
+  mount --make-rslave b
+  # Now "b" has the same content as "a", but with slave propagation.
+  # It receives events from "a" but does produce events itself.
+  mount -t tmpfs tmpfs-b-1 b/1
+  # Now b/1 is no longer the same file system as a/1.
+  # What happens to the mount event that propagates from "a/1/1"?
+  mount -t tmpfs tmpfs-a-1-1 a/1/1
+  # To be sure, the directory b/1/1 does NOT exist.
+  test ! -e b/1/1
+restore: |
+  umount -l a
+  rmdir a
+  umount -l b
+  rmdir b
+debug: |
+  cat mountinfo
+execute: |
+  cat /proc/self/mountinfo >mountinfo
+  # Print the fifth (mount point) and second-to-last field (file system source).
+  tail -n 7 mountinfo | awk '{ print substr($5, '"$(pwd | wc -c)"') " " $(NF-1) }' >actual.txt
+  diff -u actual.txt expected.txt
