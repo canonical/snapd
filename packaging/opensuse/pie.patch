@@ -1,5 +1,5 @@
-From 09a3cc7aad771621d849d792281538658331f550 Mon Sep 17 00:00:00 2001
-Message-ID: <09a3cc7aad771621d849d792281538658331f550.1725538054.git.maciej.borzecki@canonical.com>
+From e0380b9adb5f1c101d174d724e06f0b899836e8b Mon Sep 17 00:00:00 2001
+Message-ID: <e0380b9adb5f1c101d174d724e06f0b899836e8b.1750071117.git.maciej.borzecki@canonical.com>
 From: Maciej Borzecki <maciej.borzecki@canonical.com>
 Date: Thu, 5 Sep 2024 14:06:50 +0200
 Subject: [PATCH] Build position-independent binaries per hardening policy
@@ -13,10 +13,10 @@ Signed-off-by: Maciej Borzecki <maciej.borzecki@canonical.com>
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/cmd/Makefile.am b/cmd/Makefile.am
-index b316a8733ca7ce6c552955fb051bbb3a2dad7685..89c85b3485958d90a2df1c25aa59d5ef361c6514 100644
+index 3a64b145084a1d440d741fa704c8ef2af14cef91..1945600ab33200f3674c2a168c377f9de732321d 100644
 --- a/cmd/Makefile.am
 +++ b/cmd/Makefile.am
-@@ -523,7 +523,7 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
+@@ -515,7 +515,7 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
  	snap-gdb-shim/snap-gdb-shim.c
  
  snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
@@ -25,7 +25,7 @@ index b316a8733ca7ce6c552955fb051bbb3a2dad7685..89c85b3485958d90a2df1c25aa59d5ef
  
  ##
  ## snap-gdbserver-shim
-@@ -535,7 +535,7 @@ snap_gdb_shim_snap_gdbserver_shim_SOURCES = \
+@@ -531,7 +531,7 @@ snap_gdb_shim_snap_gdbserver_shim_SOURCES = \
  	snap-gdb-shim/snap-gdbserver-shim.c
  
  snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
@@ -35,21 +35,27 @@ index b316a8733ca7ce6c552955fb051bbb3a2dad7685..89c85b3485958d90a2df1c25aa59d5ef
  ##
  ## snapd-generator
 diff --git a/packaging/snapd.mk b/packaging/snapd.mk
-index a9e90dc1900c0074f69ff7003f06505541950d8f..ee8f79d766a658074ae62f83c55af5f54a70dade 100644
+index bf8efeb176c7060b238416df8112fac74f1593e5..e3a3fa6b034172f581cd5a74839d2a9aad05bf65 100644
 --- a/packaging/snapd.mk
 +++ b/packaging/snapd.mk
-@@ -83,9 +83,9 @@ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
- $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
- 	# Explicit request to use an external linker, otherwise extldflags may not be
- 	# used
--	go build -o $@ -buildmode=default -mod=vendor \
-+	go build -o $@ -buildmode=pie -mod=vendor \
- 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
--		-ldflags '-linkmode external -extldflags "-static" $(EXTRA_GO_LDFLAGS)' \
-+		-ldflags '-linkmode external -extldflags "-static-pie" $(EXTRA_GO_LDFLAGS)' \
- 		$(EXTRA_GO_BUILD_FLAGS) \
- 		$(import_path)/cmd/$(notdir $@)
+@@ -70,7 +70,7 @@ GO_MOD=-mod=readonly
+ endif
  
+ # Go -ldflags settings for static build. Can be overridden in snapd.defines.mk.
+-EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="-static" $(EXTRA_GO_LDFLAGS)
++EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="-static-pie" $(EXTRA_GO_LDFLAGS)
+ 
+ # NOTE: This *depends* on building out of tree. Some of the built binaries
+ # conflict with directory names in the tree.
+@@ -93,7 +93,7 @@ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
+ # nearly-arbitrary mount namespace that does not contain anything we can depend
+ # on (no standard library, for example).
+ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
+-	go build -o $@ -buildmode=default \
++	go build -o $@ -buildmode=pie \
+ 		$(GO_MOD) \
+ 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
+ 		-ldflags="$(EXTRA_GO_STATIC_LDFLAGS)" \
 -- 
-2.46.0
+2.49.0
 
