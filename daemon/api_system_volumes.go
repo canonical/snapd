@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -45,6 +46,8 @@ var systemVolumesCmd = &Command{
 	ReadAccess:  rootAccess{},
 	WriteAccess: rootAccess{},
 }
+
+var replaceRecoveryKeyChangeKind = swfeats.ChangeReg.Add("replace-recovery-key")
 
 var (
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
@@ -261,7 +264,7 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 		return errToResponse(err, nil, BadRequest, "cannot replace recovery key: %v")
 	}
 
-	chg := newChange(st, "fde-replace-recovery-key", "Replace recovery key", []*state.TaskSet{ts}, nil)
+	chg := newChange(st, replaceRecoveryKeyChangeKind, "Replace recovery key", []*state.TaskSet{ts}, nil)
 
 	st.EnsureBefore(0)
 
