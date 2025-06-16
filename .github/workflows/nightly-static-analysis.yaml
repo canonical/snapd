@@ -74,7 +74,9 @@ jobs:
         go install github.com/boumenot/gocover-cobertura@latest
 
         cd "${{ github.workspace }}/src/github.com/snapcore/snapd"
-        COVERAGE_OUT=.coverage/coverage.txt ./run-checks --unit
+        COVERAGE_OUT=.coverage/coverage.txt \
+          IGNORE_MISSING=1 \
+          ./run-checks --unit
         gocover-cobertura < .coverage/coverage.txt > .coverage/coverage.xml
 
     - name: Install TICS dependencies
