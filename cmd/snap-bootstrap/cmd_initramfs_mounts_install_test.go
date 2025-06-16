@@ -367,7 +367,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
-			bindOpts,
+			bindDataOpts,
 			nil,
 		}}
 	if failMount {
