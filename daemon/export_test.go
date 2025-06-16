@@ -41,7 +41,9 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -82,6 +84,19 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 }
 
 type Ucrednet = ucrednet
+
+func WrapNewChange(reportMissing func(string)) (restore func()) {
+	oldNewChange := newChange
+	newChange = func(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
+		if !strutil.ListContains(swfeats.ChangeReg.KnownChangeKinds(), kind) {
+			reportMissing(kind)
+		}
+		return newChangeImpl(st, kind, summary, tsets, snapNames)
+	}
+	return func() {
+		newChange = oldNewChange
+	}
+}
 
 func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
 	oldUcrednetGet := ucrednetGet
