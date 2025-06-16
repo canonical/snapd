@@ -93,8 +93,10 @@ var (
 		ReadOnly: true,
 		Private:  true,
 	}
-	bindOpts = &main.SystemdMountOptions{
-		Bind: true,
+	bindDataOpts = &main.SystemdMountOptions{
+		Bind:    true,
+		NoSuid:  true,
+		Private: true,
 	}
 
 	seedPart = disks.Partition{

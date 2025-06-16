@@ -320,6 +320,16 @@ func readSnapInfoFromSeed(seedSnap *seed.Snap) (*snap.Info, error) {
 	return info, nil
 }
 
+func setUbuntuCoreDataMountOptions(mountOpts systemdMountOptions) systemdMountOptions {
+	// fsck and mount with nosuid to prevent snaps from being able to bypass
+	// the sandbox by creating suid root files there and trying to escape the
+	// sandbox
+	mountOpts.NoSuid = true
+	// Note that on classic the default is to allow mount propagation
+	mountOpts.Private = true
+	return mountOpts
+}
+
 func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) error {
 	kernelSnap, err := readSnapInfo(sysSnaps, snap.TypeKernel)
 	if err != nil {
@@ -488,10 +498,10 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 
-	dataMountOpts := &systemdMountOptions{
+	dataMountOpts := setUbuntuCoreDataMountOptions(systemdMountOptions{
 		Bind: true,
-	}
-	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, dataMountOpts); err != nil {
+	})
+	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, &dataMountOpts); err != nil {
 		return err
 	}
 	// We do not need anymore the extra data partition mount created on installation
@@ -2424,18 +2434,13 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	dataMountOpts := &systemdMountOptions{
+	dataMountOpts := systemdMountOptions{
 		NeedsFsck: true,
 	}
 	if !isClassic {
-		// fsck and mount with nosuid to prevent snaps from being able to bypass
-		// the sandbox by creating suid root files there and trying to escape the
-		// sandbox
-		dataMountOpts.NoSuid = true
-		// Note that on classic the default is to allow mount propagation
-		dataMountOpts.Private = true
+		dataMountOpts = setUbuntuCoreDataMountOptions(dataMountOpts)
 	}
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, dataMountOpts); err != nil {
+	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, &dataMountOpts); err != nil {
 		return err
 	}
 	isEncryptedDev := unlockRes.IsEncrypted

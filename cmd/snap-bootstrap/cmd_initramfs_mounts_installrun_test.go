@@ -226,7 +226,7 @@ echo '{"features":[]}'
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
-			bindOpts,
+			bindDataOpts,
 			nil,
 		},
 	}, nil)
@@ -390,7 +390,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
-			bindOpts,
+			bindDataOpts,
 			nil,
 		},
 	}, nil)
