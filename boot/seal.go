@@ -287,6 +287,8 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 
 type ResealKeyForBootChainsParams struct {
 	BootChains
+	// RevokeOldKeys tells whether older TPM2 keys should be revoked
+	RevokeOldKeys bool
 }
 
 // WithBootChains calls the provided function passing the boot chains which may
