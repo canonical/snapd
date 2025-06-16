@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -97,4 +98,20 @@ func EncryptedContainer(uuid string, containerRole string, legacyKeys map[string
 
 func MockSecbootCheckRecoveryKey(f func(devicePath string, rkey keys.RecoveryKey) error) (restore func()) {
 	return testutil.Mock(&secbootCheckRecoveryKey, f)
+}
+
+func MockSecbootReadContainerKeyData(f func(devicePath string, slotName string) (secboot.KeyData, error)) (restore func()) {
+	return testutil.Mock(&secbootReadContainerKeyData, f)
+}
+
+func (k *Keyslot) SetDevPath(devPath string) {
+	k.devPath = devPath
+}
+
+func MockSecbootListContainerRecoveryKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
+	return testutil.Mock(&secbootListContainerRecoveryKeyNames, f)
+}
+
+func MockSecbootListContainerUnlockKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
+	return testutil.Mock(&secbootListContainerUnlockKeyNames, f)
 }

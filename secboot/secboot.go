@@ -175,6 +175,13 @@ type KeyDataLocation struct {
 	SlotName string
 }
 
+// KeyData represents a disk unlock key protected by a platform's secure device.
+type KeyData interface {
+	PlatformName() string
+	Roles() []string
+	AuthMode() device.AuthMode
+}
+
 // SerializedPCRProfile wraps a serialized PCR profile which is treated as an
 // opaque binary blob outside of secboot package.
 type SerializedPCRProfile []byte

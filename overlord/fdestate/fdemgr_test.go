@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -1012,4 +1013,209 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
 
 	err = mgr.CheckRecoveryKey(keys.RecoveryKey{}, []string{"system-data"})
 	c.Assert(err, ErrorMatches, `recovery key failed for "system-data": boom!`)
+}
+
+type mockKeyData struct {
+	authMode     device.AuthMode
+	platformName string
+	roles        []string
+}
+
+// AuthMode indicates the authentication mechanisms enabled for this key data.
+func (k *mockKeyData) AuthMode() device.AuthMode {
+	return k.authMode
+}
+
+// PlatformName returns the name of the platform that handles this key data.
+func (k *mockKeyData) PlatformName() string {
+	return k.platformName
+}
+
+// Role indicates the role of this key.
+func (k *mockKeyData) Roles() []string {
+	return k.roles
+}
+
+func (s *fdeMgrSuite) TestKeyslotKeyDataLazyLoad(c *C) {
+	called := 0
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		called++
+		c.Check(devicePath, Equals, "/dev/some-device")
+		c.Check(slotName, Equals, "some-slot")
+		return &mockKeyData{
+			authMode:     device.AuthModePassphrase,
+			platformName: "tpm2",
+			roles:        []string{"run+recover"},
+		}, nil
+	})()
+
+	keyslot := fdestate.Keyslot{
+		Name: "some-slot",
+		Type: fdestate.KeyslotTypePlatform,
+	}
+	keyslot.SetDevPath("/dev/some-device")
+
+	for i := 0; i < 10; i++ {
+		_, err := keyslot.KeyData()
+		c.Assert(err, IsNil)
+	}
+	kd, err := keyslot.KeyData()
+	c.Assert(err, IsNil)
+	c.Check(kd.AuthMode(), Equals, device.AuthModePassphrase)
+	c.Check(kd.PlatformName(), Equals, "tpm2")
+	c.Check(kd.Roles(), DeepEquals, []string{"run+recover"})
+	// lazy loaded once, then reused
+	c.Check(called, Equals, 1)
+}
+
+func (s *fdeMgrSuite) TestKeyslotKeyDataErrors(c *C) {
+	keyslot := fdestate.Keyslot{
+		Name: "some-slot",
+		Type: fdestate.KeyslotTypeRecovery,
+	}
+	keyslot.SetDevPath("/dev/some-device")
+
+	_, err := keyslot.KeyData()
+	c.Assert(err, ErrorMatches, `internal error: Keyslot.KeyData\(\) is only available for KeyslotTypePlatform, found "recovery"`)
+
+	keyslot.Type = fdestate.KeyslotTypePlatform
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		return nil, errors.New("boom!")
+	})()
+	_, err = keyslot.KeyData()
+	c.Assert(err, ErrorMatches, `failed to read key data for "some-slot" from "/dev/some-device": boom!`)
+}
+
+func (s *fdeMgrSuite) testGetKeyslots(c *C, allKeyslots bool) {
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		switch devicePath {
+		case "/dev/disk/by-uuid/aaa":
+			return []string{"recovery-aaa"}, nil
+		case "/dev/disk/by-uuid/bbb":
+			return []string{}, nil
+		default:
+			return nil, fmt.Errorf("unexpected devicePath %q", devicePath)
+		}
+	})()
+
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		switch devicePath {
+		case "/dev/disk/by-uuid/aaa":
+			return []string{"unlock-aaa"}, nil
+		case "/dev/disk/by-uuid/bbb":
+			return []string{"unlock-bbb"}, nil
+		default:
+			return nil, fmt.Errorf("unexpected devicePath %q", devicePath)
+		}
+	})()
+
+	const onClassic = true
+	manager := s.startedManager(c, onClassic)
+
+	var keyslotRefs []fdestate.KeyslotRef
+	if !allKeyslots {
+		keyslotRefs = []fdestate.KeyslotRef{
+			{ContainerRole: "system-data", Name: "unlock-aaa"},
+			{ContainerRole: "system-data", Name: "recovery-aaa"},
+			// should be marked as missing
+			{ContainerRole: "system-data", Name: "recovery-ccc"},
+		}
+	}
+
+	keyslots, missing, err := manager.GetKeyslots(keyslotRefs)
+	c.Assert(err, IsNil)
+
+	// sort for test consistency
+	sort.Slice(keyslots, func(i, j int) bool {
+		if keyslots[i].ContainerRole == keyslots[j].ContainerRole {
+			return keyslots[i].Name < keyslots[j].Name
+		}
+		return keyslots[i].ContainerRole < keyslots[j].ContainerRole
+	})
+
+	if allKeyslots {
+		c.Check(keyslots, HasLen, 3)
+
+		c.Check(keyslots[0].ContainerRole, Equals, "system-data")
+		c.Check(keyslots[0].Name, Equals, "recovery-aaa")
+		c.Check(keyslots[0].Type, Equals, fdestate.KeyslotTypeRecovery)
+		c.Check(keyslots[1].ContainerRole, Equals, "system-data")
+		c.Check(keyslots[1].Name, Equals, "unlock-aaa")
+		c.Check(keyslots[1].Type, Equals, fdestate.KeyslotTypePlatform)
+		c.Check(keyslots[2].ContainerRole, Equals, "system-save")
+		c.Check(keyslots[2].Name, Equals, "unlock-bbb")
+		c.Check(keyslots[2].Type, Equals, fdestate.KeyslotTypePlatform)
+
+		c.Check(missing, HasLen, 0)
+	} else {
+		c.Check(keyslots, HasLen, 2)
+
+		c.Check(keyslots[0].ContainerRole, Equals, "system-data")
+		c.Check(keyslots[0].Name, Equals, "recovery-aaa")
+		c.Check(keyslots[0].Type, Equals, fdestate.KeyslotTypeRecovery)
+		c.Check(keyslots[1].ContainerRole, Equals, "system-data")
+		c.Check(keyslots[1].Name, Equals, "unlock-aaa")
+		c.Check(keyslots[1].Type, Equals, fdestate.KeyslotTypePlatform)
+
+		c.Check(missing, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "recovery-ccc"}})
+	}
+}
+
+func (s *fdeMgrSuite) TestGetKeyslots(c *C) {
+	const allKeyslots = false
+	s.testGetKeyslots(c, allKeyslots)
+}
+
+func (s *fdeMgrSuite) TestGetKeyslotsAll(c *C) {
+	const allKeyslots = true
+	s.testGetKeyslots(c, allKeyslots)
+}
+
+func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	const onClassic = true
+	manager := s.startedManager(c, onClassic)
+
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return nil, errors.New("boom!")
+	})()
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return nil, nil
+	})()
+
+	_, _, err := manager.GetKeyslots(nil)
+	c.Assert(err, ErrorMatches, `failed to obtain recovery keys for "/dev/disk/by-uuid/aaa": boom!`)
+
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return nil, nil
+	})()
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	_, _, err = manager.GetKeyslots(nil)
+	c.Assert(err, ErrorMatches, `failed to obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
 }

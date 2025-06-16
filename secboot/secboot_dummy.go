@@ -132,3 +132,15 @@ func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 func CheckRecoveryKey(devicePath string, rkey keys.RecoveryKey) error {
 	return errBuildWithoutSecboot
 }
+
+func ListContainerRecoveryKeyNames(devicePath string) ([]string, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func ListContainerUnlockKeyNames(devicePath string) ([]string, error) {
+	return nil, errBuildWithoutSecboot
+}
+
+func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
+	return nil, errBuildWithoutSecboot
+}
