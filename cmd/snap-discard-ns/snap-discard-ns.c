@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
     sc_instance_name_validate(snap_instance_name, &err);
     sc_die_on_error(err);
 
-    /* time to asssert we have the right capabilities to perform the job */
+    /* time to assert we have the right capabilities to perform the job */
     assert_caps();
     /* TODO: drop superfluous capabilities and keep only the ones that are
      * explicitly needed */
