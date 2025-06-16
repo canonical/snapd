@@ -2843,3 +2843,94 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 		}
 	}
 }
+
+func (*viewSuite) TestContentAccessExamples(c *C) {
+	type testcase struct {
+		rule           map[string]interface{}
+		nestedReadErr  string
+		nestedWriteErr string
+	}
+
+	tcs := []testcase{
+		{
+			rule: map[string]interface{}{
+				"storage": "a",
+				"access":  "read",
+				"content": []interface{}{
+					map[string]interface{}{"storage": "b", "access": "write"},
+				},
+			},
+			nestedReadErr:  `cannot get "a\.b" through acc/foo/my-view: no matching rule`,
+			nestedWriteErr: "",
+		},
+		{
+			rule: map[string]interface{}{
+				"storage": "a",
+				"access":  "write",
+				"content": []interface{}{
+					map[string]interface{}{"storage": "b", "access": "read"},
+				},
+			},
+			nestedReadErr:  "",
+			nestedWriteErr: `cannot set "a\.b" through acc/foo/my-view: no matching rule`,
+		},
+		{
+			// no "inherited" behaviour
+			rule: map[string]interface{}{
+				"storage": "a",
+				"access":  "read",
+				"content": []interface{}{
+					map[string]interface{}{"storage": "b"},
+				},
+			},
+			nestedReadErr:  "",
+			nestedWriteErr: "",
+		},
+		{
+			// no "inherited" behaviour
+			rule: map[string]interface{}{
+				"storage": "a",
+				"access":  "write",
+				"content": []interface{}{
+					map[string]interface{}{"storage": "b"},
+				},
+			},
+			nestedReadErr:  "",
+			nestedWriteErr: "",
+		},
+	}
+
+	for _, tc := range tcs {
+		databag := confdb.NewJSONDatabag()
+		err := databag.Set("a", map[string]interface{}{
+			"b": 123,
+		})
+		c.Assert(err, IsNil)
+
+		schema, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
+			"my-view": map[string]interface{}{
+				"rules": []interface{}{
+					tc.rule,
+				},
+			},
+		}, confdb.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		view := schema.View("my-view")
+
+		res, err := view.Get(databag, "a.b")
+		if tc.nestedReadErr != "" {
+			c.Assert(err, ErrorMatches, tc.nestedReadErr)
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(res, Equals, float64(123))
+		}
+
+		err = view.Set(databag, "a.b", 321)
+		if tc.nestedWriteErr != "" {
+			c.Assert(err, ErrorMatches, tc.nestedWriteErr)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
