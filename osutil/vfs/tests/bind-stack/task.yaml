@@ -1,0 +1,32 @@
+summary: observe how mount --r?bind works with stacked mounts
+details: |
+  A given path may contain more than one mount point. A multitude of file
+  systems may all be mounted at the exact same location. What happens when
+  mount --bind or --rbind is asked to replicate one of the mounts elsewhere?
+environment:
+  BIND/bind: bind
+  BIND/rbind: rbind
+prepare: |
+  mkdir a
+  mount -t tmpfs tmpfs-a-X a
+  mount --make-shared a
+  mount -t tmpfs tmpfs-a-Y a
+  mount -t tmpfs tmpfs-a-Z a
+  mkdir b
+  # Here $BIND may be either "bind" or "rbind".
+  mount --"$BIND" a b
+restore: |
+  umount -l a
+  umount -l a
+  umount -l a
+  rmdir a
+  umount -l b
+  rmdir b
+debug: |
+  cat mountinfo
+execute: |
+  cat /proc/self/mountinfo >mountinfo
+  # Second-to-last field is the source device.
+  # This shows our custom names for each tmpfs mounted above.
+  tail -n 4 mountinfo | awk '{ print $(NF-1) }' >actual.txt
+  diff -u actual.txt expected.txt
