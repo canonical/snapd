@@ -11,13 +11,13 @@ apps:
     zpool:
         command: bin/zpool
         plugs:
-            - block-devices
+            - block-devices-with-partitions
             - mount-observe
 
     zfs:
         command: bin/zfs
         plugs:
-            - block-devices
+            - block-devices-with-partitions
             - mount-observe
 
 parts:
@@ -27,5 +27,6 @@ parts:
             - zfsutils-linux
 
 plugs:
-    block-devices:
+    block-devices-with-partitions:
+        interface: block-devices
         allow-partitions: true
