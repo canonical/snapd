@@ -55,11 +55,13 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -190,7 +192,11 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
-	s.unwrapNewChange = daemon.WrapNewChange(func(str string) { s.missingChangeRegistrations.Store(str, nil) })
+	s.unwrapNewChange = daemon.BeforeNewChange(func(_ *state.State, kind, _ string, _ []*state.TaskSet, _ []string) {
+		if !strutil.ListContains(swfeats.ChangeReg.KnownChangeKinds(), kind) {
+			s.missingChangeRegistrations.Store(kind, nil)
+		}
+	})
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
