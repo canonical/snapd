@@ -1,0 +1,108 @@
+type: confdb-schema
+authority-id: 6mluykWFsbpSV8RGPGjH7KFAkAOvdRyN
+revision: 7
+account-id: 6mluykWFsbpSV8RGPGjH7KFAkAOvdRyN
+name: telem-agent
+timestamp: 2025-01-23T00:00:00+00:00
+views:
+  control-agent:
+    rules:
+      -
+        content:
+          -
+            access: read-write
+            request: address
+            storage: address
+          -
+            access: read-write
+            request: target
+            storage: target
+          -
+            access: read-write
+            request: key
+            storage: key
+          -
+            access: read-write
+            request: cert
+            storage: cert
+          -
+            access: read-write
+            request: serverca
+            storage: serverca
+        request: {protocol}
+        storage: agent.{protocol}
+  control-topics:
+    rules:
+      -
+        content:
+          -
+            access: read-write
+            request: allow
+            storage: allow
+          -
+            access: read-write
+            request: deny
+            storage: deny
+        request: {snap}
+        storage: permission.{snap}
+body-length: 895
+sign-key-sha3-384: m6e51TyU8NfBJ6vhcY2BT3yf-iMbIyxW-iEi-WEkATjnRJCAaejzDTstb1v4uOoU
+
+{
+  "storage": {
+    "aliases": {
+      "protocol": {
+        "choices": [
+          "notls",
+          "tls"
+        ],
+        "type": "string"
+      },
+      "snap": {
+        "type": "string"
+      }
+    },
+    "schema": {
+      "agent": {
+        "keys": "$protocol",
+        "values": {
+          "schema": {
+            "address": "string",
+            "cert": "string",
+            "key": "string",
+            "serverca": "string",
+            "target": "string"
+          }
+        }
+      },
+      "permission": {
+        "keys": "$snap",
+        "values": {
+          "schema": {
+            "allow": {
+              "type": "array",
+              "unique": true,
+              "values": "string"
+            },
+            "deny": {
+              "type": "array",
+              "unique": true,
+              "values": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+AcLBcwQAAQoAHRYhBNYY5Xzbhv5a1JLWYKR+ESUybo1wBQJn2+mDAAoJEKR+ESUybo1wKX0P/3w5
+EWe+Qv5G5GAS0S0CfbNp16cQvVjZ5MfFUpOQvPfEX1kq4WbXmBgLmIE+6IClxMYQDHah9cE3qD+M
+YgORO+Q1gJpfakSGgALi7mO9XNdNtIn6i0A2gqdKPZbwQuL2S6lXvbJmZR75tTROJh8e6gJeaX4r
++FERAayypPjnVo+FUHVUr52oROECREbbtBJEFklIlSS9hQcPIwuiOwfB7jNcDjDD5Qq+09ypHYm1
+XpsctBoQjbp3rAlyYzzwvLqip6AA0IOKOS7WyYNwuVOsKBpC+0O7bA6COrw7DTgziRHoo1vmdlBV
+IqPbRgsaxdrj1ySPuAxyjPMJGbO552H4B6Xb4bY7d/S4VOh8IfEfvlDrDGG505uJgmLCt4e3p/Po
+AAo7Ggf9dXU3a7EHJJ408N+vGn76X9FkDkQ+HtcCIB0mm8meGELOxGLXwEkHbc5C7dRD93+hGaPZ
+vcM88+Ogz+9TH/zsmT4kkq/emUDpBsoxBS1TkFe5xVTACSHyh9OlK8s9kLwTLjEsmOKdOW7i181o
+Z5J2zoe18PcowIEEDqo4f7AUg71DM0JRwlOWmnqhv56U8m2SR2v2sYGVAmAJBmjOTZKh5xeYVXki
+E/4hj8kiKPBR20e5lDCKN0HeIH27GlOJGH0L4DT9b5198m9/RzFT6OTQsK5W/uZZ6d0xx3td

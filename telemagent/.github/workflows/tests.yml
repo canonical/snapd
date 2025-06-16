@@ -1,0 +1,71 @@
+# Copyright (c) Abstract Machines
+# SPDX-License-Identifier: Apache-2.0
+
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    name: Test and Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.21.x
+          cache-dependency-path: "go.sum"
+
+      - name: Install dependencies
+        run: |
+          go install github.com/axw/gocov/gocov@latest
+          go install github.com/AlekSi/gocov-xml@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+
+      - name: Build Binaries
+        run: |
+          make all
+
+      - name: Install test snap (multipass)
+        run: |
+          sudo snap install multipass
+          sudo apt install net-tools
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@main
+
+      - name: Install Snapcraft and Build telem-agent
+        run: |
+          sudo snap install snapcraft --classic
+          snapcraft --verbose
+          sudo snap install telem-agent_0.1_amd64.snap --dangerous
+
+      - name: Test with the Go CLI
+        run: |
+          mkdir .coverage
+          gocov test ./... | gocov-xml > .coverage/coverage.xml
+
+      - name: Run TICS analysis
+        uses: tiobe/tics-github-action@v3
+        with:
+          mode: qserver
+          project: telem-agent
+          viewerUrl: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=GoProjects
+          branchdir: ${{ github.workspace }}
+          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
+          installTics: true

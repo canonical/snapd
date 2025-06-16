@@ -62,6 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 
+
 	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -161,6 +162,11 @@ func run(ch chan os.Signal) error {
 
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
+	go func() {
+		logger.Debug("Starting TelemAgent")
+		telemagent()
+	}()
+	
 out:
 	for {
 		select {
