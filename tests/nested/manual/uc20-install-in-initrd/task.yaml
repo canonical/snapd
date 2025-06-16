@@ -4,7 +4,7 @@ details: |
   This test checks that we are able to perform a single-boot installation in
   various scenarios.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [-ubuntu-1*]
 
 environment:
   # There are 4 modes:
@@ -129,11 +129,22 @@ execute: |
       remote.exec stat /run/systemd/system/'sysroot-writable-system\\x2ddata-snap-pc\\x2dkernel-components-mnt-efi\\x2dpstore-x1.mount'
   }
 
+  # No unexpected mounts / directories
+  not remote.exec mountpoint /run/mnt/ubuntu-data
+  not remote.exec stat /run/mnt/ubuntu-data
+
   if [ "$(nested_get_version)" -ge "24" ]; then
       # check component from store has been early-installed
       check_efi_pstore
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
       lsmod | MATCH ip_tables
+      # No unexpected mounts / directories
+      not remote.exec mountpoint /run/mnt/kernel
+      not remote.exec stat /run/mnt/kernel
+      not remote.exec mountpoint /run/mnt/snap-content
+      not remote.exec stat /run/mnt/snap-content
+      # Can remove the kernel-modules component
+      remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
 
   if [ "${INSTALL_MODE}" != none ]; then
