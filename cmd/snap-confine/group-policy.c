@@ -130,6 +130,9 @@ bool sc_assert_host_local_group_policy(int root_fd, sc_error **errorp) {
 
     if (cnt > 0) {
         groups = calloc(cnt, sizeof(gid_t));
+        if (groups == NULL) {
+            die("cannot allocate memory for supplementary groups");
+        }
 
         cnt = getgroups(cnt, groups);
         if (cnt < 0) {

@@ -51,7 +51,8 @@ static gchar *mock_snap_confine(gchar *root_dir, int which) {
     g_assert_cmpint(ret, ==, 0);
     g_free(sc_dir);
 
-    g_file_set_contents(sc_path, NULL, 0, &err);
+    gboolean bret = g_file_set_contents(sc_path, NULL, 0, &err);
+    g_assert_cmpint(bret, ==, TRUE);
     g_assert_no_error(err);
 
     return sc_path;
