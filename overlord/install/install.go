@@ -123,7 +123,6 @@ type SystemSnapdVersions struct {
 var (
 	timeNow = time.Now
 
-	hybridInstallRootDir               = "/"
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	secbootPreinstallCheck             = secboot.PreinstallCheck
 	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
@@ -172,15 +171,6 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 	return KernelBootInfo{
 		KSnapInfo:     kSnapInfo,
 		BootableKMods: bootKMods,
-	}
-}
-
-// MockHybridInstallRootDir modifies the root directory used when searching for hybrid installer boot images.
-func MockHybridInstallRootDir(newRoot string) (restore func()) {
-	old := hybridInstallRootDir
-	hybridInstallRootDir = newRoot
-	return func() {
-		hybridInstallRootDir = old
 	}
 }
 
@@ -402,9 +392,9 @@ func orderedCurrentBootImagesHybrid() ([]string, error) {
 		name string
 		glob string
 	}{
-		{"shim", filepath.Join(hybridInstallRootDir, "cdrom/EFI/boot/boot*.efi")},
-		{"grub", filepath.Join(hybridInstallRootDir, "cdrom/EFI/boot/grub*.efi")},
-		{"kernel", filepath.Join(hybridInstallRootDir, "cdrom/casper/vmlinuz")},
+		{"shim", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/boot*.efi")},
+		{"grub", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/grub*.efi")},
+		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz")},
 	}
 
 	var bootImagePaths []string
