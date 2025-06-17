@@ -308,6 +308,10 @@ type Keyslot struct {
 	keyData secboot.KeyData
 }
 
+func (k *Keyslot) String() string {
+	return fmt.Sprintf("(container-role: %q, name: %q)", k.ContainerRole, k.Name)
+}
+
 // KeyData returns secboot.KeyData corresponding to the keyslot.
 // This can only be called for KeyslotTypePlatform.
 //
