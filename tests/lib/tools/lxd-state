@@ -46,10 +46,13 @@ setup_proxy() {
         exit 1
     fi
     if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
+        #shellcheck disable=SC2153
         lxc exec "$INSTANCE" -- sh -c "echo HTTPS_PROXY=$HTTPS_PROXY >> /etc/environment"
-        lxc exec "$INSTANCE" -- sh -c "echo HTTP_PROXY=$HTTP_PROXY >> /etc/environment"
         lxc exec "$INSTANCE" -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+        #shellcheck disable=SC2153
+        lxc exec "$INSTANCE" -- sh -c "echo HTTP_PROXY=$HTTP_PROXY >> /etc/environment"
         lxc exec "$INSTANCE" -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+        #shellcheck disable=SC2153
         lxc exec "$INSTANCE" -- sh -c "echo NO_PROXY=$NO_PROXY >> /etc/environment"
         lxc exec "$INSTANCE" -- sh -c "echo no_proxy=$no_proxy >> /etc/environment"
     fi
