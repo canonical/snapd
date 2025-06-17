@@ -2749,6 +2749,21 @@ func (s *secbootSuite) TestRenameKeysDeleteError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot rename old container key: some error`)
 }
 
+func (s *secbootSuite) TestRenameContainerKey(c *C) {
+	called := 0
+	defer secboot.MockRenameLUKS2ContainerKey(func(devicePath, keyslotName, renameTo string) error {
+		called++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "bar")
+		c.Check(renameTo, Equals, "foo")
+		return nil
+	})()
+
+	err := secboot.RenameContainerKey("/dev/foo", "bar", "foo")
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
 func (s *secbootSuite) TestDeleteKeys(c *C) {
 	defer secboot.MockListLUKS2ContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
 		c.Check(devicePath, Equals, "/dev/foo")
@@ -2840,6 +2855,20 @@ func (s *secbootSuite) TestSerializedProfile(c *C) {
 		// binary blobk is serialized to base64 by default
 		"tpm2-pcr-profile": base64.StdEncoding.EncodeToString([]byte("serialized-profile")),
 	})
+}
+
+func (s *secbootSuite) TestDeleteContainerKey(c *C) {
+	called := 0
+	defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, keyslotName string) error {
+		called++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "bar")
+		return nil
+	})()
+
+	err := secboot.DeleteContainerKey("/dev/foo", "bar")
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
 }
 
 type testModel struct {
@@ -3964,4 +3993,43 @@ func (s *secbootSuite) TestRevokeOldKeysError(c *C) {
 	c.Check(err, ErrorMatches, `bad key`)
 
 	c.Check(calls, DeepEquals, []*fakeWrappedSealedKeyData{key1, key2})
+}
+
+func (s *secbootSuite) TestAddContainerRecoveryKey(c *C) {
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(remove, Equals, false)
+		return sb.DiskUnlockKey{'k', 'e', 'r', 'n', 'a', 'l'}, nil
+	})()
+
+	called := 0
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		called++
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(keyslotName, Equals, "bar")
+		c.Check(existingKey, DeepEquals, sb.DiskUnlockKey{'k', 'e', 'r', 'n', 'a', 'l'})
+		c.Check(recoveryKey, DeepEquals, sb.RecoveryKey{'r', 'k', 'e', 'y'})
+		return nil
+	})()
+
+	err := secboot.AddContainerRecoveryKey("/dev/foo", "bar", keys.RecoveryKey{'r', 'k', 'e', 'y'})
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *secbootSuite) TestAddContainerRecoveryKeyKeyringError(c *C) {
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	called := 0
+	defer secboot.MockAddLUKS2ContainerRecoveryKey(func(devicePath, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey) error {
+		called++
+		return nil
+	})()
+
+	err := secboot.AddContainerRecoveryKey("/dev/foo", "bar", keys.RecoveryKey{'r', 'k', 'e', 'y'})
+	c.Assert(err, ErrorMatches, "cannot get key from kernel keyring for unlocked disk /dev/foo: boom!")
+	c.Check(called, Equals, 0)
 }
