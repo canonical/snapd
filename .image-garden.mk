@@ -42,11 +42,6 @@ endef
 
 define UBUNTU_16.04_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
-# The cloud image seems not to have ntp anymore but spread prepare stops the
-# service so pre-install it before we make other changes. Perhaps the selection
-# in server images is different.
-packages:
-- ntp
 endef
 
 # In the snapd project Ubuntu Core images are built from classic Ubuntu images
