@@ -744,6 +744,48 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 	c.Check(satisfiedIDs, DeepEquals, s.manager.satisfiedIDs)
 }
 
+func (s *promptingSuite) TestPostPromptDenyHappy(c *C) {
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+
+	s.daemon(c)
+
+	s.manager.satisfiedIDs = []prompting.IDType{
+		prompting.IDType(1234),
+		prompting.IDType(0),
+		prompting.IDType(0xFFFFFFFFFFFFFFFF),
+		prompting.IDType(0xF00BA4),
+	}
+
+	constraints := &prompting.ReplyConstraints{
+		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,svg}"),
+		Permissions: []string{"read", "execute"},
+	}
+	contents := &daemon.PostPromptBody{
+		Outcome:     prompting.OutcomeDeny,
+		Lifespan:    prompting.LifespanTimespan,
+		Duration:    "10m",
+		Constraints: constraints,
+	}
+	marshalled, err := json.Marshal(contents)
+	c.Assert(err, IsNil)
+
+	rsp := s.makeSyncReq(c, "POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", 1000, marshalled)
+
+	// Check parameters
+	c.Check(s.manager.userID, Equals, uint32(1000))
+	c.Check(s.manager.id, Equals, prompting.IDType(0x0123456789abcdef))
+	c.Check(s.manager.replyConstraints, DeepEquals, contents.Constraints)
+	c.Check(s.manager.outcome, Equals, contents.Outcome)
+	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
+	c.Check(s.manager.duration, Equals, contents.Duration)
+	c.Check(s.manager.clientActivity, Equals, true)
+
+	// Check return value
+	satisfiedIDs, ok := rsp.Result.([]prompting.IDType)
+	c.Check(ok, Equals, true)
+	c.Check(satisfiedIDs, DeepEquals, s.manager.satisfiedIDs)
+}
+
 func mustParsePathPattern(c *C, pattern string) *patterns.PathPattern {
 	parsed, err := patterns.ParsePathPattern(pattern)
 	c.Assert(err, IsNil)
