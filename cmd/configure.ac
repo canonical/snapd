@@ -385,6 +385,20 @@ AC_ARG_WITH([apparmorconfigdir],
 ])
 AC_SUBST([APPARMOR_SYSCONFIG])
 
+AC_ARG_ENABLE([static-PIE],
+    AS_HELP_STRING([--enable-static-PIE], [Build static PIE binaries]),
+    [case "$enableval" in
+        yes)
+          build_static_pie=yes
+          ;;
+        no)
+          build_static_pie=no
+          ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-static-PIE])
+    esac],
+    [build_static_pie=no])
+AM_CONDITIONAL([BUILD_STATIC_PIE], [test "x$build_static_pie" = "xyes"])
+
 AC_SUBST([snapdstatedir], "${localstatedir}/lib/snapd")
 
 AC_CONFIG_FILES([Makefile])

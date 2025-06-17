@@ -17,6 +17,14 @@ if USE_INTERNAL_BPF_HEADERS
 VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
 endif
 
+if BUILD_STATIC_PIE
+STATIC_LDFLAGS = -static-pie
+STATIC_GO_BUILDMODE = pie
+else
+STATIC_LDFLAGS = -static
+STATIC_GO_BUILDMODE = default
+endif
+
 subdirs = \
 		  libsnap-confine-private \
 		  snap-confine \
@@ -79,7 +87,7 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && go build	-ldflags='-extldflags=-static -linkmode=external' -v
+	cd snap-update-ns && go build -buildmode=$(STATIC_GO_BUILDMODE) -ldflags='-extldflags=$(STATIC_LDFLAGS) -linkmode=external' -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
 	cd snap-seccomp && go build -v
 snapd-apparmor/snapd-apparmor: snapd-apparmor/*.go
@@ -515,7 +523,7 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
 
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
-snap_gdb_shim_snap_gdb_shim_LDFLAGS = -static
+snap_gdb_shim_snap_gdb_shim_LDFLAGS = $(STATIC_LDFLAGS)
 
 ##
 ## snap-gdbserver-shim
@@ -531,7 +539,7 @@ snap_gdb_shim_snap_gdbserver_shim_SOURCES = \
 	snap-gdb-shim/snap-gdbserver-shim.c
 
 snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
-snap_gdb_shim_snap_gdbserver_shim_LDFLAGS = -static
+snap_gdb_shim_snap_gdbserver_shim_LDFLAGS = $(STATIC_LDFLAGS)
 
 ##
 ## snapd-generator
