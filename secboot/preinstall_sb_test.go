@@ -83,10 +83,10 @@ func (s *preinstallSuite) TestConvertPreinstallCheckErrorType(c *C) {
 		errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 	)
 
-	var errorInfo secboot.PreinstallErrorInfo
-	c.Assert(func() { errorInfo = secboot.ConvertPreinstallCheckErrorType(nil) }, PanicMatches, "runtime error: invalid memory address or nil pointer dereference")
-	errorInfo = secboot.ConvertPreinstallCheckErrorType(kindAndActionsErr)
-	c.Assert(errorInfo, DeepEquals, secboot.PreinstallErrorInfo{
+	var errorDetails secboot.PreinstallErrorDetails
+	c.Assert(func() { errorDetails = secboot.ConvertPreinstallCheckErrorType(nil) }, PanicMatches, "runtime error: invalid memory address or nil pointer dereference")
+	errorDetails = secboot.ConvertPreinstallCheckErrorType(kindAndActionsErr)
+	c.Assert(errorDetails, DeepEquals, secboot.PreinstallErrorDetails{
 		Kind:    "tpm-hierarchies-owned",
 		Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
 		Args: map[string]json.RawMessage{
@@ -97,7 +97,7 @@ func (s *preinstallSuite) TestConvertPreinstallCheckErrorType(c *C) {
 	})
 }
 
-func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
+func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorCompound(c *C) {
 	compoundError := &CompoundPreinstallCheckError{
 		[]error{
 			sb_preinstall.NewWithKindAndActionsError(
@@ -121,9 +121,9 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
 		},
 	}
 
-	errorInfos, err := secboot.UnpackPreinstallCheckError(compoundError)
+	errorDetails, err := secboot.UnwrapPreinstallCheckError(compoundError)
 	c.Assert(err, IsNil)
-	c.Assert(errorInfos, DeepEquals, []secboot.PreinstallErrorInfo{
+	c.Assert(errorDetails, DeepEquals, []secboot.PreinstallErrorDetails{
 		{
 			Kind:    "tpm-hierarchies-owned",
 			Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
@@ -150,7 +150,7 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
 		},
 	})
 
-	jsn, err := json.MarshalIndent(errorInfos, "", "  ")
+	jsn, err := json.MarshalIndent(errorDetails, "", "  ")
 	c.Assert(err, IsNil)
 	const expectedJson = `[
   {
@@ -185,7 +185,7 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorCompound(c *C) {
 	c.Assert(string(jsn), Equals, expectedJson)
 }
 
-func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundUnexpectedType(c *C) {
+func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorFailCompoundUnexpectedType(c *C) {
 	compoundError := &CompoundPreinstallCheckError{
 		[]error{
 			sb_preinstall.NewWithKindAndActionsError(
@@ -198,20 +198,20 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundUnexpectedTy
 		},
 	}
 
-	errorInfos, err := secboot.UnpackPreinstallCheckError(compoundError)
-	c.Assert(err, ErrorMatches, `cannot unpack error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
-	c.Assert(errorInfos, IsNil)
+	errorDetails, err := secboot.UnwrapPreinstallCheckError(compoundError)
+	c.Assert(err, ErrorMatches, `cannot unwrap error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
+	c.Assert(errorDetails, IsNil)
 }
 
-func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailCompoundWrapsNil(c *C) {
+func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorFailCompoundWrapsNil(c *C) {
 	compoundError := &CompoundPreinstallCheckError{nil}
 
-	errorInfos, err := secboot.UnpackPreinstallCheckError(compoundError)
+	errorDetails, err := secboot.UnwrapPreinstallCheckError(compoundError)
 	c.Assert(err, ErrorMatches, "compound error does not wrap any error")
-	c.Assert(errorInfos, IsNil)
+	c.Assert(errorDetails, IsNil)
 }
 
-func (s *preinstallSuite) TestUnpackPreinstallCheckErrorSingle(c *C) {
+func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorSingle(c *C) {
 	singleError := sb_preinstall.NewWithKindAndActionsError(
 		sb_preinstall.ErrorKindTPMDeviceDisabled,
 		nil,
@@ -219,9 +219,9 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorSingle(c *C) {
 		errors.New("error with TPM2 device: TPM2 device is present but is currently disabled by the platform firmware"),
 	)
 
-	errorInfos, err := secboot.UnpackPreinstallCheckError(singleError)
+	errorDetails, err := secboot.UnwrapPreinstallCheckError(singleError)
 	c.Assert(err, IsNil)
-	c.Assert(errorInfos, DeepEquals, []secboot.PreinstallErrorInfo{
+	c.Assert(errorDetails, DeepEquals, []secboot.PreinstallErrorDetails{
 		{
 			Kind:    "tpm-device-disabled",
 			Message: "error with TPM2 device: TPM2 device is present but is currently disabled by the platform firmware",
@@ -229,7 +229,7 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorSingle(c *C) {
 		},
 	})
 
-	jsn, err := json.MarshalIndent(errorInfos, "", "  ")
+	jsn, err := json.MarshalIndent(errorDetails, "", "  ")
 	c.Assert(err, IsNil)
 	const expectedJson = `[
   {
@@ -243,10 +243,10 @@ func (s *preinstallSuite) TestUnpackPreinstallCheckErrorSingle(c *C) {
 	c.Assert(string(jsn), Equals, expectedJson)
 }
 
-func (s *preinstallSuite) TestUnpackPreinstallCheckErrorFailSingleUnexpectedType(c *C) {
-	errorInfos, err := secboot.UnpackPreinstallCheckError(sb_preinstall.ErrInsufficientDMAProtection)
-	c.Assert(err, ErrorMatches, `cannot unpack error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
-	c.Assert(errorInfos, IsNil)
+func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorFailSingleUnexpectedType(c *C) {
+	errorDetails, err := secboot.UnwrapPreinstallCheckError(sb_preinstall.ErrInsufficientDMAProtection)
+	c.Assert(err, ErrorMatches, `cannot unwrap error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
+	c.Assert(errorDetails, IsNil)
 }
 
 func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permitVM bool) {
@@ -284,9 +284,9 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permi
 		})
 	defer restore()
 
-	errorInfos, err := secboot.PreinstallCheck(nil)
+	errorDetails, err := secboot.PreinstallCheck(context.Background(), nil)
 	c.Assert(err, IsNil)
-	c.Assert(errorInfos, IsNil)
+	c.Assert(errorDetails, IsNil)
 }
 
 func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
@@ -306,7 +306,7 @@ func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 	}
 }
 
-func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack bool) {
+func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap bool) {
 	bootImagePaths := []string{
 		"/cdrom/EFI/boot/bootXXX.efi",
 		"/cdrom/EFI/boot/grubXXX.efi",
@@ -356,7 +356,7 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack boo
 						),
 					},
 				}
-			} else if failUnpack {
+			} else if failUnwrap {
 				return nil, sb_preinstall.ErrInsufficientDMAProtection
 			} else {
 				return &sb_preinstall.CheckResult{
@@ -374,11 +374,11 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack boo
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	errorInfos, err := secboot.PreinstallCheck(bootImagePaths)
+	errorDetails, err := secboot.PreinstallCheck(context.Background(), bootImagePaths)
 	if detectErrors {
 		c.Assert(err, IsNil)
 		c.Assert(logbuf.String(), Equals, "")
-		c.Assert(errorInfos, DeepEquals, []secboot.PreinstallErrorInfo{
+		c.Assert(errorDetails, DeepEquals, []secboot.PreinstallErrorDetails{
 			{
 				Kind:    "tpm-hierarchies-owned",
 				Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
@@ -398,12 +398,12 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnpack boo
 				Actions: []string{"reboot-to-fw-settings"},
 			},
 		})
-	} else if failUnpack {
-		c.Assert(err, ErrorMatches, `cannot unpack error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
-		c.Assert(errorInfos, IsNil)
+	} else if failUnwrap {
+		c.Assert(err, ErrorMatches, `cannot unwrap error of unexpected type \*errors\.errorString \(the platform firmware indicates that DMA protections are insufficient\)`)
+		c.Assert(errorDetails, IsNil)
 	} else {
 		c.Assert(err, IsNil)
-		c.Assert(errorInfos, IsNil)
+		c.Assert(errorDetails, IsNil)
 		c.Assert(logbuf.String(), testutil.Contains, "preinstall check warning: warning 1")
 		c.Assert(logbuf.String(), testutil.Contains, "preinstall check warning: warning 2")
 	}
@@ -416,7 +416,7 @@ func (s *preinstallSuite) TestPreinstallCheckWithWarningsAndErrors(c *C) {
 	s.testPreinstallCheck(c, detectErrors, false)
 }
 
-func (s *preinstallSuite) TestPreinstallCheckFailUnpack(c *C) {
-	failUnpack := true
-	s.testPreinstallCheck(c, false, failUnpack)
+func (s *preinstallSuite) TestPreinstallCheckFailUnwrap(c *C) {
+	failUnwrap := true
+	s.testPreinstallCheck(c, false, failUnwrap)
 }

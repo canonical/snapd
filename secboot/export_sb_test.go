@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	UnpackPreinstallCheckError         = unpackPreinstallCheckError
+	UnwrapPreinstallCheckError         = unwrapPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
 	ConvertPreinstallCheckErrorActions = convertPreinstallCheckErrorActions
 
