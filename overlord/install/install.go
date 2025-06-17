@@ -272,7 +272,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 		if unavailableReason == "" {
 			res.Type = device.EncryptionTypeLUKS
 		} else {
-			checkEncryptionErr = fmt.Errorf(unavailableReason)
+			checkEncryptionErr = errors.New(unavailableReason)
 			res.AvailabilityCheckErrors = preinstallErrorDetails
 		}
 	default:
