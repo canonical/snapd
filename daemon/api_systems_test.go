@@ -995,7 +995,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
 		encInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors"
-		encInfo.AvailabilityCheckErrors = []secboot.PreinstallErrorInfo{
+		encInfo.AvailabilityCheckErrors = []secboot.PreinstallErrorDetails{
 			{
 				Kind:    "tpm-hierarchies-owned",
 				Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
@@ -1045,7 +1045,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			Support:           "unavailable",
 			StorageSafety:     "prefer-encrypted",
 			UnavailableReason: "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors",
-			AvailabilityCheckErrors: []secboot.PreinstallErrorInfo{
+			AvailabilityCheckErrors: []secboot.PreinstallErrorDetails{
 				{
 					Kind:    "tpm-hierarchies-owned",
 					Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",

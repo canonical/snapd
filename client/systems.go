@@ -186,7 +186,7 @@ type StorageEncryption struct {
 	UnavailableReason string `json:"unavailable-reason,omitempty"`
 
 	// AvailabilityCheckErrors reports errors detected during preinstall check.
-	AvailabilityCheckErrors []secboot.PreinstallErrorInfo `json:"availability-check-errors,omitempty"`
+	AvailabilityCheckErrors []secboot.PreinstallErrorDetails `json:"availability-check-errors,omitempty"`
 }
 
 type SystemDetails struct {
