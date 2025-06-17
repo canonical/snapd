@@ -1,0 +1,130 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package builtin
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+)
+
+const gbmDriverLibsSummary = `allows exposing GBM driver libraries to the system`
+
+// Plugs only supported for the system on classic for the moment (note this is
+// checked on "system" snap installation even though this is an implicit plug
+// in that case) - in the future we will allow snaps having this as plug and
+// this declaration will have to change.
+const gbmDriverLibsBaseDeclarationPlugs = `
+  gbm-driver-libs:
+    allow-installation:
+      plug-snap-type:
+        - core
+    allow-connection:
+      slots-per-plug: *
+    deny-auto-connection: true
+`
+
+// Installation only allowed if permitted by the snap declaration (for asserted snaps)
+const gbmDriverLibsBaseDeclarationSlots = `
+  gbm-driver-libs:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
+// gbmDriverLibsInterface allows exposing GBM driver libraries to the system or snaps.
+type gbmDriverLibsInterface struct {
+	commonInterface
+}
+
+func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	// Validate attributes
+	var clientDriver, kernelDriver string
+	if err := slot.Attr("client-driver", &clientDriver); err != nil {
+		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+	if err := slot.Attr("kernel-driver", &kernelDriver); err != nil {
+		return fmt.Errorf("invalid kernel-driver: %w", err)
+	}
+	// We want a file name in client-driver, without directories
+	if strings.ContainsRune(clientDriver, os.PathSeparator) {
+		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
+	}
+	// Validate directories
+	return validateLdconfigLibDirs(slot)
+}
+
+func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// The plug can only be the system plug for the time being
+	return addLdconfigLibDirs(spec, slot)
+}
+
+var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})
+var _ = symlinks.ConnectedPlugCallback(&gbmDriverLibsInterface{})
+
+func gbmVendorPath() string {
+	// TODO consider alternative architectures
+	return fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())
+}
+
+func (iface *gbmDriverLibsInterface) TrackedDirectories() []string {
+	return []string{gbmVendorPath()}
+}
+
+func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var clientDriver, kernelDriver string
+	if err := slot.Attr("client-driver", &clientDriver); err != nil {
+		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+	if err := slot.Attr("kernel-driver", &kernelDriver); err != nil {
+		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+	// Look for the driver library
+	path, err := filePathInLibDirs(slot, clientDriver)
+	if err != nil {
+		return err
+	}
+
+	return spec.AddSymlink(path, filepath.Join(gbmVendorPath(), kernelDriver+"_gbm.so"))
+}
+
+func (iface *gbmDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	return true
+}
+
+func init() {
+	registerIface(&gbmDriverLibsInterface{
+		commonInterface: commonInterface{
+			name:                 "gbm-driver-libs",
+			summary:              gbmDriverLibsSummary,
+			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
+			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
+			// Not supported on core yet
+			implicitPlugOnCore:    false,
+			implicitPlugOnClassic: true,
+		},
+	})
+}
