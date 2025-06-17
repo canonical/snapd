@@ -567,18 +567,7 @@ func loggerWithJournalMaybe() error {
 	return nil
 }
 
-func composeFormatString(n int) string {
-	if n <= 0 {
-		return ""
-	}
-	parts := make([]string, n)
-	for i := 0; i < n; i++ {
-		parts[i] = "%s"
-	}
-	return strings.Join(parts, " ")
-}
-
-func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []any) string {
+func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []string) string {
 	subcmds := cmd.Commands()
 	if len(subcmds) > 0 && len(os.Args) > subArgIndex {
 		for _, subcmd := range subcmds {
@@ -587,8 +576,7 @@ func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []any) string {
 			}
 		}
 	}
-	template := composeFormatString(len(cmdNames))
-	return fmt.Sprintf(template, cmdNames...)
+	return strings.Join(cmdNames, " ")
 }
 
 func wholeCommandName(cmd *flags.Command) string {
@@ -596,7 +584,7 @@ func wholeCommandName(cmd *flags.Command) string {
 	if len(subcmds) > 0 && len(os.Args) > 2 {
 		for _, subcmd := range subcmds {
 			if os.Args[2] == subcmd.Name {
-				return composeSubCmd(subcmd, 3, []any{cmd.Name, subcmd.Name})
+				return composeSubCmd(subcmd, 3, []string{cmd.Name, subcmd.Name})
 			}
 		}
 	}
@@ -608,6 +596,7 @@ func makeCommandHandler(allCommands []*flags.Command) func(flags.Commander, []st
 		for _, cmd := range allCommands {
 			if cmd.Name == os.Args[1] {
 				logger.Trace("command-execution", "cmd", wholeCommandName(cmd))
+				break
 			}
 		}
 		return command.Execute(args)

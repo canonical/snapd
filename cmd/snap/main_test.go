@@ -488,7 +488,6 @@ func (s *SnapSuite) TestCommandHandlerTwoLevels(c *C) {
 	type emptyStruct struct{}
 	_, err := cmd0.AddCommand("level1", "l1", "l1", &emptyStruct{})
 	c.Assert(err, IsNil)
-	c.Assert(err, IsNil)
 	restore := mockArgs("snap", "level0", "level1", "other", "arguments")
 	defer restore()
 	name := snap.WholeCommandName(cmd0)
