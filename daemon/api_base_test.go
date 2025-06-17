@@ -30,6 +30,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
+	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -104,6 +107,74 @@ type apiBaseSuite struct {
 	expectedWriteAccess daemon.AccessChecker
 }
 
+var (
+	seenActionsMap *safeActionsMap
+	callCount      int64
+)
+
+func TestMain(m *testing.M) {
+	seenActionsMap = &safeActionsMap{data: make(map[*daemon.Command]map[string]struct{})}
+	code := m.Run()
+	// If only one test suite ran, then it makes no sense to check action coverage
+	if callCount <= 1 {
+		os.Exit(code)
+	}
+	for _, cmd := range seenActionsMap.Keys() {
+		if cmd.Path == "/v2/debug" {
+			// API coverage for /v2/debug doesn't matter
+			continue
+		}
+		actions := seenActionsMap.Actions(cmd)
+		for _, action := range cmd.Actions {
+			if !slices.Contains(actions, action) {
+				fmt.Printf("No test for action %s of command %s - if that action no longer exists, remove it from the Actions field slice in the relevant command\n", action, cmd.Path)
+				code = 1
+			}
+		}
+	}
+	os.Exit(code)
+}
+
+type safeActionsMap struct {
+	mu   sync.RWMutex
+	data map[*daemon.Command]map[string]struct{}
+}
+
+func (m *safeActionsMap) AddAction(cmd *daemon.Command, action string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.data[cmd]; !exists {
+		m.data[cmd] = make(map[string]struct{})
+	}
+	m.data[cmd][action] = struct{}{}
+}
+
+func (m *safeActionsMap) Keys() []*daemon.Command {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	keys := make([]*daemon.Command, 0, len(m.data))
+	for cmd := range m.data {
+		keys = append(keys, cmd)
+	}
+	return keys
+}
+
+func (m *safeActionsMap) Actions(cmd *daemon.Command) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	actionsMap, exists := m.data[cmd]
+	if !exists {
+		return nil
+	}
+	actions := make([]string, 0, len(actionsMap))
+	for action := range actionsMap {
+		actions = append(actions, action)
+	}
+	return actions
+}
+
 func (s *apiBaseSuite) pokeStateLock() {
 	// the store should be called without the state lock held. Try
 	// to acquire it.
@@ -175,6 +246,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 }
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
+	atomic.AddInt64(&callCount, 1)
 	s.restoreMuxVars = daemon.MockMuxVars(s.muxVars)
 	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
@@ -696,8 +768,11 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, act
 				Action string `json:"action"`
 			}
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" && !slices.Contains(cmd.Actions, data.Action) {
-					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
+				if data.Action != "" {
+					seenActionsMap.AddAction(cmd, data.Action)
+					if !slices.Contains(cmd.Actions, data.Action) {
+						c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
+					}
 				}
 			}
 			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -757,6 +832,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 		}
 		if err := json.Unmarshal(bodyBytes, &data); err == nil {
 			if data.Action != "" {
+				seenActionsMap.AddAction(cmd, data.Action)
 				if !slices.Contains(cmd.Actions, data.Action) {
 					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
 				}
