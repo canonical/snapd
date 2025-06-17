@@ -337,7 +337,7 @@
     # Allow creating /var/lib/snapd/hostfs, if missing
     /var/lib/snapd/hostfs/ rw,
 
-    # set up snap-specific private /tmp dir
+    # set up snap-specific private /{,var/}tmp dir
     capability chown,
     /tmp/ rw,
     /tmp/snap-private-tmp/ rw,
@@ -345,6 +345,12 @@
     /tmp/snap-private-tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
     mount options=(rw bind) /tmp/snap-private-tmp/snap.*/tmp/ -> /tmp/,
+    /var/tmp/ rw,
+    /var/tmp/snap-private-var-tmp/ rw,
+    /var/tmp/snap-private-var-tmp/snap.*/ rw,
+    /var/tmp/snap-private-var-tmp/snap.*/var-tmp/ rw,
+    mount options=(rw private) ->  /var/tmp/,
+    mount options=(rw bind) /var/tmp/snap-private-var-tmp/snap.*/var-tmp/ -> /var/tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,
     mount options=(rw bind) /dev/pts/ptmx -> /dev/ptmx,     # for bind mounting
     mount options=(rw bind) /dev/pts/ptmx -> /dev/pts/ptmx, # for bind mounting under LXD

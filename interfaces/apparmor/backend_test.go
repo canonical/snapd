@@ -1010,7 +1010,7 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 			// templateCommon
 			"/etc/ld.so.preload r,\n",
 			"owner @{PROC}/@{pid}/maps k,\n",
-			"/tmp/   r,\n",
+			"/{,var/}tmp/   r,\n",
 			"/sys/class/ r,\n",
 			// defaultCoreRuntimeTemplateRules
 			"# Default rules for core base runtimes\n",
@@ -1054,7 +1054,7 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 		// templateCommon
 		"/etc/ld.so.preload r,\n",
 		"owner @{PROC}/@{pid}/maps k,\n",
-		"/tmp/   r,\n",
+		"/{,var/}tmp/   r,\n",
 		"/sys/class/ r,\n",
 		// defaultOtherBaseTemplateRules
 		"# Default rules for non-core base runtimes\n",

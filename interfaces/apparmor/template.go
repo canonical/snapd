@@ -385,10 +385,10 @@ var templateCommon = `
   /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/** wl,
 
   # The snap-confine program creates an app-specific private restricted /tmp
-  # and will fail to launch the app if something goes wrong. As such, we can
-  # simply allow full access to /tmp.
-  /tmp/   r,
-  /tmp/** mrwlkix,
+  # and /var/tmp and will fail to launch the app if something goes wrong.
+  # As such, we can simply allow full access to /tmp and /var/tmp.
+  /{,var/}tmp/   r,
+  /{,var/}tmp/** mrwlkix,
 
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()

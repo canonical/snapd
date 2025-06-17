@@ -143,6 +143,63 @@ static void setup_private_tmp(const char *snap_instance) {
     sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 }
 
+// This is entirely the same as setup_private_tmp above, just using a different path.
+// All comments are removed to avoid the burden of keeping them in sync.
+#define SNAP_PRIVATE_VAR_TMP_ROOT_DIR "/var/tmp/snap-private-var-tmp"
+static void setup_private_var_tmp(const char *snap_instance) {
+    char base[MAX_BUF] = {0};
+    char tmp_dir[MAX_BUF] = {0};
+    int private_tmp_root_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+
+    if (sc_ensure_mkdir(SNAP_PRIVATE_VAR_TMP_ROOT_DIR, 0700, 0, 0) != 0) {
+        die("cannot create " SNAP_PRIVATE_VAR_TMP_ROOT_DIR);
+    }
+    private_tmp_root_fd = open(SNAP_PRIVATE_VAR_TMP_ROOT_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (private_tmp_root_fd < 0) {
+        die("cannot open %s", SNAP_PRIVATE_VAR_TMP_ROOT_DIR);
+    }
+    struct stat st;
+    if (fstat(private_tmp_root_fd, &st) < 0) {
+        die("cannot stat %s", SNAP_PRIVATE_VAR_TMP_ROOT_DIR);
+    }
+    if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+        die("%s has unexpected ownership / permissions", SNAP_PRIVATE_VAR_TMP_ROOT_DIR);
+    }
+    sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
+    if (sc_ensure_mkdirat(private_tmp_root_fd, base, 0700, 0, 0) != 0) {
+        die("cannot create base directory: %s", base);
+    }
+
+    base_dir_fd = openat(private_tmp_root_fd, base, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (base_dir_fd < 0) {
+        die("cannot open base directory: %s", base);
+    }
+    if (fstat(base_dir_fd, &st) < 0) {
+        die("cannot stat %s/%s", SNAP_PRIVATE_VAR_TMP_ROOT_DIR, base);
+    }
+    if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+        die("%s/%s has unexpected ownership / permissions", SNAP_PRIVATE_VAR_TMP_ROOT_DIR, base);
+    }
+    if (sc_ensure_mkdirat(base_dir_fd, "var-tmp", 01777, 0, 0) != 0) {
+        die("cannot create private tmp directory %s/tmp", base);
+    }
+    tmp_dir_fd = openat(base_dir_fd, "var-tmp", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (tmp_dir_fd < 0) {
+        die("cannot open private tmp directory %s/var-tmp", base);
+    }
+    if (fstat(tmp_dir_fd, &st) < 0) {
+        die("cannot stat %s/%s/var-tmp", SNAP_PRIVATE_VAR_TMP_ROOT_DIR, base);
+    }
+    if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 01777)) {
+        die("%s/%s/var-tmp has unexpected ownership / permissions", SNAP_PRIVATE_VAR_TMP_ROOT_DIR, base);
+    }
+    sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "/proc/self/fd/%d", tmp_dir_fd);
+    sc_do_mount(tmp_dir, "/var/tmp", NULL, MS_BIND, NULL);
+    sc_do_mount("none", "/var/tmp", NULL, MS_PRIVATE, NULL);
+}
+
 // TODO: fold this into bootstrap
 static void setup_private_pts(void) {
     // See https://www.kernel.org/doc/Documentation/filesystems/devpts.txt
@@ -942,6 +999,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
 
     // TODO: rename this and fold it into bootstrap
     setup_private_tmp(inv->snap_instance);
+    setup_private_var_tmp(inv->snap_instance);
     // set up private /dev/pts
     // TODO: fold this into bootstrap
     setup_private_pts();
