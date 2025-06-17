@@ -25,7 +25,7 @@ restore: |
 execute: |
     snap install --edge test-snapd-zfsutils
 
-    snap connect test-snapd-zfsutils:block-devices
+    snap connect test-snapd-zfsutils:block-devices-with-partitions
     snap connect test-snapd-zfsutils:mount-observe
 
     # starting without any pools
