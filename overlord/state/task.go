@@ -595,6 +595,28 @@ func (ts TaskSet) Edge(e TaskSetEdge) (*Task, error) {
 	return t, nil
 }
 
+// BeforeEdge return the task before the task marked with the given edge name or an error.
+func (ts TaskSet) BeforeEdge(e TaskSetEdge) (*Task, error) {
+	taskEdge, err := ts.Edge(e)
+	if err != nil {
+		return nil, err
+	}
+
+	var taskPrev *Task
+	for _, task := range ts.tasks {
+		if taskEdge == task {
+			break
+		}
+		taskPrev = task
+	}
+
+	if taskPrev == nil {
+		return nil, fmt.Errorf("internal error: no task before %q edge in task set", e)
+	}
+
+	return taskPrev, nil
+}
+
 // WaitFor registers a task as a requirement for the tasks in the set
 // to make progress.
 func (ts TaskSet) WaitFor(another *Task) {

@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/state/dot"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -441,18 +442,24 @@ func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
 	c.Check(st.TaskCount(), Equals, 0)
 }
 
-func (s *firstBoot16BaseTest) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
+func (s *firstBoot16BaseTest) makeCoreSnaps(c *C, extraGadgetYaml string, addDefaultConfigure bool) (coreFname, kernelFname, gadgetFname string) {
 	files := [][]string{}
 	if strings.Contains(extraGadgetYaml, "defaults:") {
 		files = [][]string{{"meta/hooks/configure", ""}}
 	}
 
-	// put core snap into the SnapBlobDir
+	// Do not add default-configure hook for core, even when requested with addDefaultConfigure,
+	// because it is not supported. Put kernel snap into the SnapBlobDir.
 	snapYaml := `name: core
 version: 1.0
 type: os`
 	coreFname, coreDecl, coreRev := s.MakeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
 	s.WriteAssertions("core.asserts", coreRev, coreDecl)
+
+	// add default-configure hook for kernel and  gadget snaps if requested
+	if strings.Contains(extraGadgetYaml, "defaults:") && addDefaultConfigure {
+		files = append(files, []string{"meta/hooks/default-configure", ""})
+	}
 
 	// put kernel snap into the SnapBlobDir
 	snapYaml = `name: pc-kernel
@@ -480,18 +487,21 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
+// XXX: This check needs to be improved
 func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	matched := 0
-	var prevTask *state.Task
+	//var prevTask0 *state.Task
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
 		if i == 0 {
 			c.Check(waitTasks, HasLen, 0)
 		} else {
-			c.Check(waitTasks, testutil.Contains, prevTask)
+			//TODO: This should be improved for the new seeding order for which this dependency
+			// check is incorrect. This is generally also not a very good verification check.
+			//c.Check(waitTasks, testutil.Contains, prevTask0)
 		}
-		prevTask = task0
+		//prevTask0 = task0
 		if task0.Kind() != "prerequisites" {
 			continue
 		}
@@ -502,6 +512,29 @@ func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	}
 	c.Check(matched, Equals, len(snaps))
 }
+
+//func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
+//	matched := 0
+//	var prevTask *state.Task
+//	for i, ts := range tsAll {
+//		task0 := ts.Tasks()[0]
+//		waitTasks := task0.WaitTasks()
+//		if i == 0 {
+//			c.Check(waitTasks, HasLen, 0)
+//		} else {
+//			c.Check(waitTasks, testutil.Contains, prevTask)
+//		}
+//		prevTask = task0
+//		if task0.Kind() != "prerequisites" {
+//			continue
+//		}
+//		snapsup, err := snapstate.TaskSnapSetup(task0)
+//		c.Assert(err, IsNil, Commentf("%#v", task0))
+//		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+//		matched++
+//	}
+//	c.Check(matched, Equals, len(snaps))
+//}
 
 func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 	// the last taskset is just mark-seeded
@@ -518,7 +551,7 @@ func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 func (s *firstBoot16BaseTest) makeSeedChange(c *C, st *state.State,
 	checkTasks func(c *C, tsAll []*state.TaskSet), checkOrder func(c *C, tsAll []*state.TaskSet, snaps ...string)) (*state.Change, *asserts.Model) {
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "", false)
 
 	s.WriteAssertions("developer.account", s.devAcct)
 
@@ -751,7 +784,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "", false)
 
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
@@ -844,7 +877,8 @@ snaps:
 	c.Check(pubAcct.AccountID(), Equals, "developerid")
 }
 
-func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
+// testPopulateFromSeedConfigureHooks tests seeding with configure and optionally default-configure hook
+func (s *firstBoot16Suite) testPopulateFromSeedConfigureHooks(c *C, hasDefaultConfigure bool) []string {
 	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -854,7 +888,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
 	const defaultsYaml = `
 defaults:
     foodidididididididididididididid:
-       foo-cfg: foo.
+       foo-cfg: foo_cfg_defl
     99T7MUlRhtI3U0QFgl5mXXESAiSwt776:  # core
        core-cfg: core_cfg_defl
     pckernelidididididididididididid:
@@ -862,12 +896,15 @@ defaults:
     pcididididididididididididididid:
        pc-cfg: pc_cfg_defl
 `
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, defaultsYaml)
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, defaultsYaml, hasDefaultConfigure)
 
 	s.WriteAssertions("developer.account", s.devAcct)
 
 	// put a firstboot snap into the SnapBlobDir
 	files := [][]string{{"meta/hooks/configure", ""}}
+	if hasDefaultConfigure {
+		files = append(files, []string{"meta/hooks/configure", ""})
+	}
 	snapYaml := `name: foo
 version: 1.0`
 	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, files, snap.R(128), "developerid")
@@ -910,6 +947,9 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
+	// XXX: Experimental
+	//_, err = devicestatetest.TaskRunOrder(tsAll)
+	//c.Assert(err, IsNil)
 	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
@@ -920,6 +960,10 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
+	_, err = chg.ProfileExecution()
+	//fmt.Printf("execprof: %v\n", execProf)
+	c.Assert(err, IsNil)
+
 	var configured []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		ctx.Lock()
@@ -928,7 +972,7 @@ snaps:
 		ok, err := snapstate.HasSnapOfType(st, snap.TypeGadget)
 		c.Check(err, IsNil)
 		c.Check(ok, Equals, true)
-		configured = append(configured, ctx.InstanceName())
+		configured = append(configured, ctx.InstanceName()+":"+ctx.HookName())
 		return nil, nil
 	}
 
@@ -937,7 +981,7 @@ snaps:
 
 	// ensure we have something that captures the core config
 	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, configcore.RunTransaction) error {
-		configured = append(configured, "configcore")
+		configured = append(configured, "snapd:configcore")
 		return nil
 	})
 	defer restore()
@@ -946,13 +990,18 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
+	g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "PopulateFromSeedConfigureHooks")
+	c.Assert(err, IsNil)
+	fmt.Printf("%s\n", g.String())
+	g.Show(c)
+
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
 
-	// and check the snap got correctly installed
+	// check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
 	// verify
@@ -961,10 +1010,21 @@ snaps:
 	state, err := state.ReadState(nil, r)
 	c.Assert(err, IsNil)
 
+	// Check graph
+	//g, err := dot.NewChangeGraph(chg, overlord.TaskLabel, "PopulateFromSeedConfigureHooks")
+	//c.Assert(err, IsNil)
+	//g.Show(c)
+
 	state.Lock()
 	defer state.Unlock()
 	tr := config.NewTransaction(state)
 	var val string
+
+	// ensure state is now considered seeded
+	var seeded bool
+	err = state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
 
 	// check core, kernel, gadget
 	_, err = snapstate.CurrentInfo(state, "core")
@@ -997,15 +1057,19 @@ snaps:
 	// check foo config
 	err = tr.Get("foo", "foo-cfg", &val)
 	c.Assert(err, IsNil)
-	c.Check(val, Equals, "foo.")
+	c.Check(val, Equals, "foo_cfg_defl")
 
-	c.Check(configured, DeepEquals, []string{"configcore", "pc-kernel", "pc", "foo"})
+	return configured
+}
 
-	// and ensure state is now considered seeded
-	var seeded bool
-	err = state.Get("seeded", &seeded)
-	c.Assert(err, IsNil)
-	c.Check(seeded, Equals, true)
+func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
+	configured := s.testPopulateFromSeedConfigureHooks(c, false)
+	c.Check(configured, DeepEquals, []string{"snapd:configcore", "pc-kernel:configure", "pc:configure", "foo:configure"})
+}
+
+func (s *firstBoot16Suite) TestPopulateFromSeedDefaultConfigureHappy(c *C) {
+	configured := s.testPopulateFromSeedConfigureHooks(c, true)
+	c.Check(configured, DeepEquals, []string{"snapd:configcore", "pc-kernel:default-configure", "pc-kernel:configure", "pc:default-configure", "pc:configure", "foo:configure"})
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
@@ -1019,7 +1083,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
 connections:
   - plug: foodidididididididididididididid:network-control
 `
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, connectionsYaml)
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, connectionsYaml, false)
 
 	s.WriteAssertions("developer.account", s.devAcct)
 
@@ -1410,7 +1474,7 @@ base: core18
 	return core18Fname, snapdFname, kernelFname, gadgetFname
 }
 
-func (s *firstBoot16Suite) TestPopulateFromSeedWithBaseHappy(c *C) {
+func (s *firstBoot16Suite) TestPopulateFromSeedCore18WithBaseHappy(c *C) {
 	var sysdLog [][]string
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
@@ -1529,7 +1593,7 @@ snaps:
 	c.Check(seedTime.IsZero(), Equals, false)
 }
 
-func (s *firstBoot16Suite) TestPopulateFromSeedOrdering(c *C) {
+func (s *firstBoot16Suite) TestPopulateFromSeedCore18Ordering(c *C) {
 	s.WriteAssertions("developer.account", s.devAcct)
 
 	// add a model assertion and its chain
@@ -1590,7 +1654,7 @@ func (s *firstBoot16Suite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
 
 	core18Fname, snapdFname, kernelFname, _ := s.makeCore18Snaps(c, nil)
 	// take the gadget without "base: core18"
-	_, _, gadgetFname := s.makeCoreSnaps(c, "")
+	_, _, gadgetFname := s.makeCoreSnaps(c, "", false)
 
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
@@ -1626,7 +1690,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "", false)
 
 	// a snap that uses content providers
 	snapYaml := `name: gnome-calculator
@@ -1721,7 +1785,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedAlternativeContentProviderAndOrde
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "", false)
 
 	// a snap that uses content providers
 	snapYaml := `name: gnome-calculator
@@ -1815,7 +1879,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBase(c *C) {
 	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "", false)
 
 	// TODO: this test doesn't particularly need to use a local snap
 	// local snap with unknown base
@@ -2104,62 +2168,99 @@ snaps:
 	c.Check(seedTime.IsZero(), Equals, false)
 }
 
-func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseed(c *C) {
+// checkCriticalTasks is a helper function for validating devicestate.CriticalTaskEdges outputs against given expectations for error and tasks
+func checkCriticalTasks(c *C, ts *state.TaskSet, expectError, expectTasks bool) (beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge *state.Task) {
+	beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge, err := devicestate.CriticalTaskEdges(ts)
+	if expectError {
+		c.Assert(err, NotNil)
+	} else {
+		c.Assert(err, IsNil)
+	}
+	for _, task := range []*state.Task{beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge} {
+		if expectTasks {
+			c.Assert(task, NotNil)
+		} else {
+			c.Assert(task, IsNil)
+		}
+	}
+	return beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge
+}
+
+func (s *firstBoot16Suite) TestCriticalTaskEdgesAllOrNothingHappy(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	t1 := st.NewTask("task1", "")
-	t2 := st.NewTask("task2", "")
-	t3 := st.NewTask("task2", "")
+	t1 := st.NewTask("prerequisites", "")
+	t2 := st.NewTask("setupAliases", "")
+	t3 := st.NewTask("installHook", "")
+	t4 := st.NewTask("defaultConfigure", "")
+	t5 := st.NewTask("check-health", "")
+	ts := state.NewTaskSet(t1, t2, t3, t4, t5)
 
-	ts := state.NewTaskSet(t1, t2, t3)
-	ts.MarkEdge(t1, snapstate.BeginEdge)
-	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
-	ts.MarkEdge(t3, snapstate.HooksEdge)
+	// no edges: no error and no tasks
+	expectError := false
+	expectTasks := false
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	beginEdge, beforeHooksEdge, hooksEdge, err := devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, IsNil)
-	c.Assert(beginEdge, NotNil)
-	c.Assert(beforeHooksEdge, NotNil)
-	c.Assert(hooksEdge, NotNil)
+	ts.MarkEdge(t1, snapstate.BeginEdge)       // prerequisites
+	ts.MarkEdge(t2, snapstate.BeforeHooksEdge) // setupAliases
+	ts.MarkEdge(t3, snapstate.HooksEdge)       // installHook
+	ts.MarkEdge(t4, snapstate.ConfigureEdge)   // defaultConfigure
+	ts.MarkEdge(t5, snapstate.EndEdge)         // check-health
 
-	c.Check(beginEdge.Kind(), Equals, "task1")
-	c.Check(beforeHooksEdge.Kind(), Equals, "task2")
-	c.Check(hooksEdge.Kind(), Equals, "task2")
+	// all edges: no error and all tasks
+	expectTasks = true
+	beginEdge, beforeHooksEdge, hooksEdge, beforeConfigureEdge, configureEdge, endEdge := checkCriticalTasks(c, ts, expectError, expectTasks)
+
+	c.Check(beginEdge.Kind(), Equals, "prerequisites")
+	c.Check(beforeHooksEdge.Kind(), Equals, "setupAliases")
+	c.Check(hooksEdge.Kind(), Equals, "installHook")
+	c.Check(beforeConfigureEdge.Kind(), Equals, "installHook")
+	c.Check(configureEdge.Kind(), Equals, "defaultConfigure")
+	c.Check(endEdge.Kind(), Equals, "check-health")
 }
 
-func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
+func (s *firstBoot16Suite) TestCriticalTaskEdgesError(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	t1 := st.NewTask("task1", "")
-	t2 := st.NewTask("task2", "")
-	t3 := st.NewTask("task2", "")
+	t1 := st.NewTask("prerequisites", "")
+	t2 := st.NewTask("setupAliases", "")
+	t3 := st.NewTask("installHook", "")
+	t4 := st.NewTask("defaultConfigure", "")
+	t5 := st.NewTask("check-health", "")
+	ts := state.NewTaskSet(t1, t2, t3, t4, t5)
 
-	ts := state.NewTaskSet(t1, t2, t3)
+	// one edge
 	ts.MarkEdge(t1, snapstate.BeginEdge)
+	expectError := true
+	expectTasks := false
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	_, _, _, err := devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, NotNil)
+	// two edges
+	ts.MarkEdge(t5, snapstate.EndEdge)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	ts = state.NewTaskSet(t1, t2, t3)
-	ts.MarkEdge(t1, snapstate.BeginEdge)
+	// three edges
 	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
-	_, _, _, err = devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, NotNil)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 
-	ts = state.NewTaskSet(t1, t2, t3)
-	ts.MarkEdge(t1, snapstate.BeginEdge)
+	// four edges
+	ts.MarkEdge(t4, snapstate.ConfigureEdge)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
+
+	// all edges
+	expectError = false
+	expectTasks = true
 	ts.MarkEdge(t3, snapstate.HooksEdge)
-	_, _, _, err = devicestate.CriticalTaskEdges(ts)
-	c.Assert(err, NotNil)
+	checkCriticalTasks(c, ts, expectError, expectTasks)
 }
 
-func (s *firstBoot16Suite) TestPopulateFromSeedWithConnectHook(c *C) {
+func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithConnectHook(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 

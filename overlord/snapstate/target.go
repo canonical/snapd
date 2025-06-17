@@ -746,9 +746,14 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 			return nil, nil, err
 		}
 
+		// Extract flags set by populateStateFromSeedImpl to specify the required installation configure hook behavior. These
+		// flags need to be extracted as passed on as doIntall flags because it is excluded from SnapSetup (by flags.ForSnapSetup).
 		var instFlags int
 		if opts.Flags.SkipConfigure {
 			instFlags |= skipConfigure
+		}
+		if opts.Flags.ConfigureDefaults {
+			instFlags |= configureDefaults
 		}
 
 		ts, err := doInstall(st, &t.snapst, snapsup, compsups, instFlags, opts.FromChange, inUseFor(opts.DeviceCtx), opts.DeviceCtx)
