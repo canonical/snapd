@@ -138,6 +138,13 @@ static void validate_as_snap_or_component_name(const char *name, int err_code, c
         err = sc_error_init(SC_SNAP_DOMAIN, err_code, "%s cannot be NULL", err_subject);
         goto out;
     }
+
+    if (strlen(name) > SNAP_NAME_LEN) {
+        err = sc_error_init(SC_SNAP_DOMAIN, err_code, "%s must be shorter than %d characters", err_subject,
+                            SNAP_NAME_LEN);
+        goto out;
+    }
+
     // This is a regexp-free routine hand-codes the following pattern:
     //
     // "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
@@ -183,10 +190,6 @@ static void validate_as_snap_or_component_name(const char *name, int err_code, c
     }
     if (n < 2) {
         err = sc_error_init(SC_SNAP_DOMAIN, err_code, "%s must be longer than 1 character", err_subject);
-        goto out;
-    }
-    if (n > SNAP_NAME_LEN) {
-        err = sc_error_init(SC_SNAP_DOMAIN, err_code, "%s must be shorter than 40 characters", err_subject);
         goto out;
     }
 
