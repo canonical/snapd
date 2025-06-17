@@ -20,6 +20,10 @@
 
 package secboot
 
-func PreinstallCheck(bootImagePaths []string) ([]PreinstallErrorDetails, error) {
+import (
+	"context"
+)
+
+func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
 	return nil, errBuildWithoutSecboot
 }
