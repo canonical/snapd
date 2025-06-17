@@ -49,10 +49,14 @@ import (
 const (
 	installCmdAction  = "install"
 	refreshCmdAction  = "refresh"
+	revertCmdAction   = "revert"
 	switchCmdAction   = "switch"
 	holdCmdAction     = "hold"
+	unholdCmdAction   = "unhold"
 	snapshotCmdAction = "snapshot"
 	removeCmdAction   = "remove"
+	enableCmdAction   = "enable"
+	disableCmdAction  = "disable"
 )
 
 var (
@@ -76,8 +80,12 @@ var (
 	refreshSnapChangeKind  = swfeats.ChangeReg.Add(refreshCmdAction + "-snap")
 	switchSnapChangeKind   = swfeats.ChangeReg.Add(switchCmdAction + "-snap")
 	holdSnapChangeKind     = swfeats.ChangeReg.Add(holdCmdAction + "-snap")
+	unholdSnapChangeKind   = swfeats.ChangeReg.Add(unholdCmdAction + "-snap")
 	snapshotSnapChangeKind = swfeats.ChangeReg.Add(snapshotCmdAction + "-snap")
 	removeSnapChangeKind   = swfeats.ChangeReg.Add(removeCmdAction + "-snap")
+	revertSnapChangeKind   = swfeats.ChangeReg.Add(revertCmdAction + "-snap")
+	enableSnapChangeKind   = swfeats.ChangeReg.Add(enableCmdAction + "-snap")
+	disableSnapChangeKind  = swfeats.ChangeReg.Add(disableCmdAction + "-snap")
 )
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -138,10 +146,18 @@ func changeKind(action string) (string, bool) {
 		return switchSnapChangeKind, true
 	case holdCmdAction:
 		return holdSnapChangeKind, true
+	case unholdCmdAction:
+		return unholdSnapChangeKind, true
 	case snapshotCmdAction:
 		return snapshotSnapChangeKind, true
 	case removeCmdAction:
 		return removeSnapChangeKind, true
+	case revertCmdAction:
+		return revertSnapChangeKind, true
+	case enableCmdAction:
+		return enableSnapChangeKind, true
+	case disableCmdAction:
+		return disableSnapChangeKind, true
 	}
 	return "", false
 }
@@ -767,15 +783,15 @@ func snapSwitch(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 type snapActionFunc func(context.Context, *snapInstruction, *state.State) (*snapInstructionResult, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
-	"install": snapInstall,
-	"refresh": snapUpdate,
-	"remove":  snapRemove,
-	"revert":  snapRevert,
-	"enable":  snapEnable,
-	"disable": snapDisable,
-	"switch":  snapSwitch,
-	"hold":    snapHoldMany,
-	"unhold":  snapUnholdMany,
+	installCmdAction: snapInstall,
+	refreshCmdAction: snapUpdate,
+	removeCmdAction:  snapRemove,
+	revertCmdAction:  snapRevert,
+	enableCmdAction:  snapEnable,
+	disableCmdAction: snapDisable,
+	switchCmdAction:  snapSwitch,
+	holdCmdAction:    snapHoldMany,
+	unholdCmdAction:  snapUnholdMany,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -894,22 +910,22 @@ type snapManyActionFunc func(context.Context, *snapInstruction, *state.State) (*
 
 func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	switch inst.Action {
-	case "refresh":
+	case refreshCmdAction:
 		if len(inst.ValidationSets) > 0 {
 			op = snapEnforceValidationSets
 		} else {
 			op = snapUpdateMany
 		}
-	case "install":
+	case installCmdAction:
 		op = snapInstallMany
-	case "remove":
+	case removeCmdAction:
 		op = snapRemoveMany
-	case "snapshot":
+	case snapshotCmdAction:
 		// see api_snapshots.go
 		op = snapshotMany
-	case "hold":
+	case holdCmdAction:
 		op = snapHoldMany
-	case "unhold":
+	case unholdCmdAction:
 		op = snapUnholdMany
 	}
 	return op
