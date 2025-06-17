@@ -27,9 +27,14 @@ prepare_snap(){
     echo "lxd-state: setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
         lxd.lxc config set core.proxy_http "$http_proxy"
+        lxd.lxc profile set default environment.http_proxy "$http_proxy"
     fi
     if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
+        lxd.lxc config set core.proxy_https "$https_proxy"
+        lxd.lxc profile set default environment.https_proxy "$https_proxy"
+    fi
+    if [ -n "${no_proxy:-}" ]; then
+        lxd.lxc profile set default environment.no_proxy "$no_proxy"
     fi
 }
 
@@ -41,16 +46,6 @@ setup_proxy() {
         exit 1
     fi
     if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
-        lxc config set "$INSTANCE" environment.https_proxy="$https_proxy"
-        lxc config set "$INSTANCE" environment.http_proxy="$http_proxy"
-        # shellcheck disable=SC2153
-        lxc config set "$INSTANCE" "environment.HTTPS_PROXY=$HTTPS_PROXY"
-        # shellcheck disable=SC2153
-        lxc config set "$INSTANCE" environment.HTTP_PROXY="$HTTP_PROXY"
-        # shellcheck disable=SC2154
-        lxc config set "$INSTANCE" environment.no_proxy="$no_proxy"
-        lxc config set "$INSTANCE" environment.NO_PROXY="$NO_PROXY"
-
         lxc exec "$INSTANCE" -- sh -c "echo HTTPS_PROXY=$HTTPS_PROXY >> /etc/environment"
         lxc exec "$INSTANCE" -- sh -c "echo HTTP_PROXY=$HTTP_PROXY >> /etc/environment"
         lxc exec "$INSTANCE" -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"

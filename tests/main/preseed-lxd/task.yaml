@@ -44,10 +44,8 @@ prepare: |
   mv snapd_*.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
-  if [ ! -x /usr/bin/lxc ]; then
-    apt install -y lxd
-    touch remove-lxd
-  fi
+  echo "Install lxd"
+  "$TESTSTOOLS"/lxd-state prepare-snap
 
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
@@ -59,14 +57,6 @@ prepare: |
   SNAPD_DEBUG=1 "$SNAP_PRESEED" --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
-  if [ -f remove-lxd ]; then
-    for container in my-ubuntu my-ubuntu-preseeded; do
-      lxc stop "$container" --force || true
-      lxc delete "$container" || true
-    done
-    apt purge -y lxd
-    apt autoremove --purge -y
-  fi
 
   umount "$IMAGE_MOUNTPOINT"
   rmdir "$IMAGE_MOUNTPOINT"
@@ -84,11 +74,7 @@ restore: |
 
 execute: |
   echo "Create a trivial container using the lxd snap"
-  lxd waitready
-  lxd init --auto
-
   lxc launch "ubuntu:20.04" my-ubuntu
-  "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu
 
   echo "Wait for snapd to be ready in the container"
   lxc exec my-ubuntu -- snap wait system seed.loaded
@@ -167,7 +153,6 @@ execute: |
 
   echo "Checking that preseeded image runs with lxd"
   lxc launch ubuntu-preseeded my-ubuntu-preseeded
-  "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu-preseeded
 
   # it takes quite a bit before snapd is ready
   retry -n 50 --wait 5 sh -c 'lxc exec my-ubuntu-preseeded --  snap wait system seed.loaded'
