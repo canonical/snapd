@@ -2988,7 +2988,7 @@ func (s *modelAndGadgetInfoSuite) mockHelperForEncryptionAvailabilityCheck(c *C,
 		}
 	}
 
-	restore3 := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore3 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		paramCheck = len(bootImagePaths) == 3
 		count++
 		if hasTPM {

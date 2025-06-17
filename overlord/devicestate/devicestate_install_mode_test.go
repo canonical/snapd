@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -612,13 +613,13 @@ func (s *deviceMgrInstallModeSuite) mockHelperForEncryptionAvailabilityCheck(c *
 	//count := 0
 	//paramCheck := false
 
-	restore1 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore1 := installLogic.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		//paramCheck = len(bootImagePaths) == 3
 		//count++
 		if hasTPM {
 			return nil, nil
 		} else {
-			return preinstallErrorInfos[:1], nil
+			return preinstallErrorDetails[:1], nil
 		}
 	})
 
