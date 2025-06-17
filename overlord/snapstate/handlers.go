@@ -1110,7 +1110,7 @@ func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 	if !createdPreDl {
 		snaps := []string{snapName}
 		msg := autoRefreshSummary(snaps)
-		chg := st.NewChange("auto-refresh", msg)
+		chg := st.NewChange(autoRefreshChangeKind, msg)
 		for _, ts := range tss.Refresh {
 			chg.AddAll(ts)
 		}

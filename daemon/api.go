@@ -195,7 +195,9 @@ func ensureStateSoonImpl(st *state.State) {
 
 var ensureStateSoon = ensureStateSoonImpl
 
-func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
+var newChange = newChangeImpl
+
+func newChangeImpl(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
 	chg := st.NewChange(kind, summary)
 	for _, ts := range tsets {
 		chg.AddAll(ts)

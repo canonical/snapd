@@ -38,11 +38,25 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
+)
+
+const (
+	installCmdAction  = "install"
+	refreshCmdAction  = "refresh"
+	revertCmdAction   = "revert"
+	switchCmdAction   = "switch"
+	holdCmdAction     = "hold"
+	unholdCmdAction   = "unhold"
+	snapshotCmdAction = "snapshot"
+	removeCmdAction   = "remove"
+	enableCmdAction   = "enable"
+	disableCmdAction  = "disable"
 )
 
 var (
@@ -62,6 +76,16 @@ var (
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
+	installSnapChangeKind  = swfeats.ChangeReg.Add(installCmdAction + "-snap")
+	refreshSnapChangeKind  = swfeats.ChangeReg.Add(refreshCmdAction + "-snap")
+	switchSnapChangeKind   = swfeats.ChangeReg.Add(switchCmdAction + "-snap")
+	holdSnapChangeKind     = swfeats.ChangeReg.Add(holdCmdAction + "-snap")
+	unholdSnapChangeKind   = swfeats.ChangeReg.Add(unholdCmdAction + "-snap")
+	snapshotSnapChangeKind = swfeats.ChangeReg.Add(snapshotCmdAction + "-snap")
+	removeSnapChangeKind   = swfeats.ChangeReg.Add(removeCmdAction + "-snap")
+	revertSnapChangeKind   = swfeats.ChangeReg.Add(revertCmdAction + "-snap")
+	enableSnapChangeKind   = swfeats.ChangeReg.Add(enableCmdAction + "-snap")
+	disableSnapChangeKind  = swfeats.ChangeReg.Add(disableCmdAction + "-snap")
 )
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -112,6 +136,32 @@ func webify(result *client.Snap, resource string) *client.Snap {
 	return result
 }
 
+func changeKind(action string) (string, bool) {
+	switch action {
+	case installCmdAction:
+		return installSnapChangeKind, true
+	case refreshCmdAction:
+		return refreshSnapChangeKind, true
+	case switchCmdAction:
+		return switchSnapChangeKind, true
+	case holdCmdAction:
+		return holdSnapChangeKind, true
+	case unholdCmdAction:
+		return unholdSnapChangeKind, true
+	case snapshotCmdAction:
+		return snapshotSnapChangeKind, true
+	case removeCmdAction:
+		return removeSnapChangeKind, true
+	case revertCmdAction:
+		return revertSnapChangeKind, true
+	case enableCmdAction:
+		return enableSnapChangeKind, true
+	case disableCmdAction:
+		return disableSnapChangeKind, true
+	}
+	return "", false
+}
+
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -156,7 +206,12 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return inst.errToResponse(err)
 	}
 
-	chg := newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
+	changeKind, ok := changeKind(inst.Action)
+	if !ok {
+		return BadRequest("unknown action %s", inst.Action)
+	}
+
+	chg := newChange(st, changeKind, res.Summary, res.Tasksets, res.Affected)
 	if len(res.Tasksets) == 0 {
 		chg.SetStatus(state.DoneStatus)
 	}
@@ -337,16 +392,16 @@ func (inst *snapInstruction) validateSnapshotOptions() error {
 
 func (inst *snapInstruction) validate() error {
 	if inst.CohortKey != "" {
-		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
+		if inst.Action != installCmdAction && inst.Action != refreshCmdAction && inst.Action != switchCmdAction {
 			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
 		}
 	}
 	if inst.LeaveCohort {
-		if inst.Action != "refresh" && inst.Action != "switch" {
+		if inst.Action != refreshCmdAction && inst.Action != switchCmdAction {
 			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
 		}
 	}
-	if inst.Action == "install" {
+	if inst.Action == installCmdAction {
 		for _, snapName := range inst.Snaps {
 			// FIXME: alternatively we could simply mutate *inst
 			//        and s/ubuntu-core/core/ ?
@@ -358,17 +413,17 @@ func (inst *snapInstruction) validate() error {
 	switch inst.Transaction {
 	case "":
 	case client.TransactionPerSnap, client.TransactionAllSnaps:
-		if inst.Action != "install" && inst.Action != "refresh" {
+		if inst.Action != installCmdAction && inst.Action != refreshCmdAction {
 			return fmt.Errorf(`transaction type is unsupported for %q actions`, inst.Action)
 		}
 	default:
 		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
 	}
-	if inst.QuotaGroupName != "" && inst.Action != "install" {
+	if inst.QuotaGroupName != "" && inst.Action != installCmdAction {
 		return fmt.Errorf("quota-group can only be specified on install")
 	}
 
-	if inst.Action == "hold" {
+	if inst.Action == holdCmdAction {
 		if inst.Time == "" {
 			return errors.New("hold action requires a non-empty time value")
 		} else if inst.Time != "forever" {
@@ -383,7 +438,7 @@ func (inst *snapInstruction) validate() error {
 		}
 	}
 
-	if inst.Action != "hold" {
+	if inst.Action != holdCmdAction {
 		if inst.Time != "" {
 			return errors.New(`time can only be specified for the "hold" action`)
 		}
@@ -395,11 +450,11 @@ func (inst *snapInstruction) validate() error {
 	if inst.Unaliased && inst.Prefer {
 		return errUnaliasedPreferConflict
 	}
-	if inst.Prefer && inst.Action != "install" {
+	if inst.Prefer && inst.Action != installCmdAction {
 		return fmt.Errorf("the prefer flag can only be specified on install")
 	}
 
-	if inst.Terminate && inst.Action != "remove" {
+	if inst.Terminate && inst.Action != removeCmdAction {
 		return fmt.Errorf(`terminate can only be specified for the "remove" action`)
 	}
 	if inst.Terminate && !inst.Revision.Unset() {
@@ -410,13 +465,13 @@ func (inst *snapInstruction) validate() error {
 		return err
 	}
 
-	if inst.Action == "snapshot" {
+	if inst.Action == snapshotCmdAction {
 		inst.cleanSnapshotOptions()
 	}
 
 	if len(inst.CompsRaw) > 0 {
 		switch inst.Action {
-		case "remove", "install", "refresh":
+		case removeCmdAction, installCmdAction, refreshCmdAction:
 		default:
 			return fmt.Errorf("%q action is not supported for components", inst.Action)
 		}
@@ -728,15 +783,15 @@ func snapSwitch(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 type snapActionFunc func(context.Context, *snapInstruction, *state.State) (*snapInstructionResult, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
-	"install": snapInstall,
-	"refresh": snapUpdate,
-	"remove":  snapRemove,
-	"revert":  snapRevert,
-	"enable":  snapEnable,
-	"disable": snapDisable,
-	"switch":  snapSwitch,
-	"hold":    snapHoldMany,
-	"unhold":  snapUnholdMany,
+	installCmdAction: snapInstall,
+	refreshCmdAction: snapUpdate,
+	removeCmdAction:  snapRemove,
+	revertCmdAction:  snapRevert,
+	enableCmdAction:  snapEnable,
+	disableCmdAction: snapDisable,
+	switchCmdAction:  snapSwitch,
+	holdCmdAction:    snapHoldMany,
+	unholdCmdAction:  snapUnholdMany,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -822,7 +877,12 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 		return inst.errToResponse(err)
 	}
 
-	chg := newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
+	changeKind, ok := changeKind(inst.Action)
+	if !ok {
+		return BadRequest("unknown action %s", inst.Action)
+	}
+
+	chg := newChange(st, changeKind, res.Summary, res.Tasksets, res.Affected)
 	if len(res.Tasksets) == 0 {
 		chg.SetStatus(state.DoneStatus)
 	}
@@ -850,22 +910,22 @@ type snapManyActionFunc func(context.Context, *snapInstruction, *state.State) (*
 
 func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	switch inst.Action {
-	case "refresh":
+	case refreshCmdAction:
 		if len(inst.ValidationSets) > 0 {
 			op = snapEnforceValidationSets
 		} else {
 			op = snapUpdateMany
 		}
-	case "install":
+	case installCmdAction:
 		op = snapInstallMany
-	case "remove":
+	case removeCmdAction:
 		op = snapRemoveMany
-	case "snapshot":
+	case snapshotCmdAction:
 		// see api_snapshots.go
 		op = snapshotMany
-	case "hold":
+	case holdCmdAction:
 		op = snapHoldMany
-	case "unhold":
+	case unholdCmdAction:
 		op = snapUnholdMany
 	}
 	return op

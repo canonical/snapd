@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -54,11 +55,13 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -100,6 +103,9 @@ type apiBaseSuite struct {
 
 	expectedReadAccess  daemon.AccessChecker
 	expectedWriteAccess daemon.AccessChecker
+
+	unwrapNewChange            func()
+	missingChangeRegistrations sync.Map
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -172,18 +178,35 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
+func mapToSlice(m *sync.Map) []string {
+	slice := []string{}
+	m.Range(func(key, _ any) bool {
+		slice = append(slice, key.(string))
+		return true
+	})
+	return slice
+}
+
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreMuxVars = daemon.MockMuxVars(s.muxVars)
 	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.unwrapNewChange = daemon.BeforeNewChange(func(_ *state.State, kind, _ string, _ []*state.TaskSet, _ []string) {
+		if !strutil.ListContains(swfeats.ChangeReg.KnownChangeKinds(), kind) {
+			s.missingChangeRegistrations.Store(kind, nil)
+		}
+	})
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
+	missingReg := mapToSlice(&s.missingChangeRegistrations)
+	c.Assert(missingReg, check.HasLen, 0, check.Commentf("Found missing change kind registrations %v Register new change kinds using swfeats.ChangeReg.Add", missingReg))
 	s.restoreMuxVars()
 	s.restoreRelease()
 	s.systemctlRestorer()
 	s.restoreSanitize()
+	s.unwrapNewChange()
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
