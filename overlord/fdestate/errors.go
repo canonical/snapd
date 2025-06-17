@@ -40,3 +40,21 @@ func (e *KeyslotRefsNotFoundError) Error() string {
 		return fmt.Sprintf("key slot references [%s] not found", concatRefs.String())
 	}
 }
+
+type keyslotsAlreadyExistsError struct {
+	keyslots []Keyslot
+}
+
+func (e *keyslotsAlreadyExistsError) Error() string {
+	if len(e.keyslots) == 1 {
+		return fmt.Sprintf("key slot %s already exists", e.keyslots[0].String())
+	} else {
+		var concatRefs strings.Builder
+		concatRefs.WriteString(e.keyslots[0].String())
+		for _, ref := range e.keyslots[1:] {
+			concatRefs.WriteString(", ")
+			concatRefs.WriteString(ref.String())
+		}
+		return fmt.Sprintf("key slots [%s] already exist", concatRefs.String())
+	}
+}
