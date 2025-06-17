@@ -252,8 +252,6 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkSecbootEncryption:
-		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
-		// is covered by PreinstallCheck.
 		unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(model, tpmMode)
 		if err != nil {
 			return res, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
@@ -357,7 +355,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 }
 
 var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
-	if !model.Hybrid() {
+	if !model.HybridClassic() {
 		return false, nil
 	}
 
@@ -376,7 +374,7 @@ var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
 }
 
 func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
-	if model.Hybrid() {
+	if model.HybridClassic() {
 		images, err := orderedCurrentBootImagesHybrid()
 		if err != nil {
 			return nil, fmt.Errorf("cannot locate hybrid system boot images: %v", err)
@@ -452,7 +450,8 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		case secured:
 			encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", err)
 		case encrypted:
-			encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model storage-safety encrypted: %v", err)
+			//encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model storage-safety encrypted: %v", err)
+			encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", err)
 		default:
 			encInfo.UnavailableWarning = fmt.Sprintf("cannot encrypt device storage: %v", err)
 		}
@@ -467,9 +466,9 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		return encInfo, nil
 	}
 
-	// Encryption is either be provided by the fde-setup hook mechanism or
+	// encryption is either be provided by the fde-setup hook mechanism or
 	// by the built-in secboot based encryption. Having a fde-setup hook
-	// will disable the internal secboot based encryption.
+	// will disable the internal secboot based encryption
 	hasFDESetupHook := hasFDESetupHookInKernel(kernelInfo)
 	if hasFDESetupHook {
 		// check FDE setup hook
@@ -480,9 +479,6 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 		}
 		encInfo.Type = encType
 	} else {
-		// comprehensive preinstall check
-		// XXX: Remove this comment once confirmed that secbootCheckTPMKeySealingSupported
-		// is covered by PreinstallCheck.
 		unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(model, tpmMode)
 		if err != nil {
 			return encInfo, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
