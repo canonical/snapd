@@ -3803,3 +3803,24 @@ func (s *secbootSuite) TestListContainerUnlockKeyNames(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(keyNames, DeepEquals, []string{"some-slot-1", "some-slot-2"})
 }
+
+func (s *secbootSuite) TestCheckRecoveryKey(c *C) {
+	called := 0
+	defer secboot.MockSbTestLUKS2ContainerKey(func(devicePath string, key []byte) bool {
+		called++
+		c.Check(devicePath, Equals, "/dev/foo")
+		expected := keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'}
+		if reflect.DeepEqual(key, expected[:]) {
+			return true
+		}
+		return false
+	})()
+
+	err := secboot.CheckRecoveryKey("/dev/foo", keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'})
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+
+	err = secboot.CheckRecoveryKey("/dev/foo", keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'})
+	c.Assert(err, ErrorMatches, "invalid recovery key for /dev/foo")
+	c.Check(called, Equals, 2)
+}
