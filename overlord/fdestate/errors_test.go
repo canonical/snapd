@@ -36,3 +36,14 @@ func (s *fdeMgrSuite) TestKeyslotsNotFoundErrorMessage(c *C) {
 	}}
 	c.Check(err.Error(), Equals, `key slot references [(container-role: "some-role", name: "some-slot-1"), (container-role: "some-role", name: "some-slot-2")] not found`)
 }
+
+func (s *fdeMgrSuite) TestKeyslotsAlreadyExistsError(c *C) {
+	err := fdestate.KeyslotsAlreadyExistsError([]fdestate.Keyslot{{ContainerRole: "some-role", Name: "some-slot"}})
+	c.Check(err.Error(), Equals, `key slot (container-role: "some-role", name: "some-slot") already exists`)
+
+	err = fdestate.KeyslotsAlreadyExistsError([]fdestate.Keyslot{
+		{ContainerRole: "some-role", Name: "some-slot-1"},
+		{ContainerRole: "some-role", Name: "some-slot-2"},
+	})
+	c.Check(err.Error(), Equals, `key slots [(container-role: "some-role", name: "some-slot-1"), (container-role: "some-role", name: "some-slot-2")] already exist`)
+}

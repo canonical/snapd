@@ -19,47 +19,155 @@
 package fdestate
 
 import (
-	"github.com/snapcore/snapd/overlord/state"
+	"fmt"
+
 	"gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 )
 
-func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO:FDEM: implement recovery key addition, this is currently only a
-	// mock task for testing.
+var (
+	secbootAddContainerRecoveryKey = secboot.AddContainerRecoveryKey
+	secbootDeleteContainerKey      = secboot.DeleteContainerKey
+	secbootRenameContainerKey      = secboot.RenameContainerKey
+)
 
-	// TODO:FDEM:
-	//   - this might be a re-run, make task idempotent to be reselient to
-	//     abrupt reboot/shutdown.
-	//   - important to detect absence of recovery key ID and do cleanup
-	//     of added key slots on re-run and returning an error.
-	//   - distinguish between errors (undo) and pure-reboots (re-run).
-	//   - conflict detection for key slot tasks is important because it
-	//     reduces the possible states we could end up in.
+func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var keyslotRefs []KeyslotRef
+	if err := t.Get("keyslots", &keyslotRefs); err != nil {
+		return err
+	}
+
+	var recoveryKeyID string
+	if err := t.Get("recovery-key-id", &recoveryKeyID); err != nil {
+		return err
+	}
+
+	// XXX: unlock state and let conflict detection handle the rest?
+
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return err
+	}
+	containerDevicePath := make(map[string]string, len(containers))
+	for _, container := range containers {
+		containerDevicePath[container.ContainerRole()] = container.DevPath()
+	}
+
+	// IMPORTANT: this clean up must be decalred as early as possible
+	// to account for real errors and potential re-runs (that will fail
+	// anyway as soon as the recovery key ID is reused).
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, keyslotRef := range keyslotRefs {
+			devicePath := containerDevicePath[keyslotRef.ContainerRole]
+			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
+				// best effort deletion, log errors only
+				logger.Noticef("failed to delete %s during clean up: %v", keyslotRef.String(), err)
+			}
+		}
+	}()
+
+	rkey, err := m.getRecoveryKey(recoveryKeyID)
+	if err != nil {
+		// most likely a re-run as keys expire after first use and
+		// clean up is needed.
+		return fmt.Errorf("failed to find recovery key with id %q: %v", recoveryKeyID, err)
+	}
+
+	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return fmt.Errorf("failed to find key slots: %v", err)
+	}
+	if len(currentKeyslots) != 0 {
+		return &keyslotsAlreadyExistsError{keyslots: currentKeyslots}
+	}
+
+	for _, keyslotRef := range keyslotRefs {
+		devicePath := containerDevicePath[keyslotRef.ContainerRole]
+		if err := secbootAddContainerRecoveryKey(devicePath, keyslotRef.Name, rkey); err != nil {
+			return fmt.Errorf("failed to add recovery key slot %s: %v", keyslotRef.String(), err)
+		}
+	}
+
 	return nil
 }
 
 func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO:FDEM: implement recovery key removal, this is currently only a
-	// mock task for testing.
+	m.state.Lock()
+	defer m.state.Unlock()
 
-	// TODO:FDEM:
-	//   - this might be a re-run, make task idempotent to be reselient to
-	//     abrupt reboot/shutdown.
-	//   - distinguish between errors (undo) and pure-reboots (re-run).
-	//   - conflict detection for key slot tasks is important because it
-	//     reduces the possible states we could end up in.
+	var keyslotRefs []KeyslotRef
+	if err := t.Get("keyslots", &keyslotRefs); err != nil {
+		return err
+	}
+
+	// XXX: unlock state and let conflict detection handle the rest?
+
+	// we only care about current key slots because this might be
+	// a re-run due a force reboot or abrupt shutdown, so we want
+	// to continue deleting the remaining key slots.
+	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return fmt.Errorf("failed to find key slots: %v", err)
+	}
+
+	for _, keyslot := range currentKeyslots {
+		if err := secbootDeleteContainerKey(keyslot.devPath, keyslot.Name); err != nil {
+			// XXX: keep going and report errors afterwards?
+			return fmt.Errorf("failed to remove key slot %s: %v", keyslot.Ref().String(), err)
+		}
+	}
+
+	// XXX: request reboot to acconut for the case where the unlock key
+	// in the kernel keyring is one of the deleted key slots?
 	return nil
 }
 
 func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO:FDEM: implement recovery key renaming, this is currently only a
-	// mock task for testing.
+	m.state.Lock()
+	defer m.state.Unlock()
 
-	// TODO:FDEM:
-	//   - this might be a re-run, make task idempotent to be reselient to
-	//     abrupt reboot/shutdown.
-	//   - distinguish between errors (undo) and pure-reboots (re-run).
-	//   - conflict detection for key slot tasks is important because it
-	//     reduces the possible states we could end up in.
+	var keyslotRefs []KeyslotRef
+	if err := t.Get("keyslots", &keyslotRefs); err != nil {
+		return err
+	}
+
+	var renames map[string]string
+	if err := t.Get("renames", &renames); err != nil {
+		return err
+	}
+
+	for _, keyslotRef := range keyslotRefs {
+		if _, ok := renames[keyslotRef.String()]; !ok {
+			return fmt.Errorf("internal error: cannot find mapping for %s", keyslotRef.String())
+		}
+	}
+
+	// XXX: unlock state and let conflict detection handle the rest?
+
+	// we only care about current key slots because this might be
+	// a re-run due a force reboot or abrupt shutdown, so we want
+	// to continue renaming the remaining key slots.
+	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return fmt.Errorf("failed to find key slots: %v", err)
+	}
+
+	for _, keyslot := range currentKeyslots {
+		refKey := keyslot.Ref().String()
+		if err := secbootRenameContainerKey(keyslot.devPath, keyslot.Name, renames[refKey]); err != nil {
+			// XXX: keep going and report errors afterwards?
+			return fmt.Errorf("failed to rename key slot %s to %q: %v", keyslot.Ref().String(), renames[refKey], err)
+		}
+	}
+
 	return nil
 }
