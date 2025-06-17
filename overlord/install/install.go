@@ -376,7 +376,7 @@ var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
 		return false, nil
 	}
 
-	const minSupportedVersion = "24.10"
+	const minSupportedVersion = "25.10"
 	cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minSupportedVersion)
 	if err != nil {
 		return false, fmt.Errorf("cannot perform version comparison with OS release version ID: %v", err)
