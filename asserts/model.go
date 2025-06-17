@@ -628,8 +628,9 @@ func (mod *Model) Classic() bool {
 	return mod.classic
 }
 
-// Hybrid returns whether the model is a hybrid, meaning it is both classic and has an associated kernel snap.
-func (mod *Model) Hybrid() bool {
+// HybridClassic returns whether the model is a hybrid classic system, meaning
+// it is both classic and has an associated kernel snap.
+func (mod *Model) HybridClassic() bool {
 	return mod.classic && mod.kernelSnap != nil
 }
 

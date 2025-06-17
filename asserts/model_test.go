@@ -1653,7 +1653,7 @@ func (mods *modelSuite) TestHybrid(c *C) {
 		c.Assert(err, IsNil)
 		model := a.(*asserts.Model)
 
-		c.Assert(model.Hybrid(), Equals, tc.isHybrid, Commentf("Failed test: %q", name))
+		c.Assert(model.HybridClassic(), Equals, tc.isHybrid, Commentf("Failed test: %q", name))
 	}
 }
 
