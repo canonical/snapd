@@ -2902,11 +2902,6 @@ func (*viewSuite) TestContentAccessExamples(c *C) {
 
 	for _, tc := range tcs {
 		databag := confdb.NewJSONDatabag()
-		err := databag.Set("a", map[string]interface{}{
-			"b": 123,
-		})
-		c.Assert(err, IsNil)
-
 		schema, err := confdb.NewSchema("acc", "foo", map[string]interface{}{
 			"my-view": map[string]interface{}{
 				"rules": []interface{}{
@@ -2918,19 +2913,36 @@ func (*viewSuite) TestContentAccessExamples(c *C) {
 
 		view := schema.View("my-view")
 
-		res, err := view.Get(databag, "a.b")
-		if tc.nestedReadErr != "" {
-			c.Assert(err, ErrorMatches, tc.nestedReadErr)
-		} else {
-			c.Assert(err, IsNil)
-			c.Assert(res, Equals, float64(123))
-		}
+		// read and write the "a" path
+		err = view.Set(databag, "a", map[string]interface{}{
+			"b": 123,
+		})
+		c.Assert(err, IsNil)
 
+		res, err := view.Get(databag, "a")
+		c.Assert(err, IsNil)
+		c.Assert(res, DeepEquals, map[string]interface{}{
+			"b": float64(123),
+		})
+
+		// read and write the "a.b" path
 		err = view.Set(databag, "a.b", 321)
 		if tc.nestedWriteErr != "" {
 			c.Assert(err, ErrorMatches, tc.nestedWriteErr)
 		} else {
 			c.Assert(err, IsNil)
+		}
+
+		res, err = view.Get(databag, "a.b")
+		if tc.nestedReadErr != "" {
+			c.Assert(err, ErrorMatches, tc.nestedReadErr)
+		} else {
+			c.Assert(err, IsNil)
+			expectedVal := float64(123)
+			if tc.nestedWriteErr == "" {
+				expectedVal = float64(321)
+			}
+			c.Assert(res, Equals, expectedVal)
 		}
 	}
 }
