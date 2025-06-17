@@ -349,7 +349,7 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 // mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned
 // by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
 // (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
-// (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
+// (Ubuntu hybrid on Ubuntu installer < 25.10 & Ubuntu Core).
 //
 // isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
 // hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)

@@ -424,6 +424,13 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 	}{
 		{
 			true,
+			"ubuntu", "26.04",
+			true,
+			"",
+			"",
+		},
+		{
+			true,
 			"ubuntu", "25.10",
 			true,
 			"",
@@ -431,8 +438,8 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 		},
 		{
 			true,
-			"ubuntu", "26.04",
-			true,
+			"ubuntu", "24.10",
+			false,
 			"",
 			"",
 		},
