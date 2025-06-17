@@ -76,7 +76,7 @@ func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsRootHappy(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
 	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
@@ -111,7 +111,7 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemove(c *C) {
 	buf := bytes.NewBufferString(`{"action":"remove"}`)
 	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
 	c.Assert(err, IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, Equals, 200)
 	c.Check(called, Equals, 1)
 }
@@ -143,7 +143,7 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysBadAction(c *C) {
 	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Check(rspe, DeepEquals, daemon.BadRequest(`unsupported recovery keys action "unknown"`))
 	c.Check(called, Equals, 0)
 }
@@ -161,7 +161,7 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemoveError(c *C) {
 	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe, DeepEquals, daemon.InternalError("boom"))
 	c.Check(called, Equals, 1)
 }

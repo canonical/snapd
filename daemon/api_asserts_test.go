@@ -58,7 +58,7 @@ func (s *assertsSuite) SetUpTest(c *check.C) {
 func (s *assertsSuite) TestGetAsserts(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/assertions", nil)
 	c.Assert(err, check.IsNil)
-	resp := s.syncReq(c, req, nil)
+	resp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(resp.Status, check.Equals, 200)
 	c.Check(resp.Result, check.DeepEquals, map[string][]string{"types": asserts.TypeNames()})
 }
@@ -82,7 +82,7 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	// Verify (external)
 	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
@@ -108,7 +108,7 @@ func (s *assertsSuite) TestAssertStreamOK(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	// Verify (external)
 	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)

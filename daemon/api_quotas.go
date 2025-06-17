@@ -37,6 +37,7 @@ var (
 		Path:        "/v2/quotas",
 		GET:         getQuotaGroups,
 		POST:        postQuotaGroup,
+		Actions:     []string{"ensure", "remove"},
 		WriteAccess: rootAccess{},
 		ReadAccess:  openAccess{},
 	}

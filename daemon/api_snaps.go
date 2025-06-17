@@ -45,12 +45,26 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+const (
+	installCmdAction  = "install"
+	refreshCmdAction  = "refresh"
+	revertCmdAction   = "revert"
+	switchCmdAction   = "switch"
+	holdCmdAction     = "hold"
+	unholdCmdAction   = "unhold"
+	snapshotCmdAction = "snapshot"
+	removeCmdAction   = "remove"
+	enableCmdAction   = "enable"
+	disableCmdAction  = "disable"
+)
+
 var (
 	// see daemon.go:canAccess for details how the access is controlled
 	snapCmd = &Command{
 		Path:        "/v2/snaps/{name}",
 		GET:         getSnapInfo,
 		POST:        postSnap,
+		Actions:     []string{installCmdAction, refreshCmdAction, revertCmdAction, switchCmdAction, holdCmdAction, unholdCmdAction, removeCmdAction, enableCmdAction, disableCmdAction},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
@@ -59,6 +73,7 @@ var (
 		Path:        "/v2/snaps",
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
+		Actions:     []string{installCmdAction, refreshCmdAction, revertCmdAction, switchCmdAction, holdCmdAction, unholdCmdAction, snapshotCmdAction, removeCmdAction, enableCmdAction, disableCmdAction},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}

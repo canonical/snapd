@@ -20,6 +20,7 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"encoding/json"
@@ -28,6 +29,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -659,7 +661,14 @@ func (s *apiBaseSuite) expectWriteAccess(a daemon.AccessChecker) {
 	s.expectedWriteAccess = a
 }
 
-func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
+type actionExpectedBool bool
+
+const (
+	actionIsUnexpected actionExpectedBool = false
+	actionIsExpected   actionExpectedBool = true
+)
+
+func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) daemon.Response {
 	if s.d == nil {
 		panic("call s.daemon(c) etc in your test first")
 	}
@@ -680,6 +689,19 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 		acc = cmd.WriteAccess
 		expAcc = s.expectedWriteAccess
 		whichAcc = "WriteAccess"
+		if actionExpected && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
+			bodyBytes, err := io.ReadAll(req.Body)
+			c.Assert(err, check.IsNil)
+			var data struct {
+				Action string `json:"action"`
+			}
+			if err := json.Unmarshal(bodyBytes, &data); err == nil {
+				if data.Action != "" && !slices.Contains(cmd.Actions, data.Action) {
+					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
+				}
+			}
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
 	case "PUT":
 		f = cmd.PUT
 		acc = cmd.WriteAccess
@@ -695,26 +717,26 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	return f(cmd, req, u)
 }
 
-func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp, ok := s.req(c, req, u).(daemon.StructuredResponse)
+func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.RespJSON {
+	rsp, ok := s.req(c, req, u, actionExpected).(daemon.StructuredResponse)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected structured response"))
 	return rsp.JSON()
 }
 
-func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp := s.jsonReq(c, req, u)
+func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.RespJSON {
+	rsp := s.jsonReq(c, req, u, actionExpected)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v, result: %+v", rsp, rsp.Result))
 	return rsp
 }
 
-func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp := s.jsonReq(c, req, u)
+func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.RespJSON {
+	rsp := s.jsonReq(c, req, u, actionExpected)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v, result %v", rsp, rsp.Result))
 	return rsp
 }
 
-func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
-	rsp := s.req(c, req, u)
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.APIError {
+	rsp := s.req(c, req, u, actionExpected)
 	rspe, ok := rsp.(*daemon.APIError)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected apiError resp: %#v", rsp))
 	return rspe
@@ -727,6 +749,21 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
+	if req.Method == "POST" && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
+		bodyBytes, err := io.ReadAll(req.Body)
+		c.Assert(err, check.IsNil)
+		var data struct {
+			Action string `json:"action"`
+		}
+		if err := json.Unmarshal(bodyBytes, &data); err == nil {
+			if data.Action != "" {
+				if !slices.Contains(cmd.Actions, data.Action) {
+					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
+				}
+			}
+		}
+		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	}
 
 	cmd.ServeHTTP(w, req)
 }

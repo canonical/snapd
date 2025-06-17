@@ -39,6 +39,7 @@ var systemVolumesCmd = &Command{
 	Path:        "/v2/system-volumes",
 	GET:         getSystemVolumes,
 	POST:        postSystemVolumesAction,
+	Actions:     []string{"generate-recovery-key", "check-recovery-key", "replace-recovery-key"},
 	ReadAccess:  rootAccess{},
 	WriteAccess: rootAccess{},
 }

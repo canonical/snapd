@@ -81,7 +81,7 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -132,7 +132,7 @@ func (s *aliasesSuite) TestAliasChangeConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]any
@@ -181,7 +181,7 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/aliases", buf)
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, check.Matches, scen.err)
 	}
@@ -213,7 +213,7 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -268,7 +268,7 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -324,7 +324,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -355,7 +355,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec = httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -406,7 +406,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -438,7 +438,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec = httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
@@ -487,7 +487,7 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/aliases", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Assert(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -549,7 +549,7 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/aliases", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]daemon.AliasStatus{
 		"alias-snap1": {

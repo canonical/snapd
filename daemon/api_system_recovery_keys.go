@@ -31,6 +31,7 @@ var systemRecoveryKeysCmd = &Command{
 	Path:        "/v2/system-recovery-keys",
 	GET:         getSystemRecoveryKeys,
 	POST:        postSystemRecoveryKeys,
+	Actions:     []string{"remove"},
 	ReadAccess:  rootAccess{},
 	WriteAccess: rootAccess{},
 }

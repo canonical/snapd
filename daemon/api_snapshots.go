@@ -41,6 +41,7 @@ var snapshotCmd = &Command{
 	Path:        "/v2/snapshots",
 	GET:         listSnapshots,
 	POST:        changeSnapshots,
+	Actions:     []string{"check", "restore", "forget"},
 	ReadAccess:  openAccess{},
 	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }

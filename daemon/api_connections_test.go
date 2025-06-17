@@ -76,7 +76,7 @@ func (s *interfacesSuite) testConnections(c *check.C, query string, expected map
 	req, err := http.NewRequest("GET", query, nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -89,7 +89,7 @@ func (s *interfacesSuite) TestConnectionsUnhappy(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/connections?select=bad", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -133,7 +133,7 @@ func (s *interfacesSuite) TestConnectionsNotFound(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/connections?snap=not-found", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)

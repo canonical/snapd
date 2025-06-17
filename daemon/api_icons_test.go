@@ -56,7 +56,7 @@ func (s *iconsSuite) TestSnapIconGet(c *check.C) {
 
 	rec := httptest.NewRecorder()
 
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Body.String(), check.Equals, "yadda icon")
 }
@@ -71,7 +71,7 @@ func (s *iconsSuite) TestSnapIconGetPriority(c *check.C) {
 
 		rec := httptest.NewRecorder()
 
-		s.req(c, req, nil).ServeHTTP(rec, req)
+		s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 		c.Check(rec.Code, check.Equals, 200)
 		c.Check(rec.Body.String(), check.Equals, expected)
 	}
@@ -112,7 +112,7 @@ func (s *iconsSuite) TestSnapIconGetInactive(c *check.C) {
 
 	rec := httptest.NewRecorder()
 
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Body.String(), check.Equals, "yadda icon")
 }
@@ -132,7 +132,7 @@ func (s *iconsSuite) TestSnapIconGetNoIcon(c *check.C) {
 
 	rec := httptest.NewRecorder()
 
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code/100, check.Equals, 4)
 }
 
@@ -159,7 +159,7 @@ func (s *iconsSuite) TestSnapIconGetFallback(c *check.C) {
 
 	rec := httptest.NewRecorder()
 
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Body.String(), check.Equals, "I'm from the store")
 }
@@ -188,7 +188,7 @@ func (s *iconsSuite) TestSnapIconGetUnasserted(c *check.C) {
 
 	rec := httptest.NewRecorder()
 
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 	c.Check(rec.Body.String(), testutil.Contains, "local snap has no icon")
 }
@@ -202,7 +202,7 @@ func (s *iconsSuite) TestSnapIconGetNoApp(c *check.C) {
 
 	rec := httptest.NewRecorder()
 
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 }
 

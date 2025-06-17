@@ -30,6 +30,7 @@ import (
 var cohortsCmd = &Command{
 	Path:        "/v2/cohorts",
 	POST:        postCohorts,
+	Actions:     []string{"create"},
 	WriteAccess: authenticatedAccess{},
 }
 
