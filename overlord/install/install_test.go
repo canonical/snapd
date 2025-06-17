@@ -21,6 +21,7 @@ package install_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -558,7 +559,8 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	restore2 := s.mockHelperForOrderedCurrentBootImagesHybrid(c, isSupportedUbuntuHybrid, ErrorNone, "")
 
 	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
-	restore3 := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore3 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+		c.Assert(ctx, NotNil)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		c.Assert(bootImagePaths, HasLen, len(relBootImagePaths))
 		for i, path := range bootImagePaths {
@@ -687,7 +689,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			restore = install.MockHybridInstallRootDir(rootDir)
 			defer restore()
 		case ErrorSecbootPreinstall:
-			restore = install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+			restore = install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 				return nil, fmt.Errorf("compound error does not wrap any error")
 			})
 			defer restore()
@@ -1047,7 +1049,7 @@ var gadgetUC20 = &gadget.Info{
 }
 
 func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption(c *C) {
-	restore := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -1261,7 +1263,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 	gadgetInfo, _ := s.mountedGadget(c)
 
-	restore := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		return nil, nil
 	})
 	defer restore()

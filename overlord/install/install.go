@@ -24,8 +24,10 @@ package install
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -52,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -191,7 +194,7 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 }
 
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {
@@ -335,8 +338,13 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
 
-		preinstallErrorDetails, err := secbootPreinstallCheck(images)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+		defer cancel()
+		preinstallErrorDetails, err := secbootPreinstallCheck(ctx, images)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return "", nil, fmt.Errorf("preinstall check timed out: %v", err)
+			}
 			return "", nil, err
 		}
 

@@ -21,6 +21,7 @@
 package devicestate_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -390,7 +391,7 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 		}
 	}
 
-	restore3 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore3 := installLogic.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		c.Assert(bootImagePaths, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		count++
