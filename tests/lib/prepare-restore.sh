@@ -218,16 +218,6 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
-    # we install chrony on xenial (as its also used in later distros), so the
-    # ntp service was in conflict, degrading the systemd unit and sometimes breaking
-    # NTP syncs
-    if os.query is-xenial && systemctl is-enabled ntp; then
-      systemctl stop ntp.service
-      systemctl disable ntp.service
-      apt-get remove --purge -y ntp
-      systemctl reset-failed
-    fi
-
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
