@@ -107,7 +107,7 @@ EOF
     systemctl start snapd.service
 }
 
-setup_proxy() {
+setup_system_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
         {
             echo "HTTPS_PROXY=$HTTPS_PROXY"
@@ -387,6 +387,9 @@ prepare_each_core() {
 }
 
 prepare_classic() {
+    # Configure the proxy in the system when it is required
+    setup_system_proxy   
+
     # Skip building snapd when REUSE_SNAPD is set to 1
     if [ "$REUSE_SNAPD" != 1 ]; then
         distro_install_build_snapd
@@ -1709,6 +1712,9 @@ EOF
 
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
+    # Configure the proxy in the system when it is required
+    setup_system_proxy
+
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
         setup_reflash_magic
