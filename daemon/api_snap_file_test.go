@@ -77,7 +77,7 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 			st.Unlock()
 		}
 
-		rsp := s.req(c, req, nil)
+		rsp := s.req(c, req, nil, actionIsExpected)
 		if scen.err == "" {
 			c.Check(string(rsp.(daemon.FileResponse)), check.Equals, filepath.Join(dirs.SnapBlobDir, "foo_x1.snap"), check.Commentf("%d", i))
 		} else {

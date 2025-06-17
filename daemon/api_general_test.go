@@ -75,7 +75,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 	s.checkGetOnly(c, req)
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
@@ -132,7 +132,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	s.expectSystemInfoReadAccess()
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
@@ -259,7 +259,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	s.expectSystemInfoReadAccess()
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
@@ -342,7 +342,7 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	defer restore()
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
@@ -411,7 +411,7 @@ func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result.(map[string]any)["managed"], check.Equals, true)
 }
 
@@ -424,7 +424,7 @@ func (s *generalSuite) TestSysInfoWorksDegraded(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 }
 
@@ -453,7 +453,7 @@ func (s *generalSuite) TestSysInfoClientAdviceProceedMatchingKey(c *check.C) {
 
 	// no need to start overlord's loop as the key is a match
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Logf("rec: %v", rec)
 	c.Check(rec.Code, check.Equals, 200)
 }
@@ -493,7 +493,7 @@ func (s *generalSuite) TestSysInfoClientAdviceAwaitChangeMismatch(c *check.C) {
 	defer d.Overlord().Stop()
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]any
@@ -534,7 +534,7 @@ func (s *generalSuite) TestSysInfoClientAdviceInternalError(c *check.C) {
 
 	// no need to start overlord's loop as no change is added
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 500)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -579,7 +579,7 @@ func (s *generalSuite) TestSysInfoClientAdviceUnsupportedSystemKey(c *check.C) {
 
 	// no need to start overlord's loop as no change is added
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 400)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -613,7 +613,7 @@ func (s *generalSuite) TestSysInfoClientAdviceBadRequest(c *check.C) {
 
 	// no need to start overlord's loop as the key is a match
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 400)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -629,7 +629,7 @@ func (s *generalSuite) TestSysInfoClientAdviceBadRequest(c *check.C) {
 
 	// no need to start overlord's loop as the key is a match
 	rec = httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 400)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -650,7 +650,7 @@ func (s *generalSuite) TestSysInfoClientAdviceBadRequest(c *check.C) {
 
 	// no need to start overlord's loop as the key is a match
 	rec = httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 400)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -676,7 +676,7 @@ func (s *generalSuite) TestSysInfoPostAction(c *check.C) {
 
 	// no need to start overlord's loop as the key is a match
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsUnexpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 400)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -694,7 +694,7 @@ func (s *generalSuite) TestSysInfoPostAction(c *check.C) {
 
 	// no need to start overlord's loop as the key is a match
 	rec = httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, nil)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 400)
 	assertResponseBody(c, rec.Body, map[string]any{
 		"type":        "error",
@@ -738,7 +738,7 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -767,7 +767,7 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=in-progress", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -796,7 +796,7 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=all", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -826,7 +826,7 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?select=ready", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -855,7 +855,7 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?for=funky-snap-name&select=all", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -891,7 +891,7 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
@@ -937,7 +937,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes/"+ids[0], nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
 
@@ -1011,7 +1011,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
 
@@ -1078,7 +1078,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	rec := httptest.NewRecorder()
 	rspe.ServeHTTP(rec, req)
 
@@ -1116,7 +1116,7 @@ func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls
 	req, err := http.NewRequest(method, "/v2/warnings?"+q.Encode(), body)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.NotNil)

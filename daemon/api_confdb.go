@@ -48,6 +48,7 @@ var (
 	confdbControlCmd = &Command{
 		Path:        "/v2/confdb",
 		POST:        handleConfdbControlAction,
+		Actions:     []string{"delegate", "undelegate"},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )

@@ -41,6 +41,7 @@ var debugCmd = &Command{
 	Path:        "/v2/debug",
 	GET:         getDebug,
 	POST:        postDebug,
+	Actions:     []string{"add-warning", "unshow-warnings", "ensure-state-soon", "can-manage-refreshes", "prune", "stacktraces", "create-recovery-system", "migrate-home"},
 	ReadAccess:  openAccess{},
 	WriteAccess: rootAccess{},
 }

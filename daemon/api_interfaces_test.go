@@ -148,7 +148,7 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -196,7 +196,7 @@ func (s *interfacesSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -233,7 +233,7 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]any
@@ -293,7 +293,7 @@ func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -326,7 +326,7 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]any
@@ -374,7 +374,7 @@ func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, installedSnap str
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 
 	var body map[string]any
@@ -430,7 +430,7 @@ func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]any
@@ -472,7 +472,7 @@ func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -542,7 +542,7 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -596,7 +596,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -639,7 +639,7 @@ func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, installedSnap 
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -693,7 +693,7 @@ func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -728,7 +728,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
@@ -763,7 +763,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
@@ -799,7 +799,7 @@ func (s *interfacesSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
@@ -853,7 +853,7 @@ func (s *interfacesSuite) TestDisconnectConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 
 	c.Check(rec.Code, check.Equals, 409)
 
@@ -913,7 +913,7 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -942,7 +942,7 @@ func (s *interfacesSuite) TestUnsupportedInterfaceRequest(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -966,7 +966,7 @@ func (s *interfacesSuite) TestMissingInterfaceAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -990,7 +990,7 @@ func (s *interfacesSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsUnexpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 400)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -1063,7 +1063,7 @@ plugs:
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -1150,7 +1150,7 @@ func (s *interfacesSuite) TestInterfacesModern(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/interfaces?select=connected&doc=true&plugs=true&slots=true", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -1193,7 +1193,7 @@ func (s *interfacesSuite) TestInterfacesAllDefaultDocURL(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/interfaces?select=all&doc=true", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var body map[string]any
 	err = json.Unmarshal(rec.Body.Bytes(), &body)

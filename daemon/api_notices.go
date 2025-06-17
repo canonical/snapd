@@ -43,6 +43,7 @@ var (
 		Path:        "/v2/notices",
 		GET:         getNotices,
 		POST:        postNotices,
+		Actions:     []string{"add"},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control"}},
 		WriteAccess: openAccess{},
 	}

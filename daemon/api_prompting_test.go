@@ -679,7 +679,7 @@ func (s *promptingSuite) makeSyncReq(c *C, method string, path string, uid uint3
 	req, err := http.NewRequest(method, path, body)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=%d;socket=;", uid)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, Equals, 200)
 	return rsp
 }
