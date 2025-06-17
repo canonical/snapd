@@ -579,23 +579,11 @@ func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []string) strin
 	return strings.Join(cmdNames, " ")
 }
 
-func wholeCommandName(cmd *flags.Command) string {
-	subcmds := cmd.Commands()
-	if len(subcmds) > 0 && len(os.Args) > 2 {
-		for _, subcmd := range subcmds {
-			if os.Args[2] == subcmd.Name {
-				return composeSubCmd(subcmd, 3, []string{cmd.Name, subcmd.Name})
-			}
-		}
-	}
-	return cmd.Name
-}
-
 func makeCommandHandler(allCommands []*flags.Command) func(flags.Commander, []string) error {
 	return func(command flags.Commander, args []string) error {
 		for _, cmd := range allCommands {
 			if cmd.Name == os.Args[1] {
-				logger.Trace("command-execution", "cmd", wholeCommandName(cmd))
+				logger.Trace("command-execution", "cmd", composeSubCmd(cmd, 2, []string{cmd.Name}))
 				break
 			}
 		}

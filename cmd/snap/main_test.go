@@ -479,7 +479,7 @@ func (s *SnapSuite) TestCommandHandlerOneLevel(c *C) {
 	cmd0 := &flags.Command{Name: "level0"}
 	restore := mockArgs("snap", "level0", "other", "arguments")
 	defer restore()
-	name := snap.WholeCommandName(cmd0)
+	name := snap.ComposeSubCmd(cmd0, 2, []string{cmd0.Name})
 	c.Assert(name, Equals, "level0")
 }
 
@@ -490,7 +490,7 @@ func (s *SnapSuite) TestCommandHandlerTwoLevels(c *C) {
 	c.Assert(err, IsNil)
 	restore := mockArgs("snap", "level0", "level1", "other", "arguments")
 	defer restore()
-	name := snap.WholeCommandName(cmd0)
+	name := snap.ComposeSubCmd(cmd0, 2, []string{cmd0.Name})
 	c.Assert(name, Equals, "level0 level1")
 }
 
@@ -503,6 +503,6 @@ func (s *SnapSuite) TestCommandHandlerThreeLevels(c *C) {
 	c.Assert(err, IsNil)
 	restore := mockArgs("snap", "level0", "level1", "level2", "other", "arguments")
 	defer restore()
-	name := snap.WholeCommandName(cmd0)
+	name := snap.ComposeSubCmd(cmd0, 2, []string{cmd0.Name})
 	c.Assert(name, Equals, "level0 level1 level2")
 }

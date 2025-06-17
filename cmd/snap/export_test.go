@@ -102,7 +102,7 @@ var (
 
 	GetSystemKeyRetryCount = getSystemKeyRetryCount
 
-	WholeCommandName = wholeCommandName
+	ComposeSubCmd = composeSubCmd
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
