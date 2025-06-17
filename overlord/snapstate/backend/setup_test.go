@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -599,6 +600,10 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 }
 
 func (s *setupSuite) TestSetupComponentWithUCInitramfsMount(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	// Make sure directories get the right values for UC
+	dirs.SetRootDir(c.MkDir())
 	writableDir := filepath.Join(dirs.GlobalRootDir, "writable", "system-data")
 	s.testSetupComponentWithInitramfsMount(c, writableDir)
 }
