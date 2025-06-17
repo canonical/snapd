@@ -602,8 +602,8 @@ func (s *deviceMgrInstallModeSuite) makeMockInstallModelWithKMods(c *C, grade st
 	return mockModel
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error information returned
-// by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
+// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned by
+// install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
 // (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
 // (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
 //
@@ -612,7 +612,7 @@ func (s *deviceMgrInstallModeSuite) mockHelperForEncryptionAvailabilityCheck(c *
 	//count := 0
 	//paramCheck := false
 
-	restore1 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+	restore1 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		//paramCheck = len(bootImagePaths) == 3
 		//count++
 		if hasTPM {

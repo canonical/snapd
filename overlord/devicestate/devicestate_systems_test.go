@@ -2942,8 +2942,8 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	})
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error information returned
-// by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
+// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned by
+// install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
 // (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
 // (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
 //
@@ -2988,13 +2988,13 @@ func (s *modelAndGadgetInfoSuite) mockHelperForEncryptionAvailabilityCheck(c *C,
 		}
 	}
 
-	restore3 := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+	restore3 := install.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		paramCheck = len(bootImagePaths) == 3
 		count++
 		if hasTPM {
 			return nil, nil
 		} else {
-			return preinstallErrorInfos[:1], nil
+			return preinstallErrorDetails[:1], nil
 		}
 	})
 
@@ -3131,7 +3131,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 		Available:               false,
 		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning:      "not encrypting device storage as checking TPM gave: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned",
-		AvailabilityCheckErrors: preinstallErrorInfos[:1],
+		AvailabilityCheckErrors: preinstallErrorDetails[:1],
 	})
 }
 

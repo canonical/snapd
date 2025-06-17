@@ -323,8 +323,8 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 	UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
 }
 
-// representative sample of a list of information about preinstall check errors identified by secboot
-var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
+// representative sample of a list with details about preinstall check errors identified by secboot
+var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 	{
 		Kind:    "tpm-hierarchies-owned",
 		Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
@@ -345,7 +345,7 @@ var preinstallErrorInfos = []secboot.PreinstallErrorInfo{
 	},
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error information returned
+// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned
 // by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
 // (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
 // (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
@@ -390,14 +390,14 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 		}
 	}
 
-	restore3 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorInfo, error) {
+	restore3 := installLogic.MockSecbootPreinstallCheck(func(bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		c.Assert(bootImagePaths, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		count++
 		if hasTPM {
 			return nil, nil
 		} else {
-			return preinstallErrorInfos[:1], nil
+			return preinstallErrorDetails[:1], nil
 		}
 	})
 
