@@ -377,6 +377,7 @@ func (s *DirsTestSuite) TestWritableMountPath(c *C) {
 	dirs.SetRootDir("/")
 
 	c.Check(dirs.WritableMountPath, Equals, "/")
+	c.Check(dirs.WritableUbuntuCoreSystemDataDir, Equals, "/system-data")
 }
 
 func (s *DirsTestSuite) TestWritableMountPathCore(c *C) {
@@ -384,4 +385,5 @@ func (s *DirsTestSuite) TestWritableMountPathCore(c *C) {
 	dirs.SetRootDir("/")
 
 	c.Check(dirs.WritableMountPath, Equals, "/writable")
+	c.Check(dirs.WritableUbuntuCoreSystemDataDir, Equals, "/writable/system-data")
 }
