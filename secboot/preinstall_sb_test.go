@@ -307,6 +307,9 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 		"/cdrom/casper/vmlinuz",
 	}
 
+	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
+	defer systemdCmd.Restore()
+
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			c.Assert(initialFlags, Equals, sb_preinstall.CheckFlagsDefault)
