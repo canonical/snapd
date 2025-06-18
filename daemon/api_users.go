@@ -201,7 +201,7 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // this might need to become a function, if having user admin becomes a config option
-var hasUserAdmin = !release.OnClassic
+var hasUserAdmin = !release.OnClassic || release.OnTouch
 
 const noUserAdmin = "system user administration via snapd is not allowed on this system"
 
