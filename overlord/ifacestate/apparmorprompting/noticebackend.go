@@ -55,12 +55,12 @@ func initializeNoticeBackend(noticeMgr *notices.NoticeManager) (*noticeBackend, 
 
 	now := time.Now()
 
-	path := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "prompt-notices.json")
+	path := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "prompt-notices.json")
 	if err := backend.promptBackend.initialize(now, nextNoticeTimestamp, path, state.InterfacesRequestsPromptNotice, promptNoticeNamespace); err != nil {
 		return nil, err
 	}
 
-	path = filepath.Join(dirs.SnapInterfacesRequestsStateDir, "rule-notices.json")
+	path = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "rule-notices.json")
 	if err := backend.ruleBackend.initialize(now, nextNoticeTimestamp, path, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace); err != nil {
 		return nil, err
 	}
