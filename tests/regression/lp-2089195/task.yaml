@@ -19,6 +19,11 @@ prepare: |
     snap install --stable test-snapd-sh
     tests.cleanup defer retry -n 50 --wait 1 snap remove --purge test-snapd-sh
 
+debug: |
+    snap version
+
+    journalctl -xeu snapd.service
+
 execute: |
     # Make sure an app keeps the test snap busy
     test-snapd-sh.sh -c 'exec sleep 300' &
@@ -42,7 +47,8 @@ execute: |
         retry -n 50 --wait 1 sh -c 'snap debug refresh-app-awareness | MATCH "Monitored snaps"'
     fi
     retry -n 50 --wait 1 sh -c "gojq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH true"
-    gojq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
+    gojq '.data."refresh-candidates"."test-snapd-sh" | has("monitored")' /var/lib/snapd/state.json | MATCH true
+    gojq '.data."refresh-candidates"."test-snapd-sh".monitored' /var/lib/snapd/state.json | MATCH true
 
     # Switch test-snapd-sh back to latest/stable so it will no longer be a refresh candidate
     snap switch --stable test-snapd-sh
@@ -53,7 +59,8 @@ execute: |
         snap debug refresh-app-awareness | MATCH "Monitored snaps"
     fi
     gojq '.data."refresh-candidates" | has("test-snapd-sh")' /var/lib/snapd/state.json | MATCH true
-    gojq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
+    gojq '.data."refresh-candidates"."test-snapd-sh" | has("monitored")' /var/lib/snapd/state.json | MATCH true
+    gojq '.data."refresh-candidates"."test-snapd-sh".monitored' /var/lib/snapd/state.json | MATCH true
 
     # Restart snapd again and re-trigger auto-refresh
     systemctl stop snapd.{service,socket}
