@@ -317,7 +317,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) (string, []secboot.PreinstallErrorDetails, error) {
 	supported, err := preinstallCheckSupported(model)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot confirm preinstall support: %v", err)
+		return "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
 	}
 	if supported {
 		// use comprehensive preinstall check
@@ -340,7 +340,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 		case 0:
 			return "", nil, nil
 		case 1:
-			return fmt.Sprintf("preinstall check error: %s", preinstallErrorDetails[0].Message), preinstallErrorDetails, nil
+			return preinstallErrorDetails[0].Message, preinstallErrorDetails, nil
 		default:
 			return fmt.Sprintf("preinstall check identified %d errors", len(preinstallErrorDetails)), preinstallErrorDetails, nil
 		}
@@ -349,7 +349,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 	// use general availability check
 	err = secbootCheckTPMKeySealingSupported(tpmMode)
 	if err != nil {
-		return fmt.Sprintf("general availability check: %v", err.Error()), nil, nil
+		return err.Error(), nil, nil
 	}
 	return "", nil, nil
 }
@@ -417,7 +417,12 @@ func orderedCurrentBootImagesHybrid() ([]string, error) {
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
 // any is available, leaving the caller to decide how, based on the environment.
-func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *SystemSnapdVersions, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+func ProposedGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *SystemSnapdVersions, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+	// capture the model storage safety
+	encInfo := EncryptionSupportInfo{
+		StorageSafety: model.StorageSafety(),
+	}
+
 	// encryption is set as disabled when forcefully disabled
 	// in which case the remaining struct content is not relevant
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -425,14 +430,8 @@ func NewGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvis
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	forceDisable := osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted"))
 	if dangerous && forceDisable {
-		return EncryptionSupportInfo{
-			Disabled: true,
-		}, nil
-	}
-
-	// encryption enabled, capture the model storage safety
-	encInfo := EncryptionSupportInfo{
-		StorageSafety: model.StorageSafety(),
+		encInfo.Disabled = true
+		return encInfo, nil
 	}
 
 	// encryption is required if model grade is "secured" or model

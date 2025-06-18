@@ -353,7 +353,7 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 //
 // isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
 // hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
-func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid, hasTPM bool) func() {
+func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid, hasTPM bool) {
 	count := 0
 
 	releaseInfo := &release.OS{
@@ -367,20 +367,19 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 			VersionID: "25.10",
 		}
 	}
-	restore1 := release.MockReleaseInfo(releaseInfo)
+	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
 
-	restore2 := func() {}
 	if isSupportedUbuntuHybrid {
 		// create dummy boot images for supported Ubuntu hybrid system
-		rootDir := c.MkDir()
-		restore2 = installLogic.MockHybridInstallRootDir(rootDir)
+		dirs.SetRootDir(c.MkDir())
+		s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 
 		for _, path := range []string{
 			"cdrom/EFI/boot/bootXXX.efi",
 			"cdrom/EFI/boot/grubXXX.efi",
 			"cdrom/casper/vmlinuz",
 		} {
-			bootImagePath := filepath.Join(rootDir, path)
+			bootImagePath := filepath.Join(dirs.GlobalRootDir, path)
 			bootImageDir := filepath.Dir(bootImagePath)
 			err := os.MkdirAll(bootImageDir, 0755)
 			c.Assert(err, IsNil)
@@ -391,7 +390,7 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 		}
 	}
 
-	restore3 := installLogic.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore1 := installLogic.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		c.Assert(bootImagePaths, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		count++
@@ -401,8 +400,9 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 			return preinstallErrorDetails[:1], nil
 		}
 	})
+	s.AddCleanup(restore1)
 
-	restore4 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+	restore2 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
 		c.Assert(tpmMode, Not(Equals), secboot.TPMProvisionNone)
 		c.Assert(isSupportedUbuntuHybrid, Equals, false)
 		count++
@@ -412,14 +412,9 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 			return fmt.Errorf("cannot connect to TPM device")
 		}
 	})
+	s.AddCleanup(restore2)
 
-	return func() {
-		c.Assert(count, Equals, 1)
-		restore4()
-		restore3()
-		restore2()
-		restore1()
-	}
+	s.AddCleanup(func() { c.Assert(count, Equals, 1) })
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
@@ -923,8 +918,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, true)
-		defer restore()
+		s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, true)
 	}
 
 	// Mock encryption of partitions
@@ -1199,10 +1193,9 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	defer s.state.Unlock()
 
 	// Simulate system with TPM
-	restore := s.mockHelperForEncryptionAvailabilityCheck(c, true, true)
-	defer restore()
+	s.mockHelperForEncryptionAvailabilityCheck(c, true, true)
 
-	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
 		return &install.EncryptionSetupData{}, nil
 	})
 	s.AddCleanup(restore)
