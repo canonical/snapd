@@ -66,10 +66,18 @@ force_autorefresh() {
 }
 
 force_snap_force_refresh_message() {
-	local SNAP="$1"
-	gojq ".data.snaps[\"$SNAP\"][\"last-refresh-time\"] = \"$(date --date='13 days ago' +%Y-%m-%dT%H:%M:%S%:z)\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-	gojq ".data.snaps[\"$SNAP\"][\"refresh-inhibited-time\"] = \"$(date --date='13 days ago' +%Y-%m-%dT%H:%M:%S%:z)\"" < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-	mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    local SNAP="$1"
+    #shellcheck disable=SC2016
+    gojq \
+        --arg snap "$SNAP" \
+        --arg date "$(date --date='13 days ago' +%Y-%m-%dT%H:%M:%S%:z)" \
+        '.data.snaps[$snap]["last-refresh-time"] = $date' < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    #shellcheck disable=SC2016
+    gojq \
+        --arg snap "$SNAP" \
+        --arg date "$(date --date='13 days ago' +%Y-%m-%dT%H:%M:%S%:z)" \
+        '.data.snaps[$snap]["refresh-inhibited-time"] = $date' < /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
 
 prevent_autorefresh() {
