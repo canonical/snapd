@@ -19,7 +19,31 @@
 
 package confdb
 
-var GetValuesThroughPaths = getValuesThroughPaths
+type (
+	ViewRef = viewRef
+)
+
+var (
+	GetValuesThroughPaths = getValuesThroughPaths
+	NewAuthentication     = newAuthentication
+)
+
+type Authentication = authentication
+
+func (a Authentication) ToStrings() []string {
+	return a.toStrings()
+}
+
+// TODO: remove this once we remove the temporary test TestRequestMatch
+func (v *View) MatchGetRequest(request string) (matches []requestMatch, err error) {
+	return v.matchGetRequest(request)
+}
+
+type RequestMatch = requestMatch
+
+func (m RequestMatch) StoragePath() string {
+	return m.storagePath
+}
 
 func MockMaxValueDepth(newDepth int) (restore func()) {
 	oldDepth := maxValueDepth
@@ -28,15 +52,3 @@ func MockMaxValueDepth(newDepth int) (restore func()) {
 		maxValueDepth = oldDepth
 	}
 }
-
-// functions & types exposed for tests
-
-var NewAuthentication = newAuthentication
-
-type Authentication = authentication
-
-func (a Authentication) ToStrings() []string {
-	return a.toStrings()
-}
-
-type ViewRef = viewRef
