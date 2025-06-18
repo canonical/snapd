@@ -848,6 +848,54 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	c.Check(id, Equals, "")
 }
 
+func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
+	st := state.New(nil)
+
+	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 21, time.UTC)
+	restore := state.MockTime(testDate)
+	defer restore()
+
+	ts1 := st.NextNoticeTimestamp()
+	c.Check(ts1, Equals, testDate)
+
+	ts2 := st.NextNoticeTimestamp()
+	c.Check(ts2.After(ts1), Equals, true)
+
+	ts3 := st.NextNoticeTimestamp()
+	c.Check(ts3.After(ts1), Equals, true)
+	c.Check(ts3.After(ts2), Equals, true)
+
+	// Set time.Now() earlier
+	testDate2 := testDate.Add(-5 * time.Second)
+	restore2 := state.MockTime(testDate2)
+	defer restore2()
+
+	ts4 := st.NextNoticeTimestamp()
+	c.Check(ts4.After(ts1), Equals, true)
+	c.Check(ts4.After(ts2), Equals, true)
+	c.Check(ts4.After(ts3), Equals, true)
+}
+
+func (s *noticesSuite) TestHandleReportedLastNoticeTimestamp(c *C) {
+	st := state.New(nil)
+
+	c.Check(st.LastNoticeTimestamp().IsZero(), Equals, true)
+
+	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 21, time.UTC)
+	st.HandleReportedLastNoticeTimestamp(testDate)
+	c.Check(st.LastNoticeTimestamp(), Equals, testDate)
+
+	// Earlier timestamp should *not* update last notice timestamp
+	earlier := testDate.Add(-5 * time.Second)
+	st.HandleReportedLastNoticeTimestamp(earlier)
+	c.Check(st.LastNoticeTimestamp(), Equals, testDate)
+
+	// Later timestamp should update it
+	later := testDate.Add(time.Second)
+	st.HandleReportedLastNoticeTimestamp(later)
+	c.Check(st.LastNoticeTimestamp(), Equals, later)
+}
+
 func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	st := state.New(nil)
 	st.Lock()

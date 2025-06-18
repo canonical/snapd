@@ -262,6 +262,45 @@ func (t NoticeType) Valid() bool {
 	return false
 }
 
+// NextNoticeTimestamp computes a notice timestamp which is guaranteed to be
+// after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
+// the result and returns it.
+func (s *State) NextNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	now := timeNow().UTC()
+	// Ensure that two notices never have the same sent time.
+	//
+	// Since the Notices API receives an "after:" parameter with the
+	// date and time of the last received notice to filter all the
+	// previous notices and avoid duplicates, if two or more notices
+	// have the same date and time, only the first will be emitted,
+	// and the others will be silently discarded. This can happen in
+	// systems that don't guarantee a granularity of one nanosecond
+	// in their timers, which can happen in some not-so-old devices,
+	// where the HPET is used instead of internal high resolution
+	// timers, or in other architectures different from the X86_64.
+	if !now.After(s.lastNoticeTimestamp) {
+		now = s.lastNoticeTimestamp.Add(time.Nanosecond)
+	}
+	s.lastNoticeTimestamp = now
+	return s.lastNoticeTimestamp
+}
+
+// HandleReportedLastNoticeTimestamp updates lastNoticeTimestamp to the given
+// time if the given time is after the current lastNoticeTimestamp.
+//
+// This method should only be called during startup to ensure that the
+// lastNoticeTimestamp value is the last timestamp of all notices across all
+// notice backends.
+func (s *State) HandleReportedLastNoticeTimestamp(t time.Time) {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	if t.After(s.lastNoticeTimestamp) {
+		s.lastNoticeTimestamp = t
+	}
+}
+
 // AddNoticeOptions holds optional parameters for an AddNotice call.
 type AddNoticeOptions struct {
 	// Data is the optional key-value data for this occurrence.
@@ -290,24 +329,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 
 	now := options.Time
 	if now.IsZero() {
-		now = timeNow()
-		/**
-		 * Ensure that two notices never have the same sent time.
-		 *
-		 * Since the Notices API receives an "after:" parameter with the
-		 * date and time of the last received notice to filter all the
-		 * previous notices and avoid duplicates, if two or more notices
-		 * have the same date and time, only the first will be emitted,
-		 * and the others will be silently discarded. This can happen in
-		 * systems that don't guarantee a granularity of one nanosecond
-		 * in their timers, which can happen in some not-so-old devices,
-		 * where the HPET is used instead of internal high resolution
-		 * timers, or in other architectures different from the X86_64.
-		 */
-		if !now.After(s.lastNoticeTimestamp) {
-			now = s.lastNoticeTimestamp.Add(time.Nanosecond)
-		}
-		s.lastNoticeTimestamp = now
+		now = s.NextNoticeTimestamp()
 	}
 	now = now.UTC()
 	newOrRepeated := false

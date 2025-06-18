@@ -72,3 +72,10 @@ var (
 func (s *State) NumNotices() int {
 	return len(s.notices)
 }
+
+// LastNoticeTimestamp returns the last notice timestamp.
+func (s *State) LastNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	return s.lastNoticeTimestamp
+}
