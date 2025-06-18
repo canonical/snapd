@@ -46,6 +46,7 @@ var (
 	sbListLUKS2ContainerUnlockKeyNames   = sb.ListLUKS2ContainerUnlockKeyNames
 	sbDeleteLUKS2ContainerKey            = sb.DeleteLUKS2ContainerKey
 	sbListLUKS2ContainerRecoveryKeyNames = sb.ListLUKS2ContainerRecoveryKeyNames
+	FdeKeyManagerBinary                  = "snap-fde-keymgr"
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
@@ -81,7 +82,7 @@ func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) 
 }
 
 func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
-	toolPath, err := snapdtool.InternalToolPath("snap-fde-keymgr")
+	toolPath, err := snapdtool.InternalToolPath(FdeKeyManagerBinary)
 	if err != nil {
 		return fmt.Errorf("cannot find keymgr tool: %v", err)
 	}

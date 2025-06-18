@@ -26,6 +26,9 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +37,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -804,4 +808,205 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedContainer(cpi snap.Container
 		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
 	}
 	return targetPath, sha3_384, uint64(size), nil
+}
+
+func RestoreDeviceFromSave(model *asserts.Model) error {
+	// we could also look at factory-reset-bootstrap.json left by
+	// snap-bootstrap, but the mount was already verified during boot
+	mounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-save mount state: %v", err)
+	}
+	if !mounted {
+		logger.Noticef("not restoring from save, ubuntu-save not mounted")
+		return nil
+	}
+	// TODO anything else we want to restore?
+	return restoreDeviceSerialFromSave(model)
+}
+
+func restoreDeviceSerialFromSave(model *asserts.Model) error {
+	fromDevice := filepath.Join(boot.InstallHostDeviceSaveDir)
+	logger.Debugf("looking for serial assertion and device key under %v", fromDevice)
+	fromDB, err := sysdb.OpenAt(fromDevice)
+	if err != nil {
+		return err
+	}
+	// key pair manager always uses ubuntu-save whenever it's available
+	kp, err := asserts.OpenFSKeypairManager(fromDevice)
+	if err != nil {
+		return err
+	}
+	// there should be a serial assertion for the current model
+	serials, err := fromDB.FindMany(asserts.SerialType, map[string]string{
+		"brand-id": model.BrandID(),
+		"model":    model.Model(),
+	})
+	if (err != nil && errors.Is(err, &asserts.NotFoundError{})) || len(serials) == 0 {
+		// there is no serial assertion in the old system that matches
+		// our model, it is still possible that the old system could
+		// have generated device keys and sent out a serial request, but
+		// for simplicity we ignore this scenario and a new set of keys
+		// will be generated after booting into the run system
+		logger.Debugf("no serial assertion for %v/%v", model.BrandID(), model.Model())
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	logger.Noticef("found %v serial assertions for %v/%v", len(serials), model.BrandID(), model.Model())
+
+	var serialAs *asserts.Serial
+	for _, serial := range serials {
+		maybeCurrentSerialAs := serial.(*asserts.Serial)
+		// serial assertion is signed with the device key, its ID is in the
+		// header
+		deviceKeyID := maybeCurrentSerialAs.DeviceKey().ID()
+		logger.Debugf("serial assertion device key ID: %v", deviceKeyID)
+
+		// there can be multiple serial assertions, as the device could
+		// have exercised the registration a number of times, but each
+		// time it unregisters, the old key is removed and a new one is
+		// generated
+		_, err = kp.Get(deviceKeyID)
+		if err != nil {
+			if asserts.IsKeyNotFound(err) {
+				logger.Debugf("no key with ID %v", deviceKeyID)
+				continue
+			}
+			return fmt.Errorf("cannot obtain device key: %v", err)
+		} else {
+			serialAs = maybeCurrentSerialAs
+			break
+		}
+	}
+
+	if serialAs == nil {
+		// no serial assertion that matches the model, brand and is
+		// signed with a device key that is present in the filesystem
+		logger.Debugf("no valid serial assertions")
+		return nil
+	}
+
+	logger.Debugf("found a serial assertion for %v/%v, with serial %v",
+		model.BrandID(), model.Model(), serialAs.Serial())
+
+	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir(model), "var/lib/snapd/assertions"))
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("importing serial and model assertions")
+	b := asserts.NewBatch(nil)
+	err = b.Fetch(toDB,
+		func(ref *asserts.Ref) (asserts.Assertion, error) { return ref.Resolve(fromDB.Find) },
+		func(f asserts.Fetcher) error {
+			if err := f.Save(model); err != nil {
+				return err
+			}
+			return f.Save(serialAs)
+		})
+	if err != nil {
+		return fmt.Errorf("cannot fetch assertions: %v", err)
+	}
+	if err := b.CommitTo(toDB, nil); err != nil {
+		return fmt.Errorf("cannot commit assertions: %v", err)
+	}
+	return nil
+}
+
+type FactoryResetMarker struct {
+	FallbackSaveKeyHash string `json:"fallback-save-key-sha3-384,omitempty"`
+}
+
+func FileDigest(p string) (string, error) {
+	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest), nil
+}
+
+func WriteFactoryResetMarker(marker string, hasEncryption bool) error {
+	keyDigest := ""
+	if hasEncryption {
+		d, err := FileDigest(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		if err != nil {
+			return err
+		}
+		keyDigest = d
+	}
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(FactoryResetMarker{
+		FallbackSaveKeyHash: keyDigest,
+	})
+	if err != nil {
+		return err
+	}
+
+	if hasEncryption {
+		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
+	} else {
+		logger.Noticef("writing factory-reset marker at %v", marker)
+	}
+	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
+}
+
+var (
+	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
+	secbootRenameKeys                    = secboot.RenameKeys
+	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
+	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
+)
+
+func CreateSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
+	// new encryption key for save
+	saveEncryptionKey, err := keys.NewEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create encryption key: %v", err)
+	}
+
+	// In order to manipulate the LUKS2 container, we need a
+	// bootstrap key. This key will be removed with
+	// secboot.BootstrappedContainer.RemoveBootstrapKey at the end
+	// of secboot.SealKeyToModeenv
+	if err := secbootAddBootstrapKeyOnExistingDisk(saveNode, saveEncryptionKey); err != nil {
+		return nil, err
+	}
+
+	// We cannot remove keys until we have completed the factory
+	// reset. Otherwise if we lose power during the reset, we
+	// might not be able to unlock the save partitions anymore.
+	// However, we cannot have multiple keys with the same
+	// name. So we need to rename the existing keys that we are
+	// going to create.
+	//
+	// TODO:FDEM:FIX: If we crash and reboot, and re-run factory reset,
+	// there will be already some old key saved. In that case, we
+	// need to keep those old keys and remove the new ones.  But
+	// we should also verify what keys we used from the
+	//
+	// TODO:FDEM:FIX: Do we maybe need to only save the default-fallback
+	// key and delete the default key? The default key will not be
+	// able to be used since we re created the data disk.
+	//
+	// TODO:FDEM:FIX: The keys should be renamed to reprovision-XX and keep
+	// track of the mapping XX to original key name.
+	renames := map[string]string{
+		"default":          "reprovision-default",
+		"default-fallback": "reprovision-default-fallback",
+	}
+	// Temporarily rename keyslots across the factory reset to
+	// allow to create the new ones.
+	if err := secbootRenameKeys(saveNode, renames); err != nil {
+		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
+	}
+
+	// Deal as needed instead with naming unamed keyslots, they
+	// will be removed at the end of factory reset.
+	if err := secbootTemporaryNameOldKeys(saveNode); err != nil {
+		return nil, fmt.Errorf("cannot convert old keys: %w", err)
+	}
+
+	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(saveEncryptionKey), saveNode), nil
 }
