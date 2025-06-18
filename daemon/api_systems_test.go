@@ -1534,6 +1534,23 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	})
 }
 
+func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]string{
+		"action": "install",
+		"step":   "unknown-install-step",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
+}
+
 func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 	d := s.daemon(c)
 
