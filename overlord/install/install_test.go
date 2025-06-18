@@ -647,7 +647,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			false,
 			ErrorsDetectedSingle,
 			ErrorNone,
-			"general availability check: cannot connect to TPM device",
+			"cannot connect to TPM device",
 			nil,
 			"",
 		},
@@ -657,7 +657,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			ErrorCheckSupported,
 			"",
 			nil,
-			`cannot confirm preinstall support: cannot perform version comparison with OS release version ID: invalid version "25:10"`,
+			`cannot confirm preinstall check support: cannot perform version comparison with OS release version ID: invalid version "25:10"`,
 		},
 		{
 			true,
@@ -714,7 +714,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
-				UnavailableWarning: "not encrypting device storage as checking TPM gave: general availability check: cannot connect to TPM device",
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: cannot connect to TPM device",
 			},
 		}, {
 			"dangerous", "encrypted", "", "", true, ErrorNone,
@@ -729,7 +729,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeNone,
-				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned"),
+				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 				AvailabilityCheckErrors: preinstallErrorDetails[:1],
 			},
 		}, {
@@ -777,7 +777,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: general availability check: cannot connect to TPM device"),
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: cannot connect to TPM device"),
 			},
 		}, {
 			"secured", "encrypted", "", "", true, ErrorNone,
@@ -792,7 +792,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeNone,
-				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned"),
+				UnavailableErr:          fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 				AvailabilityCheckErrors: preinstallErrorDetails[:1],
 			},
 		}, {
@@ -808,7 +808,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: general availability check: cannot connect to TPM device"),
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: cannot connect to TPM device"),
 			},
 		},
 		// Passphrase support requires snapd 2.68+
@@ -933,7 +933,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 				Type:               device.EncryptionTypeNone,
-				UnavailableWarning: "not encrypting device storage as checking TPM gave: general availability check: cannot connect to TPM device",
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: cannot connect to TPM device",
 			},
 		}, {
 			"signed", "", "force-unencrypted", true, ErrorsDetectedCompound,
@@ -964,7 +964,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				Available: false, Disabled: false,
 				StorageSafety:  asserts.StorageSafetyEncrypted,
 				Type:           device.EncryptionTypeNone,
-				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: general availability check: cannot connect to TPM device"),
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: cannot connect to TPM device"),
 			},
 		}, {
 			"secured", "", "force-unencrypted", true, ErrorsDetectedCompound,
@@ -1298,15 +1298,15 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 		{
 			"dangerous", "encrypted",
 			false, ErrorsDetectedSingle,
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: general availability check: cannot connect to TPM device",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: cannot connect to TPM device",
 		}, {
 			"signed", "encrypted",
 			true, ErrorsDetectedSingle,
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: preinstall check error: error with TPM2 device: one or more of the TPM hierarchies is already owned",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: error with TPM2 device: one or more of the TPM hierarchies is already owned",
 		}, {
 			"secured", "",
 			false, ErrorsDetectedSingle,
-			"cannot encrypt device storage as mandated by model grade secured: general availability check: cannot connect to TPM device",
+			"cannot encrypt device storage as mandated by model grade secured: cannot connect to TPM device",
 		}, {
 			"secured", "encrypted",
 			true, ErrorsDetectedCompound,
