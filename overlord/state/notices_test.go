@@ -517,6 +517,35 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	c.Check(n["key"], Equals, "foo.com/y")
 }
 
+func (s *noticesSuite) TestNoticesFilterBefore(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+
+	time.Sleep(time.Microsecond)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
+
+	// After unset
+	notices = st.Notices(nil)
+	c.Assert(notices, HasLen, 2)
+
+	n := noticeToMap(c, notices[1])
+	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
+	c.Assert(err, IsNil)
+
+	// After set
+	notices = st.Notices(&state.NoticeFilter{Before: lastRepeated})
+	c.Assert(notices, HasLen, 1)
+	n = noticeToMap(c, notices[0])
+	c.Check(n["user-id"], Equals, nil)
+	c.Check(n["type"], Equals, "warning")
+	c.Check(n["key"], Equals, "foo.com/x")
+}
+
 func (s *noticesSuite) TestNotice(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -704,6 +733,50 @@ func (s *noticesSuite) TestWaitNoticesLongPoll(c *C) {
 		c.Assert(err, IsNil)
 		after = lastRepeated
 	}
+}
+
+func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// If we ask for notices before now or a time in the past and there are no
+	// current notices matching the filter, return immediately
+	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now().Add(-time.Second)})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 0)
+	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now()})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 0)
+
+	// If we ask for notices before a time in the future and that time in the
+	// future passes, with some non-matching notice waking the waiter, then
+	// return immediately
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				// create another notice
+			}
+			st.Lock()
+			addNotice(c, st, nil, state.WarningNotice, "foo", nil)
+			st.Unlock()
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{
+		Before: time.Now().Add(10 * time.Millisecond),
+		Keys:   []string{"bar"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 0)
 }
 
 func (s *noticesSuite) TestWaitNoticesConcurrent(c *C) {
