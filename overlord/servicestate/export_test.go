@@ -30,13 +30,10 @@ import (
 var (
 	UpdateSnapstateServices              = updateSnapstateServices
 	CheckSystemdVersion                  = checkSystemdVersion
-	QuotaStateAlreadyUpdated             = quotaStateAlreadyUpdated
 	ServiceControlTs                     = serviceControlTs
 	ValidateSnapServicesForAddingToGroup = validateSnapServicesForAddingToGroup
 	AffectedSnapServices                 = affectedSnapServices
 )
-
-type QuotaStateUpdated = quotaStateUpdated
 
 func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
 	return m.doQuotaControl(t, to)
@@ -58,16 +55,6 @@ func EnsureSnapServicesForGroupOptions(allGrps map[string]*quota.Group, extraSna
 	return &ensureSnapServicesForGroupOptions{
 		allGrps:    allGrps,
 		extraSnaps: extraSnaps,
-	}
-}
-
-func MockOsutilBootID(mockID string) (restore func()) {
-	old := osutilBootID
-	osutilBootID = func() (string, error) {
-		return mockID, nil
-	}
-	return func() {
-		osutilBootID = old
 	}
 }
 
