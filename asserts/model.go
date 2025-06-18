@@ -628,6 +628,12 @@ func (mod *Model) Classic() bool {
 	return mod.classic
 }
 
+// HybridClassic returns whether the model is a hybrid classic system, meaning
+// it is both classic and has an associated kernel snap.
+func (mod *Model) HybridClassic() bool {
+	return mod.classic && mod.kernelSnap != nil
+}
+
 // Distribution returns the linux distro specified in the model.
 func (mod *Model) Distribution() string {
 	return mod.HeaderString("distribution")

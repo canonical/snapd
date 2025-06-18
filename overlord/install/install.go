@@ -24,8 +24,10 @@ package install
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -51,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -77,9 +81,14 @@ type EncryptionSupportInfo struct {
 	// the this device and used gadget do not match the
 	// storage safety requirements.
 	UnavailableErr error
+
 	// UnavailbleWarning describes why encryption support is not
 	// available in case it is optional.
 	UnavailableWarning string
+
+	// AvailabilityCheckErrors holds details about encryption
+	// availability errors identified during preinstall check.
+	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
 	// PassphraseAuthAvailable is set if the passphrase authentication
 	// is supported.
@@ -115,6 +124,7 @@ var (
 	timeNow = time.Now
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
+	secbootPreinstallCheck             = secboot.PreinstallCheck
 	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
 
 	bootUseTokens = boot.UseTokens
@@ -170,6 +180,15 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 	secbootCheckTPMKeySealingSupported = f
 	return func() {
 		secbootCheckTPMKeySealingSupported = old
+	}
+}
+
+// MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
+func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPreinstallCheck
+	secbootPreinstallCheck = f
+	return func() {
+		secbootPreinstallCheck = old
 	}
 }
 
@@ -233,14 +252,21 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkSecbootEncryption:
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
-		if checkEncryptionErr == nil {
+		unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(model, tpmMode)
+		if err != nil {
+			return res, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
+		}
+
+		if unavailableReason == "" {
 			res.Type = device.EncryptionTypeLUKS
+		} else {
+			checkEncryptionErr = errors.New(unavailableReason)
+			res.AvailabilityCheckErrors = preinstallErrorDetails
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
 	}
-	res.Available = (checkEncryptionErr == nil)
+	res.Available = checkEncryptionErr == nil
 
 	if checkEncryptionErr != nil {
 		switch {
@@ -286,6 +312,198 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	}
 
 	return res, nil
+}
+
+func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) (string, []secboot.PreinstallErrorDetails, error) {
+	supported, err := preinstallCheckSupported(model)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
+	}
+	if supported {
+		// use comprehensive preinstall check
+		images, err := orderedCurrentBootImages(model)
+		if err != nil {
+			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+		defer cancel()
+		preinstallErrorDetails, err := secbootPreinstallCheck(ctx, images)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return "", nil, fmt.Errorf("preinstall check timed out: %v", err)
+			}
+			return "", nil, err
+		}
+
+		switch len(preinstallErrorDetails) {
+		case 0:
+			return "", nil, nil
+		case 1:
+			return preinstallErrorDetails[0].Message, preinstallErrorDetails, nil
+		default:
+			return fmt.Sprintf("preinstall check identified %d errors", len(preinstallErrorDetails)), preinstallErrorDetails, nil
+		}
+	}
+
+	// use general availability check
+	err = secbootCheckTPMKeySealingSupported(tpmMode)
+	if err != nil {
+		return err.Error(), nil, nil
+	}
+	return "", nil, nil
+}
+
+var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
+	if !model.HybridClassic() {
+		return false, nil
+	}
+
+	if release.ReleaseInfo.ID != "ubuntu" {
+		logger.Noticef("unexpected OS release ID %q", release.ReleaseInfo.ID)
+		return false, nil
+	}
+
+	const minSupportedVersion = "25.10"
+	cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minSupportedVersion)
+	if err != nil {
+		return false, fmt.Errorf("cannot perform version comparison with OS release version ID: %v", err)
+	}
+
+	return cmp >= 0, nil
+}
+
+func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
+	if model.HybridClassic() {
+		images, err := orderedCurrentBootImagesHybrid()
+		if err != nil {
+			return nil, fmt.Errorf("cannot locate hybrid system boot images: %v", err)
+		}
+		return images, nil
+	}
+	// TODO: consider support for core systems
+	return nil, nil
+}
+
+func orderedCurrentBootImagesHybrid() ([]string, error) {
+	imageInfo := []struct {
+		name string
+		glob string
+	}{
+		{"shim", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/boot*.efi")},
+		{"grub", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/grub*.efi")},
+		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz")},
+	}
+
+	var bootImagePaths []string
+	for _, info := range imageInfo {
+		matches, err := filepath.Glob(info.glob)
+		if err != nil {
+			return nil, fmt.Errorf("cannot use globbing pattern %q: %v", info.glob, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("cannot locate installer %s using globbing pattern %q", info.name, info.glob)
+		}
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
+		}
+		bootImagePaths = append(bootImagePaths, matches[0])
+	}
+
+	return bootImagePaths, nil
+}
+
+// GetEncryptionSupportInfo returns the encryption support information
+// for the given model, TPM provision mode, kernel and gadget information and
+// system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
+// any is available, leaving the caller to decide how, based on the environment.
+func ProposedGetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info, systemSnapdVersions *SystemSnapdVersions, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+	// capture the model storage safety
+	encInfo := EncryptionSupportInfo{
+		StorageSafety: model.StorageSafety(),
+	}
+
+	// encryption is set as disabled when forcefully disabled
+	// in which case the remaining struct content is not relevant
+	dangerous := model.Grade() == asserts.ModelDangerous
+	// check if we should disable encryption non-secured devices
+	// TODO:UC20: this is not the final mechanism to bypass encryption
+	forceDisable := osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted"))
+	if dangerous && forceDisable {
+		encInfo.Disabled = true
+		return encInfo, nil
+	}
+
+	// encryption is required if model grade is "secured" or model
+	// storage-safety is "encrypted"
+	secured := model.Grade() == asserts.ModelSecured
+	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
+
+	// setUnavailableErrorOrWarning is a helper to populate either
+	// UnavailableErr or UnavailableWarning. Add prefix to Unavailable{Err,Warning}
+	// to indicate when encryption is required.
+	setUnavailableErrorOrWarning := func(err error) {
+		// if encryption is required interpret as error otherwise a
+		// warning (string)
+		switch {
+		case secured:
+			encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", err)
+		case encrypted:
+			//encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model storage-safety encrypted: %v", err)
+			encInfo.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", err)
+		default:
+			encInfo.UnavailableWarning = fmt.Sprintf("cannot encrypt device storage: %v", err)
+		}
+	}
+
+	// check if gadget supports encryption
+	opts := &gadget.ValidationConstraints{
+		EncryptedData: true,
+	}
+	if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+		setUnavailableErrorOrWarning(fmt.Errorf("cannot use encryption with the provided gadget: %v", err))
+		return encInfo, nil
+	}
+
+	// encryption is either be provided by the fde-setup hook mechanism or
+	// by the built-in secboot based encryption. Having a fde-setup hook
+	// will disable the internal secboot based encryption
+	hasFDESetupHook := hasFDESetupHookInKernel(kernelInfo)
+	if hasFDESetupHook {
+		// check FDE setup hook
+		encType, err := checkFDEFeatures(runSetupHook)
+		if err != nil {
+			setUnavailableErrorOrWarning(fmt.Errorf("cannot use fde-setup hook based encryption: %v", err))
+			return encInfo, nil
+		}
+		encInfo.Type = encType
+	} else {
+		unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(model, tpmMode)
+		if err != nil {
+			return encInfo, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
+		}
+		if unavailableReason != "" {
+			setUnavailableErrorOrWarning(fmt.Errorf(unavailableReason))
+			encInfo.AvailabilityCheckErrors = preinstallErrorDetails
+			return encInfo, nil
+		}
+		encInfo.Type = device.EncryptionTypeLUKS
+	}
+	encInfo.Available = true
+
+	// Passphrase support is only available for TPM based encryption for now.
+	// Hook based setup support does not make sense (at least for now) because
+	// it is usually in the context of embedded systems where passphrase
+	// authentication is not practical.
+	if !hasFDESetupHook {
+		passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(systemSnapdVersions)
+		if err != nil {
+			return encInfo, fmt.Errorf("cannot check passphrase support: %v", err)
+		}
+		encInfo.PassphraseAuthAvailable = passphraseAuthAvailable
+	}
+
+	return encInfo, nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {

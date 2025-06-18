@@ -27,7 +27,11 @@ import (
 )
 
 var (
-	CheckFDEFeatures = checkFDEFeatures
+	EncryptionAvailabilityCheck    = encryptionAvailabilityCheck
+	PreinstallCheckSupported       = preinstallCheckSupported
+	OrderedCurrentBootImages       = orderedCurrentBootImages
+	OrderedCurrentBootImagesHybrid = orderedCurrentBootImagesHybrid
+	CheckFDEFeatures               = checkFDEFeatures
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {
