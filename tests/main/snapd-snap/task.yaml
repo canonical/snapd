@@ -211,6 +211,7 @@ execute: |
     echo "Check /usr/lib/snapd/info"
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
+    rm -rf squashfs-root
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
