@@ -72,6 +72,11 @@ const logObserveConnectedPlugAppArmor = `
 # Needed since we are root and the owner/group doesn't match :\
 # So long as we have this, the cap must be reserved.
 capability dac_override,
+
+# Needed so AppArmor doesn't spam the log with messages https://bugs.launchpad.net/snapd/+bug/2098780
+# It enables 'open_by_handle_at' which could be used to escape confinement but 
+# it's currently blocked by seccomp.
+capability dac_read_search,
 `
 
 var logObserveConnectedPlugUDev = []string{
