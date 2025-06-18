@@ -28,7 +28,6 @@ import (
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -46,14 +45,13 @@ var (
 // are logged. On failure, it returns the error encountered while interpreting
 // the secboot error.
 //
-// To support testing, when test mode is detected and the system is running in a
-// Virtual Machine, the check configuration is modified to permit this without
-// treating it as an error.
+// To support testing, when the system is running in a Virtual Machine, the check
+// configuration is modified to permit this to avoid an error.
 func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
 	// do not customize check configuration
 	checkFlags := sb_preinstall.CheckFlagsDefault
-	if snapdenv.Testing() && systemd.IsVirtualMachine() {
-		// with exception of testing in virtual machine
+	if systemd.IsVirtualMachine() {
+		// with exception of running in a virtual machine
 		checkFlags |= sb_preinstall.PermitVirtualMachine
 	}
 
