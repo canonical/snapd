@@ -406,7 +406,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
     // entry's absolute path in the new rootfs, that is with the `scratch_dir`
     // prefix removed (the path_in_rootfs variable below). We'll do this by
     // computing the length of the `scratch_dir` prefix now and then using it
-    // as the offset in `full_path` where the '/' of the confined silesystem is
+    // as the offset in `full_path` where the '/' of the confined filesystem is
     // located.
     const size_t scratch_dir_length = strlen(scratch_dir);
 
