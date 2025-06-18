@@ -82,7 +82,8 @@ func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/video[0-9]* rw")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "###PROMPT### /dev/video[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/class/video4linux/ r,")
 }
 
 func (s *CameraInterfaceSuite) TestUDevSpec(c *C) {
