@@ -86,6 +86,44 @@ type Notice struct {
 	expireAfter time.Duration
 }
 
+// NewNotice returns a new notice with the given details.
+func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestamp time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) *Notice {
+	return &Notice{
+		id:            id,
+		userID:        userID,
+		noticeType:    nType,
+		key:           key,
+		firstOccurred: timestamp,
+		lastOccurred:  timestamp,
+		lastRepeated:  timestamp,
+		occurrences:   1,
+		lastData:      data,
+		repeatAfter:   repeatAfter,
+		expireAfter:   expireAfter,
+	}
+}
+
+// Reoccur updates the receiving notice to re-occur with the given timestamp
+// and data. Depending on its repeat after duration, the lastRepeated timestamp
+// may be updated. Returns whether the notice was repeated.
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (repeated bool) {
+	n.occurrences++
+	repeated = false
+	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
+		// Update last repeated time if repeat-after time has elapsed (or is zero)
+		// XXX: this is what was used previously, but it seems strange to look
+		// at the options.RepeatAfter instead of n.repeatAfter when deciding if
+		// the lastRepeated timestamp should be updated for an existing notice.
+		// Otherwise, what's the point of storing repeatAfter in the notice?
+		n.lastRepeated = now
+		repeated = true
+	}
+	n.lastOccurred = now
+	n.lastData = data
+	n.repeatAfter = repeatAfter
+	return repeated
+}
+
 func (n *Notice) String() string {
 	userIDStr := "public"
 	if n.userID != nil {
@@ -279,30 +317,13 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = &Notice{
-			id:            strconv.Itoa(s.lastNoticeId),
-			userID:        userID,
-			noticeType:    noticeType,
-			key:           key,
-			firstOccurred: now,
-			lastRepeated:  now,
-			expireAfter:   defaultNoticeExpireAfter,
-			occurrences:   1,
-		}
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice.occurrences++
-		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
-			// Update last repeated time if repeat-after time has elapsed (or is zero)
-			notice.lastRepeated = now
-			newOrRepeated = true
-		}
+		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
 	}
-	notice.lastOccurred = now
-	notice.lastData = options.Data
-	notice.repeatAfter = options.RepeatAfter
 
 	if newOrRepeated {
 		s.noticeCond.Broadcast()

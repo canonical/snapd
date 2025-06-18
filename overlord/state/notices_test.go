@@ -33,6 +33,108 @@ type noticesSuite struct{}
 
 var _ = Suite(&noticesSuite{})
 
+func (s *noticesSuite) TestNewNotice(c *C) {
+	id := "foo"
+	userID := uint32(123)
+	nType := state.NoticeType("bar")
+	key := "baz"
+	timestamp := time.Now()
+	data := map[string]string{"fizz": "buzz"}
+	repeatAfter := 10 * time.Second
+	expireAfter := 30 * time.Second
+
+	notice := state.NewNotice(id, &userID, nType, key, timestamp, data, repeatAfter, expireAfter)
+
+	// Check the fields which are exported via methods for correctness
+	c.Check(notice.String(), Equals, "Notice foo (123:bar:baz)")
+	uid, isSet := notice.UserID()
+	c.Check(uid, Equals, userID)
+	c.Check(isSet, Equals, true)
+	c.Check(notice.Type(), Equals, nType)
+	// TODO: expand method checks when more public methods are added
+	n := noticeToMap(c, notice)
+	c.Check(n["id"], Equals, id)
+	c.Check(n["type"], Equals, string(nType))
+	c.Check(n["key"], Equals, key)
+	c.Check(n["first-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 1.0)
+	c.Check(n["last-data"], HasLen, 1)
+	c.Check(n["last-data"].(map[string]any)["fizz"], Equals, "buzz")
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
+}
+
+func (s *noticesSuite) TestReoccur(c *C) {
+	id := "foo"
+	userID := uint32(123)
+	nType := state.NoticeType("bar")
+	key := "baz"
+	timestamp := time.Now()
+	data := map[string]string{"fizz": "buzz"}
+	repeatAfter := 10 * time.Second
+	expireAfter := 30 * time.Second
+
+	notice := state.NewNotice(id, &userID, nType, key, timestamp, data, repeatAfter, expireAfter)
+
+	prevTimestamp := timestamp
+	timestamp = timestamp.Add(5 * time.Second)
+	repeated := notice.Reoccur(timestamp, data, repeatAfter)
+	c.Check(repeated, Equals, false)
+	n := noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 2.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+
+	// If total time since last repeated is greater than repeatAfter, should
+	// be repeated, even if time since last occurred is shorter.
+	timestamp = timestamp.Add(6 * time.Second)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 3.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+
+	// The repeatAfter value passed into Reoccur is used, rather than the value
+	// saved in the notice, so check that the former has precedence.
+	repeatAfter = time.Second
+	timestamp = timestamp.Add(2 * time.Second)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 4.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+
+	// The saved repeatAfter is shorter, but the argument has precedence
+	prevTimestamp = timestamp
+	repeatAfter = 10 * time.Second
+	timestamp = timestamp.Add(2 * time.Second)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	c.Check(repeated, Equals, false)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 5.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+
+	// If the repeatAfter argument is 0, then always repeat
+	repeatAfter = 0
+	timestamp = timestamp.Add(time.Second)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 6.0)
+	c.Check(n["repeat-after"], IsNil)
+}
+
 func (s *noticesSuite) TestMarshal(c *C) {
 	st := state.New(nil)
 	st.Lock()
