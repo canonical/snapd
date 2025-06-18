@@ -96,6 +96,14 @@ class Retriever(ABC):
         '''
 
     @abstractmethod
+    def get_all_features(self, timestamp: str) -> dict:
+        '''
+        Retrives a dictionary of all feature data at the given timestmap.
+        It contains only feature keys (e.g. cmds, endpoints) and the list
+        of all possible feature data at the indicated moment in time.
+        '''
+
+    @abstractmethod
     def close(self) -> None:
         pass
 
@@ -142,6 +150,16 @@ class MongoRetriever(Retriever):
         if len(json_result) != 1:
             raise RuntimeError(f'{len(json_result)} entries of system {system} found in collection {timestamp}')
         return json_result[0]
+    
+    def get_all_features(self, timestamp):
+        json_result = self.collection.find(
+            {'timestamp': datetime.datetime.fromisoformat(timestamp), 'all_features': True}).to_list()
+        if len(json_result) != 1:
+            raise RuntimeError(f'{len(json_result)} entries of feature coverage information found in collection {timestamp}')
+        res = json_result[0]
+        del res['timestamp']
+        del res['all_features']
+        return res
 
 
 class DirRetriever(Retriever):
@@ -196,6 +214,18 @@ class DirRetriever(Retriever):
             raise RuntimeError(f'system file not found {sys_path}')
         with open(sys_path, 'r', encoding='utf-8') as f:
             return json.load(f)
+        
+    def get_all_features(self, timestamp):
+        sys_path = os.path.join(self.dir, timestamp, 'all-features.json')
+        if not os.path.exists(sys_path):
+            raise RuntimeError(f'all-features.json not found')
+        with open(sys_path, 'r', encoding='utf-8') as f:
+            all = json.load(f)
+            if 'timestamp' in all:
+                del all['timestamp']
+            if 'all_features' in all:
+                del all['all_features']
+            return all
 
 
 def consolidate_system_features(system_json: SystemFeatures, include_tasks: Iterable[TaskId] = None, exclude_tasks: Iterable[TaskId] = None) -> dict[str, list[dict[str, Any]]]:
@@ -287,6 +317,33 @@ def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, s
     return mns
 
 
+def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
+    '''
+    Calculates set(coverage_features) - set(system_features), at the indicated timestamp. 
+
+    :param remove_failed: if true, will remove all instances of tests where success == False
+    '''
+    sys_features = cov(retriever, timestamp, system, remove_failed)
+    mns = minus(retriever.get_all_features(timestamp), sys_features)
+    return mns
+
+
+def cov(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
+    '''
+    Calculates set(system_features), at the indicated timestamp. 
+
+    :param remove_failed: if true, will remove all instances of tests where success == False
+    '''
+    system_json = retriever.get_single_json(timestamp, system)
+
+    include_tasks = None
+    if remove_failed:
+        include_tasks = list_tasks(system_json, remove_failed)
+
+    return consolidate_system_features(
+        system_json, include_tasks=include_tasks)
+
+
 def check_duplicate(args):
     task, system_json = args
     # Exclude all variants of the task from consolidation so that
@@ -340,6 +397,11 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
                 json.dump(system_json, f, cls=DateTimeEncoder)
 
 
+def add_data_source_args(parser: argparse.ArgumentParser):
+    parser.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
+    parser.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+
+
 def add_diff_parser(subparsers: argparse._SubParsersAction):
     diff_description = '''
         Calculates feature diff between two systems: set(features_1) - set(features_2).
@@ -356,8 +418,7 @@ def add_diff_parser(subparsers: argparse._SubParsersAction):
     cmd = 'diff'
     diff: argparse.ArgumentParser = subparsers.add_parser(cmd, help='calculate diff between system features',
                                  description=diff_description, formatter_class=argparse.RawDescriptionHelpFormatter)
-    diff.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    diff.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(diff)
     diff.add_argument('-t1', '--timestamp1', help='timestamp of first execution', type=str, required=True)
     diff.add_argument('-s1', '--system1', help='system of first execution', type=str, required=True)
     diff.add_argument('-t2', '--timestamp2', help='timestamp of second execution', type=str, required=True)
@@ -365,6 +426,56 @@ def add_diff_parser(subparsers: argparse._SubParsersAction):
     diff.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     diff.add_argument('--only-same', help='only compare tasks that were executed on both systems', action='store_true')
     return cmd
+
+
+def add_diff_parsers(subparsers: argparse._SubParsersAction):
+
+    sys_description = '''
+        Calculates feature diff between two systems: set(features_1) - set(features_2).
+        You can specify either a json file with credentials for mongodb or a directory with features output.
+        If using a directory, the directory format must be <dir>/<timestamp1>/<system1>.json and 
+        <dir>/<timestamp2>/<system2>.json.
+
+        By default, it will compare all features across both systems. If you wish to restrict the comparison
+        to only tasks that were successful, use the --remove-failed flag. If you wish to restrict the
+        comparison to only tasks that executed on both systems, use the --only-same flag.
+
+        If you wish to create a directory from mongo data, use the export command instead of diff first.
+    '''
+    all_description = '''
+        Calculates feature diff between all possible features a system's: set(all_features) - set(system_features).
+        You can specify either a json file with credentials for mongodb or a directory with features output.
+        If using a directory, the directory format must be <dir>/<timestamp1>/<system1>.json and 
+        <dir>/<timestamp1>/all-feat.json.
+
+        By default, it will compare all features . If you wish to restrict the comparison
+        to only tasks that were successful, use the --remove-failed flag.
+
+        If you wish to create a directory from mongo data, use the export command instead of diff first.
+    '''
+    cmd = 'diff'
+    cmd_sys = 'systems'
+    cmd_all = 'all-features'
+    diff: argparse.ArgumentParser = subparsers.add_parser(cmd, help='calculate diff between system features',
+                                 description='Calculates feature diff either between two systems or between a system and all features.')
+    diff_subparsers = diff.add_subparsers(dest='diff_cmd')
+    sys = diff_subparsers.add_parser(cmd_sys, help='calculate diff between two systems\' features',
+                               description=sys_description, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_data_source_args(sys)
+    sys.add_argument('-t1', '--timestamp1', help='timestamp of first execution', type=str, required=True)
+    sys.add_argument('-s1', '--system1', help='system of first execution', type=str, required=True)
+    sys.add_argument('-t2', '--timestamp2', help='timestamp of second execution', type=str, required=True)
+    sys.add_argument('-s2', '--system2', help='system of second execution', type=str, required=True)
+    sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    sys.add_argument('--only-same', help='only compare tasks that were executed on both systems', action='store_true')
+
+    all = diff_subparsers.add_parser(cmd_all, help='calculate diff between system features and all features',
+                                     description=all_description, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_data_source_args(all)
+    all.add_argument('-t', '--timestamp', help='timestamp of instance to search', required=True, type=str)
+    all.add_argument('-s', '--system', help='system whose features should be searched', required=True, type=str)
+    all.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    return cmd, cmd_sys, cmd_all
 
 
 def add_dup_parser(subparsers: argparse._SubParsersAction):
@@ -382,8 +493,7 @@ def add_dup_parser(subparsers: argparse._SubParsersAction):
                                       help='show tasks whose features are completely covered by the rest',
                                       description=dup_description,
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
-    duplicate.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    duplicate.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(duplicate)
     duplicate.add_argument('-t', '--timestamp', help='timestamp of instance to search', required=True, type=str)
     duplicate.add_argument('-s', '--system', help='system whose features should be searched', required=True, type=str)
     duplicate.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
@@ -394,8 +504,7 @@ def add_export_parser(subparsers: argparse._SubParsersAction):
     cmd = 'export'
     export: argparse.ArgumentParser = subparsers.add_parser(cmd, help='export data to output local directory',
                                    description='Grabs system json files by timestamps and systems and saves them to the folder indicated in the output arguement.')
-    export.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    export.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(export)
     export.add_argument('-t', '--timestamps', help='space-separated list of identifying timestamps', required=True, nargs='+')
     export.add_argument('-s', '--systems', help='space-separated list of systems', nargs='*')
     export.add_argument('-o', '--output', help='folder to save feature data', required=True, type=str)
@@ -406,8 +515,18 @@ def add_list_parser(subparsers: argparse._SubParsersAction):
     cmd = 'list'
     lst: argparse.ArgumentParser = subparsers.add_parser(cmd, help='lists all timestamps with systems present in data source',
                                 description='Lists all timestamps with systems present in data source.')
-    lst.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    lst.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(lst)
+    return cmd
+
+
+def add_cov_parser(subparsers: argparse._SubParsersAction):
+    cmd = 'cov'
+    cov: argparse.ArgumentParser = subparsers.add_parser(cmd, help='lists all features for a given system and timestamp',
+                                description='Lists all features for a given system and timestamp present in data source.')
+    add_data_source_args(cov)
+    cov.add_argument('-t', '--timestamp', help='timestamp for coverage data', required=True, type=str)
+    cov.add_argument('-s', '--system', help='system for coverage data', required=True, type=str)
+    cov.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     return cmd
 
 
@@ -416,10 +535,11 @@ def main():
         description='cli to query data source containing feature data')
     subparsers = parser.add_subparsers(dest='command')
     subparsers.required = True
-    diff_cmd = add_diff_parser(subparsers)
+    diff_cmd, diff_sys_cmd, diff_all_cmd = add_diff_parsers(subparsers)
     dup_cmd = add_dup_parser(subparsers)
     export_cmd = add_export_parser(subparsers)
     list_cmd = add_list_parser(subparsers)
+    cov_cmd = add_cov_parser(subparsers)
 
     args = parser.parse_args()
 
@@ -434,8 +554,13 @@ def main():
 
     with closing(retriever_creator()) as retriever:
         if args.command == diff_cmd:
-            result = diff(retriever, args.timestamp1, args.system1,
-                          args.timestamp2, args.system2, args.remove_failed, args.only_same)
+            if args.diff_cmd == diff_sys_cmd:
+                result = diff(retriever, args.timestamp1, args.system1,
+                            args.timestamp2, args.system2, args.remove_failed, args.only_same)
+            elif args.diff_cmd == diff_all_cmd:
+                result = diff_all_features(retriever, args.timestamp, args.system, args.remove_failed)
+            else:
+                raise RuntimeError(f'diff command not recognized: {args.diff_cmd}')
             json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
         elif args.command == dup_cmd:
@@ -448,6 +573,10 @@ def main():
             export(retriever, args.output, args.timestamps, args.systems)
         elif args.command == list_cmd:
             result = retriever.get_sorted_timestamps_and_systems()
+            json.dump(result, sys.stdout, cls=DateTimeEncoder)
+            print()
+        elif args.command == cov_cmd:
+            result = cov(retriever, args.timestamp, args.system, args.remove_failed)
             json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
         else:
