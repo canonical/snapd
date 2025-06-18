@@ -720,6 +720,9 @@ backends:
             - opensuse-tumbleweed-64:
                   username: root
                   password: root
+            - opensuse-tumbleweed-selinux-64:
+                  username: root
+                  password: root
             - fedora-41-64:
                   username: root
                   password: root
