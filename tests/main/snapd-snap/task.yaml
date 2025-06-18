@@ -264,7 +264,13 @@ execute: |
       -r /var/lib/snapd/apparmor/profiles/snap.snapcraft.snapcraft
 
     echo "Then we should be able to successfully install a snap"
-    snap install hello-world
+    # Patch hello-world that was made before snap-private /var/tmp.
+    snap download hello-world
+    unsquashfs hello-world_*.snap
+    sed -i -e 's,/var/tmp/,/var/log/,g' squashfs-root/bin/evil
+    snap pack squashfs-root
+    rm -rf squashfs-root
+    snap install --dangerous ./hello-world_*.snap
     tests.cleanup defer snap remove --purge hello-world
 
     echo "Then hello-world.evil should fail due to snap confinement"
