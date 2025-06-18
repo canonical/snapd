@@ -109,12 +109,13 @@ type apiBaseSuite struct {
 }
 
 var (
-	seenActionsMap *safeActionsMap
-	callCount      int64
+	seenActionsMap        *safeActionsMap
+	callCount             int64
+	disableActionCoverage atomic.Bool
 )
 
 func skipActionCoverage() bool {
-	if callCount <= 1 {
+	if callCount <= 1 || disableActionCoverage.Load() {
 		return true
 	}
 	for _, arg := range os.Args {
@@ -256,6 +257,11 @@ func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
 
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
+}
+
+// DisableActionsCheck disables the final check for command action coverage
+func (s *apiBaseSuite) DisableActionsCheck() {
+	disableActionCoverage.Store(true)
 }
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
