@@ -41,8 +41,8 @@ execute: |
         # Only newer snapd has 'snap debug refresh-app-awareness'
         retry -n 50 --wait 1 sh -c 'snap debug refresh-app-awareness | MATCH "Monitored snaps"'
     fi
-    retry -n 50 --wait 1 sh -c "jq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH true"
-    jq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
+    retry -n 50 --wait 1 sh -c "gojq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH true"
+    gojq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
 
     # Switch test-snapd-sh back to latest/stable so it will no longer be a refresh candidate
     snap switch --stable test-snapd-sh
@@ -52,8 +52,8 @@ execute: |
         # Only newer snapd has 'snap debug refresh-app-awareness'
         snap debug refresh-app-awareness | MATCH "Monitored snaps"
     fi
-    jq '.data."refresh-candidates" | has("test-snapd-sh")' /var/lib/snapd/state.json | MATCH true
-    jq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
+    gojq '.data."refresh-candidates" | has("test-snapd-sh")' /var/lib/snapd/state.json | MATCH true
+    gojq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
 
     # Restart snapd again and re-trigger auto-refresh
     systemctl stop snapd.{service,socket}
@@ -61,7 +61,7 @@ execute: |
     systemctl start snapd.{socket,service}
 
     # test-snapd-sh should no longer be a refresh candidate
-    retry -n 10 --wait 1 sh -c "jq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH false"
+    retry -n 10 --wait 1 sh -c "gojq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH false"
 
     # test-snapd-sh should no longer be monitored
     # (this should fail with old snapd prior to the fix)
