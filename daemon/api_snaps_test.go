@@ -3674,6 +3674,33 @@ func (s *snapsSuite) TestUnholdRefresh(c *check.C) {
 	c.Assert(res.Summary, check.Equals, `Remove refresh hold on "some-snap"`)
 }
 
+func (s *snapsSuite) TestUnholEndpoint(c *check.C) {
+	restoreProceedWithRefresh := daemon.MockSnapstateProceedWithRefresh(func(s *state.State, gatingSnap string, mockSnaps []string) error {
+		c.Assert(mockSnaps, check.DeepEquals, []string{"some-snap"})
+		c.Assert(gatingSnap, check.Equals, "system")
+		return nil
+	})
+	defer restoreProceedWithRefresh()
+
+	soon := 0
+	_, restoreEnsureStateSoon := daemon.MockEnsureStateSoon(func(s *state.State) {
+		soon++
+	})
+	defer restoreEnsureStateSoon()
+
+	s.daemon(c)
+
+	buf := bytes.NewBufferString(`{"action": "unhold"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.jsonReq(c, req, nil, actionIsExpected)
+	c.Assert(err, check.IsNil)
+	c.Assert(soon, check.Equals, 1)
+	c.Assert(rspe.Status, check.Equals, 202)
+}
+
 func (s *snapsSuite) TestHoldWithInvalidTime(c *check.C) {
 	s.daemon(c)
 	for _, snaps := range [][]string{{}, {"some-snap"}, {"some-snap", "other-snap"}} {
@@ -3686,6 +3713,18 @@ func (s *snapsSuite) TestHoldWithInvalidTime(c *check.C) {
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Assert(rspe.Error(), check.Matches, `hold action requires time to be "forever" or in RFC3339 format: parsing time "boom".*`)
 	}
+}
+
+func (s *snapsSuite) TestHoldWithInvalidTimeSingleSnap(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold", "time": "boom"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires time to be "forever" or in RFC3339 format: parsing time "boom".*`)
 }
 
 func (s *snapsSuite) TestHoldWithInvalidHoldLevel(c *check.C) {
@@ -3702,6 +3741,18 @@ func (s *snapsSuite) TestHoldWithInvalidHoldLevel(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestHoldWithInvalidHoldLevelSingleSnap(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold", "time": "forever", "hold-level": "boom"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires hold-level to be either "auto-refresh" or "general".*`)
+}
+
 func (s *snapsSuite) TestHoldMissingTime(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"action": "hold"}`)
@@ -3714,10 +3765,34 @@ func (s *snapsSuite) TestHoldMissingTime(c *check.C) {
 	c.Assert(rspe.Error(), check.Matches, `hold action requires a non-empty time value.*`)
 }
 
+func (s *snapsSuite) TestHoldMissingTimeSingleSnap(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires a non-empty time value.*`)
+}
+
 func (s *snapsSuite) TestHoldMissingLevel(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"action": "hold", "time": "forever"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires a non-empty hold-level value.*`)
+}
+
+func (s *snapsSuite) TestHoldMissingLevelSingleSnap(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold", "time": "forever"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, check.IsNil)
 
