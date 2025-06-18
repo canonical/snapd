@@ -1,0 +1,74 @@
+summary: Ensure that snapd stops monitoring snaps which are no longer refresh candidates
+
+details: |
+    Check that https://bugs.launchpad.net/snapd/+bug/2089195 is fixed
+
+    TODO: expand description
+
+systems:
+    - ubuntu-2*
+
+environment:
+    SNAP_REEXEC/reexec0: 0 # should fail with reexec set to 0 when system deb version is < 2.68
+    SNAP_REEXEC/reexec1: 1
+
+prepare: |
+    # Ensure no other refreshes interfere with the test
+    snap refresh
+
+    snap install --stable test-snapd-sh
+    tests.cleanup defer retry -n 50 --wait 1 snap remove --purge test-snapd-sh
+
+execute: |
+    # Make sure an app keeps the test snap busy
+    test-snapd-sh.sh -c 'exec sleep 300' &
+    PID="$!"
+
+    # Switch test-snapd-sh to the edge channel to make it a refresh candidate
+    # Note that test-snapd-sh has different revisions in stable and edge
+    snap switch --edge test-snapd-sh
+
+    # Trigger auto-refresh
+    snap unset system refresh.hold
+    systemctl stop snapd.{service,socket}
+    "$TESTSTOOLS"/snapd-state force-autorefresh
+    # Set refresh inhibited timestamp to within a day of the 14-day limit
+    "$TESTSTOOLS"/snapd-state force-snap-force-refresh-message test-snapd-sh
+    systemctl start snapd.{socket,service}
+
+    # Wait for snap to be monitored
+    if [ "$SNAP_REEXEC" -eq 1 ] ; then
+        # Only newer snapd has 'snap debug refresh-app-awareness'
+        retry -n 50 --wait 1 sh -c 'snap debug refresh-app-awareness | MATCH "Monitored snaps"'
+    fi
+    retry -n 50 --wait 1 sh -c "jq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH true"
+    jq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
+
+    # Switch test-snapd-sh back to latest/stable so it will no longer be a refresh candidate
+    snap switch --stable test-snapd-sh
+
+    # test-snapd-sh should still be a refresh candidate and monitored until snapd restart
+    if [ "$SNAP_REEXEC" -eq 1 ] ; then
+        # Only newer snapd has 'snap debug refresh-app-awareness'
+        snap debug refresh-app-awareness | MATCH "Monitored snaps"
+    fi
+    jq '.data."refresh-candidates" | has("test-snapd-sh")' /var/lib/snapd/state.json | MATCH true
+    jq '.data."refresh-candidates"."test-snapd-sh".monitored' | MATCH true
+
+    # Restart snapd again and re-trigger auto-refresh
+    systemctl stop snapd.{service,socket}
+    "$TESTSTOOLS"/snapd-state force-autorefresh
+    systemctl start snapd.{socket,service}
+
+    # test-snapd-sh should no longer be a refresh candidate
+    retry -n 10 --wait 1 sh -c "jq '.data.\"refresh-candidates\" | has(\"test-snapd-sh\")' /var/lib/snapd/state.json | MATCH false"
+
+    # test-snapd-sh should no longer be monitored
+    # (this should fail with old snapd prior to the fix)
+    if [ "$SNAP_REEXEC" -eq 1 ] ; then
+        retry -n 10 --wait 1 sh -c 'snap debug refresh-app-awareness | wc -l | MATCH "^0$"'
+    fi
+    # TODO: find some better way to check whether the snapd-desktop-integration
+    # message occurs warning about the snap being force-refreshed after some time
+
+    kill "$PID"
