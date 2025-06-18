@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -112,11 +113,23 @@ var (
 	callCount      int64
 )
 
+func skipActionCoverage() bool {
+	if callCount <= 1 {
+		return true
+	}
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "-check.f") {
+			return true
+		}
+	}
+	return false
+}
+
 func TestMain(m *testing.M) {
 	seenActionsMap = &safeActionsMap{data: make(map[*daemon.Command]map[string]struct{})}
 	code := m.Run()
 	// If only one test suite ran, then it makes no sense to check action coverage
-	if callCount <= 1 {
+	if skipActionCoverage() {
 		os.Exit(code)
 	}
 	for _, cmd := range seenActionsMap.Keys() {
