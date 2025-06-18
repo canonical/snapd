@@ -154,7 +154,6 @@ func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Respons
 			continue
 		}
 		switch {
-
 		// conversion is done only on a match do as little key data loading
 		// as possible since it is lazy loaded.
 		case len(opts.ContainerRoles) > 0:

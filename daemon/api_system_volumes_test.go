@@ -399,7 +399,7 @@ func (k *mockKeyData) Roles() []string {
 	return k.roles
 }
 
-func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedResult interface{}) {
+func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedResult any) {
 	s.AddCleanup(devicestate.MockFDEManagerGetKeyslots(func(fdemgr *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) ([]fdestate.Keyslot, []fdestate.KeyslotRef, error) {
 		c.Check(keyslotRefs, IsNil)
 		keyslots := []fdestate.Keyslot{
