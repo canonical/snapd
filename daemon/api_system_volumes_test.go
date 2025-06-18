@@ -29,10 +29,15 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
@@ -280,7 +285,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKey
 	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
 }
 
-func (s *systemVolumesSuite) mockCurrentGadget(c *C, structures []string) {
+func (s *systemVolumesSuite) mockCurrentGadgetAndModel(c *C, structures []string) {
 	const mockGadgetSnapYaml = `
 name: canonical-pc
 type: gadget
@@ -343,6 +348,34 @@ volumes:
 	s.AddCleanup(daemon.MockSnapstateGadgetInfo(func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error) {
 		return gadgetSnapInfo, nil
 	}))
+
+	model := map[string]any{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "amd64",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"base":         "core22",
+		"grade":        "signed",
+		"snaps": []any{
+			map[string]any{
+				"name": "kernel",
+				"id":   "pclinuxdidididididididididididid",
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   "pcididididididididididididididid",
+				"type": "gadget",
+			},
+		},
+	}
+
+	modelAssertion := assertstest.FakeAssertion(model).(*asserts.Model)
+	s.AddCleanup(snapstatetest.MockDeviceModel(modelAssertion))
 }
 
 type mockKeyData struct {
@@ -367,7 +400,7 @@ func (k *mockKeyData) Roles() []string {
 }
 
 func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedResult interface{}) {
-	s.AddCleanup(daemon.MockFdeMgrGetKeyslots(func(fdemgr *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) ([]fdestate.Keyslot, []fdestate.KeyslotRef, error) {
+	s.AddCleanup(devicestate.MockFDEManagerGetKeyslots(func(fdemgr *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) ([]fdestate.Keyslot, []fdestate.KeyslotRef, error) {
 		c.Check(keyslotRefs, IsNil)
 		keyslots := []fdestate.Keyslot{
 			{Name: "default", ContainerRole: "system-data", Type: fdestate.KeyslotTypePlatform},
@@ -391,28 +424,28 @@ func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedRe
 
 func (s *systemVolumesSuite) TestSystemVolumesGetAll(c *C) {
 	s.daemon(c)
-	s.mockCurrentGadget(c, nil)
+	s.mockCurrentGadgetAndModel(c, nil)
 
 	const query = "" // default
-	expectedResult := daemon.SystemVolumesResponse{
-		ByContainerRole: map[string]daemon.VolumeInfo{
-			"mbr":         {ContainerRole: "mbr", VolumeName: "pc", Name: "mbr"},
-			"system-boot": {ContainerRole: "system-boot", VolumeName: "pc", Name: "ubuntu-boot"},
+	expectedResult := client.SystemVolumesResult{
+		ByContainerRole: map[string]client.SystemVolumesStructureInfo{
+			"mbr":         {VolumeName: "pc", Name: "mbr"},
+			"system-boot": {VolumeName: "pc", Name: "ubuntu-boot"},
 			"system-data": {
-				ContainerRole: "system-data", VolumeName: "pc", Name: "ubuntu-data", Encrypted: true,
-				Keyslots: map[string]daemon.KeyslotInfo{
+				VolumeName: "pc", Name: "ubuntu-data", Encrypted: true,
+				Keyslots: map[string]client.KeyslotInfo{
 					"default":          {Type: "platform", PlatformName: "tpm2", AuthMode: "pin", Roles: []string{"run+recover"}},
 					"default-recovery": {Type: "recovery"},
 				},
 			},
 			"system-save": {
-				ContainerRole: "system-save", VolumeName: "pc", Name: "ubuntu-save", Encrypted: true,
-				Keyslots: map[string]daemon.KeyslotInfo{
+				VolumeName: "pc", Name: "ubuntu-save", Encrypted: true,
+				Keyslots: map[string]client.KeyslotInfo{
 					"default-fallback": {Type: "platform", PlatformName: "tpm2", AuthMode: "none", Roles: []string{"recover"}},
 					"default-recovery": {Type: "recovery"},
 				},
 			},
-			"system-seed": {ContainerRole: "system-seed", VolumeName: "pc", Name: "ubuntu-seed"},
+			"system-seed": {VolumeName: "pc", Name: "ubuntu-seed"},
 		},
 	}
 	s.testSystemVolumesGet(c, query, expectedResult)
@@ -420,28 +453,28 @@ func (s *systemVolumesSuite) TestSystemVolumesGetAll(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesGetByContainerRole(c *C) {
 	s.daemon(c)
-	s.mockCurrentGadget(c, nil)
+	s.mockCurrentGadgetAndModel(c, nil)
 
 	const query = "?by-container-role=true"
-	expectedResult := daemon.SystemVolumesResponse{
-		ByContainerRole: map[string]daemon.VolumeInfo{
-			"mbr":         {ContainerRole: "mbr", VolumeName: "pc", Name: "mbr"},
-			"system-boot": {ContainerRole: "system-boot", VolumeName: "pc", Name: "ubuntu-boot"},
+	expectedResult := client.SystemVolumesResult{
+		ByContainerRole: map[string]client.SystemVolumesStructureInfo{
+			"mbr":         {VolumeName: "pc", Name: "mbr"},
+			"system-boot": {VolumeName: "pc", Name: "ubuntu-boot"},
 			"system-data": {
-				ContainerRole: "system-data", VolumeName: "pc", Name: "ubuntu-data", Encrypted: true,
-				Keyslots: map[string]daemon.KeyslotInfo{
+				VolumeName: "pc", Name: "ubuntu-data", Encrypted: true,
+				Keyslots: map[string]client.KeyslotInfo{
 					"default":          {Type: "platform", PlatformName: "tpm2", AuthMode: "pin", Roles: []string{"run+recover"}},
 					"default-recovery": {Type: "recovery"},
 				},
 			},
 			"system-save": {
-				ContainerRole: "system-save", VolumeName: "pc", Name: "ubuntu-save", Encrypted: true,
-				Keyslots: map[string]daemon.KeyslotInfo{
+				VolumeName: "pc", Name: "ubuntu-save", Encrypted: true,
+				Keyslots: map[string]client.KeyslotInfo{
 					"default-fallback": {Type: "platform", PlatformName: "tpm2", AuthMode: "none", Roles: []string{"recover"}},
 					"default-recovery": {Type: "recovery"},
 				},
 			},
-			"system-seed": {ContainerRole: "system-seed", VolumeName: "pc", Name: "ubuntu-seed"},
+			"system-seed": {VolumeName: "pc", Name: "ubuntu-seed"},
 		},
 	}
 	s.testSystemVolumesGet(c, query, expectedResult)
@@ -449,15 +482,15 @@ func (s *systemVolumesSuite) TestSystemVolumesGetByContainerRole(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesGetContainerRole(c *C) {
 	s.daemon(c)
-	s.mockCurrentGadget(c, nil)
+	s.mockCurrentGadgetAndModel(c, nil)
 
 	const query = "?container-role=system-data&container-role=mbr"
-	expectedResult := daemon.SystemVolumesResponse{
-		ByContainerRole: map[string]daemon.VolumeInfo{
-			"mbr": {ContainerRole: "mbr", VolumeName: "pc", Name: "mbr"},
+	expectedResult := client.SystemVolumesResult{
+		ByContainerRole: map[string]client.SystemVolumesStructureInfo{
+			"mbr": {VolumeName: "pc", Name: "mbr"},
 			"system-data": {
-				ContainerRole: "system-data", VolumeName: "pc", Name: "ubuntu-data", Encrypted: true,
-				Keyslots: map[string]daemon.KeyslotInfo{
+				VolumeName: "pc", Name: "ubuntu-data", Encrypted: true,
+				Keyslots: map[string]client.KeyslotInfo{
 					"default":          {Type: "platform", PlatformName: "tpm2", AuthMode: "pin", Roles: []string{"run+recover"}},
 					"default-recovery": {Type: "recovery"},
 				},
@@ -475,7 +508,18 @@ func (s *systemVolumesSuite) TestSystemVolumesGetQueryConflictError(c *C) {
 
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, `query parameter "container-role" conflicts with "by-container-role"`)
+	c.Assert(rsp.Message, Equals, `"container-role" query parameter conflicts with "by-container-role"`)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesGetQueryByContainerRoleError(c *C) {
+	s.daemon(c)
+
+	req, err := http.NewRequest("GET", "/v2/system-volumes?by-container-role=ok", nil)
+	c.Assert(err, IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, `"by-container-role" query parameter when used must be set to "true" or "false" or left unset`)
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesGetGadgetInfoError(c *C) {
@@ -490,14 +534,14 @@ func (s *systemVolumesSuite) TestSystemVolumesGetGadgetInfoError(c *C) {
 
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 500)
-	c.Assert(rsp.Message, Equals, "failed to get gadget info: boom!")
+	c.Assert(rsp.Message, Equals, "cannot get current gadget: cannot get gadget snap info: boom!")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesGetKeyslotsError(c *C) {
 	s.daemon(c)
-	s.mockCurrentGadget(c, nil)
+	s.mockCurrentGadgetAndModel(c, nil)
 
-	s.AddCleanup(daemon.MockFdeMgrGetKeyslots(func(fdemgr *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) ([]fdestate.Keyslot, []fdestate.KeyslotRef, error) {
+	s.AddCleanup(devicestate.MockFDEManagerGetKeyslots(func(fdemgr *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) ([]fdestate.Keyslot, []fdestate.KeyslotRef, error) {
 		return nil, nil, errors.New("boom!")
 	}))
 
@@ -506,5 +550,5 @@ func (s *systemVolumesSuite) TestSystemVolumesGetKeyslotsError(c *C) {
 
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 500)
-	c.Assert(rsp.Message, Equals, "failed to get key slots: boom!")
+	c.Assert(rsp.Message, Equals, "cannot get encryption information for gadget volumes: failed to get key slots: boom!")
 }

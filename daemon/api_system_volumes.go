@@ -21,11 +21,14 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
@@ -45,142 +48,139 @@ var systemVolumesCmd = &Command{
 
 var (
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
-	fdeMgrGetKeyslots          = (*fdestate.FDEManager).GetKeyslots
 	fdeMgrGenerateRecoveryKey  = (*fdestate.FDEManager).GenerateRecoveryKey
 	fdeMgrCheckRecoveryKey     = (*fdestate.FDEManager).CheckRecoveryKey
-	snapstateGadgetInfo        = snapstate.GadgetInfo
+
+	snapstateGadgetInfo = snapstate.GadgetInfo
 )
 
-type systemVolumesResponse struct {
-	ByContainerRole map[string]volumeInfo `json:"by-container-role,omitempty"`
-}
-
-type volumeInfo struct {
-	ContainerRole string
-	VolumeName    string                 `json:"volume-name"`
-	Name          string                 `json:"name"`
-	Encrypted     bool                   `json:"encrypted"`
-	Keyslots      map[string]keyslotInfo `json:"keyslots,omitempty"`
-}
-
-type keyslotInfo struct {
-	Type fdestate.KeyslotType `json:"type"`
-	// only for platform key slots
-	Roles        []string        `json:"roles,omitempty"`
-	PlatformName string          `json:"platform-name,omitempty"`
-	AuthMode     device.AuthMode `json:"auth-mode,omitempty"`
-}
-
-func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Response {
-	query := r.URL.Query()
-	containerRoles := query["container-role"]
-	byContainerRole := query.Get("by-container-role") == "true"
-	if len(containerRoles) > 0 && byContainerRole {
-		return BadRequest(`query parameter "container-role" conflicts with "by-container-role"`)
+func parseSystemVolumesOptionsFromURL(q url.Values) (opts *client.SystemVolumesOptions, err error) {
+	opts = &client.SystemVolumesOptions{
+		ContainerRoles: q["container-role"],
 	}
+	switch q.Get("by-container-role") {
+	case "true", "false", "":
+		opts.ByContainerRole = q.Get("by-container-role") == "true"
+	default:
+		return nil, errors.New(`"by-container-role" query parameter when used must be set to "true" or "false" or left unset`)
+	}
+	if len(opts.ContainerRoles) > 0 && opts.ByContainerRole {
+		return nil, errors.New(`"container-role" query parameter conflicts with "by-container-role"`)
+	}
+	return opts, nil
+}
 
-	volumes, err := getAllVolumes(c.d.overlord.State(), c.d.overlord.FDEManager())
+func getCurrentGadgetAndModel(st *state.State) (*gadget.Info, *asserts.Model, error) {
+	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
 	if err != nil {
-		return InternalError(err.Error())
-	}
-
-	res := systemVolumesResponse{
-		ByContainerRole: make(map[string]volumeInfo),
-	}
-	for _, volume := range volumes {
-		switch {
-		case len(containerRoles) > 0:
-			if strutil.ListContains(containerRoles, volume.ContainerRole) {
-				res.ByContainerRole[volume.ContainerRole] = volume
-			}
-		case byContainerRole:
-			res.ByContainerRole[volume.ContainerRole] = volume
-		default:
-			// all groupings, currently only by-container-role is supported.
-			res.ByContainerRole[volume.ContainerRole] = volume
-		}
-	}
-
-	return SyncResponse(res)
-}
-
-func getAllVolumes(st *state.State, fdemgr *fdestate.FDEManager) ([]volumeInfo, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	gadgetInfo, err := getCurrentGadgetInfo(st)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get gadget info: %v", err)
-	}
-
-	keyslots, _, err := fdeMgrGetKeyslots(fdemgr, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get key slots: %v", err)
-	}
-	keyslotsByContainerRole := make(map[string][]fdestate.Keyslot)
-	for _, keyslot := range keyslots {
-		keyslotsByContainerRole[keyslot.ContainerRole] = append(keyslotsByContainerRole[keyslot.ContainerRole], keyslot)
-	}
-
-	var volumes []volumeInfo
-	for _, gv := range gadgetInfo.Volumes {
-		for _, gs := range gv.Structure {
-			if gs.Role == "" {
-				continue
-			}
-
-			containerKeyslots := keyslotsByContainerRole[gs.Role]
-			encrypted := len(containerKeyslots) != 0
-			volume := volumeInfo{
-				ContainerRole: gs.Role,
-				VolumeName:    gv.Name,
-				Name:          gs.Name,
-				Encrypted:     encrypted,
-			}
-			if encrypted {
-				volume.Keyslots = make(map[string]keyslotInfo, len(containerKeyslots))
-			}
-
-			for _, keyslot := range containerKeyslots {
-				data := keyslotInfo{
-					Type: keyslot.Type,
-				}
-				if keyslot.Type == fdestate.KeyslotTypePlatform {
-					kd, err := keyslot.KeyData()
-					if err != nil {
-						return nil, err
-					}
-					data.PlatformName = kd.PlatformName()
-					data.Roles = kd.Roles()
-					data.AuthMode = kd.AuthMode()
-				}
-				volume.Keyslots[keyslot.Name] = data
-			}
-			volumes = append(volumes, volume)
-		}
-	}
-
-	return volumes, nil
-}
-
-func getCurrentGadgetInfo(st *state.State) (*gadget.Info, error) {
-	deviceCtx, err := devicestate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("cannot get device context: %v", err)
 	}
 	gadgetInfo, err := snapstateGadgetInfo(st, deviceCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("cannot get gadget snap info: %v", err)
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
 	model := deviceCtx.Model()
 
-	info, err := gadget.ReadInfo(gadgetDir, model)
+	info, err := gadget.ReadInfoAndValidate(gadgetDir, model, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("cannot read gadget: %v", err)
 	}
-	return info, nil
+	return info, model, nil
+}
+
+func getGadgetVolumeStructuresWithKeyslots(st *state.State, fdemgr *fdestate.FDEManager) ([]devicestate.VolumeStructureWithKeyslots, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	gadgetInfo, _, err := getCurrentGadgetAndModel(st)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get current gadget: %v", err)
+	}
+
+	structures, err := devicestate.GetGadgetVolumeStructuresWithKeyslots(fdemgr, gadgetInfo)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get encryption information for gadget volumes: %v", err)
+	}
+	return structures, nil
+}
+
+func structureInfoFromVolumeStructure(structure *devicestate.VolumeStructureWithKeyslots) (*client.SystemVolumesStructureInfo, error) {
+	structureInfo := &client.SystemVolumesStructureInfo{
+		VolumeName: structure.VolumeName,
+		Name:       structure.Name,
+		Encrypted:  len(structure.Keyslots) > 0,
+	}
+	if structureInfo.Encrypted {
+		structureInfo.Keyslots = make(map[string]client.KeyslotInfo, len(structure.Keyslots))
+	}
+	for _, keyslot := range structure.Keyslots {
+		keyslotInfo := client.KeyslotInfo{
+			Type: client.KeyslotType(keyslot.Type),
+		}
+		if keyslot.Type == fdestate.KeyslotTypePlatform {
+			kd, err := keyslot.KeyData()
+			if err != nil {
+				return nil, err
+			}
+			keyslotInfo.PlatformName = kd.PlatformName()
+			keyslotInfo.Roles = kd.Roles()
+			keyslotInfo.AuthMode = kd.AuthMode()
+		}
+		structureInfo.Keyslots[keyslot.Name] = keyslotInfo
+	}
+	return structureInfo, nil
+}
+
+func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Response {
+	opts, err := parseSystemVolumesOptionsFromURL(r.URL.Query())
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	structures, err := getGadgetVolumeStructuresWithKeyslots(c.d.state, c.d.overlord.FDEManager())
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	res := client.SystemVolumesResult{
+		ByContainerRole: make(map[string]client.SystemVolumesStructureInfo),
+	}
+	for _, structure := range structures {
+		if structure.Role == "" {
+			// ignore structures without a role until other grouping
+			// requires them.
+			continue
+		}
+		switch {
+
+		// conversion is done only on a match do as little key data loading
+		// as possible since it is lazy loaded.
+		case len(opts.ContainerRoles) > 0:
+			if strutil.ListContains(opts.ContainerRoles, structure.Role) {
+				structureInfo, err := structureInfoFromVolumeStructure(&structure)
+				if err != nil {
+					return InternalError("cannot convert volume structure: %v", err)
+				}
+				res.ByContainerRole[structure.Role] = *structureInfo
+			}
+		case opts.ByContainerRole:
+			structureInfo, err := structureInfoFromVolumeStructure(&structure)
+			if err != nil {
+				return InternalError("cannot convert volume structure: %v", err)
+			}
+			res.ByContainerRole[structure.Role] = *structureInfo
+		default:
+			// all groupings, currently only by-container-role is supported.
+			structureInfo, err := structureInfoFromVolumeStructure(&structure)
+			if err != nil {
+				return InternalError("cannot convert volume structure: %v", err)
+			}
+			res.ByContainerRole[structure.Role] = *structureInfo
+		}
+	}
+	return SyncResponse(res)
 }
 
 type systemVolumesActionRequest struct {

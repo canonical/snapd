@@ -28,16 +28,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type (
-	SystemVolumesResponse = systemVolumesResponse
-	VolumeInfo            = volumeInfo
-	KeyslotInfo           = keyslotInfo
-)
-
-func MockFdeMgrGetKeyslots(f func(fdemgr *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) ([]fdestate.Keyslot, []fdestate.KeyslotRef, error)) (restore func()) {
-	return testutil.Mock(&fdeMgrGetKeyslots, f)
-}
-
 func MockFdeMgrGenerateRecoveryKey(f func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error)) (restore func()) {
 	return testutil.Mock(&fdeMgrGenerateRecoveryKey, f)
 }

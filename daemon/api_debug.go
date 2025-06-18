@@ -271,21 +271,9 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 }
 
 func getGadgetDiskMapping(st *state.State) Response {
-	deviceCtx, err := devicestate.DeviceCtx(st, nil, nil)
+	info, mod, err := getCurrentGadgetAndModel(st)
 	if err != nil {
-		return InternalError("cannot get device context: %v", err)
-	}
-	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
-	if err != nil {
-		return InternalError("cannot get gadget info: %v", err)
-	}
-	gadgetDir := gadgetInfo.MountDir()
-
-	mod := deviceCtx.Model()
-
-	info, err := gadget.ReadInfoAndValidate(gadgetDir, mod, nil)
-	if err != nil {
-		return InternalError("cannot get all disk volume device traits: cannot read gadget: %v", err)
+		return InternalError("cannot get current gadget: %v", err)
 	}
 
 	// TODO: allow passing in encrypted options info here
