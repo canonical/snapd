@@ -19,6 +19,8 @@ on:
 jobs:
   snap-builds:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -34,6 +36,14 @@ jobs:
         else
           echo "artifact_name=snap-files-amd64-${postfix}" >> $GITHUB_OUTPUT
         fi
+
+    - name: Set PR label as environment variables
+      if: ${{ github.event.pull_request.number }}
+      run: |
+          labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
+          if grep -q '^Skip spread$' <<<$labels; then
+            echo "SKIP_SPREAD_LABEL=true" >> $GITHUB_ENV
+          fi
 
     - name: Select Go toolchain
       run: |
@@ -59,14 +69,14 @@ jobs:
         esac
 
     - name: Build snapd snap
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       uses: snapcore/action-build@v1.3.0
       with:
         snapcraft-channel: 8.x/stable
         snapcraft-args: --verbose
 
     - name: Check built artifact
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       run: |
         unsquashfs -no-xattrs snapd*.snap snap/manifest.yaml meta/snap.yaml usr/lib/snapd/
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
@@ -87,7 +97,7 @@ jobs:
         fi
 
     - name: Uploading snapd snap artifact
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.set_artifact_name.outputs.artifact_name }}
