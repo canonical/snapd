@@ -179,6 +179,12 @@ const (
 	// ErrorKindSystemKeyVersionUnsupported: snapd does not support the system
 	// key version sent by the client
 	ErrorKindSystemKeyVersionUnsupported ErrorKind = "unsupported-system-key-version"
+
+	// ErrorKindFDEChangeConflict: the requested operation would
+	// conflict with currently ongoing change. This is a temporary
+	// error. The error `value` is an object with optional fields
+	// `keyslot-name`, `container-role`, `change-kind` of the ongoing change.
+	ErrorKindFDEChangeConflict ErrorKind = "fde-change-conflict"
 )
 
 // Maintenance error kinds.

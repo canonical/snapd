@@ -251,6 +251,7 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	chg.AddTask(withKeyslots)
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", keyslots)
 	c.Assert(err, ErrorMatches, `key slot \(container-role: "system-data", name: "default-recovery"\) has "some-change" change in progress`)
+	c.Check(err, testutil.ErrorIs, &fdestate.ChangeConflictError{})
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *fdeMgrSuite) TestCheckChangeConflict(c *C) {
@@ -79,4 +80,21 @@ func (s *fdeMgrSuite) TestChangeConflictErrorMessage(c *C) {
 
 	err = fdestate.ChangeConflictError{KeyslotRef: someKeyslotRef, ChangeKind: "some-change"}
 	c.Check(err.Error(), Equals, `key slot (container-role: "some-role", name: "some-slot") has "some-change" change in progress`)
+
+	err = fdestate.ChangeConflictError{Message: "error message", KeyslotRef: someKeyslotRef, ChangeKind: "some-change"}
+	c.Check(err.Error(), Equals, "error message")
+}
+
+func (s *fdeMgrSuite) TestChangeConflictErrorIs(c *C) {
+	this := &fdestate.ChangeConflictError{
+		KeyslotRef: fdestate.KeyslotRef{Name: "a", ContainerRole: "a"},
+		ChangeKind: "a",
+		Message:    "a",
+	}
+	that := &fdestate.ChangeConflictError{
+		KeyslotRef: fdestate.KeyslotRef{Name: "b", ContainerRole: "b"},
+		ChangeKind: "b",
+		Message:    "b",
+	}
+	c.Check(this, testutil.ErrorIs, that)
 }

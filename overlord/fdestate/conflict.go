@@ -24,12 +24,23 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// ChangeConflictError represents an error because of keyslot conflicts between changes.
 type ChangeConflictError struct {
 	KeyslotRef KeyslotRef
 	ChangeKind string
+	// a Message is optional, otherwise one is composed from the other information
+	Message string
+}
+
+func (e *ChangeConflictError) Is(err error) bool {
+	_, ok := err.(*ChangeConflictError)
+	return ok
 }
 
 func (e *ChangeConflictError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
 	if e.ChangeKind != "" {
 		return fmt.Sprintf("key slot %s has %q change in progress", e.KeyslotRef.String(), e.ChangeKind)
 	}

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -122,7 +123,8 @@ func (e fakeNetError) Temporary() bool { return e.temporary }
 func (s *errorsSuite) TestErrToResponse(c *C) {
 	aie := &snap.AlreadyInstalledError{Snap: "foo"}
 	nie := &snap.NotInstalledError{Snap: "foo"}
-	cce := &snapstate.ChangeConflictError{Snap: "foo"}
+	scce := &snapstate.ChangeConflictError{Snap: "foo"}
+	fcce := &fdestate.ChangeConflictError{KeyslotRef: fdestate.KeyslotRef{Name: "foo", ContainerRole: "bar"}}
 	ndme := &snapstate.SnapNeedsDevModeError{Snap: "foo"}
 	nc := &snapstate.SnapNotClassicError{Snap: "foo"}
 	nce := &snapstate.SnapNeedsClassicError{Snap: "foo"}
@@ -165,7 +167,8 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo"), false},
 		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo"), false},
 		{ncse, makeErrorRsp(client.ErrorKindSnapNeedsClassicSystem, ncse, "foo"), false},
-		{cce, daemon.SnapChangeConflict(cce), false},
+		{scce, daemon.SnapChangeConflict(scce), false},
+		{fcce, daemon.FDEChangeConflict(fcce), false},
 		{nettoute, makeErrorRsp(client.ErrorKindNetworkTimeout, nettoute, ""), false},
 		{netoe, daemon.BadRequest("ERR: %v", netoe), false},
 		{nettmpe, daemon.BadRequest("ERR: %v", nettmpe), false},
@@ -237,6 +240,27 @@ func (s *errorsSuite) TestErrToResponseInsufficentSpace(c *C) {
 		Kind:    client.ErrorKindInsufficientDiskSpace,
 		Value: map[string]any{
 			"snap-names":  []string{"foo", "bar"},
+			"change-kind": "some-change",
+		},
+	})
+}
+
+func (s *errorsSuite) TestErrToResponseFDEChangeConflict(c *C) {
+	err := &fdestate.ChangeConflictError{
+		KeyslotRef: fdestate.KeyslotRef{Name: "foo", ContainerRole: "bar"},
+		ChangeKind: "some-change",
+		Message:    "specific error msg",
+	}
+	rspe := daemon.ErrToResponse(err, nil, daemon.BadRequest, "%s: %v", "ERR")
+	c.Check(rspe, DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: "specific error msg",
+		Kind:    client.ErrorKindFDEChangeConflict,
+		Value: map[string]any{
+			"keyslot": map[string]string{
+				"name":           "foo",
+				"container-role": "bar",
+			},
 			"change-kind": "some-change",
 		},
 	})
