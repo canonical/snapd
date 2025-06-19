@@ -180,7 +180,7 @@ jobs:
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
             else
-                NEW_TASKS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "$prefix" $changes_param)"
+                NEW_TASKS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "$prefix" $changes_param -t "${{ inputs.tasks }}")"
                 TASKS_TO_RUN="$NEW_TASKS"
             fi
             echo "$TASKS_TO_RUN"
