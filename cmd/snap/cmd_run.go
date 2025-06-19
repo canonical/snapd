@@ -1554,6 +1554,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 					logger.Noticef("cannot duplicate stderr for connection: %v", err)
 				}
 			}
+
+			// Clear out the LOG_NAMESPACE variable, no reason to leak this to the process
+			// itself.
+			os.Unsetenv("SNAPD_LOG_NAMESPACE")
 		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
