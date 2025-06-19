@@ -19,6 +19,8 @@ on:
 jobs:
   snap-builds:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
