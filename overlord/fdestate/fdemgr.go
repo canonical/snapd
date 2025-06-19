@@ -407,6 +407,16 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 	return keyslots, missingRefs, nil
 }
 
+// GetKeyslots returns the key slots for the specified key slot references.
+// If keyslotRefs is empty, all key slots on all encrypted containers will
+// be returned.
+//
+// The state needs to be locked by the caller.
+func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot, missingRefs []KeyslotRef, err error) {
+	mgr := fdeMgr(st)
+	return mgr.GetKeyslots(keyslotRefs)
+}
+
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {

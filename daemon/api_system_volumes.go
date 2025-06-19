@@ -22,18 +22,13 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -51,7 +46,7 @@ var (
 	fdeMgrGenerateRecoveryKey  = (*fdestate.FDEManager).GenerateRecoveryKey
 	fdeMgrCheckRecoveryKey     = (*fdestate.FDEManager).CheckRecoveryKey
 
-	snapstateGadgetInfo = snapstate.GadgetInfo
+	devicestateGetVolumeStructuresWithKeyslots = devicestate.GetVolumeStructuresWithKeyslots
 )
 
 func parseSystemVolumesOptionsFromURL(q url.Values) (opts *client.SystemVolumesOptions, err error) {
@@ -68,42 +63,6 @@ func parseSystemVolumesOptionsFromURL(q url.Values) (opts *client.SystemVolumesO
 		return nil, errors.New(`"container-role" query parameter conflicts with "by-container-role"`)
 	}
 	return opts, nil
-}
-
-func getCurrentGadgetAndModel(st *state.State) (*gadget.Info, *asserts.Model, error) {
-	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot get device context: %v", err)
-	}
-	gadgetInfo, err := snapstateGadgetInfo(st, deviceCtx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot get gadget snap info: %v", err)
-	}
-	gadgetDir := gadgetInfo.MountDir()
-
-	model := deviceCtx.Model()
-
-	info, err := gadget.ReadInfoAndValidate(gadgetDir, model, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read gadget: %v", err)
-	}
-	return info, model, nil
-}
-
-func getGadgetVolumeStructuresWithKeyslots(st *state.State, fdemgr *fdestate.FDEManager) ([]devicestate.VolumeStructureWithKeyslots, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	gadgetInfo, _, err := getCurrentGadgetAndModel(st)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get current gadget: %v", err)
-	}
-
-	structures, err := devicestate.GetGadgetVolumeStructuresWithKeyslots(fdemgr, gadgetInfo)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get encryption information for gadget volumes: %v", err)
-	}
-	return structures, nil
 }
 
 func structureInfoFromVolumeStructure(structure *devicestate.VolumeStructureWithKeyslots) (*client.SystemVolumesStructureInfo, error) {
@@ -139,9 +98,15 @@ func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest(err.Error())
 	}
 
-	structures, err := getGadgetVolumeStructuresWithKeyslots(c.d.state, c.d.overlord.FDEManager())
+	structures, err := func() ([]devicestate.VolumeStructureWithKeyslots, error) {
+		c.d.state.Lock()
+		defer c.d.state.Unlock()
+
+		return devicestateGetVolumeStructuresWithKeyslots(c.d.state)
+
+	}()
 	if err != nil {
-		return InternalError(err.Error())
+		return InternalError("cannot get encryption information for gadget volumes: %v", err)
 	}
 
 	res := client.SystemVolumesResult{

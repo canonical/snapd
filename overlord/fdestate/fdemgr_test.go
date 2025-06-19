@@ -1122,7 +1122,7 @@ func (s *fdeMgrSuite) testGetKeyslots(c *C, allKeyslots bool) {
 	})()
 
 	const onClassic = true
-	manager := s.startedManager(c, onClassic)
+	s.startedManager(c, onClassic)
 
 	var keyslotRefs []fdestate.KeyslotRef
 	if !allKeyslots {
@@ -1134,7 +1134,10 @@ func (s *fdeMgrSuite) testGetKeyslots(c *C, allKeyslots bool) {
 		}
 	}
 
-	keyslots, missing, err := manager.GetKeyslots(keyslotRefs)
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	keyslots, missing, err := fdestate.GetKeyslots(s.st, keyslotRefs)
 	c.Assert(err, IsNil)
 
 	// sort for test consistency

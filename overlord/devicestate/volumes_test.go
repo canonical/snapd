@@ -25,17 +25,91 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type volumesSuite struct{}
+type volumesSuite struct {
+	deviceMgrBaseSuite
+}
 
 var _ = Suite(&volumesSuite{})
 
-func (s *volumesSuite) TestGetGadgetVolumeStructuresWithKeyslots(c *C) {
-	defer devicestate.MockFDEManagerGetKeyslots(func(m *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) (keyslots []fdestate.Keyslot, missingRefs []fdestate.KeyslotRef, err error) {
+func (s *volumesSuite) SetUpTest(c *C) {
+	const classic = true
+	s.setupBaseTest(c, classic)
+
+	const snapYaml = `
+name: canonical-pc
+type: gadget
+version: 0.1
+`
+	var gadgetYaml = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: 21686148-6449-6E6F-744E-656564454649
+        size: 1M
+      - name: ubuntu-seed
+        role: system-seed
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+      - name: ubuntu-boot
+        role: system-boot
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+      - name: ubuntu-save
+        role: system-save
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+      - name: ubuntu-data
+        role: system-data
+        type: 0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1M
+`
+	si := &snap.SideInfo{
+		RealName: "canonical-pc",
+		Revision: snap.R(14),
+		SnapID:   "ididid",
+	}
+	snapInfo := snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	s.AddCleanup(devicestate.MockSnapstateGadgetInfo(func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error) {
+		return snapInfo, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	// mock model for DeviceCtx to work
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "canonical-pc",
+		"base":         "core24",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+}
+
+func (s *volumesSuite) TestGetVolumeStructuresWithKeyslots(c *C) {
+	defer devicestate.MockFdestateGetKeyslots(func(st *state.State, keyslotRefs []fdestate.KeyslotRef) (keyslots []fdestate.Keyslot, missingRefs []fdestate.KeyslotRef, err error) {
 		c.Check(keyslotRefs, IsNil)
 		keyslots = []fdestate.Keyslot{
 			{Name: "default", ContainerRole: "system-data", Type: fdestate.KeyslotTypePlatform},
@@ -45,52 +119,54 @@ func (s *volumesSuite) TestGetGadgetVolumeStructuresWithKeyslots(c *C) {
 		return keyslots, nil, nil
 	})()
 
-	gadgetInfo := &gadget.Info{
-		Volumes: map[string]*gadget.Volume{
-			"pc": {
-				Structure: []gadget.VolumeStructure{
-					{Role: "system-data"},
-					{Role: "system-save"},
-					{Role: "system-seed"},
-					{Role: "system-boot"},
-				},
-			},
-		},
-	}
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	structures, err := devicestate.GetGadgetVolumeStructuresWithKeyslots(nil, gadgetInfo)
+	structures, err := devicestate.GetVolumeStructuresWithKeyslots(s.state)
 	sort.Slice(structures, func(i, j int) bool {
 		return structures[i].Role < structures[j].Role
 	})
 	c.Assert(err, IsNil)
-	c.Check(structures, DeepEquals, []devicestate.VolumeStructureWithKeyslots{
-		{
-			VolumeStructure: gadget.VolumeStructure{Role: "system-boot"},
-		},
-		{
-			VolumeStructure: gadget.VolumeStructure{Role: "system-data"},
-			Keyslots: []fdestate.Keyslot{
-				{Name: "default", ContainerRole: "system-data", Type: fdestate.KeyslotTypePlatform},
-				{Name: "default-recovery", ContainerRole: "system-data", Type: fdestate.KeyslotTypeRecovery},
-			},
-		},
-		{
-			VolumeStructure: gadget.VolumeStructure{Role: "system-save"},
-			Keyslots: []fdestate.Keyslot{
-				{Name: "default-fallback", ContainerRole: "system-save", Type: fdestate.KeyslotTypePlatform},
-			},
-		},
-		{
-			VolumeStructure: gadget.VolumeStructure{Role: "system-seed"},
-		},
+
+	c.Check(structures[0].Name, Equals, "BIOS Boot")
+	c.Check(structures[0].Keyslots, IsNil)
+	c.Check(structures[1].Name, Equals, "mbr")
+	c.Check(structures[1].Keyslots, IsNil)
+	c.Check(structures[2].Name, Equals, "ubuntu-boot")
+	c.Check(structures[2].Keyslots, IsNil)
+	c.Check(structures[3].Name, Equals, "ubuntu-data")
+	c.Check(structures[3].Keyslots, DeepEquals, []fdestate.Keyslot{
+		{Name: "default", ContainerRole: "system-data", Type: fdestate.KeyslotTypePlatform},
+		{Name: "default-recovery", ContainerRole: "system-data", Type: fdestate.KeyslotTypeRecovery},
 	})
+	c.Check(structures[4].Name, Equals, "ubuntu-save")
+	c.Check(structures[4].Keyslots, DeepEquals, []fdestate.Keyslot{
+		{Name: "default-fallback", ContainerRole: "system-save", Type: fdestate.KeyslotTypePlatform},
+	})
+	c.Check(structures[5].Name, Equals, "ubuntu-seed")
+	c.Check(structures[5].Keyslots, IsNil)
 }
 
-func (s *volumesSuite) TestGetGadgetVolumeStructuresWithKeyslotsError(c *C) {
-	defer devicestate.MockFDEManagerGetKeyslots(func(m *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) (keyslots []fdestate.Keyslot, missingRefs []fdestate.KeyslotRef, err error) {
+func (s *volumesSuite) TestGetVolumeStructuresWithKeyslotsGadgetInfoError(c *C) {
+	defer devicestate.MockSnapstateGadgetInfo(func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := devicestate.GetVolumeStructuresWithKeyslots(s.state)
+	c.Assert(err, ErrorMatches, "cannot get gadget snap info: boom!")
+}
+
+func (s *volumesSuite) TestGetVolumeStructuresWithKeyslotsGetKeyslotsError(c *C) {
+	defer devicestate.MockFdestateGetKeyslots(func(st *state.State, keyslotRefs []fdestate.KeyslotRef) (keyslots []fdestate.Keyslot, missingRefs []fdestate.KeyslotRef, err error) {
 		return nil, nil, errors.New("boom!")
 	})()
 
-	_, err := devicestate.GetGadgetVolumeStructuresWithKeyslots(nil, nil)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := devicestate.GetVolumeStructuresWithKeyslots(s.state)
 	c.Assert(err, ErrorMatches, "failed to get key slots: boom!")
 }

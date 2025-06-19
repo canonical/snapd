@@ -17,21 +17,20 @@
  *
  */
 
-// Package devicestate implements the manager and state aspects responsible
-// for the device identity and policies.
 package devicestate
 
 import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var (
-	fdeManagerGetKeyslots = (*fdestate.FDEManager).GetKeyslots
+	fdestateGetKeyslots = fdestate.GetKeyslots
+	snapstateGadgetInfo = snapstate.GadgetInfo
 )
 
 // VolumeStructureWithKeyslots is gadget.VolumeStructure with
@@ -42,10 +41,26 @@ type VolumeStructureWithKeyslots struct {
 	Keyslots []fdestate.Keyslot
 }
 
-// GetGadgetVolumeStructuresWithKeyslots returns the gadget volume
-// structures with their corresponding key slots attached.
-func GetGadgetVolumeStructuresWithKeyslots(fdemgr *fdestate.FDEManager, gadgetInfo *gadget.Info) ([]VolumeStructureWithKeyslots, error) {
-	keyslots, _, err := fdeManagerGetKeyslots(fdemgr, nil)
+// GetVolumeStructuresWithKeyslots returns the current gadget
+// volume structures with their corresponding key slots attached.
+//
+// The state needs to be locked by the caller.
+func GetVolumeStructuresWithKeyslots(st *state.State) ([]VolumeStructureWithKeyslots, error) {
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context: %v", err)
+	}
+	gadgetSnapInfo, err := snapstateGadgetInfo(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get gadget snap info: %v", err)
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), deviceCtx.Model())
+	if err != nil {
+		return nil, fmt.Errorf("cannot read gadget: %v", err)
+	}
+
+	keyslots, _, err := fdestateGetKeyslots(st, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key slots: %v", err)
 	}
@@ -65,9 +80,4 @@ func GetGadgetVolumeStructuresWithKeyslots(fdemgr *fdestate.FDEManager, gadgetIn
 	}
 
 	return structuresWithKeyslots, nil
-}
-
-func MockFDEManagerGetKeyslots(f func(m *fdestate.FDEManager, keyslotRefs []fdestate.KeyslotRef) (keyslots []fdestate.Keyslot, missingRefs []fdestate.KeyslotRef, err error)) (restore func()) {
-	osutil.MustBeTestBinary("mocking fdeManagerGetKeyslots can be done only from tests")
-	return testutil.Mock(&fdeManagerGetKeyslots, f)
 }
