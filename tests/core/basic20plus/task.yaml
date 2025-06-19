@@ -124,9 +124,15 @@ execute: |
             losetup -O ro -n --raw "${loop}" | MATCH "1"
         done
     else
+        kernel=
+        if snap list pi-kernel &>/dev/null; then
+            kernel=pi-kernel
+        else
+            kernel=pc-kernel
+        fi
         not mountpoint /run/mnt/kernel
-        findmnt -n -o source /lib/firmware | MATCH /var/lib/snapd/kernel/pc-kernel
-        findmnt -n -o source /lib/modules | MATCH /var/lib/snapd/kernel/pc-kernel
+        findmnt -n -o source /lib/firmware | MATCH /var/lib/snapd/kernel/"$kernel"
+        findmnt -n -o source /lib/modules | MATCH /var/lib/snapd/kernel/"$kernel"
         # These units should have been created by the initramfs
         stat /run/systemd/system/sysroot-usr-lib-firmware.mount
         stat /run/systemd/system/sysroot-usr-lib-modules.mount
