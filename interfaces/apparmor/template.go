@@ -496,6 +496,8 @@ var templateCommon = `
 
 var templateFooter = `
 ###SNIPPETS###
+
+###INCLUDE_IF_EXISTS_LOCAL_SNAP_PROFILE###
 }
 `
 
