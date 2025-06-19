@@ -59,7 +59,9 @@ class TaskIdVariant(TaskId):
         return hash((self.suite, self.task_name, self.variant))
 
     def __str__(self) -> str:
-        return self.suite + ":" + self.task_name + ":" + self.variant
+        if self.variant:
+            return self.suite + ":" + self.task_name + ":" + self.variant
+        return self.suite + ":" + self.task_name
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -142,7 +144,8 @@ class MongoRetriever(Retriever):
                     yield system_json
         else:
             for result in self.collection.find({'timestamp': datetime.datetime.fromisoformat(timestamp)}):
-                yield result
+                if 'all_features' not in result or not result['all_features']:
+                    yield result
 
     def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         json_result = self.collection.find(
@@ -204,6 +207,8 @@ class DirRetriever(Retriever):
             raise RuntimeError(
                 f'timestamp {timestamp} not present in dir {self.dir}')
         for filename in os.listdir(timestamp_dir):
+            if filename == 'all-features.json':
+                continue
             if filename.endswith('.json') and (not systems or self.__get_filename_without_last_ext(filename) in systems):
                 with open(os.path.join(timestamp_dir, filename), 'r', encoding='utf-8') as f:
                     yield json.load(f)
@@ -348,6 +353,37 @@ def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: b
 
     return consolidate_system_features(
         system_json, include_tasks=include_tasks)
+
+
+def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, TaskIdVariant]:
+    '''
+    Given a timestamp, a feature, and optionally a system, finds
+    all tests that contain the indicated feature. If no system
+    is specified, then returns all systems that contain the 
+    feature combined with tests.
+
+    :param remove_failed: if true, will remove all instances of tests where success == False
+    :returns: dictionary where each key is a system and each value is a list of tests that contain the feature
+    '''
+
+    def feat_in_test(test: dict) -> bool:
+        for known_feature in KNOWN_FEATURES:
+            if known_feature in test and feat in test[known_feature]:
+                return True
+        return False
+
+    system_list = None
+    if system:
+        system_list = [system]
+    system_jsons = retriever.get_systems(timestamp, systems=system_list)
+
+    ret = {}
+    for system_json in system_jsons:
+        tests = [TaskIdVariant(suite=test['suite'], task_name=test['task_name'], variant=test['variant']) 
+                    for test in system_json['tests'] if feat_in_test(test) and (not remove_failed or test['success'])]
+        if tests:
+            ret[system_json['system']] = tests
+    return ret
 
 
 def check_duplicate(args):
@@ -529,6 +565,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction):
     cmd = 'feat'
     cmd_all = 'all'
     cmd_sys = 'sys'
+    cmd_find = 'find'
     feat: argparse.ArgumentParser = subparsers.add_parser(cmd, help='', description='')
     feat_subparsers = feat.add_subparsers(dest='features_cmd')
     all = feat_subparsers.add_parser(cmd_all, help='lists all features at a given timestamp',
@@ -545,7 +582,16 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction):
     sys.add_argument('--task', help='if provided, only grab features of this task', default=None, type=str)
     sys.add_argument('--variant', help='if provided, only grab features with this variant', default=None, type=str)
     sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
-    return cmd, cmd_all, cmd_sys
+
+
+    find = feat_subparsers.add_parser(cmd_find, help='given a feature, finds which tests contain it',
+                                     description='Lists tests that contain the feature')
+    add_data_source_args(find)
+    find.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+    find.add_argument('-s', '--system', help='(optional) system to search for feature in', default=None, type=str)
+    find.add_argument('--feat', help='feature to search for (json format)', required=True, type=str)
+    find.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    return cmd, cmd_all, cmd_sys, cmd_find
 
 
 def main():
@@ -557,7 +603,7 @@ def main():
     dup_cmd = add_dup_parser(subparsers)
     export_cmd = add_export_parser(subparsers)
     list_cmd = add_list_parser(subparsers)
-    feat_cmd, feat_all_cmd, feat_sys_cmd = add_all_features_parser(subparsers)
+    feat_cmd, feat_all_cmd, feat_sys_cmd, feat_find_cmd = add_all_features_parser(subparsers)
 
     args = parser.parse_args()
 
@@ -596,11 +642,19 @@ def main():
         elif args.command == feat_cmd:
             if args.features_cmd == feat_all_cmd:
                 result = retriever.get_all_features(args.timestamp)
+                json.dump(result, sys.stdout, cls=DateTimeEncoder)
             elif args.features_cmd == feat_sys_cmd:
                 result = feat_sys(retriever, args.timestamp, args.system, args.remove_failed, args.suite, args.task, args.variant)
+                json.dump(result, sys.stdout, cls=DateTimeEncoder)
+            elif args.features_cmd == feat_find_cmd:
+                try:
+                    feat = json.loads(args.feat)
+                    result = find_feat(retriever, args.timestamp, feat, args.remove_failed, args.system)
+                    json.dump(result, sys.stdout, default=lambda x: str(x))
+                except Exception as e:
+                    raise RuntimeError(f'Error parsing feature {args.feat}: {e}')
             else:
                 raise RuntimeError(f'unrecognized feature command {args.features_cmd}')
-            json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
         else:
             raise RuntimeError(f'command not recognized: {args.command}')
