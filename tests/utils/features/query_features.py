@@ -323,18 +323,24 @@ def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_
 
     :param remove_failed: if true, will remove all instances of tests where success == False
     '''
-    sys_features = cov(retriever, timestamp, system, remove_failed)
+    sys_features = feat_sys(retriever, timestamp, system, remove_failed)
     mns = minus(retriever.get_all_features(timestamp), sys_features)
     return mns
 
 
-def cov(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
+def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: bool, suite: str = None, task: str = None, variant: str = None) -> dict:
     '''
     Calculates set(system_features), at the indicated timestamp. 
 
     :param remove_failed: if true, will remove all instances of tests where success == False
     '''
     system_json = retriever.get_single_json(timestamp, system)
+
+    if suite or task or variant:
+        system_json['tests'] = [test for test in system_json['tests'] 
+                                if (not suite or test['suite'] == suite) and 
+                                (not task or test['task_name'] == task) and 
+                                (not variant or test['variant'] == variant)]
 
     include_tasks = None
     if remove_failed:
@@ -456,8 +462,8 @@ def add_diff_parsers(subparsers: argparse._SubParsersAction):
     cmd = 'diff'
     cmd_sys = 'systems'
     cmd_all = 'all-features'
-    diff: argparse.ArgumentParser = subparsers.add_parser(cmd, help='calculate diff between system features',
-                                 description='Calculates feature diff either between two systems or between a system and all features.')
+    diff: argparse.ArgumentParser = subparsers.add_parser(cmd, help='calculate diff between features',
+                                 description='Calculates feature diff either between two systems or between a system and all possible features.')
     diff_subparsers = diff.add_subparsers(dest='diff_cmd')
     sys = diff_subparsers.add_parser(cmd_sys, help='calculate diff between two systems\' features',
                                description=sys_description, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -519,15 +525,27 @@ def add_list_parser(subparsers: argparse._SubParsersAction):
     return cmd
 
 
-def add_cov_parser(subparsers: argparse._SubParsersAction):
-    cmd = 'cov'
-    cov: argparse.ArgumentParser = subparsers.add_parser(cmd, help='lists all features for a given system and timestamp',
-                                description='Lists all features for a given system and timestamp present in data source.')
-    add_data_source_args(cov)
-    cov.add_argument('-t', '--timestamp', help='timestamp for coverage data', required=True, type=str)
-    cov.add_argument('-s', '--system', help='system for coverage data', required=True, type=str)
-    cov.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
-    return cmd
+def add_all_features_parser(subparsers: argparse._SubParsersAction):
+    cmd = 'feat'
+    cmd_all = 'all'
+    cmd_sys = 'sys'
+    feat: argparse.ArgumentParser = subparsers.add_parser(cmd, help='', description='')
+    feat_subparsers = feat.add_subparsers(dest='features_cmd')
+    all = feat_subparsers.add_parser(cmd_all, help='lists all features at a given timestamp',
+                                     description='Lists all features for a given timestamp present in data source.')
+    add_data_source_args(all)
+    all.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+
+    sys = feat_subparsers.add_parser(cmd_sys, help='lists all features for a given system and timestamp',
+                                     description='Lists all features for a given system and timestamp present in data source.')
+    add_data_source_args(sys)
+    sys.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+    sys.add_argument('-s', '--system', help='system for feature data', required=True, type=str)
+    sys.add_argument('--suite', help='if provided, only grab features from this suite', default=None, type=str)
+    sys.add_argument('--task', help='if provided, only grab features of this task', default=None, type=str)
+    sys.add_argument('--variant', help='if provided, only grab features with this variant', default=None, type=str)
+    sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    return cmd, cmd_all, cmd_sys
 
 
 def main():
@@ -539,7 +557,7 @@ def main():
     dup_cmd = add_dup_parser(subparsers)
     export_cmd = add_export_parser(subparsers)
     list_cmd = add_list_parser(subparsers)
-    cov_cmd = add_cov_parser(subparsers)
+    feat_cmd, feat_all_cmd, feat_sys_cmd = add_all_features_parser(subparsers)
 
     args = parser.parse_args()
 
@@ -575,8 +593,13 @@ def main():
             result = retriever.get_sorted_timestamps_and_systems()
             json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
-        elif args.command == cov_cmd:
-            result = cov(retriever, args.timestamp, args.system, args.remove_failed)
+        elif args.command == feat_cmd:
+            if args.features_cmd == feat_all_cmd:
+                result = retriever.get_all_features(args.timestamp)
+            elif args.features_cmd == feat_sys_cmd:
+                result = feat_sys(retriever, args.timestamp, args.system, args.remove_failed, args.suite, args.task, args.variant)
+            else:
+                raise RuntimeError(f'unrecognized feature command {args.features_cmd}')
             json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
         else:
