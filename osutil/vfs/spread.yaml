@@ -1,0 +1,36 @@
+project: vfs-tests
+backends:
+    garden:
+        type: adhoc
+        allocate: |
+            if [ -n "${SPREAD_HOST_PATH-}" ]; then
+                PATH="${SPREAD_HOST_PATH}"
+            fi
+            export QEMU_SMP_OPTION="-smp 2"
+            export QEMU_MEM_OPTION="-m 512"
+            exec image-garden allocate "$SPREAD_SYSTEM"."$(uname -m)"
+        discard: |
+            if [ -n "${SPREAD_HOST_PATH-}" ]; then
+                PATH="${SPREAD_HOST_PATH}"
+            fi
+            image-garden discard "$SPREAD_SYSTEM_ADDRESS"
+        systems:
+            # Alpine is used for CI as this is has a very small image.
+            - alpine-cloud-3:
+                  username: root
+                  password: root
+            # Debian systems are for A/B testing of old/new kernels.
+            - debian-cloud-10:
+                  username: root
+                  password: root
+                  manual: true
+            - debian-cloud-sid:
+                  username: root
+                  password: root
+                  manual: true
+path: /root/vfs-tests
+exclude:
+    - ".image-garden/*"
+suites:
+    tests/:
+        summary: All vfs tests
