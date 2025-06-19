@@ -276,7 +276,7 @@ static int compat_fchmodat_symlink_nofollow(int fd, const char *name, mode_t mod
     /* not all kernels support fchmodat(.., AT_SYMLINK_NOFOLLOW) (at least 4.14
      * on AMZN2 does not), attempt to handle that gracefully */
     int ret = fchmodat(fd, name, mode, AT_SYMLINK_NOFOLLOW);
-    if (ret != 0 && errno == ENOTSUP) {
+    if (ret != 0 && (errno == ENOTSUP || errno == ENOSYS)) {
         /* reset errno */
         errno = 0;
         /* AT_SYMLINK_NOFOLLOW is not supported by the kernel */
