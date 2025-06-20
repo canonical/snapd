@@ -79,7 +79,7 @@ func (s *systemVolumesSuite) TestSystemVolumesBogusAction(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 	if (keys.RecoveryKey{}).String() == "not-implemented" {
-		s.apiBaseSuite.DisableActionsCheck()
+		s.apiBaseSuite.DisableActionsCheck("/v2/system-volumes", "generate-recovery-key")
 		c.Skip("needs working secboot recovery key")
 	}
 
@@ -109,7 +109,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKey(c *C) {
 	if (keys.RecoveryKey{}).String() == "not-implemented" {
-		s.apiBaseSuite.DisableActionsCheck()
+		s.apiBaseSuite.DisableActionsCheck("/v2/system-volumes", "check-recovery-key")
 		c.Skip("needs working secboot recovery key")
 	}
 
