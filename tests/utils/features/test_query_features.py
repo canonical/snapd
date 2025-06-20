@@ -845,12 +845,53 @@ class TestQueryFeatures:
                     systems=None,
                     output=tmpdir,
                 )
+                with patch('sys.stderr', new=StringIO()) as stderr_patch:
+                    query_features.main()
+                    assert stderr_patch.getvalue().startswith('could not find all features at timestamp 2025-05-04')
+
+                assert os.path.isdir(os.path.join(tmpdir, '2025-05-04'))
+                assert os.path.isdir(os.path.join(tmpdir, '2025-05-05'))
+                assert os.path.isfile(os.path.join(tmpdir, '2025-05-04', 'system1.json'))
+                assert os.path.isfile(os.path.join(tmpdir, '2025-05-05', 'system2.json'))
+
+
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_retriever_export_with_all(self, parse_args_mock: Mock, mocker_class: str):
+        data = [
+            {'timestamp': '2025-05-04', 'system': 'system1', 'tests': [
+                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
+                TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'5': 'd'}])
+            ]},
+            {'timestamp': '2025-05-05', 'system': 'system2', 'tests': [
+                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'c'}, {'cmd': 'd'}], endpoints=[{'1': 'a'}]),
+                TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'2': 'q'}])
+            ]},
+            {'timestamp': '2025-05-06', 'system': 'system3', 'tests': [
+                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}])
+            ]},
+            {'timestamp': '2025-05-04', 'all_features': True, 'cmds': [{'cmd': 'a'},{'cmd': 'b'},{'cmd': 'c'},{'cmd': 'd'}]},
+            {'timestamp': '2025-05-05', 'all_features': True, 'cmds': [{'cmd': 'a'},{'cmd': 'b'},{'cmd': 'c'},{'cmd': 'd'}]},
+        ]
+        Mocker = globals()[mocker_class]
+        with Mocker(data) as mocker:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                parse_args_mock.return_value = argparse.Namespace(
+                    command='export',
+                    file=StringIO('') if mocker_class == "MongoMocker" else None,
+                    dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
+                    timestamps=['2025-05-04', '2025-05-05'],
+                    systems=None,
+                    output=tmpdir,
+                )
                 query_features.main()
 
                 assert os.path.isdir(os.path.join(tmpdir, '2025-05-04'))
                 assert os.path.isdir(os.path.join(tmpdir, '2025-05-05'))
                 assert os.path.isfile(os.path.join(tmpdir, '2025-05-04', 'system1.json'))
                 assert os.path.isfile(os.path.join(tmpdir, '2025-05-05', 'system2.json'))
+                assert os.path.isfile(os.path.join(tmpdir, '2025-05-04', 'all-features.json'))
+                assert os.path.isfile(os.path.join(tmpdir, '2025-05-05', 'all-features.json'))
 
 
     @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])

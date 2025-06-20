@@ -437,6 +437,12 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
         for system_json in retriever.get_systems(timestamp, systems):
             with open(os.path.join(output, timestamp, system_json['system'] + ".json"), 'w', encoding='utf-8') as f:
                 json.dump(system_json, f, cls=DateTimeEncoder)
+        try:
+            all_features = retriever.get_all_features(timestamp)
+            with open(os.path.join(output, timestamp, 'all-features.json'), 'w', encoding='utf-8') as f:
+                json.dump(all_features, f, cls=DateTimeEncoder)
+        except Exception as e:
+            print(f'could not find all features at timestamp {timestamp}', file=sys.stderr)
 
 
 def add_data_source_args(parser: argparse.ArgumentParser):
