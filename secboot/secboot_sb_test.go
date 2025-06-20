@@ -3803,3 +3803,24 @@ func (s *secbootSuite) TestListContainerUnlockKeyNames(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(keyNames, DeepEquals, []string{"some-slot-1", "some-slot-2"})
 }
+
+func (s *secbootSuite) TestEntropyBits(c *C) {
+	defer secboot.MockSbCheckPassphraseEntropy(func(passphrase string) (*sb.PassphraseEntropyStats, error) {
+		c.Assert(passphrase, Equals, "some-passphrase")
+		return &sb.PassphraseEntropyStats{EntropyBits: 10}, nil
+	})()
+
+	entropy, err := secboot.EntropyBits("some-passphrase")
+	c.Assert(err, IsNil)
+	c.Check(entropy, Equals, uint32(10))
+}
+
+func (s *secbootSuite) TestEntropyBitsError(c *C) {
+	defer secboot.MockSbCheckPassphraseEntropy(func(passphrase string) (*sb.PassphraseEntropyStats, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	entropy, err := secboot.EntropyBits("some-passphrase")
+	c.Assert(err, ErrorMatches, "boom!")
+	c.Check(entropy, Equals, uint32(0))
+}
