@@ -358,7 +358,7 @@ execute: |
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"
 
   boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
-  remote.exec "sudo snap reboot --recover classic"
+  remote.exec "sudo snap reboot --recover classic" || true
   remote.wait-for reboot "${boot_id}"
 
   # we explicitly provide a password since the sudo group is not configured to
