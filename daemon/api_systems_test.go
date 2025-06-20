@@ -1455,12 +1455,56 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }
 
+func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
+	s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
+
+	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
+		c.Check(mode, check.Equals, device.AuthModePassphrase)
+		return &device.AuthQualityResult{
+			Entropy:        expectedEntropy,
+			MinEntropy:     expectedMinEntropy,
+			OptimalEntropy: expectedOptimalEntropy,
+		}, nil
+	})
+	defer restore()
+
+	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: true}, nil
+	})
+	defer restore()
+
+	body := map[string]string{
+		"action":     "check-passphrase",
+		"passphrase": "this is a good passphrase",
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20250619", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.DeepEquals, map[string]any{
+		"entropy-bits":         uint32(10),
+		"min-entropy-bits":     uint32(20),
+		"optimal-entropy-bits": uint32(50),
+	})
+}
+
 func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 	d := s.daemon(c)
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
 	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
 
 	for _, tc := range []struct {
 		passphrase  string
@@ -1494,9 +1538,10 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 			passphrase:     "bad-passphrase",
 			expectedStatus: 400, expectedErrKind: "invalid-passphrase", expectedErrMsg: "passphrase did not pass quality checks",
 			expectedErrValue: map[string]any{
-				"reasons":          []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				"entropy-bits":     expectedEntropy,
-				"min-entropy-bits": expectedMinEntropy,
+				"reasons":              []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				"entropy-bits":         expectedEntropy,
+				"min-entropy-bits":     expectedMinEntropy,
+				"optimal-entropy-bits": expectedOptimalEntropy,
 			},
 		},
 	} {
@@ -1515,13 +1560,14 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		})
 		defer restore()
 
-		restore = daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, passphrase string) (*device.AuthQualityResult, error) {
+		restore = daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
 			c.Check(mode, check.Equals, device.AuthModePassphrase)
 			return nil, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
 				Result: device.AuthQualityResult{
-					Entropy:    expectedEntropy,
-					MinEntropy: expectedMinEntropy,
+					Entropy:        expectedEntropy,
+					MinEntropy:     expectedMinEntropy,
+					OptimalEntropy: expectedOptimalEntropy,
 				},
 			}
 		})
@@ -1546,12 +1592,56 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 	}
 }
 
+func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
+	s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
+
+	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
+		c.Check(mode, check.Equals, device.AuthModePIN)
+		return &device.AuthQualityResult{
+			Entropy:        expectedEntropy,
+			MinEntropy:     expectedMinEntropy,
+			OptimalEntropy: expectedOptimalEntropy,
+		}, nil
+	})
+	defer restore()
+
+	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: true}, nil
+	})
+	defer restore()
+
+	body := map[string]string{
+		"action": "check-pin",
+		"pin":    "20250619",
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20250619", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.DeepEquals, map[string]any{
+		"entropy-bits":         uint32(10),
+		"min-entropy-bits":     uint32(20),
+		"optimal-entropy-bits": uint32(50),
+	})
+}
+
 func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	d := s.daemon(c)
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
 	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
 
 	for _, tc := range []struct {
 		pin         string
@@ -1585,9 +1675,10 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 			pin:            "0",
 			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "PIN did not pass quality checks",
 			expectedErrValue: map[string]any{
-				"reasons":          []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				"entropy-bits":     expectedEntropy,
-				"min-entropy-bits": expectedMinEntropy,
+				"reasons":              []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				"entropy-bits":         expectedEntropy,
+				"min-entropy-bits":     expectedMinEntropy,
+				"optimal-entropy-bits": expectedOptimalEntropy,
 			},
 		},
 	} {
@@ -1611,13 +1702,14 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		})
 		defer restore()
 
-		restore = daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, passphrase string) (*device.AuthQualityResult, error) {
+		restore = daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
 			c.Check(mode, check.Equals, device.AuthModePIN)
 			return nil, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
 				Result: device.AuthQualityResult{
-					Entropy:    expectedEntropy,
-					MinEntropy: expectedMinEntropy,
+					Entropy:        expectedEntropy,
+					MinEntropy:     expectedMinEntropy,
+					OptimalEntropy: expectedOptimalEntropy,
 				},
 			}
 		})
