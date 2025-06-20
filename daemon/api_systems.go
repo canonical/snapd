@@ -638,7 +638,7 @@ func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*instal
 	return encryptionInfo, nil
 }
 
-var deviceValidatePassphraseOrPINEntropy = device.ValidatePassphraseOrPINEntropy
+var deviceValidatePassphrase = device.ValidatePassphrase
 
 func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *systemActionRequest) Response {
 	if systemLabel == "" {
@@ -660,7 +660,7 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 		}
 	}
 
-	err = deviceValidatePassphraseOrPINEntropy(device.AuthModePassphrase, req.Passphrase)
+	_, err = deviceValidatePassphrase(device.AuthModePassphrase, req.Passphrase)
 	if err != nil {
 		var qualityErr *device.AuthQualityError
 		if errors.As(err, &qualityErr) {
@@ -670,8 +670,8 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 				Message: "passphrase did not pass quality checks",
 				Value: map[string]any{
 					"reasons":          qualityErr.Reasons,
-					"entropy-bits":     qualityErr.Entropy,
-					"min-entropy-bits": qualityErr.MinEntropy,
+					"entropy-bits":     qualityErr.Result.Entropy,
+					"min-entropy-bits": qualityErr.Result.MinEntropy,
 				},
 			}
 		}
@@ -701,7 +701,7 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 		}
 	}
 
-	err = deviceValidatePassphraseOrPINEntropy(device.AuthModePIN, req.PIN)
+	_, err = deviceValidatePassphrase(device.AuthModePIN, req.PIN)
 	if err != nil {
 		var qualityErr *device.AuthQualityError
 		if errors.As(err, &qualityErr) {
@@ -711,8 +711,8 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 				Message: "PIN did not pass quality checks",
 				Value: map[string]any{
 					"reasons":          qualityErr.Reasons,
-					"entropy-bits":     qualityErr.Entropy,
-					"min-entropy-bits": qualityErr.MinEntropy,
+					"entropy-bits":     qualityErr.Result.Entropy,
+					"min-entropy-bits": qualityErr.Result.MinEntropy,
 				},
 			}
 		}
