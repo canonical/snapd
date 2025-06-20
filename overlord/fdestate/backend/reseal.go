@@ -169,8 +169,17 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				return err
 			}
 			if parameters == nil {
-				revokeOldKeys = false
 				logger.Debugf("there was no parameters for run+recover/%s", container.ContainerRole())
+				if revokeOldKeys {
+					// After installation, on first boot, we have an incomplete FDE state.
+					// This is fine. In this case we are not supposed to revoke old keys.
+					// And we cannot revoke old keys because we probably did not update
+					// the expected counter value in the profile. Otherwise incrementing
+					// the counter would revoke the current keys. So as a safety
+					// precaution, we should just ignore revocation attempt in this case.
+					logger.Noticef("warning: we are trying to revoke old keys while we have an incomplete FDE state")
+					revokeOldKeys = false
+				}
 				continue
 			}
 
@@ -196,8 +205,17 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				return err
 			}
 			if parameters == nil {
-				revokeOldKeys = false
 				logger.Debugf("there was no parameters for recover/%s", container.ContainerRole())
+				if revokeOldKeys {
+					// After installation, on first boot, we have an incomplete FDE state.
+					// This is fine. In this case we are not supposed to revoke old keys.
+					// And we cannot revoke old keys because we probably did not update
+					// the expected counter value in the profile. Otherwise incrementing
+					// the counter would revoke the current keys. So as a safety
+					// precaution, we should just ignore revocation attempt in this case.
+					logger.Noticef("warning: we are trying to revoke old keys while we have an incomplete FDE state")
+					revokeOldKeys = false
+				}
 				continue
 			}
 
