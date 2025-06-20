@@ -6,6 +6,7 @@ from io import StringIO
 import json
 import os
 from pathlib import Path
+import pytest
 import sys
 import tempfile
 from typing import Iterable
@@ -92,6 +93,9 @@ class FakeMongoCollection:
 class MongoMocker:
     def __init__(self, collection_data, do_patch_stdout=False):
         self.collection_data = collection_data
+        for data in self.collection_data:
+            if 'timestamp' in data:
+                data['timestamp'] = datetime.fromisoformat(data['timestamp'])
         self.do_patch_stdout = do_patch_stdout
         self.patch_stdout = None
         self.patch_mongo = None
@@ -158,7 +162,7 @@ class DirMocker:
             self.patch_stdout.stop()
 
 
-class TestQueryFeatures(unittest.TestCase):
+class TestQueryFeatures:
 
     def test_dirretriever_get_sorted_timestamps_and_systems(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -173,10 +177,9 @@ class TestQueryFeatures(unittest.TestCase):
 
             retriever = query_features.DirRetriever(tmpdir)
             results = retriever.get_sorted_timestamps_and_systems()
-            self.assertEqual(2, len(results))
-            self.assertTrue({'timestamp':'timestamp2','systems':['system2']} in results)
-            self.assertTrue({'timestamp':'timestamp1','systems':['system1','system2']} in results or
-                            {'timestamp':'timestamp1','systems':['system2','system1']} in results)
+            assert 2 == len(results)
+            assert {'timestamp':'timestamp2','systems':['system2']} in results
+            assert {'timestamp':'timestamp1','systems':['system1','system2']} in results or {'timestamp':'timestamp1','systems':['system2','system1']} in results
 
 
     def test_dirretriever_get_systems(self):
@@ -189,15 +192,15 @@ class TestQueryFeatures(unittest.TestCase):
 
             retriever = query_features.DirRetriever(tmpdir)
             results = list(retriever.get_systems('timestamp1'))
-            self.assertEqual(2, len(results))
-            self.assertIn(SystemFeatures(system='system1'), results)
-            self.assertIn(SystemFeatures(system='system2'), results)
+            assert 2 == len(results)
+            assert SystemFeatures(system='system1') in results
+            assert SystemFeatures(system='system2') in results
             results = list(retriever.get_systems('timestamp1', ['system1', 'system2']))
-            self.assertEqual(2, len(results))
-            self.assertIn(SystemFeatures(system='system1'), results)
-            self.assertIn(SystemFeatures(system='system2'), results)
+            assert 2 == len(results)
+            assert SystemFeatures(system='system1') in results
+            assert SystemFeatures(system='system2') in results
             results = list(retriever.get_systems('timestamp1', ['system1']))
-            self.assertListEqual([SystemFeatures(system='system1')], results)
+            assert [SystemFeatures(system='system1')] == results
 
     def test_dirretriever_get_single_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -206,7 +209,7 @@ class TestQueryFeatures(unittest.TestCase):
                 json.dump(SystemFeatures(system='system1'), f)
             retriever = query_features.DirRetriever(tmpdir)
             result = retriever.get_single_json('timestamp1', 'system1')
-            self.assertDictEqual(SystemFeatures(system='system1'), result)
+            assert SystemFeatures(system='system1') == result
 
     def test_dirretriever_get_all_features(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -221,7 +224,7 @@ class TestQueryFeatures(unittest.TestCase):
             retriever = query_features.DirRetriever(tmpdir)
             result = retriever.get_all_features('timestamp1')
             del all_features['timestamp']
-            self.assertDictEqual(all_features, result)
+            assert all_features == result
 
     def test_consolidate_features(self):
         j = {"tests": [
@@ -234,16 +237,16 @@ class TestQueryFeatures(unittest.TestCase):
              }
         ]}
         c = query_features.consolidate_system_features(j)
-        self.assertEqual(len(c), 2)
-        self.assertTrue("cmds" in c)
-        self.assertEqual(len(c["cmds"]), 3)
-        self.assertTrue({"cmd": "snap list --all"} in c["cmds"])
-        self.assertTrue({"cmd": "snap ack file"} in c["cmds"])
-        self.assertTrue({"cmd": "snap do things"} in c["cmds"])
-        self.assertTrue("ensures" in c)
-        self.assertEqual(len(c["ensures"]), 2)
-        self.assertTrue({"manager":"SnapManager","function":"ensureFunc1"} in c["ensures"])
-        self.assertTrue({"manager":"SnapManager","function":"ensureFunc2"} in c["ensures"])
+        assert len(c) == 2
+        assert "cmds" in c
+        assert len(c["cmds"]) == 3
+        assert {"cmd": "snap list --all"} in c["cmds"]
+        assert {"cmd": "snap ack file"} in c["cmds"]
+        assert {"cmd": "snap do things"} in c["cmds"]
+        assert "ensures" in c
+        assert len(c["ensures"]) == 2
+        assert {"manager":"SnapManager","function":"ensureFunc1"} in c["ensures"]
+        assert {"manager":"SnapManager","function":"ensureFunc2"} in c["ensures"]
 
 
     def test_consolidate_features_exclude_task(self):
@@ -257,14 +260,14 @@ class TestQueryFeatures(unittest.TestCase):
              }
         ]}
         c = query_features.consolidate_system_features(j, exclude_tasks=[query_features.TaskId(suite='suite',task_name="task1")])
-        self.assertEqual(len(c), 2)
-        self.assertTrue("cmds" in c)
-        self.assertEqual(len(c["cmds"]), 2)
-        self.assertTrue({"cmd": "snap list --all"} in c["cmds"])
-        self.assertTrue({"cmd": "snap do things"} in c["cmds"])
-        self.assertTrue("ensures" in c)
-        self.assertEqual(len(c["ensures"]), 1)
-        self.assertTrue({"manager": "SnapManager", "function": "ensureFunc2"} in c["ensures"])
+        assert len(c) == 2
+        assert "cmds" in c
+        assert len(c["cmds"]) == 2
+        assert {"cmd": "snap list --all"} in c["cmds"]
+        assert {"cmd": "snap do things"} in c["cmds"]
+        assert "ensures" in c
+        assert len(c["ensures"]) == 1
+        assert {"manager": "SnapManager", "function": "ensureFunc2"} in c["ensures"]
 
     def test_consolidate_features_include_task(self):
         j = {"tests": [
@@ -277,14 +280,14 @@ class TestQueryFeatures(unittest.TestCase):
              }
         ]}
         c = query_features.consolidate_system_features(j, include_tasks=[query_features.TaskId(suite='suite',task_name="task2")])
-        self.assertEqual(len(c), 2)
-        self.assertTrue("cmds" in c)
-        self.assertEqual(len(c["cmds"]), 2)
-        self.assertTrue({"cmd": "snap list --all"} in c["cmds"])
-        self.assertTrue({"cmd": "snap do things"} in c["cmds"])
-        self.assertTrue("ensures" in c)
-        self.assertEqual(len(c["ensures"]), 1)
-        self.assertTrue({"manager": "SnapManager", "function": "ensureFunc2"} in c["ensures"])
+        assert len(c) == 2
+        assert "cmds" in c
+        assert len(c["cmds"]) == 2
+        assert {"cmd": "snap list --all"} in c["cmds"]
+        assert {"cmd": "snap do things"} in c["cmds"]
+        assert "ensures" in c
+        assert len(c["ensures"]) == 1
+        assert {"manager": "SnapManager", "function": "ensureFunc2"} in c["ensures"]
 
     def test_features_minus(self):
         j = {"cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
@@ -294,14 +297,13 @@ class TestQueryFeatures(unittest.TestCase):
              "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}],
              }
         minus = query_features.minus(j, k)
-        self.assertEqual(len(minus), 2)
-        self.assertTrue("cmds" in minus)
-        self.assertTrue("ensures" in minus)
-        self.assertEqual(len(minus["cmds"]), 1)
-        self.assertTrue({"cmd": "snap ack file"} in minus["cmds"])
-        self.assertEqual(len(minus["ensures"]), 1)
-        self.assertTrue({"manager": "SnapManager",
-                        "function": "ensureFunc1"} in minus["ensures"])
+        assert len(minus) == 2
+        assert "cmds" in minus
+        assert "ensures" in minus
+        assert len(minus["cmds"]), 1
+        assert {"cmd": "snap ack file"} in minus["cmds"]
+        assert len(minus["ensures"]) == 1
+        assert {"manager": "SnapManager", "function": "ensureFunc1"} in minus["ensures"]
 
     def test_list_tasks(self):
         sys_json = SystemFeatures(tests=[
@@ -310,14 +312,14 @@ class TestQueryFeatures(unittest.TestCase):
         ])
         tasks_all = query_features.list_tasks(sys_json, False)
         tasks_success = query_features.list_tasks(sys_json, True)
-        self.assertSetEqual({query_features.TaskIdVariant('suite1', 'task1', 'variant1'),
-                             query_features.TaskIdVariant('suite2', 'task2', 'variant2')}, tasks_all)
-        self.assertSetEqual({query_features.TaskIdVariant('suite1', 'task1', 'variant1')}, tasks_success)
+        assert {query_features.TaskIdVariant('suite1', 'task1', 'variant1'),
+                             query_features.TaskIdVariant('suite2', 'task2', 'variant2')} == tasks_all
+        assert {query_features.TaskIdVariant('suite1', 'task1', 'variant1')} == tasks_success
 
     def test_list_tasks_empty(self):
         sys_json = SystemFeatures(tests=[])
         tasks = query_features.list_tasks(sys_json, False)
-        self.assertSetEqual(set(), tasks)
+        assert set() == tasks
 
     def test_check_dup_none(self):
         system_json = SystemFeatures(tests=[
@@ -328,9 +330,9 @@ class TestQueryFeatures(unittest.TestCase):
             TaskFeatures(suite='suite',task_name='task4',variant='b',cmds=[Cmd(cmd='cmd1')]),
         ])
         dups = query_features.check_duplicate((system_json['tests'][0], system_json))
-        self.assertIsNone(dups)
+        assert dups == None
         dups = query_features.check_duplicate((system_json['tests'][1], system_json))
-        self.assertIsNone(dups)
+        assert dups == None
 
     def test_check_dup_no_variant(self):
         system_json = SystemFeatures(tests=[
@@ -341,11 +343,11 @@ class TestQueryFeatures(unittest.TestCase):
             TaskFeatures(suite='suite',task_name='task4',variant='b',cmds=[Cmd(cmd='cmd1')]),
         ])
         dups = query_features.check_duplicate((system_json['tests'][2], system_json))
-        self.assertEqual(query_features.TaskIdVariant(suite='suite',task_name='task2',variant=''), dups)
+        assert query_features.TaskIdVariant(suite='suite',task_name='task2',variant='') == dups
         dups = query_features.check_duplicate((system_json['tests'][3], system_json))
-        self.assertEqual(query_features.TaskIdVariant(suite='suite',task_name='task3',variant=''), dups)
+        assert query_features.TaskIdVariant(suite='suite',task_name='task3',variant='') == dups
         dups = query_features.check_duplicate((system_json['tests'][4], system_json))
-        self.assertEqual(query_features.TaskIdVariant(suite='suite',task_name='task4',variant='b'), dups)
+        assert query_features.TaskIdVariant(suite='suite',task_name='task4',variant='b') == dups
 
 
     def test_dup(self):
@@ -366,9 +368,9 @@ class TestQueryFeatures(unittest.TestCase):
                          endpoints=[Endpoint(method="GET", path="/v2/snaps")]),]}}}
         retriever = DictRetriever(data)
         dup = query_features.dup(retriever, 'timestamp1', 'system1', False)
-        self.assertListEqual([query_features.TaskIdVariant(suite='suite', task_name='task3', variant='v2')], dup)
+        assert [query_features.TaskIdVariant(suite='suite', task_name='task3', variant='v2')] == dup
         dup = query_features.dup(retriever, 'timestamp1', 'system1', True)
-        self.assertListEqual([], dup)
+        assert [] == dup
 
     def test_dup_variants(self):
         data = {'timestamp1': {'system1': {'tests': [
@@ -390,10 +392,10 @@ class TestQueryFeatures(unittest.TestCase):
         dup = query_features.dup(retriever, 'timestamp1', 'system1', False)
         # Features from variants of the same test should not influence
         # duplicate calculation. The only duplicate task should be task3
-        self.assertListEqual([query_features.TaskIdVariant(
-            suite='suite', task_name='task3', variant='v2')], dup)
+        assert [query_features.TaskIdVariant(
+            suite='suite', task_name='task3', variant='v2')] == dup
         dup = query_features.dup(retriever, 'timestamp1', 'system1', True)
-        self.assertListEqual([], dup)
+        assert [] == dup
 
     def test_export(self):
         t1s1_dict = SystemFeatures(system='system1', tests=[
@@ -410,16 +412,16 @@ class TestQueryFeatures(unittest.TestCase):
         retriever = DictRetriever(data)
 
         def check_equal(file, ref_dict):
-            self.assertTrue(os.path.isfile(file))
+            assert os.path.isfile(file)
             with open(file, 'r', encoding='utf-8') as f:
-                self.assertDictEqual(ref_dict, json.load(f))
+                assert ref_dict == json.load(f)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             query_features.export(retriever, tmpdir, ['timestamp1', 'timestamp2'], None)
             timestamp1 = os.path.join(tmpdir, 'timestamp1')
             timestamp2 = os.path.join(tmpdir, 'timestamp2')
-            self.assertTrue(os.path.isdir(timestamp1))
-            self.assertTrue(os.path.isdir(timestamp2))
+            assert os.path.isdir(timestamp1)
+            assert os.path.isdir(timestamp2)
             check_equal(os.path.join(timestamp1, 'system1.json'), t1s1_dict)
             check_equal(os.path.join(timestamp1, 'system2.json'), s2_dict)
             check_equal(os.path.join(timestamp2, 'system1.json'), t2s1_dict)
@@ -451,43 +453,43 @@ class TestQueryFeatures(unittest.TestCase):
         # When getting difference only between the same tasks in both systems,
         # the only difference is in suite:task1
         diff = query_features.diff(retriever, 'timestamp1', 'system1', 'timestamp2', 'system1', False, True)
-        self.assertDictEqual({"cmds":[Cmd(cmd="snap ack file")]}, diff)
+        assert {"cmds":[Cmd(cmd="snap ack file")]} == diff
         diff = query_features.diff(retriever, 'timestamp2', 'system1', 'timestamp1', 'system1', False, True)
-        self.assertDictEqual({"endpoints":[Endpoint(method="GET", path="/v2/changes/{id}")]}, diff)
+        assert {"endpoints":[Endpoint(method="GET", path="/v2/changes/{id}")]} == diff
 
         # When getting difference only between the same tasks in both systems,
         # and also removing failed tasks, then there are no tasks features to compare
         # since suite:task1 failed on timestamp2
         diff = query_features.diff(retriever, 'timestamp1', 'system1', 'timestamp2', 'system1', True, True)
-        self.assertDictEqual({}, diff)
+        assert {} == diff
         diff = query_features.diff(retriever, 'timestamp2', 'system1', 'timestamp1', 'system1', True, True)
-        self.assertDictEqual({}, diff)
+        assert {} == diff
 
         # When getting all differences, suite:task2:v1, that isn't present
         # on the timestamp2 run, gets counted.
         diff = query_features.diff(retriever, 'timestamp1', 'system1', 'timestamp2', 'system1', False, False)
-        self.assertDictEqual({"cmds":[Cmd(cmd="snap ack file"),Cmd(cmd="snap pack file"),Cmd(cmd="snap debug api")],
-                              "endpoints":[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")]}, diff)
+        assert {"cmds":[Cmd(cmd="snap ack file"),Cmd(cmd="snap pack file"),Cmd(cmd="snap debug api")],
+                              "endpoints":[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")]} == diff
         diff = query_features.diff(retriever, 'timestamp2', 'system1', 'timestamp1', 'system1', False, False)
-        self.assertDictEqual({"endpoints":[Endpoint(method="GET", path="/v2/changes/{id}")]}, diff)
+        assert {"endpoints":[Endpoint(method="GET", path="/v2/changes/{id}")]} == diff
 
         # When removing all failed executions, the difference becomes
         # all features of suite:task1 and suite:task2:v1 in timestamp1
         # because suite:task1 failed in timestamp2 and so is removed.
         diff = query_features.diff(retriever, 'timestamp1', 'system1', 'timestamp2', 'system1', True, False)
-        self.assertDictEqual({
+        assert {
             "cmds":[Cmd(cmd="snap list --all"),Cmd(cmd="snap ack file"),Cmd(cmd="snap pack file"),Cmd(cmd="snap debug api")],
             "endpoints":[Endpoint(method="GET", path="/v2/snaps"),Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")],
             "changes":[Change(kind="install-snap", snap_types=["app"])]
-        }, diff)
+        } == diff
         diff = query_features.diff(retriever, 'timestamp1', 'system1', 'timestamp1', 'system1', True, False)
-        self.assertDictEqual({}, diff)
+        assert {} == diff
 
         # Empty dictionaries of tests have no feature difference
         diff = query_features.diff(retriever, 'timestamp1', 'system2', 'timestamp2', 'system2', False, False)
-        self.assertDictEqual({}, diff)
+        assert {} == diff
         diff = query_features.diff(retriever, 'timestamp2', 'system2', 'timestamp1', 'system2', False, False)
-        self.assertDictEqual({}, diff)
+        assert {} == diff
 
     def test_feat_sys(self):
         data = {'timestamp1': {'system': {'tests': [
@@ -510,13 +512,13 @@ class TestQueryFeatures(unittest.TestCase):
         expected = {'cmds':[cmd for entry in data['timestamp1']['system']['tests'] if 'cmds' in entry for cmd in entry['cmds']],
                     'endpoints':[endpt for entry in data['timestamp1']['system']['tests'] if 'endpoints' in entry for endpt in entry['endpoints']],
                     'changes':[change for entry in data['timestamp1']['system']['tests'] if 'changes' in entry for change in entry['changes']]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', True)
         expected = {'cmds':[Cmd(cmd="snap list"),Cmd(cmd="snap pack"),Cmd(cmd="snap debug api")],
                     'endpoints':[Endpoint(method="GET", path="/v2/snaps"),Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")],
                     'changes':[Change(kind="install-snap", snap_types=["app"])]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
     def test_feat_sys_suite(self):
         data = {'timestamp1': {'system': {'tests': [
@@ -539,20 +541,20 @@ class TestQueryFeatures(unittest.TestCase):
         expected = {'cmds':[Cmd(cmd="snap list")],
                     'endpoints':[Endpoint(method="GET", path="/v2/snaps")],
                     'changes':[Change(kind="install-snap", snap_types=["app"])]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', True, suite='suite2')
         expected = {'cmds':[Cmd(cmd="snap pack"), Cmd(cmd="snap debug api")],
                     'endpoints':[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', False, suite='suite2')
         expected = {'cmds':[Cmd(cmd="snap pack"), Cmd(cmd="snap debug api"), Cmd(cmd="snap routine file-access")],
                     'endpoints':[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove"),Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', False, suite='doesnotexist')
-        self.assertDictEqual({}, cov)
+        assert {} == cov
 
     def test_feat_sys_task(self):
         data = {'timestamp1': {'system': {'tests': [
@@ -575,16 +577,16 @@ class TestQueryFeatures(unittest.TestCase):
         expected = {'cmds':[Cmd(cmd="snap list")],
                     'endpoints':[Endpoint(method="GET", path="/v2/snaps")],
                     'changes':[Change(kind="install-snap", snap_types=["app"])]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', False, task='task1')
         expected = {'cmds':[Cmd(cmd="snap list"),Cmd(cmd="snap routine file-access")],
                     'endpoints':[Endpoint(method="GET", path="/v2/snaps"), Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")],
                     'changes':[Change(kind="install-snap", snap_types=["app"])]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', False, task='doesnotexist')
-        self.assertDictEqual({}, cov)
+        assert {} == cov
 
     def test_feat_sys_variant(self):
         data = {'timestamp1': {'system': {'tests': [
@@ -606,15 +608,15 @@ class TestQueryFeatures(unittest.TestCase):
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', True, variant='v1')
         expected = {'cmds':[Cmd(cmd="snap pack"),Cmd(cmd="snap debug api")],
                     'endpoints':[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', False, variant='v1')
         expected = {'cmds':[Cmd(cmd="snap pack"),Cmd(cmd="snap debug api"),Cmd(cmd="snap routine file-access")],
                     'endpoints':[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove"),Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")]}
-        self.assertDictEqual(expected, cov)
+        assert expected == cov
 
         cov = query_features.feat_sys(retriever, 'timestamp1', 'system', False, variant='doesnotexist')
-        self.assertDictEqual({}, cov)
+        assert {} == cov
 
     def test_diff_feat_all(self):
         data = {'timestamp1': {'system': {'tests': [
@@ -640,14 +642,14 @@ class TestQueryFeatures(unittest.TestCase):
 
         diff = query_features.diff_all_features(retriever, 'timestamp1', 'system', False)
         expected = {'changes':[Change(kind="create-recovery-system", snap_types=[])]}
-        self.assertDictEqual(expected, diff)
+        assert expected == diff
 
         diff = query_features.diff_all_features(retriever, 'timestamp1', 'system', True)
         expected = {
             'cmds':[Cmd(cmd="snap routine file-access")],
             'endpoints':[Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")],
             'changes':[Change(kind="create-recovery-system", snap_types=[])]}
-        self.assertDictEqual(expected, diff)
+        assert expected == diff
 
     def test_feat_find(self):
         data = {'timestamp1': {'system': {'system':'system', 'tests': [
@@ -668,11 +670,12 @@ class TestQueryFeatures(unittest.TestCase):
         retriever = DictRetriever(data)
         tests = query_features.find_feat(retriever, 'timestamp1', Cmd(cmd="snap list"), False)
         expected = {'system': [TaskIdVariant(suite='suite1',task_name='task1',variant=''),TaskIdVariant(suite='suite2',task_name='task1',variant='v1')]}
-        self.assertEqual(json.dumps(expected, default=lambda x: str(x)), json.dumps(tests, default=lambda x: str(x)))
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
 
         tests = query_features.find_feat(retriever, 'timestamp1', Cmd(cmd="snap list"), True)
         expected = {'system': [TaskIdVariant(suite='suite1',task_name='task1',variant='')]}
-        self.assertEqual(json.dumps(expected, default=lambda x: str(x)), json.dumps(tests, default=lambda x: str(x)))
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
 
     @patch('argparse.ArgumentParser.parse_args')
     def test_dirretriever_list(self, parse_args_mock: Mock):
@@ -689,18 +692,19 @@ class TestQueryFeatures(unittest.TestCase):
             )
             query_features.main()
             actual = json.loads(dm.get_stdout())
-            self.assertEqual(2, len(actual))
+            assert 2 == len(actual)
             in_actual = {'timestamp': '2025-05-04', 'systems': ['system1', 'system2']} in actual \
                 or {'timestamp': '2025-05-04', 'systems': ['system2', 'system1']} in actual
-            self.assertTrue(in_actual)
-            self.assertIn({'timestamp': '2025-05-05','systems': ['system2']}, actual)
+            assert in_actual
+            assert {'timestamp': '2025-05-05','systems': ['system2']} in actual
+
 
     @patch('argparse.ArgumentParser.parse_args')
     def test_mongoretriever_list(self, parse_args_mock: Mock):
         data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system1'},
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system2'},
-            {'timestamp': datetime.fromisoformat('2025-05-05'), 'system': 'system2'}
+            {'timestamp': '2025-05-04', 'system': 'system1'},
+            {'timestamp': '2025-05-04', 'system': 'system2'},
+            {'timestamp': '2025-05-05', 'system': 'system2'}
         ]
         with MongoMocker(data, do_patch_stdout=True) as mm:
             parse_args_mock.return_value = argparse.Namespace(
@@ -710,45 +714,16 @@ class TestQueryFeatures(unittest.TestCase):
             )
             query_features.main()
             actual = json.loads(mm.get_stdout())
-            self.assertEqual(2, len(actual))
+            assert 2, len(actual)
             in_actual = {'timestamp': '2025-05-04T00:00:00', 'systems': ['system1', 'system2']} in actual \
                 or {'timestamp': '2025-05-04T00:00:00', 'systems': ['system2', 'system1']} in actual
-            self.assertTrue(in_actual)
-            self.assertIn({'timestamp': '2025-05-05T00:00:00', 'systems': ['system2']}, actual)
+            assert in_actual
+            assert {'timestamp': '2025-05-05T00:00:00', 'systems': ['system2']} in actual
 
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_diff_systems(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'endpoints': [{'5': 'd'}]},
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-05'), 'system': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'c'}], 'endpoints': [{'1': 'b'}, {'2': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'tasks': [{'task': 'a'}]},
-                {'cmds': [{'cmd': 'e'}], 'endpoints': [{'5': 'd'}]}
-            ]}
-        ]
-        with MongoMocker(data, do_patch_stdout=True) as mm:
-            parse_args_mock.return_value = argparse.Namespace(
-                command='diff',
-                diff_cmd='systems',
-                file=StringIO(''),
-                dir=None,
-                timestamp1='2025-05-04',
-                system1='system',
-                timestamp2='2025-05-05',
-                system2='system',
-                remove_failed=False,
-                only_same=False
-            )
-            query_features.main()
-            expected = {'cmds': [{'cmd': 'b'}], 'endpoints': [{'1': 'a'}]}
-            actual = json.loads(mm.get_stdout())
-            self.assertDictEqual(expected, actual)
 
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_diff_systems(self, parse_args_mock: Mock):
+    def test_retriever_diff_systems(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system', 'tests': [
                 {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
@@ -760,12 +735,13 @@ class TestQueryFeatures(unittest.TestCase):
                 {'cmds': [{'cmd': 'e'}], 'endpoints': [{'5': 'd'}]}
             ]}
         ]
-        with DirMocker(data, do_patch_stdout=True) as dm:
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
             parse_args_mock.return_value = argparse.Namespace(
                 command='diff',
                 diff_cmd='systems',
-                file=None,
-                dir=dm.get_dir(),
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                 timestamp1='2025-05-04',
                 system1='system',
                 timestamp2='2025-05-05',
@@ -775,44 +751,13 @@ class TestQueryFeatures(unittest.TestCase):
             )
             query_features.main()
             expected = {'cmds': [{'cmd': 'b'}], 'endpoints': [{'1': 'a'}]}
-            actual = json.loads(dm.get_stdout())
-            self.assertDictEqual(expected, actual)
+            actual = json.loads(mocker.get_stdout())
+            assert expected == actual
 
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_diff_all(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'endpoints': [{'5': 'd'}]},
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system2': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'c'}], 'endpoints': [{'1': 'b'}, {'2': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'tasks': [{'task': 'a'}]},
-                {'cmds': [{'cmd': 'e'}], 'endpoints': [{'5': 'd'}]}
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'all_features': True,
-                'cmds': [{'cmd': 'a'}, {'cmd': 'b'}, {'cmd': 'c'}, {'cmd': 'd'}, {'cmd': 'e'}, {'cmd': 'f'}], 
-                'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
-            }
-        ]
-        with MongoMocker(data, do_patch_stdout=True) as mm:
-            parse_args_mock.return_value = argparse.Namespace(
-                command='diff',
-                diff_cmd='all-features',
-                file=StringIO(''),
-                dir=None,
-                timestamp='2025-05-04',
-                system='system',
-                remove_failed=False
-            )
-            query_features.main()
-            expected = {'cmds': [{'cmd': 'c'},{'cmd': 'e'},{'cmd': 'f'}],
-                        'endpoints': [{'1': 'b'},{'2': 'a'}]}
-            actual = json.loads(mm.get_stdout())
-            self.assertDictEqual(expected, actual)
 
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_diff_all(self, parse_args_mock: Mock):
+    def test_retriever_diff_all(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system', 'tests': [
                 {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
@@ -828,12 +773,13 @@ class TestQueryFeatures(unittest.TestCase):
                 'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
             }
         ]
-        with DirMocker(data, do_patch_stdout=True) as dm:
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
             parse_args_mock.return_value = argparse.Namespace(
                 command='diff',
                 diff_cmd='all-features',
-                file=None,
-                dir=dm.get_dir(),
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                 timestamp='2025-05-04',
                 system='system',
                 remove_failed=False
@@ -841,36 +787,13 @@ class TestQueryFeatures(unittest.TestCase):
             query_features.main()
             expected = {'cmds': [{'cmd': 'c'},{'cmd': 'e'},{'cmd': 'f'}],
                         'endpoints': [{'1': 'b'},{'2': 'a'}]}
-            actual = json.loads(dm.get_stdout())
-            self.assertDictEqual(expected, actual)
+            actual = json.loads(mocker.get_stdout())
+            assert expected == actual
 
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_dup(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system', 'tests': [
-                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
-                TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'5': 'd'}]),
-                TaskFeatures(task_name='task3', suite='suite2', variant='', cmds=[{'cmd': 'd'}]),
-                TaskFeatures(task_name='task4', suite='suite1', variant='v1', endpoints=[{'1': 'a'}])
-            ]}
-        ]
-        with MongoMocker(data, do_patch_stdout=True) as mm:
-            parse_args_mock.return_value = argparse.Namespace(
-                command='dup',
-                file=StringIO(''),
-                dir=None,
-                timestamp='2025-05-04',
-                system='system',
-                remove_failed=False,
-            )
-            query_features.main()
-            actual = json.loads(mm.get_stdout())
-            self.assertEqual(2, len(actual))
-            self.assertIn('suite2:task3', actual)
-            self.assertIn('suite1:task4:v1', actual)
 
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_dup(self, parse_args_mock: Mock):
+    def test_retriever_dup(self, parse_args_mock: Mock, mocker_class: str):
         data = [{'timestamp': '2025-05-04', 'system': 'system', 'tests': [
             TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
             TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'5': 'd'}]),
@@ -878,55 +801,26 @@ class TestQueryFeatures(unittest.TestCase):
             TaskFeatures(task_name='task4', suite='suite1', variant='v1', endpoints=[{'1': 'a'}])
         ]}
         ]
-        with DirMocker(data, do_patch_stdout=True) as dm:
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
             parse_args_mock.return_value = argparse.Namespace(
                 command='dup',
-                file=None,
-                dir=dm.get_dir(),
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                 timestamp='2025-05-04',
                 system='system',
                 remove_failed=False,
             )
             query_features.main()
-            actual = json.loads(dm.get_stdout())
-            self.assertEqual(2, len(actual))
-            self.assertIn('suite2:task3', actual)
-            self.assertIn('suite1:task4:v1', actual)
+            actual = json.loads(mocker.get_stdout())
+            assert 2 == len(actual)
+            assert 'suite2:task3' in actual
+            assert 'suite1:task4:v1' in actual
 
+
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_export(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system1', 'tests': [
-                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
-                TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'5': 'd'}])
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-05'), 'system': 'system2', 'tests': [
-                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'c'}, {'cmd': 'd'}], endpoints=[{'1': 'a'}]),
-                TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'2': 'q'}])
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-06'), 'system': 'system3', 'tests': [
-                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}])
-            ]},
-        ]
-        with MongoMocker(data):
-            with tempfile.TemporaryDirectory() as tmpdir:
-                parse_args_mock.return_value = argparse.Namespace(
-                    command='export',
-                    file=StringIO(''),
-                    dir=None,
-                    timestamps=['2025-05-04', '2025-05-05'],
-                    systems=None,
-                    output=tmpdir,
-                )
-                query_features.main()
-
-                self.assertTrue(os.path.isdir(os.path.join(tmpdir, '2025-05-04')))
-                self.assertTrue(os.path.isdir(os.path.join(tmpdir, '2025-05-05')))
-                self.assertTrue(os.path.isfile(os.path.join(tmpdir, '2025-05-04', 'system1.json')))
-                self.assertTrue(os.path.isfile(os.path.join(tmpdir, '2025-05-05', 'system2.json')))
-
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_export(self, parse_args_mock: Mock):
+    def test_retriever_export(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system1', 'tests': [
                 TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
@@ -940,25 +834,28 @@ class TestQueryFeatures(unittest.TestCase):
                 TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}])
             ]},
         ]
-        with DirMocker(data) as dm:
+        Mocker = globals()[mocker_class]
+        with Mocker(data) as mocker:
             with tempfile.TemporaryDirectory() as tmpdir:
                 parse_args_mock.return_value = argparse.Namespace(
                     command='export',
-                    file=None,
-                    dir=dm.get_dir(),
+                    file=StringIO('') if mocker_class == "MongoMocker" else None,
+                    dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                     timestamps=['2025-05-04', '2025-05-05'],
                     systems=None,
                     output=tmpdir,
                 )
                 query_features.main()
 
-                self.assertTrue(os.path.isdir(os.path.join(tmpdir, '2025-05-04')))
-                self.assertTrue(os.path.isdir(os.path.join(tmpdir, '2025-05-05')))
-                self.assertTrue(os.path.isfile(os.path.join(tmpdir, '2025-05-04', 'system1.json')))
-                self.assertTrue(os.path.isfile(os.path.join(tmpdir, '2025-05-05', 'system2.json')))
+                assert os.path.isdir(os.path.join(tmpdir, '2025-05-04'))
+                assert os.path.isdir(os.path.join(tmpdir, '2025-05-05'))
+                assert os.path.isfile(os.path.join(tmpdir, '2025-05-04', 'system1.json'))
+                assert os.path.isfile(os.path.join(tmpdir, '2025-05-05', 'system2.json'))
 
+
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_feat_sys(self, parse_args_mock: Mock):
+    def test_retriever_feat_sys(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system1', 'tests': [
                 TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}], success=True),
@@ -966,12 +863,13 @@ class TestQueryFeatures(unittest.TestCase):
                 TaskFeatures(task_name='task3', suite='suite2', variant='', cmds=[{'cmd': 'c'}], success=False)
             ]}
         ]
-        with MongoMocker(data, do_patch_stdout=True) as dm:
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
             parse_args_mock.return_value = argparse.Namespace(
                 command='feat',
                 features_cmd='sys',
-                file=StringIO(''),
-                dir=None,
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                 timestamp='2025-05-04',
                 system='system1',
                 suite=None,
@@ -981,70 +879,15 @@ class TestQueryFeatures(unittest.TestCase):
             )
             query_features.main()
 
-            output = json.loads(dm.get_stdout())
+            output = json.loads(mocker.get_stdout())
             expected = {'cmds':[{'cmd':'a'},{'cmd':'b'},{'cmd':'d'}],
                         'endpoints':[{'1':'a'},{'5':'d'}]}
-            self.assertDictEqual(expected, output)
+            assert expected == output
 
+
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_feat_sys(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': '2025-05-04', 'system': 'system1', 'tests': [
-                TaskFeatures(task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}], success=True),
-                TaskFeatures(task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'5': 'd'}], success=True),
-                TaskFeatures(task_name='task3', suite='suite2', variant='', cmds=[{'cmd': 'c'}], success=False)
-            ]}
-        ]
-        with DirMocker(data, do_patch_stdout=True) as dm:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                parse_args_mock.return_value = argparse.Namespace(
-                    command='feat',
-                    features_cmd='sys',
-                    file=None,
-                    dir=dm.get_dir(),
-                    timestamp='2025-05-04',
-                    system='system1',
-                    suite=None,
-                    task=None,
-                    variant=None,
-                    remove_failed=True
-                )
-                query_features.main()
-
-            output = json.loads(dm.get_stdout())
-            expected = {'cmds':[{'cmd':'a'},{'cmd':'b'},{'cmd':'d'}],
-                        'endpoints':[{'1':'a'},{'5':'d'}]}
-            self.assertDictEqual(expected, output)
-
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_feat_all(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'endpoints': [{'5': 'd'}]},
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'all_features': True,
-                'cmds': [{'cmd': 'a'}, {'cmd': 'b'}, {'cmd': 'c'}, {'cmd': 'd'}, {'cmd': 'e'}, {'cmd': 'f'}], 
-                'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
-            }
-        ]
-        with MongoMocker(data, do_patch_stdout=True) as dm:
-            parse_args_mock.return_value = argparse.Namespace(
-                command='feat',
-                features_cmd='all',
-                file=StringIO(''),
-                dir=None,
-                timestamp='2025-05-04'
-            )
-            query_features.main()
-
-            output = json.loads(dm.get_stdout())
-            expected = {'cmds':data[1]['cmds'],
-                        'endpoints':data[1]['endpoints']}
-            self.assertDictEqual(expected, output)
-
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_feat_all(self, parse_args_mock: Mock):
+    def test_retriever_feat_all(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system', 'tests': [
                 {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
@@ -1055,60 +898,28 @@ class TestQueryFeatures(unittest.TestCase):
                 'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
             }
         ]
-        with DirMocker(data, do_patch_stdout=True) as dm:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                parse_args_mock.return_value = argparse.Namespace(
-                    command='feat',
-                    features_cmd='all',
-                    file=None,
-                    dir=dm.get_dir(),
-                    timestamp='2025-05-04',
-                    system='system1',
-                    remove_failed=True
-                )
-                query_features.main()
-
-            output = json.loads(dm.get_stdout())
-            expected = {'cmds':data[1]['cmds'],
-                        'endpoints':data[1]['endpoints']}
-            self.assertDictEqual(expected, output)
-
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_mongoretriever_feat_find(self, parse_args_mock: Mock):
-        data = [
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system1', 'tests': [
-                TaskFeatures(success=True, task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
-                TaskFeatures(success=True, task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'2': 'q'}])
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'system': 'system2', 'tests': [
-                TaskFeatures(success=True, task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'c'}, {'cmd': 'd'}], endpoints=[{'1': 'a'}]),
-                TaskFeatures(success=False, task_name='task2', suite='suite1', variant='', cmds=[{'cmd': 'd'}], endpoints=[{'2': 'q'}])
-            ]},
-            {'timestamp': datetime.fromisoformat('2025-05-04'), 'all_features': True,
-                'cmds': [{'cmd': 'a'}, {'cmd': 'b'}, {'cmd': 'c'}, {'cmd': 'd'}, {'cmd': 'e'}, {'cmd': 'f'}], 
-                'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
-            }
-        ]
-        with MongoMocker(data, do_patch_stdout=True) as dm:
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
             parse_args_mock.return_value = argparse.Namespace(
                 command='feat',
-                features_cmd='find',
-                file=StringIO(''),
-                dir=None,
+                features_cmd='all',
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                 timestamp='2025-05-04',
-                feat='{"cmd":"d"}',
-                system=None,
+                system='system1',
                 remove_failed=True
             )
             query_features.main()
 
-            output = json.loads(dm.get_stdout())
-            expected = {'system1':[str(TaskIdVariant(suite='suite1',task_name='task2',variant=''))],
-                        'system2':[str(TaskIdVariant(suite='suite1',task_name='task1',variant=''))]}
-            self.assertDictEqual(expected, output)
+            output = json.loads(mocker.get_stdout())
+            expected = {'cmds':data[1]['cmds'],
+                        'endpoints':data[1]['endpoints']}
+            assert expected == output
 
+
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')
-    def test_dirretriever_feat_find(self, parse_args_mock: Mock):
+    def test_retriever_feat_find(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system1', 'tests': [
                 TaskFeatures(success=True, task_name='task1', suite='suite1', variant='', cmds=[{'cmd': 'a'}, {'cmd': 'b'}], endpoints=[{'1': 'a'}]),
@@ -1123,25 +934,21 @@ class TestQueryFeatures(unittest.TestCase):
                 'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
             }
         ]
-        with DirMocker(data, do_patch_stdout=True) as dm:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                parse_args_mock.return_value = argparse.Namespace(
-                    command='feat',
-                    features_cmd='find',
-                    file=None,
-                    dir=dm.get_dir(),
-                    timestamp='2025-05-04',
-                    feat='{"cmd":"d"}',
-                    system=None,
-                    remove_failed=True
-                )
-                query_features.main()
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
+            parse_args_mock.return_value = argparse.Namespace(
+                command='feat',
+                features_cmd='find',
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
+                timestamp='2025-05-04',
+                feat='{"cmd":"d"}',
+                system=None,
+                remove_failed=True
+            )
+            query_features.main()
 
-            output = json.loads(dm.get_stdout())
+            output = json.loads(mocker.get_stdout())
             expected = {'system1':[str(TaskIdVariant(suite='suite1',task_name='task2',variant=''))],
                         'system2':[str(TaskIdVariant(suite='suite1',task_name='task1',variant=''))]}
-            self.assertDictEqual(expected, output)
-
-
-if __name__ == '__main__':
-    unittest.main()
+            assert expected == output
