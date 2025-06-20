@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -36,4 +37,8 @@ func MockFdeMgrCheckRecoveryKey(f func(fdemgr *fdestate.FDEManager, rkey keys.Re
 
 func MockFdestateReplaceRecoveryKey(f func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error)) (restore func()) {
 	return testutil.Mock(&fdestateReplaceRecoveryKey, f)
+}
+
+func MockDevicestateGetVolumeStructuresWithKeyslots(f func(st *state.State) ([]devicestate.VolumeStructureWithKeyslots, error)) (restore func()) {
+	return testutil.Mock(&devicestateGetVolumeStructuresWithKeyslots, f)
 }
