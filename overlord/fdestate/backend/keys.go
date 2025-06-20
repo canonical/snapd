@@ -31,6 +31,8 @@ type RecoveryKeyCache interface {
 	// AddKey adds a recovery key with the specified id.
 	AddKey(keyID string, rkeyInfo CachedRecoverKey) (err error)
 	// Key gets the recovery key associated with the specified id.
+	// ErrNoRecoveryKey is returned if no recovery key entry exists
+	// for the given key id.
 	Key(keyID string) (rkeyInfo CachedRecoverKey, err error)
 	// RemoveKey removes the recovery key associated with the specified id.
 	RemoveKey(keyID string) error

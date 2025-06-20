@@ -48,6 +48,9 @@ var (
 	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
 
 	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+
+	CheckChangeConflict    = checkChangeConflict
+	KeyslotsAffectedByTask = keyslotsAffectedByTask
 )
 
 type ExternalOperation = externalOperation
@@ -114,4 +117,20 @@ func MockSecbootListContainerRecoveryKeyNames(f func(devicePath string) ([]strin
 
 func MockSecbootListContainerUnlockKeyNames(f func(devicePath string) ([]string, error)) (restore func()) {
 	return testutil.Mock(&secbootListContainerUnlockKeyNames, f)
+}
+
+func MockSecbootAddContainerRecoveryKey(f func(devicePath string, slotName string, rkey keys.RecoveryKey) error) (restore func()) {
+	return testutil.Mock(&secbootAddContainerRecoveryKey, f)
+}
+
+func MockSecbootDeleteContainerKey(f func(devicePath string, slotName string) error) (restore func()) {
+	return testutil.Mock(&secbootDeleteContainerKey, f)
+}
+
+func MockSecbootRenameContainerKey(f func(devicePath string, oldName string, newName string) error) (restore func()) {
+	return testutil.Mock(&secbootRenameContainerKey, f)
+}
+
+func KeyslotsAlreadyExistsError(keyslots []Keyslot) keyslotsAlreadyExistsError {
+	return keyslotsAlreadyExistsError{keyslots: keyslots}
 }
