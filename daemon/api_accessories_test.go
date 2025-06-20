@@ -50,7 +50,7 @@ func (s *accessoriesSuite) TestChangeInfo(c *C) {
 
 	// Access to install-themes changes is allowed
 	req := httptest.NewRequest("GET", "/v2/accessories/changes/"+chg1.ID(), nil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsUnexpected)
 	c.Check(rsp.Type, Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, Equals, 200)
 	info, ok := rsp.Result.(*daemon.ChangeInfo)
@@ -61,7 +61,7 @@ func (s *accessoriesSuite) TestChangeInfo(c *C) {
 
 	// Other changes are treated as missing
 	req = httptest.NewRequest("GET", "/v2/accessories/changes/"+chg2.ID(), nil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Check(rspe.Status, Equals, 404)
 	c.Check(rspe.Message, Equals, fmt.Sprintf("cannot find change with id %q", chg2.ID()))
 }

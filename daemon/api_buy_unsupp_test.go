@@ -188,7 +188,7 @@ func (s *buySuite) TestBuySnap(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/buy", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.jsonReq(c, req, user)
+		rsp := s.jsonReq(c, req, user, actionIsExpected)
 
 		c.Check(rsp.Status, check.Equals, test.expectedStatus)
 		c.Check(rsp.Type, check.Equals, test.expectedResponseType)
@@ -247,7 +247,7 @@ func (s *buySuite) TestReadyToBuy(c *check.C) {
 		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.jsonReq(c, req, user)
+		rsp := s.jsonReq(c, req, user, actionIsExpected)
 		c.Check(rsp.Status, check.Equals, test.status)
 		c.Check(rsp.Type, check.Equals, test.respType)
 		c.Assert(rsp.Result, check.FitsTypeOf, test.response)

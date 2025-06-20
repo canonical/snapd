@@ -31,6 +31,7 @@ import (
 var systemVolumesCmd = &Command{
 	Path:        "/v2/system-volumes",
 	POST:        postSystemVolumesAction,
+	Actions:     []string{"generate-recovery-key", "check-recovery-key", "replace-recovery-key"},
 	WriteAccess: rootAccess{},
 }
 

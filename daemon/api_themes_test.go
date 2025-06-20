@@ -353,7 +353,7 @@ func (s *themesSuite) TestThemesCmdGet(c *C) {
 	}
 
 	req := httptest.NewRequest("GET", "/v2/accessories/themes?gtk-theme=Foo-gtk&gtk-theme=Bar&icon-theme=Foo-icons&sound-theme=Foo-sounds", nil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	c.Check(rsp.Type, Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, Equals, 200)
@@ -428,7 +428,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 
 	buf := bytes.NewBufferString(`{"gtk-themes":["Foo-gtk"],"icon-themes":["Foo-icons"],"sound-themes":["Foo-sounds"]}`)
 	req := httptest.NewRequest("POST", "/v2/accessories/themes", buf)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, Equals, 202)
 
 	st := s.d.Overlord().State()

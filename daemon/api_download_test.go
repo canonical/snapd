@@ -188,7 +188,7 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 
 		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
 		c.Assert(err, check.IsNil)
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 
 		c.Assert(rspe.Status, check.Equals, scen.status)
 		if scen.err == "" {
@@ -329,7 +329,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			req.Header.Add("Range", fmt.Sprintf("bytes=%d-", t.resume))
 		}
 
-		rsp := s.req(c, req, nil)
+		rsp := s.req(c, req, nil, actionIsExpected)
 
 		if t.err != "" {
 			rspe := rsp.(*daemon.APIError)
@@ -367,7 +367,7 @@ func (s *snapDownloadSuite) TestStreamOneSnapHeaderOnlyPeek(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
+	rsp := s.req(c, req, nil, actionIsExpected)
 
 	c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{})
 	ss := rsp.(*daemon.SnapStream)
@@ -403,7 +403,7 @@ func (s *snapDownloadSuite) TestStreamRangeHeaderErrors(c *check.C) {
 		// missng "-" at the end
 		req.Header.Add("Range", t)
 
-		rsp := s.req(c, req, nil)
+		rsp := s.req(c, req, nil, actionIsExpected)
 		if dr, ok := rsp.(daemon.StructuredResponse); ok {
 			c.Fatalf("unexpected daemon result (test broken): %v", dr.JSON().Result)
 		}

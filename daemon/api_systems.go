@@ -53,6 +53,7 @@ var systemsCmd = &Command{
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
 	POST:        postSystemsAction,
+	Actions:     []string{"reboot", "create", "install"},
 	WriteAccess: rootAccess{},
 }
 
@@ -61,7 +62,12 @@ var systemsActionCmd = &Command{
 	GET:        getSystemDetails,
 	ReadAccess: rootAccess{},
 
-	POST:        postSystemsAction,
+	POST: postSystemsAction,
+	Actions: []string{
+		"do", "reboot", "install",
+		"create", "remove", "check-passphrase",
+		"check-pin",
+	},
 	WriteAccess: rootAccess{},
 }
 

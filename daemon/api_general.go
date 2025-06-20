@@ -57,6 +57,7 @@ var (
 		Path:        "/v2/system-info",
 		GET:         sysInfo,
 		POST:        sysInfoPost,
+		Actions:     []string{"advise-system-key-mismatch"},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 		WriteAccess: openAccess{},
 	}
@@ -65,6 +66,7 @@ var (
 		Path:        "/v2/changes/{id}",
 		GET:         getChange,
 		POST:        abortChange,
+		Actions:     []string{"abort"},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
@@ -79,6 +81,7 @@ var (
 		Path:        "/v2/warnings",
 		GET:         getWarnings,
 		POST:        ackWarnings,
+		Actions:     []string{"okay"},
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}

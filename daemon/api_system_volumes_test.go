@@ -51,7 +51,7 @@ func (s *systemVolumesSuite) TestSystemVolumesBadContentType(c *C) {
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, `unexpected content type: ""`)
 }
@@ -64,13 +64,14 @@ func (s *systemVolumesSuite) TestSystemVolumesBogusAction(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, `unsupported system volumes action "blah"`)
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		s.apiBaseSuite.DisableActionsCheck("/v2/system-volumes", "generate-recovery-key")
 		c.Skip("needs working secboot recovery key")
 	}
 
@@ -88,7 +89,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 	c.Check(rsp.Result, DeepEquals, map[string]string{
 		"recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593",
@@ -100,6 +101,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKey(c *C) {
 	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		s.apiBaseSuite.DisableActionsCheck("/v2/system-volumes", "check-recovery-key")
 		c.Skip("needs working secboot recovery key")
 	}
 
@@ -126,7 +128,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
 	c.Check(called, Equals, 1)
@@ -144,7 +146,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyMissingKey(c
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires recovery-key to be provided")
 }
@@ -167,7 +169,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyBadRecoveryK
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	// rest of error is coming from secboot
 	c.Assert(rsp.Message, Equals, "cannot parse recovery key: incorrectly formatted: insufficient characters")
@@ -193,7 +195,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	// rest of error is coming from secboot
 	c.Assert(rsp.Message, Equals, "cannot find matching recovery key: boom!")
@@ -231,7 +233,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 202)
 
 	st.Lock()
@@ -255,7 +257,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "cannot replace recovery key: boom!")
 }
@@ -268,7 +270,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKey
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
 }
