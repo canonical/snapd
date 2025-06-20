@@ -116,10 +116,12 @@ var (
 
 func skipActionCoverage() bool {
 	if callCount <= 1 {
+		// If only one test suite ran, then it makes no sense to check action coverage
 		return true
 	}
 	for _, arg := range os.Args {
 		if strings.HasPrefix(arg, "-check.f") {
+			// If running a subset of tests, it doesn't make sense to check action coverage
 			return true
 		}
 	}
@@ -136,10 +138,9 @@ func sliceContains(s []string, v string) bool {
 }
 
 func TestMain(m *testing.M) {
-	actionsMap = &concurrentActionsMap{data: make(map[*daemon.Command]map[string]struct{})}
+	actionsMap = &concurrentActionsMap{data: map[*daemon.Command][]string{}}
 	disableMap = map[string][]string{}
 	code := m.Run()
-	// If only one test suite ran, then it makes no sense to check action coverage
 	if skipActionCoverage() {
 		os.Exit(code)
 	}
@@ -170,7 +171,7 @@ func TestMain(m *testing.M) {
 
 type concurrentActionsMap struct {
 	mu   sync.RWMutex
-	data map[*daemon.Command]map[string]struct{}
+	data map[*daemon.Command][]string
 }
 
 func (m *concurrentActionsMap) AddAction(cmd *daemon.Command, action string) {
@@ -178,9 +179,9 @@ func (m *concurrentActionsMap) AddAction(cmd *daemon.Command, action string) {
 	defer m.mu.Unlock()
 
 	if _, exists := m.data[cmd]; !exists {
-		m.data[cmd] = make(map[string]struct{})
+		m.data[cmd] = []string{}
 	}
-	m.data[cmd][action] = struct{}{}
+	m.data[cmd] = append(m.data[cmd], action)
 }
 
 func (m *concurrentActionsMap) Keys() []*daemon.Command {
@@ -201,11 +202,7 @@ func (m *concurrentActionsMap) Actions(cmd *daemon.Command) []string {
 	if !exists {
 		return nil
 	}
-	actions := make([]string, 0, len(actionsMap))
-	for action := range actionsMap {
-		actions = append(actions, action)
-	}
-	return actions
+	return actionsMap
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
