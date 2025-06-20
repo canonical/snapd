@@ -55,6 +55,7 @@ var (
 	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
 	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
 	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
+	sbCheckPassphraseEntropy        = sb.CheckPassphraseEntropy
 	disksDevlinks                   = disks.Devlinks
 )
 
@@ -611,4 +612,15 @@ func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	}
 
 	return &keyData{kd: kd}, nil
+}
+
+// EntropyBits calculates entropy for PINs and passphrases.
+//
+// PINs will be supplied as a numeric passphrase.
+func EntropyBits(passphrase string) (uint32, error) {
+	stats, err := sbCheckPassphraseEntropy(passphrase)
+	if err != nil {
+		return 0, err
+	}
+	return stats.EntropyBits, nil
 }
