@@ -225,7 +225,29 @@ func generateInitramfsMounts() (err error) {
 	return nil
 }
 
-func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
+func canInstallAndRunAtOnce(mst *initramfsMountsState, model *asserts.Model) (bool, error) {
+	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
+	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
+	if kernelHasFdeSetup {
+		_, fdeSetupErr := exec.LookPath("fde-setup")
+		if fdeSetupErr != nil {
+			return false, nil
+		}
+	}
+
+	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
+	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
+		return false, nil
+	}
+
+	switch model.Base() {
+	case "core20", "core22", "core22-desktop":
+	default:
+		// UC24+, install and run is the default
+		return true, nil
+	}
+
 	currentSeed, err := mst.LoadSeed(mst.recoverySystem)
 	if err != nil {
 		return false, err
@@ -235,21 +257,7 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
 		return false, nil
 	}
 
-	// TODO: relax this condition when "install and run" well tested
 	if !preseedSeed.HasArtifact("preseed.tgz") {
-		return false, nil
-	}
-
-	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
-	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
-	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
-	_, fdeSetupErr := exec.LookPath("fde-setup")
-	if kernelHasFdeSetup && fdeSetupErr != nil {
-		return false, nil
-	}
-
-	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
-	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
 		return false, nil
 	}
 
@@ -320,6 +328,16 @@ func readSnapInfoFromSeed(seedSnap *seed.Snap) (*snap.Info, error) {
 	return info, nil
 }
 
+func setUbuntuCoreDataMountOptions(mountOpts systemdMountOptions) systemdMountOptions {
+	// fsck and mount with nosuid to prevent snaps from being able to bypass
+	// the sandbox by creating suid root files there and trying to escape the
+	// sandbox
+	mountOpts.NoSuid = true
+	// Note that on classic the default is to allow mount propagation
+	mountOpts.Private = true
+	return mountOpts
+}
+
 func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap) error {
 	kernelSnap, err := readSnapInfo(sysSnaps, snap.TypeKernel)
 	if err != nil {
@@ -383,7 +401,8 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	kernelSeed := sysSnaps[snap.TypeKernel]
 	kernCompsMntPts := make(map[string]string)
 	compSeedInfos := []install.ComponentSeedInfo{}
-	for _, sc := range kernelSeed.Components {
+	compsDir := filepath.Join(boot.InitramfsRunMntDir, "snap-content")
+	for i, sc := range kernelSeed.Components {
 		seedComp := sc
 		comp, ok := kernCompsByName[seedComp.CompSideInfo.Component.ComponentName]
 		if !ok {
@@ -397,8 +416,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		// Mount ephemerally the kernel-modules components to read
 		// their metadata and also to make them accessible if building
 		// the drivers tree.
-		mntPt := filepath.Join(filepath.Join(boot.InitramfsRunMntDir, "snap-content",
-			seedComp.CompSideInfo.Component.String()))
+		mntPt := filepath.Join(filepath.Join(compsDir, seedComp.CompSideInfo.Component.String()))
 		if err := doSystemdMount(seedComp.Path, mntPt, &systemdMountOptions{
 			ReadOnly:  true,
 			Private:   true,
@@ -407,11 +425,22 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		}
 		kernCompsMntPts[seedComp.CompSideInfo.Component.String()] = mntPt
 
+		idx := i
 		defer func() {
 			stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", mntPt)
 			if err != nil {
 				logger.Noticef("cannot unmount component in %s: %v",
 					mntPt, osutil.OutputErrCombine(stdout, stderr, err))
+			}
+			// We do not need the directory either
+			if err := os.Remove(mntPt); err != nil {
+				logger.Noticef("warning: cannot remove %s: %v", mntPt, err)
+			}
+			// Last one to run removes parent too
+			if idx == 0 {
+				if err := os.Remove(compsDir); err != nil {
+					logger.Noticef("warning: cannot remove %s: %v", compsDir, err)
+				}
 			}
 		}()
 
@@ -482,11 +511,21 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 
-	dataMountOpts := &systemdMountOptions{
+	dataMountOpts := setUbuntuCoreDataMountOptions(systemdMountOptions{
 		Bind: true,
-	}
-	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, dataMountOpts); err != nil {
+	})
+	if err := doSystemdMount(boot.InstallUbuntuDataDir, boot.InitramfsDataDir, &dataMountOpts); err != nil {
 		return err
+	}
+	// We do not need anymore the extra data partition mount created on installation
+	if output, err := exec.Command("umount", boot.InstallUbuntuDataDir).CombinedOutput(); err != nil {
+		logger.Noticef("cannot unmount install data mount %s: %v",
+			boot.InstallUbuntuDataDir, osutil.OutputErr(output, err))
+		return osutil.OutputErr(output, err)
+	}
+	// We do not need the directory either
+	if err := os.Remove(boot.InstallUbuntuDataDir); err != nil {
+		logger.Noticef("warning: cannot remove %s: %v", boot.InstallUbuntuDataDir, err)
 	}
 
 	// Now we can write the snapd mount unit (needed as this is the first boot)
@@ -526,6 +565,16 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		if err != nil {
 			return osutil.OutputErrCombine(stdout, stderr, err)
 		}
+		// Remove the unit file so it is not re-mounted after switch root
+		kernMntUnit := filepath.Join(dirs.SnapSystemdRunDir, "transient", "run-mnt-kernel.mount")
+		logger.Debugf("removing transient unit file %s", kernMntUnit)
+		if err := os.Remove(kernMntUnit); err != nil {
+			logger.Noticef("warning: cannot delete %s: %v", kernMntUnit, err)
+		}
+		// We do not need the directory either
+		if err := os.Remove(kernelMountDir); err != nil {
+			logger.Noticef("warning: cannot remove %s: %v", kernelMountDir, err)
+		}
 	}
 
 	if err := bootEnsureNextBootToRunMode(mst.recoverySystem); err != nil {
@@ -547,7 +596,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 		return err
 	}
 
-	installAndRun, err := canInstallAndRunAtOnce(mst)
+	installAndRun, err := canInstallAndRunAtOnce(mst, model)
 	if err != nil {
 		return err
 	}
@@ -2398,18 +2447,13 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	dataMountOpts := &systemdMountOptions{
+	dataMountOpts := systemdMountOptions{
 		NeedsFsck: true,
 	}
 	if !isClassic {
-		// fsck and mount with nosuid to prevent snaps from being able to bypass
-		// the sandbox by creating suid root files there and trying to escape the
-		// sandbox
-		dataMountOpts.NoSuid = true
-		// Note that on classic the default is to allow mount propagation
-		dataMountOpts.Private = true
+		dataMountOpts = setUbuntuCoreDataMountOptions(dataMountOpts)
 	}
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, dataMountOpts); err != nil {
+	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, &dataMountOpts); err != nil {
 		return err
 	}
 	isEncryptedDev := unlockRes.IsEncrypted
