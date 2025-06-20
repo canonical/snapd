@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -230,6 +231,26 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
 	}
 }
 
+func FDEChangeConflict(cce *fdestate.ChangeConflictError) *apiError {
+	value := map[string]any{}
+	if cce.KeyslotRef.Name != "" {
+		value["keyslot"] = map[string]string{
+			"name":           cce.KeyslotRef.Name,
+			"container-role": cce.KeyslotRef.ContainerRole,
+		}
+	}
+	if cce.ChangeKind != "" {
+		value["change-kind"] = cce.ChangeKind
+	}
+
+	return &apiError{
+		Status:  409,
+		Message: cce.Error(),
+		Kind:    client.ErrorKindFDEChangeConflict,
+		Value:   value,
+	}
+}
+
 // QuotaChangeConflict is an error responder used when an operation would
 // conflict with another ongoing change.
 func QuotaChangeConflict(qce *servicestate.QuotaChangeConflictError) *apiError {
@@ -376,6 +397,11 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 				var conflErr *snapstate.ChangeConflictError
 				if errors.As(err, &conflErr) {
 					return SnapChangeConflict(conflErr)
+				}
+			case errors.Is(err, &fdestate.ChangeConflictError{}):
+				var conflErr *fdestate.ChangeConflictError
+				if errors.As(err, &conflErr) {
+					return FDEChangeConflict(conflErr)
 				}
 			}
 

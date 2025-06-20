@@ -48,6 +48,9 @@ var (
 	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
 
 	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+
+	CheckChangeConflict    = checkChangeConflict
+	KeyslotsAffectedByTask = keyslotsAffectedByTask
 )
 
 type ExternalOperation = externalOperation
