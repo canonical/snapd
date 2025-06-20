@@ -159,7 +159,7 @@ nested_uc20_transition_to_system_mode() {
 
     local current_boot_id
     current_boot_id=$(nested_get_boot_id)
-    remote.exec "sudo snap reboot --$mode $recovery_system"
+    remote.exec "sudo snap reboot --$mode $recovery_system" || true
     nested_wait_for_reboot "$current_boot_id"
 
     # verify we are now in the requested mode
