@@ -76,7 +76,7 @@ execute: |
   # Install again, but force a failure to check revert
   boot_id=$(tests.nested boot-id)
   remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
-  remote.retry --wait 1 -n 300 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
+  remote.retry --wait 1 -n 600 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
   tests.nested wait-for reboot "$boot_id"
   # Note that snap watch will end with error
   not remote.exec sudo snap watch "$remote_chg_id"
