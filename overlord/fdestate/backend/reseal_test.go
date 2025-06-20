@@ -409,7 +409,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool) {
 		default:
 			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
-		return secboot.UpdatedKeys([]any{&fakeSealedKey{num: resealCalls}}), nil
+		return secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{&fakeSealedKey{num: resealCalls}}), nil
 	})
 	defer restore()
 

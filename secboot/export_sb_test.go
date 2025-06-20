@@ -489,7 +489,7 @@ func MockUnixAddKey(f func(keyType string, description string, payload []byte, r
 	return testutil.Mock(&unixAddKey, f)
 }
 
-func MockTPMRevokeOldPCRProtectionPolicies(f func(key any, tpm *sb_tpm2.Connection, primaryKey []byte) error) (restore func()) {
+func MockTPMRevokeOldPCRProtectionPolicies(f func(key MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error) (restore func()) {
 	old := sbTPMRevokeOldPCRProtectionPolicies
 	sbTPMRevokeOldPCRProtectionPolicies = f
 	return func() {

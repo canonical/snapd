@@ -44,6 +44,11 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	return errBuildWithoutSecboot
 }
 
+type MaybeSealedKeyData interface {
+}
+
+type UpdatedKeys []MaybeSealedKeyData
+
 func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return errBuildWithoutSecboot
 }

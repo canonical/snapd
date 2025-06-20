@@ -3812,12 +3812,19 @@ func (s *secbootSuite) TestListContainerUnlockKeyNames(c *C) {
 	c.Check(keyNames, DeepEquals, []string{"some-slot-1", "some-slot-2"})
 }
 
+type fakeWrappedSealedKeyData struct {
+	unique int
+}
+
+func (f *fakeWrappedSealedKeyData) Unwrap() *sb_tpm2.SealedKeyData {
+	panic("unexpected")
+}
+
 func (s *secbootSuite) TestRevokeOldKeys(c *C) {
-	keys := secboot.UpdatedKeys([]any{
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 43},
-	})
+	key1 := &fakeWrappedSealedKeyData{1}
+	key2 := &fakeWrappedSealedKeyData{2}
+	key3 := &fakeWrappedSealedKeyData{3}
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{key1, key2, key3})
 
 	mockTpm, restore := mockSbTPMConnection(c, nil)
 	defer restore()
@@ -3827,10 +3834,10 @@ func (s *secbootSuite) TestRevokeOldKeys(c *C) {
 		return true
 	})()
 
-	var calls []tpm2.Handle
-	defer secboot.MockTPMRevokeOldPCRProtectionPolicies(func(key any, tpm *sb_tpm2.Connection, primaryKey []byte) error {
+	var calls []*fakeWrappedSealedKeyData
+	defer secboot.MockTPMRevokeOldPCRProtectionPolicies(func(key secboot.MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error {
 		c.Check(tpm, Equals, mockTpm)
-		calls = append(calls, key.(secboot.MockableSealedKeyData).PCRPolicyCounterHandle())
+		calls = append(calls, key.(*fakeWrappedSealedKeyData))
 		c.Check(primaryKey, DeepEquals, []byte{9, 10, 11, 12})
 
 		return nil
@@ -3839,18 +3846,14 @@ func (s *secbootSuite) TestRevokeOldKeys(c *C) {
 	err := keys.RevokeOldKeys([]byte{9, 10, 11, 12})
 	c.Check(err, IsNil)
 
-	c.Check(calls, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(42),
-		tpm2.Handle(42),
-		tpm2.Handle(43),
-	})
+	c.Check(calls, DeepEquals, []*fakeWrappedSealedKeyData{key1, key2, key3})
 }
 
 func (s *secbootSuite) TestRevokeOldKeysErrorTPM(c *C) {
-	keys := secboot.UpdatedKeys([]any{
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 43},
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{
+		&fakeWrappedSealedKeyData{1},
+		&fakeWrappedSealedKeyData{2},
+		&fakeWrappedSealedKeyData{3},
 	})
 
 	_, restore := mockSbTPMConnection(c, fmt.Errorf("bad tpm"))
@@ -3861,10 +3864,10 @@ func (s *secbootSuite) TestRevokeOldKeysErrorTPM(c *C) {
 }
 
 func (s *secbootSuite) TestRevokeOldKeysErrorTPMDisabled(c *C) {
-	keys := secboot.UpdatedKeys([]any{
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 43},
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{
+		&fakeWrappedSealedKeyData{1},
+		&fakeWrappedSealedKeyData{2},
+		&fakeWrappedSealedKeyData{3},
 	})
 
 	mockTpm, restore := mockSbTPMConnection(c, nil)
@@ -3880,11 +3883,10 @@ func (s *secbootSuite) TestRevokeOldKeysErrorTPMDisabled(c *C) {
 }
 
 func (s *secbootSuite) TestRevokeOldKeysError(c *C) {
-	keys := secboot.UpdatedKeys([]any{
-		&myFakeSealedKeyObject{handle: 42},
-		&myFakeSealedKeyObject{handle: 0},
-		&myFakeSealedKeyObject{handle: 43},
-	})
+	key1 := &fakeWrappedSealedKeyData{1}
+	key2 := &fakeWrappedSealedKeyData{2}
+	key3 := &fakeWrappedSealedKeyData{3}
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{key1, key2, key3})
 
 	mockTpm, restore := mockSbTPMConnection(c, nil)
 	defer restore()
@@ -3894,13 +3896,13 @@ func (s *secbootSuite) TestRevokeOldKeysError(c *C) {
 		return true
 	})()
 
-	var calls []tpm2.Handle
-	defer secboot.MockTPMRevokeOldPCRProtectionPolicies(func(key any, tpm *sb_tpm2.Connection, primaryKey []byte) error {
+	var calls []*fakeWrappedSealedKeyData
+	defer secboot.MockTPMRevokeOldPCRProtectionPolicies(func(key secboot.MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error {
 		c.Check(tpm, Equals, mockTpm)
-		calls = append(calls, key.(secboot.MockableSealedKeyData).PCRPolicyCounterHandle())
-		c.Check(primaryKey, DeepEquals, []byte{9, 10, 11, 12})
+	        calls = append(calls, key.(*fakeWrappedSealedKeyData))
+	        c.Check(primaryKey, DeepEquals, []byte{9, 10, 11, 12})
 
-		if key.(secboot.MockableSealedKeyData).PCRPolicyCounterHandle() == 0 {
+		if key.(*fakeWrappedSealedKeyData) == key2 {
 			return fmt.Errorf("bad key")
 		}
 
@@ -3910,8 +3912,5 @@ func (s *secbootSuite) TestRevokeOldKeysError(c *C) {
 	err := keys.RevokeOldKeys([]byte{9, 10, 11, 12})
 	c.Check(err, ErrorMatches, `bad key`)
 
-	c.Check(calls, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(42),
-		tpm2.Handle(0),
-	})
+	c.Check(calls, DeepEquals, []*fakeWrappedSealedKeyData{key1, key2})
 }

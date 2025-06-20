@@ -603,11 +603,25 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	return primaryKey, nil
 }
 
-func sbTPMRevokeOldPCRProtectionPoliciesImpl(key any, tpm *sb_tpm2.Connection, primaryKey []byte) error {
-	return key.(*sb_tpm2.SealedKeyData).RevokeOldPCRProtectionPolicies(tpm, primaryKey)
+type MaybeSealedKeyData interface {
+	Unwrap() *sb_tpm2.SealedKeyData
+}
+
+func sbTPMRevokeOldPCRProtectionPoliciesImpl(key MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error {
+	return key.Unwrap().RevokeOldPCRProtectionPolicies(tpm, primaryKey)
 }
 
 var sbTPMRevokeOldPCRProtectionPolicies = sbTPMRevokeOldPCRProtectionPoliciesImpl
+
+type UpdatedKeys []MaybeSealedKeyData
+
+type actualSealedKeyData struct {
+	data *sb_tpm2.SealedKeyData
+}
+
+func (a *actualSealedKeyData) Unwrap() *sb_tpm2.SealedKeyData {
+	return a.data
+}
 
 func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	tpm, err := sbConnectToDefaultTPM()
@@ -720,7 +734,7 @@ func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys
 					return nil, fmt.Errorf("cannot get sealed key data for keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
 				}
 
-				updatedKeys = append(updatedKeys, skd)
+				updatedKeys = append(updatedKeys, &actualSealedKeyData{skd})
 			}
 		}
 	}
