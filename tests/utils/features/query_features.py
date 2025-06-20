@@ -131,6 +131,8 @@ class MongoRetriever(Retriever):
         results = self.collection.find()
         dictionary = defaultdict(list)
         for result in results:
+            if 'all_features' in result and result['all_features'] == True:
+                continue
             dictionary[result['timestamp'].isoformat()].append(
                 result['system'])
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
@@ -196,7 +198,7 @@ class DirRetriever(Retriever):
             if not os.path.isdir(timestamp_path):
                 continue
             for filename in os.listdir(timestamp_path):
-                if filename.endswith('.json'):
+                if filename.endswith('.json') and not filename == 'all-features.json':
                     system = self.__get_filename_without_last_ext(filename)
                     dictionary[timestamp].append(system)
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
