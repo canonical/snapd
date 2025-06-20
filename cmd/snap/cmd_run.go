@@ -760,6 +760,26 @@ func snapdHelperPath(toolName string) (string, error) {
 	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
 }
 
+/* Kerberos tickets live in /tmp, or in the place specified by KRB5CCNAME
+ * environment variable. However, in snaps /tmp is private.
+ * So rewire the environment variable to point to /var/lib/snapd/hostfs/tmp,
+ * in case the variable is unset or resolves tickets to /tmp/krb5cc*.
+ *
+ * Snaps that want to read Kerberos tickets must then connect to the
+ * kerberos-tickets interface to have access to the tickets.
+ */
+func exposeKerberosTickets(info *snap.Info) (string, error) {
+	krb5EnvVar := osGetenv("KRB5CCNAME")
+	if strings.HasPrefix(krb5EnvVar, "FILE:") {
+		path := strings.TrimPrefix(krb5EnvVar, "FILE:")
+		path = filepath.Clean(path)
+		if filepath.Dir(path) == "/tmp" && strings.HasPrefix(path, "/tmp/krb5cc") {
+			return "FILE:/var/lib/snapd/hostfs/" + path, nil
+		}
+	}
+	return "", fmt.Errorf("Unsupported KRB5CCNAME: %s", krb5EnvVar)
+}
+
 func migrateXauthority(info *snap.Info) (string, error) {
 	u, err := userCurrent()
 	if err != nil {
@@ -1349,6 +1369,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
+	krb5ccnamePath, err := exposeKerberosTickets(info)
+	if err != nil {
+		logger.Noticef("WARNING: will not expose Kerberos tickets' path: %s", err)
+	}
+
 	if err := activateXdgDocumentPortal(runner); err != nil {
 		logger.Noticef("WARNING: cannot start document portal: %s", err)
 	}
@@ -1431,6 +1456,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		// osutil.OSEnvironment and that guarantees this
 		// property.
 		env["XAUTHORITY"] = xauthPath
+	}
+
+	if len(krb5ccnamePath) > 0 {
+		env["KRB5CCNAME"] = krb5ccnamePath
 	}
 
 	// on each run variant path this will be used once to get
