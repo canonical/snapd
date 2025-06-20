@@ -108,13 +108,14 @@ type apiBaseSuite struct {
 }
 
 var (
-	seenActionsMap        *safeActionsMap
-	callCount             int64
-	disableActionCoverage atomic.Bool
+	actionsMap   *concurrentActionsMap
+	callCount    int64
+	disableMutex sync.RWMutex
+	disableMap   map[string][]string
 )
 
 func skipActionCoverage() bool {
-	if callCount <= 1 || disableActionCoverage.Load() {
+	if callCount <= 1 {
 		return true
 	}
 	for _, arg := range os.Args {
@@ -135,21 +136,31 @@ func sliceContains(s []string, v string) bool {
 }
 
 func TestMain(m *testing.M) {
-	seenActionsMap = &safeActionsMap{data: make(map[*daemon.Command]map[string]struct{})}
+	actionsMap = &concurrentActionsMap{data: make(map[*daemon.Command]map[string]struct{})}
+	disableMap = map[string][]string{}
 	code := m.Run()
 	// If only one test suite ran, then it makes no sense to check action coverage
 	if skipActionCoverage() {
 		os.Exit(code)
 	}
-	for _, cmd := range seenActionsMap.Keys() {
+	for _, cmd := range actionsMap.Keys() {
 		if cmd.Path == "/v2/debug" {
 			// API coverage for /v2/debug doesn't matter
 			continue
 		}
-		actions := seenActionsMap.Actions(cmd)
+		actions := actionsMap.Actions(cmd)
+		var path string
+		if cmd.Path != "" {
+			path = cmd.Path
+		} else {
+			path = cmd.PathPrefix
+		}
 		for _, action := range cmd.Actions {
+			if l, exists := disableMap[path]; exists && sliceContains(l, action) {
+				continue
+			}
 			if !sliceContains(actions, action) {
-				fmt.Printf("No test for action %s of command %s - if that action no longer exists, remove it from the Actions field slice in the relevant command\n", action, cmd.Path)
+				fmt.Printf("No test for action %s of command %s - if that action no longer exists, remove it from the Actions field slice in the relevant command. If it should not appear in unit tests, disable it calling apiBaseSuite.DisableActionsCheck(\"%s\", \"%s\")\n", action, path, path, action)
 				code = 1
 			}
 		}
@@ -157,12 +168,12 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-type safeActionsMap struct {
+type concurrentActionsMap struct {
 	mu   sync.RWMutex
 	data map[*daemon.Command]map[string]struct{}
 }
 
-func (m *safeActionsMap) AddAction(cmd *daemon.Command, action string) {
+func (m *concurrentActionsMap) AddAction(cmd *daemon.Command, action string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -172,7 +183,7 @@ func (m *safeActionsMap) AddAction(cmd *daemon.Command, action string) {
 	m.data[cmd][action] = struct{}{}
 }
 
-func (m *safeActionsMap) Keys() []*daemon.Command {
+func (m *concurrentActionsMap) Keys() []*daemon.Command {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	keys := make([]*daemon.Command, 0, len(m.data))
@@ -182,7 +193,7 @@ func (m *safeActionsMap) Keys() []*daemon.Command {
 	return keys
 }
 
-func (m *safeActionsMap) Actions(cmd *daemon.Command) []string {
+func (m *concurrentActionsMap) Actions(cmd *daemon.Command) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -268,8 +279,13 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 }
 
 // DisableActionsCheck disables the final check for command action coverage
-func (s *apiBaseSuite) DisableActionsCheck() {
-	disableActionCoverage.Store(true)
+func (s *apiBaseSuite) DisableActionsCheck(path, action string) {
+	disableMutex.Lock()
+	defer disableMutex.Unlock()
+	if _, exists := disableMap[path]; !exists {
+		disableMap[path] = []string{}
+	}
+	disableMap[path] = append(disableMap[path], action)
 }
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
@@ -796,7 +812,7 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, act
 			}
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
 				if data.Action != "" {
-					seenActionsMap.AddAction(cmd, data.Action)
+					actionsMap.AddAction(cmd, data.Action)
 					if !sliceContains(cmd.Actions, data.Action) {
 						c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
 					}
@@ -859,7 +875,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 		}
 		if err := json.Unmarshal(bodyBytes, &data); err == nil {
 			if data.Action != "" {
-				seenActionsMap.AddAction(cmd, data.Action)
+				actionsMap.AddAction(cmd, data.Action)
 				if !sliceContains(cmd.Actions, data.Action) {
 					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
 				}
