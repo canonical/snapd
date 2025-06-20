@@ -1459,8 +1459,8 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 	d := s.daemon(c)
 
 	// just mock values for output matching
-	const expectedEntropy = float64(10)
-	const expectedMinEntropy = float64(20)
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
 
 	for _, tc := range []struct {
 		passphrase  string
@@ -1515,12 +1515,14 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		})
 		defer restore()
 
-		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) error {
+		restore = daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, passphrase string) (*device.AuthQualityResult, error) {
 			c.Check(mode, check.Equals, device.AuthModePassphrase)
-			return &device.AuthQualityError{
-				Reasons:    []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				Entropy:    expectedEntropy,
-				MinEntropy: expectedMinEntropy,
+			return nil, &device.AuthQualityError{
+				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				Result: device.AuthQualityResult{
+					Entropy:    expectedEntropy,
+					MinEntropy: expectedMinEntropy,
+				},
 			}
 		})
 		defer restore()
@@ -1548,8 +1550,8 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	d := s.daemon(c)
 
 	// just mock values for output matching
-	const expectedEntropy = float64(10)
-	const expectedMinEntropy = float64(20)
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
 
 	for _, tc := range []struct {
 		pin         string
@@ -1609,12 +1611,14 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		})
 		defer restore()
 
-		restore = daemon.MockDeviceValidatePassphraseOrPINEntropy(func(mode device.AuthMode, s string) error {
+		restore = daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, passphrase string) (*device.AuthQualityResult, error) {
 			c.Check(mode, check.Equals, device.AuthModePIN)
-			return &device.AuthQualityError{
-				Reasons:    []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				Entropy:    expectedEntropy,
-				MinEntropy: expectedMinEntropy,
+			return nil, &device.AuthQualityError{
+				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				Result: device.AuthQualityResult{
+					Entropy:    expectedEntropy,
+					MinEntropy: expectedMinEntropy,
+				},
 			}
 		})
 		defer restore()
@@ -1669,7 +1673,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c
 
 	body = map[string]string{
 		"action": "check-pin",
-		"pin":    "123456",
+		"pin":    "20250619",
 	}
 
 	for i := 0; i < 10; i++ {

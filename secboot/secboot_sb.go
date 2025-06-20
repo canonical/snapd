@@ -61,6 +61,8 @@ var (
 
 func init() {
 	WithSecbootSupport = true
+
+	device.EntropyBits = EntropyBits
 }
 
 type DiskUnlockKey sb.DiskUnlockKey
