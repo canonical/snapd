@@ -2230,7 +2230,7 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "0"})
+	schemas, err := schema.SchemaAt([]string{"foo", "[0]"})
 	c.Assert(err, IsNil)
 	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 }
@@ -2283,7 +2283,7 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaContainerSchema(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "0", "bar"})
+	schemas, err := schema.SchemaAt([]string{"foo", "[0]", "bar"})
 	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
 }
