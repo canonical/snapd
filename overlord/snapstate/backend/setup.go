@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -248,25 +249,34 @@ type RemoveComponentOpts struct {
 // RemoveComponentFiles unmounts and removes component files from the disk.
 func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, opts RemoveComponentOpts, meter progress.Meter) error {
 	if opts.MaybeInitramfsMounted {
-		// Stop unit created from initramfs for kernel-modules components, if
-		// existing (if we have not rebooted after installation it will not
-		// be there either). Note that this mount can exist only on UC, on
-		// hybrid the initramfs will create the mount exactly in the same place
-		// as snapd, so there is no duplication.
-		mntPoint := filepath.Join(dirs.GlobalRootDir, "writable", "system-data",
-			dirs.StripRootDir(cpi.MountDir()))
+		// Stop duplicated mounts created from initramfs for kernel-modules components, if
+		// existing (if we have not rebooted after installation these will not be exist):
+		//
+		// - On UC there is a mount under /writable/system-data, as the "snap" directory
+		//   there is bind mounted later to /. There is a unit file created by the
+		//   initramfs, but it has a "sysroot-" prefix to the real mount path, so systemd
+		//   does not consider it associated with the mount. This unit file is inactive
+		//   therefore. We leave this file as it is, it will disappear in next reboot and it
+		//   would be a waste to remove it and do a daemon-reload.
+		//
+		// - On hybrid the initramfs will create the mount already in /snap, however, there
+		//   will be a mount in /run/mnt/data as / is bind-mounted there and that mount is
+		//   not marked private, so mount events in / will leak.
+		extraMountRoot := dirs.WritableUbuntuCoreSystemDataDir
+		if release.OnClassic {
+			extraMountRoot = boot.InitramfsDataDir
+		}
+		mntPoint := filepath.Join(extraMountRoot, dirs.StripRootDir(cpi.MountDir()))
 		isMounted, err := osutil.IsMounted(mntPoint)
 		if err != nil {
 			return err
 		}
-		// We do not use systemd as there is no associated unit file - the
-		// unit file created by the initramfs has a "sysroot-" prefix to the
-		// real mount path, so systemd does not consider it associated with
-		// the mount. This unit file is inactive therefore. We leave it as it
-		// is, it will disappear in next reboot and it would be a waste to
-		// remove it and do a daemon-reload.
 		if isMounted {
-			if output, err := exec.Command("umount", "--lazy", mntPoint).CombinedOutput(); err != nil {
+			// TODO we handle (un)mounts in different ways in different places
+			// (direct syscalls or (u)mount commands). We need to unify this
+			// eventually.
+			if output, err := exec.Command("umount", "--lazy", mntPoint).
+				CombinedOutput(); err != nil {
 				return osutil.OutputErr(output, err)
 			}
 		}

@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -597,7 +599,21 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 	})
 }
 
-func (s *setupSuite) TestSetupComponentWithInitramfsMount(c *C) {
+func (s *setupSuite) TestSetupComponentWithUCInitramfsMount(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	// Make sure directories get the right values for UC
+	dirs.SetRootDir(c.MkDir())
+	writableDir := filepath.Join(dirs.GlobalRootDir, "writable", "system-data")
+	s.testSetupComponentWithInitramfsMount(c, writableDir)
+}
+
+func (s *setupSuite) TestSetupComponentWithHybridInitramfsMount(c *C) {
+	writableDir := boot.InitramfsDataDir
+	s.testSetupComponentWithInitramfsMount(c, writableDir)
+}
+
+func (s *setupSuite) testSetupComponentWithInitramfsMount(c *C, writableDir string) {
 	snapRev := snap.R(11)
 	compRev := snap.R(33)
 	compName := "mycomp"
@@ -605,7 +621,7 @@ func (s *setupSuite) TestSetupComponentWithInitramfsMount(c *C) {
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance)
 
 	// Simulate the initramfs mount
-	extraMount := filepath.Join(dirs.GlobalRootDir, "writable", "system-data", dirs.StripRootDir(cpi.MountDir()))
+	extraMount := filepath.Join(writableDir, dirs.StripRootDir(cpi.MountDir()))
 	content := fmt.Sprintf("189 102 7:2 / %s ro,nodev,relatime shared:3 - squashfs /dev/loop2 ro,errors=continue,threads=single\n", extraMount)
 
 	restore := osutil.MockMountInfo(content)
