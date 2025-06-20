@@ -453,6 +453,10 @@ func MockSbGetPrimaryKeyFromKernel(f func(prefix string, devicePath string, remo
 	}
 }
 
+func MockSbTestLUKS2ContainerKey(f func(devicePath string, key []byte) bool) (restore func()) {
+	return testutil.Mock(&sbTestLUKS2ContainerKey, f)
+}
+
 func MockDisksDevlinks(f func(node string) ([]string, error)) (restore func()) {
 	old := disksDevlinks
 	disksDevlinks = f
