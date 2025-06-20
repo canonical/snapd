@@ -26,6 +26,7 @@ import (
 	"net/url"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
@@ -156,6 +157,8 @@ type systemVolumesActionRequest struct {
 	ContainerRoles []string `json:"container-roles"`
 	// KeyID is the recovery key id.
 	KeyID string `json:"key-id"`
+
+	client.QualityCheckOptions
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -189,6 +192,10 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesActionCheckRecoveryKey(c, &req)
 	case "replace-recovery-key":
 		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
+	case "check-passphrase":
+		return postSystemVolumesCheckPassphrase(&req)
+	case "check-pin":
+		return postSystemVolumesCheckPIN(&req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
@@ -252,4 +259,20 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, chg.ID())
+}
+
+func postSystemVolumesCheckPassphrase(req *systemVolumesActionRequest) Response {
+	if req.Passphrase == "" {
+		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
+	}
+
+	return postValidatePassphrase(device.AuthModePassphrase, req.Passphrase)
+}
+
+func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
+	if req.PIN == "" {
+		return BadRequest("pin must be provided in request body for action %q", req.Action)
+	}
+
+	return postValidatePassphrase(device.AuthModePIN, req.PIN)
 }
