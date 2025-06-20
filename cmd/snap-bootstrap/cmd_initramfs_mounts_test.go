@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -1075,15 +1074,7 @@ grade=signed
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	lastTimestampField := ""
-	if runtime.Version() < "go1.24" {
-		// Go versions prior to 1.24 don't omit zero times properly, as time
-		// zero is not empty so "omitempty" does not work, and those Go
-		// versions do not recognize "omitzero", which does omit time zero.
-		lastTimestampField = `,"last-notice-timestamp":"0001-01-01T00:00:00Z"`
-	}
-
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, fmt.Sprintf(`{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0%s}`, lastTimestampField))
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0}`)
 
 	// finally check that the recovery system bootenv was updated to be in run
 	// mode
