@@ -100,7 +100,6 @@ Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
 
-Source100:      pie.patch
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
@@ -184,10 +183,11 @@ pushd %{indigo_srcdir}
 # Add patch0 -p1 ... as appropriate here.
 %autopatch -p1
 
+build_with_static_pie=0
 # PIE static binaries are not supported on all architectures. We detect the
 # availability of the runtime object here, and GCC's support for such binaries.
 if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
-patch -p1 < %SOURCE100
+build_with_static_pie=1
 fi
 
 popd
@@ -213,7 +213,8 @@ builddir = %{_builddir}
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{with apparmor}
-with_testkeys = %{with_testkeys}
+with_testkeys = %{!?with_testkeys:0}%{?with_testkeys:1}
+with_static_pie = $build_with_static_pie
 EXTRA_GO_BUILD_FLAGS = -v -x
 # fix broken debuginfo bsc#1215402
 EXTRA_GO_LDFLAGS = -compressdwarf=false
@@ -245,6 +246,11 @@ export CGO_LDFLAGS="$LDFLAGS"
 pushd %{indigo_srcdir}/cmd
 autoreconf -i -f
 
+static_pie=
+if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
+    static_pie=--enable-static-PIE
+fi
+
 %configure \
     %{!?with_apparmor:--disable-apparmor} \
     %{?with_apparmor:--enable-apparmor} \
@@ -252,7 +258,8 @@ autoreconf -i -f
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{snap_mount_dir} \
-    --enable-merged-usr
+    --enable-merged-usr \
+    $static_pie
 
 popd
 
