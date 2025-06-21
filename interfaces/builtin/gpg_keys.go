@@ -37,6 +37,10 @@ const gpgKeysConnectedPlugAppArmor = `
 /usr/bin/gpg{,1,2,v} ixr,
 /usr/share/gnupg/options.skel r,
 
+# Allow access to the GPG agent sockets for signing with smart cards
+# (LP: #2009825).
+owner /run/user/[0-9]*/gnupg/S.* rw,
+
 owner @{HOME}/.gnupg/{,**} r,
 # gpg sometimes updates the trustdb to decide whether or not to update the
 # trustdb. For now, silence the denial since no other policy references this
