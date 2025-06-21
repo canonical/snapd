@@ -29,6 +29,13 @@
 %bcond_with apparmor
 %endif
 
+# SELinux on openSUSE Leap 16+ and Tumbleweed
+%if 0%{?suse_version} >= 1600
+%bcond_without selinux
+%else
+%bcond_with selinux
+%endif
+
 # The list of systemd services we are expected to ship. Note that this does
 # not include services that are only required on core systems.
 %global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service} snapd.mounts.target snapd.mounts-pre.target
@@ -100,7 +107,6 @@ Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
 
-Source100:      pie.patch
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
@@ -133,6 +139,12 @@ BuildRequires:  gcc-32bit
 %if %{with apparmor}
 BuildRequires:  pkgconfig(libapparmor)
 BuildRequires:  apparmor-rpm-macros
+%endif
+
+%if %{with selinux}
+BuildRequires:  pkgconfig(libselinux)
+BuildRequires:  selinux-policy-devel
+%{?selinux_requires}
 %endif
 
 PreReq:         permissions
@@ -184,10 +196,11 @@ pushd %{indigo_srcdir}
 # Add patch0 -p1 ... as appropriate here.
 %autopatch -p1
 
+build_with_static_pie=0
 # PIE static binaries are not supported on all architectures. We detect the
 # availability of the runtime object here, and GCC's support for such binaries.
 if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
-patch -p1 < %SOURCE100
+build_with_static_pie=1
 fi
 
 popd
@@ -213,7 +226,8 @@ builddir = %{_builddir}
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{with apparmor}
-with_testkeys = %{with_testkeys}
+with_testkeys = %{!?with_testkeys:0}%{?with_testkeys:1}
+with_static_pie = $build_with_static_pie
 EXTRA_GO_BUILD_FLAGS = -v -x
 # fix broken debuginfo bsc#1215402
 EXTRA_GO_LDFLAGS = -compressdwarf=false
@@ -245,14 +259,22 @@ export CGO_LDFLAGS="$LDFLAGS"
 pushd %{indigo_srcdir}/cmd
 autoreconf -i -f
 
+static_pie=
+if test -e %{_libdir}/rcrt1.o && cc -static-pie -xc /dev/null -o /dev/null -S; then
+    static_pie=--enable-static-PIE
+fi
+
 %configure \
     %{!?with_apparmor:--disable-apparmor} \
     %{?with_apparmor:--enable-apparmor} \
+    %{!?with_selinux:--disable-selinux} \
+    %{?with_selinux:--enable-selinux} \
     --libexecdir=%{_libexecdir}/snapd \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{snap_mount_dir} \
-    --enable-merged-usr
+    --enable-merged-usr \
+    $static_pie
 
 popd
 
@@ -264,6 +286,10 @@ popd
 %make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             all
+
+%if %{with selinux}
+%make_build -C %{indigo_srcdir}/data/selinux
+%endif
 
 %check
 # These binaries execute inside the mount namespace thus they must be built statically
@@ -310,6 +336,14 @@ export SNAPD_SKIP_SLOW_TESTS=1
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             install
 
+%if %{with selinux}
+# Install SELinux module
+install -D -p -m 0644 %{indigo_srcdir}/data/selinux/snappy.if \
+    %{buildroot}%{_datadir}/selinux/devel/include/contrib/snappy.if
+install -D -p -m 0644 %{indigo_srcdir}/data/selinux/snappy.pp.bz2 \
+    %{buildroot}%{_datadir}/selinux/packages/snappy.pp.bz2
+%endif
+
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
 chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
@@ -354,12 +388,20 @@ rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
 %pre
 %service_add_pre %{systemd_services_list}
+%if %{with selinux}
+%selinux_relabel_pre
+%endif
 
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
+%if %{with selinux}
+%selinux_modules_install %{_datadir}/selinux/packages/snappy.pp.bz2
+%selinux_relabel_post
+%endif
+
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
 %if %{with apparmor}
@@ -396,6 +438,10 @@ fi
 %postun
 %service_del_postun %{systemd_services_list}
 %systemd_user_postun %{systemd_user_services_list}
+%selinux_modules_uninstall snappy
+if [ $1 -eq 0 ]; then
+    %selinux_relabel_post
+fi
 
 %files
 
@@ -481,6 +527,8 @@ fi
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_datadir}/snapd/snapcraft-logo-bird.svg
+%{_datadir}/selinux/packages/snappy.pp.bz2
+%{_datadir}/selinux/devel/include/contrib/snappy.if
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
@@ -491,6 +539,7 @@ fi
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-mgmt
+%{_libexecdir}/snapd/snap-mgmt-selinux
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/snapctl
