@@ -293,7 +293,8 @@ func postUpdateReseal(mgr *FDEManager, unlocker boot.Unlocker, method device.Sea
 		logger.Debugf("attempting post DBX update reseal")
 
 		params := &boot.ResealKeyForBootChainsParams{
-			BootChains: bc,
+			BootChains:    bc,
+			RevokeOldKeys: true,
 		}
 		const expectReseal = true
 		return mgr.resealKeyForBootChains(unlocker, method, dirs.GlobalRootDir, params, expectReseal)

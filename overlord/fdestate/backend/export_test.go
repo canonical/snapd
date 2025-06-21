@@ -38,3 +38,11 @@ func MockSsecbootFindFreeHandle(f func() (uint32, error)) (restore func()) {
 		secbootFindFreeHandle = old
 	}
 }
+
+func MockSecbootRevokeOldKeys(f func(uk *secboot.UpdatedKeys, primaryKey []byte) error) (restore func()) {
+	old := secbootRevokeOldKeys
+	secbootRevokeOldKeys = f
+	return func() {
+		secbootRevokeOldKeys = old
+	}
+}

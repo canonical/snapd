@@ -174,7 +174,11 @@ func (fs *fakeState) GetEncryptedContainers() ([]backend.EncryptedContainer, err
 	return fs.EncryptedContainers, nil
 }
 
-func (s *resealTestSuite) TestTPMResealHappy(c *C) {
+type fakeSealedKey struct {
+	num int
+}
+
+func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool) {
 	bl := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
@@ -367,10 +371,11 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	defer restore()
 
 	resealCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		resealCalls++
 
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
+		c.Check(newPCRPolicyVersion, Equals, revokeOldKeys)
 
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
 		switch resealCalls {
@@ -404,7 +409,7 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 		default:
 			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
-		return nil
+		return secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{&fakeSealedKey{num: resealCalls}}), nil
 	})
 	defer restore()
 
@@ -433,8 +438,23 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
+	defer backend.MockSecbootRevokeOldKeys(func(uk *secboot.UpdatedKeys, primaryKey []byte) error {
+		if !revokeOldKeys {
+			c.Errorf("unexpected call")
+			return fmt.Errorf("unexpected call")
+		}
+		c.Assert(uk, NotNil)
+		c.Assert(*uk, HasLen, 3)
+		c.Check((*uk)[0].(*fakeSealedKey).num, Equals, 1)
+		c.Check((*uk)[1].(*fakeSealedKey).num, Equals, 2)
+		c.Check((*uk)[2].(*fakeSealedKey).num, Equals, 3)
+		c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
+
+		return nil
+	})()
+
 	const expectReseal = true
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, expectReseal)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, RevokeOldKeys: revokeOldKeys}, expectReseal)
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
@@ -448,6 +468,16 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cnt, Equals, 1)
 	c.Check(recoveryPbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(bootChains.RecoveryBootChains)))
+}
+
+func (s *resealTestSuite) TestTPMResealHappy(c *C) {
+	const revokeOldKeys = false
+	s.testTPMResealHappy(c, revokeOldKeys)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyRevoke(c *C) {
+	const revokeOldKeys = true
+	s.testTPMResealHappy(c, revokeOldKeys)
 }
 
 func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
@@ -718,8 +748,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 
 		// set mock key resealing
 		resealKeysCalls := 0
-		restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 			c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
+			c.Check(newPCRPolicyVersion, Equals, false)
 
 			resealKeysCalls++
 			c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -765,7 +796,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 				c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 			}
 
-			return tc.resealErr
+			return nil, tc.resealErr
 		})
 		defer restore()
 
@@ -1172,8 +1203,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
+		c.Check(newPCRPolicyVersion, Equals, false)
 
 		resealKeysCalls++
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1207,7 +1239,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 		}
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -1519,8 +1551,9 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		c.Check(params.PrimaryKey, DeepEquals, []byte{1, 2, 3, 4})
+		c.Check(newPCRPolicyVersion, Equals, false)
 
 		resealKeysCalls++
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
@@ -1554,7 +1587,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
 		}
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -1783,9 +1816,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		resealKeysCalls++
 
+		c.Check(newPCRPolicyVersion, Equals, false)
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile"`))
 		c.Logf("reseal: %+v", params)
 		switch resealKeysCalls {
@@ -1795,7 +1829,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		default:
 			c.Fatalf("unexpected number of reseal calls, %v", params)
 		}
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -2163,13 +2197,14 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore = backend.MockSecbootResealKeys(func(params *secboot.ResealKeysParams, newPCRPolicyVersion bool) (secboot.UpdatedKeys, error) {
 		resealKeysCalls++
 
+		c.Check(newPCRPolicyVersion, Equals, false)
 		c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-pcr-profile-with-dbx"`))
 		c.Logf("reseal: %+v", params)
 
-		return nil
+		return nil, nil
 	})
 	defer restore()
 

@@ -603,14 +603,27 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	return primaryKey, nil
 }
 
-// ResealKeys updates the PCR protection policy for the sealed encryption keys
-// according to the specified parameters.
-func ResealKeys(params *ResealKeysParams) error {
-	numSealedKeyObjects := len(params.Keys)
-	if numSealedKeyObjects < 1 {
-		return fmt.Errorf("at least one key file is required")
-	}
+type MaybeSealedKeyData interface {
+	Unwrap() *sb_tpm2.SealedKeyData
+}
 
+func sbTPMRevokeOldPCRProtectionPoliciesImpl(key MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error {
+	return key.Unwrap().RevokeOldPCRProtectionPolicies(tpm, primaryKey)
+}
+
+var sbTPMRevokeOldPCRProtectionPolicies = sbTPMRevokeOldPCRProtectionPoliciesImpl
+
+type UpdatedKeys []MaybeSealedKeyData
+
+type actualSealedKeyData struct {
+	data *sb_tpm2.SealedKeyData
+}
+
+func (a *actualSealedKeyData) Unwrap() *sb_tpm2.SealedKeyData {
+	return a.data
+}
+
+func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
@@ -620,10 +633,37 @@ func ResealKeys(params *ResealKeysParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
+	for _, key := range *uk {
+		if err := sbTPMRevokeOldPCRProtectionPolicies(key, tpm, primaryKey); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ResealKeys updates the PCR protection policy for the sealed encryption keys
+// according to the specified parameters.
+func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
+	numSealedKeyObjects := len(params.Keys)
+	if numSealedKeyObjects < 1 {
+		return nil, fmt.Errorf("at least one key file is required")
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return nil, fmt.Errorf("TPM device is not enabled")
+	}
+
 	var pcrProfile sb_tpm2.PCRProtectionProfile
 	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
-		return err
+		return nil, err
 	}
+
 
 	keyDatas := make([]*sb.KeyData, 0, numSealedKeyObjects)
 	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
@@ -631,11 +671,11 @@ func ResealKeys(params *ResealKeysParams) error {
 	for _, key := range params.Keys {
 		keyData, keyObject, writer, err := readKeyDataAndGetWriter(key)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if keyObject == nil {
 			if writer == nil {
-				return fmt.Errorf("internal error: new keydata has no writer")
+				return nil, fmt.Errorf("internal error: new keydata has no writer")
 			}
 			writers = append(writers, writer)
 			keyDatas = append(keyDatas, keyData)
@@ -648,42 +688,58 @@ func ResealKeys(params *ResealKeysParams) error {
 	hasKeyDatas := len(keyDatas) != 0
 
 	if hasOldSealedKeyObjects && hasKeyDatas {
-		return fmt.Errorf("key files are different formats")
+		return nil, fmt.Errorf("key files are different formats")
 	}
+
+	var updatedKeys UpdatedKeys
 
 	if hasOldSealedKeyObjects {
 		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, params.PrimaryKey, &pcrProfile); err != nil {
-			return fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
+			return nil, fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
 		}
 
 		// write key files
 		for i, sko := range sealedKeyObjects {
 			w := sb_tpm2.NewFileSealedKeyObjectWriter(params.Keys[i].KeyFile)
 			if err := sko.WriteAtomic(w); err != nil {
-				return fmt.Errorf("cannot write key data file %s: %w", params.Keys[i].KeyFile, err)
+				return nil, fmt.Errorf("cannot write key data file %s: %w", params.Keys[i].KeyFile, err)
 			}
 		}
 
 		// revoke old policies via the primary key object
 		if err := sbSealedKeyObjectRevokeOldPCRProtectionPolicies(sealedKeyObjects[0], tpm, params.PrimaryKey); err != nil {
-			return fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
+			return nil, fmt.Errorf("cannot revoke old PCR protection policies: %w", err)
 		}
 	} else {
-		// TODO:FDEM:FIX: find out which context when revocation should happen
-		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, params.PrimaryKey, &pcrProfile, sb_tpm2.NoNewPCRPolicyVersion, keyDatas...); err != nil {
-			return fmt.Errorf("cannot update PCR protection policy: %w", err)
+		policyVersion := sb_tpm2.NoNewPCRPolicyVersion
+		if newPCRPolicyVersion {
+			policyVersion = sb_tpm2.NewPCRPolicyVersion
+		}
+
+		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, params.PrimaryKey, &pcrProfile, policyVersion, keyDatas...); err != nil {
+			return nil, fmt.Errorf("cannot update PCR protection policy: %w", err)
 		}
 
 		for i, key := range params.Keys {
 			if err := keyDatas[i].WriteAtomic(writers[i]); err != nil {
-				return fmt.Errorf("cannot write key data in keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
+				return nil, fmt.Errorf("cannot write key data in keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
 			}
 		}
 
-		//TODO:FDEM:FIX: revoke after writing? Not sure how.
+		if newPCRPolicyVersion {
+			for i, keyData := range keyDatas {
+				skd, err := sb_tpm2.NewSealedKeyData(keyData)
+				if err != nil {
+					key := params.Keys[i]
+					return nil, fmt.Errorf("cannot get sealed key data for keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
+				}
 
+				updatedKeys = append(updatedKeys, &actualSealedKeyData{skd})
+			}
+		}
 	}
-	return nil
+
+	return updatedKeys, nil
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
