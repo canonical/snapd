@@ -128,6 +128,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("add-recovery-keys", m.doAddRecoveryKeys, nil)
 	runner.AddHandler("remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("rename-keys", m.doRenameKeys, nil)
+	runner.AddHandler("change-passphrase", m.doChangePassphrase, nil)
 
 	return m, nil
 }
@@ -306,6 +307,11 @@ type Keyslot struct {
 
 	devPath string
 	keyData secboot.KeyData
+}
+
+// Ref returns the corresponding key slot reference.
+func (k *Keyslot) Ref() KeyslotRef {
+	return KeyslotRef{ContainerRole: k.ContainerRole, Name: k.Name}
 }
 
 // KeyData returns secboot.KeyData corresponding to the keyslot.

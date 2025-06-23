@@ -1019,21 +1019,43 @@ type mockKeyData struct {
 	authMode     device.AuthMode
 	platformName string
 	roles        []string
+
+	changePassphrase func(oldPassphrase, newPassphrase string) error
+	writeTokenAtomic func(devicePath, slotName string) error
+	writeFileAtomic  func(path string) error
 }
 
-// AuthMode indicates the authentication mechanisms enabled for this key data.
 func (k *mockKeyData) AuthMode() device.AuthMode {
 	return k.authMode
 }
 
-// PlatformName returns the name of the platform that handles this key data.
 func (k *mockKeyData) PlatformName() string {
 	return k.platformName
 }
 
-// Role indicates the role of this key.
 func (k *mockKeyData) Roles() []string {
 	return k.roles
+}
+
+func (k *mockKeyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
+	if k.changePassphrase != nil {
+		return k.changePassphrase(oldPassphrase, newPassphrase)
+	}
+	return nil
+}
+
+func (k *mockKeyData) WriteTokenAtomic(devicePath, slotName string) error {
+	if k.writeTokenAtomic != nil {
+		return k.writeTokenAtomic(devicePath, slotName)
+	}
+	return nil
+}
+
+func (k *mockKeyData) WriteFileAtomic(path string) error {
+	if k.writeFileAtomic != nil {
+		return k.writeFileAtomic(path)
+	}
+	return nil
 }
 
 func (s *fdeMgrSuite) TestKeyslotKeyDataLazyLoad(c *C) {

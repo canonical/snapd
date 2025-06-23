@@ -508,3 +508,74 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []Keyslo
 
 	return ts, nil
 }
+
+type changeAuthOptions struct {
+	oldPassphrase, newPassphrase string
+}
+
+type changeAuthOptionsKey struct{}
+
+// ChangePassphrase creates a taskset that changes the
+// passphrase the specified target key slots.
+//
+// If keyslotRefs is empty, the following key slots are targets:
+//   - container-role: system-data, name: default
+//   - container-role: system-data, name: default-fallback
+//   - container-role: system-save, name: default-fallback
+func ChangePassphrase(st *state.State, oldPassphrase, newPassphrase string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	if len(keyslotRefs) == 0 {
+		// by default, target keys that would have been passphrase protected during installation.
+		keyslotRefs = append(keyslotRefs,
+			KeyslotRef{ContainerRole: "system-data", Name: "default"},
+			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"},
+		)
+	}
+
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
+		}
+		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
+		}
+	}
+
+	// TODO:FDEM: add change conflict detection
+
+	mgr := fdeMgr(st)
+
+	keyslots, missing, err := mgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(missing) != 0 {
+		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+
+	for _, keyslot := range keyslots {
+		if keyslot.Type != KeyslotTypePlatform {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypePlatform)
+		}
+		kd, err := keyslot.KeyData()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+		if kd.AuthMode() != device.AuthModePassphrase {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), device.AuthModePassphrase)
+		}
+	}
+
+	// Auth data must be in memory to avoid leaking credentials.
+	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{oldPassphrase: oldPassphrase, newPassphrase: newPassphrase})
+
+	ts := state.NewTaskSet()
+
+	changePassphrase := st.NewTask("change-passphrase", "Change passphrase")
+	changePassphrase.Set("keyslots", keyslotRefs)
+	ts.AddTask(changePassphrase)
+
+	return ts, nil
+}
