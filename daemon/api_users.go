@@ -58,6 +58,7 @@ var (
 		Path:        "/v2/users",
 		GET:         getUsers,
 		POST:        postUsers,
+		Actions:     []string{"create", "remove"},
 		ReadAccess:  rootAccess{},
 		WriteAccess: rootAccess{},
 	}

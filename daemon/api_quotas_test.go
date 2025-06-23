@@ -126,7 +126,7 @@ func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, `unknown quota action "foo"`)
 }
@@ -137,7 +137,7 @@ func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Matches, `invalid quota group name: .*`)
 }
@@ -163,7 +163,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Matches, `cannot create quota group: boom`)
 	c.Assert(s.ensureSoonCalled, check.Equals, 0)
@@ -193,7 +193,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(createCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
@@ -235,7 +235,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `quota group "booze" has "quota-control" change in progress`)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{
@@ -246,7 +246,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
 
-	rspe = s.errorReq(c, req, nil)
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{
@@ -285,7 +285,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateServicesHappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(createCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
@@ -322,7 +322,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(createCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
@@ -376,7 +376,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(updateCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
@@ -432,7 +432,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(updateCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
@@ -482,7 +482,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(updateCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
@@ -535,7 +535,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `quota group "ginger-ale" has "quota-control" change in progress`)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{
@@ -546,7 +546,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
 
-	rspe = s.errorReq(c, req, nil)
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{
@@ -619,7 +619,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `quota group "booze" has "quota-control" change in progress`)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{
@@ -630,7 +630,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
 
-	rspe = s.errorReq(c, req, nil)
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{
@@ -656,7 +656,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Matches, `cannot remove quota group: boom`)
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
@@ -719,7 +719,7 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/quotas", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.QuotaGroupResult{})
 	res := rsp.Result.([]client.QuotaGroupResult)
@@ -771,7 +771,7 @@ func (s *apiQuotaSuite) TestListJournalQuotas(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/quotas", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.QuotaGroupResult{})
 	res := rsp.Result.([]client.QuotaGroupResult)
@@ -831,7 +831,7 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/quotas/bar", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.FitsTypeOf, client.QuotaGroupResult{})
 	res := rsp.Result.(client.QuotaGroupResult)
@@ -854,7 +854,7 @@ func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/quotas/000", nil)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Matches, `invalid quota group name: .*`)
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
@@ -863,7 +863,7 @@ func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
 func (s *apiQuotaSuite) TestGetQuotaNotFound(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/quotas/unknown", nil)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 404)
 	c.Check(rspe.Message, check.Matches, `cannot find quota group "unknown"`)
 	c.Check(s.ensureSoonCalled, check.Equals, 0)

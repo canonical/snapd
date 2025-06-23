@@ -57,7 +57,7 @@ func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, s
 	req, err := http.NewRequest("GET", "/v2/snaps/"+snapName+"/conf?keys="+strings.Join(keys, ","), nil)
 	c.Check(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, statusCode)
 
 	var body map[string]any
@@ -220,7 +220,7 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]any
@@ -270,7 +270,7 @@ version: 1
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]any
@@ -316,7 +316,7 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 202)
 
 	var body map[string]any
@@ -351,7 +351,7 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
 
 	var body map[string]any
@@ -382,7 +382,7 @@ func (s *snapConfSuite) TestSetConfChangeConflict(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 409)
 
 	var body map[string]any

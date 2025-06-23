@@ -128,7 +128,7 @@ func (s *snapshotSuite) TestListSnapshots(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, snapshots)
 }
@@ -146,7 +146,7 @@ func (s *snapshotSuite) TestListSnapshotsFiltering(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots?set=42", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, []client.SnapshotSet{{ID: 42}})
 }
@@ -162,7 +162,7 @@ func (s *snapshotSuite) TestListSnapshotsBadFiltering(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots?set=no", nil)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, `'set', if given, must be a positive base 10 number; got "no"`)
 }
@@ -177,7 +177,7 @@ func (s *snapshotSuite) TestListSnapshotsListError(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots", nil)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 500)
 	c.Check(rspe.Message, check.Equals, "no")
 }
@@ -244,7 +244,7 @@ func (s *snapshotSuite) TestChangeSnapshots400(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(test.body))
 		c.Assert(err, check.IsNil, comm)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 		c.Check(rspe.Status, check.Equals, 400, comm)
 		c.Check(rspe.Message, check.Matches, test.error, comm)
 	}
@@ -273,7 +273,7 @@ func (s *snapshotSuite) TestChangeSnapshots404(c *check.C) {
 			req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
 			c.Assert(err, check.IsNil, comm)
 
-			rspe := s.errorReq(c, req, nil)
+			rspe := s.errorReq(c, req, nil, actionIsExpected)
 			c.Check(rspe.Status, check.Equals, 404, comm)
 			c.Check(rspe.Message, check.Matches, expectedError.Error(), comm)
 			c.Check(done, check.Equals, action, comm)
@@ -302,7 +302,7 @@ func (s *snapshotSuite) TestChangeSnapshots500(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
 		c.Assert(err, check.IsNil, comm)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, check.Equals, 500, comm)
 		c.Check(rspe.Message, check.Matches, expectedError.Error(), comm)
 		c.Check(done, check.Equals, action, comm)
@@ -335,7 +335,7 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 		c.Assert(err, check.IsNil, comm)
 
 		st.Unlock()
-		rsp := s.asyncReq(c, req, nil)
+		rsp := s.asyncReq(c, req, nil, actionIsExpected)
 		st.Lock()
 
 		c.Check(rsp.Status, check.Equals, 202, comm)
@@ -367,7 +367,7 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots/1/export", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
+	rsp := s.req(c, req, nil, actionIsExpected)
 	c.Check(rsp, check.FitsTypeOf, &daemon.SnapshotExportResponse{})
 	c.Check(snapshotExportCalled, check.Equals, 1)
 }
@@ -376,7 +376,7 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnNonNumericID(c *check.C) 
 	req, err := http.NewRequest("GET", "/v2/snapshots/xxx/export", nil)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, `'id' must be a positive base 10 number; got "xxx"`)
 }
@@ -392,7 +392,7 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots/1/export", nil)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, `cannot export 1: boom`)
 	c.Check(snapshotExportCalled, check.Equals, 1)
@@ -412,7 +412,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]any{"set-id": setID, "snaps": snapNames})
 }
@@ -428,7 +428,7 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, "no")
 }
@@ -439,7 +439,7 @@ func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, `cannot parse Content-Length: strconv.ParseInt: parsing "": invalid syntax`)
 }
@@ -461,7 +461,7 @@ func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(dataRead, check.Equals, 10)
 }

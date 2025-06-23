@@ -242,7 +242,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		req.Header.Set(k, v)
 	}
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	n := 1
 	c.Assert(installQueue, check.HasLen, n)
 	c.Check(installQueue[n-1], check.Matches, "local::.*/"+regexp.QuoteMeta(dirs.LocalInstallBlobTempPrefix)+".*")
@@ -698,7 +698,7 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(logbuf.String(), testutil.Contains,
 		`cannot sideload as a snap: cannot read snap file: mocking error to force reading as component`)
 	c.Check(logbuf.String(), testutil.Contains,
@@ -820,7 +820,7 @@ version: 1.0
 	for k, v := range map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"} {
 		req.Header.Set(k, v)
 	}
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(apiErr.Message, check.Equals, `cannot find resource pair connecting component revision "22" with snap revision "1" for "local+comp"`)
 }
 
@@ -846,7 +846,7 @@ func (s *sideloadSuite) sideloadComponentFailure(
 		req.Header.Set(k, v)
 	}
 
-	return s.errorReq(c, req, nil)
+	return s.errorReq(c, req, nil, actionIsExpected)
 }
 
 func (s *sideloadSuite) sideloadComponentCheck(
@@ -924,7 +924,7 @@ func (s *sideloadSuite) sideloadComponentCheck(
 		req.Header.Set(k, v)
 	}
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	n := 1
 	c.Assert(installQueue, check.HasLen, n)
 	c.Check(installQueue[n-1], check.Matches, "local\\+comp::.*/"+regexp.QuoteMeta(dirs.LocalInstallBlobTempPrefix)+".*")
@@ -982,7 +982,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Message, check.Equals, "cannot use devmode and jailmode flags together")
 }
 
@@ -1006,7 +1006,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Message, check.Equals, "this system cannot honour the jailmode flag")
 }
 
@@ -1070,7 +1070,7 @@ version: 1`, nil)
 		return state.NewTaskSet(), &snap.Info{SuggestedName: "foo"}, nil
 	})()
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st.Lock()
 	defer st.Unlock()
@@ -1107,7 +1107,7 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	// this is the prefix used for tempfiles for sideloading
 	glob := filepath.Join(os.TempDir(), "snapd-sideload-pkg-*")
 	glbBefore, _ := filepath.Glob(glob)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Message, check.Equals, `cannot find signatures with metadata for snap/component "x"`)
 	glbAfter, _ := filepath.Glob(glob)
 	c.Check(len(glbBefore), check.Equals, len(glbAfter))
@@ -1132,7 +1132,7 @@ func (s *sideloadSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 		req.Header.Set(k, v)
 	}
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
@@ -1162,7 +1162,7 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }
 
@@ -1208,7 +1208,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Message, check.Equals, `instance name "foo_instance" does not match snap name "bar"`)
 }
 
@@ -1304,7 +1304,7 @@ func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=foo")
 
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(apiErr.Message, check.Equals, `cannot read form data: exceeds memory limit`)
 }
 
@@ -1327,7 +1327,7 @@ func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
 	// using the maximum memory doesn't cause the failure (not having a snap file does)
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
@@ -1359,7 +1359,7 @@ func (s *sideloadSuite) TestSideloadCleanUpTempFilesIfRequestFailed(c *check.C) 
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(apiErr, check.NotNil)
 	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
 	c.Assert(err, check.IsNil)
@@ -1448,7 +1448,7 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
-	rsp := s.asyncReq(c, req, s.authUser)
+	rsp := s.asyncReq(c, req, s.authUser, actionIsExpected)
 
 	st := d.Overlord().State()
 	st.Lock()
@@ -1641,13 +1641,13 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 	s.asUserAuth(c, req)
 
 	if opts.missingSnap {
-		rsp := s.errorReq(c, req, s.authUser)
+		rsp := s.errorReq(c, req, s.authUser, actionIsExpected)
 		c.Check(rsp.Message, check.Equals, `snap owning "three+comp-four" is neither installed nor provided to sideload`)
 
 		return
 	}
 
-	rsp := s.asyncReq(c, req, s.authUser)
+	rsp := s.asyncReq(c, req, s.authUser, actionIsExpected)
 
 	st.Lock()
 	defer st.Unlock()
@@ -1808,7 +1808,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
 
-	rsp := s.asyncReq(c, req, s.authUser)
+	rsp := s.asyncReq(c, req, s.authUser, actionIsExpected)
 
 	st.Lock()
 	defer st.Unlock()
@@ -1886,7 +1886,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponentsMissingSnap(c 
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
 
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(apiErr.JSON().Status, check.Equals, 400)
 	c.Check(apiErr.Message, check.Equals, `snap owning "two+comp-two" is neither installed nor provided to sideload`)
 }
@@ -1945,7 +1945,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponentsMissingAsserti
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
 
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(apiErr.JSON().Status, check.Equals, 400)
 	c.Check(apiErr.Message, check.Equals, `cannot find signatures with metadata for snap/component "two+comp-two.comp"`)
 }
@@ -2021,7 +2021,7 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	s.asUserAuth(c, req)
 
-	rsp := s.asyncReq(c, req, s.authUser)
+	rsp := s.asyncReq(c, req, s.authUser, actionIsExpected)
 
 	st.Lock()
 	defer st.Unlock()
@@ -2073,7 +2073,7 @@ func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 
 	c.Check(apiErr.JSON().Status, check.Equals, 500)
 	c.Check(apiErr.Message, check.Equals, `cannot install snap/component files: expected`)
@@ -2101,7 +2101,7 @@ func (s *sideloadSuite) TestSideloadManyFailUnsafeReadInfo(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, nil, actionIsExpected)
 
 	c.Check(apiErr.JSON().Status, check.Equals, 400)
 	c.Check(apiErr.Message, check.Equals, `cannot read snap file: expected`)
@@ -2140,7 +2140,7 @@ func (s *sideloadSuite) errReadInfo(c *check.C, body string) {
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 
 	c.Assert(rsp.Status, check.Equals, 400)
 	// gets as far as reading the file to get the SideInfo
@@ -2191,7 +2191,7 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 
 	c.Check(rsp.Status, check.Equals, 202)
 	st.Lock()
@@ -2227,7 +2227,7 @@ version: 1`, nil)
 	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Message, check.Matches, "cannot find signatures with metadata for snap/component \"file-two\"")
@@ -2375,7 +2375,7 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 
 		// try the snap (without an installed core)
 		st.Unlock()
-		rsp := s.asyncReq(c, reqForFlags(t.flags), nil)
+		rsp := s.asyncReq(c, reqForFlags(t.flags), nil, actionIsExpected)
 		st.Lock()
 		c.Assert(tryWasCalled, check.Equals, true, check.Commentf(t.desc))
 
@@ -2459,6 +2459,6 @@ func (s *sideloadSuite) TestSideloadSnapInvalidTransaction(c *check.C) {
 		req.Header.Set(k, v)
 	}
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Message, check.Matches, `transaction must be either "per-snap" or "all-snaps"`)
 }

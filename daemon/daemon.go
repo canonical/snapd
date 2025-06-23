@@ -106,6 +106,9 @@ type Command struct {
 	PUT  ResponseFunc
 	POST ResponseFunc
 
+	// List of possible values an action field can have
+	Actions []string
+
 	// Access control.
 	ReadAccess  accessChecker
 	WriteAccess accessChecker

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -130,7 +131,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
-		rspe := s.asyncReq(c, req, nil)
+		rspe := s.asyncReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 202, cmt)
 		c.Check(rspe.Change, Equals, "123", cmt)
 
@@ -161,7 +162,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid,password", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.asyncReq(c, req, nil)
+	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
 	c.Check(rspe.Change, Equals, "123")
 }
@@ -196,7 +197,7 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
-	rspe := s.asyncReq(c, req, nil)
+	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
 	c.Check(rspe.Change, Equals, "123")
 }
@@ -229,7 +230,7 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, t.status, cmt)
 		c.Check(rspe.Kind, Equals, t.kind, cmt)
 
@@ -237,7 +238,7 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 		req, err = http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 		c.Assert(err, IsNil, cmt)
 
-		rspe = s.errorReq(c, req, nil)
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, t.status, cmt)
 		c.Check(rspe.Kind, Equals, t.kind, cmt)
 		restore()
@@ -273,7 +274,7 @@ func (s *confdbSuite) TestGetTxError(c *C) {
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?fields=ssid", nil)
 		c.Assert(err, IsNil, cmt)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, t.status, cmt)
 		c.Check(rspe.Kind, Equals, t.kind, cmt)
 		restore()
@@ -301,7 +302,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=,foo.bar,,[1].foo,foo,", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.asyncReq(c, req, nil)
+	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
 	c.Check(rspe.Change, Equals, "123")
 }
@@ -359,7 +360,7 @@ func (s *confdbSuite) TestSetView(c *C) {
 		c.Check(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
-		rspe := s.asyncReq(c, req, nil)
+		rspe := s.asyncReq(c, req, nil, actionIsExpected)
 		c.Assert(rspe.Status, Equals, 202, cmt)
 		c.Assert(rspe.Change, Equals, "123")
 		c.Assert(called, Equals, true)
@@ -411,7 +412,7 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	c.Check(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
-	rspe := s.asyncReq(c, req, nil)
+	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, Equals, 202)
 	c.Assert(rspe.Change, Equals, "123")
 	c.Assert(called, Equals, true)
@@ -449,7 +450,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, t.status, cmt)
 		c.Check(rspe.Kind, Equals, t.kind, cmt)
 		restore()
@@ -486,7 +487,7 @@ func (s *confdbSuite) TestSetViewBadRequests(c *C) {
 		req.Header.Set("Content-Type", "application/json")
 		c.Assert(err, IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 400)
 		c.Check(rspe.Message, Equals, tc.errMsg)
 	}
@@ -505,7 +506,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -515,7 +516,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=my-key", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -542,7 +543,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.asyncReq(c, req, nil)
+	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
 	c.Check(rspe.Change, Equals, "123")
 }
@@ -625,7 +626,7 @@ func (s *confdbControlSuite) TestConfdbFlagNotEnabled(c *C) {
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
 }
@@ -636,7 +637,7 @@ func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, `feature flag "confdb-control" is disabled: set 'experimental.confdb-control' to true`)
 }
@@ -648,7 +649,7 @@ func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Message, Equals, "device has no identity yet")
 }
@@ -677,7 +678,7 @@ func (s *confdbControlSuite) TestConfdbControlActionOK(c *C) {
 	c.Assert(err, IsNil)
 	s.asUserAuth(c, req)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 	c.Check(rsp.Result, DeepEquals, nil)
 
@@ -701,7 +702,7 @@ func (s *confdbControlSuite) TestConfdbControlActionSigningErr(c *C) {
 	c.Assert(err, IsNil)
 	s.asUserAuth(c, req)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Message, Equals, "cannot sign confdb-control without device key")
 }
@@ -743,7 +744,7 @@ func (s *confdbControlSuite) TestConfdbControlActionAckErr(c *C) {
 	c.Assert(err, IsNil)
 	s.asUserAuth(c, req)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(
 		rspe.Message,
@@ -779,7 +780,7 @@ func (s *confdbControlSuite) TestConfdbControlActionInvalidRequest(c *C) {
 		c.Assert(err, IsNil)
 		s.asUserAuth(c, req)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionExpectedBool(!strings.Contains(tc.errMsg, "unknown action")))
 		c.Check(rspe.Status, Equals, 400)
 		c.Check(rspe.Message, Equals, tc.errMsg)
 	}
