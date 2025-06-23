@@ -6,6 +6,8 @@ github.com/canonical/go-efilib v1.4.1 h1:/VMNCypz+iVmnNuMcsm7WvmDMI1ObkEP2W1h8Ls
 github.com/canonical/go-efilib v1.4.1/go.mod h1:n0Ttsy1JuHAvqaFbZBs6PAzoiiJdfkHsAmDOEbexYEQ=
 github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9 h1:Twk1ZSTWRClfGShP16ePf2JIiayqWS4ix1rkAR6baag=
 github.com/canonical/go-kbkdf v0.0.0-20250104172618-3b1308f9acf9/go.mod h1:IneQ5/yQcfPXrGekEXpR6yeea55ZD24N5+kHzeDseOM=
+github.com/canonical/go-password-validator v0.0.0-20250617132709-1b205303ca54 h1:JO3wAsxjrvQDf/X3q4RLIdzDCWrFjzhwUmCKrhnrIO8=
+github.com/canonical/go-password-validator v0.0.0-20250617132709-1b205303ca54/go.mod h1:Vy3kTKlJTJ7gav1xGV9Bek08cUsh90hK7pK7mY34GnU=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 h1:oe6fCvaEpkhyW3qAicT0TnGtyht/UrgvOwMcEgLb7Aw=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3/go.mod h1:qdP0gaj0QtgX2RUZhnlVrceJ+Qln8aSlDyJwelLLFeM=
 github.com/canonical/go-tpm2 v1.12.2 h1:7sWef6xVlWwBAn7hsY+3j62ANzoAO+GZvrltMHXq9RQ=
@@ -53,8 +55,10 @@ github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraK
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0EmriMOiI4YgtQNOo+6fNxzLCYioo3Q3BCVLdMCE=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
-github.com/snapcore/secboot v0.0.0-20250603103321-7fb379721237 h1:5Flx4mNtQgWcG7cqFdIJsDfL1rnbp8nucqexrMmCpBQ=
-github.com/snapcore/secboot v0.0.0-20250603103321-7fb379721237/go.mod h1:Y3APoLyInDvY8mVP1qDQd/t9bPuNp2itYPCGrltRQoQ=
+github.com/snapcore/secboot v0.0.0-20250619093200-3dd8877a2a1c h1:WdGjhfH7U1tZws+RiQNdwuMBZ/chp6Js4yKraTn7+mQ=
+github.com/snapcore/secboot v0.0.0-20250619093200-3dd8877a2a1c/go.mod h1:Y3APoLyInDvY8mVP1qDQd/t9bPuNp2itYPCGrltRQoQ=
+github.com/snapcore/secboot v0.0.0-20250619100227-97bf6d7fa895 h1:4iDtDFbUAURS+HLOxld/2HsTZGQOoahlCW7bpLRQ5+o=
+github.com/snapcore/secboot v0.0.0-20250619100227-97bf6d7fa895/go.mod h1:wAegBu6zUprmzGDroFbSF3CFvtpXCs2gkuXUG8VBuD4=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 go.etcd.io/bbolt v1.3.9 h1:8x7aARPEXiXbHmtUwAIv7eV2fQFHrLLavdiJ3uzJXoI=
 go.etcd.io/bbolt v1.3.9/go.mod h1:zaO32+Ti0PK1ivdPtgMESzuzL2VPoIG1PCQNvOdo/dE=
