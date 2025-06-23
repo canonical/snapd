@@ -476,7 +476,7 @@ Icon=${SNAP}/meep
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=foo
 Name=foo
-Icon=%s/foo/12/meep
+Icon=%s/foo/current/meep
 
 # the empty line above is fine
 `, dirs.SnapMountDir))
@@ -756,7 +756,8 @@ version: 1.0
 
 	newl, err := wrappers.RewriteIconLine(snap, "Icon=${SNAP}/icon.png")
 	c.Check(err, IsNil)
-	c.Check(newl, Equals, "Icon=${SNAP}/icon.png")
+	c.Check(strings.HasPrefix(newl, "Icon="), Equals, true)
+	c.Check(strings.HasSuffix(newl, "/snap/snap/current/icon.png"), Equals, true)
 
 	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon")
 	c.Check(err, IsNil)

@@ -154,6 +154,10 @@ func rewriteIconLine(s *snap.Info, line string) (string, error) {
 		if filepath.Clean(icon) != icon {
 			return "", fmt.Errorf("icon path %q is not canonicalized, did you mean %q?", icon, filepath.Clean(icon))
 		}
+		// use "current" instead of the revision number to avoid icon breakage
+		// when users copy the desktop files (LP: #1851490)
+		mountDir := filepath.Dir(s.MountDir()) + "/current"
+		line = strings.Replace(line, "${SNAP}", mountDir, -1)
 		return line, nil
 	}
 
