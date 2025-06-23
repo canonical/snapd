@@ -23,47 +23,47 @@ type ClusterSuite struct{}
 
 var _ = check.Suite(&ClusterSuite{})
 
-type publisher struct {
+type selector struct {
 	AddAuthoritativeRouteFunc func(r as.RDT, via string)
 	AddRoutesFunc             func(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error)
 	VerifyRoutesFunc          func(func(as.RDT) bool)
-	PublishFunc               func(send func(to as.RDT, r as.Routes) error, maxPeers, maxRoutes int)
+	SelectFunc                func(count int) (to as.RDT, routes as.Routes, ack func(), ok bool)
 	RoutesFunc                func() as.Routes
 }
 
-func (f *publisher) AddAuthoritativeRoute(r as.RDT, via string) {
-	if f.AddAuthoritativeRouteFunc == nil {
+func (s *selector) AddAuthoritativeRoute(r as.RDT, via string) {
+	if s.AddAuthoritativeRouteFunc == nil {
 		panic("unexpected call")
 	}
-	f.AddAuthoritativeRouteFunc(r, via)
+	s.AddAuthoritativeRouteFunc(r, via)
 }
 
-func (f *publisher) AddRoutes(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error) {
-	if f.AddRoutesFunc == nil {
+func (s *selector) AddRoutes(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error) {
+	if s.AddRoutesFunc == nil {
 		panic("unexpected call")
 	}
-	return f.AddRoutesFunc(r, ro, id)
+	return s.AddRoutesFunc(r, ro, id)
 }
 
-func (f *publisher) VerifyRoutes(fn func(as.RDT) bool) {
-	if f.VerifyRoutesFunc == nil {
+func (s *selector) VerifyRoutes(fn func(as.RDT) bool) {
+	if s.VerifyRoutesFunc == nil {
 		panic("unexpected call")
 	}
-	f.VerifyRoutesFunc(fn)
+	s.VerifyRoutesFunc(fn)
 }
 
-func (f *publisher) Publish(cb func(as.RDT, as.Routes) error, maxPeers, maxRoutes int) {
-	if f.PublishFunc == nil {
+func (s *selector) Select(count int) (as.RDT, as.Routes, func(), bool) {
+	if s.SelectFunc == nil {
 		panic("unexpected call")
 	}
-	f.PublishFunc(cb, maxPeers, maxRoutes)
+	return s.SelectFunc(count)
 }
 
-func (f *publisher) Routes() as.Routes {
-	if f.RoutesFunc == nil {
+func (s *selector) Routes() as.Routes {
+	if s.RoutesFunc == nil {
 		panic("unexpected call")
 	}
-	return f.RoutesFunc()
+	return s.RoutesFunc()
 }
 
 type messenger struct {
@@ -71,18 +71,18 @@ type messenger struct {
 	UntrustedFunc func(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
 }
 
-func (f *messenger) Trusted(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, msg any) error {
-	if f.TrustedFunc == nil {
+func (m *messenger) Trusted(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, msg any) error {
+	if m.TrustedFunc == nil {
 		panic("unexpected call")
 	}
-	return f.TrustedFunc(ctx, rdt, addr, cert, kind, msg)
+	return m.TrustedFunc(ctx, rdt, addr, cert, kind, msg)
 }
 
-func (f *messenger) Untrusted(ctx context.Context, addr, kind string, msg any) ([]byte, error) {
-	if f.UntrustedFunc == nil {
+func (m *messenger) Untrusted(ctx context.Context, addr, kind string, msg any) ([]byte, error) {
+	if m.UntrustedFunc == nil {
 		panic("unexpected call")
 	}
-	return f.UntrustedFunc(ctx, addr, kind, msg)
+	return m.UntrustedFunc(ctx, addr, kind, msg)
 }
 
 func createTestCertAndKey(ip net.IP) (certPEM []byte, keyPEM []byte, err error) {
@@ -125,7 +125,7 @@ func createTestCertAndKey(ip net.IP) (certPEM []byte, keyPEM []byte, err error) 
 	return certPEM, keyPEM, nil
 }
 
-func clusterStateWithTestKeys(c *check.C, st *state.State, pub *publisher, cfg as.ClusterConfig) *as.ClusterState {
+func clusterStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg as.ClusterConfig) *as.ClusterState {
 	certPEM, keyPEM, err := createTestCertAndKey(cfg.IP)
 	c.Assert(err, check.IsNil)
 
@@ -136,28 +136,28 @@ func clusterStateWithTestKeys(c *check.C, st *state.State, pub *publisher, cfg a
 	st.Set("cluster-config", cfg)
 	st.Unlock()
 
-	cs, err := as.NewClusterState(st, func(as.RDT) (as.RoutePublisher, error) {
-		return pub, nil
+	cs, err := as.NewClusterState(st, func(as.RDT) (as.RouteSelector, error) {
+		return sel, nil
 	})
 	c.Assert(err, check.IsNil)
 
 	return cs
 }
 
-func statelessPublisher() *publisher {
-	return &publisher{
+func statelessSelector() *selector {
+	return &selector{
 		AddAuthoritativeRouteFunc: func(r as.RDT, via string) {},
 		AddRoutesFunc: func(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error) {
 			return 0, 0, nil
 		},
 		VerifyRoutesFunc: func(f func(as.RDT) bool) {},
-		PublishFunc:      func(f func(as.RDT, as.Routes) error, _ int, _ int) {},
+		SelectFunc:       func(_ int) (as.RDT, as.Routes, func(), bool) { return "", as.Routes{}, nil, false },
 		RoutesFunc:       func() as.Routes { return as.Routes{} },
 	}
 }
 
 func (s *ClusterSuite) TestAddress(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -168,7 +168,7 @@ func (s *ClusterSuite) TestAddress(c *check.C) {
 }
 
 func (s *ClusterSuite) TestCert(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -180,7 +180,7 @@ func (s *ClusterSuite) TestCert(c *check.C) {
 }
 
 func (s *ClusterSuite) TestPublishAuth(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -219,7 +219,7 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 }
 
 func (s *ClusterSuite) TestAuthenticate(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -281,7 +281,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 }
 
 func (s *ClusterSuite) TestTrusted(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -353,7 +353,7 @@ func trustedPeer(c *check.C, cs *as.ClusterState, rdt as.RDT) (h *as.PeerHandle,
 }
 
 func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -406,7 +406,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 }
 
 func (s *ClusterSuite) TestPublishDevices(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessPublisher(), as.ClusterConfig{
+	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -466,8 +466,8 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 }
 
 func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
-	publisher := statelessPublisher()
-	cs := clusterStateWithTestKeys(c, state.New(nil), publisher, as.ClusterConfig{
+	selector := statelessSelector()
+	cs := clusterStateWithTestKeys(c, state.New(nil), selector, as.ClusterConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -485,38 +485,38 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 
 	var msg messenger
 	var called int
-	publisher.PublishFunc = func(send func(to as.RDT, r as.Routes) error, maxPeers, maxRoutes int) {
-		called++
+	peers := []as.RDT{oneRDT, twoRDT, threeRDT, "four", oneRDT} // 5 calls to publish as expected
+	acked := make(map[as.RDT]int)
 
-		msg.TrustedFunc = func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
-			c.Assert(rdt, check.Equals, oneRDT)
+	selector.SelectFunc = func(count int) (as.RDT, as.Routes, func(), bool) {
+		peer := peers[called]
+		called++
+		return peer, as.Routes{}, func() {
+			acked[peer]++
+		}, true
+	}
+
+	msg.TrustedFunc = func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
+		switch rdt {
+		case oneRDT:
 			c.Assert(addr, check.Equals, oneAddr)
 			c.Assert(cert, check.DeepEquals, oneCert)
-			c.Assert(kind, check.Equals, "routes")
-			_ = message.(as.Routes)
-			return nil
-		}
-		err := send(oneRDT, as.Routes{})
-		c.Assert(err, check.IsNil)
-
-		msg.TrustedFunc = func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
-			c.Assert(rdt, check.Equals, twoRDT)
+		case twoRDT:
 			c.Assert(addr, check.Equals, twoAddr)
 			c.Assert(cert, check.DeepEquals, twoCert)
-			c.Assert(kind, check.Equals, "routes")
-			_ = message.(as.Routes)
-			return nil
 		}
-		err = send(twoRDT, as.Routes{})
-		c.Assert(err, check.IsNil)
-
-		err = send(threeRDT, as.Routes{})
-		c.Assert(err, check.ErrorMatches, "skipped publishing to undiscovered peer")
-
-		err = send("four", as.Routes{})
-		c.Assert(err, check.ErrorMatches, "skipped publishing to untrusted peer")
+		c.Assert(kind, check.Equals, "routes")
+		_ = message.(as.Routes)
+		return nil
 	}
 
 	cs.PublishRoutes(context.Background(), &msg)
-	c.Assert(called, check.Equals, 1)
+	c.Assert(called, check.Equals, 5)
+
+	// since peer four isn't known and peer three isn't discovered, we should
+	// have only acked our publications to peer one and two
+	c.Assert(acked, check.DeepEquals, map[as.RDT]int{
+		oneRDT: 2,
+		twoRDT: 1,
+	})
 }

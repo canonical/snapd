@@ -4,14 +4,16 @@ import (
 	"cmp"
 	"errors"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/cluster/assemblestate/bimap"
 	"github.com/snapcore/snapd/cluster/assemblestate/bitset"
+	"github.com/snapcore/snapd/randutil"
 )
 
-// RoutePublisher keeps track of which routes we've seen and helps pick which
+// RouteSelector keeps track of which routes we've seen and helps pick which
 // peers to publish routes to.
-type RoutePublisher interface {
+type RouteSelector interface {
 	// AddAuthoritativeRoute records a route from this local node to the given
 	// [RDT]. This route will be published to the given peer, regardless of our
 	// knowledge of that peer's identity.
@@ -27,26 +29,31 @@ type RoutePublisher interface {
 	// considered.
 	VerifyRoutes(identified func(RDT) bool)
 
-	// Publish picks a subset of known (not trusted, the [RoutePublisher] does
-	// not deal with trust) peers that routes should be published to. For each
-	// peer selected, a subset of routes that they need to receive is picked.
+	// Select picks one random peer that routes should be published to and
+	// selects a subset of routes that they need to receive.
 	//
-	// The given send function is called for each selected peer with their
-	// selected routes.
-	Publish(send func(to RDT, r Routes) error, maxPeers, maxRoutes int)
+	// Returns the peer to send to, the routes to send, an acknowledgment
+	// function that should be called after successful transmission, and whether
+	// a peer was selected. The ack function must be called once the selected
+	// routes are published so that they will not be selected for publication
+	// again.
+	Select(count int) (to RDT, routes Routes, ack func(), ok bool)
 
 	// Routes returns all routes that are currently valid for publication.
 	Routes() Routes
 }
 
-// PriorityPublisher implements [RoutePublisher].
+// PrioritySelector implements [RouteSelector].
 //
-// This implementation prioritizes peers that this local node believes are
-// missing the most routes. Additionally, we prioritize sending routes that this
-// local node has witnessed and published the smallest number of times.
-type PriorityPublisher struct {
+// This implementation randomly selects one peer for route publication.
+// Additionally, we prioritize routes that this local node has witnessed and
+// published the smallest number of times.
+type PrioritySelector struct {
 	// self is this node's RDT.
 	self RDT
+
+	// rng is the random number generator that is used for peer selection.
+	rng *randutil.Rand
 
 	// rdts keeps track of all RDTs that we've seen and maps them to a [peerID].
 	rdts *bimap.Bimap[RDT, peerID]
@@ -79,9 +86,14 @@ type PriorityPublisher struct {
 	authoritative map[RDT]edgeID
 }
 
-func NewPriorityPublisher(self RDT) *PriorityPublisher {
-	return &PriorityPublisher{
+func NewPrioritySelector(self RDT, source randutil.Source) *PrioritySelector {
+	if source == nil {
+		source = randutil.NewSource(time.Now().UnixNano())
+	}
+
+	return &PrioritySelector{
 		self:          self,
+		rng:           randutil.New(source),
 		rdts:          bimap.New[RDT, peerID](),
 		edges:         bimap.New[edge, edgeID](),
 		addresses:     bimap.New[string, addrID](),
@@ -109,7 +121,7 @@ type edge struct {
 	via      addrID
 }
 
-func (m *PriorityPublisher) peerID(rdt RDT) peerID {
+func (m *PrioritySelector) peerID(rdt RDT) peerID {
 	if pid, ok := m.rdts.IndexOf(rdt); ok {
 		return pid
 	}
@@ -120,11 +132,11 @@ func (m *PriorityPublisher) peerID(rdt RDT) peerID {
 	return pid
 }
 
-func (m *PriorityPublisher) addrID(a string) addrID {
+func (m *PrioritySelector) addrID(a string) addrID {
 	return m.addresses.Add(a)
 }
 
-func (m *PriorityPublisher) edgeID(e edge) (edgeID, bool) {
+func (m *PrioritySelector) edgeID(e edge) (edgeID, bool) {
 	if eid, ok := m.edges.IndexOf(e); ok {
 		return eid, true
 	}
@@ -134,10 +146,10 @@ func (m *PriorityPublisher) edgeID(e edge) (edgeID, bool) {
 	return eid, false
 }
 
-// AddAuthoritativeRoute informs the publisher of an authoritative route from
+// AddAuthoritativeRoute informs the selector of an authoritative route from
 // this local node to the given peer. This route can safely be published to the
 // given peer, regardless of our knowledge of that peer's identity.
-func (m *PriorityPublisher) AddAuthoritativeRoute(to RDT, via string) {
+func (m *PrioritySelector) AddAuthoritativeRoute(to RDT, via string) {
 	eid, _ := m.edgeID(edge{
 		from: m.peerID(m.self),
 		to:   m.peerID(to),
@@ -149,7 +161,7 @@ func (m *PriorityPublisher) AddAuthoritativeRoute(to RDT, via string) {
 // AddRoutes records all give routes and marks them as known to the given [RDT].
 // The provided identified function is used to verify routes and mark them as
 // safe to publish if all we know all devices involved in a route.
-func (m *PriorityPublisher) AddRoutes(source RDT, r Routes, identified func(RDT) bool) (added int, total int, err error) {
+func (m *PrioritySelector) AddRoutes(source RDT, r Routes, identified func(RDT) bool) (added int, total int, err error) {
 	pid := m.peerID(source)
 
 	if len(r.Routes)%3 != 0 {
@@ -197,7 +209,7 @@ func (m *PriorityPublisher) AddRoutes(source RDT, r Routes, identified func(RDT)
 
 // VerifyRoutes uses the given identified function to mark any routes that
 // involve devices that we know as safe to publish.
-func (p *PriorityPublisher) VerifyRoutes(identified func(RDT) bool) {
+func (p *PrioritySelector) VerifyRoutes(identified func(RDT) bool) {
 	for eid, edge := range p.edges.Values() {
 		fromRDT := p.rdts.Value(edge.from)
 		toRDT := p.rdts.Value(edge.to)
@@ -208,106 +220,79 @@ func (p *PriorityPublisher) VerifyRoutes(identified func(RDT) bool) {
 	}
 }
 
-// Publish calls the given send function for a subset of our peers, with routes
-// that should be published to that peer.
+// Select selects one random peer and routes that should be published to that
+// peer.
 //
-// This implementation prioritizes peers that this node believes are missing the
-// most routes. Additionally, we prioritize routes that this local node has
-// witnessed and published fewer times.
-func (p *PriorityPublisher) Publish(send func(RDT, Routes) error, maxPeers, maxRoutes int) {
-	type pi struct {
-		id      peerID
-		missing int
-	}
-
-	var peers []pi
-	for pid, bs := range p.known {
+// This implementation randomly selects one peer for route publication.
+// Additionally, we prioritize routes that this local node has witnessed and
+// published fewer times.
+func (p *PrioritySelector) Select(count int) (to RDT, routes Routes, ack func(), ok bool) {
+	var peers []peerID
+	for pid := range p.known {
 		if p.rdts.Value(pid) == p.self {
 			continue
 		}
 
-		peers = append(peers, pi{
-			id:      pid,
-			missing: p.verified.Count() - bs.Count(),
-		})
+		peers = append(peers, pid)
 	}
 
 	if len(peers) == 0 {
-		return
+		return "", Routes{}, nil, false
 	}
 
-	// prioritize peers that are missing more of our known routes. we might want
-	// to consider getting rid of this, since this would result in a late joiner
-	// getting a bunch of routes immediately from every peer.
-	sort.Slice(peers, func(i, j int) bool { return peers[i].missing > peers[j].missing })
+	// sort peers to make random selection only depend on p.rng, rather than the
+	// random iteration order of the map.
+	sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
+	selected := peers[p.rng.Intn(len(peers))]
 
-	// sending is pre-allocated and reused here between iterations to reduce
-	// allocations. max possible needed size is all verified routes + the route
-	// from this local node to the destination peer
+	// max possible needed size is all verified routes + the route from this
+	// local node to the destination peer
 	sending := make([]edgeID, 0, p.verified.Count()+1)
-	for _, pinfo := range peers[:min(maxPeers, len(peers))] {
-		sending = sending[:0]
 
-		peerKnown := p.known[pinfo.id]
-		peerRDT := p.rdts.Value(pinfo.id)
+	// only consider routes that we don't think that this peer knows about
+	peerKnown := p.known[selected]
+	p.verified.Diff(peerKnown).Range(func(eid edgeID) bool {
+		sending = append(sending, eid)
+		return true
+	})
 
-		// only consider routes that we don't think that this peer knows about
-		unknown := p.verified.Diff(peerKnown)
-		unknown.Range(func(eid edgeID) bool {
-			// if we've verified more routes than we originally allocated for,
-			// just handle them on the next publication. check len+2 since we
-			// add the route here and the authoritative route below.
-			if len(sending)+2 > cap(sending) {
-				return false
-			}
+	// prioritize routes that we think fewer peers know about. this takes into
+	// account copies of routes we've seen from our peers and copies that we've
+	// sent to our peers
+	sort.Slice(sending, func(i, j int) bool { return p.sources[sending[i]] < p.sources[sending[j]] })
+	sending = sending[:min(len(sending), count)]
 
-			sending = append(sending, eid)
-			return true
-		})
+	// if we have an authoritative route for this peer, make sure to include it
+	peerRDT := p.rdts.Value(selected)
+	if eid, ok := p.authoritative[peerRDT]; ok && !peerKnown.Has(eid) {
+		sending = append(sending, eid)
+	}
 
-		// prioritize routes that we think fewer peers know about. this takes
-		// into account copies of routes we've seen from our peers and copies
-		// that we've sent to our peers
-		sort.Slice(sending, func(i, j int) bool { return p.sources[sending[i]] < p.sources[sending[j]] })
-		sending = sending[:min(len(sending), maxRoutes)]
+	if len(sending) == 0 {
+		return "", Routes{}, nil, false
+	}
 
-		// if we have an authoritative route for this peer, make sure to include
-		// it
-		if eid, ok := p.authoritative[peerRDT]; ok && !peerKnown.Has(eid) {
-			sending = append(sending, eid)
-		}
+	routes = p.edgesToRoutes(sending)
 
-		if len(sending) == 0 {
-			continue
-		}
-
-		// note that send unlocks the lock that protects our internal data
-		// structures. it is relocked before send returns. things might have
-		// changed on our next iteration of the loop. this is ok, since edge and
-		// peer IDs are never invalidated.
-		//
-		// we could invert this to return a [Routes], but that would increase
-		// complexity in other ways (and would be a bit wasteful in terms of
-		// performance).
-		if err := send(peerRDT, p.edgesToRoutes(sending)); err != nil {
-			continue
-		}
-
+	// create ack function that updates source counts when called
+	ack = func() {
 		for _, eid := range sending {
-			// the peer might know about the route already due to the unlocking
-			// that happens in send. if that has happened, then we don't want to
-			// double count that peer as a source.
+			// the peer might know about the route already since selection time.
+			// if that has happened, then we don't want to double count that
+			// peer as a source.
 			if !peerKnown.Has(eid) {
 				peerKnown.Set(eid)
 				p.sources[eid]++
 			}
 		}
 	}
+
+	return peerRDT, routes, ack, true
 }
 
 // Routes returns routes that we've seen for which both peers in the route
 // identified.
-func (p *PriorityPublisher) Routes() Routes {
+func (p *PrioritySelector) Routes() Routes {
 	eids := p.verified.All()
 
 	devs := make(map[string]struct{})
@@ -366,7 +351,7 @@ func (p *PriorityPublisher) Routes() Routes {
 	}
 }
 
-func (p *PriorityPublisher) edgesToRoutes(edges []edgeID) Routes {
+func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {
 	rdts := bimap.New[RDT, int]()
 	addrs := bimap.New[string, int]()
 

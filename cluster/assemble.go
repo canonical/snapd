@@ -91,8 +91,8 @@ func Assemble(st *state.State, ctx context.Context, discover Discoverer, opts As
 	st.Set("cluster-config", config)
 	st.Unlock()
 
-	cs, err := as.NewClusterState(st, func(self as.RDT) (as.RoutePublisher, error) {
-		return as.NewPriorityPublisher(self), nil
+	cs, err := as.NewClusterState(st, func(self as.RDT) (as.RouteSelector, error) {
+		return as.NewPrioritySelector(self, nil), nil
 	})
 	if err != nil {
 		return as.Routes{}, err
