@@ -245,13 +245,15 @@ func (p *PrioritySelector) Select(count int) (to RDT, routes Routes, ack func(),
 	sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
 	selected := peers[p.rng.Intn(len(peers))]
 
-	// max possible needed size is all verified routes + the route from this
+	peerKnown := p.known[selected]
+	unknown := p.verified.Diff(peerKnown)
+
+	// max possible needed size is all unknown routes + the route from this
 	// local node to the destination peer
-	sending := make([]edgeID, 0, p.verified.Count()+1)
+	sending := make([]edgeID, 0, unknown.Count()+1)
 
 	// only consider routes that we don't think that this peer knows about
-	peerKnown := p.known[selected]
-	p.verified.Diff(peerKnown).Range(func(eid edgeID) bool {
+	unknown.Range(func(eid edgeID) bool {
 		sending = append(sending, eid)
 		return true
 	})
