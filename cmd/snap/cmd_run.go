@@ -49,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
-	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -1544,13 +1543,13 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 			stdout, stderr := makeStdStreamsForJournal(app, lns)
 			if stdout != nil {
 				defer stdout.Close()
-				if err := sys.Dup2(stdout.Fd(), uintptr(syscall.Stdout)); err != nil {
+				if err := osutil.DupFD(stdout.Fd(), uintptr(syscall.Stdout)); err != nil {
 					logger.Noticef("cannot duplicate stdout for connection: %v", err)
 				}
 			}
 			if stderr != nil {
 				defer stderr.Close()
-				if err := sys.Dup2(stderr.Fd(), uintptr(syscall.Stderr)); err != nil {
+				if err := osutil.DupFD(stderr.Fd(), uintptr(syscall.Stderr)); err != nil {
 					logger.Noticef("cannot duplicate stderr for connection: %v", err)
 				}
 			}

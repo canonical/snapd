@@ -17,15 +17,12 @@
  *
  */
 
-package sys
+package osutil
 
-import "syscall"
+import (
+	"syscall"
+)
 
-func Dup2(oldfd uintptr, newfd uintptr) error {
-	// NB: This uses Dup3 instead of Dup2 because newer architectures like
-	// linux/arm64 do not include legacy syscalls like Dup2. Dup3 was introduced
-	// in Kernel 2.6.27
-	//
-	// See https://groups.google.com/forum/#!topic/golang-dev/zpeFtN2z5Fc.
-	return syscall.Dup3(int(oldfd), int(newfd), 0)
+func DupFD(oldfd uintptr, newfd uintptr) error {
+	return syscall.Dup2(int(oldfd), int(newfd))
 }
