@@ -2202,6 +2202,9 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 	squashfsPath := filepath.Join(runWritableDataDir, dirs.StripRootDir(cpi.MountFile()))
 	// snapRoot is where we will find the /snap directory where
 	// snaps/components will be mounted
+	// TODO this should use dirs.WritableUbuntuCoreSystemDataDir, but it is
+	// not possible as the moment due to how release.OnClassic is set
+	// (would be true if used here).
 	snapRoot := filepath.Join("sysroot", "writable", "system-data")
 	if isClassic {
 		snapRoot = "sysroot"
