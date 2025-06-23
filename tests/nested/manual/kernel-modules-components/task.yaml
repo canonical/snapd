@@ -75,8 +75,19 @@ execute: |
 
   # Install again, but force a failure to check revert
   boot_id=$(tests.nested boot-id)
+  remote.exec sudo systemd-inhibit bash <<\EOF &
+  count=0
+  while ! [ -e /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi ]; do
+    if [ "$((count++))" -gt 300 ]; then
+      exit 1
+    fi
+    sleep 1
+  done
+  rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
+  EOF
+  kernel_remover="${!}"
   remote_chg_id=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel.snap "$comp_file")
-  remote.retry --wait 1 -n 600 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'
+  wait "${kernel_remover}"
   tests.nested wait-for reboot "$boot_id"
   # Note that snap watch will end with error
   not remote.exec sudo snap watch "$remote_chg_id"
