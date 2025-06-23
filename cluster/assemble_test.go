@@ -58,7 +58,7 @@ func TestAssemble(t *testing.T) {
 		},
 	}))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	collected := make([]assemblestate.Routes, total)
@@ -76,7 +76,7 @@ func TestAssemble(t *testing.T) {
 			defer wg.Done()
 
 			rtd := strconv.Itoa(i)
-			st := state.New(&fileBackend{path: "/home/phelps/outputs/" + rtd})
+			st := state.New(nil)
 			routes, err := cluster.Assemble(st, ctx, discover, cluster.AssembleOpts{
 				Secret:      "secret",
 				ListenIP:    net.ParseIP("127.0.0.1"),
