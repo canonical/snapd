@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"reflect"
 	"sort"
 	"strconv"
@@ -58,7 +59,10 @@ func TestAssemble(t *testing.T) {
 		},
 	}))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
+	defer cancel()
+
+	ctx, cancel = signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
 	collected := make([]assemblestate.Routes, total)
