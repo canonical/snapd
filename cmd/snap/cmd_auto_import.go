@@ -85,9 +85,7 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 
-		// TODO: we should probably make this a formal dir in dirs.go, but it is
-		// not directly used since we just use SnapSeedDir instead
-		writableSystemDataDir := filepath.Join(dirs.GlobalRootDir, "writable", "system-data")
+		writableSystemDataDir := dirs.WritableUbuntuCoreSystemDataDir
 		if strings.HasPrefix(mountPoint, dirs.SnapSeedDirUnder(writableSystemDataDir)) {
 			continue
 		}

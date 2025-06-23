@@ -467,6 +467,8 @@ func (s *SnapSuite) TestAutoImportFromMount(c *C) {
 }
 
 func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
 
 	mountDirs := []string{
 		"/writable/system-data/var/lib/snapd/seed",
@@ -499,7 +501,7 @@ func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
 24 0 8:18 / %[1]s%[7]s rw,relatime opt:1 opt:2 - ext2 /dev/meep78 rw,errors=remount-ro,data=ordered`
 
 	content := fmt.Sprintf(mockMountInfoFmtWithLoop, args...)
-	restore := osutil.MockMountInfo(content)
+	restore = osutil.MockMountInfo(content)
 	defer restore()
 
 	l, err := snap.AutoImportCandidates()
