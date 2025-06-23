@@ -57,6 +57,8 @@ var (
 	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
 	sbTestLUKS2ContainerKey         = sb.TestLUKS2ContainerKey
 	disksDevlinks                   = disks.Devlinks
+
+	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
 )
 
 func init() {
@@ -602,6 +604,22 @@ func (k *keyData) Roles() []string {
 		return nil
 	}
 	return []string{k.kd.Role()}
+}
+
+func (k *keyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
+	return sbKeyDataChangePassphrase(k.kd, oldPassphrase, newPassphrase)
+}
+
+func (k *keyData) WriteTokenAtomic(devicePath, slotName string) error {
+	writer, err := newLUKS2KeyDataWriter(devicePath, slotName)
+	if err != nil {
+		return err
+	}
+	return k.kd.WriteAtomic(writer)
+}
+
+func (k *keyData) WriteFileAtomic(path string) error {
+	return k.kd.WriteAtomic(sb.NewFileKeyDataWriter(path))
 }
 
 // ReadContainerKeyData reads key slot key data for the specified device and slot name.
