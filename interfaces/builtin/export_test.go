@@ -32,6 +32,8 @@ import (
 )
 
 var (
+	DecodeCompatField           = decodeCompatField
+	CheckCompatibility          = checkCompatibility
 	RegisterIface               = registerIface
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
