@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/user"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -685,4 +686,12 @@ func MockFdestateGenerateRecoveryKey(f func(st *state.State) (rkey keys.Recovery
 
 func MockFdestateGetRecoveryKey(f func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error)) (restore func()) {
 	return testutil.Mock(&fdestateGetRecoveryKey, f)
+}
+
+func MockFdestateGetKeyslots(f func(st *state.State, keyslotRefs []fdestate.KeyslotRef) (keyslots []fdestate.Keyslot, missingRefs []fdestate.KeyslotRef, err error)) (restore func()) {
+	return testutil.Mock(&fdestateGetKeyslots, f)
+}
+
+func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceContext) (*snap.Info, error)) (restore func()) {
+	return testutil.Mock(&snapstateGadgetInfo, f)
 }

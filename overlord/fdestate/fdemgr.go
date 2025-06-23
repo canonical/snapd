@@ -407,6 +407,16 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 	return keyslots, missingRefs, nil
 }
 
+// GetKeyslots returns the key slots for the specified key slot references.
+// If keyslotRefs is empty, all key slots on all encrypted containers will
+// be returned.
+//
+// The state needs to be locked by the caller.
+func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot, missingRefs []KeyslotRef, err error) {
+	mgr := fdeMgr(st)
+	return mgr.GetKeyslots(keyslotRefs)
+}
+
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
 
 func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
@@ -582,4 +592,9 @@ func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error
 	return func() {
 		disksDMCryptUUIDFromMountPoint = old
 	}
+}
+
+func MockKeyslotKeyData(keyslot *Keyslot, kd secboot.KeyData) {
+	osutil.MustBeTestBinary("mocking Keyslot.keyData can be done only from tests")
+	keyslot.keyData = kd
 }
