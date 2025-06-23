@@ -81,9 +81,17 @@ func RandomString(length int) string {
 
 // Re-exported from math/rand for streamlining.
 var (
-	Intn   = rand.Intn
-	Int63n = rand.Int63n
-	Perm   = rand.Perm
+	Intn      = rand.Intn
+	Int63n    = rand.Int63n
+	Perm      = rand.Perm
+	New       = rand.New
+	NewSource = rand.NewSource
+)
+
+// Re-exported from math/rand for streamlining.
+type (
+	Source = rand.Source
+	Rand   = rand.Rand
 )
 
 // RandomDuration returns a random duration up to the given length.
