@@ -57,9 +57,9 @@ type ClusterState struct {
 	// devices that each of our peers knows about.
 	devices deviceIDs
 
-	// publisher keeps track of our routes and decides the strategy for
+	// selector keeps track of our routes and decides the strategy for
 	// publishing routes to our peers.
-	publisher RoutePublisher
+	selector RouteSelector
 }
 
 // AssembleSession provides a method for serializing our current state of
@@ -90,7 +90,7 @@ func (cs *ClusterState) export() AssembleSession {
 		Addresses:    addresses,
 		Discovered:   cs.discovered,
 		Devices:      cs.devices,
-		Routes:       cs.publisher.Routes(),
+		Routes:       cs.selector.Routes(),
 	}
 }
 
@@ -110,7 +110,7 @@ type peer struct {
 // NewClusterState create a new [ClusterState]. This currently pulls data from
 // the given [state.State] and will resume an existing assemble session. This
 // might go away, and we'd take in a more conventional configuration struct.
-func NewClusterState(st *state.State, publisher func(self RDT) (RoutePublisher, error)) (*ClusterState, error) {
+func NewClusterState(st *state.State, selector func(self RDT) (RouteSelector, error)) (*ClusterState, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -175,21 +175,21 @@ func NewClusterState(st *state.State, publisher func(self RDT) (RoutePublisher, 
 		addresses[fp] = addr
 	}
 
-	pub, err := publisher(config.RDT)
+	sel, err := selector(config.RDT)
 	if err != nil {
 		return nil, err
 	}
 
-	// inform the publisher of any routes that we already know. we state that
+	// inform the selector of any routes that we already know. we state that
 	// their provenance is this local node, since we don't persist which routes
 	// came from which peer. this will lead to our local node doing some wasted
 	// publications, but that is okay.
-	if _, _, err := pub.AddRoutes(config.RDT, session.Routes, session.Devices.Identified); err != nil {
+	if _, _, err := sel.AddRoutes(config.RDT, session.Routes, session.Devices.Identified); err != nil {
 		return nil, err
 	}
 
 	// for any peers that we trust and we know their address, we can safely
-	// inform the publisher that the route from our local node to that peer can
+	// inform the selector that the route from our local node to that peer can
 	// be published
 	for fp, peer := range trusted {
 		addr, ok := addresses[fp]
@@ -197,7 +197,7 @@ func NewClusterState(st *state.State, publisher func(self RDT) (RoutePublisher, 
 			continue
 		}
 
-		pub.AddAuthoritativeRoute(peer.RDT, addr)
+		sel.AddAuthoritativeRoute(peer.RDT, addr)
 	}
 
 	cs := ClusterState{
@@ -209,7 +209,7 @@ func NewClusterState(st *state.State, publisher func(self RDT) (RoutePublisher, 
 		addresses:    addresses,
 		discovered:   session.Discovered,
 		devices:      session.Devices,
-		publisher:    pub,
+		selector:     sel,
 	}
 
 	return &cs, nil
@@ -229,7 +229,7 @@ func (cs *ClusterState) Routes() Routes {
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 
-	return cs.publisher.Routes()
+	return cs.selector.Routes()
 }
 
 // Address returns the address of this local node.
@@ -287,7 +287,7 @@ func (cs *ClusterState) PublishAuth(ctx context.Context, addresses []string, msg
 		cs.discovered[addr] = true
 
 		if p, ok := cs.trusted[fp]; ok {
-			cs.publisher.AddAuthoritativeRoute(p.RDT, addr)
+			cs.selector.AddAuthoritativeRoute(p.RDT, addr)
 		}
 	}
 
@@ -371,41 +371,49 @@ func (cs *ClusterState) PublishDevices(ctx context.Context, msg Messenger) {
 }
 
 // PublishRoutes publishes routes that we know about to our trusted peers. See
-// implementation of [RoutePublisher] for more details on publication strategy.
-func (cs *ClusterState) PublishRoutes(ctx context.Context, msg Messenger) {
+// implementation of [RouteSelector] for more details on publication strategy.
+func (cs *ClusterState) PublishRoutes(ctx context.Context, msg Messenger, peers, maxRoutes int) {
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 
-	const (
-		maxPeers  = 5
-		maxRoutes = 5000
-	)
+	// call select multiple times to select different random peers
+	for i := 0; i < peers; i++ {
+		// ack must be called to tell the selector that we've sent our peer that
+		// data. we use a closure here so we don't have to convert from the
+		// selector's internal data representation to the message type and back.
+		to, routes, ack, ok := cs.selector.Select(maxRoutes)
+		if !ok {
+			continue // nothing to publish
+		}
 
-	cs.publisher.Publish(func(to RDT, r Routes) error {
 		fp, ok := cs.fingerprints[to]
 		if !ok {
-			return errors.New("skipped publishing to untrusted peer")
+			continue // skip publishing to an untrusted peer
 		}
 
 		// this entry should always be present. cs.trusted and cs.fingerprints
 		// are only written to within the same critical section.
 		p, ok := cs.trusted[fp]
 		if !ok {
-			return errors.New("skipped publishing to untrusted peer")
+			continue // skip publishing to an untrusted peer
 		}
 
 		// we might trust a peer that we don't know the address of yet.
 		addr, ok := cs.addresses[fp]
 		if !ok {
-			return errors.New("skipped publishing to undiscovered peer")
+			continue // skip publishing to an undiscovered peer
 		}
 
 		// unlock for the duration of the send. this is safe, since all of the
 		// data that is passed to the send function is owned.
 		cs.lock.Unlock()
-		defer cs.lock.Lock()
-		return msg.Trusted(ctx, p.RDT, addr, p.Cert, "routes", r)
-	}, maxPeers, maxRoutes)
+		err := msg.Trusted(ctx, p.RDT, addr, p.Cert, "routes", routes)
+		cs.lock.Lock()
+
+		if err == nil {
+			ack() // only acknowledge successful sends
+		}
+	}
 
 	// we don't commit on route publishes, since we don't keep track of which
 	// routes we've sent to our peers in the state.
@@ -446,7 +454,7 @@ func (cs *ClusterState) Authenticate(auth Auth, cert []byte) error {
 	// authoritative route to it. this ensures that we send the route from our
 	// local node to this peer when we publish
 	if addr, ok := cs.addresses[fp]; ok {
-		cs.publisher.AddAuthoritativeRoute(auth.RDT, addr)
+		cs.selector.AddAuthoritativeRoute(auth.RDT, addr)
 	}
 
 	cs.commit()
@@ -514,7 +522,7 @@ func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
 	// know that they must have identifying information for those devices.
 	h.cs.devices.AddSources(h.peer, routes.Devices)
 
-	added, total, err := h.cs.publisher.AddRoutes(h.peer, routes, h.cs.devices.Identified)
+	added, total, err := h.cs.selector.AddRoutes(h.peer, routes, h.cs.devices.Identified)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -545,7 +553,7 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 
 	// since we got new device info, we have to recalculate which routes are
 	// valid to send to our peers
-	h.cs.publisher.VerifyRoutes(h.cs.devices.Identified)
+	h.cs.selector.VerifyRoutes(h.cs.devices.Identified)
 
 	h.cs.commit()
 
