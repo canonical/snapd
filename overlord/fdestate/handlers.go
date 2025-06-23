@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -206,6 +207,104 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now renamed.
 	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var keyslotRefs []KeyslotRef
+	if err := t.Get("keyslots", &keyslotRefs); err != nil {
+		return err
+	}
+
+	var authMode device.AuthMode
+	if err := t.Get("auth-mode", &authMode); err != nil {
+		return err
+	}
+
+	cached := m.state.Cached(changeAuthOptionsKey{})
+	if cached == nil {
+		return errors.New("cannot find authentication options in memory: unexpected snapd restart")
+	}
+	var ok bool
+	opts, ok := cached.(*changeAuthOptions)
+	if !ok {
+		return fmt.Errorf("internal error: wrong data type under changeAuthOptionsKey: %T", cached)
+	}
+
+	if opts.old == opts.new {
+		// optimally, this check should be done in ChangeAuth before the change
+		// is created but it is done here to avoid breaking the API, as on success
+		// it expects an async response with a change ID, and if we have an empty
+		// change, it stays at "Hold" status forever, so it is more for convenience.
+		return nil
+	}
+
+	changeOneKeyslot := func(keyslot Keyslot, old, new string) error {
+		kd, err := keyslot.KeyData()
+		if err != nil {
+			return fmt.Errorf("cannot read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+
+		switch authMode {
+		case device.AuthModePassphrase:
+			if err := kd.ChangePassphrase(old, new); err != nil {
+				return fmt.Errorf("cannot change passphrase for %s: %v", keyslot.Ref().String(), err)
+			}
+		case device.AuthModePIN:
+			return fmt.Errorf("internal error: changing PINs is not implemented")
+		default:
+			return fmt.Errorf("internal error: unexpected auth-mode %q", authMode)
+		}
+
+		if err := kd.WriteTokenAtomic(keyslot.devPath, keyslot.Name); err != nil {
+			return fmt.Errorf("cannot write key data for %s: %v", keyslot.Ref().String(), err)
+		}
+
+		return nil
+	}
+
+	var changedKeyslots []KeyslotRef
+	defer func() {
+		if err == nil || len(changedKeyslots) == 0 {
+			return
+		}
+		keyslots, _, err := m.GetKeyslots(changedKeyslots)
+		if err != nil {
+			logger.Noticef("cannot get key slots for cleanup: %v", err)
+			return
+		}
+		for _, keyslot := range keyslots {
+			// best effort cleanup, log errors only
+			if err := changeOneKeyslot(keyslot, opts.new, opts.old); err != nil {
+				logger.Noticef("cannot cleanup: %v", err)
+			}
+		}
+	}()
+
+	// XXX: unlock state and let conflict detection handle the rest?
+
+	currentKeyslots, missing, err := m.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return fmt.Errorf("cannot get key slots: %v", err)
+	}
+	if len(missing) != 0 {
+		return &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+
+	for _, keyslot := range currentKeyslots {
+		if err := changeOneKeyslot(keyslot, opts.old, opts.new); err != nil {
+			return err
+		}
+
+		changedKeyslots = append(changedKeyslots, keyslot.Ref())
+	}
+	// avoid re-runs in case of abrupt shutdown since all key slots are now updated.
+	t.SetStatus(state.DoneStatus)
+	m.state.Cache(changeAuthOptionsKey{}, nil)
 
 	return nil
 }

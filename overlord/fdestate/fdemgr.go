@@ -128,6 +128,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("fde-add-recovery-keys", m.doAddRecoveryKeys, nil)
 	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
+	runner.AddHandler("fde-change-auth", m.doChangeAuth, nil)
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 		if isFDETask(t) {
 			for _, tRunning := range running {
@@ -339,7 +340,7 @@ func (k *Keyslot) KeyData() (secboot.KeyData, error) {
 
 	keyData, err := secbootReadContainerKeyData(k.devPath, k.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read key data for %q from %q: %v", k.Name, k.devPath, err)
+		return nil, fmt.Errorf("cannot read key data for %q from %q: %v", k.Name, k.devPath, err)
 	}
 	k.keyData = keyData
 	return keyData, nil
@@ -374,7 +375,7 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 		// collect recovery key slots
 		recoveryKeyNames, err := secbootListContainerRecoveryKeyNames(container.DevPath())
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to obtain recovery keys for %q: %v", container.DevPath(), err)
+			return nil, nil, fmt.Errorf("cannot obtain recovery keys for %q: %v", container.DevPath(), err)
 		}
 		for _, recoveryKeyName := range recoveryKeyNames {
 			if allKeyslots || strutil.ListContains(targetKeyslotNames, recoveryKeyName) {
@@ -390,7 +391,7 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 		// collect platform key slots
 		platformKeyNames, err := secbootListContainerUnlockKeyNames(container.DevPath())
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to obtain platform keys for %q: %v", container.DevPath(), err)
+			return nil, nil, fmt.Errorf("cannot obtain platform keys for %q: %v", container.DevPath(), err)
 		}
 		for _, platformKeyName := range platformKeyNames {
 			if allKeyslots || strutil.ListContains(targetKeyslotNames, platformKeyName) {
