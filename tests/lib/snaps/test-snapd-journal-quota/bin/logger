@@ -8,6 +8,9 @@
 # printed correctly
 echo "Working Directory: $PWD"
 
+# ensure syslog is working
+/usr/bin/logger logger was started
+
 i=0
 while true; do
     echo "LogDaemon: message number: $i"
