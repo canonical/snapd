@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -249,9 +248,7 @@ func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorFailSingleUnexpectedType
 	c.Assert(errorDetails, IsNil)
 }
 
-func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permitVM bool) {
-	restore := snapdenv.MockTesting(isTesting)
-	defer restore()
+func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 	cmdExit := `exit 1`
 	if isVM {
 		cmdExit = `exit 0`
@@ -259,7 +256,7 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permi
 	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", cmdExit)
 	defer systemdCmd.Restore()
 
-	restore = secboot.MockSbPreinstallNewRunChecksContext(
+	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			if permitVM {
 				c.Assert(initialFlags&sb_preinstall.PermitVirtualMachine, Equals, sb_preinstall.PermitVirtualMachine)
@@ -291,18 +288,15 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isTesting, isVM, permi
 
 func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 	testCases := []struct {
-		isTesting bool
-		isVM      bool
-		permitVM  bool
+		isVM     bool
+		permitVM bool
 	}{
-		{false, false, false}, // default config
-		{false, true, false},  // default config
-		{true, false, false},  // default config
-		{true, true, true},    // modify default config to permit VM
+		{false, false}, // default config
+		{true, true},   // modify default config to permit VM
 	}
 
 	for _, tc := range testCases {
-		s.testPreinstallCheckConfig(c, tc.isTesting, tc.isVM, tc.permitVM)
+		s.testPreinstallCheckConfig(c, tc.isVM, tc.permitVM)
 	}
 }
 
@@ -313,10 +307,10 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 		"/cdrom/casper/vmlinuz",
 	}
 
-	restore := snapdenv.MockTesting(false)
-	defer restore()
+	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
+	defer systemdCmd.Restore()
 
-	restore = secboot.MockSbPreinstallNewRunChecksContext(
+	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			c.Assert(initialFlags, Equals, sb_preinstall.CheckFlagsDefault)
 			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
