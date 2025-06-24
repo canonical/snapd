@@ -75,19 +75,23 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		}
 	}()
 
+	currentKeyslots, missing, err := m.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return fmt.Errorf("failed to find key slots: %v", err)
+	}
+	if len(missing) == 0 {
+		// this could be re-run and all key slots were already added, do nothing
+		return nil
+	}
+	if len(currentKeyslots) != 0 {
+		return &keyslotsAlreadyExistsError{keyslots: currentKeyslots}
+	}
+
 	rkey, err := m.getRecoveryKey(recoveryKeyID)
 	if err != nil {
 		// most likely a re-run as keys expire after first use and
 		// clean up is needed.
 		return fmt.Errorf("failed to find recovery key with id %q: %v", recoveryKeyID, err)
-	}
-
-	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
-	if err != nil {
-		return fmt.Errorf("failed to find key slots: %v", err)
-	}
-	if len(currentKeyslots) != 0 {
-		return &keyslotsAlreadyExistsError{keyslots: currentKeyslots}
 	}
 
 	for _, keyslotRef := range keyslotRefs {
@@ -159,6 +163,24 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
 		return fmt.Errorf("failed to find key slots: %v", err)
+	}
+
+	// check that all remaining renames do not already exist to
+	// prevent failing midway when doing the actual renaming below.
+	if len(currentKeyslots) != 0 {
+		var renamedKeyslotRefs []KeyslotRef
+		for _, keyslot := range currentKeyslots {
+			refKey := keyslot.Ref().String()
+			renamedRef := KeyslotRef{ContainerRole: keyslot.ContainerRole, Name: renames[refKey]}
+			renamedKeyslotRefs = append(renamedKeyslotRefs, renamedRef)
+		}
+		currentRenamedKeyslots, _, err := m.GetKeyslots(renamedKeyslotRefs)
+		if err != nil {
+			return fmt.Errorf("failed to find key slots: %v", err)
+		}
+		if len(currentRenamedKeyslots) != 0 {
+			return &keyslotsAlreadyExistsError{keyslots: currentRenamedKeyslots}
+		}
 	}
 
 	for _, keyslot := range currentKeyslots {

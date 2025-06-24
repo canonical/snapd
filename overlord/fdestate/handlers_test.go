@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -70,8 +69,6 @@ func (s *fdeMgrSuite) mockCurrentKeys(c *C, rkeys, unlockKeys []fdestate.Keyslot
 			}
 		}
 	}
-
-	s.mockDeviceInState(&asserts.Model{}, "run")
 
 	s.AddCleanup(fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
@@ -150,9 +147,15 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 			expectedErr:     `failed to find recovery key with id "bad-id": no recovery key entry for key-id`,
 		},
 		{
-			keyslots:        []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default-recovery"}},
-			expectedDeletes: []string{"/dev/disk/by-uuid/data:default-recovery"},
-			expectedErr:     `key slot \(container-role: "system-data", name: "default-recovery"\) already exists`,
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default-recovery"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
+			},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:default-recovery",
+				"/dev/disk/by-uuid/data:tmp-default-recovery",
+			},
+			expectedErr: `key slot \(container-role: "system-data", name: "default-recovery"\) already exists`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
@@ -224,6 +227,77 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 	}
 }
 
+func (s *fdeMgrSuite) TestDoAddRecoveryKeysIdempotence(c *C) {
+	const onClassic = true
+	manager := s.startedManager(c, onClassic)
+
+	currentKeys := []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key"}}
+	s.mockCurrentKeys(c, currentKeys, nil)
+
+	ops := make([]string, 0)
+	defer fdestate.MockSecbootAddContainerRecoveryKey(func(devicePath, slotName string, rkey keys.RecoveryKey) error {
+		var containerRole string
+		switch filepath.Base(devicePath) {
+		case "data":
+			containerRole = "system-data"
+		case "save":
+			containerRole = "system-save"
+		default:
+			panic("unexpected device path")
+		}
+		newKeys := []fdestate.KeyslotRef{{ContainerRole: containerRole, Name: slotName}}
+		found := false
+		for _, ref := range currentKeys {
+			if ref.ContainerRole == containerRole && ref.Name == slotName {
+				found = true
+				continue
+			}
+			newKeys = append(newKeys, ref)
+		}
+		c.Assert(found, Equals, false, Commentf("%s:%s already exists", containerRole, slotName))
+
+		currentKeys = newKeys
+		s.mockCurrentKeys(c, currentKeys, nil)
+		ops = append(ops, fmt.Sprintf("add:%s:%s", containerRole, slotName))
+		return nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	keyslotRefs := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-0"},
+		{ContainerRole: "system-data", Name: "default-1"},
+		{ContainerRole: "system-data", Name: "default-2"},
+		{ContainerRole: "system-data", Name: "default-3"},
+	}
+	_, rkeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
+
+	chg := s.st.NewChange("sample", "...")
+
+	for i := 1; i <= 3; i++ {
+		t := s.st.NewTask("add-recovery-keys", fmt.Sprintf("test add recovery %d", i))
+		t.Set("keyslots", keyslotRefs)
+		// notice that the same (already consumed key-id is used).
+		t.Set("recovery-key-id", rkeyID)
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+
+	sort.Strings(ops)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// task is idempotent
+	c.Check(ops, DeepEquals, []string{
+		"add:system-data:default-0",
+		"add:system-data:default-1",
+		"add:system-data:default-2",
+		"add:system-data:default-3",
+	})
+}
+
 func (s *fdeMgrSuite) TestDoRemoveKeys(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
@@ -254,6 +328,78 @@ func (s *fdeMgrSuite) TestDoRemoveKeys(c *C) {
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(deleted, DeepEquals, []string{"default", "default-recovery"})
+}
+
+func (s *fdeMgrSuite) TestDoRemoveKeysIdempotence(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	currentKeys := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-0"},
+		{ContainerRole: "system-data", Name: "default-1"},
+		{ContainerRole: "system-data", Name: "default-2"},
+		{ContainerRole: "system-data", Name: "default-3"},
+	}
+	s.mockCurrentKeys(c, nil, currentKeys)
+
+	ops := make([]string, 0)
+	defer fdestate.MockSecbootDeleteContainerKey(func(devicePath, slotName string) error {
+		var containerRole string
+		switch filepath.Base(devicePath) {
+		case "data":
+			containerRole = "system-data"
+		case "save":
+			containerRole = "system-save"
+		default:
+			panic("unexpected device path")
+		}
+		newKeys := []fdestate.KeyslotRef{}
+		found := false
+		for _, ref := range currentKeys {
+			if ref.ContainerRole == containerRole && ref.Name == slotName {
+				found = true
+				continue
+			}
+			newKeys = append(newKeys, ref)
+		}
+		c.Assert(found, Equals, true, Commentf("%s:%s not found", containerRole, slotName))
+
+		currentKeys = newKeys
+		s.mockCurrentKeys(c, nil, currentKeys)
+		ops = append(ops, fmt.Sprintf("remove:%s:%s", containerRole, slotName))
+		return nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	keyslotRefs := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-0"},
+		{ContainerRole: "system-data", Name: "default-1"},
+		{ContainerRole: "system-data", Name: "default-2"},
+		{ContainerRole: "system-data", Name: "default-3"},
+	}
+
+	chg := s.st.NewChange("sample", "...")
+
+	for i := 1; i <= 3; i++ {
+		t := s.st.NewTask("remove-keys", fmt.Sprintf("test remove %d", i))
+		t.Set("keyslots", keyslotRefs)
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+
+	sort.Strings(ops)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// task is idempotent
+	c.Check(ops, DeepEquals, []string{
+		"remove:system-data:default-0",
+		"remove:system-data:default-1",
+		"remove:system-data:default-2",
+		"remove:system-data:default-3",
+	})
 }
 
 func (s *fdeMgrSuite) TestDoRemoveKeysGetKeyslotsError(c *C) {
@@ -344,6 +490,85 @@ func (s *fdeMgrSuite) TestDoRenameKeys(c *C) {
 	})
 }
 
+func (s *fdeMgrSuite) TestDoRenameKeysIdempotence(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	currentKeys := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-0"},
+		{ContainerRole: "system-data", Name: "default-1"},
+		{ContainerRole: "system-data", Name: "default-2"},
+		{ContainerRole: "system-data", Name: "default-3"},
+	}
+	s.mockCurrentKeys(c, nil, currentKeys)
+
+	ops := make([]string, 0)
+	defer fdestate.MockSecbootRenameContainerKey(func(devicePath, oldName, newName string) error {
+		var containerRole string
+		switch filepath.Base(devicePath) {
+		case "data":
+			containerRole = "system-data"
+		case "save":
+			containerRole = "system-save"
+		default:
+			panic("unexpected device path")
+		}
+		newKeys := []fdestate.KeyslotRef{{ContainerRole: containerRole, Name: newName}}
+		found := false
+		for _, ref := range currentKeys {
+			if ref.ContainerRole == containerRole && ref.Name == oldName {
+				found = true
+				continue
+			}
+			newKeys = append(newKeys, ref)
+		}
+		c.Assert(found, Equals, true, Commentf("%s:%s not found", containerRole, oldName))
+
+		currentKeys = newKeys
+		s.mockCurrentKeys(c, nil, currentKeys)
+		ops = append(ops, fmt.Sprintf("rename:%s:%s:%s", containerRole, oldName, newName))
+		return nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	keyslotRefs := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-0"},
+		{ContainerRole: "system-data", Name: "default-1"},
+		{ContainerRole: "system-data", Name: "default-2"},
+		{ContainerRole: "system-data", Name: "default-3"},
+	}
+	renames := map[string]string{
+		`(container-role: "system-data", name: "default-0")`: "new-default-0",
+		`(container-role: "system-data", name: "default-1")`: "new-default-1",
+		`(container-role: "system-data", name: "default-2")`: "new-default-2",
+		`(container-role: "system-data", name: "default-3")`: "new-default-3",
+	}
+
+	chg := s.st.NewChange("sample", "...")
+
+	for i := 1; i <= 3; i++ {
+		t := s.st.NewTask("rename-keys", fmt.Sprintf("test rename %d", i))
+		t.Set("keyslots", keyslotRefs)
+		t.Set("renames", renames)
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+
+	sort.Strings(ops)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// task is idempotent
+	c.Check(ops, DeepEquals, []string{
+		"rename:system-data:default-0:new-default-0",
+		"rename:system-data:default-1:new-default-1",
+		"rename:system-data:default-2:new-default-2",
+		"rename:system-data:default-3:new-default-3",
+	})
+}
+
 func (s *fdeMgrSuite) TestDoRenameKeysMissingMapping(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
@@ -385,4 +610,25 @@ func (s *fdeMgrSuite) TestDoRenameKeysRenameError(c *C) {
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
 - test \(failed to rename key slot \(container-role: "system-data", name: "default"\) to "new-default": boom!\)`)
+}
+
+func (s *fdeMgrSuite) TestDoRenameKeysRenameAlreadyExists(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, nil, nil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	task := s.st.NewTask("rename-keys", "test")
+	task.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}})
+	// default-fallback already exists on system-data
+	task.Set("renames", map[string]string{`(container-role: "system-data", name: "default")`: "default-fallback"})
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	s.settle(c)
+
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
+- test \(key slot \(container-role: "system-data", name: "default-fallback"\) already exists\)`)
 }
