@@ -2942,6 +2942,75 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	})
 }
 
+// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned by
+// install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
+// (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
+// (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
+//
+// isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
+// hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
+func (s *modelAndGadgetInfoSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid, hasTPM bool) {
+	count := 0
+
+	releaseInfo := &release.OS{
+		ID:        "ubuntu*",
+		VersionID: "24.04",
+	}
+	if isSupportedUbuntuHybrid {
+		// preinstall check is supported for Ubuntu hybrid >= 25.10
+		releaseInfo = &release.OS{
+			ID:        "ubuntu",
+			VersionID: "25.10",
+		}
+	}
+	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
+
+	restore1 := func() {}
+	if isSupportedUbuntuHybrid {
+		// create fake boot images for supported Ubuntu hybrid system
+		for _, path := range []string{
+			"cdrom/EFI/boot/bootXXX.efi",
+			"cdrom/EFI/boot/grubXXX.efi",
+			"cdrom/casper/vmlinuz",
+		} {
+			bootImagePath := filepath.Join(dirs.GlobalRootDir, path)
+			bootImageDir := filepath.Dir(bootImagePath)
+			err := os.MkdirAll(bootImageDir, 0755)
+			c.Assert(err, IsNil)
+
+			f, err := os.Create(bootImagePath)
+			c.Assert(err, IsNil)
+			f.Close()
+		}
+	}
+	s.AddCleanup(restore1)
+
+	restore2 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+		c.Assert(bootImagePaths, HasLen, 3)
+		count++
+		if hasTPM {
+			return nil, nil
+		} else {
+			return preinstallErrorDetails[:1], nil
+		}
+	})
+	s.AddCleanup(restore2)
+
+	restore3 := install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Assert(tpmMode != secboot.TPMProvisionNone, Equals, true)
+		count++
+		if hasTPM {
+			return nil
+		} else {
+			return fmt.Errorf("cannot connect to TPM device")
+		}
+	})
+
+	s.AddCleanup(restore3)
+
+	s.AddCleanup(func() { c.Assert(count, Equals, 1) })
+}
+
 func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, label, gadgetYaml string, snapdVersionByType map[snap.Type]string) *asserts.Model {
 	seed20 := &seedtest.TestingSeed20{
 		SeedSnaps: seedtest.SeedSnaps{
@@ -3014,14 +3083,13 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, labe
 	})
 }
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
-	isClassic := false
+func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoHappy(c *C, isSupportedHybrid bool, info install.EncryptionSupportInfo) {
+	isClassic := isSupportedHybrid
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
-	defer restore()
+	s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, false)
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
@@ -3035,10 +3103,27 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
-	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
+	c.Check(encInfo, DeepEquals, &info)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupportedHybridHappy(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const isSupportedHybrid = false
+	s.testSystemAndGadgetAndEncryptionInfoHappy(c, isSupportedHybrid, install.EncryptionSupportInfo{
 		Available:          false,
 		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: cannot connect to TPM device",
+	})
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedHybridHappy(c *C) {
+	// supported hybrid system uses specialized encryption availability check
+	const isSupportedHybrid = true
+	s.testSystemAndGadgetAndEncryptionInfoHappy(c, isSupportedHybrid, install.EncryptionSupportInfo{
+		Available:               false,
+		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
+		UnavailableWarning:      "not encrypting device storage as checking TPM gave: error with TPM2 device: one or more of the TPM hierarchies is already owned",
+		AvailabilityCheckErrors: preinstallErrorDetails[:1],
 	})
 }
 
@@ -3053,14 +3138,13 @@ func (s *modelAndGadgetInfoSuite) TestLoadSeedSetsRevisionForLocalContainers(c *
 	c.Check(sysSnaps.CompsByType[snap.TypeKernel][0].Info.Revision, Equals, localRev)
 }
 
-func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c *C, snapdVersionByType map[snap.Type]string, hasPassphraseSupport bool) {
+func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c *C, snapdVersionByType map[snap.Type]string, hasPassphraseSupport bool) {
 	isClassic := false
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, snapdVersionByType)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
-	defer restore()
+	s.mockHelperForEncryptionAvailabilityCheck(c, false, true)
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
@@ -3082,31 +3166,31 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncyptionInfoPassphraseS
 	})
 }
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportOldSnapd(c *C) {
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphraseSupportOldSnapd(c *C) {
 	snapdVersionByType := map[snap.Type]string{
 		snap.TypeSnapd:  "2.67",
 		snap.TypeKernel: "2.68",
 	}
 	const hasPassphraseSupport = false
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+	s.testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportOldKernel(c *C) {
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphraseSupportOldKernel(c *C) {
 	snapdVersionByType := map[snap.Type]string{
 		snap.TypeSnapd:  "2.68",
 		snap.TypeKernel: "2.67",
 	}
 	const hasPassphraseSupport = false
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+	s.testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoPassphraseSupportAvailable(c *C) {
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphraseSupportAvailable(c *C) {
 	snapdVersionByType := map[snap.Type]string{
 		snap.TypeSnapd:  "2.68",
 		snap.TypeKernel: "2.68",
 	}
 	const hasPassphraseSupport = true
-	s.testSystemAndGadgetAndEncyptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
+	s.testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
@@ -3166,6 +3250,9 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 	defer restore()
 	isClassic := true
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic, nil)
+
+	// XXX: Remove this mock, not required if gadget check is in the optimal place!
+	s.mockHelperForEncryptionAvailabilityCheck(c, true, true)
 
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
