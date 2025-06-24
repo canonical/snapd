@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
@@ -1214,6 +1215,23 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 		}
 
 		return level, nil
+	} else if part.keyType() == indexPlaceholderType {
+		values, ok := res.([]any)
+		if !ok {
+			return nil, fmt.Errorf("internal error: expected storage to return map for unmatched placeholder")
+		}
+
+		list := make([]any, 0, len(values))
+		for _, v := range values {
+			nested, err := namespaceResult(v, unmatchedSuffix[1:])
+			if err != nil {
+				return nil, err
+			}
+
+			list = append(list, nested)
+		}
+
+		return list, nil
 	}
 
 	nested, err := namespaceResult(res, unmatchedSuffix[1:])
@@ -1525,7 +1543,7 @@ func joinAccessors(parts []accessor) string {
 }
 
 func isPlaceholder(part string) bool {
-	return len(part) > 2 && part[0] == '{' && part[len(part)-1] == '}'
+	return len(part) > 2 && strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}")
 }
 
 // viewRule represents an individual view rule. It can be used to match a
@@ -1759,9 +1777,14 @@ func NewJSONDatabag() JSONDatabag {
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
 func (s JSONDatabag) Get(path string) (any, error) {
+	opts := validationOptions{pathType: viewPath}
+	subKeys, err := parsePathIntoAccessors(path, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO: create this in the return below as well?
 	var value any
-	subKeys := strings.Split(path, ".")
 	if err := get(subKeys, 0, s, &value); err != nil {
 		return nil, err
 	}
@@ -1774,14 +1797,46 @@ func (s JSONDatabag) Get(path string) (any, error) {
 // traverse the tree, or a bracketed placeholder (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(subKeys []string, index int, node map[string]json.RawMessage, result *any) error {
-	key := subKeys[index]
-	matchAll := isPlaceholder(key)
+func get(subKeys []accessor, index int, node any, result *any) error {
+	// the first level will be typed as JSONDatabag so we have to convert it
+	if bag, ok := node.(JSONDatabag); ok {
+		node = map[string]json.RawMessage(bag)
+	}
 
-	rawLevel, ok := node[key]
-	if !matchAll && !ok {
-		pathPrefix := strings.Join(subKeys[:index+1], ".")
-		return pathErrorf("no value was found under path %q", pathPrefix)
+	if obj, ok := node.(map[string]json.RawMessage); ok {
+		return getMap(subKeys, index, obj, result)
+	} else if list, ok := node.([]json.RawMessage); ok {
+		return getList(subKeys, index, list, result)
+	}
+
+	// should be impossible since we handle terminal cases in the type specific functions
+	path := joinAccessors(subKeys[:index+1])
+	return pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+}
+
+// getMap traverses node (a decoded JSON object) and, depending on the path being
+// followed, does one of the following:
+//   - decodes a value from it into the result parameter
+//   - decodes all map entries, if the path ends in an unmatched placeholder
+//   - goes into one specific sub-path and recurses into get()
+//   - goes into potentially many sub-paths and merges the results, if the current
+//     path sub-key is an unmatched placeholder
+func getMap(subKeys []accessor, index int, node map[string]json.RawMessage, result *any) error {
+	pathPrefix := joinAccessors(subKeys[:index+1])
+	key := subKeys[index]
+
+	var matchAll bool
+	var rawLevel json.RawMessage
+	if key.keyType() == mapKeyType {
+		var ok bool
+		rawLevel, ok = node[key.name()]
+		if !ok {
+			return pathErrorf("no value was found under path %q", pathPrefix)
+		}
+	} else if key.keyType() == keyPlaceholderType {
+		matchAll = true
+	} else {
+		return fmt.Errorf("key %q cannot be used to access map at path %q", key.access(), pathPrefix)
 	}
 
 	// read the final value
@@ -1812,11 +1867,11 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *a
 		results := make(map[string]any)
 
 		for k, v := range node {
-			var level map[string]json.RawMessage
-			if err := jsonutil.DecodeWithNumber(bytes.NewReader(v), &level); err != nil {
-				if _, ok := err.(*json.UnmarshalTypeError); ok {
-					// we consider only the values for which the rest of the nested sub-keys
-					// can be fulfilled
+			level, err := unmarshalLevel(subKeys, index, v)
+			if err != nil {
+				if errors.As(err, new(*noContainerError)) {
+					// ignore entries that don't map to containers since the path expects
+					// more nested levels (this isn't the last path sub-key)
 					continue
 				}
 				return err
@@ -1837,7 +1892,6 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *a
 		}
 
 		if len(results) == 0 {
-			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return pathErrorf("no value was found under path %q", pathPrefix)
 		}
 
@@ -1845,17 +1899,154 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *a
 		return nil
 	}
 
-	// decode the next map level
-	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
-			pathPrefix := strings.Join(subKeys[:index+1], ".")
-			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
-		}
+	level, err := unmarshalLevel(subKeys, index, rawLevel)
+	if err != nil {
 		return err
 	}
 
 	return get(subKeys, index+1, level, result)
+}
+
+// getList traverses node (a decoded JSON list) and, depending on the path being
+// followed, does one of the following:
+//   - decodes a value from it into the result parameter
+//   - decodes all list elements, if the path ends in an unmatched placeholder
+//   - goes into one specific sub-path and recurses into get()
+//   - goes into potentially many sub-paths and accumulates the results, if the
+//     current path sub-key is an unmatched placeholder
+func getList(subKeys []accessor, keyIndex int, list []json.RawMessage, result *any) error {
+	pathPrefix := joinAccessors(subKeys[:keyIndex+1])
+	key := subKeys[keyIndex]
+
+	var matchAll bool
+	listIndex := -1
+	if key.keyType() == listIndexType {
+		listIndex, _ = strconv.Atoi(key.name())
+	} else if key.keyType() == indexPlaceholderType {
+		matchAll = true
+	} else {
+		return fmt.Errorf("key %q cannot be used to index list at path %q", key, pathPrefix)
+	}
+
+	if listIndex >= len(list) {
+		return pathErrorf("no value was found under path %q", pathPrefix)
+	}
+
+	// read the final value
+	if keyIndex == len(subKeys)-1 {
+		if matchAll {
+			// request ends in placeholder so return map to all values (but unmarshal the rest first)
+			level := make([]any, len(list))
+			for i, v := range list {
+				var deser any
+				if err := json.Unmarshal(v, &deser); err != nil {
+					return fmt.Errorf(`internal error: %w`, err)
+				}
+				level[i] = deser
+			}
+
+			*result = level
+			return nil
+		}
+
+		if err := json.Unmarshal(list[listIndex], result); err != nil {
+			return fmt.Errorf(`internal error: %w`, err)
+		}
+
+		return nil
+	}
+
+	if matchAll {
+		results := make([]any, 0, len(list))
+
+		for _, el := range list {
+			level, err := unmarshalLevel(subKeys, keyIndex+1, el)
+			if err != nil {
+				if errors.As(err, new(*noContainerError)) {
+					// ignore entries that don't map to containers since the path expects
+					// more nested levels, since we're not at the last sub-key
+					continue
+				}
+				return err
+			}
+
+			// walk the path under all possible values, only return an error if no value
+			// is found under any path
+			var res any
+			if err := get(subKeys, keyIndex+1, level, &res); err != nil {
+				if errors.Is(err, PathError("")) {
+					continue
+				}
+			}
+
+			if res != nil {
+				results = append(results, res)
+			}
+		}
+
+		if len(results) == 0 {
+			return pathErrorf("no value was found under path %q", pathPrefix)
+		}
+
+		*result = results
+		return nil
+	}
+
+	// decode the next level
+	level, err := unmarshalLevel(subKeys, keyIndex, list[listIndex])
+	if err != nil {
+		return err
+	}
+
+	return get(subKeys, keyIndex+1, level, result)
+}
+
+// noContainerError is used when the traversal logic expected some JSON to
+// be decodable into a container type (based on the path its following) but it
+// it couldn't unmarshal it into a map or list.
+type noContainerError struct {
+	path       string
+	actualType string
+}
+
+func (e *noContainerError) Error() string {
+	return fmt.Sprintf("cannot decode databag at path %q: expected container type but got %v", e.path, e.actualType)
+}
+
+func newNoContainerError(path, actualType string) *noContainerError {
+	return &noContainerError{
+		path:       path,
+		actualType: actualType,
+	}
+}
+
+// unmarshalLevel decodes rawLevel into whatever container type it represents
+// (list or map). It returns a noContainerError if the raw JSON can't be
+// unmarshalled to either container type.
+func unmarshalLevel(subKeys []accessor, index int, rawLevel json.RawMessage) (any, error) {
+	var mapLevel map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &mapLevel); err != nil {
+		_, ok := err.(*json.UnmarshalTypeError)
+		if !ok {
+			return nil, err
+		}
+
+		// next level isn't an object, try list
+		var listLevel []json.RawMessage
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &listLevel); err != nil {
+			// also isn't list so we can't traverse it as expected -> error
+			uErr, ok := err.(*json.UnmarshalTypeError)
+			if ok {
+				pathPrefix := joinAccessors(subKeys[:index+1])
+				return nil, newNoContainerError(pathPrefix, uErr.Value)
+			}
+			return nil, err
+		}
+
+		return listLevel, nil
+	}
+
+	return mapLevel, nil
 }
 
 // Set takes a path to which the value will be written. The path can be dotted,
@@ -1951,6 +2142,8 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 			return nil, nil
 		}
 
+		// NOTE: don't remove entire level even if all entries are unset to keep it
+		// consistent with options
 		delete(node, key)
 		return json.Marshal(node)
 	}
