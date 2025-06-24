@@ -517,8 +517,6 @@ func (s *State) unflattenNotices(flat []*Notice) {
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
 	s.reading()
 
-	now := time.Now()
-
 	// If there are existing notices, return them right away.
 	//
 	// State is already locked here by the caller, so notices won't be added
@@ -526,10 +524,6 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	notices := s.Notices(filter)
 	if len(notices) > 0 {
 		return notices, nil
-	}
-
-	if !filter.futureNoticesPossible(now) {
-		return []*Notice{}, nil
 	}
 
 	// When the context is done/cancelled, wake up the waiters so that they
@@ -548,6 +542,16 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	defer stop()
 
 	for {
+		// Since the state lock is held for the duration of AddNotice, there
+		// can be no notices currently in-flight which have timestamps before
+		// now but have not yet been added to the notices map. Therefore, if
+		// the current time is after the Before filter, we know there can be no
+		// new notices which match the filter.
+		now := time.Now()
+		if !filter.futureNoticesPossible(now) {
+			return nil, nil
+		}
+
 		// Wait till a new notice occurs or a context is cancelled.
 		s.noticeCond.Wait()
 
@@ -557,19 +561,10 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 			return nil, ctxErr
 		}
 
-		// Record the time before retrieving notices so we can check if it's
-		// possible future notices can be recorded matching the filter, if none
-		// of the new notices match.
-		now = time.Now()
-
 		// Otherwise check if there are now matching notices.
 		notices = s.Notices(filter)
 		if len(notices) > 0 {
 			return notices, nil
-		}
-
-		if !filter.futureNoticesPossible(now) {
-			return []*Notice{}, nil
 		}
 	}
 }
