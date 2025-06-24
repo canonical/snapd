@@ -128,6 +128,17 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("add-recovery-keys", m.doAddRecoveryKeys, nil)
 	runner.AddHandler("remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("rename-keys", m.doRenameKeys, nil)
+	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+		if t.Has("keyslots") {
+			for _, tRunning := range running {
+				if tRunning.Has("keyslots") {
+					// prevent two key slot operations from running in parallel
+					return true
+				}
+			}
+		}
+		return false
+	})
 
 	return m, nil
 }

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
@@ -1218,4 +1219,63 @@ func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
 
 	_, _, err = manager.GetKeyslots(nil)
 	c.Assert(err, ErrorMatches, `failed to obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
+}
+
+func (s *fdeMgrSuite) TestKeyslotsBlockedTasks(c *C) {
+	st := s.st
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	ready := make(chan struct{})
+	s.runner.AddHandler("keyslot-op", func(t *state.Task, _ *tomb.Tomb) error {
+		<-ready
+		return nil
+	}, nil)
+
+	s.runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error { return nil }, nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	chg1 := st.NewChange("some-change-1", "")
+	tsk1 := st.NewTask("keyslot-op", "")
+	// mark as a key slot operation
+	tsk1.Set("keyslots", []fdestate.KeyslotRef{})
+	chg1.AddTask(tsk1)
+
+	// wait for keyslot-op to start
+	for i := 0; i < 10; i++ {
+		s.runnerIterationLocked(c)
+		if tsk1.Status() == state.DoingStatus {
+			break
+		}
+	}
+	c.Assert(tsk1.Status(), Equals, state.DoingStatus)
+
+	chg2 := st.NewChange("some-change-2", "")
+	tsk2 := st.NewTask("nop", "")
+	// mark as a key slot operation
+	tsk2.Set("keyslots", []fdestate.KeyslotRef{})
+	chg2.AddTask(tsk2)
+
+	// try to force "nop" to run
+	for i := 0; i < 10; i++ {
+		s.runnerIterationLocked(c)
+	}
+	// check it hasn't started yet
+	c.Check(chg2.Status(), Equals, state.DoStatus)
+	c.Check(tsk2.Status(), Equals, state.DoStatus)
+
+	// // now unblock it
+	close(ready)
+	st.Unlock()
+	iterateUnlockedStateWaitingFor(st, chg1.IsReady)
+	st.Lock()
+
+	s.runnerIterationLocked(c)
+
+	// // the change is able to complete now
+	st.Unlock()
+	iterateUnlockedStateWaitingFor(st, chg2.IsReady)
+	st.Lock()
 }
