@@ -14,43 +14,58 @@ details: |
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
+prepare: |
+  # the hooks in this test access /etc/mdns.allow to verify that the network
+  # plug is connected. this is a simple way to check that the plug is connected
+  # without actually using the network, which can be problematic in tests run
+  # behind a proxy.
+  path="/etc/mdns.allow"
+  if [ -d /writable ]; then
+    path="/writable/system-data/etc/mdns.allow"
+  fi
+
+  if [ ! -f "${path}" ]; then
+    touch "${path}"
+    tests.cleanup defer rm "${path}"
+  fi
+
 restore: |
   if snap list test-snap-component-hooks; then
     snap remove test-snap-component-hooks
   fi
 
 execute: |
-  snap install test-snap-component-hooks+one+two --revision=6
+  snap install test-snap-component-hooks+one+two --revision=12
 
   snap connections test-snap-component-hooks | MATCH "network-bind"
   snap connections test-snap-component-hooks | MATCH "network"
 
-  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 6
+  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 12
 
-  # 4 is the component revision
-  snap get test-snap-component-hooks one-installed | MATCH 4
-  snap get test-snap-component-hooks two-installed | MATCH 4
+  # 8 is the component revision
+  snap get test-snap-component-hooks one-installed | MATCH 10
+  snap get test-snap-component-hooks two-installed | MATCH 10
 
   not snap get test-snap-component-hooks one-prerefreshed
   not snap get test-snap-component-hooks two-prerefreshed
   not snap get test-snap-component-hooks one-postrefreshed
   not snap get test-snap-component-hooks two-postrefreshed
 
-  snap refresh test-snap-component-hooks --channel=latest/candidate
+  snap refresh test-snap-component-hooks --revision=13 --channel=latest/candidate
 
-  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 8
+  snap list test-snap-component-hooks | awk 'NR != 1 { print $3 }' | MATCH 13
 
   # these shouldn't run again
-  snap get test-snap-component-hooks one-installed | MATCH 4
-  snap get test-snap-component-hooks two-installed | MATCH 4
+  snap get test-snap-component-hooks one-installed | MATCH 10
+  snap get test-snap-component-hooks two-installed | MATCH 10
 
   # these run as their previous revision
-  snap get test-snap-component-hooks one-prerefreshed | MATCH 4
-  snap get test-snap-component-hooks two-prerefreshed | MATCH 4
+  snap get test-snap-component-hooks one-prerefreshed | MATCH 10
+  snap get test-snap-component-hooks two-prerefreshed | MATCH 10
 
   # these run as the new revision
-  snap get test-snap-component-hooks one-postrefreshed | MATCH 6
-  snap get test-snap-component-hooks two-postrefreshed | MATCH 6
+  snap get test-snap-component-hooks one-postrefreshed | MATCH 11
+  snap get test-snap-component-hooks two-postrefreshed | MATCH 11
 
   # make sure component remove hooks are run on individual component removal
   snap remove test-snap-component-hooks+two
