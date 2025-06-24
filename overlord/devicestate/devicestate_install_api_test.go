@@ -916,10 +916,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
 
-	// Simulate system with TPM
-	if hasTPM {
-		s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, true)
-	}
+	s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, hasTPM)
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0

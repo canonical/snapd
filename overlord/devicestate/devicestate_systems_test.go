@@ -3021,7 +3021,7 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, labe
 	}
 	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
 	s.AddCleanup(restore)
-	
+
 	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
 
 	if snapdVersionByType == nil {
