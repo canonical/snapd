@@ -245,7 +245,7 @@ var bootImageDuplicateName = []string{
 // imageError: simulate glob pattern matching errors (not filepath.Glob error itself)
 // errorImage: unique part of filepath base for any path in relBootImagePaths to target that image
 func (s *installSuite) mockHelperForOrderedCurrentBootImagesHybrid(c *C, isSupportedUbuntuHybrid bool, imageError ErrorsDetected, errorBootImage string) {
-	// create dummy boot images for supported Ubuntu hybrid system that
+	// create fake boot images for supported Ubuntu hybrid system that
 	// is required for orderedCurrentBootImagesHybrid to function
 	if !isSupportedUbuntuHybrid {
 		return
@@ -551,7 +551,7 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	}
 	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
 
-	// create dummy boot images for supported Ubuntu hybrid system
+	// create fake boot images for supported Ubuntu hybrid system
 	// that is required for orderedCurrentBootImagesHybrid to function
 	imageError := ErrorNone
 	errorBootImage := ""

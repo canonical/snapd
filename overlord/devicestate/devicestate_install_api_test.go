@@ -370,7 +370,7 @@ func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C
 	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
 
 	if isSupportedUbuntuHybrid {
-		// create dummy boot images for supported Ubuntu hybrid system
+		// create fake boot images for supported Ubuntu hybrid system
 		dirs.SetRootDir(c.MkDir())
 		s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 
