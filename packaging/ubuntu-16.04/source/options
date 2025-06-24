@@ -1,1 +1,2 @@
 tar-ignore = "tests/lib/cache/*"
+tar-ignore = ".git/"
