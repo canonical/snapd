@@ -47,13 +47,13 @@ type keyslotsAlreadyExistsError struct {
 
 func (e *keyslotsAlreadyExistsError) Error() string {
 	if len(e.keyslots) == 1 {
-		return fmt.Sprintf("key slot %s already exists", e.keyslots[0].String())
+		return fmt.Sprintf("key slot %s already exists", e.keyslots[0].Ref().String())
 	} else {
 		var concatRefs strings.Builder
-		concatRefs.WriteString(e.keyslots[0].String())
+		concatRefs.WriteString(e.keyslots[0].Ref().String())
 		for _, ref := range e.keyslots[1:] {
 			concatRefs.WriteString(", ")
-			concatRefs.WriteString(ref.String())
+			concatRefs.WriteString(ref.Ref().String())
 		}
 		return fmt.Sprintf("key slots [%s] already exist", concatRefs.String())
 	}
