@@ -7,16 +7,25 @@ details: |
 systems: [-ubuntu-14.04-*]
 
 restore: |
+    tests.exec is-skipped && exit 0
+
     rm -f /etc/systemd/system/snapd.service.d/override.conf
     ip netns delete testns || true
     umount /run/netns || true
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     systemctl cat snapd.service
     ip netns list || true
     ip netns pids testns || true
 
 execute: |
+    if [ "$SNAPD_USE_PROXY" == true ]; then
+        # TODO: Fix the issue
+        tests.exec skip-test "This test fails when proxy is set for snapd" && exit 0
+    fi
+
     echo "Install a snap from stable"
     snap install test-snapd-tools
   
