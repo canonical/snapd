@@ -54,6 +54,11 @@ prepare: |
 restore: |
     tests.session -u test restore
 
+debug: |
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+    getcap "$LIBEXEC_DIR"/snapd/snap-confine.backup || true
+    getcap "$LIBEXEC_DIR"/snapd/snap-confine || true
+
 execute: |
     tests.session -u test exec sh -c "test-snapd-sh-core24.sh -c 'true' 2>&1" | \
         MATCH 'user is not a member of group'
