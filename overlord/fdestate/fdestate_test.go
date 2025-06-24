@@ -120,18 +120,6 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	} else {
 		c.Check(renames, DeepEquals, []string{"default-recovery"})
 	}
-
-	chg := s.st.NewChange("", "")
-	chg.AddAll(ts)
-
-	s.settle(c)
-
-	// TODO:FDEM: this should intentionally break after relevant tasks are implemented
-	c.Check(tsks[0].Status(), Equals, state.DoneStatus)
-	c.Check(tsks[1].Status(), Equals, state.DoneStatus)
-	c.Check(tsks[2].Status(), Equals, state.DoneStatus)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Err(), IsNil)
 }
 
 func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {

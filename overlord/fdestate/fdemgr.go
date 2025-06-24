@@ -308,6 +308,11 @@ type Keyslot struct {
 	keyData secboot.KeyData
 }
 
+// Ref returns the corresponding key slot reference.
+func (k *Keyslot) Ref() KeyslotRef {
+	return KeyslotRef{ContainerRole: k.ContainerRole, Name: k.Name}
+}
+
 // KeyData returns secboot.KeyData corresponding to the keyslot.
 // This can only be called for KeyslotTypePlatform.
 //
