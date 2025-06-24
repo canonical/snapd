@@ -1125,8 +1125,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot copy seed: %w", err)
 		}
 
-		hybrid := systemAndSnaps.Model.Classic() && systemAndSnaps.Model.KernelSnap() != nil
-		if hybrid {
+		if systemAndSnaps.Model.HybridClassic() {
 			// boot.InitramfsUbuntuSeedDir (/run/mnt/ubuntu-data, usually) is a
 			// mountpoint on hybrid system that is set up in the initramfs.
 			// setting up this bind mount ensures that the system can be seeded
