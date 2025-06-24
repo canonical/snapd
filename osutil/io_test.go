@@ -30,6 +30,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
@@ -88,6 +90,20 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 
 	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0)
 	c.Assert(err, NotNil)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoReplace(c *C) {
+	tmpdir := c.MkDir()
+	p := filepath.Join(tmpdir, "foo")
+	c.Assert(os.WriteFile(p, []byte("hello"), 0644), IsNil)
+	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteNoReplace)
+	c.Assert(err, ErrorMatches, ".*file exists")
+	c.Assert(errors.Is(err, unix.EEXIST), Equals, true)
+	notP := filepath.Join(tmpdir, "bar")
+	c.Assert(osutil.AtomicWriteFile(notP, []byte("hey"), 0600, osutil.AtomicWriteNoReplace), IsNil)
+
+	c.Assert(p, testutil.FileEquals, "hello")
+	c.Assert(notP, testutil.FileEquals, "hey")
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileAbsoluteSymlinks(c *C) {

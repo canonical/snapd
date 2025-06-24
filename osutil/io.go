@@ -39,6 +39,9 @@ type AtomicWriteFlags uint
 const (
 	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
 	AtomicWriteFollow AtomicWriteFlags = 1 << iota
+	// AtomicWriteNoReplace will ensure that if a file exists at the target
+	// path, it will *not* be replaced.
+	AtomicWriteNoReplace
 )
 
 // Allow disabling sync for testing. This brings massive improvements on
@@ -54,13 +57,14 @@ var snapdUnsafeIO bool = IsTestBinary() && GetenvBool("SNAPD_UNSAFE_IO", true)
 type AtomicFile struct {
 	*os.File
 
-	target  string
-	tmpname string
-	uid     sys.UserID
-	gid     sys.GroupID
-	mtime   time.Time
-	closed  bool
-	renamed bool
+	target    string
+	noReplace bool
+	tmpname   string
+	uid       sys.UserID
+	gid       sys.GroupID
+	mtime     time.Time
+	closed    bool
+	renamed   bool
 }
 
 // NewAtomicFile builds an AtomicFile backed by an *os.File that will have
@@ -104,11 +108,12 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	}
 
 	return &AtomicFile{
-		File:    fd,
-		target:  filename,
-		tmpname: tmp,
-		uid:     uid,
-		gid:     gid,
+		File:      fd,
+		target:    filename,
+		noReplace: flags&AtomicWriteNoReplace != 0,
+		tmpname:   tmp,
+		uid:       uid,
+		gid:       gid,
 	}, nil
 }
 
@@ -184,8 +189,24 @@ func (aw *AtomicFile) commit() error {
 		}
 	}
 
-	if err := os.Rename(aw.tmpname, aw.target); err != nil {
-		return err
+	if aw.noReplace {
+		// Link will return error if the target already exists.
+		//
+		// XXX: It would be more "correct" to use the renameat2 syscall with
+		// the previously-opened dir and the RENAME_NOREPLACE flag, but that
+		// relies on making syscalls directly, and relies on filesystem support
+		// for that flag.
+		if err := os.Link(aw.tmpname, aw.target); err != nil {
+			return err
+		}
+		// Removing the tmpfile should not error, but even if it does, the
+		// atomic file creation already occurred.
+		os.Remove(aw.tmpname)
+	} else {
+		// Rename will overwrite the target if it exists
+		if err := os.Rename(aw.tmpname, aw.target); err != nil {
+			return err
+		}
 	}
 	aw.renamed = true // it is now too late to Cancel()
 
