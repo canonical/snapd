@@ -69,8 +69,17 @@ ifeq ($(with_vendor),0)
 GO_MOD=-mod=readonly
 endif
 
+GO_STATIC_BUILDMODE = default
+GO_STATIC_EXTLDFLAG = -static
+ifeq ($(with_static_pie),1)
+# override flags for building static binaries in PIE mode if supported
+# by the host system
+GO_STATIC_BUILDMODE = pie
+GO_STATIC_EXTLDFLAG = -static-pie
+endif
+
 # Go -ldflags settings for static build. Can be overridden in snapd.defines.mk.
-EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="-static" $(EXTRA_GO_LDFLAGS)
+EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG)" $(EXTRA_GO_LDFLAGS)
 
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
@@ -93,7 +102,7 @@ $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
 $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
-	go build -o $@ -buildmode=default \
+	go build -o $@ -buildmode=$(GO_STATIC_BUILDMODE) \
 		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-ldflags="$(EXTRA_GO_STATIC_LDFLAGS)" \
