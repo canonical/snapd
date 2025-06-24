@@ -109,6 +109,7 @@ EOF
 
 setup_system_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        cp -f /etc/environment /etc/environment.bak
         {
             echo "HTTPS_PROXY=$HTTPS_PROXY"
             echo "HTTP_PROXY=$HTTP_PROXY"
