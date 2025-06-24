@@ -499,12 +499,17 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 		return nil, fmt.Errorf("invalid recovery key ID: %v", err)
 	}
 
-	_, missing, err := fdemgr.GetKeyslots(keyslotRefs)
+	currentKeyslots, missing, err := fdemgr.GetKeyslots(keyslotRefs)
 	if err != nil {
 		return nil, err
 	}
 	if len(missing) != 0 {
 		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+	for _, keyslot := range currentKeyslots {
+		if keyslot.Type != KeyslotTypeRecovery {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypeRecovery)
+		}
 	}
 
 	ts := state.NewTaskSet()

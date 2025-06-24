@@ -194,15 +194,23 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 		return mockStore
 	})()
 
-	// mock no existing key slots
-	s.mockDeviceInState(&asserts.Model{}, "run")
+	// mock no existing key slots, except one non-recovery keyslot
 	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
-		return "", nil
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
 	})()
 	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
 		return nil, nil
 	})()
 	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		if devicePath == "/dev/disk/by-uuid/aaa" {
+			return []string{"default-recovery"}, nil
+		}
 		return nil, nil
 	})()
 
@@ -210,10 +218,7 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	onClassic := true
 	s.startedManager(c, onClassic)
 
-	keyslots := []fdestate.KeyslotRef{
-		{ContainerRole: "system-data", Name: "default-recovery"},
-		{ContainerRole: "system-save", Name: "default-recovery"},
-	}
+	keyslots := []fdestate.KeyslotRef{{ContainerRole: "system-save", Name: "default-recovery"}}
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -236,9 +241,14 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-fallback"\): unsupported name, expected "default-recovery"`)
 
+	// invalid keyslot
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported type "platform", expected "recovery"`)
+
 	// missing keyslots
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", keyslots)
-	c.Assert(err, ErrorMatches, `key slot references \[\(container-role: "system-data", name: "default-recovery"\), \(container-role: "system-save", name: "default-recovery"\)\] not found`)
+	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-recovery"\) not found`)
 	var notFoundErr *fdestate.KeyslotRefsNotFoundError
 	c.Assert(errors.As(err, &notFoundErr), Equals, true)
 	c.Check(notFoundErr.KeyslotRefs, DeepEquals, keyslots)

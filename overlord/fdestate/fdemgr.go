@@ -319,8 +319,9 @@ type Keyslot struct {
 	keyData secboot.KeyData
 }
 
-func (k *Keyslot) String() string {
-	return fmt.Sprintf("(container-role: %q, name: %q)", k.ContainerRole, k.Name)
+// Ref returns the corresponding key slot reference.
+func (k *Keyslot) Ref() KeyslotRef {
+	return KeyslotRef{ContainerRole: k.ContainerRole, Name: k.Name}
 }
 
 // KeyData returns secboot.KeyData corresponding to the keyslot.
