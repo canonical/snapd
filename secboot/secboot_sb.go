@@ -55,6 +55,7 @@ var (
 	sbNewLUKS2KeyDataReader         = sbNewLUKS2KeyDataReaderImpl
 	sbSetProtectorKeys              = sb_plainkey.SetProtectorKeys
 	sbGetPrimaryKeyFromKernel       = sb.GetPrimaryKeyFromKernel
+	sbTestLUKS2ContainerKey         = sb.TestLUKS2ContainerKey
 	disksDevlinks                   = disks.Devlinks
 )
 
@@ -550,7 +551,9 @@ func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 // CheckRecoveryKey tests that the specified recovery key unlocks the
 // device at the specified path.
 func CheckRecoveryKey(devicePath string, rkey keys.RecoveryKey) error {
-	// TODO:FDEM: use secboot helper when available
+	if !sbTestLUKS2ContainerKey(devicePath, rkey[:]) {
+		return fmt.Errorf("invalid recovery key for %s", devicePath)
+	}
 	return nil
 }
 
