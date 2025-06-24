@@ -239,7 +239,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	st.Unlock()
 	c.Check(chg, NotNil)
 	c.Check(chg.ID(), Equals, "1")
-	c.Check(chg.Kind(), Equals, "replace-recovery-key")
+	c.Check(chg.Kind(), Equals, "fde-replace-recovery-key")
 	c.Check(called, Equals, 1)
 }
 

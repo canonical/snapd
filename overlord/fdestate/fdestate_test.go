@@ -27,12 +27,12 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -244,14 +244,12 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	c.Check(notFoundErr.KeyslotRefs, DeepEquals, keyslots)
 
 	// change conflict
-	s.o.TaskRunner().AddHandler("with-keyslots", func(t *state.Task, _ *tomb.Tomb) error { return nil }, nil)
-	chg := s.st.NewChange("some-change", "")
-	withKeyslots := s.st.NewTask("with-keyslots", "")
-	withKeyslots.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default-recovery"}})
-	chg.AddTask(withKeyslots)
+	chg := s.st.NewChange("fde-replace-recovery-key", "")
+	task := s.st.NewTask("some-fde-task", "")
+	chg.AddTask(task)
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", keyslots)
-	c.Assert(err, ErrorMatches, `key slot \(container-role: "system-data", name: "default-recovery"\) has "some-change" change in progress`)
-	c.Check(err, testutil.ErrorIs, &fdestate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `replacing recovery key in progress, no other FDE changes allowed until this is done`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {

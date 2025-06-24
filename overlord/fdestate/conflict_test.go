@@ -27,74 +27,49 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/testutil"
 )
 
-func (s *fdeMgrSuite) TestCheckChangeConflict(c *C) {
-	nop := func(t *state.Task, _ *tomb.Tomb) error { return nil }
+func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
+	var chgToErr = map[string]string{
+		"fde-efi-secureboot-db-update": "external EFI DBX update in progress, no other FDE changes allowed until this is done",
+		"fde-replace-recovery-key":     "replacing recovery key in progress, no other FDE changes allowed until this is done",
 
-	s.o.TaskRunner().AddHandler("with-keyslots", nop, nil)
-	s.o.TaskRunner().AddHandler("without-keyslots", nop, nil)
-
-	someKeyslotRef := fdestate.KeyslotRef{ContainerRole: "some-role", Name: "some-slot"}
-	someOtherKeyslotRef := fdestate.KeyslotRef{ContainerRole: "some-role", Name: "some-other-slot"}
-
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	chg := s.st.NewChange("some-change", "")
-
-	withKeyslots := s.st.NewTask("with-keyslots", "")
-	withKeyslots.Set("keyslots", []fdestate.KeyslotRef{someKeyslotRef})
-	chg.AddTask(withKeyslots)
-
-	withoutKeyslots := s.st.NewTask("without-keyslots", "")
-	chg.AddTask(withoutKeyslots)
-
-	err := fdestate.CheckChangeConflict(s.st, []fdestate.KeyslotRef{someKeyslotRef})
-	c.Assert(err, ErrorMatches, `key slot \(container-role: "some-role", name: "some-slot"\) has "some-change" change in progress`)
-	var conflictErr *fdestate.ChangeConflictError
-	c.Assert(errors.As(err, &conflictErr), Equals, true)
-	c.Check(conflictErr.ChangeKind, Equals, "some-change")
-	c.Check(conflictErr.KeyslotRef, Equals, fdestate.KeyslotRef{Name: "some-slot", ContainerRole: "some-role"})
-
-	err = fdestate.CheckChangeConflict(s.st, []fdestate.KeyslotRef{someOtherKeyslotRef})
-	c.Assert(err, IsNil)
-
-	s.settle(c)
-
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	c.Check(withKeyslots.Status(), Equals, state.DoneStatus)
-
-	// no ready tasks with "keyslots" exist
-	err = fdestate.CheckChangeConflict(s.st, []fdestate.KeyslotRef{someKeyslotRef})
-	c.Assert(err, IsNil)
-}
-
-func (s *fdeMgrSuite) TestChangeConflictErrorMessage(c *C) {
-	someKeyslotRef := fdestate.KeyslotRef{ContainerRole: "some-role", Name: "some-slot"}
-
-	err := fdestate.ChangeConflictError{KeyslotRef: someKeyslotRef}
-	c.Check(err.Error(), Equals, `key slot (container-role: "some-role", name: "some-slot") has changes in progress`)
-
-	err = fdestate.ChangeConflictError{KeyslotRef: someKeyslotRef, ChangeKind: "some-change"}
-	c.Check(err.Error(), Equals, `key slot (container-role: "some-role", name: "some-slot") has "some-change" change in progress`)
-
-	err = fdestate.ChangeConflictError{Message: "error message", KeyslotRef: someKeyslotRef, ChangeKind: "some-change"}
-	c.Check(err.Error(), Equals, "error message")
-}
-
-func (s *fdeMgrSuite) TestChangeConflictErrorIs(c *C) {
-	this := &fdestate.ChangeConflictError{
-		KeyslotRef: fdestate.KeyslotRef{Name: "a", ContainerRole: "a"},
-		ChangeKind: "a",
-		Message:    "a",
+		"some-change": "",
 	}
-	that := &fdestate.ChangeConflictError{
-		KeyslotRef: fdestate.KeyslotRef{Name: "b", ContainerRole: "b"},
-		ChangeKind: "b",
-		Message:    "b",
+
+	s.runner.AddHandler("nop", func(_ *state.Task, _ *tomb.Tomb) error { return nil }, nil)
+
+	for chgKind, expectedErr := range chgToErr {
+		s.st.Lock()
+
+		chg := s.st.NewChange(chgKind, "")
+		tsk := s.st.NewTask("nop", "")
+		chg.AddTask(tsk)
+
+		if expectedErr != "" {
+			err := fdestate.CheckFDEChangeConflict(s.st)
+			c.Assert(err, ErrorMatches, expectedErr)
+			var conflictErr *snapstate.ChangeConflictError
+			c.Assert(errors.As(err, &conflictErr), Equals, true)
+			c.Check(conflictErr.ChangeKind, Equals, chgKind)
+			c.Check(conflictErr.ChangeID, Equals, chg.ID())
+		} else {
+			err := fdestate.CheckFDEChangeConflict(s.st)
+			c.Assert(err, IsNil)
+		}
+
+		s.settle(c)
+
+		c.Check(chg.Status(), Equals, state.DoneStatus)
+		c.Check(tsk.Status(), Equals, state.DoneStatus)
+
+		// no ready changes exist
+		err := fdestate.CheckFDEChangeConflict(s.st)
+		c.Assert(err, IsNil)
+
+		s.st.Unlock()
 	}
-	c.Check(this, testutil.ErrorIs, that)
+
 }

@@ -19,71 +19,29 @@
 package fdestate
 
 import (
-	"fmt"
-
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// ChangeConflictError represents an error because of keyslot conflicts between changes.
-type ChangeConflictError struct {
-	KeyslotRef KeyslotRef
-	ChangeKind string
-	// a Message is optional, otherwise one is composed from the other information
-	Message string
-}
-
-func (e *ChangeConflictError) Is(err error) bool {
-	_, ok := err.(*ChangeConflictError)
-	return ok
-}
-
-func (e *ChangeConflictError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	if e.ChangeKind != "" {
-		return fmt.Sprintf("key slot %s has %q change in progress", e.KeyslotRef.String(), e.ChangeKind)
-	}
-	return fmt.Sprintf("key slot %s has changes in progress", e.KeyslotRef.String())
-}
-
-func keyslotsAffectedByTask(t *state.Task) ([]KeyslotRef, error) {
-	if !t.Has("keyslots") {
-		return nil, nil
-	}
-
-	var keyslotRefs []KeyslotRef
-	if err := t.Get("keyslots", &keyslotRefs); err != nil {
-		return nil, err
-	}
-	return keyslotRefs, nil
-}
-
-func checkChangeConflict(st *state.State, keyslotRefs []KeyslotRef) error {
-	refMap := make(map[KeyslotRef]bool, len(keyslotRefs))
-	for _, ref := range keyslotRefs {
-		refMap[ref] = true
-	}
-
-	for _, task := range st.Tasks() {
-		if task.Status().Ready() {
+func checkFDEChangeConflict(st *state.State) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
 			continue
 		}
-
-		refs, err := keyslotsAffectedByTask(task)
-		if err != nil {
-			return err
-		}
-
-		for _, ref := range refs {
-			if refMap[ref] {
-				return &ChangeConflictError{
-					KeyslotRef: ref,
-					ChangeKind: task.Change().Kind(),
-				}
+		switch chg.Kind() {
+		case "fde-efi-secureboot-db-update":
+			return &snapstate.ChangeConflictError{
+				Message:    "external EFI DBX update in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
+		case "fde-replace-recovery-key":
+			return &snapstate.ChangeConflictError{
+				Message:    "replacing recovery key in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
 			}
 		}
 	}
-
 	return nil
 }

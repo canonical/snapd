@@ -49,8 +49,7 @@ var (
 
 	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 
-	CheckChangeConflict    = checkChangeConflict
-	KeyslotsAffectedByTask = keyslotsAffectedByTask
+	CheckFDEChangeConflict = checkFDEChangeConflict
 )
 
 type ExternalOperation = externalOperation

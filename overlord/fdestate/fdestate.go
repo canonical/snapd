@@ -489,7 +489,7 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
 
-	if err := checkChangeConflict(st, append(keyslotRefs, tmpKeyslotRefs...)); err != nil {
+	if err := checkFDEChangeConflict(st); err != nil {
 		return nil, err
 	}
 
