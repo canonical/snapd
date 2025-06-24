@@ -314,35 +314,35 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	}{
 		{
 			"allow deny prompt fizz buzz",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{"prompt"},
 		},
 		{
 			"allow  deny prompt fizz   buzz ",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{"prompt"},
 		},
 		{
 			"allow  deny\nprompt fizz \n  buzz",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			[]string{"prompt"},
 		},
 		{
-			"allow  deny\nprompt fizz \n  buzz\n ",
-			[]string{"allow", "buzz", "deny", "fizz", "prompt"},
+			"allow  deny\nfizz \n  buzz\n ",
+			[]string{},
 		},
 		{
 			"fizz",
-			[]string{"fizz"},
+			[]string{},
 		},
 		{
-			"\n\n\nfizz\n\nbuzz",
-			[]string{"buzz", "fizz"},
+			"\n\n\nprompt\n\nbuzz",
+			[]string{"prompt"},
 		},
 		{
 			"fizz\tbuzz",
-			[]string{"buzz", "fizz"},
+			[]string{},
 		},
 		{
-			"fizz buzz\r\n",
-			[]string{"buzz", "fizz"},
+			"fizz prompt\r\n",
+			[]string{"prompt"},
 		},
 	} {
 		c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32"), []byte(testCase.permstableContent), 0644), IsNil)
@@ -362,7 +362,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "policy", "notify"), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
-	expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify", "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz"}
+	expected := []string{"bar", "foo", "foo:baz", "foo:qux", "policy", "policy:notify", "policy:permstable32:prompt", "xyz"}
 	c.Check(features, DeepEquals, expected)
 
 	// Also test that prompt feature is read from notify/user if it exists
@@ -390,7 +390,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 		for _, suffix := range testCase.expectedSuffixes {
 			expected = append(expected, fmt.Sprintf("policy:notify:user:%s", suffix))
 		}
-		expected = append(expected, "policy:permstable32:allow", "policy:permstable32:deny", "policy:permstable32:prompt", "xyz")
+		expected = append(expected, "policy:permstable32:prompt", "xyz")
 		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
 	}
 }

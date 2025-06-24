@@ -691,15 +691,21 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 	return aap.parserFeatures, aap.parserError
 }
 
+// permstable32Features specifies which features from permstable32 to include
+// in the probed kernel features.
+var permstable32Features = []string{"prompt"}
+
 func probeKernelFeatures() ([]string, error) {
 	features, err := probeKernelFeaturesInDirRecursively(FeaturesSysDir(), "")
 	if err != nil {
 		return []string{}, err
 	}
 	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32")); err == nil {
-		permstableFeatures := strings.Fields(string(data))
-		for _, feat := range permstableFeatures {
-			features = append(features, "policy:permstable32:"+feat)
+		readFeats := strings.Fields(string(data))
+		for _, feat := range readFeats {
+			if strutil.ListContains(permstable32Features, feat) {
+				features = append(features, "policy:permstable32:"+feat)
+			}
 		}
 	}
 	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "notify", "user")); err == nil {
