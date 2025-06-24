@@ -703,6 +703,8 @@ func probeKernelFeatures() ([]string, error) {
 		}
 	}
 	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "notify", "user")); err == nil {
+		// XXX: there's no feature added for policy:notify:user, since user is
+		// a file rather than a directory.
 		notifyUserFeatures := strings.Fields(string(data))
 		for _, feat := range notifyUserFeatures {
 			features = append(features, "policy:notify:user:"+feat)
@@ -720,12 +722,12 @@ func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, e
 	}
 	features := make([]string, 0, len(dentries))
 	for _, fi := range dentries {
-		featureName := fi.Name()
-		if prefix != "" {
-			featureName = prefix + ":" + fi.Name()
-		}
-		features = append(features, featureName)
 		if fi.IsDir() {
+			featureName := fi.Name()
+			if prefix != "" {
+				featureName = prefix + ":" + fi.Name()
+			}
+			features = append(features, featureName)
 			subFeatures, err := probeKernelFeaturesInDirRecursively(filepath.Join(dir, fi.Name()), featureName)
 			if err != nil {
 				return []string{}, err
