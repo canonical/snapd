@@ -298,6 +298,15 @@ int sc_ensure_mkdirat(int fd, const char *name, mode_t mode, uid_t uid, uid_t gi
             compat_fchmodat_symlink_nofollow(fd, name, mode) < 0) {
             return -1;
         }
+        /* as observed with certain combinations of new libc & old kernels,
+         * glibc may have employed a fallback path for fchmodat() and left errno
+         * in its original value of ENOSYS|ENOTSUP, let's reset it here such
+         * that the caller can reliably probe for EEXIST to cath the mkdir()
+         * branch if this function is successful, see glibc implementation for
+         * details:
+         * https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/unix/sysv/linux/fchmodat.c;h=dd1fa5db86bde99fe3eb4804b06c5adf11914b94;hb=HEAD#l31
+         */
+        errno = 0;
     }
     return 0;
 }
