@@ -41,6 +41,16 @@ func checkFDEChangeConflict(st *state.State) error {
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
+		default:
+			for _, t := range chg.Tasks() {
+				if t.Has("keyslots") {
+					return &snapstate.ChangeConflictError{
+						Message:    "key slot task in progress, no other FDE changes allowed until this is done",
+						ChangeKind: chg.Kind(),
+						ChangeID:   chg.ID(),
+					}
+				}
+			}
 		}
 	}
 	return nil
