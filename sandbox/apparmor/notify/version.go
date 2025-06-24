@@ -21,9 +21,10 @@ package notify
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ProtocolVersion denotes a notification protocol version.
@@ -35,8 +36,8 @@ var (
 	// the next version, etc.
 	versions = []ProtocolVersion{5, 3}
 
-	// apparmorKernelFeatures allows tests to mock kernel features.
-	apparmorKernelFeatures = apparmor.KernelFeatures
+	// apparmorMetadataTagsSupported allows tests to mock tags support.
+	apparmorMetadataTagsSupported = apparmor.MetadataTagsSupported
 
 	// versionLikelySupportedChecks provides a function for each known protocol
 	// version which returns true if that version is supported by snapd and
@@ -48,32 +49,24 @@ var (
 	// the next version in the list.
 	versionLikelySupportedChecks = map[ProtocolVersion]func() bool{
 		3: func() bool {
-			kernelFeatures, err := apparmorKernelFeatures()
-			if err != nil {
-				return false
-			}
 			// Older kernels which only support v3 don't have notify_versions
 			// dir at all. If the dir does exist, protocol support for version
 			// 3 requires a v3 file to be present.
-			if strutil.ListContains(kernelFeatures, "policy:notify_versions") {
-				if !strutil.ListContains(kernelFeatures, "policy:notify_versions:v3") {
+			if versionsDirExists() {
+				if !versionFileExists("v3") {
 					return false
 				}
 			}
 			return true
 		},
 		5: func() bool {
-			kernelFeatures, err := apparmorKernelFeatures()
-			if err != nil {
+			if !apparmorMetadataTagsSupported() {
+				// Don't use v5 if tags are not supported
 				return false
 			}
 			// Support for protocol version 5 requires that the notify_versions
 			// directory must exist and contain a file named v5.
-			if !strutil.ListContains(kernelFeatures, "policy:notify_versions:v5") {
-				return false
-			}
-			if !strutil.ListContains(kernelFeatures, "policy:notify:user:tags") {
-				// Don't use v5 if tags are not supported
+			if !versionFileExists("v5") {
 				return false
 			}
 			return !v5ManuallyDisabled // TODO: return true once restarts work lands
@@ -94,6 +87,18 @@ var (
 		return exists
 	}
 )
+
+func notifyVersionsDir() string {
+	return filepath.Join(apparmor.FeaturesSysDir(), "policy", "notify_versions")
+}
+
+func versionsDirExists() bool {
+	return osutil.IsDirectory(notifyVersionsDir())
+}
+
+func versionFileExists(versionFilename string) bool {
+	return osutil.FileExists(filepath.Join(notifyVersionsDir(), versionFilename))
+}
 
 // likelySupported returns true if the receiving version is supported by snapd
 // and likely supported by the kernel, as reported by the likely supported

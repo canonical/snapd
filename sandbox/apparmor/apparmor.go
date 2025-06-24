@@ -462,14 +462,14 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 	// the presence of the notification socket will no longer be sufficient to
 	// indicate that the system supports prompting (assuming the kernel and
 	// parser features checks above pass). When this lands, an additional
-	// directory will be added at featuresSysPath/policy/notify. At this point,
-	// there will be a file at featuresSysPath/policy/notify/user which contains
+	// directory will be added at FeaturesSysDir()/policy/notify. At this point,
+	// there will be a file at FeaturesSysDir()/policy/notify/user which contains
 	// a list of mediation classes for which prompting is supported. Thus:
-	// - If featuresSysPath/policy/notify does not exist, and the above checks
+	// - If featuresSysDir()/policy/notify does not exist, and the above checks
 	//   pass, then prompting is supported.
-	// - If featuresSysPath/policy/notify exists, but does not contain a file
+	// - If featuresSysDir()/policy/notify exists, but does not contain a file
 	//   called user, then prompting is not supported.
-	// - If featuresSysPath/policy/notify exists and includes a file called
+	// - If featuresSysDir()/policy/notify exists and includes a file called
 	//   user, then prompting is supported.
 	// The user file should contain a list of mediation classes which are
 	// supported, and this should at the bare minimum include "file", so check
@@ -565,6 +565,10 @@ var (
 
 // Each apparmor feature is manifested as a directory entry.
 const featuresSysPath = "sys/kernel/security/apparmor/features"
+
+func FeaturesSysDir() string {
+	return filepath.Join(rootPath, featuresSysPath)
+}
 
 type appArmorProber interface {
 	KernelFeatures() ([]string, error)
@@ -688,17 +692,17 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 }
 
 func probeKernelFeatures() ([]string, error) {
-	features, err := probeKernelFeaturesInDirRecursively(filepath.Join(rootPath, featuresSysPath), "")
+	features, err := probeKernelFeaturesInDirRecursively(FeaturesSysDir(), "")
 	if err != nil {
 		return []string{}, err
 	}
-	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32")); err == nil {
 		permstableFeatures := strings.Fields(string(data))
 		for _, feat := range permstableFeatures {
 			features = append(features, "policy:permstable32:"+feat)
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "notify", "user")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "notify", "user")); err == nil {
 		notifyUserFeatures := strings.Fields(string(data))
 		for _, feat := range notifyUserFeatures {
 			features = append(features, "policy:notify:user:"+feat)
@@ -733,7 +737,7 @@ func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, e
 }
 
 func probeKernelFeaturesPermstable32Version() (int64, error) {
-	data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32_version"))
+	data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32_version"))
 	if err != nil {
 		return 0, err
 	}
