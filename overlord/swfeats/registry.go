@@ -44,7 +44,9 @@ func newChangeKindRegistry() *ChangeKindRegistry {
 
 // Add a change kind string to the registry
 func (r *ChangeKindRegistry) Add(kind string) string {
-	r.changes[kind] = make([]string, 0)
+	if _, ok := r.changes[kind]; !ok {
+		r.changes[kind] = make([]string, 0)
+	}
 	return kind
 }
 
