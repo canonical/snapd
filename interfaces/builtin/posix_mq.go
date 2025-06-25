@@ -337,6 +337,10 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	snippet := iface.generateSnippet(plug.Name(), "plug", perms, paths)
 	spec.AddSnippet(snippet)
 
+	// cater to a legitimate use case when a posix-mq consumer may want
+	// to probe whether /dev/mqueue is indeed the mqueue pseudo filesystem
+	spec.AddSnippet(`mqueue (getattr) type=posix "/",`)
+
 	return nil
 }
 
