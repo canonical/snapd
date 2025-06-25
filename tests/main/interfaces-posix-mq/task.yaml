@@ -31,11 +31,17 @@ prepare: |
 execute: |
     # We cannot create a queue before connecting the can-create slot.
     not test-snapd-posix-mq.mqctl create /test read-only 600 max-size=16,max-count=10
+    # We cannot probe /dev/mqueue
+    not snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
+
     snap connect test-snapd-posix-mq:posix-mq test-snapd-posix-mq:can-create
     # Technically the read permission is required because there's no way to
     # open an mqueue without any permissions, as O_RDONLY is technically just
     # zero, so it's not a distinct bit.
     snap connect test-snapd-posix-mq:posix-mq test-snapd-posix-mq:can-read
+
+    # We can probe /dev/mqueue
+    snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
 
     # Once the can-create slot is connected we can create it.
     test-snapd-posix-mq.mqctl create /test read-only 600 max-size=16,max-count=10 | MATCH 'mq_open did not fail'
