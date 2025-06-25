@@ -47,13 +47,19 @@ func BuildFakeProbe(values map[string]string) *FakeBlkidProbe {
 	return &FakeBlkidProbe{values, &FakeBlkidPartlist{}}
 }
 
-func (p *FakeBlkidProbe) AddPartition(name, uuid string) {
-	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid})
+func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, index int) *FakeBlkidProbe {
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid, index})
+
+	partition_values := make(map[string]string)
+	partition_values["LABEL"] = name
+	partition_values["UUID"] = uuid
+	return BuildFakeProbe(partition_values)
 }
 
 type FakeBlkidPartition struct {
-	name string
-	uuid string
+	name  string
+	uuid  string
+	index int
 }
 
 type FakeBlkidPartlist struct {
@@ -79,10 +85,13 @@ func (p *FakeBlkidProbe) Close() {
 func (p *FakeBlkidProbe) EnablePartitions(value bool) {
 }
 
+func (p *FakeBlkidProbe) SetPartitionsFlags(flags int) {
+}
+
 func (p *FakeBlkidProbe) EnableSuperblocks(value bool) {
 }
 
-func (p *FakeBlkidProbe) SetPartitionsFlags(flags int) {
+func (p *FakeBlkidProbe) SetSuperblockFlags(flags int) {
 }
 
 func (p *FakeBlkidProbe) DoSafeprobe() error {
@@ -107,4 +116,8 @@ func (p *FakeBlkidPartition) GetName() string {
 
 func (p *FakeBlkidPartition) GetUUID() string {
 	return p.uuid
+}
+
+func (p *FakeBlkidPartition) GetPartNo() int {
+	return p.index
 }

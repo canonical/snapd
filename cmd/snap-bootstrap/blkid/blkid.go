@@ -34,6 +34,9 @@ import (
 
 const (
 	BLKID_PARTS_ENTRY_DETAILS int = C.BLKID_PARTS_ENTRY_DETAILS
+
+	BLKID_SUBLKS_LABEL int = C.BLKID_SUBLKS_LABEL
+	BLKID_SUBLKS_UUID  int = C.BLKID_SUBLKS_UUID
 )
 
 // AbstractBlkidProbe is wrapper for blkid_probe
@@ -45,10 +48,12 @@ type AbstractBlkidProbe interface {
 	Close()
 	// EnablePartitions is a wrapper for blkid_probe_enable_partitions
 	EnablePartitions(value bool)
-	// EnableSuperblocks is a wrapper for blkid_probe_enable_superblocks
-	EnableSuperblocks(value bool)
 	// SetPartitionsFlags is a wrapper for blkid_probe_set_partitions_flags
 	SetPartitionsFlags(flags int)
+	// EnableSuperblocks is a wrapper for blkid_probe_enable_superblocks
+	EnableSuperblocks(value bool)
+	// SetSuperblockFlags is a wrapper for blkid_probe_set_superblocks_flags
+	SetSuperblockFlags(flags int)
 	// DoSafeprobe is a wrapper for blkid_do_safeprobe
 	DoSafeprobe() error
 	// GetPartitions is a wrapper for blkid_probe_get_partitions
@@ -68,6 +73,8 @@ type AbstractBlkidPartition interface {
 	GetName() string
 	// GetUUID is a wrapper for blkid_partition_get_uuid
 	GetUUID() string
+	// GetPartNo is a wrapper for blkid_partition_get_partno
+	GetPartNo() int
 }
 
 type blkidProbe struct {
@@ -127,6 +134,11 @@ func (p *blkidProbe) EnablePartitions(value bool) {
 	C.blkid_probe_enable_partitions(p.probeHandle, C.int(v))
 }
 
+func (p *blkidProbe) SetPartitionsFlags(flags int) {
+	p.checkProbe()
+	C.blkid_probe_set_partitions_flags(p.probeHandle, C.int(flags))
+}
+
 func (p *blkidProbe) EnableSuperblocks(value bool) {
 	p.checkProbe()
 	v := 0
@@ -136,9 +148,9 @@ func (p *blkidProbe) EnableSuperblocks(value bool) {
 	C.blkid_probe_enable_superblocks(p.probeHandle, C.int(v))
 }
 
-func (p *blkidProbe) SetPartitionsFlags(flags int) {
+func (p *blkidProbe) SetSuperblockFlags(flags int) {
 	p.checkProbe()
-	C.blkid_probe_set_partitions_flags(p.probeHandle, C.int(flags))
+	C.blkid_probe_set_superblocks_flags(p.probeHandle, C.int(flags))
 }
 
 func (p *blkidProbe) DoSafeprobe() error {
@@ -183,4 +195,8 @@ func (p *blkidPartition) GetName() string {
 
 func (p *blkidPartition) GetUUID() string {
 	return C.GoString(C.blkid_partition_get_uuid(p.partitionHandle))
+}
+
+func (p *blkidPartition) GetPartNo() int {
+	return int((C.int)(C.blkid_partition_get_partno(p.partitionHandle)))
 }
