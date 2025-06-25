@@ -216,7 +216,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 			{ContainerRole: "some-container-role", Name: "some-name"},
 		})
 
-		return state.NewTaskSet(), nil
+		return state.NewTaskSet(st.NewTask("some-task", "")), nil
 	}))
 
 	body := strings.NewReader(`
@@ -236,11 +236,15 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 
 	st.Lock()
 	chg := st.Change(rsp.Change)
+	tsks := chg.Tasks()
 	st.Unlock()
 	c.Check(chg, NotNil)
 	c.Check(chg.ID(), Equals, "1")
 	c.Check(chg.Kind(), Equals, "fde-replace-recovery-key")
+	c.Assert(tsks, HasLen, 1)
+	c.Check(tsks[0].Kind(), Equals, "some-task")
 	c.Check(called, Equals, 1)
+
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {

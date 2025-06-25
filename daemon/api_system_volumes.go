@@ -143,7 +143,6 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 	}
 
 	chg := newChange(st, "fde-replace-recovery-key", "Replace recovery key", []*state.TaskSet{ts}, nil)
-	chg.AddAll(ts)
 
 	st.EnsureBefore(0)
 
