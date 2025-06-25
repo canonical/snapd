@@ -6,6 +6,7 @@ if nc -l 127.0.0.1 12345; then
     echo "should not be able to bind to anything"
 fi
 
-nc -zv snapcraft.io 80
+# this will fail if we can't run nc, which is allowed by the network interface
+nc -h
 
 echo "ran remove hook" > /tmp/two-remove-hook-executed
