@@ -570,7 +570,12 @@ func checkDBXChangeConflicts(st *state.State) error {
 
 	// make sure that there are no changes for the snaps that are relevant for
 	// FDE
-	return snapstate.CheckChangeConflictMany(st, snaps, "")
+	if err := snapstate.CheckChangeConflictMany(st, snaps, ""); err != nil {
+		return err
+	}
+
+	// make sure no changes related to FDE are in progress
+	return checkFDEChangeConflict(st)
 }
 
 type dbxUpdatePrepareSyncKey struct{}
