@@ -20,6 +20,19 @@ environment:
 
 prepare: |
     LIBEXEC_DIR="$(os.paths libexec-dir)"
+    vers="$("$LIBEXEC_DIR"/snapd/snap-confine --version | cut -f2 -d' ' | sed -e 's/\+.*//')"
+
+    if os.query is-ubuntu && [ "$SPREAD_VARIANT" = "no_reexec" ]; then
+        # Ubuntu is the only distribution where snapd comes preinstalled, so
+        # unless we are doing SRU validation, the no-reexec variant would
+        # actually try to exercise this feature using the native package, which
+        # may be too old to have it in the first place
+        if [ "$SRU_VALIDATION" != "1" ]; then
+            tests.exec skip-test "This test needs a test build of snapd, got native version $vers instead"
+        fi
+    fi
+    tests.exec is-skipped && exit 0
+
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
             # although classic snaps do not work out of the box on fedora,
@@ -54,6 +67,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
+    tests.exec is-skipped && exit 0
     tests.session -u test restore
 
 debug: |
@@ -62,6 +76,7 @@ debug: |
     getcap "$LIBEXEC_DIR"/snapd/snap-confine || true
 
 execute: |
+    tests.exec is-skipped && exit 0
     tests.session -u test exec sh -c "test-snapd-sh-core24.sh -c 'true' 2>&1" | \
         MATCH 'user is not a member of group'
 
