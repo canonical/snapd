@@ -375,7 +375,7 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 	} {
 		s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.imageError, tc.errorBootImage)
 
-		modelMods := map[string]interface{}{}
+		modelMods := map[string]any{}
 		if tc.isSupportedUbuntuHybrid {
 			modelMods["classic"] = "true"
 			modelMods["distribution"] = "ubuntu"
@@ -458,7 +458,7 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 			"",
 		},
 	} {
-		modelMods := map[string]interface{}{}
+		modelMods := map[string]any{}
 		if tc.isSupportedUbuntuHybrid {
 			modelMods["classic"] = "true"
 			modelMods["distribution"] = "ubuntu"
@@ -518,11 +518,11 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 // errorsDetected: simulate realistic encryption availability errors for both secboot.PreinstallCheck and secboot.CheckTPMKeySealingSupported (None, Single, Multiple)
 // checkFailErrors: simulate availability check unexpected behavior errors (ErrorNone, ErrorBootImages, ErrorSecbootPreinstall)
 // modelMods: model modifications to extend a model to be Ubuntu hybrid
-func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected, checkFailErrors ErrorsDetected, modelMods map[string]interface{}) *asserts.Model {
+func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected, checkFailErrors ErrorsDetected, modelMods map[string]any) *asserts.Model {
 	// extend model modifications if required to indicate hybrid as required
-	var extendedModelMods map[string]interface{}
+	var extendedModelMods map[string]any
 	if modelMods != nil || isSupportedUbuntuHybrid {
-		extendedModelMods = map[string]interface{}{}
+		extendedModelMods = map[string]any{}
 	}
 	if modelMods != nil {
 		for k, v := range modelMods {
@@ -847,7 +847,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 		},
 	}
 	for i, tc := range testCases {
-		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]interface{}{
+		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -979,7 +979,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 	}
 
 	for i, tc := range testCases {
-		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]interface{}{
+		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
@@ -1313,7 +1313,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 			"cannot encrypt device storage as mandated by model grade secured: preinstall check identified 2 errors",
 		},
 	} {
-		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]interface{}{
+		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
 		})
