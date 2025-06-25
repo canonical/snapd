@@ -112,9 +112,13 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
 		// Update last repeated time if repeat-after time has elapsed (or is zero)
 		// XXX: this is what was used previously, but it seems strange to look
-		// at the options.RepeatAfter instead of n.repeatAfter when deciding if
+		// at the repeatAfter argument instead of n.repeatAfter when deciding if
 		// the lastRepeated timestamp should be updated for an existing notice.
-		// Otherwise, what's the point of storing repeatAfter in the notice?
+		// It seems like the saved n.repeatAfter should be used when deciding
+		// whether the current call should cause the notice to be repeated, and
+		// then the given repeatAfter argument should be stored as n.repeatAfter
+		// and used next time the notice is re-recorded. Otherwise, n.repeatAfter
+		// is never used, so what's the point of storing it in the notice?
 		n.lastRepeated = now
 		repeated = true
 	}
