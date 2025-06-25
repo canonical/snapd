@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -1734,6 +1735,10 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c *check.C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	d := s.daemon(c)
 
 	called := 0
