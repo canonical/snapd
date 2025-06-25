@@ -179,7 +179,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 }
 
 func mapToSlice(m *sync.Map) []string {
-	slice := []string{}
+	var slice []string
 	m.Range(func(key, _ any) bool {
 		slice = append(slice, key.(string))
 		return true
