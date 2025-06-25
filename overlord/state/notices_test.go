@@ -743,14 +743,47 @@ func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	// If we ask for notices before now or a time in the past and there are no
-	// current notices matching the filter, return immediately
-	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now().Add(-time.Second)})
+	// If we ask for notices before now and there are no current notices
+	// matching the filter, return immediately
+	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now()})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 0)
+
+	// If we ask for notices before now and there are notices matching the
+	// filter, return them immediately
+	addNotice(c, st, nil, state.WarningNotice, "existing", nil)
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now()})
 	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Assert(n["key"], Equals, "existing")
+
+	// If we ask for notices before a time in the past and there are no notices
+	// matching the filter, return immediately
+	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now().Add(-time.Second)})
+	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 0)
+
+	// If we ask for notices before a time in the future, then a matching
+	// notice occurs, it will be returned
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		st.Lock()
+		addNotice(c, st, nil, state.WarningNotice, "hay", nil)
+		st.Unlock()
+		time.Sleep(10 * time.Millisecond)
+		st.Lock()
+		addNotice(c, st, nil, state.WarningNotice, "needle", nil)
+		st.Unlock()
+	}()
+	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{
+		Before: time.Now().Add(time.Second),
+		Keys:   []string{"needle"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 1)
+	n = noticeToMap(c, notices[0])
+	c.Assert(n["key"], Equals, "needle")
 
 	// If we ask for notices before a time in the future and that time in the
 	// future passes, with some non-matching notice waking the waiter, then
