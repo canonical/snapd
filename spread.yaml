@@ -63,6 +63,7 @@ environment:
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: "127.0.0.1"
+    SNAPD_USE_PROXY: "false"
     NEW_CORE_CHANNEL: '$(HOST: echo "$SPREAD_NEW_CORE_CHANNEL")'
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
     # use the ppa_validation_name to install snapd from a public ppa
