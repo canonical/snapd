@@ -555,7 +555,7 @@ func checkDBXChangeConflicts(st *state.State) error {
 		return nil
 	}
 
-	// make sure that are no other DBX changes in progress
+	// make sure that there are no other DBX changes in progress
 	op, err := findFirstPendingExternalOperationByKind(st, "fde-efi-secureboot-db-update")
 	if err != nil {
 		return err

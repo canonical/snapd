@@ -21,13 +21,16 @@ package daemon_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -250,18 +253,35 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
 	s.daemon(c)
 
+	var mockErr error
 	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
-		return nil, errors.New("boom!")
+		return nil, mockErr
 	}))
 
+	// catch all, bad request error
 	body := strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
+	mockErr = errors.New("boom!")
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, "cannot replace recovery key: boom!")
+	c.Check(rsp.Message, Equals, "cannot replace recovery key: boom!")
+
+	// typed conflict detection error kind
+	mockErr = &snapstate.ChangeConflictError{
+		Message: fmt.Sprintf("conflict error: boom!"),
+	}
+	body = strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 409)
+	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rsp.Message, Equals, "conflict error: boom!")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {

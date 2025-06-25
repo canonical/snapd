@@ -1221,7 +1221,7 @@ func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
 	c.Assert(err, ErrorMatches, `failed to obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
 }
 
-func (s *fdeMgrSuite) TestKeyslotsBlockedTasks(c *C) {
+func (s *fdeMgrSuite) testFDEBlockedTasks(c *C, hasFDEPrefix bool) {
 	st := s.st
 	onClassic := true
 	s.startedManager(c, onClassic)
@@ -1237,10 +1237,16 @@ func (s *fdeMgrSuite) TestKeyslotsBlockedTasks(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	chg1 := st.NewChange("some-change-1", "")
+	chg1Kind := "some-change-1"
+	if hasFDEPrefix {
+		chg1Kind = "fde-some-change-1"
+	}
+	chg1 := st.NewChange(chg1Kind, "")
 	tsk1 := st.NewTask("keyslot-op", "")
-	// mark as a key slot operation
-	tsk1.Set("keyslots", []fdestate.KeyslotRef{})
+	if !hasFDEPrefix {
+		// mark as a key slot operation
+		tsk1.Set("keyslots", []fdestate.KeyslotRef{})
+	}
 	chg1.AddTask(tsk1)
 
 	// wait for keyslot-op to start
@@ -1252,10 +1258,16 @@ func (s *fdeMgrSuite) TestKeyslotsBlockedTasks(c *C) {
 	}
 	c.Assert(tsk1.Status(), Equals, state.DoingStatus)
 
-	chg2 := st.NewChange("some-change-2", "")
+	chg2Kind := "some-change-2"
+	if hasFDEPrefix {
+		chg2Kind = "fde-some-change-2"
+	}
+	chg2 := st.NewChange(chg2Kind, "")
 	tsk2 := st.NewTask("nop", "")
-	// mark as a key slot operation
-	tsk2.Set("keyslots", []fdestate.KeyslotRef{})
+	if !hasFDEPrefix {
+		// mark as a key slot operation
+		tsk2.Set("keyslots", []fdestate.KeyslotRef{})
+	}
 	chg2.AddTask(tsk2)
 
 	// try to force "nop" to run
@@ -1278,4 +1290,14 @@ func (s *fdeMgrSuite) TestKeyslotsBlockedTasks(c *C) {
 	st.Unlock()
 	iterateUnlockedStateWaitingFor(st, chg2.IsReady)
 	st.Lock()
+}
+
+func (s *fdeMgrSuite) TestFDEBlockedTasksFDEPrefixChange(c *C) {
+	const hasFDEPrefix = true
+	s.testFDEBlockedTasks(c, hasFDEPrefix)
+}
+
+func (s *fdeMgrSuite) TestFDEBlockedTasksKeyslotTasks(c *C) {
+	const hasFDEPrefix = false
+	s.testFDEBlockedTasks(c, hasFDEPrefix)
 }

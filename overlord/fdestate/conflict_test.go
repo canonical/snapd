@@ -35,6 +35,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 	var chgToErr = map[string]string{
 		"fde-efi-secureboot-db-update": "external EFI DBX update in progress, no other FDE changes allowed until this is done",
 		"fde-replace-recovery-key":     "replacing recovery key in progress, no other FDE changes allowed until this is done",
+		"fde-not-handled":              `"fde-not-handled" in progress, no other FDE changes allowed until this is done`,
 		"some-keyslot-change":          "key slot task in progress, no other FDE changes allowed until this is done",
 
 		"some-change": "",
