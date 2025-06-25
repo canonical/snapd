@@ -3826,14 +3826,9 @@ func (s *secbootSuite) TestCheckRecoveryKey(c *C) {
 }
 
 func (s *secbootSuite) TestEntropyBits(c *C) {
-	defer secboot.MockSbCheckPassphraseEntropy(func(passphrase string) (*sb.PassphraseEntropyStats, error) {
-		c.Assert(passphrase, Equals, "some-passphrase")
-		return &sb.PassphraseEntropyStats{EntropyBits: 10}, nil
-	})()
-
 	entropy, err := secboot.EntropyBits("some-passphrase")
 	c.Assert(err, IsNil)
-	c.Check(entropy, Equals, uint32(10))
+	c.Check(entropy, Equals, uint32(74))
 }
 
 func (s *secbootSuite) TestEntropyBitsError(c *C) {

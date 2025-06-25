@@ -248,7 +248,7 @@ type AuthQuality struct {
 var EntropyBits func(passphrase string) (uint32, error) = entropyBitsImpl
 
 func entropyBitsImpl(passphrase string) (uint32, error) {
-	panic("not implemented")
+	panic("entropy bits calculation callback not set up")
 }
 
 const (

@@ -481,7 +481,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
-	c.Assert(rsp.Result, DeepEquals, map[string]any{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
 		"min-entropy-bits":     uint32(20),
 		"optimal-entropy-bits": uint32(50),
@@ -545,10 +545,10 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 		req.Header.Add("Content-Type", "application/json")
 
 		rspe := s.errorReq(c, req, nil)
-		c.Assert(rspe.Status, Equals, tc.expectedStatus)
-		c.Assert(rspe.Kind, Equals, tc.expectedErrKind)
-		c.Assert(rspe.Message, Matches, tc.expectedErrMsg)
-		c.Assert(rspe.Value, DeepEquals, tc.expectedErrValue)
+		c.Check(rspe.Status, Equals, tc.expectedStatus)
+		c.Check(rspe.Kind, Equals, tc.expectedErrKind)
+		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
+		c.Check(rspe.Value, DeepEquals, tc.expectedErrValue)
 	}
 }
 
@@ -584,7 +584,7 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPIN(c *C) {
 
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
-	c.Assert(rsp.Result, DeepEquals, map[string]any{
+	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
 		"min-entropy-bits":     uint32(20),
 		"optimal-entropy-bits": uint32(50),
@@ -648,9 +648,9 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPINError(c *C) {
 		req.Header.Add("Content-Type", "application/json")
 
 		rspe := s.errorReq(c, req, nil)
-		c.Assert(rspe.Status, Equals, tc.expectedStatus)
-		c.Assert(rspe.Kind, Equals, tc.expectedErrKind)
-		c.Assert(rspe.Message, Matches, tc.expectedErrMsg)
-		c.Assert(rspe.Value, DeepEquals, tc.expectedErrValue)
+		c.Check(rspe.Status, Equals, tc.expectedStatus)
+		c.Check(rspe.Kind, Equals, tc.expectedErrKind)
+		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
+		c.Check(rspe.Value, DeepEquals, tc.expectedErrValue)
 	}
 }
