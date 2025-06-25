@@ -21,7 +21,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	as "github.com/snapcore/snapd/cluster/assemblestate"
+	"github.com/snapcore/snapd/cluster/assemblestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -55,11 +55,11 @@ type Discoverer = func(context.Context) ([]string, error)
 //
 // Eventually, this function will use the accepted [state.State] to resume a
 // stopped assemble session.
-func Assemble(st *state.State, ctx context.Context, discover Discoverer, opts AssembleOpts) (as.Routes, error) {
+func Assemble(st *state.State, ctx context.Context, discover Discoverer, opts AssembleOpts) (assemblestate.Routes, error) {
 	// TODO: pick how we're going to generate RDTs
-	rdt := as.RDT(opts.RDTOverride)
+	rdt := assemblestate.RDT(opts.RDTOverride)
 	if rdt == "" {
-		return as.Routes{}, errors.New("rdt must be provided")
+		return assemblestate.Routes{}, errors.New("rdt must be provided")
 	}
 
 	logger := opts.Logger
@@ -75,10 +75,10 @@ func Assemble(st *state.State, ctx context.Context, discover Discoverer, opts As
 
 	cert, key, err := createCertAndKey(opts.ListenIP)
 	if err != nil {
-		return as.Routes{}, err
+		return assemblestate.Routes{}, err
 	}
 
-	config := as.ClusterConfig{
+	config := assemblestate.AssembleConfig{
 		Secret:  opts.Secret,
 		RDT:     rdt,
 		IP:      opts.ListenIP,
@@ -88,34 +88,34 @@ func Assemble(st *state.State, ctx context.Context, discover Discoverer, opts As
 	}
 
 	st.Lock()
-	st.Set("cluster-config", config)
+	st.Set("assemble-config", config)
 	st.Unlock()
 
-	cs, err := as.NewClusterState(st, func(self as.RDT) (as.RouteSelector, error) {
-		return as.NewPrioritySelector(self, nil), nil
+	as, err := assemblestate.NewAssembleState(st, func(self assemblestate.RDT) (assemblestate.RouteSelector, error) {
+		return assemblestate.NewPrioritySelector(self, nil), nil
 	})
 	if err != nil {
-		return as.Routes{}, err
+		return assemblestate.Routes{}, err
 	}
 
-	return assemble(ctx, cs, discover, logger, observer)
+	return assemble(ctx, as, discover, logger, observer)
 }
 
 func assemble(
 	ctx context.Context,
-	cs *as.ClusterState,
+	as *assemblestate.AssembleState,
 	discover Discoverer,
 	logger *slog.Logger,
 	observer Observer,
-) (as.Routes, error) {
-	server, err := newAssembleServer(cs, logger, observer)
+) (assemblestate.Routes, error) {
+	server, err := newAssembleServer(as, logger, observer)
 	if err != nil {
-		return as.Routes{}, err
+		return assemblestate.Routes{}, err
 	}
 
 	messenger := HTTPMessenger{
 		logger:   logger,
-		cert:     cs.Cert(),
+		cert:     as.Cert(),
 		observer: observer,
 	}
 
@@ -134,7 +134,7 @@ func assemble(
 			// filter out our address, maybe this should be done somewhere else?
 			addrs := make([]string, 0, len(discoveries))
 			for _, addr := range discoveries {
-				if addr == cs.Address() {
+				if addr == as.Address() {
 					continue
 				}
 
@@ -143,7 +143,7 @@ func assemble(
 
 			// if this returns an error, someone is doing something
 			// wrong/malicious
-			if err := cs.PublishAuth(ctx, addrs, &messenger); err != nil {
+			if err := as.PublishAuth(ctx, addrs, &messenger); err != nil {
 				observer.Errors(err)
 				return
 			}
@@ -153,25 +153,37 @@ func assemble(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		periodic(ctx, time.Second*5, time.Second, func(ctx context.Context) {
-			cs.PublishRoutes(ctx, &messenger)
-		})
-	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		periodic(ctx, time.Second*1, time.Second/2, func(ctx context.Context) {
-			cs.PublishDevices(ctx, &messenger)
-		})
-	}()
+		// TODO: consider some sort of jitter here
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		periodic(ctx, time.Second*1, time.Second/2, func(ctx context.Context) {
-			cs.PublishDeviceQueries(ctx, &messenger)
-		})
+		routes := time.NewTicker(time.Second * 5)
+		defer routes.Stop()
+
+		devices := time.NewTicker(time.Second * 1)
+		defer devices.Stop()
+
+		queries := time.NewTicker(time.Second * 1)
+		defer queries.Stop()
+
+		for {
+			select {
+			case <-routes.C:
+				const (
+					peers  = 5
+					routes = 5000
+				)
+				as.PublishRoutes(ctx, &messenger, peers, routes)
+			case <-devices.C:
+				as.PublishDevices(ctx, &messenger)
+			case <-queries.C:
+				as.PublishDeviceQueries(ctx, &messenger)
+			case <-ctx.Done():
+			}
+
+			if ctx.Err() != nil {
+				return
+			}
+		}
 	}()
 
 	// cancelling the context will cause the goroutines to terminate. until
@@ -185,7 +197,7 @@ func assemble(
 		"received-bytes", server.received.Load(),
 	)
 
-	return cs.Routes(), nil
+	return as.Routes(), nil
 }
 
 func periodic(
@@ -222,7 +234,7 @@ func periodic(
 }
 
 type assembleServer struct {
-	cs       *as.ClusterState
+	as       *assemblestate.AssembleState
 	server   *http.Server
 	received atomic.Int64
 
@@ -232,9 +244,9 @@ type assembleServer struct {
 	wg sync.WaitGroup
 }
 
-func newAssembleServer(cs *as.ClusterState, logger *slog.Logger, observer Observer) (*assembleServer, error) {
+func newAssembleServer(a *assemblestate.AssembleState, logger *slog.Logger, observer Observer) (*assembleServer, error) {
 	svr := assembleServer{
-		cs:       cs,
+		as:       a,
 		logger:   logger,
 		observer: observer,
 	}
@@ -250,7 +262,7 @@ func newAssembleServer(cs *as.ClusterState, logger *slog.Logger, observer Observ
 	}
 
 	// this will be closed by svr.stop
-	ln, err := net.Listen("tcp", cs.Address())
+	ln, err := net.Listen("tcp", a.Address())
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +272,7 @@ func newAssembleServer(cs *as.ClusterState, logger *slog.Logger, observer Observ
 		defer svr.wg.Done()
 
 		listener := tls.NewListener(ln, &tls.Config{
-			Certificates: []tls.Certificate{cs.Cert()},
+			Certificates: []tls.Certificate{a.Cert()},
 			ClientAuth:   tls.RequireAnyClientCert,
 		})
 		_ = svr.server.Serve(listener)
@@ -285,7 +297,7 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (svr *assembleServer) trustedHandler(next func(http.ResponseWriter, *http.Request, *as.PeerHandle)) http.HandlerFunc {
+func (svr *assembleServer) trustedHandler(next func(http.ResponseWriter, *http.Request, *assemblestate.PeerHandle)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil {
 			w.WriteHeader(403)
@@ -297,7 +309,7 @@ func (svr *assembleServer) trustedHandler(next func(http.ResponseWriter, *http.R
 			return
 		}
 
-		h, err := svr.cs.Trusted(r.TLS.PeerCertificates[0].Raw)
+		h, err := svr.as.VerifyPeer(r.TLS.PeerCertificates[0].Raw)
 		if err != nil {
 			svr.logger.Debug("dropping message from untrusted peer")
 			w.WriteHeader(403)
@@ -330,14 +342,14 @@ func (a *assembleServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 		r: http.MaxBytesReader(w, r.Body, maxAuthSize),
 	}
 
-	var auth as.Auth
+	var auth assemblestate.Auth
 	if err := json.NewDecoder(&counter).Decode(&auth); err != nil {
 		w.WriteHeader(400)
 		return
 	}
 
 	cert := r.TLS.PeerCertificates[0].Raw
-	if err := a.cs.Authenticate(auth, cert); err != nil {
+	if err := a.as.Authenticate(auth, cert); err != nil {
 		w.WriteHeader(403)
 		return
 	}
@@ -346,7 +358,7 @@ func (a *assembleServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 	a.received.Add(counter.count)
 }
 
-func (svr *assembleServer) handleRoutes(w http.ResponseWriter, r *http.Request, h *as.PeerHandle) {
+func (svr *assembleServer) handleRoutes(w http.ResponseWriter, r *http.Request, h *assemblestate.PeerHandle) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
 		return
@@ -354,7 +366,7 @@ func (svr *assembleServer) handleRoutes(w http.ResponseWriter, r *http.Request, 
 
 	counter := countingReader{r: r.Body}
 
-	var routes as.Routes
+	var routes assemblestate.Routes
 	if err := json.NewDecoder(&counter).Decode(&routes); err != nil {
 		w.WriteHeader(400)
 		return
@@ -376,7 +388,7 @@ func (svr *assembleServer) handleRoutes(w http.ResponseWriter, r *http.Request, 
 	svr.received.Add(counter.count)
 }
 
-func (svr *assembleServer) handleUnknown(w http.ResponseWriter, r *http.Request, h *as.PeerHandle) {
+func (svr *assembleServer) handleUnknown(w http.ResponseWriter, r *http.Request, h *assemblestate.PeerHandle) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
 		return
@@ -384,7 +396,7 @@ func (svr *assembleServer) handleUnknown(w http.ResponseWriter, r *http.Request,
 
 	counter := countingReader{r: r.Body}
 
-	var unknown as.UnknownDevices
+	var unknown assemblestate.UnknownDevices
 	if err := json.NewDecoder(&counter).Decode(&unknown); err != nil {
 		w.WriteHeader(400)
 		return
@@ -400,7 +412,7 @@ func (svr *assembleServer) handleUnknown(w http.ResponseWriter, r *http.Request,
 	svr.received.Add(counter.count)
 }
 
-func (svr *assembleServer) handleDevices(w http.ResponseWriter, r *http.Request, h *as.PeerHandle) {
+func (svr *assembleServer) handleDevices(w http.ResponseWriter, r *http.Request, h *assemblestate.PeerHandle) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)
 		return
@@ -408,7 +420,7 @@ func (svr *assembleServer) handleDevices(w http.ResponseWriter, r *http.Request,
 
 	counter := countingReader{r: r.Body}
 
-	var devices as.Devices
+	var devices assemblestate.Devices
 	if err := json.NewDecoder(&counter).Decode(&devices); err != nil {
 		w.WriteHeader(400)
 		return
@@ -433,7 +445,7 @@ type HTTPMessenger struct {
 	observer Observer
 }
 
-func (m *HTTPMessenger) Trusted(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, data any) error {
+func (m *HTTPMessenger) Trusted(ctx context.Context, rdt assemblestate.RDT, addr string, cert []byte, kind string, data any) error {
 	if err := m.trusted(ctx, cert, addr, kind, data, rdt); err != nil {
 		m.observer.Errors(err)
 		return err
@@ -441,7 +453,7 @@ func (m *HTTPMessenger) Trusted(ctx context.Context, rdt as.RDT, addr string, ce
 	return nil
 }
 
-func (m *HTTPMessenger) trusted(ctx context.Context, cert []byte, addr string, kind string, data any, rdt as.RDT) error {
+func (m *HTTPMessenger) trusted(ctx context.Context, cert []byte, addr string, kind string, data any, rdt assemblestate.RDT) error {
 	verify := func(certs [][]byte, chains [][]*x509.Certificate) error {
 		if len(certs) != 1 {
 			return fmt.Errorf("exactly one peer certificate expected, got %d", len(certs))

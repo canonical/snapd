@@ -14,7 +14,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	as "github.com/snapcore/snapd/cluster/assemblestate"
+	astate "github.com/snapcore/snapd/cluster/assemblestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -24,42 +24,42 @@ type ClusterSuite struct{}
 var _ = check.Suite(&ClusterSuite{})
 
 type selector struct {
-	AddAuthoritativeRouteFunc func(r as.RDT, via string)
-	AddRoutesFunc             func(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error)
-	VerifyRoutesFunc          func(func(as.RDT) bool)
-	SelectFunc                func(count int) (to as.RDT, routes as.Routes, ack func(), ok bool)
-	RoutesFunc                func() as.Routes
+	AddAuthoritativeRouteFunc func(r astate.RDT, via string)
+	AddRoutesFunc             func(r astate.RDT, ro astate.Routes, id func(astate.RDT) bool) (int, int, error)
+	VerifyRoutesFunc          func(func(astate.RDT) bool)
+	SelectFunc                func(count int) (to astate.RDT, routes astate.Routes, ack func(), ok bool)
+	RoutesFunc                func() astate.Routes
 }
 
-func (s *selector) AddAuthoritativeRoute(r as.RDT, via string) {
+func (s *selector) AddAuthoritativeRoute(r astate.RDT, via string) {
 	if s.AddAuthoritativeRouteFunc == nil {
 		panic("unexpected call")
 	}
 	s.AddAuthoritativeRouteFunc(r, via)
 }
 
-func (s *selector) AddRoutes(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error) {
+func (s *selector) AddRoutes(r astate.RDT, ro astate.Routes, id func(astate.RDT) bool) (int, int, error) {
 	if s.AddRoutesFunc == nil {
 		panic("unexpected call")
 	}
 	return s.AddRoutesFunc(r, ro, id)
 }
 
-func (s *selector) VerifyRoutes(fn func(as.RDT) bool) {
+func (s *selector) VerifyRoutes(fn func(astate.RDT) bool) {
 	if s.VerifyRoutesFunc == nil {
 		panic("unexpected call")
 	}
 	s.VerifyRoutesFunc(fn)
 }
 
-func (s *selector) Select(count int) (as.RDT, as.Routes, func(), bool) {
+func (s *selector) Select(count int) (astate.RDT, astate.Routes, func(), bool) {
 	if s.SelectFunc == nil {
 		panic("unexpected call")
 	}
 	return s.SelectFunc(count)
 }
 
-func (s *selector) Routes() as.Routes {
+func (s *selector) Routes() astate.Routes {
 	if s.RoutesFunc == nil {
 		panic("unexpected call")
 	}
@@ -67,11 +67,11 @@ func (s *selector) Routes() as.Routes {
 }
 
 type messenger struct {
-	TrustedFunc   func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error
+	TrustedFunc   func(ctx context.Context, rdt astate.RDT, addr string, cert []byte, kind string, message any) error
 	UntrustedFunc func(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
 }
 
-func (m *messenger) Trusted(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, msg any) error {
+func (m *messenger) Trusted(ctx context.Context, rdt astate.RDT, addr string, cert []byte, kind string, msg any) error {
 	if m.TrustedFunc == nil {
 		panic("unexpected call")
 	}
@@ -125,7 +125,7 @@ func createTestCertAndKey(ip net.IP) (certPEM []byte, keyPEM []byte, err error) 
 	return certPEM, keyPEM, nil
 }
 
-func clusterStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg as.ClusterConfig) *as.ClusterState {
+func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg astate.AssembleConfig) *astate.AssembleState {
 	certPEM, keyPEM, err := createTestCertAndKey(cfg.IP)
 	c.Assert(err, check.IsNil)
 
@@ -133,54 +133,56 @@ func clusterStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg as
 	cfg.TLSKey = keyPEM
 
 	st.Lock()
-	st.Set("cluster-config", cfg)
+	st.Set("assemble-config", cfg)
 	st.Unlock()
 
-	cs, err := as.NewClusterState(st, func(as.RDT) (as.RouteSelector, error) {
+	as, err := astate.NewAssembleState(st, func(astate.RDT) (astate.RouteSelector, error) {
 		return sel, nil
 	})
 	c.Assert(err, check.IsNil)
 
-	return cs
+	return as
 }
 
 func statelessSelector() *selector {
 	return &selector{
-		AddAuthoritativeRouteFunc: func(r as.RDT, via string) {},
-		AddRoutesFunc: func(r as.RDT, ro as.Routes, id func(as.RDT) bool) (int, int, error) {
+		AddAuthoritativeRouteFunc: func(r astate.RDT, via string) {},
+		AddRoutesFunc: func(r astate.RDT, ro astate.Routes, id func(astate.RDT) bool) (int, int, error) {
 			return 0, 0, nil
 		},
-		VerifyRoutesFunc: func(f func(as.RDT) bool) {},
-		SelectFunc:       func(_ int) (as.RDT, as.Routes, func(), bool) { return "", as.Routes{}, nil, false },
-		RoutesFunc:       func() as.Routes { return as.Routes{} },
+		VerifyRoutesFunc: func(f func(astate.RDT) bool) {},
+		SelectFunc: func(_ int) (astate.RDT, astate.Routes, func(), bool) {
+			return "", astate.Routes{}, nil, false
+		},
+		RoutesFunc: func() astate.Routes { return astate.Routes{} },
 	}
 }
 
 func (s *ClusterSuite) TestAddress(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
 		Port:   8001,
 	})
 
-	c.Assert(cs.Address(), check.Equals, "127.0.0.1:8001")
+	c.Assert(as.Address(), check.Equals, "127.0.0.1:8001")
 }
 
 func (s *ClusterSuite) TestCert(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
 		Port:   8001,
 	})
 
-	_, err := x509.ParseCertificate(cs.Cert().Certificate[0])
+	_, err := x509.ParseCertificate(as.Cert().Certificate[0])
 	c.Assert(err, check.IsNil)
 }
 
 func (s *ClusterSuite) TestPublishAuth(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -195,17 +197,17 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 			c.Assert(addr, check.Equals, "127.0.0.1:8002")
 			c.Assert(kind, check.Equals, "auth")
 
-			auth := message.(as.Auth)
+			auth := message.(astate.Auth)
 
-			expectedHMAC := as.CalculateHMAC("rdt", as.CalculateFP(cs.Cert().Certificate[0]), "secret")
+			expectedHMAC := astate.CalculateHMAC("rdt", astate.CalculateFP(as.Cert().Certificate[0]), "secret")
 			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
-			c.Assert(auth.RDT, check.Equals, as.RDT("rdt"))
+			c.Assert(auth.RDT, check.Equals, astate.RDT("rdt"))
 
 			return []byte("peer-certificate"), nil
 		},
 	}
 
-	err := cs.PublishAuth(context.Background(), []string{"127.0.0.1:8002"}, &msg)
+	err := as.PublishAuth(context.Background(), []string{"127.0.0.1:8002"}, &msg)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(called, check.Equals, 1)
@@ -213,13 +215,13 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 	// the second time around we shouldn't publish anything, since we already
 	// have delivered an auth message to this peer
 	called = 0
-	err = cs.PublishAuth(context.Background(), []string{"127.0.0.1:8002"}, &msg)
+	err = as.PublishAuth(context.Background(), []string{"127.0.0.1:8002"}, &msg)
 	c.Assert(err, check.IsNil)
 	c.Assert(called, check.Equals, 0)
 }
 
 func (s *ClusterSuite) TestAuthenticate(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -227,61 +229,61 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	})
 
 	peerCert := []byte("peer-certificate")
-	peerFP := as.CalculateFP(peerCert)
-	peerRDT := as.RDT("peer-rdt")
+	peerFP := astate.CalculateFP(peerCert)
+	peerRDT := astate.RDT("peer-rdt")
 
 	// wrong RDT in HMAC
-	auth := as.Auth{
-		HMAC: as.CalculateHMAC("wrong-rdt", peerFP, "secret"),
+	auth := astate.Auth{
+		HMAC: astate.CalculateHMAC("wrong-rdt", peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err := cs.Authenticate(auth, peerCert)
+	err := as.Authenticate(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong RDT in message
-	auth = as.Auth{
-		HMAC: as.CalculateHMAC(peerRDT, peerFP, "secret"),
+	auth = astate.Auth{
+		HMAC: astate.CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  "wrong-rdt",
 	}
-	err = cs.Authenticate(auth, peerCert)
+	err = as.Authenticate(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong FP in HMAC
-	auth = as.Auth{
-		HMAC: as.CalculateHMAC(peerRDT, as.CalculateFP([]byte("wrong-cert")), "secret"),
+	auth = astate.Auth{
+		HMAC: astate.CalculateHMAC(peerRDT, astate.CalculateFP([]byte("wrong-cert")), "secret"),
 		RDT:  peerRDT,
 	}
-	err = cs.Authenticate(auth, peerCert)
+	err = as.Authenticate(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong cert from transport layer
-	auth = as.Auth{
-		HMAC: as.CalculateHMAC(peerRDT, peerFP, "secret"),
+	auth = astate.Auth{
+		HMAC: astate.CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err = cs.Authenticate(auth, []byte("wrong-cert"))
+	err = as.Authenticate(auth, []byte("wrong-cert"))
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong secret
-	auth = as.Auth{
-		HMAC: as.CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
+	auth = astate.Auth{
+		HMAC: astate.CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
 		RDT:  peerRDT,
 	}
-	err = cs.Authenticate(auth, peerCert)
+	err = as.Authenticate(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// valid case
-	auth = as.Auth{
-		HMAC: as.CalculateHMAC(peerRDT, peerFP, "secret"),
+	auth = astate.Auth{
+		HMAC: astate.CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err = cs.Authenticate(auth, peerCert)
+	err = as.Authenticate(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
 }
 
 func (s *ClusterSuite) TestTrusted(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -289,32 +291,32 @@ func (s *ClusterSuite) TestTrusted(c *check.C) {
 	})
 
 	peerCert := []byte("peer-certificate")
-	peerFP := as.CalculateFP(peerCert)
-	peerRDT := as.RDT("peer-rdt")
+	peerFP := astate.CalculateFP(peerCert)
+	peerRDT := astate.RDT("peer-rdt")
 
-	err := cs.Authenticate(as.Auth{
-		HMAC: as.CalculateHMAC(peerRDT, peerFP, "secret"),
+	err := as.Authenticate(astate.Auth{
+		HMAC: astate.CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}, peerCert)
 	c.Assert(err, check.IsNil)
 
-	handle, err := cs.Trusted(peerCert)
+	handle, err := as.VerifyPeer(peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, peerRDT)
 }
 
-func trustedAndDiscoveredPeer(c *check.C, cs *as.ClusterState, rdt as.RDT) (h *as.PeerHandle, address string, cert []byte) {
+func trustedAndDiscoveredPeer(c *check.C, as *astate.AssembleState, rdt astate.RDT) (h *astate.PeerHandle, address string, cert []byte) {
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
-	peerFP := as.CalculateFP(peerCert)
+	peerFP := astate.CalculateFP(peerCert)
 
-	err := cs.Authenticate(as.Auth{
-		HMAC: as.CalculateHMAC(rdt, peerFP, "secret"),
+	err := as.Authenticate(astate.Auth{
+		HMAC: astate.CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
 	}, peerCert)
 	c.Assert(err, check.IsNil)
 
-	handle, err := cs.Trusted(peerCert)
+	handle, err := as.VerifyPeer(peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, rdt)
@@ -328,23 +330,23 @@ func trustedAndDiscoveredPeer(c *check.C, cs *as.ClusterState, rdt as.RDT) (h *a
 		},
 	}
 
-	err = cs.PublishAuth(context.Background(), []string{peerAddr}, &msg)
+	err = as.PublishAuth(context.Background(), []string{peerAddr}, &msg)
 	c.Assert(err, check.IsNil)
 
 	return handle, peerAddr, peerCert
 }
 
-func trustedPeer(c *check.C, cs *as.ClusterState, rdt as.RDT) (h *as.PeerHandle, cert []byte) {
+func trustedPeer(c *check.C, as *astate.AssembleState, rdt astate.RDT) (h *astate.PeerHandle, cert []byte) {
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
-	peerFP := as.CalculateFP(peerCert)
+	peerFP := astate.CalculateFP(peerCert)
 
-	err := cs.Authenticate(as.Auth{
-		HMAC: as.CalculateHMAC(rdt, peerFP, "secret"),
+	err := as.Authenticate(astate.Auth{
+		HMAC: astate.CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
 	}, peerCert)
 	c.Assert(err, check.IsNil)
 
-	handle, err := cs.Trusted(peerCert)
+	handle, err := as.VerifyPeer(peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, rdt)
@@ -353,72 +355,72 @@ func trustedPeer(c *check.C, cs *as.ClusterState, rdt as.RDT) (h *as.PeerHandle,
 }
 
 func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
 		Port:   8001,
 	})
 
-	peerRDT := as.RDT("peer")
-	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, cs, peerRDT)
+	peerRDT := astate.RDT("peer")
+	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, peerRDT)
 
 	// this tells us that this peer has knowledge of one and two.
-	_, _, err := peer.AddRoutes(as.Routes{
-		Devices: []as.RDT{"one", "two"},
+	_, _, err := peer.AddRoutes(astate.Routes{
+		Devices: []astate.RDT{"one", "two"},
 	})
 	c.Assert(err, check.IsNil)
 
 	msg := messenger{
-		TrustedFunc: func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, rdt astate.RDT, addr string, cert []byte, kind string, message any) error {
 			c.Assert(rdt, check.Equals, peerRDT)
 			c.Assert(addr, check.Equals, peerAddr)
 			c.Assert(cert, check.DeepEquals, peerCert)
 			c.Assert(kind, check.Equals, "unknown")
 
-			unknown := message.(as.UnknownDevices)
-			c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []as.RDT{"one", "two"})
+			unknown := message.(astate.UnknownDevices)
+			c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []astate.RDT{"one", "two"})
 			return nil
 		},
 	}
-	cs.PublishDeviceQueries(context.Background(), &msg)
+	as.PublishDeviceQueries(context.Background(), &msg)
 
 	// act as if the peer responded for only one of the devices
-	err = peer.AddDevices(as.Devices{
-		Devices: []as.Identity{{
+	err = peer.AddDevices(astate.Devices{
+		Devices: []astate.Identity{{
 			RDT: "one",
 		}},
 	})
 	c.Assert(err, check.IsNil)
 
 	// now, we should expect to see a query for just "two"
-	msg.TrustedFunc = func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
+	msg.TrustedFunc = func(ctx context.Context, rdt astate.RDT, addr string, cert []byte, kind string, message any) error {
 		c.Assert(rdt, check.Equals, peerRDT)
 		c.Assert(addr, check.Equals, peerAddr)
 		c.Assert(cert, check.DeepEquals, peerCert)
 		c.Assert(kind, check.Equals, "unknown")
 
-		unknown := message.(as.UnknownDevices)
-		c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []as.RDT{"two"})
+		unknown := message.(astate.UnknownDevices)
+		c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []astate.RDT{"two"})
 		return nil
 	}
-	cs.PublishDeviceQueries(context.Background(), &msg)
+	as.PublishDeviceQueries(context.Background(), &msg)
 }
 
 func (s *ClusterSuite) TestPublishDevices(c *check.C) {
-	cs := clusterStateWithTestKeys(c, state.New(nil), statelessSelector(), as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
 		Port:   8001,
 	})
 
-	oneRDT := as.RDT("one")
-	one, _, _ := trustedAndDiscoveredPeer(c, cs, oneRDT)
+	oneRDT := astate.RDT("one")
+	one, _, _ := trustedAndDiscoveredPeer(c, as, oneRDT)
 
 	// inform us of devices one and two
-	err := one.AddDevices(as.Devices{
-		Devices: []as.Identity{
+	err := one.AddDevices(astate.Devices{
+		Devices: []astate.Identity{
 			{
 				RDT: "one",
 			},
@@ -429,74 +431,74 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	threeRDT := as.RDT("three")
-	three, threeAddr, threeCert := trustedAndDiscoveredPeer(c, cs, threeRDT)
+	threeRDT := astate.RDT("three")
+	three, threeAddr, threeCert := trustedAndDiscoveredPeer(c, as, threeRDT)
 
 	// nothing should be published, since we don't have anything that someone
 	// has asked for
-	cs.PublishDevices(context.Background(), &messenger{})
+	as.PublishDevices(context.Background(), &messenger{})
 
 	// three asks us for information on two
-	three.AddQueries(as.UnknownDevices{
-		Devices: []as.RDT{"two"},
+	three.AddQueries(astate.UnknownDevices{
+		Devices: []astate.RDT{"two"},
 	})
 
 	var called int
 	msg := messenger{
-		TrustedFunc: func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
+		TrustedFunc: func(ctx context.Context, rdt astate.RDT, addr string, cert []byte, kind string, message any) error {
 			called++
 			c.Assert(rdt, check.Equals, threeRDT)
 			c.Assert(addr, check.Equals, threeAddr)
 			c.Assert(cert, check.DeepEquals, threeCert)
 			c.Assert(kind, check.Equals, "devices")
 
-			devices := message.(as.Devices)
-			c.Assert(devices.Devices, testutil.DeepUnsortedMatches, []as.Identity{{
+			devices := message.(astate.Devices)
+			c.Assert(devices.Devices, testutil.DeepUnsortedMatches, []astate.Identity{{
 				RDT: "two",
 			}})
 			return nil
 		},
 	}
-	cs.PublishDevices(context.Background(), &msg)
+	as.PublishDevices(context.Background(), &msg)
 	c.Assert(called, check.Equals, 1)
 
 	// since we successfully published the response to the query, we don't send
 	// anything
-	cs.PublishDevices(context.Background(), &messenger{})
+	as.PublishDevices(context.Background(), &messenger{})
 }
 
 func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 	selector := statelessSelector()
-	cs := clusterStateWithTestKeys(c, state.New(nil), selector, as.ClusterConfig{
+	as := assembleStateWithTestKeys(c, state.New(nil), selector, astate.AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
 		Port:   8001,
 	})
 
-	oneRDT := as.RDT("one")
-	_, oneAddr, oneCert := trustedAndDiscoveredPeer(c, cs, oneRDT)
+	oneRDT := astate.RDT("one")
+	_, oneAddr, oneCert := trustedAndDiscoveredPeer(c, as, oneRDT)
 
-	twoRDT := as.RDT("two")
-	_, twoAddr, twoCert := trustedAndDiscoveredPeer(c, cs, twoRDT)
+	twoRDT := astate.RDT("two")
+	_, twoAddr, twoCert := trustedAndDiscoveredPeer(c, as, twoRDT)
 
-	threeRDT := as.RDT("three")
-	trustedPeer(c, cs, threeRDT)
+	threeRDT := astate.RDT("three")
+	trustedPeer(c, as, threeRDT)
 
 	var msg messenger
 	var called int
-	peers := []as.RDT{oneRDT, twoRDT, threeRDT, "four", oneRDT} // 5 calls to publish as expected
-	acked := make(map[as.RDT]int)
+	peers := []astate.RDT{oneRDT, twoRDT, threeRDT, "four", oneRDT} // 5 calls to publish as expected
+	acked := make(map[astate.RDT]int)
 
-	selector.SelectFunc = func(count int) (as.RDT, as.Routes, func(), bool) {
+	selector.SelectFunc = func(count int) (astate.RDT, astate.Routes, func(), bool) {
 		peer := peers[called]
 		called++
-		return peer, as.Routes{}, func() {
+		return peer, astate.Routes{}, func() {
 			acked[peer]++
 		}, true
 	}
 
-	msg.TrustedFunc = func(ctx context.Context, rdt as.RDT, addr string, cert []byte, kind string, message any) error {
+	msg.TrustedFunc = func(ctx context.Context, rdt astate.RDT, addr string, cert []byte, kind string, message any) error {
 		switch rdt {
 		case oneRDT:
 			c.Assert(addr, check.Equals, oneAddr)
@@ -506,16 +508,16 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 			c.Assert(cert, check.DeepEquals, twoCert)
 		}
 		c.Assert(kind, check.Equals, "routes")
-		_ = message.(as.Routes)
+		_ = message.(astate.Routes)
 		return nil
 	}
 
-	cs.PublishRoutes(context.Background(), &msg)
+	as.PublishRoutes(context.Background(), &msg, 5, 100)
 	c.Assert(called, check.Equals, 5)
 
 	// since peer four isn't known and peer three isn't discovered, we should
 	// have only acked our publications to peer one and two
-	c.Assert(acked, check.DeepEquals, map[as.RDT]int{
+	c.Assert(acked, check.DeepEquals, map[astate.RDT]int{
 		oneRDT: 2,
 		twoRDT: 1,
 	})
