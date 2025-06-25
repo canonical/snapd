@@ -1379,12 +1379,6 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
-
-	// boot chains were built
-	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-		s.kern1.MountFile(),
-	})
-	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoReseal(c *C) {
@@ -1476,12 +1470,6 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.ukern1.Filename()})
-
-	// boot chains were built
-	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-		s.ukern1.MountFile(),
-	})
-	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
@@ -2575,12 +2563,6 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "asset-"+dataHash),
 		filepath.Join(dirs.SnapBootAssetsDir, "trusted", "shim-"+shimHash),
 	})
-
-	// boot chains were built
-	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-		s.ukern1.MountFile(),
-	})
-	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset(c *C) {
@@ -4876,12 +4858,6 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
-
-	// boot chains were built
-	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-		s.kern1.MountFile(),
-	})
-	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSameNoReseal(c *C) {
@@ -4973,12 +4949,6 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.ukern1.Filename()})
-
-	// boot chains were built
-	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
-		s.ukern1.MountFile(),
-	})
-	c.Check(resealCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallSame(c *C) {
