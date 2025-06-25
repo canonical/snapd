@@ -38,9 +38,6 @@ type swfeatsSuite struct {
 
 var _ = Suite(&swfeatsSuite{})
 
-func (s *swfeatsSuite) SetupSuite(c *C) {
-}
-
 func (s *swfeatsSuite) SetUpTest(c *C) {
 	s.ChangeReg = swfeats.NewChangeKindRegistry()
 	s.EnsureReg = swfeats.AddRegistry()
@@ -52,15 +49,15 @@ func (s *swfeatsSuite) TestAddChange(c *C) {
 }
 
 func (s *swfeatsSuite) TestKnownChangeKinds(c *C) {
-	my_change1 := s.ChangeReg.Add("my-change1")
-	c.Assert(my_change1, Equals, "my-change1")
+	myChange1 := s.ChangeReg.Add("my-change1")
+	c.Assert(myChange1, Equals, "my-change1")
 
 	// Add the same change again to check that it isn't added
 	// more than once
-	my_change1 = s.ChangeReg.Add("my-change1")
-	c.Assert(my_change1, Equals, "my-change1")
-	my_change2 := s.ChangeReg.Add("my-change2")
-	c.Assert(my_change2, Equals, "my-change2")
+	myChange1 = s.ChangeReg.Add("my-change1")
+	c.Assert(myChange1, Equals, "my-change1")
+	myChange2 := s.ChangeReg.Add("my-change2")
+	c.Assert(myChange2, Equals, "my-change2")
 	changeKinds := s.ChangeReg.KnownChangeKinds()
 	c.Assert(changeKinds, HasLen, 2)
 	c.Assert(changeKinds, testutil.Contains, "my-change1")
