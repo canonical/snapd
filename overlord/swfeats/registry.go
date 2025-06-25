@@ -44,7 +44,7 @@ func newChangeKindRegistry() *ChangeKindRegistry {
 
 // Add a change kind string to the registry
 func (r *ChangeKindRegistry) Add(kind string) string {
-	r.changes[kind] = nil
+	r.changes[kind] = make([]string, 0)
 	return kind
 }
 
@@ -68,7 +68,7 @@ func (r *ChangeKindRegistry) AddVariants(kind string, values []string) bool {
 func (r *ChangeKindRegistry) KnownChangeKinds() []string {
 	kinds := make([]string, 0, len(r.changes))
 	for key, values := range r.changes {
-		if values == nil {
+		if len(values) == 0 {
 			kinds = append(kinds, key)
 			continue
 		}
