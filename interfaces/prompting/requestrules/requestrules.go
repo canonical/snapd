@@ -28,8 +28,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
@@ -38,7 +41,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/strutil"
+)
+
+const (
+	userSessionIDBasename = "snapd-user-session-id"
+)
+
+var (
+	errNoUserSession = errors.New("cannot find systemd user session tmpfs for user")
 )
 
 // Rule stores the contents of a request rule.
@@ -115,7 +127,7 @@ type RuleDB struct {
 	mutex     sync.RWMutex
 	maxIDMmap maxidmmap.MaxIDMmap
 
-	// index to the rules by their rule IR
+	// index to the rules by their rule ID
 	indexByID map[prompting.IDType]int
 	rules     []*Rule
 
@@ -128,6 +140,10 @@ type RuleDB struct {
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+
+	// userSessionIDMu ensures that two threads cannot race to write a new user
+	// session ID.
+	userSessionIDMu sync.Mutex
 }
 
 // New creates a new rule database, loads existing rules from the database file,
@@ -868,6 +884,67 @@ func (rdb *RuleDB) Close() error {
 	}
 
 	return rdb.save()
+}
+
+func userSessionIDPath(user uint32) string {
+	userIDStr := strconv.FormatUint(uint64(user), 10)
+	return filepath.Join(dirs.XdgRuntimeDirBase, userIDStr, userSessionIDBasename)
+}
+
+func newUserSessionID() prompting.IDType {
+	id := randutil.Uint64()
+	return prompting.IDType(id)
+}
+
+// readOrAssignUserSessionID returns the existing user session ID for the given
+// user, if an ID exists, otherwise generates a new ID and writes it to an ID
+// file in /run/user/$UID for that user.
+//
+// Snapd defines a unique ID for the user session and stores it in a file
+// in /run/user/$UID in order to identify when the user session has ended
+// or been restarted. When the user session ends, systemd removes the tmpfs
+// at /run/user/$UID. Therefore, if there is no session ID file, snapd knows
+// the session has ended or restarted, and by associating the current session
+// ID with rules which have lifespan "session", it can tell whether those rules
+// should be discarded.
+//
+// Returns the existing or newly-assigned ID, or an error if it occurs. If the
+// user session does not exist for the given user, returns an error which wraps
+// errNoUserSession.
+func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
+	rdb.userSessionIDMu.Lock()
+	defer rdb.userSessionIDMu.Unlock()
+
+	// It's important to check for existing file before trying to write new
+	// file, as the /run/user/$UID tmpfs may be removed, but snapd is the only
+	// process which should ever create the session ID file.
+
+	data, err := os.ReadFile(userSessionIDPath(user))
+	if err == nil {
+		err = userSessionID.UnmarshalText(data)
+		if err == nil {
+			return userSessionID, nil
+		}
+		// If err != nil, the file was corrupted, so ignore it and generate
+		// and save a new user ID.
+	} else if !errors.Is(err, unix.ENOENT) {
+		return 0, err
+	}
+
+	// No existing ID
+
+	newID := newUserSessionID()
+	data, _ = newID.MarshalText() // error is always nil
+	// XXX: is it safe for the owner of this file to be root? Or could that
+	// interfere with cleanup of the directory?
+	err = os.WriteFile(userSessionIDPath(user), data, 0o600)
+	if errors.Is(err, unix.ENOENT) {
+		// /run/user/$UID does not exist
+		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
+	} else if err != nil {
+		return 0, err
+	}
+	return newID, err
 }
 
 // Creates a rule with the given information and adds it to the rule database.

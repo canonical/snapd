@@ -84,6 +84,7 @@ var (
 	Intn   = rand.Intn
 	Int63n = rand.Int63n
 	Perm   = rand.Perm
+	Uint64 = rand.Uint64
 )
 
 // RandomDuration returns a random duration up to the given length.
