@@ -20,6 +20,12 @@
 package swfeats_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -99,4 +105,248 @@ func (s *swfeatsSuite) TestDuplicateAdd(c *C) {
 	c.Assert(knownEnsures, HasLen, 2)
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction1"})
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction2"})
+}
+
+func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
+	goFiles, err := getGoFiles("../../", "/snapstatetest/")
+	if err != nil {
+		c.Error("Could not find any go files in snapd directory")
+	}
+	var files []*ast.File
+	fset := token.NewFileSet()
+	for _, file := range goFiles {
+		f, err := parser.ParseFile(fset, file, nil, 0)
+		if err != nil {
+			c.Errorf("Failed to parse file %s: %v", file, err)
+		}
+		files = append(files, f)
+	}
+	// Collect variables names assigned with swfeats.ChangeReg.Add(...)
+	changeKindRegVars := collectChangeRegAddVars(files)
+	if len(changeKindRegVars) == 0 {
+		c.Log("No variables assigned with swfeats.ChangeReg.Add(...) found, skipping test.")
+		return
+	}
+
+	for _, f := range files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selExpr, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || selExpr.Sel.Name != "NewChange" {
+				return true
+			}
+
+			if len(call.Args) == 0 {
+				c.Errorf("NewChange call with no arguments at %s", fset.Position(call.Pos()))
+				return true
+			}
+
+			// The first argument to NewChange is the change kind
+			firstArg := call.Args[0]
+
+			// In the simplest case, the first parameter of NewChange is directly
+			// a variable returned from the swfeats.ChangeReg.Add function call.
+			// If so, the change kind is registered, so no need to continue.
+			if exprContainsChangeRegVar(firstArg, changeKindRegVars) {
+				return true
+			}
+
+			// The first parameter of NewChange might be a function call
+			// (e.g. fmt.Sprintf). If that function anywhere contains a variable
+			// returned from swfeats.ChangeReg.Add, then consider the change
+			// kind registered and stop
+			if callExpr, ok := firstArg.(*ast.CallExpr); ok {
+				if exprContainsChangeRegVar(callExpr, changeKindRegVars) {
+					return true
+				}
+			}
+
+			// At this point, if firstArg is not a variable, fail the test.
+			// If the firstArg is a string, failing is correct. This could
+			// potentially be the wrong thing to do when faced with a more
+			// complex scenario.
+			firstArgIdent, isIdent := firstArg.(*ast.Ident)
+			if !isIdent {
+				c.Errorf("First argument to NewChange at %s does not appear to be properly registered using swfeats.ChangeReg.Add.", fset.Position(call.Pos()))
+				return true
+			}
+
+			// Find the function containing this call
+			fn := findFuncDecl(f, call.Pos())
+			if fn == nil {
+				c.Errorf("Could not find function containing NewChange call at %s", fset.Position(call.Pos()))
+				return true
+			}
+
+			// If firstArg is present in the function call signature,
+			// then this is a wrapper function and can be ignored.
+			if isParam(fn, firstArgIdent.Name) {
+				return true
+			}
+
+			// If firstArg is only assigned values from registered change kind variables,
+			// then consider the change kind properly registered.
+			if isVarAssignedFromChangeRegVars(fn, firstArgIdent.Name, changeKindRegVars) {
+				return true
+			} else {
+				c.Errorf("NewChange call at %s does not appear to be properly registered using swfeats.ChangeReg.Add. The variable passed as a change kind (%q) should only be assigned values from the variable outputs of swfeats.ChangeReg.Add", fset.Position(call.Pos()), firstArgIdent.Name)
+			}
+			return true
+		})
+	}
+}
+
+func getGoFiles(dir string, excludePathsWithSubstring ...string) ([]string, error) {
+	var goFiles []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "test.go") {
+			return nil
+		}
+		for _, excludePath := range excludePathsWithSubstring {
+			if strings.Contains(path, excludePath) {
+				return nil
+			}
+		}
+		goFiles = append(goFiles, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return goFiles, nil
+}
+
+// Extract variable names assigned with swfeats.ChangeReg.Add(...)
+func collectChangeRegAddVars(files []*ast.File) map[string]struct{} {
+	vars := make(map[string]struct{})
+
+	for _, f := range files {
+		for _, decl := range f.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.VAR {
+				continue
+			}
+
+			for _, spec := range genDecl.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+
+				for i, value := range valueSpec.Values {
+					call, ok := value.(*ast.CallExpr)
+					if !ok {
+						continue
+					}
+					selExpr, ok := call.Fun.(*ast.SelectorExpr)
+					if !ok {
+						continue
+					}
+					selX, ok := selExpr.X.(*ast.SelectorExpr)
+					if !ok {
+						continue
+					}
+					ident1, ok1 := selX.X.(*ast.Ident)
+					ident2 := selX.Sel
+					if !ok1 || ident1.Name != "swfeats" || ident2.Name != "ChangeReg" {
+						continue
+					}
+					if selExpr.Sel.Name != "Add" {
+						continue
+					}
+
+					// Get the variable name corresponding to this value
+					if i < len(valueSpec.Names) {
+						varName := valueSpec.Names[i].Name
+						vars[varName] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	return vars
+}
+
+// Find function declaration containing a position
+func findFuncDecl(file *ast.File, pos token.Pos) *ast.FuncDecl {
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		if fn.Pos() <= pos && pos <= fn.End() {
+			return fn
+		}
+	}
+	return nil
+}
+
+func isParam(fn *ast.FuncDecl, varName string) bool {
+	if fn == nil || fn.Type.Params == nil {
+		return false
+	}
+	for _, field := range fn.Type.Params.List {
+		for _, name := range field.Names {
+			if name.Name == varName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Helper: recursively check if an expression contains an Ident from changeKindRegVars
+func exprContainsChangeRegVar(expr ast.Expr, changeKindRegVars map[string]struct{}) bool {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		_, ok := changeKindRegVars[e.Name]
+		return ok
+	case *ast.CallExpr:
+		for _, arg := range e.Args {
+			if exprContainsChangeRegVar(arg, changeKindRegVars) {
+				return true
+			}
+		}
+		return false
+	case *ast.ParenExpr:
+		return exprContainsChangeRegVar(e.X, changeKindRegVars)
+	default:
+		return false
+	}
+}
+
+func isVarAssignedFromChangeRegVars(fn *ast.FuncDecl, varName string, changeKindRegVars map[string]struct{}) bool {
+	missingAssignment := false
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+
+		for i, lhs := range assign.Lhs {
+			lhsIdent, ok := lhs.(*ast.Ident)
+			if !ok || lhsIdent.Name != varName {
+				continue
+			}
+
+			if i >= len(assign.Rhs) {
+				continue
+			}
+
+			if !exprContainsChangeRegVar(assign.Rhs[i], changeKindRegVars) {
+				missingAssignment = true
+				return false
+			}
+			return true
+		}
+		return true
+	})
+	return !missingAssignment
 }
