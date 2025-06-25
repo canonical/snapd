@@ -21,7 +21,6 @@
 package devicestate_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -320,28 +319,6 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 	// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
 	// 1 sector to get the exclusive end
 	UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
-}
-
-// representative sample of a list with details about preinstall check errors identified by secboot
-var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
-	{
-		Kind:    "tpm-hierarchies-owned",
-		Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
-		Args: map[string]json.RawMessage{
-			"with-auth-value":  json.RawMessage(`[1073741834]`),
-			"with-auth-policy": json.RawMessage(`[1073741825]`),
-		},
-		Actions: []string{"reboot-to-fw-settings"},
-	},
-	{
-		Kind:    "tpm-device-lockout",
-		Message: "error with TPM2 device: TPM is in DA lockout mode",
-		Args: map[string]json.RawMessage{
-			"interval-duration": json.RawMessage(`7200000000000`),
-			"total-duration":    json.RawMessage(`230400000000000`),
-		},
-		Actions: []string{"reboot-to-fw-settings"},
-	},
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking

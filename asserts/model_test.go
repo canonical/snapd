@@ -1629,7 +1629,7 @@ func (mods *modelSuite) TestDecodeWithComponentsOK(c *C) {
 	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
 }
 
-func (mods *modelSuite) TestHybrid(c *C) {
+func (mods *modelSuite) TestHybridClassic(c *C) {
 	for name, tc := range map[string]struct {
 		model    string
 		isHybrid bool
@@ -1653,7 +1653,7 @@ func (mods *modelSuite) TestHybrid(c *C) {
 		c.Assert(err, IsNil)
 		model := a.(*asserts.Model)
 
-		c.Assert(model.HybridClassic(), Equals, tc.isHybrid, Commentf("Failed test: %q", name))
+		c.Assert(model.HybridClassic(), Equals, tc.isHybrid, Commentf("failed test: %q", name))
 	}
 }
 
