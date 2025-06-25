@@ -2230,9 +2230,11 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "[0]"})
-	c.Assert(err, IsNil)
-	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
+	for _, indexPart := range []string{"[0]", "[{n}]"} {
+		schemas, err := schema.SchemaAt([]string{"foo", indexPart})
+		c.Assert(err, IsNil)
+		c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
+	}
 }
 
 func (*schemaSuite) TestSchemaAtInUserDefinedType(c *C) {
