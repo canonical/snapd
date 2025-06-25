@@ -479,14 +479,12 @@ func (cs *ClusterState) Trusted(cert []byte) (*PeerHandle, error) {
 	}
 
 	return &PeerHandle{
-		lock: &cs.lock,
 		cs:   cs,
 		peer: p.RDT,
 	}, nil
 }
 
 type PeerHandle struct {
-	lock *sync.Mutex
 	cs   *ClusterState
 	peer RDT
 }
@@ -501,8 +499,8 @@ func (h *PeerHandle) RDT() RDT {
 // error is returned. If this local node is queried for devices that we do not
 // know, either this local node or the requesting peer has a bug.
 func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+	h.cs.lock.Lock()
+	defer h.cs.lock.Unlock()
 
 	if err := h.cs.devices.AddQueries(h.peer, unknown.Devices); err != nil {
 		return err
@@ -515,8 +513,8 @@ func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
 
 // AddRoutes updates the state of the cluster with the given routes.
 func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+	h.cs.lock.Lock()
+	defer h.cs.lock.Unlock()
 
 	// if this peer is sending us routes that include these devices, then we
 	// know that they must have identifying information for those devices.
@@ -536,8 +534,8 @@ func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
 // recorded. For any devices that we are already aware of, we check that our
 // view of the device's identity is consistent with the new data.
 func (h *PeerHandle) AddDevices(devices Devices) error {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+	h.cs.lock.Lock()
+	defer h.cs.lock.Unlock()
 
 	for _, id := range devices.Devices {
 		if current, ok := h.cs.devices.Lookup(id.RDT); ok {
