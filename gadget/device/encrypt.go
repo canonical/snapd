@@ -218,9 +218,9 @@ type AuthQualityError struct {
 	// Reasons is a list of reason enums to explain exactly what quality
 	// criteria failed e.g. AuthQualityErrorReasonLowEntropy.
 	Reasons []AuthQualityErrorReason
-	// Result contains information about the calculated quality of the
+	// Quality contains information about the calculated quality of the
 	// specified auth value.
-	Result AuthQualityResult
+	Quality AuthQuality
 
 	err error
 }
@@ -229,7 +229,7 @@ func (e *AuthQualityError) Error() string {
 	return e.err.Error()
 }
 
-type AuthQualityResult struct {
+type AuthQuality struct {
 	// Entropy is the calculated entropy in bits for the passed passphrase
 	// or PIN.
 	Entropy uint32
@@ -241,6 +241,10 @@ type AuthQualityResult struct {
 	OptimalEntropy uint32
 }
 
+// Hook setup by secboot to calculate entropy for PINs and passphrases.
+// PINs will be supplied as a numeric passphrase.
+//
+// Note: in most cases ValidatePassphrase should be used instead.
 var EntropyBits func(passphrase string) (uint32, error) = entropyBitsImpl
 
 func entropyBitsImpl(passphrase string) (uint32, error) {
@@ -248,13 +252,13 @@ func entropyBitsImpl(passphrase string) (uint32, error) {
 }
 
 const (
-	minPassphraseEntropyBits = 42
+	minPassphraseEntropyBits uint32 = 42
 	// XXX: placeholder, needs a proper value
-	optimalPassphraseEntropyBits = 100
+	optimalPassphraseEntropyBits uint32 = 100
 
-	minPINEntropyBits = 13
+	minPINEntropyBits uint32 = 13
 	// XXX: placeholder, needs a proper value
-	optimalPINEntropyBits = 64
+	optimalPINEntropyBits uint32 = 64
 )
 
 // ValidatePassphrase checks quality of given passphrase or PIN based
@@ -262,30 +266,30 @@ const (
 // more information about the given passphrase or PIN quality.
 //
 // PINs will be supplied as a numeric passphrase.
-func ValidatePassphrase(mode AuthMode, passphrase string) (*AuthQualityResult, error) {
-	var minEntropy, optimalEntropy uint32 = minPassphraseEntropyBits, optimalPassphraseEntropyBits
+func ValidatePassphrase(mode AuthMode, passphrase string) (AuthQuality, error) {
+	minEntropy, optimalEntropy := minPassphraseEntropyBits, optimalPassphraseEntropyBits
 	if mode == AuthModePIN {
 		minEntropy, optimalEntropy = minPINEntropyBits, optimalPINEntropyBits
 	}
 
 	entropy, err := EntropyBits(passphrase)
 	if err != nil {
-		return nil, err
+		return AuthQuality{}, err
 	}
 
-	result := AuthQualityResult{
+	result := AuthQuality{
 		Entropy:        entropy,
 		MinEntropy:     minEntropy,
 		OptimalEntropy: optimalEntropy,
 	}
 
 	if entropy >= minEntropy {
-		return &result, nil
+		return result, nil
 	}
 
-	return nil, &AuthQualityError{
+	return AuthQuality{}, &AuthQualityError{
 		Reasons: []AuthQualityErrorReason{AuthQualityErrorReasonLowEntropy},
-		Result:  result,
+		Quality: result,
 		err:     fmt.Errorf("calculated entropy (%d bits) is less than the required minimum entropy (%d bits) for the %q authentication mode", entropy, minEntropy, mode),
 	}
 }

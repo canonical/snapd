@@ -209,34 +209,34 @@ func (s *deviceSuite) TestValidatePassphrase(c *C) {
 
 	result, err := device.ValidatePassphrase(device.AuthModePassphrase, "test")
 	c.Assert(errors.As(err, &qualityErr), Equals, true)
-	c.Check(result, IsNil)
-	c.Check(qualityErr.Result.Entropy, Equals, uint32(18))
-	c.Check(qualityErr.Result.MinEntropy, Equals, uint32(42))
-	c.Check(qualityErr.Result.OptimalEntropy, Equals, uint32(100))
+	c.Check(result, Equals, device.AuthQuality{})
+	c.Check(qualityErr.Quality.Entropy, Equals, uint32(18))
+	c.Check(qualityErr.Quality.MinEntropy, Equals, uint32(42))
+	c.Check(qualityErr.Quality.OptimalEntropy, Equals, uint32(100))
 	c.Check(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(42 bits\) for the "passphrase" authentication mode`)
 
 	result, err = device.ValidatePassphrase(device.AuthModePassphrase, "this is a good password")
 	c.Assert(err, IsNil)
-	c.Check(result, DeepEquals, &device.AuthQualityResult{
-		Entropy:        uint32(113),
-		MinEntropy:     uint32(42),
-		OptimalEntropy: uint32(100),
+	c.Check(result, DeepEquals, device.AuthQuality{
+		Entropy:        113,
+		MinEntropy:     42,
+		OptimalEntropy: 100,
 	})
 
 	result, err = device.ValidatePassphrase(device.AuthModePIN, "1234")
 	c.Assert(errors.As(err, &qualityErr), Equals, true)
-	c.Check(result, IsNil)
-	c.Check(qualityErr.Result.Entropy, Equals, uint32(6))
-	c.Check(qualityErr.Result.MinEntropy, Equals, uint32(13))
-	c.Check(qualityErr.Result.OptimalEntropy, Equals, uint32(64))
+	c.Check(result, Equals, device.AuthQuality{})
+	c.Check(qualityErr.Quality.Entropy, Equals, uint32(6))
+	c.Check(qualityErr.Quality.MinEntropy, Equals, uint32(13))
+	c.Check(qualityErr.Quality.OptimalEntropy, Equals, uint32(64))
 	c.Check(err, ErrorMatches, `calculated entropy .* is less than the required minimum entropy \(13 bits\) for the "pin" authentication mode`)
 
 	result, err = device.ValidatePassphrase(device.AuthModePIN, "20250123")
 	c.Assert(err, IsNil)
-	c.Check(result, DeepEquals, &device.AuthQualityResult{
-		Entropy:        uint32(23),
-		MinEntropy:     uint32(13),
-		OptimalEntropy: uint32(64),
+	c.Check(result, DeepEquals, device.AuthQuality{
+		Entropy:        23,
+		MinEntropy:     13,
+		OptimalEntropy: 64,
 	})
 }
 
@@ -247,5 +247,5 @@ func (s *deviceSuite) TestValidatePassphraseCalculationError(c *C) {
 
 	result, err := device.ValidatePassphrase(device.AuthModePassphrase, "test")
 	c.Assert(err, ErrorMatches, "boom!")
-	c.Check(result, IsNil)
+	c.Check(result, Equals, device.AuthQuality{})
 }

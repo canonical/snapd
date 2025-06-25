@@ -75,7 +75,7 @@ func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label 
 	return testutil.Mock(&devicestateGeneratePreInstallRecoveryKey, f)
 }
 
-func MockDeviceValidatePassphrase(f func(mode device.AuthMode, passphrase string) (*device.AuthQualityResult, error)) (restore func()) {
+func MockDeviceValidatePassphrase(f func(mode device.AuthMode, passphrase string) (device.AuthQuality, error)) (restore func()) {
 	return testutil.Mock(&deviceValidatePassphrase, f)
 }
 

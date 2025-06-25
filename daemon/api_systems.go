@@ -657,9 +657,9 @@ func postValidatePassphrase(mode device.AuthMode, passphrase string) Response {
 				Message: message,
 				Value: map[string]any{
 					"reasons":              qualityErr.Reasons,
-					"entropy-bits":         qualityErr.Result.Entropy,
-					"min-entropy-bits":     qualityErr.Result.MinEntropy,
-					"optimal-entropy-bits": qualityErr.Result.OptimalEntropy,
+					"entropy-bits":         qualityErr.Quality.Entropy,
+					"min-entropy-bits":     qualityErr.Quality.MinEntropy,
+					"optimal-entropy-bits": qualityErr.Quality.OptimalEntropy,
 				},
 			}
 		}

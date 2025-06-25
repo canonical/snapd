@@ -457,9 +457,9 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
+	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePassphrase)
-		return &device.AuthQualityResult{
+		return device.AuthQuality{
 			Entropy:        expectedEntropy,
 			MinEntropy:     expectedMinEntropy,
 			OptimalEntropy: expectedOptimalEntropy,
@@ -524,11 +524,11 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 			"passphrase": tc.passphrase,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
+		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePassphrase)
-			return nil, &device.AuthQualityError{
+			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				Result: device.AuthQualityResult{
+				Quality: device.AuthQuality{
 					Entropy:        expectedEntropy,
 					MinEntropy:     expectedMinEntropy,
 					OptimalEntropy: expectedOptimalEntropy,
@@ -560,9 +560,9 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	const expectedMinEntropy = uint32(20)
 	const expectedOptimalEntropy = uint32(50)
 
-	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
+	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 		c.Check(mode, Equals, device.AuthModePIN)
-		return &device.AuthQualityResult{
+		return device.AuthQuality{
 			Entropy:        expectedEntropy,
 			MinEntropy:     expectedMinEntropy,
 			OptimalEntropy: expectedOptimalEntropy,
@@ -627,11 +627,11 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPINError(c *C) {
 			"pin":    tc.pin,
 		}
 
-		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (*device.AuthQualityResult, error) {
+		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
 			c.Check(mode, Equals, device.AuthModePIN)
-			return nil, &device.AuthQualityError{
+			return device.AuthQuality{}, &device.AuthQualityError{
 				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
-				Result: device.AuthQualityResult{
+				Quality: device.AuthQuality{
 					Entropy:        expectedEntropy,
 					MinEntropy:     expectedMinEntropy,
 					OptimalEntropy: expectedOptimalEntropy,
