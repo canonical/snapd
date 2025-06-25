@@ -185,6 +185,7 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 
 // MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
 func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootPreinstallCheck only can be mocked in tests")
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
 	return func() {

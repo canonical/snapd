@@ -21,7 +21,6 @@ package devicestate_test
 
 import (
 	"compress/gzip"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -52,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
-	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -360,7 +358,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, false)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -602,43 +600,6 @@ func (s *deviceMgrInstallModeSuite) makeMockInstallModelWithKMods(c *C, grade st
 	return mockModel
 }
 
-// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned by
-// install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
-// (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
-// (Ubuntu hybrid on Ubuntu installer < 25.1 & Ubuntu Core).
-//
-// hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
-func (s *deviceMgrInstallModeSuite) mockHelperForEncryptionAvailabilityCheck(c *C, hasTPM bool) {
-	count := 0
-
-	restore1 := installLogic.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
-		c.Assert(bootImagePaths, HasLen, 3)
-		count++
-		if hasTPM {
-			return nil, nil
-		} else {
-			return preinstallErrorDetails[:1], nil
-		}
-	})
-	s.AddCleanup(restore1)
-
-	restore2 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-		c.Assert(tpmMode != secboot.TPMProvisionNone, Equals, true)
-		count++
-		if hasTPM {
-			return nil
-		} else {
-			return fmt.Errorf("cannot connect to TPM device")
-		}
-	})
-	s.AddCleanup(restore2)
-
-	s.AddCleanup(func() {
-		//TODO: fix fixture panic
-		//c.Assert(count, Equals, 1)
-	})
-}
-
 type encTestCase struct {
 	tpm               bool
 	bypass            bool
@@ -685,7 +646,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, tc.tpm)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.tpm)
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
@@ -1812,7 +1773,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	})
 	defer restore()
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, false)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=1234"), 0644)
@@ -1851,7 +1812,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
@@ -2035,7 +1996,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	defer restore()
 
 	// pretend we have a TPM
-	s.mockHelperForEncryptionAvailabilityCheck(c, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	// must be a model that requires encryption to error
 	s.testInstallGadgetNoSave(c, "secured")
@@ -2063,7 +2024,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetWarn
 	defer restore()
 
 	// pretend we have a TPM
-	s.mockHelperForEncryptionAvailabilityCheck(c, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	s.testInstallGadgetNoSave(c, "dangerous")
 
@@ -2086,7 +2047,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	defer restore()
 
 	// pretend we have a TPM
-	s.mockHelperForEncryptionAvailabilityCheck(c, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	s.testInstallGadgetNoSave(c, "dangerous")
 
@@ -2162,7 +2123,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 			makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 		}
 
-		s.mockHelperForEncryptionAvailabilityCheck(c, tc.hasTPM)
+		mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.hasTPM)
 
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx, secboot.TPMProvisionFull)
 		c.Assert(err, IsNil)
@@ -2327,7 +2288,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})
 	defer restore()
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, tc.tpm)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.tpm)
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
@@ -3143,7 +3104,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, false)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
 		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
@@ -3212,7 +3173,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, false)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	hooksCalled := []*hookstate.Context{}
 	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {

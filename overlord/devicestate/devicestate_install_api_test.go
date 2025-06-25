@@ -21,7 +21,6 @@
 package devicestate_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -43,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -344,77 +342,6 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 		},
 		Actions: []string{"reboot-to-fw-settings"},
 	},
-}
-
-// mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned
-// by install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
-// (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
-// (Ubuntu hybrid on Ubuntu installer < 25.10 & Ubuntu Core).
-//
-// isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
-// hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
-func (s *deviceMgrInstallAPISuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid, hasTPM bool) {
-	count := 0
-
-	releaseInfo := &release.OS{
-		ID:        "ubuntu*",
-		VersionID: "24.04",
-	}
-	if isSupportedUbuntuHybrid {
-		// preinstall check is supported for Ubuntu hybrid >= 25.10
-		releaseInfo = &release.OS{
-			ID:        "ubuntu",
-			VersionID: "25.10",
-		}
-	}
-	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
-
-	if isSupportedUbuntuHybrid {
-		// create fake boot images for supported Ubuntu hybrid system
-		dirs.SetRootDir(c.MkDir())
-		s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
-
-		for _, path := range []string{
-			"cdrom/EFI/boot/bootXXX.efi",
-			"cdrom/EFI/boot/grubXXX.efi",
-			"cdrom/casper/vmlinuz",
-		} {
-			bootImagePath := filepath.Join(dirs.GlobalRootDir, path)
-			bootImageDir := filepath.Dir(bootImagePath)
-			err := os.MkdirAll(bootImageDir, 0755)
-			c.Assert(err, IsNil)
-
-			f, err := os.Create(bootImagePath)
-			c.Assert(err, IsNil)
-			f.Close()
-		}
-	}
-
-	restore1 := installLogic.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
-		c.Assert(bootImagePaths, HasLen, 3)
-		c.Assert(isSupportedUbuntuHybrid, Equals, true)
-		count++
-		if hasTPM {
-			return nil, nil
-		} else {
-			return preinstallErrorDetails[:1], nil
-		}
-	})
-	s.AddCleanup(restore1)
-
-	restore2 := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-		c.Assert(tpmMode, Not(Equals), secboot.TPMProvisionNone)
-		c.Assert(isSupportedUbuntuHybrid, Equals, false)
-		count++
-		if hasTPM {
-			return nil
-		} else {
-			return fmt.Errorf("cannot connect to TPM device")
-		}
-	})
-	s.AddCleanup(restore2)
-
-	s.AddCleanup(func() { c.Assert(count, Equals, 1) })
 }
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
@@ -916,7 +843,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, hasTPM)
+	mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, hasTPM)
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0
@@ -1189,8 +1116,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// Simulate system with TPM
-	s.mockHelperForEncryptionAvailabilityCheck(c, true, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
 
 	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
 		return &install.EncryptionSetupData{}, nil

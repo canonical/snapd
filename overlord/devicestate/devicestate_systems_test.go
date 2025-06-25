@@ -2942,6 +2942,10 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	})
 }
 
+type suiteWithAddCleanup interface {
+	AddCleanup(func())
+}
+
 // mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned by
 // install.encryptionAvailabilityCheck. This function mocks both the specialized secboot.PreinstallCheck check
 // (Ubuntu hybrid on Ubuntu installer >= 25.10) and the general secboot.CheckTPMKeySealingSupported check
@@ -2949,9 +2953,7 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 //
 // isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
 // hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
-func (s *modelAndGadgetInfoSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid, hasTPM bool) {
-	count := 0
-
+func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSupportedUbuntuHybrid, hasTPM bool) {
 	releaseInfo := &release.OS{
 		ID:        "ubuntu*",
 		VersionID: "24.04",
@@ -2965,40 +2967,40 @@ func (s *modelAndGadgetInfoSuite) mockHelperForEncryptionAvailabilityCheck(c *C,
 	}
 	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
 
-	restore1 := func() {}
-	if isSupportedUbuntuHybrid {
-		// create fake boot images for supported Ubuntu hybrid system
-		for _, path := range []string{
-			"cdrom/EFI/boot/bootXXX.efi",
-			"cdrom/EFI/boot/grubXXX.efi",
-			"cdrom/casper/vmlinuz",
-		} {
-			bootImagePath := filepath.Join(dirs.GlobalRootDir, path)
-			bootImageDir := filepath.Dir(bootImagePath)
-			err := os.MkdirAll(bootImageDir, 0755)
-			c.Assert(err, IsNil)
+	// create fake boot images for supported Ubuntu hybrid system
+	for _, path := range []string{
+		"cdrom/EFI/boot/bootXXX.efi",
+		"cdrom/EFI/boot/grubXXX.efi",
+		"cdrom/casper/vmlinuz",
+	} {
+		bootImagePath := filepath.Join(dirs.GlobalRootDir, path)
+		bootImageDir := filepath.Dir(bootImagePath)
+		err := os.MkdirAll(bootImageDir, 0755)
+		c.Assert(err, IsNil)
 
+		if isSupportedUbuntuHybrid {
 			f, err := os.Create(bootImagePath)
 			c.Assert(err, IsNil)
 			f.Close()
+		} else {
+			err := os.Remove(bootImagePath)
+			c.Assert(err == nil || os.IsNotExist(err), Equals, true)
 		}
 	}
-	s.AddCleanup(restore1)
 
-	restore2 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore1 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		c.Assert(bootImagePaths, HasLen, 3)
-		count++
+		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		if hasTPM {
 			return nil, nil
 		} else {
 			return preinstallErrorDetails[:1], nil
 		}
 	})
-	s.AddCleanup(restore2)
+	s.AddCleanup(restore1)
 
-	restore3 := install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+	restore2 := install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
 		c.Assert(tpmMode != secboot.TPMProvisionNone, Equals, true)
-		count++
 		if hasTPM {
 			return nil
 		} else {
@@ -3006,9 +3008,7 @@ func (s *modelAndGadgetInfoSuite) mockHelperForEncryptionAvailabilityCheck(c *C,
 		}
 	})
 
-	s.AddCleanup(restore3)
-
-	s.AddCleanup(func() { c.Assert(count, Equals, 1) })
+	s.AddCleanup(restore2)
 }
 
 func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, label, gadgetYaml string, snapdVersionByType map[snap.Type]string) *asserts.Model {
@@ -3089,7 +3089,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoHappy(c *C
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedHybrid, false)
+	mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false)
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
@@ -3144,7 +3144,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphrase
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	s.mockHelperForEncryptionAvailabilityCheck(c, false, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
@@ -3251,8 +3251,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 	isClassic := true
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic, nil)
 
-	// XXX: Remove this mock, not required if gadget check is in the optimal place!
-	s.mockHelperForEncryptionAvailabilityCheck(c, true, true)
+	mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
 
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
