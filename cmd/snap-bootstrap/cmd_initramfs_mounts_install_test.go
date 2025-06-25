@@ -367,7 +367,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
-			bindOpts,
+			bindDataOpts,
 			nil,
 		}}
 	if failMount {
@@ -396,8 +396,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	restore := s.mockSystemdMountSequence(c, mounts, nil)
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "systemd-mount", ``)
-	defer cmd.Restore()
+	// We write files in the moked kernel mount, remove on unmount
+	cmdSystemdMount := testutil.MockCommand(c, "systemd-mount", `
+if [ "$1" = --umount ]; then rm -rf "$2"/meta; fi
+`)
+	defer cmdSystemdMount.Restore()
+	cmdUmount := testutil.MockCommand(c, "umount", "rm -rf \"$1\"/system-data\n")
+	defer cmdUmount.Restore()
 
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
 
@@ -425,7 +430,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	}
 
 	if failMount {
-		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		c.Assert(cmdSystemdMount.Calls(), DeepEquals, [][]string{
 			{
 				"systemd-mount",
 				"--umount",
@@ -433,7 +438,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			},
 		})
 	} else {
-		c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		dataInstallDir := filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data")
+		c.Assert(cmdUmount.Calls(), DeepEquals, [][]string{{"umount", dataInstallDir}})
+		c.Assert(dataInstallDir, testutil.FileAbsent)
+		c.Assert(cmdSystemdMount.Calls(), DeepEquals, [][]string{
 			{
 				"systemd-mount",
 				"--umount",
@@ -450,6 +458,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 				filepath.Join(s.tmpDir, "/run/mnt/snap-content/pc-kernel+kcomp1"),
 			},
 		})
+		// Kernel unit is removed
+		kernUnit := filepath.Join(s.tmpDir, "/run/systemd/transient", "run-mnt-kernel.mount")
+		c.Assert(kernUnit, testutil.FileAbsent)
+		c.Assert(filepath.Join(s.tmpDir, "/run/mnt/kernel"), testutil.FileAbsent)
+		// And the temporary dir. for component mounts
+		c.Assert(filepath.Join(s.tmpDir, "/run/mnt/snap-content"), testutil.FileAbsent)
+		// And the snapd mount unit
 		checkSnapdMountUnit(c)
 	}
 

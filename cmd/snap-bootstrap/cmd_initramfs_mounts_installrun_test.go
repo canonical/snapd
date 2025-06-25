@@ -226,18 +226,22 @@ echo '{"features":[]}'
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
-			bindOpts,
+			bindDataOpts,
 			nil,
 		},
 	}, nil)
 	defer restore()
 
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
+	cmdUmount := testutil.MockCommand(c, "umount", ``)
+	defer cmdUmount.Restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
 
+	c.Assert(cmdUmount.Calls(), DeepEquals,
+		[][]string{{"umount", filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data")}})
 	c.Assert(fdeSetupMock.Calls(), DeepEquals, [][]string{
 		{"fde-setup"},
 	})
@@ -386,18 +390,22 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
-			bindOpts,
+			bindDataOpts,
 			nil,
 		},
 	}, nil)
 	defer restore()
 
 	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model")), IsNil)
+	cmdUmount := testutil.MockCommand(c, "umount", ``)
+	defer cmdUmount.Restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
 
+	c.Assert(cmdUmount.Calls(), DeepEquals,
+		[][]string{{"umount", filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data")}})
 	c.Assert(applyPreseedCalled, Equals, true)
 	c.Assert(makeRunnableCalled, Equals, true)
 	c.Assert(gadgetInstallCalled, Equals, true)

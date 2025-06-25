@@ -158,6 +158,10 @@ var (
 	// mounted. For Classic it is /, but Ubuntu Core it is
 	// /writable.
 	WritableMountPath string
+
+	// WritableUbuntuCoreSystemDataDir points to /writable/system-data on
+	// UC, and is not valid on classic.
+	WritableUbuntuCoreSystemDataDir string
 )
 
 // User defined home directory variables
@@ -712,7 +716,8 @@ func SetRootDir(rootdir string) {
 		// If on Core /writable is a bind mount from data dir
 		WritableMountPath = filepath.Join(rootdir, "writable")
 	}
-
+	// This will point to a non-existing dir on classic
+	WritableUbuntuCoreSystemDataDir = filepath.Join(WritableMountPath, "system-data")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

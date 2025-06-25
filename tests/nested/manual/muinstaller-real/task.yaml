@@ -142,7 +142,9 @@ execute: |
       # Make sure it was loaded early
       remote.exec systemctl show -p ExecMainStatus modprobe@efi_pstore.service | MATCH ExecMainStatus=0
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
-      lsmod | MATCH ip_tables
+      remote.exec lsmod | MATCH ip_tables
+      # Check that the kernel-modules component can be removed
+      remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
 
   # check encryption
@@ -180,7 +182,7 @@ execute: |
   fi
 
   if os.query is-ubuntu-ge 24.04; then
-  # test refresh of kernel with component
+      # test refresh of kernel with component
       remote.push pc-kernel-repacked.snap
       remote.push pc-kernel+efi-pstore.comp
       REMOTE_CHG_ID=$(remote.exec sudo snap install --no-wait --dangerous pc-kernel-repacked.snap pc-kernel+efi-pstore.comp)
