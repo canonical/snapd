@@ -76,6 +76,9 @@ var (
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
+)
+
+var (
 	installSnapChangeKind  = swfeats.ChangeReg.Add(installCmdAction + "-snap")
 	refreshSnapChangeKind  = swfeats.ChangeReg.Add(refreshCmdAction + "-snap")
 	switchSnapChangeKind   = swfeats.ChangeReg.Add(switchCmdAction + "-snap")

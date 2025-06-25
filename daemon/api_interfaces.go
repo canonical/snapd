@@ -43,6 +43,9 @@ var (
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}
+)
+
+var (
 	connectSnapChangeKind    = swfeats.ChangeReg.Add("connect-snap")
 	disconnectSnapChangeKind = swfeats.ChangeReg.Add("disconnect-snap")
 )

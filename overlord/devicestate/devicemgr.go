@@ -72,7 +72,10 @@ var (
 	cloudInitStatus   = sysconfig.CloudInitStatus
 	restrictCloudInit = sysconfig.RestrictCloudInit
 
-	secbootMarkSuccessful       = secboot.MarkSuccessful
+	secbootMarkSuccessful = secboot.MarkSuccessful
+)
+
+var (
 	becomeOperationalChangeKind = swfeats.ChangeReg.Add("become-operational")
 	seedChangeKind              = swfeats.ChangeReg.Add("seed")
 	installSystemChangeKind     = swfeats.ChangeReg.Add("install-system")

@@ -73,7 +73,9 @@ var (
 		}
 		return refreshSchedule
 	}()
+)
 
+var (
 	autoRefreshChangeKind = swfeats.ChangeReg.Add("auto-refresh")
 	preDownloadChangeKind = swfeats.ChangeReg.Add("pre-download")
 )

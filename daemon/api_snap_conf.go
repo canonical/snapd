@@ -43,8 +43,9 @@ var (
 		ReadAccess:  authenticatedAccess{Polkit: polkitActionManageConfiguration},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManageConfiguration},
 	}
-	configureSnapChangeKind = swfeats.ChangeReg.Add("configure-snap")
 )
+
+var configureSnapChangeKind = swfeats.ChangeReg.Add("configure-snap")
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
