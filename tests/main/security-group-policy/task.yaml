@@ -43,7 +43,9 @@ prepare: |
 
     chown :snap-runners "$LIBEXEC_DIR"/snapd/snap-confine
     # restore caps, depending on whether the host binary had them
-    caps="$(getcap "$LIBEXEC_DIR"/snapd/snap-confine.backup | awk '{ print $2 }')"
+    # note, getcap output varies across versions, but the capabilities are always listed last
+    caps="$(getcap "$LIBEXEC_DIR"/snapd/snap-confine.backup | awk '{ print $NF }')"
+    echo "caps: $caps"
     if [ -n "$caps" ]; then
         echo "$caps" | setcap - "$LIBEXEC_DIR"/snapd/snap-confine
     fi
