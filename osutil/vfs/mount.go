@@ -139,7 +139,7 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
 //
 // Unmount detaches the topmost mount from the node represented by the mount
-// point path. The leaf entry is resolved without following mount entires.
+// point path. The leaf entry is resolved without following mount entries.
 func (v *VFS) Unmount(mountPoint string) error {
 	const op = "unmount"
 
@@ -152,7 +152,7 @@ func (v *VFS) Unmount(mountPoint string) error {
 	defer v.mu.Unlock()
 
 	// Find the mount dominating the mount point. Keep track of the index as we
-	// may use it to reslice the mounts array.
+	// may use it to re-slice the mounts array.
 	pd := v.pathDominator(mountPoint)
 
 	// If the VFS suffix is not empty then the given path is _not_ a mount point.
