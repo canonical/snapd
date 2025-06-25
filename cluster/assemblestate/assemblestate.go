@@ -24,11 +24,11 @@ type Messenger interface {
 	Untrusted(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
 }
 
-// ClusterState contains this device's knowledge of the state of an assembly
+// AssembleState contains this device's knowledge of the state of an assembly
 // session.
-type ClusterState struct {
+type AssembleState struct {
 	st     *state.State
-	config ClusterConfig
+	config AssembleConfig
 
 	cert tls.Certificate
 
@@ -73,33 +73,33 @@ type AssembleSession struct {
 	Routes       Routes            `json:"routes"`
 }
 
-func (cs *ClusterState) export() AssembleSession {
-	trusted := make(map[string]peer, len(cs.trusted))
-	for fp, p := range cs.trusted {
+func (as *AssembleState) export() AssembleSession {
+	trusted := make(map[string]peer, len(as.trusted))
+	for fp, p := range as.trusted {
 		trusted[base64.StdEncoding.EncodeToString(fp[:])] = p
 	}
 
-	addresses := make(map[string]string, len(cs.addresses))
-	for fp, addr := range cs.addresses {
+	addresses := make(map[string]string, len(as.addresses))
+	for fp, addr := range as.addresses {
 		addresses[base64.StdEncoding.EncodeToString(fp[:])] = addr
 	}
 
 	return AssembleSession{
 		Trusted:      trusted,
-		Fingerprints: cs.fingerprints,
+		Fingerprints: as.fingerprints,
 		Addresses:    addresses,
-		Discovered:   cs.discovered,
-		Devices:      cs.devices,
-		Routes:       cs.selector.Routes(),
+		Discovered:   as.discovered,
+		Devices:      as.devices,
+		Routes:       as.selector.Routes(),
 	}
 }
 
-func (cs *ClusterState) commit() {
-	exported := cs.export()
+func (as *AssembleState) commit() {
+	exported := as.export()
 
-	cs.st.Lock()
-	defer cs.st.Unlock()
-	cs.st.Set("cluster-assemble-session", exported)
+	as.st.Lock()
+	defer as.st.Unlock()
+	as.st.Set("assemble-session", exported)
 }
 
 type peer struct {
@@ -107,16 +107,16 @@ type peer struct {
 	Cert []byte `json:"cert"`
 }
 
-// NewClusterState create a new [ClusterState]. This currently pulls data from
+// NewAssembleState create a new [AssembleState]. This currently pulls data from
 // the given [state.State] and will resume an existing assemble session. This
 // might go away, and we'd take in a more conventional configuration struct.
-func NewClusterState(st *state.State, selector func(self RDT) (RouteSelector, error)) (*ClusterState, error) {
+func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, error)) (*AssembleState, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	// these probably will end up going on a task, maybe?
-	var config ClusterConfig
-	if err := st.Get("cluster-config", &config); err != nil {
+	var config AssembleConfig
+	if err := st.Get("assemble-config", &config); err != nil {
 		return nil, err
 	}
 
@@ -126,7 +126,7 @@ func NewClusterState(st *state.State, selector func(self RDT) (RouteSelector, er
 	}
 
 	var session AssembleSession
-	if err := st.Get("cluster-assemble-session", &session); err != nil {
+	if err := st.Get("assemble-session", &session); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
@@ -200,7 +200,7 @@ func NewClusterState(st *state.State, selector func(self RDT) (RouteSelector, er
 		sel.AddAuthoritativeRoute(peer.RDT, addr)
 	}
 
-	cs := ClusterState{
+	as := AssembleState{
 		st:           st,
 		config:       config,
 		cert:         cert,
@@ -212,10 +212,10 @@ func NewClusterState(st *state.State, selector func(self RDT) (RouteSelector, er
 		selector:     sel,
 	}
 
-	return &cs, nil
+	return &as, nil
 }
 
-type ClusterConfig struct {
+type AssembleConfig struct {
 	Secret  string `json:"secret"`
 	RDT     RDT    `json:"rdt"`
 	IP      net.IP `json:"ip"`
@@ -225,22 +225,22 @@ type ClusterConfig struct {
 }
 
 // Routes returns all of the routes that we've collected and verified.
-func (cs *ClusterState) Routes() Routes {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
+func (as *AssembleState) Routes() Routes {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
-	return cs.selector.Routes()
+	return as.selector.Routes()
 }
 
 // Address returns the address of this local node.
-func (cs *ClusterState) Address() string {
-	return fmt.Sprintf("%s:%d", cs.config.IP, cs.config.Port)
+func (as *AssembleState) Address() string {
+	return fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
 }
 
 // Cert returns the TLS certificate that this local node should use when
 // communicating with other peers.
-func (cs *ClusterState) Cert() tls.Certificate {
-	return cs.cert
+func (as *AssembleState) Cert() tls.Certificate {
+	return as.cert
 }
 
 // PublishAuth calls send for each given address. If send succeeds, then the
@@ -250,48 +250,44 @@ func (cs *ClusterState) Cert() tls.Certificate {
 // If the certificate the peer used is already trusted (they've already
 // published their auth message to us), then we verify the route from this local
 // node to that peer.
-func (cs *ClusterState) PublishAuth(ctx context.Context, addresses []string, msg Messenger) error {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
+func (as *AssembleState) PublishAuth(ctx context.Context, addresses []string, msg Messenger) error {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
-	send := func(addr string, a Auth) ([]byte, error) {
-		cs.lock.Unlock()
-		defer cs.lock.Lock()
-
-		return msg.Untrusted(ctx, addr, "auth", a)
-	}
-
-	hmac := CalculateHMAC(cs.config.RDT, CalculateFP(cs.cert.Certificate[0]), cs.config.Secret)
+	hmac := CalculateHMAC(as.config.RDT, CalculateFP(as.cert.Certificate[0]), as.config.Secret)
 
 	for _, addr := range addresses {
-		if cs.discovered[addr] {
+		if as.discovered[addr] {
 			continue
 		}
 
-		cert, err := send(addr, Auth{
+		as.lock.Unlock()
+		cert, err := msg.Untrusted(ctx, addr, "auth", Auth{
 			HMAC: hmac,
-			RDT:  cs.config.RDT,
+			RDT:  as.config.RDT,
 		})
+		as.lock.Lock()
+
 		if err != nil {
 			continue
 		}
 
 		fp := CalculateFP(cert)
 
-		if expected, ok := cs.addresses[fp]; ok && expected != addr {
+		if expected, ok := as.addresses[fp]; ok && expected != addr {
 			return fmt.Errorf("found new address %s using same certificate as other address %s", addr, expected)
 		}
 
 		// TODO: consider devices with multiple addresses
-		cs.addresses[fp] = addr
-		cs.discovered[addr] = true
+		as.addresses[fp] = addr
+		as.discovered[addr] = true
 
-		if p, ok := cs.trusted[fp]; ok {
-			cs.selector.AddAuthoritativeRoute(p.RDT, addr)
+		if p, ok := as.trusted[fp]; ok {
+			as.selector.AddAuthoritativeRoute(p.RDT, addr)
 		}
 	}
 
-	cs.commit()
+	as.commit()
 
 	return nil
 }
@@ -299,116 +295,110 @@ func (cs *ClusterState) PublishAuth(ctx context.Context, addresses []string, msg
 // PublishDeviceQueries requests device information from our trusted peers. We
 // request information for devices that have appeared in a route but we don't
 // yet have identifying information for.
-func (cs *ClusterState) PublishDeviceQueries(ctx context.Context, msg Messenger) {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
-
-	send := func(rdt RDT, addr string, cert []byte, u UnknownDevices) error {
-		cs.lock.Unlock()
-		defer cs.lock.Lock()
-
-		return msg.Trusted(ctx, rdt, addr, cert, "unknown", u)
-	}
+func (as *AssembleState) PublishDeviceQueries(ctx context.Context, msg Messenger) {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
 	// TODO: this could be smarter, but the complexity probably isn't worth it
 	// since the large majority of bandwidth is used for route propagation
-	for fp, p := range cs.trusted {
-		addr, ok := cs.addresses[fp]
+	for fp, p := range as.trusted {
+		addr, ok := as.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		queries := cs.devices.UnknownKnownBy(p.RDT)
+		queries := as.devices.UnknownKnownBy(p.RDT)
 		if len(queries) == 0 {
 			continue
 		}
 
-		if err := send(p.RDT, addr, p.Cert, UnknownDevices{
+		as.lock.Unlock()
+		// nothing to do on a failed publication here. any logging is done a
+		// layer up
+		_ = msg.Trusted(ctx, p.RDT, addr, p.Cert, "unknown", UnknownDevices{
 			Devices: queries,
-		}); err != nil {
-			continue
-		}
+		})
+		as.lock.Lock()
 	}
 }
 
 // PublishDevices responds to queries for device information that our peers
 // have sent us.
-func (cs *ClusterState) PublishDevices(ctx context.Context, msg Messenger) {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
+func (as *AssembleState) PublishDevices(ctx context.Context, msg Messenger) {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
-	send := func(rdt RDT, addr string, cert []byte, d Devices) error {
-		cs.lock.Unlock()
-		defer cs.lock.Lock()
-
-		return msg.Trusted(ctx, rdt, addr, cert, "devices", d)
-	}
-
-	for fp, p := range cs.trusted {
-		addr, ok := cs.addresses[fp]
+	for fp, p := range as.trusted {
+		addr, ok := as.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		ids := cs.devices.QueryResponses(p.RDT)
+		ids := as.devices.QueryResponses(p.RDT)
 		if len(ids) == 0 {
 			continue
 		}
 
-		if err := send(p.RDT, addr, p.Cert, Devices{
+		as.lock.Unlock()
+		err := msg.Trusted(ctx, p.RDT, addr, p.Cert, "devices", Devices{
 			Devices: ids,
-		}); err != nil {
+		})
+		as.lock.Lock()
+
+		// skip acking if this publication failed
+		if err != nil {
 			continue
 		}
 
-		cs.devices.AckQueries(p.RDT, ids)
+		as.devices.AckQueries(p.RDT, ids)
 	}
 
 	// committing here prevents us from responding to requests more than once
 	// after something like a reboot. not really a big real to remove this if we
 	// need to reduce writes.
-	cs.commit()
+	as.commit()
 }
 
 // PublishRoutes publishes routes that we know about to our trusted peers. See
-// implementation of [RouteSelector] for more details on publication strategy.
-func (cs *ClusterState) PublishRoutes(ctx context.Context, msg Messenger, peers, maxRoutes int) {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
+// implementation of [RouteSelector] for more details on route and peer
+// selection strategy.
+func (as *AssembleState) PublishRoutes(ctx context.Context, msg Messenger, peers, maxRoutes int) {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
 	// call select multiple times to select different random peers
 	for i := 0; i < peers; i++ {
 		// ack must be called to tell the selector that we've sent our peer that
 		// data. we use a closure here so we don't have to convert from the
 		// selector's internal data representation to the message type and back.
-		to, routes, ack, ok := cs.selector.Select(maxRoutes)
+		to, routes, ack, ok := as.selector.Select(maxRoutes)
 		if !ok {
 			continue // nothing to publish
 		}
 
-		fp, ok := cs.fingerprints[to]
+		fp, ok := as.fingerprints[to]
 		if !ok {
 			continue // skip publishing to an untrusted peer
 		}
 
-		// this entry should always be present. cs.trusted and cs.fingerprints
+		// this entry should always be present. as.trusted and as.fingerprints
 		// are only written to within the same critical section.
-		p, ok := cs.trusted[fp]
+		p, ok := as.trusted[fp]
 		if !ok {
 			continue // skip publishing to an untrusted peer
 		}
 
 		// we might trust a peer that we don't know the address of yet.
-		addr, ok := cs.addresses[fp]
+		addr, ok := as.addresses[fp]
 		if !ok {
 			continue // skip publishing to an undiscovered peer
 		}
 
 		// unlock for the duration of the send. this is safe, since all of the
 		// data that is passed to the send function is owned.
-		cs.lock.Unlock()
+		as.lock.Unlock()
 		err := msg.Trusted(ctx, p.RDT, addr, p.Cert, "routes", routes)
-		cs.lock.Lock()
+		as.lock.Lock()
 
 		if err == nil {
 			ack() // only acknowledge successful sends
@@ -421,71 +411,71 @@ func (cs *ClusterState) PublishRoutes(ctx context.Context, msg Messenger, peers,
 
 // Authenticate checks that the given [Auth] message is valid and proves
 // knowledge of the shared secret. If this check is passed, we allow mutation of
-// this [ClusterState] via future calls to [ClusterState.Trusted] with the same
+// this [AssembleState] via future calls to [AssembleState.VerifyPeer] with the same
 // certificate.
 //
 // An error is returned if the message's HMAC is found to not prove knowledge of
 // the shared secret.
-func (cs *ClusterState) Authenticate(auth Auth, cert []byte) error {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
+func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
 	fp := CalculateFP(cert)
 
-	expectedHMAC := CalculateHMAC(auth.RDT, fp, cs.config.Secret)
+	expectedHMAC := CalculateHMAC(auth.RDT, fp, as.config.Secret)
 	if !hmac.Equal(expectedHMAC, auth.HMAC) {
 		return errors.New("received invalid HMAC from peer")
 	}
 
-	if _, ok := cs.trusted[fp]; ok {
-		if cs.trusted[fp].RDT != auth.RDT {
+	if _, ok := as.trusted[fp]; ok {
+		if as.trusted[fp].RDT != auth.RDT {
 			return fmt.Errorf("peer with rdt %v is using a new TLS certificate", auth.RDT)
 		}
 	} else {
-		cs.trusted[fp] = peer{
+		as.trusted[fp] = peer{
 			RDT:  auth.RDT,
 			Cert: cert,
 		}
 	}
 
-	cs.fingerprints[auth.RDT] = fp
+	as.fingerprints[auth.RDT] = fp
 
 	// if we have discovered the route to this peer, we should record an
 	// authoritative route to it. this ensures that we send the route from our
 	// local node to this peer when we publish
-	if addr, ok := cs.addresses[fp]; ok {
-		cs.selector.AddAuthoritativeRoute(auth.RDT, addr)
+	if addr, ok := as.addresses[fp]; ok {
+		as.selector.AddAuthoritativeRoute(auth.RDT, addr)
 	}
 
-	cs.commit()
+	as.commit()
 
 	return nil
 }
 
-// Trusted checks if the given certificate is trusted and maps to a known RDT.
+// VerifyPeer checks if the given certificate is trusted and maps to a known RDT.
 // If it is, then a [PeerHandle] is returned that can be used to modify the state
 // of the cluster on this peer's behalf.
 //
 // An error is returned if the certificate isn't trusted.
-func (cs *ClusterState) Trusted(cert []byte) (*PeerHandle, error) {
-	cs.lock.Lock()
-	defer cs.lock.Unlock()
+func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
+	as.lock.Lock()
+	defer as.lock.Unlock()
 
 	fp := CalculateFP(cert)
 
-	p, ok := cs.trusted[fp]
+	p, ok := as.trusted[fp]
 	if !ok {
 		return nil, errors.New("given TLS certificate is not associated with a trusted RDT")
 	}
 
 	return &PeerHandle{
-		cs:   cs,
+		as:   as,
 		peer: p.RDT,
 	}, nil
 }
 
 type PeerHandle struct {
-	cs   *ClusterState
+	as   *AssembleState
 	peer RDT
 }
 
@@ -499,33 +489,33 @@ func (h *PeerHandle) RDT() RDT {
 // error is returned. If this local node is queried for devices that we do not
 // know, either this local node or the requesting peer has a bug.
 func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
-	h.cs.lock.Lock()
-	defer h.cs.lock.Unlock()
+	h.as.lock.Lock()
+	defer h.as.lock.Unlock()
 
-	if err := h.cs.devices.AddQueries(h.peer, unknown.Devices); err != nil {
+	if err := h.as.devices.AddQueries(h.peer, unknown.Devices); err != nil {
 		return err
 	}
 
-	h.cs.commit()
+	h.as.commit()
 
 	return nil
 }
 
 // AddRoutes updates the state of the cluster with the given routes.
 func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
-	h.cs.lock.Lock()
-	defer h.cs.lock.Unlock()
+	h.as.lock.Lock()
+	defer h.as.lock.Unlock()
 
 	// if this peer is sending us routes that include these devices, then we
 	// know that they must have identifying information for those devices.
-	h.cs.devices.AddSources(h.peer, routes.Devices)
+	h.as.devices.AddSources(h.peer, routes.Devices)
 
-	added, total, err := h.cs.selector.AddRoutes(h.peer, routes, h.cs.devices.Identified)
+	added, total, err := h.as.selector.AddRoutes(h.peer, routes, h.as.devices.Identified)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	h.cs.commit()
+	h.as.commit()
 
 	return added, total, nil
 }
@@ -534,11 +524,11 @@ func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
 // recorded. For any devices that we are already aware of, we check that our
 // view of the device's identity is consistent with the new data.
 func (h *PeerHandle) AddDevices(devices Devices) error {
-	h.cs.lock.Lock()
-	defer h.cs.lock.Unlock()
+	h.as.lock.Lock()
+	defer h.as.lock.Unlock()
 
 	for _, id := range devices.Devices {
-		if current, ok := h.cs.devices.Lookup(id.RDT); ok {
+		if current, ok := h.as.devices.Lookup(id.RDT); ok {
 			if current != id {
 				return errors.New("got inconsistent device identity")
 			}
@@ -546,14 +536,14 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 	}
 
 	for _, id := range devices.Devices {
-		h.cs.devices.Save(id)
+		h.as.devices.Save(id)
 	}
 
 	// since we got new device info, we have to recalculate which routes are
 	// valid to send to our peers
-	h.cs.selector.VerifyRoutes(h.cs.devices.Identified)
+	h.as.selector.VerifyRoutes(h.as.devices.Identified)
 
-	h.cs.commit()
+	h.as.commit()
 
 	return nil
 }
