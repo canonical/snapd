@@ -1,0 +1,9 @@
+name: kerberos-tickets-consumer
+version: 1
+summary: Minimal consumer for Kerberos tickets interface
+description: Tries to read and then write to a Kerberos ticket
+
+apps:
+  kerberos-tickets-consumer:
+    command: bin/kerberos-tickets-consumer
+    plugs: [kerberos-tickets]
