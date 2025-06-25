@@ -29,10 +29,9 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var (
-	snapstateMigrateHome  = snapstate.MigrateHome
-	migrateHomeChangeKind = swfeats.ChangeReg.Add("migrate-home")
-)
+var snapstateMigrateHome = snapstate.MigrateHome
+
+var migrateHomeChangeKind = swfeats.ChangeReg.Add("migrate-home")
 
 func migrateHome(st *state.State, snaps []string) Response {
 	if len(snaps) == 0 {

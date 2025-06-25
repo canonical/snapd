@@ -60,16 +60,19 @@ import (
 )
 
 var (
-	snapstateDownloadComponents                 = snapstate.DownloadComponents
-	snapstateDownload                           = snapstate.Download
-	snapstateUpdateOne                          = snapstate.UpdateOne
-	snapstateInstallOne                         = snapstate.InstallOne
-	snapstateStoreInstallGoal                   = snapstate.StoreInstallGoal
-	snapstatePathInstallGoal                    = snapstate.PathInstallGoal
-	snapstateStoreUpdateGoal                    = snapstate.StoreUpdateGoal
-	snapstatePathUpdateGoal                     = snapstate.PathUpdateGoal
-	snapstateInstallComponents                  = snapstate.InstallComponents
-	snapstateInstallComponentPath               = snapstate.InstallComponentPath
+	snapstateDownloadComponents   = snapstate.DownloadComponents
+	snapstateDownload             = snapstate.Download
+	snapstateUpdateOne            = snapstate.UpdateOne
+	snapstateInstallOne           = snapstate.InstallOne
+	snapstateStoreInstallGoal     = snapstate.StoreInstallGoal
+	snapstatePathInstallGoal      = snapstate.PathInstallGoal
+	snapstateStoreUpdateGoal      = snapstate.StoreUpdateGoal
+	snapstatePathUpdateGoal       = snapstate.PathUpdateGoal
+	snapstateInstallComponents    = snapstate.InstallComponents
+	snapstateInstallComponentPath = snapstate.InstallComponentPath
+)
+
+var (
 	remodelChangeKind                           = swfeats.ChangeReg.Add("remodel")
 	removeRecoverySystemChangeKind              = swfeats.ChangeReg.Add("remove-recovery-system")
 	createRecoverySystemChangeKind              = swfeats.ChangeReg.Add("create-recovery-system")

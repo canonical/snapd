@@ -37,8 +37,9 @@ import (
 
 var (
 	backendResealKeysForSignaturesDBUpdate = backend.ResealKeysForSignaturesDBUpdate
-	fdeEfiSecurebootDbUpdateChangeKind     = swfeats.ChangeReg.Add("fde-efi-secureboot-db-update")
 )
+
+var fdeEfiSecurebootDbUpdateChangeKind = swfeats.ChangeReg.Add("fde-efi-secureboot-db-update")
 
 type EFISecurebootKeyDatabase int
 

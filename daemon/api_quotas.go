@@ -63,8 +63,9 @@ var (
 	servicestateCreateQuota = servicestate.CreateQuota
 	servicestateUpdateQuota = servicestate.UpdateQuota
 	servicestateRemoveQuota = servicestate.RemoveQuota
-	quoteControlChangeKind  = swfeats.ChangeReg.Add("quota-control")
 )
+
+var quoteControlChangeKind = swfeats.ChangeReg.Add("quota-control")
 
 var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 	var currentUsage client.QuotaValues

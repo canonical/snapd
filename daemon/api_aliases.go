@@ -42,6 +42,9 @@ var (
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{},
 	}
+)
+
+var (
 	aliasChangeKind   = swfeats.ChangeReg.Add("alias")
 	unaliasChangeKind = swfeats.ChangeReg.Add("unalias")
 	preferChangeKind  = swfeats.ChangeReg.Add("prefer")

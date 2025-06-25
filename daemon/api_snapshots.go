@@ -54,13 +54,16 @@ var snapshotExportCmd = &Command{
 }
 
 var (
-	snapshotList              = snapshotstate.List
-	snapshotCheck             = snapshotstate.Check
-	snapshotForget            = snapshotstate.Forget
-	snapshotRestore           = snapshotstate.Restore
-	snapshotSave              = snapshotstate.Save
-	snapshotExport            = snapshotstate.Export
-	snapshotImport            = snapshotstate.Import
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
+)
+
+var (
 	checkSnapshotChangeKind   = swfeats.ChangeReg.Add("check-snapshot")
 	restoreSnapshotChangeKind = swfeats.ChangeReg.Add("restore-snapshot")
 	forgetSnapshotChangeKind  = swfeats.ChangeReg.Add("forget-snapshot")

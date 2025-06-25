@@ -40,10 +40,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	connectRetryTimeout                  = time.Second * 5
-	regenerateSecurityProfilesChangeKind = swfeats.ChangeReg.Add("regenerate-security-profiles")
-)
+var connectRetryTimeout = time.Second * 5
+
+var regenerateSecurityProfilesChangeKind = swfeats.ChangeReg.Add("regenerate-security-profiles")
 
 // ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.
 type ErrAlreadyConnected struct {
