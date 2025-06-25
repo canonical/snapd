@@ -315,7 +315,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
-	// modenev must be mocked before daemon is initialized
+	// modeenv must be mocked before daemon is initialized
 	m := boot.Modeenv{
 		Mode: "run",
 	}
@@ -809,6 +809,33 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 	return &goff
 }
 
+// This combination of UnavailableWarning and AvailabilityCheckErrors represents the
+// Ubuntu 25.10+ hybrid install using the comprehensive secboot preinstall check to
+// determine encryption availability. Other systems use the basic availability check
+// will not populate AvailabilityCheckErrors. This test case exercises the superset
+// of availability check behavior.
+var unavailableWarning string = "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors"
+var availabilityCheckErrors = []secboot.PreinstallErrorDetails{
+	{
+		Kind:    "tpm-hierarchies-owned",
+		Message: "error with TPM2 device: one or more of the TPM hierarchies is already owned",
+		Args: map[string]json.RawMessage{
+			"with-auth-value":  json.RawMessage(`[1073741834]`),
+			"with-auth-policy": json.RawMessage(`[1073741825]`),
+		},
+		Actions: []string{"reboot-to-fw-settings"},
+	},
+	{
+		Kind:    "tpm-device-lockout",
+		Message: "error with TPM2 device: TPM is in DA lockout mode",
+		Args: map[string]json.RawMessage{
+			"interval-duration": json.RawMessage(`7200000000000`),
+			"total-duration":    json.RawMessage(`230400000000000`),
+		},
+		Actions: []string{"reboot-to-fw-settings"},
+	},
+}
+
 func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 	s.mockSystemSeeds(c)
 
@@ -834,9 +861,11 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		storageSafety                                asserts.StorageSafety
 		typ                                          device.EncryptionType
 		unavailableErr, unavailableWarning           string
+		availabilityCheckErrs                        []secboot.PreinstallErrorDetails
 
 		expectedSupport                                  client.StorageEncryptionSupport
 		expectedStorageSafety, expectedUnavailableReason string
+		expectedAvailabilityCheckErrs                    []secboot.PreinstallErrorDetails
 		expectedEncryptionFeatures                       []client.StorageEncryptionFeature
 	}{
 		{
@@ -870,12 +899,14 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			expectedStorageSafety: "prefer-unencrypted",
 		},
 		{
-			storageSafety:  asserts.StorageSafetyEncrypted,
-			unavailableErr: "unavailable-err",
+			storageSafety:         asserts.StorageSafetyEncrypted,
+			unavailableErr:        unavailableWarning,
+			availabilityCheckErrs: availabilityCheckErrors,
 
-			expectedSupport:           client.StorageEncryptionSupportDefective,
-			expectedStorageSafety:     "encrypted",
-			expectedUnavailableReason: "unavailable-err",
+			expectedSupport:               client.StorageEncryptionSupportDefective,
+			expectedStorageSafety:         "encrypted",
+			expectedUnavailableReason:     unavailableWarning,
+			expectedAvailabilityCheckErrs: availabilityCheckErrors,
 		},
 		{
 			available:               true,
@@ -994,7 +1025,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
-		encInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: some reason"
+		encInfo.UnavailableWarning = unavailableWarning
+		encInfo.AvailabilityCheckErrors = availabilityCheckErrors
 
 		return sys, gadgetInfo, encInfo, err
 	})
@@ -1023,9 +1055,10 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			Validation:  "unproven",
 		},
 		StorageEncryption: &client.StorageEncryption{
-			Support:           "unavailable",
-			StorageSafety:     "prefer-encrypted",
-			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
+			Support:                 "unavailable",
+			StorageSafety:           "prefer-encrypted",
+			UnavailableReason:       unavailableWarning,
+			AvailabilityCheckErrors: availabilityCheckErrors,
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {

@@ -142,6 +142,11 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 		storageEnc.Support = client.StorageEncryptionSupportUnavailable
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
 	}
+
+	if !encInfo.Available {
+		storageEnc.AvailabilityCheckErrors = encInfo.AvailabilityCheckErrors
+	}
+
 	if encInfo.PassphraseAuthAvailable {
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePassphraseAuth)
 	}
