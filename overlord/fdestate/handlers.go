@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/state"
 	"gopkg.in/tomb.v2"
 )
@@ -81,12 +82,17 @@ func getCachedChangeAuthOptionsOnce(st *state.State) (*changeAuthOptions, error)
 	return opts, nil
 }
 
-func (m *FDEManager) doChangePassphrase(t *state.Task, _ *tomb.Tomb) error {
+func (m *FDEManager) doChangeAuthKeys(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
+		return err
+	}
+
+	var authMode device.AuthMode
+	if err := t.Get("auth-mode", &authMode); err != nil {
 		return err
 	}
 
@@ -96,6 +102,8 @@ func (m *FDEManager) doChangePassphrase(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// XXX: unlock state and let conflict detection handle the rest?
+
+	// TODO:FDEM: ensure snapd restarts are prevented while task is running.
 
 	currentKeyslots, missing, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
@@ -111,13 +119,23 @@ func (m *FDEManager) doChangePassphrase(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("failed to read key data for %s: %v", keyslot.Ref().String(), err)
 		}
 
-		if err := kd.ChangePassphrase(opts.oldPassphrase, opts.newPassphrase); err != nil {
-			return fmt.Errorf("failed to change passphrase for %s: %v", keyslot.Ref().String(), err)
+		switch authMode {
+		case device.AuthModePassphrase:
+			if err := kd.ChangePassphrase(opts.old, opts.new); err != nil {
+				return fmt.Errorf("failed to change passphrase for %s: %v", keyslot.Ref().String(), err)
+			}
+		case device.AuthModePIN:
+			return fmt.Errorf("internal error: changing PINs is not implemented")
+		default:
+			return fmt.Errorf("internal error: unexpected auth-mode %q", authMode)
 		}
+
 		if err := kd.WriteTokenAtomic(keyslot.devPath, keyslot.Name); err != nil {
 			return fmt.Errorf("failed to write key data for %s: %v", keyslot.Ref().String(), err)
 		}
 	}
+	// avoid re-runs in case of abrupt shutdown since all key slots are now updated.
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }

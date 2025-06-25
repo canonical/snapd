@@ -25,13 +25,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/strutil"
 )
 
-func (s *fdeMgrSuite) TestDoChangePassphrase(c *C) {
+func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default-recovery"}}, nil)
@@ -41,6 +42,7 @@ func (s *fdeMgrSuite) TestDoChangePassphrase(c *C) {
 
 	type testcase struct {
 		keyslots    []fdestate.KeyslotRef
+		authMode    device.AuthMode
 		noOpt       bool
 		errOn       []string
 		expectedErr string
@@ -52,6 +54,7 @@ func (s *fdeMgrSuite) TestDoChangePassphrase(c *C) {
 				{ContainerRole: "system-data", Name: "default-fallback"},
 				{ContainerRole: "system-save", Name: "default-fallback"},
 			},
+			authMode: device.AuthModePassphrase,
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
@@ -68,23 +71,37 @@ func (s *fdeMgrSuite) TestDoChangePassphrase(c *C) {
 				{ContainerRole: "system-data", Name: "default-fallback"},
 				{ContainerRole: "system-save", Name: "default-fallback"},
 			},
+			authMode:    device.AuthModePassphrase,
 			errOn:       []string{"read:/dev/disk/by-uuid/data:default-fallback"},
 			expectedErr: `failed to read key data for \(container-role: "system-data", name: "default-fallback"\): failed to read key data for "default-fallback" from "/dev/disk/by-uuid/data": read error on /dev/disk/by-uuid/data:default-fallback`,
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePassphrase,
 			errOn:       []string{"change:/dev/disk/by-uuid/data:default"},
 			expectedErr: `failed to change passphrase for \(container-role: "system-data", name: "default"\): change error on /dev/disk/by-uuid/data:default`,
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePassphrase,
 			errOn:       []string{"write:/dev/disk/by-uuid/data:default"},
 			expectedErr: `failed to write key data for \(container-role: "system-data", name: "default"\): write error on /dev/disk/by-uuid/data:default`,
 		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePIN,
+			expectedErr: "internal error: changing PINs is not implemented",
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModeNone,
+			expectedErr: `internal error: unexpected auth-mode "none"`,
+		},
 	}
 	for _, tc := range tcs {
-		task := s.st.NewTask("change-passphrase", "test")
+		task := s.st.NewTask("change-auth-keys", "test")
 		task.Set("keyslots", tc.keyslots)
+		task.Set("auth-mode", tc.authMode)
 
 		if !tc.noOpt {
 			s.st.Unlock()

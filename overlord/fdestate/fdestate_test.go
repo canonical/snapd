@@ -315,12 +315,15 @@ func (s *fdeMgrSuite) testChangePassphrase(c *C, defaultKeyslots bool) {
 	tsks := ts.Tasks()
 	c.Check(tsks, HasLen, 1)
 
-	c.Check(tsks[0].Kind(), Equals, "change-passphrase")
-	c.Check(tsks[0].Summary(), Matches, "Change passphrase")
+	c.Check(tsks[0].Kind(), Equals, "change-auth-keys")
+	c.Check(tsks[0].Summary(), Matches, "Change passphrase protected key slots")
 	// check target key slots are passed to task
 	var tskKeyslots []fdestate.KeyslotRef
 	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, keyslots)
+	var tskAuthMode device.AuthMode
+	c.Assert(tsks[0].Get("auth-mode", &tskAuthMode), IsNil)
+	c.Check(tskAuthMode, Equals, device.AuthModePassphrase)
 
 	authOptions := fdestate.GetChangeAuthOptionsFromCache(s.st)
 	c.Check(authOptions.OldPassphrase(), Equals, "old")

@@ -120,7 +120,7 @@ func MockSecbootListContainerUnlockKeyNames(f func(devicePath string) ([]string,
 func MockChangeAuthOptionsInCache(st *state.State, old, new string) (restore func()) {
 	st.Lock()
 	defer st.Unlock()
-	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{oldPassphrase: old, newPassphrase: new})
+	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
 
 	return func() { st.Cache(changeAuthOptionsKey{}, nil) }
 }
@@ -134,9 +134,9 @@ func GetChangeAuthOptionsFromCache(st *state.State) *changeAuthOptions {
 }
 
 func (o *changeAuthOptions) OldPassphrase() string {
-	return o.oldPassphrase
+	return o.old
 }
 
 func (o *changeAuthOptions) NewPassphrase() string {
-	return o.newPassphrase
+	return o.new
 }

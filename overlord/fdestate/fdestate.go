@@ -510,7 +510,7 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []Keyslo
 }
 
 type changeAuthOptions struct {
-	oldPassphrase, newPassphrase string
+	old, new string
 }
 
 type changeAuthOptionsKey struct{}
@@ -569,12 +569,13 @@ func ChangePassphrase(st *state.State, oldPassphrase, newPassphrase string, keys
 	}
 
 	// Auth data must be in memory to avoid leaking credentials.
-	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{oldPassphrase: oldPassphrase, newPassphrase: newPassphrase})
+	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: oldPassphrase, new: newPassphrase})
 
 	ts := state.NewTaskSet()
 
-	changePassphrase := st.NewTask("change-passphrase", "Change passphrase")
+	changePassphrase := st.NewTask("change-auth-keys", "Change passphrase protected key slots")
 	changePassphrase.Set("keyslots", keyslotRefs)
+	changePassphrase.Set("auth-mode", device.AuthModePassphrase)
 	ts.AddTask(changePassphrase)
 
 	return ts, nil
