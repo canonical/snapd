@@ -567,12 +567,38 @@ func loggerWithJournalMaybe() error {
 	return nil
 }
 
+func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []string) string {
+	subcmds := cmd.Commands()
+	if len(subcmds) > 0 && len(os.Args) > subArgIndex {
+		for _, subcmd := range subcmds {
+			if subcmd.Name == os.Args[subArgIndex] {
+				return composeSubCmd(subcmd, subArgIndex+1, append(cmdNames, subcmd.Name))
+			}
+		}
+	}
+	return strings.Join(cmdNames, " ")
+}
+
+func makeCommandHandler(allCommands []*flags.Command) func(flags.Commander, []string) error {
+	return func(command flags.Commander, args []string) error {
+		for _, cmd := range allCommands {
+			if cmd.Name == os.Args[1] {
+				logger.Trace("command-execution", "cmd", composeSubCmd(cmd, 2, []string{cmd.Name}))
+				break
+			}
+		}
+		return command.Execute(args)
+	}
+}
+
 var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
-	logger.Trace("command-execution", "cmd", strings.Join(os.Args[1:], " "))
+	if osutil.GetenvBool("SNAPD_TRACE") {
+		parser.CommandHandler = makeCommandHandler(parser.Command.Commands())
+	}
 	xtra, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok {
