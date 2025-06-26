@@ -21,7 +21,7 @@ define FEDORA_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 endef
 
-define OPENSUSE_tumblweed_CLOUD_INIT_USER_DATA_TEMPLATE
+define OPENSUSE_tumbleweed_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 # Switch the primary LSM to AppArmor on openSUSE systems.
 - sed -i -e 's/security=selinux/security=apparmor/g' /etc/default/grub
