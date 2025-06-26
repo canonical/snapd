@@ -6,6 +6,8 @@ details: |
     in snapd - read, write, create and delete.
 
 systems:
+    # no AppArmor, no mediation
+    - -amazon-linux-*
     # Too old to support this feature entirely.
     - -ubuntu-14.04-64
     - -debian-11-64
