@@ -99,7 +99,7 @@ jobs:
             echo "$env" >> $GITHUB_ENV
           done
 
-    - name: Set PR labels as environment variables
+    - name: Check PR labels
       if: ${{ github.event.pull_request.number }}
       run: |
           labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
@@ -111,6 +111,19 @@ jobs:
           fi
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
+          fi
+
+          if grep -q '^Run only one system$' <<<$labels; then
+
+            # Automatically fail tests unless one of the two is true:
+            #  1. the system is ubuntu-24.04-64 and it is not a nested test
+            #  2. it is a nested test and the 'Run nested' label is present
+
+            if ! ([[ "${{ inputs.systems }}" =~ "ubuntu-24.04-64" ]] && [[ ! "${{ inputs.backend }}" =~ "-nested" ]]) && ! (grep -q '^Run nested$' <<<$labels && [[ "${{ inputs.backend }}" =~ "-nested" ]]); then
+              echo "Due to the 'Run only one system' label on the PR, all spread tests automatically fail except for noble and, if the PR contains the 'Run nested' label, nested tests."
+              echo "If you need to run spread on more systems, remove the 'Run only one system' label and rerun the failed jobs (no need to close and reopen the PR)."
+              exit 1
+            fi
           fi
 
     - name: Get previous attempt
