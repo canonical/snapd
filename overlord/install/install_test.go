@@ -225,6 +225,7 @@ const (
 	ErrorCheckSupported    // preinstallCheckSupported error
 	ErrorBootImages        // orderedCurrentBootImages error
 	ErrorSecbootPreinstall // secboot.PreinstallCheck error
+	ErrorSecbootTimeout    // secboot.PreinstallCheck context timeout
 )
 
 // representative sample of relative paths system boot file paths
@@ -561,6 +562,10 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	}
 	s.mockHelperForOrderedCurrentBootImagesHybrid(c, isSupportedUbuntuHybrid, imageError, errorBootImage)
 
+	if checkFailErrors == ErrorSecbootTimeout {
+		s.AddCleanup(install.MockPreinstallCheckTimeout(1 * time.Millisecond))
+	}
+
 	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
 	restore1 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
 		c.Assert(ctx, NotNil)
@@ -572,6 +577,14 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 
 		if checkFailErrors == ErrorSecbootPreinstall {
 			return nil, fmt.Errorf("compound error does not wrap any error")
+		}
+
+		if checkFailErrors == ErrorSecbootTimeout {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(2 * time.Millisecond):
+			}
 		}
 
 		switch errorsDetected {
@@ -674,6 +687,14 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			"",
 			nil,
 			"compound error does not wrap any error",
+		},
+		{
+			true,
+			ErrorNone,
+			ErrorSecbootTimeout,
+			"",
+			nil,
+			"preinstall check timed out: context deadline exceeded",
 		},
 	} {
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, tc.checkFailErrors, nil)

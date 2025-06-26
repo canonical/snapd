@@ -34,6 +34,14 @@ var (
 	CheckFDEFeatures               = checkFDEFeatures
 )
 
+func MockPreinstallCheckTimeout(tm time.Duration) (restore func()) {
+	old := preinstallCheckTimeout
+	preinstallCheckTimeout = tm
+	return func() {
+		preinstallCheckTimeout = old
+	}
+}
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
 	timeNow = f

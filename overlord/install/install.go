@@ -124,7 +124,9 @@ var (
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	secbootPreinstallCheck             = secboot.PreinstallCheck
-	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
+	preinstallCheckTimeout             = 2 * time.Minute
+
+	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 
 	bootUseTokens = boot.UseTokens
 )
@@ -326,7 +328,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), preinstallCheckTimeout)
 		defer cancel()
 		preinstallErrorDetails, err := secbootPreinstallCheck(ctx, images)
 		if err != nil {
