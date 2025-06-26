@@ -51,7 +51,7 @@ var (
 	}
 )
 
-var installThemesChangeKind = swfeats.ChangeReg.Add("install-themes")
+var installThemesChangeKind = swfeats.RegChangeKind("install-themes")
 
 type themeStatus string
 

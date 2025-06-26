@@ -21,5 +21,21 @@ package swfeats
 
 var (
 	NewChangeKindRegistry = newChangeKindRegistry
-	AddRegistry           = newEnsureRegistry
+	NewEnsureRegistry     = newEnsureRegistry
 )
+
+func MockChangeKindRegistry(registry *ChangeKindRegistry) func() {
+	old := changeReg
+	changeReg = registry
+	return func() {
+		changeReg = old
+	}
+}
+
+func MockEnsureRegistry(registry *EnsureRegistry) func() {
+	old := ensureReg
+	ensureReg = registry
+	return func() {
+		ensureReg = old
+	}
+}

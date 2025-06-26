@@ -27,8 +27,8 @@ import (
 )
 
 var (
-	ChangeReg *ChangeKindRegistry = newChangeKindRegistry()
-	EnsureReg *EnsureRegistry     = newEnsureRegistry()
+	changeReg *ChangeKindRegistry = newChangeKindRegistry()
+	ensureReg *EnsureRegistry     = newEnsureRegistry()
 )
 
 // ChangeKindRegistry contains the set of all change kind strings
@@ -43,9 +43,9 @@ func newChangeKindRegistry() *ChangeKindRegistry {
 }
 
 // Add a change kind string to the registry
-func (r *ChangeKindRegistry) Add(kind string) string {
-	if _, ok := r.changes[kind]; !ok {
-		r.changes[kind] = make([]string, 0)
+func RegChangeKind(kind string) string {
+	if _, ok := changeReg.changes[kind]; !ok {
+		changeReg.changes[kind] = make([]string, 0)
 	}
 	return kind
 }
@@ -54,22 +54,22 @@ func (r *ChangeKindRegistry) Add(kind string) string {
 // registered change kind template. If the template is not
 // present or does not contain exactly one string placeholder,
 // then the method fails and returns false
-func (r *ChangeKindRegistry) AddVariants(kind string, values []string) bool {
+func AddChangeKindVariants(kind string, values []string) bool {
 	if strings.Count(kind, "%s") != 1 {
 		return false
 	}
-	if _, ok := r.changes[kind]; !ok {
+	if _, ok := changeReg.changes[kind]; !ok {
 		return false
 	}
-	r.changes[kind] = values
+	changeReg.changes[kind] = values
 	return true
 }
 
 // KnownChangeKinds retrieves the complete list of all registered
 // change kinds, including their variants, if present
-func (r *ChangeKindRegistry) KnownChangeKinds() []string {
-	kinds := make([]string, 0, len(r.changes))
-	for key, values := range r.changes {
+func KnownChangeKinds() []string {
+	kinds := make([]string, 0, len(changeReg.changes))
+	for key, values := range changeReg.changes {
 		if len(values) == 0 {
 			kinds = append(kinds, key)
 			continue
@@ -99,15 +99,15 @@ func newEnsureRegistry() *EnsureRegistry {
 }
 
 // Add a ensure helper function to the registry
-func (r *EnsureRegistry) Add(manager, function string) {
-	r.ensures[EnsureEntry{Manager: manager, Function: function}] = nil
+func RegEnsure(manager, function string) {
+	ensureReg.ensures[EnsureEntry{Manager: manager, Function: function}] = nil
 }
 
 // KnownEnsures retrieves the complete list of ensure
 // helper functions from the registry
-func (r *EnsureRegistry) KnownEnsures() []EnsureEntry {
-	ensures := make([]EnsureEntry, 0, len(r.ensures))
-	for k := range r.ensures {
+func KnownEnsures() []EnsureEntry {
+	ensures := make([]EnsureEntry, 0, len(ensureReg.ensures))
+	for k := range ensureReg.ensures {
 		ensures = append(ensures, k)
 	}
 	return ensures

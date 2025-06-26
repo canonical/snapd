@@ -49,9 +49,9 @@ var (
 )
 
 var (
-	serviceControlChangeKind = swfeats.ChangeReg.Add("service-control")
-	snapctlInstallChangeKind = swfeats.ChangeReg.Add("snapctl-install")
-	snapctlRemoveChangeKind  = swfeats.ChangeReg.Add("snapctl-remove")
+	serviceControlChangeKind = swfeats.RegChangeKind("service-control")
+	snapctlInstallChangeKind = swfeats.RegChangeKind("snapctl-install")
+	snapctlRemoveChangeKind  = swfeats.RegChangeKind("snapctl-remove")
 )
 
 func init() {

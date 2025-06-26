@@ -54,18 +54,18 @@ import (
 )
 
 var (
-	removeSnapChangeKind           = swfeats.ChangeReg.Add("remove-snap")
-	transitionUbuntuCoreChangeKind = swfeats.ChangeReg.Add("transition-ubuntu-core")
+	removeSnapChangeKind           = swfeats.RegChangeKind("remove-snap")
+	transitionUbuntuCoreChangeKind = swfeats.RegChangeKind("transition-ubuntu-core")
 )
 
 func init() {
-	swfeats.EnsureReg.Add("SnapManager", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
-	swfeats.EnsureReg.Add("SnapManager", "ensureForceDevmodeDropsDevmodeFromState")
-	swfeats.EnsureReg.Add("SnapManager", "ensureUbuntuCoreTransition")
-	swfeats.EnsureReg.Add("SnapManager", "atSeed")
-	swfeats.EnsureReg.Add("SnapManager", "ensureMountsUpdated")
-	swfeats.EnsureReg.Add("SnapManager", "ensureDesktopFilesUpdated")
-	swfeats.EnsureReg.Add("SnapManager", "ensureDownloadsCleaned")
+	swfeats.RegEnsure("SnapManager", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
+	swfeats.RegEnsure("SnapManager", "ensureForceDevmodeDropsDevmodeFromState")
+	swfeats.RegEnsure("SnapManager", "ensureUbuntuCoreTransition")
+	swfeats.RegEnsure("SnapManager", "atSeed")
+	swfeats.RegEnsure("SnapManager", "ensureMountsUpdated")
+	swfeats.RegEnsure("SnapManager", "ensureDesktopFilesUpdated")
+	swfeats.RegEnsure("SnapManager", "ensureDownloadsCleaned")
 }
 
 // SnapManager is responsible for the installation and removal of snaps.
