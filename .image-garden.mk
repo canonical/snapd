@@ -25,6 +25,8 @@ define OPENSUSE_tumbleweed_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 # Switch the primary LSM to AppArmor on openSUSE systems.
 - sed -i -e 's/security=selinux/security=apparmor/g' /etc/default/grub
+- sed -i -e 's/selinux=1//g' /etc/default/grub
+- sed -i -e 's/^SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 - update-bootloader
 # Add empty /etc/environment file that snapd test suite wants to back up.
 - touch /etc/environment
