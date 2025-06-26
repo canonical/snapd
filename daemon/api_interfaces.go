@@ -47,8 +47,8 @@ var (
 )
 
 var (
-	connectSnapChangeKind    = swfeats.ChangeReg.Add("connect-snap")
-	disconnectSnapChangeKind = swfeats.ChangeReg.Add("disconnect-snap")
+	connectSnapChangeKind    = swfeats.RegChangeKind("connect-snap")
+	disconnectSnapChangeKind = swfeats.RegChangeKind("disconnect-snap")
 )
 
 // interfacesConnectionsMultiplexer multiplexes to either legacy (connection) or modern behavior (interfaces).

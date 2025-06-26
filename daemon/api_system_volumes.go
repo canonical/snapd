@@ -47,7 +47,7 @@ var systemVolumesCmd = &Command{
 	WriteAccess: rootAccess{},
 }
 
-var replaceRecoveryKeyChangeKind = swfeats.ChangeReg.Add("replace-recovery-key")
+var replaceRecoveryKeyChangeKind = swfeats.RegChangeKind("replace-recovery-key")
 
 var (
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey

@@ -90,16 +90,16 @@ var (
 )
 
 var (
-	installSnapChangeKind  = swfeats.ChangeReg.Add(installCmdAction + "-snap")
-	refreshSnapChangeKind  = swfeats.ChangeReg.Add(refreshCmdAction + "-snap")
-	switchSnapChangeKind   = swfeats.ChangeReg.Add(switchCmdAction + "-snap")
-	holdSnapChangeKind     = swfeats.ChangeReg.Add(holdCmdAction + "-snap")
-	unholdSnapChangeKind   = swfeats.ChangeReg.Add(unholdCmdAction + "-snap")
-	snapshotSnapChangeKind = swfeats.ChangeReg.Add(snapshotCmdAction + "-snap")
-	removeSnapChangeKind   = swfeats.ChangeReg.Add(removeCmdAction + "-snap")
-	revertSnapChangeKind   = swfeats.ChangeReg.Add(revertCmdAction + "-snap")
-	enableSnapChangeKind   = swfeats.ChangeReg.Add(enableCmdAction + "-snap")
-	disableSnapChangeKind  = swfeats.ChangeReg.Add(disableCmdAction + "-snap")
+	installSnapChangeKind  = swfeats.RegChangeKind(installCmdAction + "-snap")
+	refreshSnapChangeKind  = swfeats.RegChangeKind(refreshCmdAction + "-snap")
+	switchSnapChangeKind   = swfeats.RegChangeKind(switchCmdAction + "-snap")
+	holdSnapChangeKind     = swfeats.RegChangeKind(holdCmdAction + "-snap")
+	unholdSnapChangeKind   = swfeats.RegChangeKind(unholdCmdAction + "-snap")
+	snapshotSnapChangeKind = swfeats.RegChangeKind(snapshotCmdAction + "-snap")
+	removeSnapChangeKind   = swfeats.RegChangeKind(removeCmdAction + "-snap")
+	revertSnapChangeKind   = swfeats.RegChangeKind(revertCmdAction + "-snap")
+	enableSnapChangeKind   = swfeats.RegChangeKind(enableCmdAction + "-snap")
+	disableSnapChangeKind  = swfeats.RegChangeKind(disableCmdAction + "-snap")
 )
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {

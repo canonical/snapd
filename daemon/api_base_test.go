@@ -297,7 +297,7 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.unwrapNewChange = daemon.BeforeNewChange(func(_ *state.State, kind, _ string, _ []*state.TaskSet, _ []string) {
-		if !strutil.ListContains(swfeats.ChangeReg.KnownChangeKinds(), kind) {
+		if !strutil.ListContains(swfeats.KnownChangeKinds(), kind) {
 			s.missingChangeRegistrations.Store(kind, nil)
 		}
 	})
@@ -305,7 +305,7 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	missingReg := mapToSlice(&s.missingChangeRegistrations)
-	c.Assert(missingReg, check.HasLen, 0, check.Commentf("Found missing change kind registrations %v Register new change kinds using swfeats.ChangeReg.Add", missingReg))
+	c.Assert(missingReg, check.HasLen, 0, check.Commentf("Found missing change kind registrations %v Register new change kinds using swfeats.RegChangeKind", missingReg))
 	s.restoreMuxVars()
 	s.restoreRelease()
 	s.systemctlRestorer()

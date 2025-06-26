@@ -76,13 +76,13 @@ var (
 )
 
 var (
-	autoRefreshChangeKind = swfeats.ChangeReg.Add("auto-refresh")
-	preDownloadChangeKind = swfeats.ChangeReg.Add("pre-download")
+	autoRefreshChangeKind = swfeats.RegChangeKind("auto-refresh")
+	preDownloadChangeKind = swfeats.RegChangeKind("pre-download")
 )
 
 func init() {
-	swfeats.EnsureReg.Add("SnapManager", "autoRefresh.Ensure")
-	swfeats.EnsureReg.Add("SnapManager", "autoRefresh.ensureLastRefreshAnchor")
+	swfeats.RegEnsure("SnapManager", "autoRefresh.Ensure")
+	swfeats.RegEnsure("SnapManager", "autoRefresh.ensureLastRefreshAnchor")
 }
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes

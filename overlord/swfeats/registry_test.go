@@ -38,50 +38,55 @@ func Test(t *testing.T) { TestingT(t) }
 
 type swfeatsSuite struct {
 	testutil.BaseTest
-	ChangeReg *swfeats.ChangeKindRegistry
-	EnsureReg *swfeats.EnsureRegistry
 }
 
 var _ = Suite(&swfeatsSuite{})
 
-func (s *swfeatsSuite) SetUpTest(c *C) {
-	s.ChangeReg = swfeats.NewChangeKindRegistry()
-	s.EnsureReg = swfeats.AddRegistry()
-}
-
 func (s *swfeatsSuite) TestAddChange(c *C) {
-	changeKind := s.ChangeReg.Add("my-change")
+	registry := swfeats.NewChangeKindRegistry()
+	restore := swfeats.MockChangeKindRegistry(registry)
+	defer restore()
+
+	changeKind := swfeats.RegChangeKind("my-change")
 	c.Assert(changeKind, Equals, "my-change")
 }
 
 func (s *swfeatsSuite) TestKnownChangeKinds(c *C) {
-	myChange1 := s.ChangeReg.Add("my-change1")
+	registry := swfeats.NewChangeKindRegistry()
+	restore := swfeats.MockChangeKindRegistry(registry)
+	defer restore()
+
+	myChange1 := swfeats.RegChangeKind("my-change1")
 	c.Assert(myChange1, Equals, "my-change1")
 
 	// Add the same change again to check that it isn't added
 	// more than once
-	myChange1 = s.ChangeReg.Add("my-change1")
+	myChange1 = swfeats.RegChangeKind("my-change1")
 	c.Assert(myChange1, Equals, "my-change1")
-	myChange2 := s.ChangeReg.Add("my-change2")
+	myChange2 := swfeats.RegChangeKind("my-change2")
 	c.Assert(myChange2, Equals, "my-change2")
-	changeKinds := s.ChangeReg.KnownChangeKinds()
+	changeKinds := swfeats.KnownChangeKinds()
 	c.Assert(changeKinds, HasLen, 2)
 	c.Assert(changeKinds, testutil.Contains, "my-change1")
 	c.Assert(changeKinds, testutil.Contains, "my-change2")
 }
 
 func (s *swfeatsSuite) TestNewChangeTemplateKnown(c *C) {
-	changeKind := s.ChangeReg.Add("my-change-%s")
-	changeKind2 := s.ChangeReg.Add("my-change-%s")
+	registry := swfeats.NewChangeKindRegistry()
+	restore := swfeats.MockChangeKindRegistry(registry)
+	defer restore()
+
+	changeKind := swfeats.RegChangeKind("my-change-%s")
+	changeKind2 := swfeats.RegChangeKind("my-change-%s")
 	c.Assert(changeKind, Equals, changeKind2)
-	kinds := s.ChangeReg.KnownChangeKinds()
+	kinds := swfeats.KnownChangeKinds()
 	// Without possible values added, a templated change will generate
 	// the template
 	c.Assert(kinds, HasLen, 1)
 	c.Assert(kinds, testutil.Contains, "my-change-%s")
 
-	s.ChangeReg.AddVariants(changeKind, []string{"1", "2", "3"})
-	kinds = s.ChangeReg.KnownChangeKinds()
+	swfeats.AddChangeKindVariants(changeKind, []string{"1", "2", "3"})
+	kinds = swfeats.KnownChangeKinds()
 	c.Assert(kinds, HasLen, 3)
 	c.Assert(kinds, testutil.Contains, "my-change-1")
 	c.Assert(kinds, testutil.Contains, "my-change-2")
@@ -89,19 +94,27 @@ func (s *swfeatsSuite) TestNewChangeTemplateKnown(c *C) {
 }
 
 func (s *swfeatsSuite) TestAddEnsure(c *C) {
-	c.Assert(s.EnsureReg.KnownEnsures(), HasLen, 0)
-	s.EnsureReg.Add("MyManager", "myFunction")
-	knownEnsures := s.EnsureReg.KnownEnsures()
+	registry := swfeats.NewEnsureRegistry()
+	restore := swfeats.MockEnsureRegistry(registry)
+	defer restore()
+
+	c.Assert(swfeats.KnownEnsures(), HasLen, 0)
+	swfeats.RegEnsure("MyManager", "myFunction")
+	knownEnsures := swfeats.KnownEnsures()
 	c.Assert(knownEnsures, HasLen, 1)
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction"})
 }
 
 func (s *swfeatsSuite) TestDuplicateAdd(c *C) {
-	s.EnsureReg.Add("MyManager", "myFunction1")
-	s.EnsureReg.Add("MyManager", "myFunction1")
-	s.EnsureReg.Add("MyManager", "myFunction2")
-	s.EnsureReg.Add("MyManager", "myFunction2")
-	knownEnsures := s.EnsureReg.KnownEnsures()
+	registry := swfeats.NewEnsureRegistry()
+	restore := swfeats.MockEnsureRegistry(registry)
+	defer restore()
+
+	swfeats.RegEnsure("MyManager", "myFunction1")
+	swfeats.RegEnsure("MyManager", "myFunction1")
+	swfeats.RegEnsure("MyManager", "myFunction2")
+	swfeats.RegEnsure("MyManager", "myFunction2")
+	knownEnsures := swfeats.KnownEnsures()
 	c.Assert(knownEnsures, HasLen, 2)
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction1"})
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction2"})
@@ -121,10 +134,10 @@ func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
 		}
 		files = append(files, f)
 	}
-	// Collect variables names assigned with swfeats.ChangeReg.Add(...)
+	// Collect variables names assigned with swfeats.RegChangeKind(...)
 	changeKindRegVars := collectChangeRegAddVars(files)
 	if len(changeKindRegVars) == 0 {
-		c.Log("No variables assigned with swfeats.ChangeReg.Add(...) found, skipping test.")
+		c.Log("No variables assigned with swfeats.RegChangeKind(...) found, skipping test.")
 		return
 	}
 
@@ -148,7 +161,7 @@ func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
 			firstArg := call.Args[0]
 
 			// In the simplest case, the first parameter of NewChange is directly
-			// a variable returned from the swfeats.ChangeReg.Add function call.
+			// a variable returned from the swfeats.RegChangeKind function call.
 			// If so, the change kind is registered, so no need to continue.
 			if exprContainsChangeRegVar(firstArg, changeKindRegVars) {
 				return true
@@ -156,7 +169,7 @@ func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
 
 			// The first parameter of NewChange might be a function call
 			// (e.g. fmt.Sprintf). If that function anywhere contains a variable
-			// returned from swfeats.ChangeReg.Add, then consider the change
+			// returned from swfeats.RegChangeKind, then consider the change
 			// kind registered and stop
 			if callExpr, ok := firstArg.(*ast.CallExpr); ok {
 				if exprContainsChangeRegVar(callExpr, changeKindRegVars) {
@@ -170,7 +183,7 @@ func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
 			// complex scenario.
 			firstArgIdent, isIdent := firstArg.(*ast.Ident)
 			if !isIdent {
-				c.Errorf("First argument to NewChange at %s does not appear to be properly registered using swfeats.ChangeReg.Add.", fset.Position(call.Pos()))
+				c.Errorf("First argument to NewChange at %s does not appear to be properly registered using swfeats.RegChangeKind.", fset.Position(call.Pos()))
 				return true
 			}
 
@@ -192,7 +205,7 @@ func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
 			if isVarAssignedFromChangeRegVars(fn, firstArgIdent.Name, changeKindRegVars) {
 				return true
 			} else {
-				c.Errorf("NewChange call at %s does not appear to be properly registered using swfeats.ChangeReg.Add. The variable passed as a change kind (%q) should only be assigned values from the variable outputs of swfeats.ChangeReg.Add", fset.Position(call.Pos()), firstArgIdent.Name)
+				c.Errorf("NewChange call at %s does not appear to be properly registered using swfeats.RegChangeKind. The variable passed as a change kind (%q) should only be assigned values from the variable outputs of swfeats.RegChangeKind", fset.Position(call.Pos()), firstArgIdent.Name)
 			}
 			return true
 		})
@@ -222,7 +235,7 @@ func getGoFiles(dir string, excludePathsWithSubstring ...string) ([]string, erro
 	return goFiles, nil
 }
 
-// Extract variable names assigned with swfeats.ChangeReg.Add(...)
+// Extract variable names assigned with swfeats.RegChangeKind(...)
 func collectChangeRegAddVars(files []*ast.File) map[string]struct{} {
 	vars := make(map[string]struct{})
 

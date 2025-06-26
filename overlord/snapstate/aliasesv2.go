@@ -35,7 +35,7 @@ import (
 )
 
 func init() {
-	swfeats.EnsureReg.Add("SnapManager", "ensureAliasesV2")
+	swfeats.RegEnsure("SnapManager", "ensureAliasesV2")
 }
 
 // AliasTarget carries the targets of an alias in the context of snap.
