@@ -21,7 +21,7 @@ debug: |
     ip netns pids testns || true
 
 execute: |
-    if [ "$SNAPD_USE_PROXY" == true ]; then
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
         # TODO: Fix the issue
         tests.exec skip-test "This test fails when proxy is set for snapd" && exit 0
     fi

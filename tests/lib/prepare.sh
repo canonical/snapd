@@ -101,10 +101,8 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
-    # stop the socket (it pulls down the service)
-    systemctl stop snapd.socket
-    # start the service (it pulls up the socket)
-    systemctl start snapd.service
+    # restart the service (it pulls up the socket)
+    systemctl restart snapd.service
 }
 
 setup_system_proxy() {

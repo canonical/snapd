@@ -36,26 +36,94 @@ prepare_snap(){
     if [ -n "${no_proxy:-}" ]; then
         lxd.lxc profile set default environment.no_proxy "$no_proxy"
     fi
+
+    setup_instance_proxy
 }
 
-setup_proxy() {
-    INSTANCE=$1
-    FORCE_PROXY=${2:-}
-    if [ -z "$INSTANCE" ]; then
-        echo "Lxd instance is required"
+launch() {
+    local name params remote image
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --name)
+                name=$2
+                shift 2
+                ;;
+            --remote)
+                remote=$2
+                shift 2
+                ;;
+            --image)
+                image=$2
+                shift 2
+                ;;
+            --params)
+                params=$2
+                shift 2
+                ;;
+            *)
+                "lxd-state: parameter \"$1\" not supported"
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$name" ]; then
+        "lxd-state: instance name is required"
         exit 1
     fi
-    if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
-        #shellcheck disable=SC2153
-        lxc exec "$INSTANCE" -- sh -c "echo HTTPS_PROXY=$HTTPS_PROXY >> /etc/environment"
-        lxc exec "$INSTANCE" -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-        #shellcheck disable=SC2153
-        lxc exec "$INSTANCE" -- sh -c "echo HTTP_PROXY=$HTTP_PROXY >> /etc/environment"
-        lxc exec "$INSTANCE" -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-        #shellcheck disable=SC2153
-        lxc exec "$INSTANCE" -- sh -c "echo NO_PROXY=$NO_PROXY >> /etc/environment"
-        lxc exec "$INSTANCE" -- sh -c "echo no_proxy=$no_proxy >> /etc/environment"
+
+    if [ -z "$remote" ]; then
+        # There isn't an official image for noble yet, let's use the community one
+        remote=ubuntu
+        # There isn't an official image for 25.10 yet, let's use the daily one
+        if os.query is-ubuntu 25.10; then
+            remote=ubuntu-daily
+        fi
     fi
+    if [ -z "$image" ]; then
+        # shellcheck disable=SC1091
+        image="$(. /etc/os-release && echo "$VERSION_ID" )"
+    fi
+
+    # shellcheck disable=SC2086
+    lxc launch --quiet "${remote}:${image}" "$name" $params --config=user.user-data="$(cat lxd_proxy.yaml)"
+
+    # wait for cloud-init to finish before doing any apt operations
+    local ret=0
+    cloud-init status --wait || ret=$?
+    if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
+        echo "cloud-init finished with error $ret"
+        exit 1
+    fi
+}
+
+setup_instance_proxy() {
+    local snapd_https_proxy snapd_http_proxy snapd_no_proxy
+    snapd_https_proxy="$https_proxy"
+    snapd_http_proxy="$http_proxy"
+    snapd_no_proxy="$no_proxy"
+
+    if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
+       snapd_https_proxy="$https_proxy"
+       snapd_http_proxy="$http_proxy"
+       snapd_no_proxy="$no_proxy"
+    fi
+
+    cat <<EOF > lxd_proxy.yaml
+#cloud-config
+write_files:
+- path: /tmp/proxy_config.txt
+  content: |    
+    HTTPS_PROXY="$snapd_https_proxy"
+    HTTP_PROXY="$snapd_http_proxy"
+    NO_PROXY="$snapd_no_proxy"
+    https_proxy="$snapd_https_proxy"
+    http_proxy="$snapd_http_proxy"
+    no_proxy="$snapd_no_proxy"
+
+runcmd:
+  - cat /tmp/proxy_config.txt >> /etc/environment
+EOF
 }
 
 main() {
@@ -101,9 +169,9 @@ main() {
                 shift
                 prepare_snap "$@"
             ;;
-        setup-proxy)
+        launch)
                 shift
-                setup_proxy "$@"
+                launch "$@"
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2

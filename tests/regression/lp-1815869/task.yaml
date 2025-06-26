@@ -35,7 +35,7 @@ prepare: |
     "$TESTSTOOLS"/lxd-state prepare-snap
 
     # Launch a bionic container.
-    lxc launch --quiet ubuntu:bionic mycontainer
+    "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image bionic --name mycontainer
     "$TESTSTOOLS"/lxd-state setup-proxy mycontainer force
 
     # Install snapd we've built inside the container.

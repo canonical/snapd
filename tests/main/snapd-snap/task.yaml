@@ -45,7 +45,7 @@ environment:
     no_proxy: ppa.launchpad.net
 
 prepare: |
-    if [ "$SNAPD_USE_PROXY" == true ]; then
+    if [ "${SNAPD_USE_PROXY:-}" == true ]; then
         tests.exec skip-test "Snapcraft fails to snap snapd when the proxy is set" && exit 0
     fi
 

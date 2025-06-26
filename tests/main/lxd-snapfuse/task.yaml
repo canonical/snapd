@@ -22,15 +22,7 @@ execute: |
 
     echo "Install lxd"
     "$TESTSTOOLS"/lxd-state prepare-snap
-
-    REMOTE=ubuntu
-    # There isn't an official image for 25.10 yet, let's use the daily one
-    if os.query is-ubuntu 25.10; then
-        REMOTE=ubuntu-daily
-    fi
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-ubuntu
-    "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu
+    "$TESTSTOOLS"/lxd-state launch my-ubuntu
 
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"

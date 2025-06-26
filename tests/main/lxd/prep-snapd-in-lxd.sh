@@ -28,9 +28,6 @@ if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
     sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
 fi
 
-# wait for cloud-init to finish before doing any apt operations
-cloud-init status --wait
-
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
 

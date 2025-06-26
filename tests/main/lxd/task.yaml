@@ -92,15 +92,8 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    # There isn't an official image for noble yet, let's use the community one
-    REMOTE=ubuntu
-    # There isn't an official image for 25.10 yet, let's use the daily one
-    if os.query is-ubuntu 25.10; then
-        REMOTE=ubuntu-daily
-    fi
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-ubuntu
-    lxc launch --quiet "$REMOTE:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
+    "$TESTSTOOLS"/lxd-state launch --name my-ubuntu
+    "$TESTSTOOLS"/lxd-state launch --name my-nesting-ubuntu --params "-c security.nesting=true"
     
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
@@ -116,9 +109,6 @@ execute: |
     for cont_name in my-ubuntu my-nesting-ubuntu; do
         echo "Ensure we can run things inside"
         lxd.lxc exec $cont_name echo hello | MATCH hello
-
-        # Setup the proxy in the container
-        "$TESTSTOOLS"/lxd-state setup-proxy "$cont_name" force
 
         echo "Push snapd into container"
         lxd.lxc file push --quiet prep-snapd-in-lxd.sh "$cont_name/root/"
@@ -169,7 +159,16 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-inner-ubuntu
+    # There isn't an official image for noble yet, let's use the community one
+    REMOTE=ubuntu
+    # There isn't an official image for 25.10 yet, let's use the daily one
+    if os.query is-ubuntu 25.10; then
+        REMOTE=ubuntu-daily
+    fi
+    # shellcheck disable=SC1091
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-inner-ubuntu --config=user.user-data="$(cat lxd_proxy.yaml)"
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"

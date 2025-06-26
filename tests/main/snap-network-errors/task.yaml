@@ -9,7 +9,7 @@ details: |
 systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 
 restore: |
-    if [ "$SNAPD_USE_PROXY" != true ]; then
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         echo "Restoring iptables rules"
         iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
         iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
@@ -26,7 +26,7 @@ execute: |
 
     systemctl stop snapd.{socket,service}
 
-    if [ "$SNAPD_USE_PROXY" != true ]; then
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         echo "Disabling DNS queries"
         # DNS queries generally use port 53 through UDP protocol, but TCP could be used as well
         iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
@@ -35,7 +35,7 @@ execute: |
         # The proxy is unset to produce a network error when snapd tries to contact the store
         mv /etc/systemd/system/snapd.service.d/proxy.conf proxy.conf
         cp /etc/environment environment
-        cp /etc/environment.bak /etc/environment
+        cp "$SNAPD_WORK_DIR"/environment.bak /etc/environment
         systemctl daemon-reload
 
         tests.cleanup defer mv proxy.conf /etc/systemd/system/snapd.service.d/proxy.conf

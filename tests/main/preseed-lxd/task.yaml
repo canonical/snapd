@@ -74,7 +74,7 @@ restore: |
 
 execute: |
   echo "Create a trivial container using the lxd snap"
-  lxc launch "ubuntu:20.04" my-ubuntu
+  "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image 20.04 --name my-ubuntu
 
   echo "Wait for snapd to be ready in the container"
   lxc exec my-ubuntu -- snap wait system seed.loaded
