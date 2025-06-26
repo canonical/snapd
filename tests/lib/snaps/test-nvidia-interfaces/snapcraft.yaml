@@ -21,11 +21,12 @@ slots:
   # TODO sharing of i386 libs
   cuda:
     interface: cuda-driver-libs
-    api-version: 9 .. 12.4
+    compatibility: cuda-(9..12)
     source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
   gbm:
     interface: gbm-driver-libs
+    compatibility: gbmbackend-(0..2)-arch-64
     kernel-driver: nvidia-drm
     client-driver: libnvidia-allocator.so.1
     source:
