@@ -54,7 +54,6 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -327,7 +326,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		preinstallErrorDetails, err := secbootPreinstallCheck(ctx, images)
 		if err != nil {
