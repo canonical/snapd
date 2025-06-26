@@ -103,7 +103,7 @@ setup_instance_proxy() {
     snapd_http_proxy="$http_proxy"
     snapd_no_proxy="$no_proxy"
 
-    if [ "${SNAPD_USE_PROXY:-}" = true ] || [ "$FORCE_PROXY" = force ]; then
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
        snapd_https_proxy="$https_proxy"
        snapd_http_proxy="$http_proxy"
        snapd_no_proxy="$no_proxy"

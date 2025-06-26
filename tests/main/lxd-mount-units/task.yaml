@@ -22,7 +22,7 @@ execute: |
         core_snap=core22
     fi
 
-    "$TESTSTOOLS"/lxd-state launch ubuntu
+    "$TESTSTOOLS"/lxd-state launch --name ubuntu
 
     # wait for the container to be fully up
     # the retry is needed because of the error "Failed to connect to bus: No such file or directory"

@@ -48,7 +48,6 @@ prepare: |
   KEY_NAME=$(tests.nested download snakeoil-key)
 
   "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image 22.04 --name builder-for-22
-  "$TESTSTOOLS"/lxd-state setup-proxy builder-for-22
   lxcdir="/project/$(realpath --relative-to="${PROJECT_PATH}" "${PWD}")"
   lxc config device add builder-for-22 project disk source="${PROJECT_PATH}" path=/project shift=true
   lxc exec --cwd "${lxcdir}" \

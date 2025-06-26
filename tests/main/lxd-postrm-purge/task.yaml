@@ -24,7 +24,7 @@ prepare: |
     fi
     echo "Install lxd"
     "$TESTSTOOLS"/lxd-state prepare-snap
-    "$TESTSTOOLS"/lxd-state launch my-ubuntu
+    "$TESTSTOOLS"/lxd-state launch --name my-ubuntu
 
     # precondition check
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
@@ -40,9 +40,6 @@ prepare: |
     lxd.lxc file push --quiet prep-snapd-in-lxd.sh "my-ubuntu/root/"
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/root/"
     
-    # Setup the proxy in the container
-    "$TESTSTOOLS"/lxd-state setup-proxy my-ubuntu force
-
     echo "Install snapd in container"
     lxd.lxc exec my-ubuntu -- /root/prep-snapd-in-lxd.sh
 

@@ -8,7 +8,7 @@ systems: [ubuntu-2*]
 prepare: |
   echo "Install lxd"
   "$TESTSTOOLS"/lxd-state prepare-snap
-  "$TESTSTOOLS"/lxd-state launch ubuntu
+  "$TESTSTOOLS"/lxd-state launch --name ubuntu
 
   echo "Setting up proxy *inside* the container"
   if [ -n "${http_proxy:-}" ]; then
