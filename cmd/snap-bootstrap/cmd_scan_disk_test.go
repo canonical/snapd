@@ -139,7 +139,7 @@ func (s *scanDiskSuite) TestDetectBootDiskCVM(c *C) {
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
 	disk_probe := blkid.BuildFakeProbe(disk_values)
-	for _, partition := range []struct {
+	for i, partition := range []struct {
 		node  string
 		label string
 		uuid  string
@@ -147,10 +147,7 @@ func (s *scanDiskSuite) TestDetectBootDiskCVM(c *C) {
 		{"/dev/foop1", "SEED", "6ae5a792-912e-43c9-ac92-e36723bbda12"},
 		{"/dev/foop2", "BOOT", "29261148-b8ba-4335-b934-417ed71e9e91"},
 	} {
-		values := make(map[string]string)
-		values["PART_ENTRY_UUID"] = partition.uuid
-		s.probeMap[partition.node] = blkid.BuildFakeProbe(values)
-		disk_probe.AddPartition(partition.label, partition.uuid)
+		s.probeMap[partition.node] = disk_probe.AddPartitionProbe(partition.label, partition.uuid, i+1)
 	}
 	s.probeMap["/dev/foo"] = disk_probe
 
