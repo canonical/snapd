@@ -128,7 +128,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("add-recovery-keys", m.doAddRecoveryKeys, nil)
 	runner.AddHandler("remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("rename-keys", m.doRenameKeys, nil)
-	runner.AddHandler("change-auth-keys", m.doChangeAuthKeys, nil)
+	runner.AddHandler("fde-change-auth-keys", m.doChangeAuthKeys, nil)
 
 	return m, nil
 }

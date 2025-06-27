@@ -99,7 +99,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		},
 	}
 	for _, tc := range tcs {
-		task := s.st.NewTask("change-auth-keys", "test")
+		task := s.st.NewTask("fde-change-auth-keys", "test")
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
 

@@ -315,7 +315,7 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, defaultKeys
 	tsks := ts.Tasks()
 	c.Check(tsks, HasLen, 1)
 
-	c.Check(tsks[0].Kind(), Equals, "change-auth-keys")
+	c.Check(tsks[0].Kind(), Equals, "fde-change-auth-keys")
 	switch authMode {
 	case device.AuthModePassphrase:
 		c.Check(tsks[0].Summary(), Matches, "Change passphrase protected key slots")

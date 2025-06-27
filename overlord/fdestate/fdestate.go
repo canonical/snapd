@@ -583,7 +583,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	case device.AuthModePassphrase:
 		summary = "Change passphrase protected key slots"
 	}
-	changeAuth := st.NewTask("change-auth-keys", summary)
+	changeAuth := st.NewTask("fde-change-auth-keys", summary)
 	changeAuth.Set("keyslots", keyslotRefs)
 	changeAuth.Set("auth-mode", authMode)
 	ts.AddTask(changeAuth)
