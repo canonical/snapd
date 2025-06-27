@@ -574,6 +574,9 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	}
 
 	// Auth data must be in memory to avoid leaking credentials.
+	if st.Cached(changeAuthOptionsKey{}) != nil {
+		logger.Noticef("WARNING: authentication change options already exists in memory")
+	}
 	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
 
 	ts := state.NewTaskSet()

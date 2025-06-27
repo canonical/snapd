@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -272,7 +273,7 @@ func (s *fdeMgrSuite) mockCurrentKeys(c *C, rkeys, unlockKeys []fdestate.Keyslot
 	}))
 }
 
-func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, defaultKeyslots bool) {
+func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning, defaultKeyslots bool) {
 	keyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default"},
 	}
@@ -302,6 +303,14 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, defaultKeys
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+	if withWarning {
+		s.st.Unlock()
+		defer fdestate.MockChangeAuthOptionsInCache(s.st, "old-stale", "new-stale")()
+		s.st.Lock()
+	}
 
 	var ts *state.TaskSet
 	var err error
@@ -335,18 +344,33 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, defaultKeys
 	authOptions := fdestate.GetChangeAuthOptionsFromCache(s.st)
 	c.Check(authOptions.OldPassphrase(), Equals, "old")
 	c.Check(authOptions.NewPassphrase(), Equals, "new")
+
+	if withWarning {
+		c.Check(logBuf.String(), Matches, ".*WARNING: authentication change options already exists in memory\n")
+	} else {
+		c.Check(logBuf.Len(), Equals, 0)
+	}
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePassphrase(c *C) {
-	const defaultKeyslots = false
 	const authMode = device.AuthModePassphrase
-	s.testChangeAuth(c, authMode, defaultKeyslots)
+	const withWarning = false
+	const defaultKeyslots = false
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthWithCachedAuthOptionsWarning(c *C) {
+	const authMode = device.AuthModePassphrase
+	const withWarning = true
+	const defaultKeyslots = false
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePassphraseDefaultKeyslots(c *C) {
-	const defaultKeyslots = true
 	const authMode = device.AuthModePassphrase
-	s.testChangeAuth(c, authMode, defaultKeyslots)
+	const withWarning = false
+	const defaultKeyslots = true
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePIN(c *C) {
