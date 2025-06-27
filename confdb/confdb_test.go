@@ -173,7 +173,7 @@ func (*viewSuite) TestNewConfdb(c *C) {
 		cmt := Commentf("test number %d", i+1)
 		confdb, err := confdb.NewSchema("acc", "foo", tc.confdb, confdb.NewJSONSchema())
 		if tc.err != "" {
-			c.Assert(err, NotNil)
+			c.Assert(err, NotNil, cmt)
 			c.Assert(err.Error(), Equals, tc.err, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
@@ -2964,6 +2964,7 @@ func (*viewSuite) TestRequestMatch(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a[1].bar", "storage": "b[1].bar"},
+				map[string]any{"request": "c", "storage": "d", "content": []any{map[string]any{"storage": "[0].bar"}}},
 				map[string]any{"request": "a[{n}].baz", "storage": "b[{n}].baz"},
 			},
 		},
@@ -2980,6 +2981,11 @@ func (*viewSuite) TestRequestMatch(c *C) {
 	c.Assert(err, IsNil)
 	match = confdb.RequestMatch(matches[0])
 	c.Assert(match.StoragePath(), Equals, "b[1].baz")
+
+	matches, err = view.MatchGetRequest("c[0].bar")
+	c.Assert(err, IsNil)
+	match = confdb.RequestMatch(matches[0])
+	c.Assert(match.StoragePath(), Equals, "d[0].bar")
 
 	// prefix match
 	matches, err = view.MatchGetRequest("a")
