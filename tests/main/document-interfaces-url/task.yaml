@@ -51,6 +51,8 @@ execute: |
     # as well as a link to it on https://snapcraft.io/docs/supported-interfaces
     exclusion_map["checkbox-support"]="2025/06"
 
+    exclusion_map["kerberos-tickets"]="2025/08"
+
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
     exclude() { 
