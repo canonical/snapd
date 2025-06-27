@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -212,6 +213,40 @@ func (s *accessSuite) TestRootAccess(c *C) {
 	// Root is granted access
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	c.Check(ac.CheckAccess(nil, nil, ucred, nil), IsNil)
+}
+
+func (s *accessSuite) TestRootAccessPolkit(c *C) {
+	var ac daemon.AccessChecker = daemon.RootAccess{Polkit: "action-id"}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	user := &auth.UserState{}
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+
+	// polkit is not checked if any of:
+	//   * ucred is missing
+	//   * user is root
+	restore := daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Fail()
+		return daemon.Forbidden("access denied")
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
+
+	// polkit is checked for regular users with or without macaroon auth
+	called := 0
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
+		called++
+		c.Check(r, Equals, req)
+		c.Check(u, Equals, ucred)
+		c.Check(action, Equals, "action-id")
+		return nil
+	})
+	defer restore()
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
+	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, req, ucred, user), IsNil)
+	c.Check(called, Equals, 2)
 }
 
 func (s *accessSuite) TestSnapAccess(c *C) {
@@ -601,6 +636,309 @@ plugs:
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
 }
 
+func (s *accessSuite) TestInterfaceProviderRootAccessPolkit(c *C) {
+	d := s.daemon(c)
+	s.mockSnap(c, `
+name: fwupd-app
+type: app
+version: 1
+slots:
+  fwupd-provider:
+    interface: fwupd
+  `)
+	s.mockSnap(c, `
+name: connected-fwupd-caller
+version: 1
+plugs:
+  fwupd-consumer:
+    interface: fwupd
+`)
+
+	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		switch pid {
+		case 42:
+			return "fwupd-app", nil
+		case 1042:
+			return "connected-fwupd-caller", nil
+		default:
+			return "", fmt.Errorf("not a snap")
+		}
+	})
+	defer restore()
+
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]any{
+			"interface": "fwupd",
+		},
+	})
+	st.Unlock()
+
+	var ac daemon.AccessChecker = daemon.InterfaceProviderRootAccess{
+		Polkit:     "action-id",
+		Interfaces: []string{"fwupd"},
+	}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	user := &auth.UserState{}
+
+	// polkit is not checked if any of:
+	//   * ucred is missing
+	//   * user is root
+	//   * snap request (as root) with relevant connected slot
+	//   * snap request without relevant connected slot
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Fail()
+		return daemon.Forbidden("access denied")
+	})
+	defer restore()
+	// ucred is missing
+	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
+	// user is root (on snapd.socket)
+	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
+	// snap request (as root) with relevant connected slot (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}, nil), IsNil)
+	// snap request without relevant connected slot (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}, user), DeepEquals, errForbidden)
+
+	// polkit is checked for snaps with connected slot
+	called := 0
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
+		called++
+		c.Check(r, Equals, req)
+		c.Check(action, Equals, "action-id")
+		return nil
+	})
+	defer restore()
+	// regular user (on snapd.socket)
+	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 1001, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
+	// snap request (with macaroon) with relevant connected slot (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 42, Socket: dirs.SnapSocket}, user), IsNil)
+	// snap request (without macaroon) with relevant connected slot (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 42, Socket: dirs.SnapSocket}, nil), IsNil)
+	c.Check(called, Equals, 3)
+}
+
+func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {
+	restore := daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		// Polkit is not consulted if no action is specified
+		c.Fail()
+		return errForbidden
+	})
+	defer restore()
+
+	var ac daemon.AccessChecker = daemon.InterfaceRootAccess{
+		Interfaces: []string{"fwupd"},
+	}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	s.daemon(c)
+
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
+
+	// mock and check whether correct arguments are passed
+	called := 0
+	restore = daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
+	) *daemon.APIError {
+		c.Check(d, Equals, s.d)
+		c.Check(u, Equals, ucred)
+		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
+			Interfaces: []string{"fwupd"},
+			Plug:       true,
+		})
+		called++
+		return errForbidden
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Assert(called, Equals, 1)
+}
+
+func (s *accessSuite) TestInterfaceRootAccessChecks(c *C) {
+	d := s.daemon(c)
+	s.mockSnap(c, `
+name: fwupd-app
+type: app
+version: 1
+slots:
+  fwupd-provider:
+    interface: fwupd
+  `)
+	s.mockSnap(c, `
+name: connected-fwupd-caller
+version: 1
+plugs:
+  fwupd-consumer:
+    interface: fwupd
+`)
+
+	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		switch pid {
+		case 42:
+			return "fwupd-app", nil
+		case 1042:
+			return "connected-fwupd-caller", nil
+		default:
+			return "", fmt.Errorf("not a snap")
+		}
+	})
+	defer restore()
+
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		// Polkit is not consulted if no action is specified
+		c.Fail()
+		return errForbidden
+	})
+	defer restore()
+
+	var ac daemon.AccessChecker = daemon.InterfaceRootAccess{
+		Interfaces: []string{"fwupd"},
+	}
+
+	user := &auth.UserState{}
+
+	// connected-fwupd-caller, but unconnected and over snap socket
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
+	req := &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+
+	// Now connect connected-fwupd-caller (plug) to fwupd-app (slot)
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]any{
+			"interface": "fwupd",
+		},
+	})
+	st.Unlock()
+
+	// connected-fwupd-caller, connected on the plug side
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+
+	// fwupd-app, connected on the slot side
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+
+	// normal user has no access even with a Macaroon auth
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 1042, Socket: dirs.SnapSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errUnauthorized)
+
+	// Without macaroon auth, normal users are unauthorized
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+
+	// on snapd socket, non-root is unauthorized
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 123, Socket: dirs.SnapdSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+
+	// but root is
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 123, Socket: dirs.SnapdSocket}
+	req = &http.Request{
+		RemoteAddr: ucred.String(),
+	}
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+}
+
+func (s *accessSuite) TestInterfaceRootAccessPolkit(c *C) {
+	d := s.daemon(c)
+	s.mockSnap(c, `
+name: fwupd-app
+type: app
+version: 1
+slots:
+  fwupd-provider:
+    interface: fwupd
+  `)
+	s.mockSnap(c, `
+name: connected-fwupd-caller
+version: 1
+plugs:
+  fwupd-consumer:
+    interface: fwupd
+`)
+
+	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		switch pid {
+		case 42:
+			return "fwupd-app", nil
+		case 1042:
+			return "connected-fwupd-caller", nil
+		default:
+			return "", fmt.Errorf("not a snap")
+		}
+	})
+	defer restore()
+
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]any{
+		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]any{
+			"interface": "fwupd",
+		},
+	})
+	st.Unlock()
+
+	var ac daemon.AccessChecker = daemon.InterfaceRootAccess{
+		Polkit:     "action-id",
+		Interfaces: []string{"fwupd"},
+	}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	user := &auth.UserState{}
+
+	// polkit is not checked if any of:
+	//   * ucred is missing
+	//   * user is root
+	//   * snap request (as root) with relevant connected plug
+	//   * snap request without relevant connected plug
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Fail()
+		return daemon.Forbidden("access denied")
+	})
+	defer restore()
+	// ucred is missing
+	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
+	// user is root (on snapd.socket)
+	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
+	// snap request (as root) with relevant connected plug (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}, nil), IsNil)
+	// snap request without relevant connected plug (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}, user), DeepEquals, errForbidden)
+
+	// polkit is checked for snaps with connected plug
+	called := 0
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
+		called++
+		c.Check(r, Equals, req)
+		c.Check(action, Equals, "action-id")
+		return nil
+	})
+	defer restore()
+	// regular user (on snapd.socket)
+	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 1001, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
+	// snap request (with macaroon) with relevant connected plug (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 1042, Socket: dirs.SnapSocket}, user), IsNil)
+	// snap request (without macaroon) with relevant connected plug (on snapd-snap.socket)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 1042, Socket: dirs.SnapSocket}, nil), IsNil)
+	c.Check(called, Equals, 3)
+}
+
 func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
 	d := s.daemon(c)
 	req := &http.Request{}
@@ -634,4 +972,127 @@ func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
 			Interfaces: []string{"foo"},
 		}),
 		DeepEquals, errForbidden)
+}
+
+func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {
+	rawBody := fmt.Sprintf(`{"action": "%s"}`, action)
+	if malformed {
+		rawBody = "}this is not json{"
+	}
+	body := strings.NewReader(rawBody)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	if isJSON {
+		req.Header.Add("Content-Type", "application/json")
+	}
+	return req
+}
+
+func (s *accessSuite) TestByActionAccess(c *C) {
+	byAction := map[string]daemon.AccessChecker{
+		"action-1": daemon.RootAccess{},
+		"action-2": daemon.AuthenticatedAccess{},
+		"action-3": daemon.OpenAccess{},
+	}
+
+	var ac daemon.AccessChecker = daemon.ByActionAccess{
+		ByAction: byAction,
+		Default:  daemon.RootAccess{},
+	}
+
+	type testcase struct {
+		ucred       daemon.Ucrednet
+		expectedErr map[string]*daemon.APIError
+		noAuth      bool
+		notJSON     bool
+		malformed   bool
+	}
+
+	tcs := []testcase{
+		{
+			ucred:  daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket},
+			noAuth: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred: daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:  daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			noAuth: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errUnauthorized,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:   daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			notJSON: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:     daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			malformed: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:  daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			noAuth: true,
+		},
+		{
+			ucred:   daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			notJSON: true,
+			noAuth:  true,
+		},
+		{
+			ucred:     daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			malformed: true,
+			noAuth:    true,
+		},
+	}
+
+	for idx, tc := range tcs {
+		user := &auth.UserState{}
+		if tc.noAuth {
+			user = nil
+		}
+
+		for action := range byAction {
+			cmt := Commentf("sub-test tcs[%d] failed for action %q", idx, action)
+			err := ac.CheckAccess(nil, reqWithAction(c, action, !tc.notJSON, tc.malformed), &tc.ucred, user)
+			if expectedErr := tc.expectedErr[action]; err != nil {
+				c.Check(err, DeepEquals, expectedErr, cmt)
+			} else {
+				c.Check(err, IsNil, cmt)
+			}
+		}
+
+		cmt := Commentf("sub-test tcs[%d] failed for default action", idx)
+		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), &tc.ucred, user)
+		if expectedErr := tc.expectedErr["default"]; err != nil {
+			c.Check(err, DeepEquals, expectedErr, cmt)
+		} else {
+			c.Check(err, IsNil, cmt)
+		}
+	}
 }

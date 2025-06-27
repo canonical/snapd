@@ -20,7 +20,10 @@
 package daemon
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -133,7 +136,9 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
-type rootAccess struct{}
+type rootAccess struct {
+	Polkit string
+}
 
 func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if rspe := requireSnapdSocket(ucred); rspe != nil {
@@ -143,6 +148,14 @@ func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 	if ucred.Uid == 0 {
 		return nil
 	}
+
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
 	return Forbidden("access denied")
 }
 
@@ -299,6 +312,7 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 // and are present on the slot side of that connection.
 type interfaceProviderRootAccess struct {
 	Interfaces []string
+	Polkit     string
 }
 
 func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -314,7 +328,93 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 		return nil
 	}
 
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
 	return Unauthorized("access denied")
+}
+
+// interfaceRootAccess behaves like rootAccess, but also allows requests
+// over snapd-snap.socket for snaps that have a connection of specific interface
+// and are present on the plug side of that connection.
+type interfaceRootAccess struct {
+	Interfaces []string
+	Polkit     string
+}
+
+func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	rsperr := requireInterfaceApiAccess(d, r, ucred, interfaceAccessReqs{
+		Interfaces: ac.Interfaces,
+		Plug:       true,
+	})
+	if rsperr != nil {
+		return rsperr
+	}
+
+	if ucred.Uid == 0 {
+		return nil
+	}
+
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
+	return Unauthorized("access denied")
+}
+
+type actionRequest struct {
+	Action string `json:"action"`
+}
+
+type byActionAccess struct {
+	// ByAction maps from detected request action to access checker.
+	ByAction map[string]accessChecker
+	// Default is the fallback access checker if no action was matched
+	// which could happen if:
+	//   - Content type is not "application/json"
+	//   - JSON body is malformed
+	//   - No action is passed
+	//   - Action is not found under ByAction
+	//
+	// This should be as strict as possible, e.g. rootAccess.
+	Default accessChecker
+}
+
+func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if r.Header.Get("Content-Type") != "application/json" {
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	bodyBuf := new(bytes.Buffer)
+	checkerBuf := new(bytes.Buffer)
+	w := io.MultiWriter(bodyBuf, checkerBuf)
+	if _, err := io.Copy(w, r.Body); err != nil {
+		return InternalError("cannot copy body")
+	}
+	r.Body.Close()
+	r.Body = io.NopCloser(bodyBuf)
+
+	req := actionRequest{}
+
+	decoder := json.NewDecoder(checkerBuf)
+	if err := decoder.Decode(&req); err != nil {
+		// JSON is malformed, fallback to default checker
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	checker := ac.ByAction[req.Action]
+	if checker == nil {
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	return checker.CheckAccess(d, r, ucred, user)
 }
 
 // isRequestFromSnapCmd checks that the request is coming from snap command.
