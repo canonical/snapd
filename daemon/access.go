@@ -136,7 +136,9 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
-type rootAccess struct{}
+type rootAccess struct {
+	Polkit string
+}
 
 func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if rspe := requireSnapdSocket(ucred); rspe != nil {
@@ -146,6 +148,14 @@ func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 	if ucred.Uid == 0 {
 		return nil
 	}
+
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
 	return Forbidden("access denied")
 }
 
@@ -302,6 +312,7 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 // and are present on the slot side of that connection.
 type interfaceProviderRootAccess struct {
 	Interfaces []string
+	Polkit     string
 }
 
 func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -317,6 +328,13 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 		return nil
 	}
 
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
 	return Unauthorized("access denied")
 }
 
@@ -325,6 +343,7 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 // and are present on the plug side of that connection.
 type interfaceRootAccess struct {
 	Interfaces []string
+	Polkit     string
 }
 
 func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -338,6 +357,13 @@ func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 
 	if ucred.Uid == 0 {
 		return nil
+	}
+
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
 	}
 
 	return Unauthorized("access denied")
