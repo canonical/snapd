@@ -35,6 +35,7 @@ type (
 	InterfaceOpenAccess          = interfaceOpenAccess
 	InterfaceAuthenticatedAccess = interfaceAuthenticatedAccess
 	InterfaceProviderRootAccess  = interfaceProviderRootAccess
+	InterfaceRootAccess          = interfaceRootAccess
 	ByActionAccess               = byActionAccess
 
 	InterfaceAccessReqs = interfaceAccessReqs

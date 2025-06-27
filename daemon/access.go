@@ -320,6 +320,29 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 	return Unauthorized("access denied")
 }
 
+// interfaceRootAccess behaves like rootAccess, but also allows requests
+// over snapd-snap.socket for snaps that have a connection of specific interface
+// and are present on the plug side of that connection.
+type interfaceRootAccess struct {
+	Interfaces []string
+}
+
+func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	rsperr := requireInterfaceApiAccess(d, r, ucred, interfaceAccessReqs{
+		Interfaces: ac.Interfaces,
+		Plug:       true,
+	})
+	if rsperr != nil {
+		return rsperr
+	}
+
+	if ucred.Uid == 0 {
+		return nil
+	}
+
+	return Unauthorized("access denied")
+}
+
 type actionRequest struct {
 	Action string `json:"action"`
 }
