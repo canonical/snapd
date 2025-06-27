@@ -48,6 +48,8 @@ var (
 	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
 
 	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+
+	CheckFDEChangeConflict = checkFDEChangeConflict
 )
 
 type ExternalOperation = externalOperation

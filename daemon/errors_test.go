@@ -122,7 +122,7 @@ func (e fakeNetError) Temporary() bool { return e.temporary }
 func (s *errorsSuite) TestErrToResponse(c *C) {
 	aie := &snap.AlreadyInstalledError{Snap: "foo"}
 	nie := &snap.NotInstalledError{Snap: "foo"}
-	cce := &snapstate.ChangeConflictError{Snap: "foo"}
+	scce := &snapstate.ChangeConflictError{Snap: "foo"}
 	ndme := &snapstate.SnapNeedsDevModeError{Snap: "foo"}
 	nc := &snapstate.SnapNotClassicError{Snap: "foo"}
 	nce := &snapstate.SnapNeedsClassicError{Snap: "foo"}
@@ -165,7 +165,7 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo"), false},
 		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo"), false},
 		{ncse, makeErrorRsp(client.ErrorKindSnapNeedsClassicSystem, ncse, "foo"), false},
-		{cce, daemon.SnapChangeConflict(cce), false},
+		{scce, daemon.SnapChangeConflict(scce), false},
 		{nettoute, makeErrorRsp(client.ErrorKindNetworkTimeout, nettoute, ""), false},
 		{netoe, daemon.BadRequest("ERR: %v", netoe), false},
 		{nettmpe, daemon.BadRequest("ERR: %v", nettmpe), false},

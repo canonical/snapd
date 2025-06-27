@@ -21,12 +21,18 @@
 package fdestate_test
 
 import (
+	"errors"
+	"fmt"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -69,6 +75,40 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"})
 	}
 
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		switch devicePath {
+		case "/dev/disk/by-uuid/aaa":
+			return []string{"default-recovery"}, nil
+		case "/dev/disk/by-uuid/bbb":
+			return []string{"default-recovery"}, nil
+		default:
+			return nil, fmt.Errorf("unexpected devicePath %q", devicePath)
+		}
+	})()
+
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		switch devicePath {
+		case "/dev/disk/by-uuid/aaa":
+			return []string{}, nil
+		case "/dev/disk/by-uuid/bbb":
+			return []string{}, nil
+		default:
+			return nil, fmt.Errorf("unexpected devicePath %q", devicePath)
+		}
+	})()
+
 	// initialize fde manager
 	onClassic := true
 	manager := s.startedManager(c, onClassic)
@@ -91,7 +131,7 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	c.Check(tsks, HasLen, 3)
 
 	c.Check(tsks[0].Summary(), Matches, "Add temporary recovery key slots")
-	c.Check(tsks[0].Kind(), Equals, "add-recovery-keys")
+	c.Check(tsks[0].Kind(), Equals, "fde-add-recovery-keys")
 	// check recovery key ID is passed to task
 	var tskRecoveryKeyID string
 	c.Assert(tsks[0].Get("recovery-key-id", &tskRecoveryKeyID), IsNil)
@@ -102,36 +142,29 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
 
 	c.Check(tsks[1].Summary(), Matches, "Remove old recovery key slots")
-	c.Check(tsks[1].Kind(), Equals, "remove-keys")
+	c.Check(tsks[1].Kind(), Equals, "fde-remove-keys")
 	// check target key slots are passed to task
 	c.Assert(tsks[1].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, keyslots)
 
 	c.Check(tsks[2].Summary(), Matches, "Rename temporary recovery key slots")
-	c.Check(tsks[2].Kind(), Equals, "rename-keys")
+	c.Check(tsks[2].Kind(), Equals, "fde-rename-keys")
 	// check tmp key slots are passed to task
 	c.Assert(tsks[2].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
 	// and renames are also passed
-	var renames []string
+	var renames map[string]string
 	c.Assert(tsks[2].Get("renames", &renames), IsNil)
 	if defaultKeyslots {
-		c.Check(renames, DeepEquals, []string{"default-recovery", "default-recovery"})
+		c.Check(renames, DeepEquals, map[string]string{
+			`(container-role: "system-data", name: "snapd-tmp:default-recovery")`: "default-recovery",
+			`(container-role: "system-save", name: "snapd-tmp:default-recovery")`: "default-recovery",
+		})
 	} else {
-		c.Check(renames, DeepEquals, []string{"default-recovery"})
+		c.Check(renames, DeepEquals, map[string]string{
+			`(container-role: "system-data", name: "snapd-tmp:default-recovery")`: "default-recovery",
+		})
 	}
-
-	chg := s.st.NewChange("", "")
-	chg.AddAll(ts)
-
-	s.settle(c)
-
-	// TODO:FDEM: this should intentionally break after relevant tasks are implemented
-	c.Check(tsks[0].Status(), Equals, state.DoneStatus)
-	c.Check(tsks[1].Status(), Equals, state.DoneStatus)
-	c.Check(tsks[2].Status(), Equals, state.DoneStatus)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Err(), IsNil)
 }
 
 func (s *fdeMgrSuite) TestReplaceRecoveryKey(c *C) {
@@ -161,14 +194,31 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 		return mockStore
 	})()
 
+	// mock no existing key slots, except one non-recovery keyslot
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "aaa", nil
+		case dirs.SnapSaveDir:
+			return "bbb", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	})()
+	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
+		return nil, nil
+	})()
+	defer fdestate.MockSecbootListContainerUnlockKeyNames(func(devicePath string) ([]string, error) {
+		if devicePath == "/dev/disk/by-uuid/aaa" {
+			return []string{"default-recovery"}, nil
+		}
+		return nil, nil
+	})()
+
 	// initialize fde manager
 	onClassic := true
 	s.startedManager(c, onClassic)
 
-	keyslots := []fdestate.KeyslotRef{
-		{ContainerRole: "system-data", Name: "default-recovery"},
-		{ContainerRole: "system-save", Name: "default-recovery"},
-	}
+	keyslots := []fdestate.KeyslotRef{{ContainerRole: "system-save", Name: "default-recovery"}}
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -190,6 +240,26 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-fallback"\): unsupported name, expected "default-recovery"`)
+
+	// invalid keyslot
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported type "platform", expected "recovery"`)
+
+	// missing keyslots
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-recovery"\) not found`)
+	var notFoundErr *fdestate.KeyslotRefsNotFoundError
+	c.Assert(errors.As(err, &notFoundErr), Equals, true)
+	c.Check(notFoundErr.KeyslotRefs, DeepEquals, keyslots)
+
+	// change conflict
+	chg := s.st.NewChange("fde-replace-recovery-key", "")
+	task := s.st.NewTask("some-fde-task", "")
+	chg.AddTask(task)
+	_, err = fdestate.ReplaceRecoveryKey(s.st, "good-key-id", keyslots)
+	c.Assert(err, ErrorMatches, `replacing recovery key in progress, no other FDE changes allowed until this is done`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {

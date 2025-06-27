@@ -125,9 +125,20 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		return false
 	})
 
-	runner.AddHandler("add-recovery-keys", m.doAddRecoveryKeys, nil)
-	runner.AddHandler("remove-keys", m.doRemoveKeys, nil)
-	runner.AddHandler("rename-keys", m.doRenameKeys, nil)
+	runner.AddHandler("fde-add-recovery-keys", m.doAddRecoveryKeys, nil)
+	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
+	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
+	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
+		if isFDETask(t) {
+			for _, tRunning := range running {
+				if isFDETask(tRunning) {
+					// prevent two fde operations from running in parallel
+					return true
+				}
+			}
+		}
+		return false
+	})
 
 	return m, nil
 }
@@ -308,6 +319,11 @@ type Keyslot struct {
 	keyData secboot.KeyData
 }
 
+// Ref returns the corresponding key slot reference.
+func (k *Keyslot) Ref() KeyslotRef {
+	return KeyslotRef{ContainerRole: k.ContainerRole, Name: k.Name}
+}
+
 // KeyData returns secboot.KeyData corresponding to the keyslot.
 // This can only be called for KeyslotTypePlatform.
 //
@@ -404,6 +420,7 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 		keyslots = append(keyslots, matchedContainerKeyslots...)
 	}
 
+	// XXX: return error if len(keyslots) != keyslotRefs to indicate duplicates?
 	return keyslots, missingRefs, nil
 }
 

@@ -408,8 +408,8 @@ func MockSecbootGetPCRHandle(f func(devicePath, keySlot, keyFile string, hintExp
 // KeyslotRef uniquely identifies a target key slot by
 // its container role and name.
 type KeyslotRef struct {
-	ContainerRole string `json:"container-role"`
 	Name          string `json:"name"`
+	ContainerRole string `json:"container-role"`
 }
 
 func (k KeyslotRef) String() string {
@@ -431,9 +431,17 @@ func (k KeyslotRef) Validate() error {
 	return nil
 }
 
-func checkRecoveryKeyIDExists(st *state.State, recoveryKeyID string) error {
-	mgr := fdeMgr(st)
-	rkeyInfo, err := mgr.recoveryKeyCache.Key(recoveryKeyID)
+const tmpKeyslotPrefix = "snapd-tmp"
+
+func tmpKeyslotRef(ref KeyslotRef) KeyslotRef {
+	return KeyslotRef{
+		Name:          fmt.Sprintf("%s:%s", tmpKeyslotPrefix, ref.Name),
+		ContainerRole: ref.ContainerRole,
+	}
+}
+
+func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
+	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
 		return err
 	}
@@ -443,65 +451,81 @@ func checkRecoveryKeyIDExists(st *state.State, recoveryKeyID string) error {
 	return nil
 }
 
-const tmpKeyslotPrefix = "snapd-tmp"
-
-func tmpKeyslotTarget(keyslot KeyslotRef) KeyslotRef {
-	return KeyslotRef{
-		ContainerRole: keyslot.ContainerRole,
-		Name:          fmt.Sprintf("%s:%s", tmpKeyslotPrefix, keyslot.Name),
-	}
-}
-
 // ReplaceRecoveryKey creates a taskset that replaces the
 // recovery key for the specified target key slots using
 // the recovery key identified by recoveryKeyID.
 //
-// If keyslots is empty, the "default-recovery" key slot is
+// If keyslotRefs is empty, the "default-recovery" key slot is
 // used by default for both the "system-data" and "system-save"
 // container roles.
-func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []KeyslotRef) (*state.TaskSet, error) {
-	if len(keyslots) == 0 {
+//
+// If any key slot from keyslotRefs does not exist, a KeyslotRefsNotFoundError is returned.
+func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	if len(keyslotRefs) == 0 {
 		// target default-recovery key slots by default if no key slot targets are specified
-		keyslots = append(keyslots,
+		keyslotRefs = append(keyslotRefs,
 			KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"},
 			KeyslotRef{ContainerRole: "system-save", Name: "default-recovery"},
 		)
 	}
 
-	tmpKeyslots := make([]KeyslotRef, 0, len(keyslots))
-	tmpKeyslotRenames := make([]string, 0, len(keyslots))
-	for _, keyslot := range keyslots {
-		if err := keyslot.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslot.String(), err)
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
 		}
 		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
-		if keyslot.Name != "default-recovery" {
-			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslot.String())
+		if keyslotRef.Name != "default-recovery" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslotRef.String())
 		}
 
-		tmpKeyslot := tmpKeyslotTarget(keyslot)
-		tmpKeyslots = append(tmpKeyslots, tmpKeyslot)
-		tmpKeyslotRenames = append(tmpKeyslotRenames, keyslot.Name)
+		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
 	}
 
-	if err := checkRecoveryKeyIDExists(st, recoveryKeyID); err != nil {
+	// Note: checking that there are no ongoing conflicting changes and that the
+	// targeted key slots exist while state is locked ensures that we don't suffer
+	// from TOCTOU.
+
+	if err := checkFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	fdemgr := fdeMgr(st)
+
+	if err := checkRecoveryKeyIDExists(fdemgr, recoveryKeyID); err != nil {
 		return nil, fmt.Errorf("invalid recovery key ID: %v", err)
+	}
+
+	currentKeyslots, missing, err := fdemgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+	if len(missing) != 0 {
+		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+	for _, keyslot := range currentKeyslots {
+		if keyslot.Type != KeyslotTypeRecovery {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypeRecovery)
+		}
 	}
 
 	ts := state.NewTaskSet()
 
-	addTemporaryRecoveryKeys := st.NewTask("add-recovery-keys", "Add temporary recovery key slots")
+	addTemporaryRecoveryKeys := st.NewTask("fde-add-recovery-keys", "Add temporary recovery key slots")
 	addTemporaryRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
-	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslots)
+	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
 	ts.AddTask(addTemporaryRecoveryKeys)
 
-	removeOldRecoveryKeys := st.NewTask("remove-keys", "Remove old recovery key slots")
-	removeOldRecoveryKeys.Set("keyslots", keyslots)
+	removeOldRecoveryKeys := st.NewTask("fde-remove-keys", "Remove old recovery key slots")
+	removeOldRecoveryKeys.Set("keyslots", keyslotRefs)
 	removeOldRecoveryKeys.WaitFor(addTemporaryRecoveryKeys)
 	ts.AddTask(removeOldRecoveryKeys)
 
-	renameTemporaryRecoveryKeys := st.NewTask("rename-keys", "Rename temporary recovery key slots")
-	renameTemporaryRecoveryKeys.Set("keyslots", tmpKeyslots)
+	renameTemporaryRecoveryKeys := st.NewTask("fde-rename-keys", "Rename temporary recovery key slots")
+	renameTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
 	renameTemporaryRecoveryKeys.Set("renames", tmpKeyslotRenames)
 	renameTemporaryRecoveryKeys.WaitFor(removeOldRecoveryKeys)
 	ts.AddTask(renameTemporaryRecoveryKeys)
