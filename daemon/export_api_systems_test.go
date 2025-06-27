@@ -75,10 +75,8 @@ func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label 
 	return testutil.Mock(&devicestateGeneratePreInstallRecoveryKey, f)
 }
 
-func MockDeviceValidatePassphraseOrPINEntropy(f func(device.AuthMode, string) error) (restore func()) {
-	restore = testutil.Backup(&deviceValidatePassphraseOrPINEntropy)
-	deviceValidatePassphraseOrPINEntropy = f
-	return restore
+func MockDeviceValidatePassphrase(f func(mode device.AuthMode, passphrase string) (device.AuthQuality, error)) (restore func()) {
+	return testutil.Mock(&deviceValidatePassphrase, f)
 }
 
 func ClearCachedEncryptionSupportInfoForLabel(st *state.State, systemLabel string) {

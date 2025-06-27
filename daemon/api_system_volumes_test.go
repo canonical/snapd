@@ -20,6 +20,8 @@
 package daemon_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -445,4 +447,210 @@ func (s *systemVolumesSuite) TestSystemVolumesGetGadgetError(c *C) {
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 500)
 	c.Assert(rsp.Message, Equals, "cannot get encryption information for gadget volumes: boom!")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
+	s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
+
+	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		c.Check(mode, Equals, device.AuthModePassphrase)
+		return device.AuthQuality{
+			Entropy:        expectedEntropy,
+			MinEntropy:     expectedMinEntropy,
+			OptimalEntropy: expectedOptimalEntropy,
+		}, nil
+	})
+	defer restore()
+
+	body := map[string]string{
+		"action":     "check-passphrase",
+		"passphrase": "this is a good passphrase",
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", buf)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 200)
+	c.Check(rsp.Result, DeepEquals, map[string]any{
+		"entropy-bits":         uint32(10),
+		"min-entropy-bits":     uint32(20),
+		"optimal-entropy-bits": uint32(50),
+	})
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
+	s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
+
+	for _, tc := range []struct {
+		passphrase string
+
+		expectedStatus   int
+		expectedErrKind  client.ErrorKind
+		expectedErrMsg   string
+		expectedErrValue any
+	}{
+		{
+			passphrase:     "",
+			expectedStatus: 400, expectedErrMsg: `passphrase must be provided in request body for action "check-passphrase"`,
+		},
+		{
+			passphrase:     "bad-passphrase",
+			expectedStatus: 400, expectedErrKind: "invalid-passphrase", expectedErrMsg: "passphrase did not pass quality checks",
+			expectedErrValue: map[string]any{
+				"reasons":              []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				"entropy-bits":         expectedEntropy,
+				"min-entropy-bits":     expectedMinEntropy,
+				"optimal-entropy-bits": expectedOptimalEntropy,
+			},
+		},
+	} {
+		body := map[string]string{
+			"action":     "check-passphrase",
+			"passphrase": tc.passphrase,
+		}
+
+		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+			c.Check(mode, Equals, device.AuthModePassphrase)
+			return device.AuthQuality{}, &device.AuthQualityError{
+				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				Quality: device.AuthQuality{
+					Entropy:        expectedEntropy,
+					MinEntropy:     expectedMinEntropy,
+					OptimalEntropy: expectedOptimalEntropy,
+				},
+			}
+		})
+		defer restore()
+
+		b, err := json.Marshal(body)
+		c.Assert(err, IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/system-volumes", buf)
+		c.Assert(err, IsNil)
+		req.Header.Add("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, Equals, tc.expectedStatus)
+		c.Check(rspe.Kind, Equals, tc.expectedErrKind)
+		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
+		c.Check(rspe.Value, DeepEquals, tc.expectedErrValue)
+	}
+}
+
+func (s *systemsSuite) TestSystemVolumesActionCheckPIN(c *C) {
+	s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
+
+	restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+		c.Check(mode, Equals, device.AuthModePIN)
+		return device.AuthQuality{
+			Entropy:        expectedEntropy,
+			MinEntropy:     expectedMinEntropy,
+			OptimalEntropy: expectedOptimalEntropy,
+		}, nil
+	})
+	defer restore()
+
+	body := map[string]string{
+		"action": "check-pin",
+		"pin":    "20250619",
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", buf)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 200)
+	c.Check(rsp.Result, DeepEquals, map[string]any{
+		"entropy-bits":         uint32(10),
+		"min-entropy-bits":     uint32(20),
+		"optimal-entropy-bits": uint32(50),
+	})
+}
+
+func (s *systemsSuite) TestSystemVolumesActionCheckPINError(c *C) {
+	s.daemon(c)
+
+	// just mock values for output matching
+	const expectedEntropy = uint32(10)
+	const expectedMinEntropy = uint32(20)
+	const expectedOptimalEntropy = uint32(50)
+
+	for _, tc := range []struct {
+		pin string
+
+		expectedStatus   int
+		expectedErrKind  client.ErrorKind
+		expectedErrMsg   string
+		expectedErrValue any
+	}{
+		{
+			pin:            "",
+			expectedStatus: 400, expectedErrMsg: `pin must be provided in request body for action "check-pin"`,
+		},
+		{
+			pin:            "0",
+			expectedStatus: 400, expectedErrKind: "invalid-pin", expectedErrMsg: "PIN did not pass quality checks",
+			expectedErrValue: map[string]any{
+				"reasons":              []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				"entropy-bits":         expectedEntropy,
+				"min-entropy-bits":     expectedMinEntropy,
+				"optimal-entropy-bits": expectedOptimalEntropy,
+			},
+		},
+	} {
+		body := map[string]string{
+			"action": "check-pin",
+			"pin":    tc.pin,
+		}
+
+		restore := daemon.MockDeviceValidatePassphrase(func(mode device.AuthMode, s string) (device.AuthQuality, error) {
+			c.Check(mode, Equals, device.AuthModePIN)
+			return device.AuthQuality{}, &device.AuthQualityError{
+				Reasons: []device.AuthQualityErrorReason{device.AuthQualityErrorReasonLowEntropy},
+				Quality: device.AuthQuality{
+					Entropy:        expectedEntropy,
+					MinEntropy:     expectedMinEntropy,
+					OptimalEntropy: expectedOptimalEntropy,
+				},
+			}
+		})
+		defer restore()
+
+		b, err := json.Marshal(body)
+		c.Assert(err, IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/system-volumes", buf)
+		c.Assert(err, IsNil)
+		req.Header.Add("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, Equals, tc.expectedStatus)
+		c.Check(rspe.Kind, Equals, tc.expectedErrKind)
+		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
+		c.Check(rspe.Value, DeepEquals, tc.expectedErrValue)
+	}
 }

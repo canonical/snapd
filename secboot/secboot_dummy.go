@@ -144,3 +144,7 @@ func ListContainerUnlockKeyNames(devicePath string) ([]string, error) {
 func ReadContainerKeyData(devicePath, slotName string) (KeyData, error) {
 	return nil, errBuildWithoutSecboot
 }
+
+func EntropyBits(passphrase string) (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}

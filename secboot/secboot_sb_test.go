@@ -3824,3 +3824,19 @@ func (s *secbootSuite) TestCheckRecoveryKey(c *C) {
 	c.Assert(err, ErrorMatches, "invalid recovery key for /dev/foo")
 	c.Check(called, Equals, 2)
 }
+
+func (s *secbootSuite) TestEntropyBits(c *C) {
+	entropy, err := secboot.EntropyBits("some-passphrase")
+	c.Assert(err, IsNil)
+	c.Check(entropy, Equals, uint32(74))
+}
+
+func (s *secbootSuite) TestEntropyBitsError(c *C) {
+	defer secboot.MockSbCheckPassphraseEntropy(func(passphrase string) (*sb.PassphraseEntropyStats, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	entropy, err := secboot.EntropyBits("some-passphrase")
+	c.Assert(err, ErrorMatches, "boom!")
+	c.Check(entropy, Equals, uint32(0))
+}

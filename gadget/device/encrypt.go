@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // encryptionMarkerUnder returns the path of the encrypted system marker under a
@@ -219,12 +218,9 @@ type AuthQualityError struct {
 	// Reasons is a list of reason enums to explain exactly what quality
 	// criteria failed e.g. AuthQualityErrorReasonLowEntropy.
 	Reasons []AuthQualityErrorReason
-	// Entropy is the calculated entropy in bits for the passed passphrase
-	// or PIN.
-	Entropy float64
-	// MinEntropy is the minimum entropy in bits for the corresponding
-	// authentication mode i.e. passhrase or PIN.
-	MinEntropy float64
+	// Quality contains information about the calculated quality of the
+	// specified auth value.
+	Quality AuthQuality
 
 	err error
 }
@@ -233,25 +229,67 @@ func (e *AuthQualityError) Error() string {
 	return e.err.Error()
 }
 
-// ValidatePassphraseOrPINEntropy checks quality of given passphrase or PIN based
-// on their entropy. An AuthQualityError error is returned which contains more
-// information about the given passphrase or PIN quality.
-func ValidatePassphraseOrPINEntropy(mode AuthMode, value string) error {
-	var minEntropy float64 = 42
+type AuthQuality struct {
+	// Entropy is the calculated entropy in bits for the passed passphrase
+	// or PIN.
+	Entropy uint32
+	// MinEntropy is the minimum entropy in bits for the corresponding
+	// authentication mode i.e. passhrase or PIN.
+	MinEntropy uint32
+	// OptimalEntropy is the recommended minimum entropy in bits for the
+	// corresponding authentication mode i.e. passhrase or PIN.
+	OptimalEntropy uint32
+}
+
+// Hook setup by secboot to calculate entropy for PINs and passphrases.
+// PINs will be supplied as a numeric passphrase.
+//
+// Note: in most cases ValidatePassphrase should be used instead.
+var EntropyBits func(passphrase string) (uint32, error) = entropyBitsImpl
+
+func entropyBitsImpl(passphrase string) (uint32, error) {
+	panic("entropy bits calculation callback not set up")
+}
+
+const (
+	minPassphraseEntropyBits uint32 = 42
+	// XXX: placeholder, needs a proper value
+	optimalPassphraseEntropyBits uint32 = 100
+
+	minPINEntropyBits uint32 = 13
+	// XXX: placeholder, needs a proper value
+	optimalPINEntropyBits uint32 = 64
+)
+
+// ValidatePassphrase checks quality of given passphrase or PIN based
+// on their entropy. An AuthQualityError error is returned which contains
+// more information about the given passphrase or PIN quality.
+//
+// PINs will be supplied as a numeric passphrase.
+func ValidatePassphrase(mode AuthMode, passphrase string) (AuthQuality, error) {
+	minEntropy, optimalEntropy := minPassphraseEntropyBits, optimalPassphraseEntropyBits
 	if mode == AuthModePIN {
-		minEntropy = 13.3
+		minEntropy, optimalEntropy = minPINEntropyBits, optimalPINEntropyBits
 	}
 
-	// FIXME: The quality checks need to be revisited to properly support unicode and be more robust.
-	entropy := strutil.Entropy(value)
+	entropy, err := EntropyBits(passphrase)
+	if err != nil {
+		return AuthQuality{}, err
+	}
+
+	result := AuthQuality{
+		Entropy:        entropy,
+		MinEntropy:     minEntropy,
+		OptimalEntropy: optimalEntropy,
+	}
+
 	if entropy >= minEntropy {
-		return nil
+		return result, nil
 	}
 
-	return &AuthQualityError{
-		Reasons:    []AuthQualityErrorReason{AuthQualityErrorReasonLowEntropy},
-		Entropy:    entropy,
-		MinEntropy: minEntropy,
-		err:        fmt.Errorf("calculated entropy (%.2f) is less than the required minimum entropy (%.2f) for the %q authentication mode", entropy, minEntropy, mode),
+	return AuthQuality{}, &AuthQualityError{
+		Reasons: []AuthQualityErrorReason{AuthQualityErrorReasonLowEntropy},
+		Quality: result,
+		err:     fmt.Errorf("calculated entropy (%d bits) is less than the required minimum entropy (%d bits) for the %q authentication mode", entropy, minEntropy, mode),
 	}
 }
