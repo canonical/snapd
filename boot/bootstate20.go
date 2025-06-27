@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -186,7 +187,7 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 }
 
 // commit will write out boot state persistently to disk.
-func (u20 *bootStateUpdate20) commit() error {
+func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
 	}
@@ -210,13 +211,26 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
-	expectReseal := false
+	resealOpts := ResealKeyToModeenvOptions{}
+
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
 		if err := u20.writeModeenv.Write(); err != nil {
 			return err
 		}
-		expectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
+		resealOpts.ExpectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
+	}
+
+	if markedSuccessful {
+		autoRepair, err := IsUnlockedWithRecoveryKey()
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else if autoRepair {
+			resealOpts.Force = true
+			resealOpts.EnsureProvisioned = true
+		}
 	}
 
 	// next reseal using the modeenv values, we do this before any
@@ -228,7 +242,7 @@ func (u20 *bootStateUpdate20) commit() error {
 	// changed because of unasserted kernels, then pass a
 	// flag as hint whether to reseal based on whether we
 	// wrote the modeenv
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal, nil); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, resealOpts, nil); err != nil {
 		return err
 	}
 
