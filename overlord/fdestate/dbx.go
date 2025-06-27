@@ -65,6 +65,10 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 		return err
 	}
 
+	if err := checkFDEChangeConflict(st); err != nil {
+		return err
+	}
+
 	op, err := addEFISecurebootDBUpdateChange(st, method, payload)
 	if err != nil {
 		return err
@@ -570,12 +574,7 @@ func checkDBXChangeConflicts(st *state.State) error {
 
 	// make sure that there are no changes for the snaps that are relevant for
 	// FDE
-	if err := snapstate.CheckChangeConflictMany(st, snaps, ""); err != nil {
-		return err
-	}
-
-	// make sure no changes related to FDE are in progress
-	return checkFDEChangeConflict(st)
+	return snapstate.CheckChangeConflictMany(st, snaps, "")
 }
 
 type dbxUpdatePrepareSyncKey struct{}

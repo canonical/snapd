@@ -126,13 +126,13 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		return false
 	})
 
-	runner.AddHandler("add-recovery-keys", m.doAddRecoveryKeys, nil)
-	runner.AddHandler("remove-keys", m.doRemoveKeys, nil)
-	runner.AddHandler("rename-keys", m.doRenameKeys, nil)
+	runner.AddHandler("fde-add-recovery-keys", m.doAddRecoveryKeys, nil)
+	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
+	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
-		if strings.HasPrefix(t.Change().Kind(), "fde-") || t.Has("keyslots") {
+		if strings.HasPrefix(t.Kind(), "fde-") {
 			for _, tRunning := range running {
-				if strings.HasPrefix(tRunning.Change().Kind(), "fde-") || tRunning.Has("keyslots") {
+				if strings.HasPrefix(tRunning.Kind(), "fde-") {
 					// prevent two fde operations from running in parallel
 					return true
 				}

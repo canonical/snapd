@@ -514,17 +514,17 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 
 	ts := state.NewTaskSet()
 
-	addTemporaryRecoveryKeys := st.NewTask("add-recovery-keys", "Add temporary recovery key slots")
+	addTemporaryRecoveryKeys := st.NewTask("fde-add-recovery-keys", "Add temporary recovery key slots")
 	addTemporaryRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
 	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
 	ts.AddTask(addTemporaryRecoveryKeys)
 
-	removeOldRecoveryKeys := st.NewTask("remove-keys", "Remove old recovery key slots")
+	removeOldRecoveryKeys := st.NewTask("fde-remove-keys", "Remove old recovery key slots")
 	removeOldRecoveryKeys.Set("keyslots", keyslotRefs)
 	removeOldRecoveryKeys.WaitFor(addTemporaryRecoveryKeys)
 	ts.AddTask(removeOldRecoveryKeys)
 
-	renameTemporaryRecoveryKeys := st.NewTask("rename-keys", "Rename temporary recovery key slots")
+	renameTemporaryRecoveryKeys := st.NewTask("fde-rename-keys", "Rename temporary recovery key slots")
 	renameTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
 	renameTemporaryRecoveryKeys.Set("renames", tmpKeyslotRenames)
 	renameTemporaryRecoveryKeys.WaitFor(removeOldRecoveryKeys)

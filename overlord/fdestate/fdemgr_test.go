@@ -1221,32 +1221,24 @@ func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
 	c.Assert(err, ErrorMatches, `failed to obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
 }
 
-func (s *fdeMgrSuite) testFDEBlockedTasks(c *C, hasFDEPrefix bool) {
+func (s *fdeMgrSuite) TestFDEBlockedTasks(c *C) {
 	st := s.st
 	onClassic := true
 	s.startedManager(c, onClassic)
 
 	ready := make(chan struct{})
-	s.runner.AddHandler("keyslot-op", func(t *state.Task, _ *tomb.Tomb) error {
+	s.runner.AddHandler("fde-op-1", func(t *state.Task, _ *tomb.Tomb) error {
 		<-ready
 		return nil
 	}, nil)
 
-	s.runner.AddHandler("nop", func(t *state.Task, _ *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("fde-op-2", func(t *state.Task, _ *tomb.Tomb) error { return nil }, nil)
 
 	st.Lock()
 	defer st.Unlock()
 
-	chg1Kind := "some-change-1"
-	if hasFDEPrefix {
-		chg1Kind = "fde-some-change-1"
-	}
-	chg1 := st.NewChange(chg1Kind, "")
-	tsk1 := st.NewTask("keyslot-op", "")
-	if !hasFDEPrefix {
-		// mark as a key slot operation
-		tsk1.Set("keyslots", []fdestate.KeyslotRef{})
-	}
+	chg1 := st.NewChange("some-change-1", "")
+	tsk1 := st.NewTask("fde-op-1", "") // fde- task prefix
 	chg1.AddTask(tsk1)
 
 	// wait for keyslot-op to start
@@ -1258,19 +1250,11 @@ func (s *fdeMgrSuite) testFDEBlockedTasks(c *C, hasFDEPrefix bool) {
 	}
 	c.Assert(tsk1.Status(), Equals, state.DoingStatus)
 
-	chg2Kind := "some-change-2"
-	if hasFDEPrefix {
-		chg2Kind = "fde-some-change-2"
-	}
-	chg2 := st.NewChange(chg2Kind, "")
-	tsk2 := st.NewTask("nop", "")
-	if !hasFDEPrefix {
-		// mark as a key slot operation
-		tsk2.Set("keyslots", []fdestate.KeyslotRef{})
-	}
+	chg2 := st.NewChange("some-change-2", "")
+	tsk2 := st.NewTask("fde-op-2", "") // fde- task prefix
 	chg2.AddTask(tsk2)
 
-	// try to force "nop" to run
+	// try to force "fde-op-2" to run
 	for i := 0; i < 10; i++ {
 		s.runnerIterationLocked(c)
 	}
@@ -1290,14 +1274,4 @@ func (s *fdeMgrSuite) testFDEBlockedTasks(c *C, hasFDEPrefix bool) {
 	st.Unlock()
 	iterateUnlockedStateWaitingFor(st, chg2.IsReady)
 	st.Lock()
-}
-
-func (s *fdeMgrSuite) TestFDEBlockedTasksFDEPrefixChange(c *C) {
-	const hasFDEPrefix = true
-	s.testFDEBlockedTasks(c, hasFDEPrefix)
-}
-
-func (s *fdeMgrSuite) TestFDEBlockedTasksKeyslotTasks(c *C) {
-	const hasFDEPrefix = false
-	s.testFDEBlockedTasks(c, hasFDEPrefix)
 }

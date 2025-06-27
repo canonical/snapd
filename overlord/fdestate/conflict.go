@@ -19,7 +19,6 @@
 package fdestate
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/logger"
@@ -48,19 +47,11 @@ func checkFDEChangeConflict(st *state.State) error {
 		default:
 			// try to catch changes/tasks that could have been missed
 			// and log a warning.
-			if strings.HasPrefix(chg.Kind(), "fde-") {
-				logger.Noticef("internal error: unexpected FDE change found %q", chg.Kind())
-				return &snapstate.ChangeConflictError{
-					Message:    fmt.Sprintf("%q in progress, no other FDE changes allowed until this is done", chg.Kind()),
-					ChangeKind: chg.Kind(),
-					ChangeID:   chg.ID(),
-				}
-			}
 			for _, t := range chg.Tasks() {
-				if t.Has("keyslots") {
+				if strings.HasPrefix(t.Kind(), "fde-") {
 					logger.Noticef("internal error: unexpected FDE change found %q", chg.Kind())
 					return &snapstate.ChangeConflictError{
-						Message:    "key slot task in progress, no other FDE changes allowed until this is done",
+						Message:    "FDE change in progress, no other FDE changes allowed until this is done",
 						ChangeKind: chg.Kind(),
 						ChangeID:   chg.ID(),
 					}

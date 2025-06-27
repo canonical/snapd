@@ -131,7 +131,7 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	c.Check(tsks, HasLen, 3)
 
 	c.Check(tsks[0].Summary(), Matches, "Add temporary recovery key slots")
-	c.Check(tsks[0].Kind(), Equals, "add-recovery-keys")
+	c.Check(tsks[0].Kind(), Equals, "fde-add-recovery-keys")
 	// check recovery key ID is passed to task
 	var tskRecoveryKeyID string
 	c.Assert(tsks[0].Get("recovery-key-id", &tskRecoveryKeyID), IsNil)
@@ -142,13 +142,13 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
 
 	c.Check(tsks[1].Summary(), Matches, "Remove old recovery key slots")
-	c.Check(tsks[1].Kind(), Equals, "remove-keys")
+	c.Check(tsks[1].Kind(), Equals, "fde-remove-keys")
 	// check target key slots are passed to task
 	c.Assert(tsks[1].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, keyslots)
 
 	c.Check(tsks[2].Summary(), Matches, "Rename temporary recovery key slots")
-	c.Check(tsks[2].Kind(), Equals, "rename-keys")
+	c.Check(tsks[2].Kind(), Equals, "fde-rename-keys")
 	// check tmp key slots are passed to task
 	c.Assert(tsks[2].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)

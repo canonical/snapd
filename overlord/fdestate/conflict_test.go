@@ -35,21 +35,23 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 	var chgToErr = map[string]string{
 		"fde-efi-secureboot-db-update": "external EFI DBX update in progress, no other FDE changes allowed until this is done",
 		"fde-replace-recovery-key":     "replacing recovery key in progress, no other FDE changes allowed until this is done",
-		"fde-not-handled":              `"fde-not-handled" in progress, no other FDE changes allowed until this is done`,
-		"some-keyslot-change":          "key slot task in progress, no other FDE changes allowed until this is done",
+		"some-fde-change":              "FDE change in progress, no other FDE changes allowed until this is done",
 
 		"some-change": "",
 	}
 
+	s.runner.AddHandler("fde-op", func(_ *state.Task, _ *tomb.Tomb) error { return nil }, nil)
 	s.runner.AddHandler("nop", func(_ *state.Task, _ *tomb.Tomb) error { return nil }, nil)
 
 	for chgKind, expectedErr := range chgToErr {
 		s.st.Lock()
 
 		chg := s.st.NewChange(chgKind, "")
-		tsk := s.st.NewTask("nop", "")
-		if chgKind == "some-keyslot-change" {
-			tsk.Set("keyslots", []fdestate.KeyslotRef{})
+		var tsk *state.Task
+		if chgKind == "some-fde-change" {
+			tsk = s.st.NewTask("fde-op", "")
+		} else {
+			tsk = s.st.NewTask("nop", "")
 		}
 		chg.AddTask(tsk)
 

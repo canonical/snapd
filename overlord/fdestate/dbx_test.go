@@ -256,13 +256,12 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictFDEChange(c *C) {
 	st.Lock()
 	// mock conflicting FDE change
 	chg := st.NewChange("some-fde-change", "")
-	tsk := st.NewTask("some-fde-task", "")
-	tsk.Set("keyslots", []fdestate.KeyslotRef{})
+	tsk := st.NewTask("fde-op", "")
 	chg.AddTask(tsk)
 	st.Unlock()
 
 	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
-	c.Assert(err, ErrorMatches, "key slot task in progress, no other FDE changes allowed until this is done")
+	c.Assert(err, ErrorMatches, "FDE change in progress, no other FDE changes allowed until this is done")
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
