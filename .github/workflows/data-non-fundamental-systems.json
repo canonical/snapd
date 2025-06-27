@@ -43,8 +43,8 @@
       {
         "group": "opensuse",
         "backend": "openstack",
-        "alternative-backend": "google-distro-2", 
-        "systems": "opensuse-15.6-64 opensuse-tumbleweed-64",
+        "alternative-backend": "google-distro-2",
+        "systems": "opensuse-15.6-64 opensuse-tumbleweed-64 opensuse-tumbleweed-selinux-64",
         "tasks": "tests/...",
         "rules": "main"
       },
