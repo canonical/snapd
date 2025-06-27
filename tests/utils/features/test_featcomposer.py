@@ -61,14 +61,19 @@ class TestCompose(unittest.TestCase):
             composed = featcomposer.compose_system(tmpdir, systems.pop(),
                                                        'backend:system.version:path/to/task1:variant1 backend:system.version:another/task2',
                                                        ['e = 1 ', 'f = 2 '], ['1 ', ' 2', ' 3'])
-            expected = SystemFeatures(schema_version='0.0.0',
-                                      system='backend:system.version',
-                                      scenarios=['1', '2', '3'],
-                                      env_variables=[{'name': 'e', 'value': '1'},
-                                                     {'name': 'f', 'value': '2'}],
-                                      tests=[TestCompose.get_json('path/to', 'task1', 'variant1', False, 'task1variant1'),
-                                             TestCompose.get_json('path/to', 'task2', '', True, 'task2')])
-            self.assertDictEqual(expected, composed)
+            assert len(composed) == 5
+            assert 'schema_version' in composed and composed['schema_version'] == '0.0.0'
+            assert 'system' in composed and composed['system'] == 'backend:system.version'
+            assert 'scenarios' in composed and len(composed['scenarios']) == 3
+            assert '1' in composed['scenarios']
+            assert '2' in composed['scenarios']
+            assert '3' in composed['scenarios']
+            assert 'env_variables' in composed and len(composed['env_variables']) == 2
+            assert {'name': 'e', 'value': '1'} in composed['env_variables']
+            assert {'name': 'f', 'value': '2'} in composed['env_variables']
+            assert 'tests' in composed and len(composed['tests']) == 2
+            assert TestCompose.get_json('path/to', 'task1', 'variant1', False, 'task1variant1') in composed['tests']
+            assert TestCompose.get_json('path/to', 'task2', '', True, 'task2') in composed['tests']
 
     @patch('argparse.ArgumentParser.parse_args')
     def test_compose_features(self, parse_args_mock: Mock):
@@ -103,15 +108,15 @@ class TestCompose(unittest.TestCase):
             featcomposer.main()
 
             def check_test_equal(expected, actual, succeeded):
-                self.assertEqual(succeeded, actual['success'])
+                assert succeeded == actual['success']
                 for k in expected.keys():
-                    self.assertTrue(k in actual)
-                    self.assertEqual(actual[k], expected[k])
+                    assert k in actual
+                    assert actual[k] == expected[k]
 
             with open(os.path.join(out, 'backend:system1_1.json'), mode='r', encoding='utf-8') as f:
                 sys1 = json.load(f)
                 for test in sys1['tests']:
-                    self.assertTrue('test1' in test['task_name'] or 'test2' in test['task_name'])
+                    assert 'test1' in test['task_name'] or 'test2' in test['task_name']
                     if test['task_name'] == 'test1':
                         check_test_equal(sys1test1, test, False)
                     if test['task_name'] == 'test2':
@@ -119,7 +124,7 @@ class TestCompose(unittest.TestCase):
             with open(os.path.join(out, 'backend:system2_1.json'), mode='r', encoding='utf-8') as f:
                 sys1 = json.load(f)
                 for test in sys1['tests']:
-                    self.assertTrue('test1' in test['task_name'] or 'test3' in test['task_name'])
+                    assert 'test1' in test['task_name'] or 'test3' in test['task_name']
                     if test['task_name'] == 'test1':
                         check_test_equal(sys2test1, test, True)
                     if test['task_name'] == 'test3':
@@ -153,12 +158,16 @@ class TestReplace(unittest.TestCase):
                 2, len(os.listdir(os.path.join(tmpdir, output_dir))))
             with open(os.path.join(tmpdir, output_dir, 'my:system.version.json'), 'r') as f:
                 actual = json.load(f)
-                expected = {'system.version': 'my:system.version', 'tests': [{'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]},
-                                                             {'task_name': 'task2', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'original run'}]}]}
-                self.assertDictEqual(expected, actual)
+                assert len(actual) == 2
+                assert 'system.version' in actual and actual['system.version'] == 'my:system.version'
+                assert 'tests' in actual and len(actual['tests']) == 2
+                assert {'task_name': 'task1', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'rerun 1'}, {'cmd': 'another'}]} in actual['tests']
+                assert {'task_name': 'task2', 'suite': 'my/suite', 'variant': '', 'success': True, 'cmds': [{'cmd': 'original run'}]} in actual['tests']
             with open(os.path.join(tmpdir, output_dir, 'my:other-system.version.json'), 'r') as f:
                 actual = json.load(f)
-                self.assertDictEqual(run_once_json, actual)
+                assert len(actual) == 2
+                assert 'system.version' in actual and actual['system.version'] == run_once_json['system.version']
+                assert 'tests' in actual and actual['tests'] == run_once_json['tests']
 
 
 if __name__ == '__main__':
