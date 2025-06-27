@@ -349,7 +349,7 @@ BEGIN {
 	# The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
 	selinux_context_arg=
 	case $SPREAD_SYSTEM in
-		fedora-*|centos-*)
+		fedora-*|centos-*|opensuse-*-selinux-*)
 			local systemd_ver
 			systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
 			if [ "$systemd_ver" -gt 219 ]; then

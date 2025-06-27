@@ -249,7 +249,7 @@ update_core_snap_for_classic_reexec() {
     esac
 
     case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
+        fedora-*|centos-*|amazon-*|opensuse-*-selinux-*)
             if selinuxenabled ; then
                 # On these systems just unpacking core snap to $HOME will
                 # automatically apply user_home_t label on all the contents of the

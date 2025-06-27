@@ -436,7 +436,7 @@ distro_install_build_snapd(){
         distro_install_local_package $packages
 
         case "$SPREAD_SYSTEM" in
-            fedora-*|centos-*)
+            fedora-*|centos-*|opensuse-*-selinux-*)
                 # We need to wait until the man db cache is updated before do daemon-reexec
                 # Otherwise the service fails and the system will be degraded during tests executions
                 for i in $(seq 20); do
