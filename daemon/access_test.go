@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -634,4 +635,127 @@ func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
 			Interfaces: []string{"foo"},
 		}),
 		DeepEquals, errForbidden)
+}
+
+func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {
+	rawBody := fmt.Sprintf(`{"action": "%s"}`, action)
+	if malformed {
+		rawBody = "}this is not json{"
+	}
+	body := strings.NewReader(rawBody)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	if isJSON {
+		req.Header.Add("Content-Type", "application/json")
+	}
+	return req
+}
+
+func (s *accessSuite) TestByActionAccess(c *C) {
+	byAction := map[string]daemon.AccessChecker{
+		"action-1": daemon.RootAccess{},
+		"action-2": daemon.AuthenticatedAccess{},
+		"action-3": daemon.OpenAccess{},
+	}
+
+	var ac daemon.AccessChecker = daemon.ByActionAccess{
+		ByAction: byAction,
+		Default:  daemon.RootAccess{},
+	}
+
+	type testcase struct {
+		ucred       daemon.Ucrednet
+		expectedErr map[string]*daemon.APIError
+		noAuth      bool
+		notJSON     bool
+		malformed   bool
+	}
+
+	tcs := []testcase{
+		{
+			ucred:  daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket},
+			noAuth: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred: daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:  daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			noAuth: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errUnauthorized,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:   daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			notJSON: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:     daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			malformed: true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
+			},
+		},
+		{
+			ucred:  daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			noAuth: true,
+		},
+		{
+			ucred:   daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			notJSON: true,
+			noAuth:  true,
+		},
+		{
+			ucred:     daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			malformed: true,
+			noAuth:    true,
+		},
+	}
+
+	for idx, tc := range tcs {
+		user := &auth.UserState{}
+		if tc.noAuth {
+			user = nil
+		}
+
+		for action := range byAction {
+			cmt := Commentf("sub-test tcs[%d] failed for action %q", idx, action)
+			err := ac.CheckAccess(nil, reqWithAction(c, action, !tc.notJSON, tc.malformed), &tc.ucred, user)
+			if expectedErr := tc.expectedErr[action]; err != nil {
+				c.Check(err, DeepEquals, expectedErr, cmt)
+			} else {
+				c.Check(err, IsNil, cmt)
+			}
+		}
+
+		cmt := Commentf("sub-test tcs[%d] failed for default action", idx)
+		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), &tc.ucred, user)
+		if expectedErr := tc.expectedErr["default"]; err != nil {
+			c.Check(err, DeepEquals, expectedErr, cmt)
+		} else {
+			c.Check(err, IsNil, cmt)
+		}
+	}
 }

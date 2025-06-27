@@ -20,7 +20,10 @@
 package daemon
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -315,6 +318,54 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 	}
 
 	return Unauthorized("access denied")
+}
+
+type actionRequest struct {
+	Action string `json:"action"`
+}
+
+type byActionAccess struct {
+	// ByAction maps from detected request action to access checker.
+	ByAction map[string]accessChecker
+	// Default is the fallback access checker if no action was matched
+	// which could happen if:
+	//   - Content type is not "application/json"
+	//   - JSON body is malformed
+	//   - No action is passed
+	//   - Action is not found under ByAction
+	//
+	// This should be as strict as possible, e.g. rootAccess.
+	Default accessChecker
+}
+
+func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if r.Header.Get("Content-Type") != "application/json" {
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	bodyBuf := new(bytes.Buffer)
+	checkerBuf := new(bytes.Buffer)
+	w := io.MultiWriter(bodyBuf, checkerBuf)
+	if _, err := io.Copy(w, r.Body); err != nil {
+		return InternalError("cannot copy body")
+	}
+	r.Body.Close()
+	r.Body = io.NopCloser(bodyBuf)
+
+	req := actionRequest{}
+
+	decoder := json.NewDecoder(checkerBuf)
+	if err := decoder.Decode(&req); err != nil {
+		// JSON is malformed, fallback to default checker
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	checker := ac.ByAction[req.Action]
+	if checker == nil {
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	return checker.CheckAccess(d, r, ucred, user)
 }
 
 // isRequestFromSnapCmd checks that the request is coming from snap command.
