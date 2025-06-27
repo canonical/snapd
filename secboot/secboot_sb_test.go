@@ -3824,3 +3824,59 @@ func (s *secbootSuite) TestCheckRecoveryKey(c *C) {
 	c.Assert(err, ErrorMatches, "invalid recovery key for /dev/foo")
 	c.Check(called, Equals, 2)
 }
+
+func (s *secbootSuite) TestKeyDataChangePassphrase(c *C) {
+	sbKeyData := &sb.KeyData{}
+
+	called := 0
+	defer secboot.MockSbKeyDataChangePassphrase(func(d *sb.KeyData, oldPassphrase, newPassphrase string) error {
+		called++
+		c.Check(d, Equals, sbKeyData)
+		c.Check(oldPassphrase, Equals, "old")
+		c.Check(newPassphrase, Equals, "new")
+		return nil
+	})()
+
+	kd := secboot.NewKeyData(sbKeyData)
+	err := kd.ChangePassphrase("old", "new")
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *secbootSuite) TestKeyDataWriteTokenAtomic(c *C) {
+	writer := &myKeyDataWriter{}
+	c.Assert(writer.Len(), Equals, 0)
+
+	defer secboot.MockNewLUKS2KeyDataWriter(func(devicePath, name string) (secboot.KeyDataWriter, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(name, Equals, "bar")
+		return writer, nil
+	})()
+
+	kd := secboot.NewKeyData(&sb.KeyData{})
+	err := kd.WriteTokenAtomic("/dev/foo", "bar")
+	c.Assert(err, IsNil)
+	c.Check(writer.Len(), testutil.IntGreaterThan, 0)
+}
+
+func (s *secbootSuite) TestKeyDataWriteTokenAtomicError(c *C) {
+	defer secboot.MockNewLUKS2KeyDataWriter(func(devicePath, name string) (secboot.KeyDataWriter, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	kd := secboot.NewKeyData(&sb.KeyData{})
+	err := kd.WriteTokenAtomic("/dev/foo", "bar")
+	c.Assert(err, ErrorMatches, "boom!")
+}
+
+func (s *secbootSuite) TestKeyDataWriteFileAtomic(c *C) {
+	tmpDir := c.MkDir()
+	c.Assert(os.MkdirAll(tmpDir, 0755), IsNil)
+	kdFile := filepath.Join(tmpDir, "foo")
+	c.Assert(kdFile, testutil.FileAbsent)
+
+	kd := secboot.NewKeyData(&sb.KeyData{})
+	err := kd.WriteFileAtomic(kdFile)
+	c.Assert(err, IsNil)
+	c.Check(kdFile, testutil.FilePresent)
+}

@@ -514,3 +514,11 @@ func MockSbSetArgon2KDF(f func(kdf sb.Argon2KDF) sb.Argon2KDF) (restore func()) 
 func MockUnixAddKey(f func(keyType string, description string, payload []byte, ringid int) (int, error)) (restore func()) {
 	return testutil.Mock(&unixAddKey, f)
 }
+
+func MockSbKeyDataChangePassphrase(f func(d *sb.KeyData, oldPassphrase string, newPassphrase string) error) (restore func()) {
+	return testutil.Mock(&sbKeyDataChangePassphrase, f)
+}
+
+func NewKeyData(kd *sb.KeyData) KeyData {
+	return &keyData{kd: kd}
+}
