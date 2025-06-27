@@ -404,6 +404,7 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 		isSupportedUbuntuHybrid bool
 		osID                    string
 		osVersionID             string
+		disableByEnvVar         bool
 
 		expectedSupport bool
 		expectedError   string
@@ -412,6 +413,7 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 		{
 			true,
 			"ubuntu", "26.04",
+			false,
 			true,
 			"",
 			"",
@@ -419,6 +421,7 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 		{
 			true,
 			"ubuntu", "25.10",
+			false,
 			true,
 			"",
 			"",
@@ -427,12 +430,14 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 			true,
 			"ubuntu", "24.10",
 			false,
+			false,
 			"",
 			"",
 		},
 		{
 			true,
 			"ubuntu", "24.04",
+			false,
 			false,
 			"",
 			"",
@@ -441,12 +446,14 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 			true,
 			"ubuntu core", "24.04",
 			false,
+			false,
 			"",
 			`unexpected OS release ID "ubuntu core"`,
 		},
 		{
 			true,
 			"ubuntu", "24:04",
+			false,
 			false,
 			`cannot perform version comparison with OS release version ID: invalid version "24:04"`,
 			"",
@@ -455,8 +462,17 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 			false,
 			"ubuntu core", "24:04",
 			false,
+			false,
 			"",
 			"",
+		},
+		{
+			true,
+			"ubuntu core", "25.10",
+			true,
+			false,
+			"",
+			`preinstall check disabled by environment variable "SNAPD_DISABLE_PREINSTALL_CHECK"`,
 		},
 	} {
 		modelMods := map[string]any{}
@@ -471,6 +487,11 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 			VersionID: tc.osVersionID,
 		})
 		s.AddCleanup(restore)
+
+		if tc.disableByEnvVar {
+			os.Setenv("SNAPD_DISABLE_PREINSTALL_CHECK", "1")
+			defer os.Unsetenv("SNAPD_DISABLE_PREINSTALL_CHECK")
+		}
 
 		supported, err := install.PreinstallCheckSupported(modelMock)
 
