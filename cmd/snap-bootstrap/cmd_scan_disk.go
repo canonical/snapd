@@ -106,7 +106,7 @@ func isGpt(probe blkid.AbstractBlkidProbe) bool {
 	return pttype == "gpt"
 }
 
-func probePartition(node string, fallbackMode bool) (Partition, error) {
+func probeFilesystem(node string) (Partition, error) {
 	var p Partition
 
 	probe, err := blkid.NewProbeFromFilename(node)
@@ -122,20 +122,16 @@ func probePartition(node string, fallbackMode bool) (Partition, error) {
 		return p, err
 	}
 
-	if val, err := probe.LookupValue("LABEL"); err != nil {
+	val, err := probe.LookupValue("LABEL")
+	if err != nil {
 		return p, err
-	} else {
-		p.Name = val
 	}
+	p.Name = val
 
-	// UUID is not required as a part of fallback mode, in that sense
-	// we just rely on the FS label
-	if !fallbackMode {
-		if val, err := probe.LookupValue("UUID"); err != nil {
-			return p, err
-		} else {
-			p.UUID = val
-		}
+	// UUID is not required as a part of fallback mode
+	val, err = probe.LookupValue("UUID")
+	if err == nil {
+		p.UUID = val
 	}
 	return p, nil
 }
@@ -168,11 +164,20 @@ func probeDisk(node string, fallbackMode bool) ([]Partition, error) {
 
 	ret := make([]Partition, 0)
 	for _, partition := range partitions.GetPartitions() {
-		pnode := fmt.Sprintf("%sp%d", node, partition.GetPartNo())
-		if p, err := probePartition(pnode, fallbackMode); err != nil {
-			return ret, err
-		} else {
+		name := partition.GetName()
+		if name == "" && fallbackMode {
+			// For MBR we have to probe the filesystem for details
+			pnode := fmt.Sprintf("%sp%d", node, partition.GetPartNo())
+			p, err := probeFilesystem(pnode)
+			if err != nil {
+				return ret, err
+			}
 			ret = append(ret, p)
+		} else {
+			ret = append(ret, Partition{
+				Name: partition.GetName(),
+				UUID: partition.GetUUID(),
+			})
 		}
 	}
 
