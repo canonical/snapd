@@ -26,6 +26,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+func isFDETask(t *state.Task) bool {
+	return strings.HasPrefix(t.Kind(), "fde-")
+}
+
 func checkFDEChangeConflict(st *state.State) error {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
@@ -48,7 +52,7 @@ func checkFDEChangeConflict(st *state.State) error {
 			// try to catch changes/tasks that could have been missed
 			// and log a warning.
 			for _, t := range chg.Tasks() {
-				if strings.HasPrefix(t.Kind(), "fde-") {
+				if isFDETask(t) {
 					logger.Noticef("internal error: unexpected FDE change found %q", chg.Kind())
 					return &snapstate.ChangeConflictError{
 						Message:    "FDE change in progress, no other FDE changes allowed until this is done",

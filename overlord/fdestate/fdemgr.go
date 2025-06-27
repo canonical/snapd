@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/boot"
@@ -130,9 +129,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
-		if strings.HasPrefix(t.Kind(), "fde-") {
+		if isFDETask(t) {
 			for _, tRunning := range running {
-				if strings.HasPrefix(tRunning.Kind(), "fde-") {
+				if isFDETask(tRunning) {
 					// prevent two fde operations from running in parallel
 					return true
 				}
