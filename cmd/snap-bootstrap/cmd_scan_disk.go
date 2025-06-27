@@ -106,7 +106,37 @@ func isGpt(probe blkid.AbstractBlkidProbe) bool {
 	return pttype == "gpt"
 }
 
-func probePartitions(node string) ([]Partition, error) {
+func probeFilesystem(node string) (Partition, error) {
+	var p Partition
+
+	probe, err := blkid.NewProbeFromFilename(node)
+	if err != nil {
+		return p, err
+	}
+	defer probe.Close()
+
+	probe.EnableSuperblocks(true)
+	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL | blkid.BLKID_SUBLKS_UUID)
+
+	if err := probe.DoSafeprobe(); err != nil {
+		return p, err
+	}
+
+	val, err := probe.LookupValue("LABEL")
+	if err != nil {
+		return p, err
+	}
+	p.Name = val
+
+	// UUID is not required as a part of fallback mode
+	val, err = probe.LookupValue("UUID")
+	if err == nil {
+		p.UUID = val
+	}
+	return p, nil
+}
+
+func probeDisk(node string, fallbackMode bool) ([]Partition, error) {
 	probe, err := blkid.NewProbeFromFilename(node)
 	if err != nil {
 		return nil, err
@@ -115,13 +145,15 @@ func probePartitions(node string) ([]Partition, error) {
 
 	probe.EnablePartitions(true)
 	probe.SetPartitionsFlags(blkid.BLKID_PARTS_ENTRY_DETAILS)
-	probe.EnableSuperblocks(true)
 
 	if err := probe.DoSafeprobe(); err != nil {
 		return nil, err
 	}
 
-	if !isGpt(probe) {
+	// In fallback mode, which is non-UEFI, it may be
+	// MBR disk schema and not gpt, so we still want to
+	// discover filesystem labels.
+	if !fallbackMode && !isGpt(probe) {
 		return nil, nil
 	}
 
@@ -132,9 +164,21 @@ func probePartitions(node string) ([]Partition, error) {
 
 	ret := make([]Partition, 0)
 	for _, partition := range partitions.GetPartitions() {
-		label := partition.GetName()
-		uuid := partition.GetUUID()
-		ret = append(ret, Partition{label, uuid})
+		name := partition.GetName()
+		if name == "" && fallbackMode {
+			// For MBR we have to probe the filesystem for details
+			pnode := fmt.Sprintf("%sp%d", node, partition.GetPartNo())
+			p, err := probeFilesystem(pnode)
+			if err != nil {
+				return ret, err
+			}
+			ret = append(ret, p)
+		} else {
+			ret = append(ret, Partition{
+				Name: partition.GetName(),
+				UUID: partition.GetUUID(),
+			})
+		}
 	}
 
 	return ret, nil
@@ -155,10 +199,12 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
-	partitions, err := probePartitions(node)
+	const fallbackMode = true
+	partitions, err := probeDisk(node, fallbackMode)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
+
 	/*
 	 * If LoaderDevicePartUUID was not set, it is probably because
 	 * we did not boot with UEFI. In that case we try to detect
@@ -261,7 +307,8 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	partitions, err := probePartitions(node)
+	const fallbackMode = false
+	partitions, err := probeDisk(node, fallbackMode)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
