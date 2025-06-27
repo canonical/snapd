@@ -128,13 +128,52 @@ func (*viewSuite) TestNewConfdb(c *C) {
 				},
 			},
 		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "a.{bar}[{bar}]", "storage": "foo[{bar}].{bar}"},
+					},
+				},
+			},
+			err: `cannot define view "bar": cannot use same name "bar" for key and index placeholder: a.{bar}[{bar}]`,
+		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "{bar}.a.{bar}", "storage": "foo.{bar}"},
+					},
+				},
+			},
+			err: `cannot define view "bar": request cannot have more than one placeholder with the same name "bar": {bar}.a.{bar}`,
+		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "a.{bar}", "storage": "foo.{bar}.{bar}"},
+					},
+				},
+			},
+		},
+		{
+			confdb: map[string]any{
+				"bar": map[string]any{
+					"rules": []any{
+						map[string]any{"request": "a.b", "storage": "[1].b"},
+					},
+				},
+			},
+			err: `cannot define view "bar": invalid storage "[1].b": cannot have empty subkeys`,
+		},
 	}
 
 	for i, tc := range tcs {
 		cmt := Commentf("test number %d", i+1)
 		confdb, err := confdb.NewSchema("acc", "foo", tc.confdb, confdb.NewJSONSchema())
 		if tc.err != "" {
-			c.Assert(err, NotNil)
+			c.Assert(err, NotNil, cmt)
 			c.Assert(err.Error(), Equals, tc.err, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
@@ -549,7 +588,27 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 		},
 		{
 			testName: "placeholder mismatch (same number)",
-			request:  "bad.{foo}", storage: "bad.{bar}", err: `placeholder "{foo}" from request "bad.{foo}" is absent from storage "bad.{bar}"`,
+			request:  "bad.{foo}", storage: "bad.{bar}", err: `placeholder "foo" from request "bad.{foo}" is absent from storage "bad.{bar}"`,
+		},
+		{
+			testName: "index placeholder mismatch",
+			request:  "bad[{foo}]", storage: "bad[{bar}]", err: `placeholder "foo" from request "bad[{foo}]" is absent from storage "bad[{bar}]"`,
+		},
+		{
+			testName: "index placeholder mismatch despite key placeholder with same name",
+			request:  "bad[{foo}]", storage: "bad.{foo}", err: `request "bad[{foo}]" and storage "bad.{foo}" have mismatched placeholders`,
+		},
+		{
+			testName: "repeated placeholder in request",
+			request:  "{bar}.a.{bar}",
+			storage:  "foo.{bar}",
+			err:      `request cannot have more than one placeholder with the same name "bar": {bar}.a.{bar}`,
+		},
+		{
+			testName: "repeated placeholder but in field and index",
+			request:  "{bar}[{bar}]",
+			storage:  "{bar}[{bar}]",
+			err:      `cannot use same name "bar" for key and index placeholder: {bar}[{bar}]`,
 		},
 		{
 			testName: "placeholder mismatch (different number)",
@@ -1263,6 +1322,18 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 			errMsg:  "cannot have empty subkeys",
 		},
 		{
+			request: "a[",
+			errMsg:  "invalid subkey \"[\"",
+		},
+		{
+			request: "a[b",
+			errMsg:  "invalid subkey \"[b\"",
+		},
+		{
+			request: "a[b.c",
+			errMsg:  "invalid subkey \"[b\"",
+		},
+		{
 			request: "a.b.",
 			errMsg:  "cannot have empty subkeys",
 		},
@@ -1779,6 +1850,34 @@ func (*viewSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*viewSuite) TestSchemaMismatchArrayHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": "string",
+					"baz": "string"
+				}
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	_, err = confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo[1].bar", "storage": "foo[1].bar"},
+				map[string]any{"request": "foo[{n}].baz", "storage": "foo[{n}].baz"},
+			},
+		},
+	}, schema)
+	c.Assert(err, IsNil)
+}
+
 func (s *viewSuite) TestSetUnmatchedPlaceholderLeaf(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
@@ -1949,6 +2048,20 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 			"two": "value",
 		},
 	})
+}
+
+func (s *viewSuite) TestIndexPlaceholders(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[{n}]", "storage": "b[{n}]"},
+				map[string]any{"request": "a[{n}].c", "storage": "b[{n}].c"},
+				map[string]any{"request": "a[{n}][{m}]", "storage": "b[{m}][{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Assert(schema, NotNil)
 }
 
 func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
@@ -2842,4 +2955,47 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 			c.Check(eph, Equals, tc.ephemeral, cmt)
 		}
 	}
+}
+
+// TODO: temporary test, can be removed once we add the traversal logic since
+// we'll test the matching implicitly
+func (*viewSuite) TestRequestMatch(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[1].bar", "storage": "b[1].bar"},
+				map[string]any{"request": "c", "storage": "d", "content": []any{map[string]any{"storage": "[0].bar"}}},
+				map[string]any{"request": "a[{n}].baz", "storage": "b[{n}].baz"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	matches, err := view.MatchGetRequest("a[1].bar")
+	c.Assert(err, IsNil)
+	match := confdb.RequestMatch(matches[0])
+	c.Assert(match.StoragePath(), Equals, "b[1].bar")
+
+	matches, err = view.MatchGetRequest("a[1].baz")
+	c.Assert(err, IsNil)
+	match = confdb.RequestMatch(matches[0])
+	c.Assert(match.StoragePath(), Equals, "b[1].baz")
+
+	matches, err = view.MatchGetRequest("c[0].bar")
+	c.Assert(err, IsNil)
+	match = confdb.RequestMatch(matches[0])
+	c.Assert(match.StoragePath(), Equals, "d[0].bar")
+
+	// prefix match
+	matches, err = view.MatchGetRequest("a")
+	c.Assert(err, IsNil)
+	c.Assert(matches, HasLen, 2)
+
+	// check we skip over both rules
+	_, err = view.MatchGetRequest("a.b")
+	c.Assert(err, ErrorMatches, `cannot get "a.b" through acc/confdb/foo: no matching rule`)
+
+	_, err = view.MatchGetRequest("a.b123.bar")
+	c.Assert(err, ErrorMatches, `cannot get "a.b123.bar" through acc/confdb/foo: no matching rule`)
 }
