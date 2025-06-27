@@ -1629,6 +1629,34 @@ func (mods *modelSuite) TestDecodeWithComponentsOK(c *C) {
 	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
 }
 
+func (mods *modelSuite) TestHybridClassic(c *C) {
+	for name, tc := range map[string]struct {
+		model    string
+		isHybrid bool
+	}{
+		"Hybrid": {
+			classicModelWithSnapsExample,
+			true,
+		},
+		"Classic": {
+			classicModelExample,
+			false,
+		},
+		"Core": {
+			coreModelWithComponentsExample,
+			false,
+		},
+	} {
+		encoded := strings.Replace(tc.model, "TSLINE", mods.tsLine, 1)
+		encoded = strings.Replace(encoded, "OTHER", "", 1)
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		model := a.(*asserts.Model)
+
+		c.Assert(model.HybridClassic(), Equals, tc.isHybrid, Commentf("failed test: %q", name))
+	}
+}
+
 func (mods *modelSuite) TestDecodeWithComponentsBadPresence1(c *C) {
 	encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", `  -

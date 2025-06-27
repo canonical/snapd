@@ -24,8 +24,10 @@ package install
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -77,9 +80,14 @@ type EncryptionSupportInfo struct {
 	// the this device and used gadget do not match the
 	// storage safety requirements.
 	UnavailableErr error
+
 	// UnavailbleWarning describes why encryption support is not
 	// available in case it is optional.
 	UnavailableWarning string
+
+	// AvailabilityCheckErrors holds details about encryption
+	// availability errors identified during preinstall check.
+	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
 	// PassphraseAuthAvailable is set if the passphrase authentication
 	// is supported.
@@ -115,7 +123,10 @@ var (
 	timeNow = time.Now
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-	sysconfigConfigureTargetSystem     = sysconfig.ConfigureTargetSystem
+	secbootPreinstallCheck             = secboot.PreinstallCheck
+	preinstallCheckTimeout             = 2 * time.Minute
+
+	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 
 	bootUseTokens = boot.UseTokens
 )
@@ -170,6 +181,16 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 	secbootCheckTPMKeySealingSupported = f
 	return func() {
 		secbootCheckTPMKeySealingSupported = old
+	}
+}
+
+// MockSecbootPreinstallCheck mocks secboot.PreinstallCheck usage by the package for testing.
+func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootPreinstallCheck only can be mocked in tests")
+	old := secbootPreinstallCheck
+	secbootPreinstallCheck = f
+	return func() {
+		secbootPreinstallCheck = old
 	}
 }
 
@@ -233,14 +254,21 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
 	case checkSecbootEncryption:
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
-		if checkEncryptionErr == nil {
+		unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(model, tpmMode)
+		if err != nil {
+			return res, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
+		}
+
+		if unavailableReason == "" {
 			res.Type = device.EncryptionTypeLUKS
+		} else {
+			checkEncryptionErr = errors.New(unavailableReason)
+			res.AvailabilityCheckErrors = preinstallErrorDetails
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
 	}
-	res.Available = (checkEncryptionErr == nil)
+	res.Available = checkEncryptionErr == nil
 
 	if checkEncryptionErr != nil {
 		switch {
@@ -286,6 +314,111 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 	}
 
 	return res, nil
+}
+
+func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) (string, []secboot.PreinstallErrorDetails, error) {
+	supported, err := preinstallCheckSupported(model)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
+	}
+	if supported {
+		// use comprehensive preinstall check
+		images, err := orderedCurrentBootImages(model)
+		if err != nil {
+			return "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), preinstallCheckTimeout)
+		defer cancel()
+		preinstallErrorDetails, err := secbootPreinstallCheck(ctx, images)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return "", nil, fmt.Errorf("preinstall check timed out: %v", err)
+			}
+			return "", nil, err
+		}
+
+		switch len(preinstallErrorDetails) {
+		case 0:
+			return "", nil, nil
+		case 1:
+			return preinstallErrorDetails[0].Message, preinstallErrorDetails, nil
+		default:
+			return fmt.Sprintf("preinstall check identified %d errors", len(preinstallErrorDetails)), preinstallErrorDetails, nil
+		}
+	}
+
+	// use general availability check
+	err = secbootCheckTPMKeySealingSupported(tpmMode)
+	if err != nil {
+		return err.Error(), nil, nil
+	}
+	return "", nil, nil
+}
+
+var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
+	//TODO:FDEM: This temporary fallback must be removed before release of snapd 2.71
+	if osutil.GetenvBool("SNAPD_DISABLE_PREINSTALL_CHECK") {
+		logger.Noticef(`preinstall check disabled by environment variable "SNAPD_DISABLE_PREINSTALL_CHECK"`)
+		return false, nil
+	}
+
+	if !model.HybridClassic() {
+		return false, nil
+	}
+
+	if release.ReleaseInfo.ID != "ubuntu" {
+		logger.Noticef("unexpected OS release ID %q", release.ReleaseInfo.ID)
+		return false, nil
+	}
+
+	const minSupportedVersion = "25.10"
+	cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minSupportedVersion)
+	if err != nil {
+		return false, fmt.Errorf("cannot perform version comparison with OS release version ID: %v", err)
+	}
+
+	return cmp >= 0, nil
+}
+
+func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
+	if model.HybridClassic() {
+		images, err := orderedCurrentBootImagesHybrid()
+		if err != nil {
+			return nil, fmt.Errorf("cannot locate hybrid system boot images: %v", err)
+		}
+		return images, nil
+	}
+	// TODO: consider support for core systems
+	return nil, nil
+}
+
+func orderedCurrentBootImagesHybrid() ([]string, error) {
+	imageInfo := []struct {
+		name string
+		glob string
+	}{
+		{"shim", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/boot*.efi")},
+		{"grub", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/grub*.efi")},
+		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz")},
+	}
+
+	var bootImagePaths []string
+	for _, info := range imageInfo {
+		matches, err := filepath.Glob(info.glob)
+		if err != nil {
+			return nil, fmt.Errorf("cannot use globbing pattern %q: %v", info.glob, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("cannot locate installer %s using globbing pattern %q", info.name, info.glob)
+		}
+		if len(matches) > 1 {
+			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
+		}
+		bootImagePaths = append(bootImagePaths, matches[0])
+	}
+
+	return bootImagePaths, nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {

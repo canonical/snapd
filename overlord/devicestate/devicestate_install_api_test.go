@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -501,12 +500,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Insert encryption data when enabled
 	if opts.encrypted {
-		// Mock TPM and sealing
-		restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
-			return nil
-		})
-		s.AddCleanup(restore)
+		// Mock sealing, not required to mock encryption check because install finish step uses encryption information from cache
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
@@ -794,7 +788,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM, withVolumesAuth bool) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSupportedHybrid, hasTPM, withVolumesAuth bool) {
 	// Mock label
 	label := "classic"
 	isClassic := true
@@ -826,14 +820,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
 
-	// Simulate system with TPM
-	if hasTPM {
-		restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
-			return nil
-		})
-		s.AddCleanup(restore)
-	}
+	mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, hasTPM)
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0
@@ -919,22 +906,52 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	c.Check(s.state.Cached(devicestate.VolumesAuthOptionsKeyByLabel(label)), IsNil)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappy(c *C) {
+	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
 	const withVolumesAuth = false
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const isSupportedHybrid = true
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionWithVolumesAuth(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappy(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const hasTPM = true
+	const withVolumesAuth = false
+	const isSupportedHybrid = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithVolumesAuth(c *C) {
+	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
 	const withVolumesAuth = true
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const isSupportedHybrid = true
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoCrypto(c *C) {
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappyWithVolumesAuth(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const hasTPM = true
+	const withVolumesAuth = true
+	const isSupportedHybrid = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridNoCrypto(c *C) {
+	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = false
 	const withVolumesAuth = false
-	s.testInstallSetupStorageEncryption(c, hasTPM, withVolumesAuth)
+	const isSupportedHybrid = true
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridNoCrypto(c *C) {
+	// unsupported hybrid system uses general encryption availability check
+	const hasTPM = false
+	const withVolumesAuth = false
+	const isSupportedHybrid = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, withVolumesAuth)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {
@@ -1076,14 +1093,9 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// Simulate system with TPM
-	restore := installLogic.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
-		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
-		return nil
-	})
-	s.AddCleanup(restore)
+	mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
 
-	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
 		return &install.EncryptionSetupData{}, nil
 	})
 	s.AddCleanup(restore)
