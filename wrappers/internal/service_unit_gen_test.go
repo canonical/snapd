@@ -769,13 +769,14 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespace(c *C) {
 	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
-Requires=%s-snap-44.mount
+Requires=systemd-journald@snap-foo.socket %s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+After=%s-snap-44.mount network.target systemd-journald@snap-foo.socket snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+Environment=SNAPD_LOG_NAMESPACE=snap-foo
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
@@ -783,7 +784,6 @@ WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=simple
 Slice=snap.foo.slice
-LogNamespace=snap-foo
 
 [Install]
 WantedBy=multi-user.target
@@ -843,10 +843,11 @@ func (s *serviceUnitGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(string(generatedWrapper), testutil.Contains, "Slice=snap.foo-foosub.slice", Commentf("test failed: %s", t.description))
 		if t.expectedLog != "" {
-			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("LogNamespace=%s", t.expectedLog), Commentf("test failed: %s", t.description))
+			c.Check(string(generatedWrapper), testutil.Contains, "Requires=systemd-journald@snap-foo.socket", Commentf("test failed: %s", t.description))
+			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("SNAPD_LOG_NAMESPACE=%s", t.expectedLog), Commentf("test failed: %s", t.description))
 		} else {
 			// no negative check? :(
-			found := strings.Contains(string(generatedWrapper), fmt.Sprintf("LogNamespace=%s", t.expectedLog))
+			found := strings.Contains(string(generatedWrapper), fmt.Sprintf("SNAPD_LOG_NAMESPACE=%s", t.expectedLog))
 			c.Check(found, Equals, false, Commentf("test failed: %s", t.description))
 		}
 	}

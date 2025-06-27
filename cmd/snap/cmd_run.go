@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/syslog"
 	"net"
 	"os"
 	"os/exec"
@@ -54,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
 
@@ -1315,6 +1317,30 @@ func (r *runnable) Validate() error {
 	return nil
 }
 
+func makeStdStreamsForJournal(app *snap.AppInfo, namespace string) (stdout, stderr *os.File) {
+	stdout, err := systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		Namespace:   namespace,
+		Identifier:  app.Name,
+		UnitName:    app.ServiceName(),
+		Priority:    syslog.LOG_DAEMON | syslog.LOG_INFO,
+		LevelPrefix: true,
+	})
+	if err != nil {
+		logger.Noticef("cannot connect to journal for stdout: %s", err)
+	}
+	stderr, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		Namespace:   namespace,
+		Identifier:  app.Name,
+		UnitName:    app.ServiceName(),
+		Priority:    syslog.LOG_DAEMON | syslog.LOG_WARNING,
+		LevelPrefix: true,
+	})
+	if err != nil {
+		logger.Noticef("cannot connect to journal for stderr: %s", err)
+	}
+	return stdout, stderr
+}
+
 func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec func() error, args []string) error {
 	// check for programmer error, should never happen
 	if err := runner.Validate(); err != nil {
@@ -1508,6 +1534,29 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 			} else {
 				return err
 			}
+		}
+
+		// If a journal namespace is supplied for the service, then we reopen stdout/stderr
+		// connected to that journal namespace instead of the main journal. Since we are not
+		// using systemd's LogNamespace= directly, we must do this ourselves.
+		if lns := os.Getenv("SNAPD_LOG_NAMESPACE"); lns != "" {
+			stdout, stderr := makeStdStreamsForJournal(app, lns)
+			if stdout != nil {
+				defer stdout.Close()
+				if err := osutil.DupFD(stdout.Fd(), uintptr(syscall.Stdout)); err != nil {
+					logger.Noticef("cannot duplicate stdout for connection: %v", err)
+				}
+			}
+			if stderr != nil {
+				defer stderr.Close()
+				if err := osutil.DupFD(stderr.Fd(), uintptr(syscall.Stderr)); err != nil {
+					logger.Noticef("cannot duplicate stderr for connection: %v", err)
+				}
+			}
+
+			// Clear out the LOG_NAMESPACE variable, no reason to leak this to the process
+			// itself.
+			os.Unsetenv("SNAPD_LOG_NAMESPACE")
 		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
