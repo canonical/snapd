@@ -44,6 +44,7 @@ var systemVolumesCmd = &Command{
 
 var (
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
+	fdestateChangeAuth         = fdestate.ChangeAuth
 	fdeMgrGenerateRecoveryKey  = (*fdestate.FDEManager).GenerateRecoveryKey
 	fdeMgrCheckRecoveryKey     = (*fdestate.FDEManager).CheckRecoveryKey
 
@@ -159,6 +160,7 @@ type systemVolumesActionRequest struct {
 	KeyID string `json:"key-id"`
 
 	client.QualityCheckOptions
+	client.ChangePassphraseOptions
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -196,6 +198,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesCheckPassphrase(&req)
 	case "check-pin":
 		return postSystemVolumesCheckPIN(&req)
+	case "change-passphrase":
+		return postSystemVolumesActionChangePassphrase(c, &req)
 	default:
 		return BadRequest("unsupported system volumes action %q", req.Action)
 	}
@@ -275,4 +279,30 @@ func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
 	}
 
 	return postValidatePassphrase(device.AuthModePIN, req.PIN)
+}
+
+func postSystemVolumesActionChangePassphrase(c *Command, req *systemVolumesActionRequest) Response {
+	// TODO:FDEM: allow root to reset passphrase without providing old passphrase.
+	if req.OldPassphrase == "" {
+		return BadRequest("system volume action requires old-passphrase to be provided")
+	}
+	if req.NewPassphrase == "" {
+		return BadRequest("system volume action requires new-passphrase to be provided")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := fdestateChangeAuth(st, device.AuthModePassphrase, req.OldPassphrase, req.NewPassphrase, req.Keyslots)
+	if err != nil {
+		return errToResponse(err, nil, BadRequest, "cannot change passphrase: %v")
+	}
+
+	chg := st.NewChange("fde-change-passphrase", "Change passphrase")
+	chg.AddAll(ts)
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, chg.ID())
 }

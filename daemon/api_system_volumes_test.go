@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -278,6 +279,127 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKey
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	d.Overlord().Loop()
+	defer d.Overlord().Stop()
+
+	called := 0
+	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		called++
+		c.Check(authMode, Equals, device.AuthModePassphrase)
+		c.Check(keyslotRefs, DeepEquals, []fdestate.KeyslotRef{
+			{ContainerRole: "some-container-role", Name: "some-name"},
+		})
+
+		return state.NewTaskSet(), nil
+	}))
+
+	body := strings.NewReader(`
+{
+	"action": "change-passphrase",
+	"old-passphrase": "old",
+	"new-passphrase": "new",
+	"keyslots": [
+		{"container-role": "some-container-role", "name": "some-name"}
+	]
+}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 202)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg, NotNil)
+	c.Check(chg.ID(), Equals, "1")
+	c.Check(chg.Kind(), Equals, "fde-change-passphrase")
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPassphrase(c *C) {
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "change-passphrase", "new-passphrase": "new"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	s.asUserAuth(c, req)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires old-passphrase to be provided")
+}
+
+// This test should intentionally fail when resetting passphrase as root is implemented.
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPassphraseAsRoot(c *C) {
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "change-passphrase", "new-passphrase": "new"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	s.asRootAuth(req)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires old-passphrase to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingNewPassphrase(c *C) {
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "change-passphrase", "old-passphrase": "old"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires new-passphrase to be provided")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthError(c *C) {
+	s.daemon(c)
+
+	var mockErr error
+	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		return nil, mockErr
+	}))
+
+	// catch all, bad request error
+	body := strings.NewReader(`{"action": "change-passphrase", "old-passphrase": "old", "new-passphrase": "new"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	mockErr = errors.New("boom!")
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "cannot change passphrase: boom!")
+
+	// typed conflict detection error kind
+	mockErr = &snapstate.ChangeConflictError{
+		Message: fmt.Sprintf("conflict error: boom!"),
+	}
+	body = strings.NewReader(`{"action": "change-passphrase", "old-passphrase": "old", "new-passphrase": "new"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 409)
+	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rsp.Message, Equals, "conflict error: boom!")
 }
 
 type mockKeyData struct {
