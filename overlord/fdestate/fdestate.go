@@ -515,16 +515,21 @@ type changeAuthOptions struct {
 
 type changeAuthOptionsKey struct{}
 
-// ChangePassphrase creates a taskset that changes the
-// passphrase the specified target key slots.
+// ChangeAuth creates a taskset that changes the PIN or
+// passphrase for the specified target key slots.
 //
 // If keyslotRefs is empty, the following key slots are targets:
 //   - container-role: system-data, name: default
 //   - container-role: system-data, name: default-fallback
 //   - container-role: system-save, name: default-fallback
-func ChangePassphrase(st *state.State, oldPassphrase, newPassphrase string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	// TODO:FDEM: relax for PINs
+	if authMode != device.AuthModePassphrase {
+		return nil, fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
 	if len(keyslotRefs) == 0 {
-		// by default, target keys that would have been passphrase protected during installation.
+		// by default, target keys that would have been PIN/passphrase protected during installation.
 		keyslotRefs = append(keyslotRefs,
 			KeyslotRef{ContainerRole: "system-data", Name: "default"},
 			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
@@ -563,20 +568,25 @@ func ChangePassphrase(st *state.State, oldPassphrase, newPassphrase string, keys
 		if err != nil {
 			return nil, fmt.Errorf("failed to read key data for %s: %v", keyslot.Ref().String(), err)
 		}
-		if kd.AuthMode() != device.AuthModePassphrase {
-			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), device.AuthModePassphrase)
+		if kd.AuthMode() != authMode {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), authMode)
 		}
 	}
 
 	// Auth data must be in memory to avoid leaking credentials.
-	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: oldPassphrase, new: newPassphrase})
+	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
 
 	ts := state.NewTaskSet()
 
-	changePassphrase := st.NewTask("change-auth-keys", "Change passphrase protected key slots")
-	changePassphrase.Set("keyslots", keyslotRefs)
-	changePassphrase.Set("auth-mode", device.AuthModePassphrase)
-	ts.AddTask(changePassphrase)
+	var summary string
+	switch authMode {
+	case device.AuthModePassphrase:
+		summary = "Change passphrase protected key slots"
+	}
+	changeAuth := st.NewTask("change-auth-keys", summary)
+	changeAuth.Set("keyslots", keyslotRefs)
+	changeAuth.Set("auth-mode", authMode)
+	ts.AddTask(changeAuth)
 
 	return ts, nil
 }
