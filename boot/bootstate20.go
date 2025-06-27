@@ -228,7 +228,7 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 				return err
 			}
 		} else if autoRepair {
-			resealOpts.IgnoreCache = true
+			resealOpts.Force = true
 			resealOpts.EnsureProvisioned = true
 		}
 	}

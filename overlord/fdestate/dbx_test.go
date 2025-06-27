@@ -370,7 +370,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			// normally executed by the backend code
 			c.Assert(mgr.Update("run", "default", &backend.SealingParameters{
@@ -498,7 +498,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			// normally executed by the backend code
 			c.Assert(mgr.Update("run", "default", &backend.SealingParameters{
@@ -655,7 +655,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			return nil
 		})()
@@ -769,7 +769,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 			return fmt.Errorf("mock error")
 		})()
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			return nil
 		})()
@@ -831,7 +831,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 			return nil
 		})()
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			return fmt.Errorf("mock error")
 		})()
@@ -936,7 +936,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			return fmt.Errorf("mock error")
 		})()
@@ -1266,7 +1266,7 @@ func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
 		})()
 
 	defer fdestate.MockBackendResealKeyForBootChains(
-		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(mgr backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			resealForBootChainsCalls++
 			return fmt.Errorf("mock error")
 		})()

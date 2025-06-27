@@ -102,7 +102,7 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 	})
 
 	s.AddCleanup(fdestate.MockBackendResealKeyForBootChains(
-		func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+		func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 			panic("BackendResealKeyForBootChains not mocked")
 		}))
 	s.AddCleanup(fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
@@ -378,7 +378,7 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 	params := &boot.ResealKeyForBootChainsParams{}
 	resealed := 0
 
-	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		c.Check(unlocker.unlocked, Equals, 0)
 		c.Check(unlocker.relocked, Equals, 0)
 		// Simulate the unlocking to calculate the profile
@@ -387,7 +387,7 @@ func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
 		c.Check(method, Equals, device.SealingMethodFDESetupHook)
 		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(params, Equals, params)
-		c.Check(options.ExpectReseal, Equals, false)
+		c.Check(opts.ExpectReseal, Equals, false)
 		manager.Update("run+recover", "container-role", &backend.SealingParameters{
 			BootModes:     []string{"run"},
 			Models:        []secboot.ModelForSealing{&mockModel{}},

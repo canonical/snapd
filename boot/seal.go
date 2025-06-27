@@ -261,9 +261,17 @@ func sealKeyToModeenvForMethod(
 
 var resealKeyToModeenv = resealKeyToModeenvImpl
 
+// ResealKeyToModeenvOptions are options to pass to resealing which is
+// not related to modeenv or boot chains.
 type ResealKeyToModeenvOptions struct {
-	ExpectReseal      bool
-	IgnoreCache       bool
+	// ExpectReseal must be passed when calling boot.IsResealNeeded
+	ExpectReseal bool
+	// When Force is true, resealing must happen even if no change
+	// is detected.
+	Force bool
+	// When EnsureProvisioned is true, resealing will ensure the
+	// TPM is provisioned correctly, but keeping the same lockout
+	// authorization value.
 	EnsureProvisioned bool
 }
 
@@ -274,7 +282,7 @@ type ResealKeyToModeenvOptions struct {
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, options ResealKeyToModeenvOptions, unlocker Unlocker) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToModeenvOptions, unlocker Unlocker) error {
 	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
@@ -288,7 +296,7 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, options ResealKeyT
 		return err
 	}
 
-	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, options)
+	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, opts)
 }
 
 type ResealKeyForBootChainsParams struct {

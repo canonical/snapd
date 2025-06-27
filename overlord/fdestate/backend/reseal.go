@@ -509,15 +509,15 @@ func updateFallbackProtectionProfile(
 }
 
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
-func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, options boot.ResealKeyToModeenvOptions) error {
+func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
 			bootChains: params.BootChains,
 		},
 		resealOptions{
-			ExpectReseal:      options.ExpectReseal,
-			Force:             options.IgnoreCache,
-			EnsureProvisioned: options.EnsureProvisioned,
+			ExpectReseal:      opts.ExpectReseal,
+			Force:             opts.Force,
+			EnsureProvisioned: opts.EnsureProvisioned,
 		})
 }
 
