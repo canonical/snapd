@@ -160,15 +160,9 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
     # There isn't an official image for noble yet, let's use the community one
-    REMOTE=ubuntu
-    # There isn't an official image for 25.10 yet, let's use the daily one
-    if os.query is-ubuntu 25.10; then
-        REMOTE=ubuntu-daily
-    fi
-    # shellcheck disable=SC1091
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-inner-ubuntu --config=user.user-data="$(cat lxd_proxy.yaml)"
+    REMOTE="$("$TESTSTOOLS"/lxd-state default-remote)"
+    IMAGE="$("$TESTSTOOLS"/lxd-state default-image)"
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "$REMOTE:$IMAGE" my-inner-ubuntu --config=user.user-data="$(cat lxd_proxy.yaml)"
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"

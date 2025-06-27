@@ -37,7 +37,9 @@ prepare_snap(){
         lxd.lxc profile set default environment.no_proxy "$no_proxy"
     fi
 
-    setup_instance_proxy
+    # Set the default proxy configuration to the default profile
+    write_default_proxy_config lxd_default_proxy.yaml
+    lxd.lxc profile set default user.user-data "$(cat lxd_default_proxy.yaml)"
 }
 
 launch() {
@@ -73,20 +75,14 @@ launch() {
     fi
 
     if [ -z "$remote" ]; then
-        # There isn't an official image for noble yet, let's use the community one
-        remote=ubuntu
-        # There isn't an official image for 25.10 yet, let's use the daily one
-        if os.query is-ubuntu 25.10; then
-            remote=ubuntu-daily
-        fi
+        remote="$(default_remote)"
     fi
     if [ -z "$image" ]; then
-        # shellcheck disable=SC1091
-        image="$(. /etc/os-release && echo "$VERSION_ID" )"
+        image="$(default_image)"
     fi
 
     # shellcheck disable=SC2086
-    lxc launch --quiet "${remote}:${image}" "$name" $params --config=user.user-data="$(cat lxd_proxy.yaml)"
+    lxc launch --quiet "${remote}:${image}" "$name" $params
 
     # wait for cloud-init to finish before doing any apt operations
     local ret=0
@@ -97,7 +93,23 @@ launch() {
     fi
 }
 
-setup_instance_proxy() {
+default_remote() {
+    # There isn't an official image for noble yet, let's use the community one
+    remote=ubuntu
+    # There isn't an official image for 25.10 yet, let's use the daily one
+    if os.query is-ubuntu 25.10; then
+        remote=ubuntu-daily
+    fi
+    echo "$remote"
+}
+
+default_image() {
+    # shellcheck disable=SC1091
+    . /etc/os-release && echo "$VERSION_ID"
+}
+
+write_default_proxy_config() {
+    local proxy_file="${1:-lxd_default_proxy.yaml}"
     local snapd_https_proxy snapd_http_proxy snapd_no_proxy
     snapd_https_proxy="$https_proxy"
     snapd_http_proxy="$http_proxy"
@@ -109,10 +121,11 @@ setup_instance_proxy() {
        snapd_no_proxy="$no_proxy"
     fi
 
-    cat <<EOF > lxd_proxy.yaml
+    cat <<EOF > "$proxy_file"
 #cloud-config
 write_files:
-- path: /tmp/proxy_config.txt
+- path: /etc/environment
+  append: true
   content: |    
     HTTPS_PROXY="$snapd_https_proxy"
     HTTP_PROXY="$snapd_http_proxy"
@@ -120,9 +133,6 @@ write_files:
     https_proxy="$snapd_https_proxy"
     http_proxy="$snapd_http_proxy"
     no_proxy="$snapd_no_proxy"
-
-runcmd:
-  - cat /tmp/proxy_config.txt >> /etc/environment
 EOF
 }
 
@@ -172,6 +182,14 @@ main() {
         launch)
                 shift
                 launch "$@"
+            ;;
+        default-remote)
+                shift
+                default_remote
+            ;;
+        default-image)
+                shift
+                default_image
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2
