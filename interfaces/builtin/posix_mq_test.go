@@ -494,6 +494,7 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-rw`)
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open getattr setattr) type=posix "/test-rw",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (getattr) type=posix "/",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
@@ -541,6 +542,7 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-default`)
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open getattr setattr) type=posix "/test-default",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (getattr) type=posix "/",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
@@ -585,6 +587,7 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read open getattr) type=posix "/test-ro",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (getattr) type=posix "/",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
