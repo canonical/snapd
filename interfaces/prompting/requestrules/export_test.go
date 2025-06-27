@@ -29,10 +29,18 @@ import (
 var (
 	ErrNoUserSession   = errNoUserSession
 	JoinInternalErrors = joinInternalErrors
-	UserSessionIDPath  = userSessionIDPath
+	UserSessionPath    = userSessionPath
 )
 
 type RulesDBJSON rulesDBJSON
+
+func MockUserSessionIDXattr() (xattr string, restore func()) {
+	// Test code doesn't have CAP_SYS_ADMIN, so replace the "trusted" namespace
+	// with "user" for the sake of testing.
+	testXattr := "user.snapd_user_session_id"
+	restore = testutil.Mock(&userSessionIDXattr, testXattr)
+	return testXattr, restore
+}
 
 func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
 	return rule.validate(currTime)

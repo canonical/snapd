@@ -31,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -725,24 +727,27 @@ func (s *requestrulesSuite) TestCloseErrors(c *C) {
 	c.Check(rdb.Close(), NotNil)
 }
 
-func (s *requestrulesSuite) TestUserSessionIDPath(c *C) {
+func (s *requestrulesSuite) TestUserSessionPath(c *C) {
 	for _, testCase := range []struct {
 		userID   uint32
 		expected string
 	}{
-		{1000, "/run/user/1000/snapd-user-session-id"},
-		{0, "/run/user/0/snapd-user-session-id"},
-		{1, "/run/user/1/snapd-user-session-id"},
-		{65535, "/run/user/65535/snapd-user-session-id"},
-		{65536, "/run/user/65536/snapd-user-session-id"},
-		{4294967295, "/run/user/4294967295/snapd-user-session-id"},
+		{1000, "/run/user/1000"},
+		{0, "/run/user/0"},
+		{1, "/run/user/1"},
+		{65535, "/run/user/65535"},
+		{65536, "/run/user/65536"},
+		{4294967295, "/run/user/4294967295"},
 	} {
 		expectedWithTestPrefix := filepath.Join(dirs.GlobalRootDir, testCase.expected)
-		c.Check(requestrules.UserSessionIDPath(testCase.userID), Equals, expectedWithTestPrefix)
+		c.Check(requestrules.UserSessionPath(testCase.userID), Equals, expectedWithTestPrefix)
 	}
 }
 
 func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
+	userSessionIDXattr, restore := requestrules.MockUserSessionIDXattr()
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -770,9 +775,10 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
 	c.Assert(retrievedID, Equals, origID)
 
 	// If the user session restarts, the user session tmpfs is deleted and
-	// re-created, so the file is no longer present. So we set a new ID.
-	c.Assert(os.Remove(filepath.Join(dirs.GlobalRootDir, "run/user/1000/snapd-user-session-id")), IsNil)
-	newID, err := rdb.ReadOrAssignUserSessionID(s.defaultUser)
+	// re-created, so the xattr is no longer present. So we set a new ID.
+	c.Assert(os.Remove(filepath.Join(dirs.GlobalRootDir, "run/user/1000")), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "run/user/1000"), 0o700), IsNil)
+	newID, err := rdb.ReadOrAssignUserSessionID(1000)
 	c.Assert(err, IsNil)
 	c.Assert(newID, Not(Equals), 0)
 	c.Assert(newID, Not(Equals), origID)
@@ -800,7 +806,7 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
 	c.Assert(firstUserID, Equals, newID)
 
 	// If we remove the user session for the first user, we get the error again
-	c.Assert(os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "run/user/1000")), IsNil)
+	c.Assert(os.Remove(filepath.Join(dirs.GlobalRootDir, "run/user/1000")), IsNil)
 	noSessionID, err = rdb.ReadOrAssignUserSessionID(1000)
 	c.Assert(err, ErrorMatches, "cannot find systemd user session tmpfs for user: 1000")
 	c.Assert(noSessionID, Equals, prompting.IDType(0))
@@ -811,8 +817,8 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
 	c.Assert(retrievedID, Not(Equals), prompting.IDType(0))
 	c.Assert(retrievedID, Equals, secondUserID)
 
-	// If the file is corrupted, we get a new ID
-	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "run/user/1234/snapd-user-session-id"), []byte("foo"), 0o600), IsNil)
+	// If the xattr is corrupted, we get a new ID
+	c.Assert(unix.Setxattr(filepath.Join(dirs.GlobalRootDir, "run/user/1234"), userSessionIDXattr, []byte("foo"), 0), IsNil)
 	regeneratedID, err := rdb.ReadOrAssignUserSessionID(1234)
 	c.Assert(err, IsNil)
 	c.Assert(regeneratedID, Not(Equals), prompting.IDType(0))
@@ -820,6 +826,9 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
 }
 
 func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
+	_, restore := requestrules.MockUserSessionIDXattr()
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
