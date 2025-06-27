@@ -11,6 +11,9 @@ echo "Working Directory: $PWD"
 # ensure syslog is working
 /usr/bin/logger logger was started
 
+# ensure systemd-cat is working
+/usr/bin/systemd-cat echo "systemd-cat is working"
+
 i=0
 while true; do
     echo "LogDaemon: message number: $i"
