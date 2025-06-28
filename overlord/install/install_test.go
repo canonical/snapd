@@ -604,7 +604,7 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(2 * time.Millisecond):
+			case <-time.After(20 * time.Millisecond):
 			}
 		}
 

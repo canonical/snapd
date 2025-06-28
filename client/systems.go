@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -146,7 +147,7 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 type StorageEncryptionSupport string
 
 const (
-	// forcefull disabled by the device
+	// forcefully disabled by the device
 	StorageEncryptionSupportDisabled = "disabled"
 	// encryption available and usable
 	StorageEncryptionSupportAvailable = "available"
@@ -183,6 +184,9 @@ type StorageEncryption struct {
 	// encryption is required or not this should be presented to
 	// the user as either an error or as information.
 	UnavailableReason string `json:"unavailable-reason,omitempty"`
+
+	// AvailabilityCheckErrors reports errors detected during preinstall check.
+	AvailabilityCheckErrors []secboot.PreinstallErrorDetails `json:"availability-check-errors,omitempty"`
 }
 
 type SystemDetails struct {
