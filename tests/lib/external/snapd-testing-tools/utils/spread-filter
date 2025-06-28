@@ -163,7 +163,7 @@ class ExecutionManager:
         return final_executions
 
     # Retrieves the list of tests to execute
-    def get_executions(self, changes: list[str]) -> list[str]:
+    def get_executions(self, changes: list[str], tasks: list[str]) -> list[str]:
         all_executions = []
         for change in changes:
             executions = self.rules.calc_executions(change)
@@ -172,7 +172,7 @@ class ExecutionManager:
             for execution in executions:
                 if execution == self.SELF:
                     self_execution = self._calc_self(change)
-                    if self_execution != "":
+                    if self_execution != "" and (not tasks or any(task for task in tasks if self_execution.startswith(task))):
                         all_executions.append(self_execution)
                 # When the tests to run are tagged as NONE means that no tests
                 # have to be executed
@@ -180,7 +180,13 @@ class ExecutionManager:
                     continue
                 # Otherwise, what is defined in to (literal) is executed.
                 else:
-                    all_executions.append(self._get_test_exec_dir(execution))
+                    dir = self._get_test_exec_dir(execution)
+                    if tasks:
+                        for task in tasks:
+                            if task.startswith(dir):
+                                all_executions.append(task)
+                    else:
+                        all_executions.append(dir)
 
         cleaned_executions = self._clean_executions(all_executions)
         return self._get_execution_param(cleaned_executions)
@@ -199,6 +205,7 @@ def _make_parser() -> argparse.ArgumentParser:
         "-c", "--change", action="append", default=[], help="File that changed"
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Be more verbose")
+    parser.add_argument("-t", "--tasks", default='', type=str)
 
     return parser
 
@@ -216,5 +223,5 @@ if __name__ == "__main__":
         sys.exit(1)
 
     execution_manager = ExecutionManager(args.rules_file, args.prefix, args.verbose)
-    execution_list = execution_manager.get_executions(args.change)
+    execution_list = execution_manager.get_executions(args.change, args.tasks.replace('...', '').split())
     print(" ".join(map(str, execution_list)))
