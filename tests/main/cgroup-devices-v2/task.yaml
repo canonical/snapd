@@ -21,7 +21,7 @@ systems:
 
 prepare: |
     tests.session -u test prepare
-    if command -v setenforce; then
+    if command -v getenforce && [ "$(getenforce)" != "Disabled" ]; then
         # an SELinux enabled system, switch the mode to enforcing
         getenforce > enforcing.mode
         setenforce 1

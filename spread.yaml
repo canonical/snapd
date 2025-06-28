@@ -270,6 +270,10 @@ backends:
             - opensuse-tumbleweed-64:
                   workers: 6
                   storage: 12G
+            - opensuse-tumbleweed-selinux-64:
+                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
+                  workers: 6
+                  storage: 12G
 
     google-arm:
         type: google
@@ -433,6 +437,10 @@ backends:
             - opensuse-tumbleweed-64:
                   image: snapd-spread/opensuse-tumbleweed-64
                   workers: 6
+            - opensuse-tumbleweed-selinux-64:
+                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
+                  workers: 6
+                  storage: 12G
 
             - centos-9-64:
                   image: snapd-spread/centos-9-64
