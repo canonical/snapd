@@ -203,18 +203,6 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	err = json.Unmarshal(fakeState, &expected)
 	c.Assert(err, IsNil)
 
-	if runtime.Version() < "go1.24" {
-		// Go versions prior to 1.24 do not recognize "omitzero", and since a
-		// zero time.Time is not technically empty, it is not omitted by
-		// "omitempty". We expect a zero-valued "last-notice-timestamp", so it
-		// should be "0001-01-01T00:00:00Z" on go versions prior to 1.24.
-		lastTS, ok := got["last-notice-timestamp"]
-		c.Check(ok, Equals, true)
-		c.Check(lastTS, Equals, "0001-01-01T00:00:00Z")
-		// Delete the field so the DeepEquals check can succeed
-		delete(got, "last-notice-timestamp")
-	}
-
 	data, _ := got["data"].(map[string]any)
 	c.Assert(data, NotNil)
 
