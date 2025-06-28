@@ -566,6 +566,8 @@ var (
 // Each apparmor feature is manifested as a directory entry.
 const featuresSysPath = "sys/kernel/security/apparmor/features"
 
+// FeaturesSysDir returns the path to the AppArmor features sysfs, which is
+// /sys/kernel/security/apparmor/features, relative to the current root dir.
 func FeaturesSysDir() string {
 	return filepath.Join(rootPath, featuresSysPath)
 }
@@ -691,9 +693,9 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 	return aap.parserFeatures, aap.parserError
 }
 
-// permstable32Features specifies which features from permstable32 to include
-// in the probed kernel features.
-var permstable32Features = []string{"prompt"}
+// permstable32RelevantFeatures specifies which features from permstable32 to
+// include in the probed kernel features.
+var permstable32RelevantFeatures = []string{"prompt"}
 
 func probeKernelFeatures() ([]string, error) {
 	features, err := probeKernelFeaturesInDirRecursively(FeaturesSysDir(), "")
@@ -703,7 +705,7 @@ func probeKernelFeatures() ([]string, error) {
 	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32")); err == nil {
 		readFeats := strings.Fields(string(data))
 		for _, feat := range readFeats {
-			if strutil.ListContains(permstable32Features, feat) {
+			if strutil.ListContains(permstable32RelevantFeatures, feat) {
 				features = append(features, "policy:permstable32:"+feat)
 			}
 		}
