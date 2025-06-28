@@ -50,6 +50,10 @@ ifdef(`distro_debian',`
 /var/lib/snapd(/.*)?			gen_context(system_u:object_r:snappy_var_lib_t,s0)
 /var/cache/snapd(/.*)?			gen_context(system_u:object_r:snappy_var_cache_t,s0)
 /var/snap(/.*)?				gen_context(system_u:object_r:snappy_var_t,s0)
+# on openSUSE, snaps are mounted under /snap
+ifdef(`distro_opensuse',`
+/snap(/.*)?					gen_context(system_u:object_r:snappy_var_lib_t,s0)
+')
 
 /run/snapd(/.*)?	        gen_context(system_u:object_r:snappy_var_run_t,s0)
 /run/snapd\.socket 		-s	gen_context(system_u:object_r:snappy_var_run_t,s0)
