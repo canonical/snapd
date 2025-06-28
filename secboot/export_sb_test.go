@@ -518,3 +518,15 @@ func MockSbCheckPassphraseEntropy(f func(passphrase string) (*sb.PassphraseEntro
 func MockUnixAddKey(f func(keyType string, description string, payload []byte, ringid int) (int, error)) (restore func()) {
 	return testutil.Mock(&unixAddKey, f)
 }
+
+func MockTPMRevokeOldPCRProtectionPolicies(f func(key MaybeSealedKeyData, tpm *sb_tpm2.Connection, primaryKey []byte) error) (restore func()) {
+	old := sbTPMRevokeOldPCRProtectionPolicies
+	sbTPMRevokeOldPCRProtectionPolicies = f
+	return func() {
+		sbTPMRevokeOldPCRProtectionPolicies = old
+	}
+}
+
+func MockSbNewSealedKeyData(f func(k *sb.KeyData) (MaybeSealedKeyData, error)) (restore func()) {
+	return testutil.Mock(&sbNewSealedKeyData, f)
+}

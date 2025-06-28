@@ -2059,7 +2059,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoTrusted(c *C) {
 		Mode: "run",
 		// no trusted assets
 	}
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Check(drop, IsNil)
 	c.Check(newM, DeepEquals, m)
@@ -2082,7 +2082,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoAssetsOnDisk(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Check(drop, IsNil)
 	// we booted without assets on disk nonetheless
@@ -2121,7 +2121,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
@@ -2142,6 +2142,122 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 		{"asset", "assethash"},
 		{"asset", "recoveryassethash"},
 		{"shim", "recoveryshimhash"},
+	} {
+		c.Check(byHash[en.hash].Equals("trusted", en.assetName, en.hash), IsNil)
+	}
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootRevocation(c *C) {
+	tab := s.bootloaderWithTrustedAssets(map[string]string{
+		"asset": "asset",
+		"shim":  "shim",
+	})
+
+	tab.RevocationTriggeringAssetsReturn = []string{"shim"}
+
+	data := []byte("foobar")
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+
+	// only asset for ubuntu-boot
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	// shim and asset for ubuntu-seed
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"assethash", dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"recoveryassethash", dataHash},
+			"shim":  []string{"recoveryshimhash", shimHash},
+		},
+	}
+
+	newM, drop, revokeOldKeys, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(tab.RevocationTriggeringAssetsCalls, Equals, 2)
+	c.Check(revokeOldKeys, Equals, true)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": []string{dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
+	})
+	c.Check(drop, HasLen, 3)
+	byHash := make(map[string]*boot.TrackedAsset)
+	for _, dropElement := range drop {
+		byHash[dropElement.GetHash()] = dropElement
+	}
+	for _, en := range []struct {
+		assetName, hash string
+	}{
+		{"asset", "assethash"},
+		{"asset", "recoveryassethash"},
+		{"shim", "recoveryshimhash"},
+	} {
+		c.Check(byHash[en.hash].Equals("trusted", en.assetName, en.hash), IsNil)
+	}
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootNoRevocation(c *C) {
+	tab := s.bootloaderWithTrustedAssets(map[string]string{
+		"asset": "asset",
+		"shim":  "shim",
+	})
+
+	tab.RevocationTriggeringAssetsReturn = []string{"shim"}
+
+	data := []byte("foobar")
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	shim := []byte("shim")
+	shimHash := "dac0063e831d4b2e7a330426720512fc50fa315042f0bb30f9d1db73e4898dcb89119cac41fdfa62137c8931a50f9d7b"
+
+	// only asset for ubuntu-boot
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	// shim and asset for ubuntu-seed
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "shim"), shim, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"assethash", dataHash},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"recoveryassethash", dataHash},
+			// No old hash to drop, so no update, so no revocation
+			"shim":  []string{shimHash},
+		},
+	}
+
+	newM, drop, revokeOldKeys, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, NotNil)
+	c.Check(tab.RevocationTriggeringAssetsCalls, Equals, 2)
+	c.Check(revokeOldKeys, Equals, false)
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": []string{dataHash},
+	})
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
+	})
+	c.Check(drop, HasLen, 2)
+	byHash := make(map[string]*boot.TrackedAsset)
+	for _, dropElement := range drop {
+		byHash[dropElement.GetHash()] = dropElement
+	}
+	for _, en := range []struct {
+		assetName, hash string
+	}{
+		{"asset", "assethash"},
+		{"asset", "recoveryassethash"},
 	} {
 		c.Check(byHash[en.hash].Equals("trusted", en.assetName, en.hash), IsNil)
 	}
@@ -2174,7 +2290,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected run mode bootloader asset "asset" hash %v`, unexpectedHash))
 	c.Assert(newM, IsNil)
 	c.Check(drop, HasLen, 0)
@@ -2183,7 +2299,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	// on the recovery bootloader asset
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
 
-	newM, drop, err = boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err = boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected recovery bootloader asset "asset" hash %v`, unexpectedHash))
 	c.Assert(newM, IsNil)
 	c.Check(drop, HasLen, 0)
@@ -2221,7 +2337,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	}
 
 	// nothing is changed
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM, DeepEquals, m)
@@ -2258,7 +2374,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	}
 
 	// nothing is changed
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
@@ -2303,7 +2419,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 		},
 	}
 
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
@@ -2347,7 +2463,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	}
 
 	// nothing is changed
-	_, _, err := boot.ObserveSuccessfulBootWithAssets(m)
+	_, _, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, ErrorMatches, "cannot calculate the digest of existing trusted asset: .*/asset: permission denied")
 }
 
@@ -2368,7 +2484,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootDifferentMode(c *C) {
 
 	// if we were in run mode, this would error out because the assets don't
 	// exist, but we are not in run mode
-	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, IsNil)
 	c.Assert(newM, DeepEquals, m)
 	c.Assert(drop, IsNil)
