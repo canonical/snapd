@@ -20,8 +20,8 @@ func MockSyscall(syscall func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err uni
 	return testutil.Mock(&doSyscall, syscall)
 }
 
-func MockApparmorKernelFeatures(f func() ([]string, error)) (restore func()) {
-	return testutil.Mock(&apparmorKernelFeatures, f)
+func MockApparmorMetadataTagsSupported(f func() bool) (restore func()) {
+	return testutil.Mock(&apparmorMetadataTagsSupported, f)
 }
 
 // VersionAndCheck couples protocol version with a support check function which
