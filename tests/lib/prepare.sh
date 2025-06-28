@@ -1722,6 +1722,13 @@ prepare_ubuntu_core() {
     fi
     setup_snapd_proxy
 
+    # We setup the ntp server in case it is defined in the current env
+    # This is not needed in classic systems becuase the images already have ntp configured
+    if [ -n "${NTP_SERVER:-}" ]; then
+        sed -i "s/^#NTP=.*/NTP=$NTP_SERVER/" /etc/systemd/timesyncd.conf
+        systemctl restart systemd-timesyncd
+    fi
+
     disable_journald_rate_limiting
     disable_journald_start_limiting
 
