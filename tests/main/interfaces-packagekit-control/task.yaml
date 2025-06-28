@@ -32,5 +32,10 @@ execute: |
     snap connections test-snapd-packagekit | MATCH "packagekit-control +test-snapd-packagekit:packagekit-control +:packagekit-control +manual"
 
     echo "With the plug connected it is possible to communicate with packagekit"
+    if [ "${SNAPD_USE_PROXY:-}" = true ] && os.query is-xenial; then
+        # PackageKit fails with a proxy
+        # https://bugzilla.redhat.com/show_bug.cgi?id=1348843
+        exit 0
+    fi
     test-snapd-packagekit.pkcon backend-details | MATCH "Name:"
     test-snapd-packagekit.pkcon resolve snapd | MATCH "Installed[[:space:]]+snapd"

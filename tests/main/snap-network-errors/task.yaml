@@ -40,7 +40,7 @@ execute: |
 
         tests.cleanup defer mv proxy.conf /etc/systemd/system/snapd.service.d/proxy.conf
         tests.cleanup defer mv environment /etc/environment
-        tests.cleanup defer systemctl daemon-reload        
+        tests.cleanup defer systemctl daemon-reload
     fi
 
     if systemctl is-active systemd-resolved; then
