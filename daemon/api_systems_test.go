@@ -812,7 +812,7 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 // This combination of UnavailableWarning and AvailabilityCheckErrors represents the
 // Ubuntu 25.10+ hybrid install using the comprehensive secboot preinstall check to
 // determine encryption availability. Other systems use the basic availability check
-// will not populate AvailabilityCheckErrors. This test case exercises the superset
+// that will not populate AvailabilityCheckErrors. This test case exercises the superset
 // of availability check behavior.
 var unavailableWarning string = "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors"
 var availabilityCheckErrors = []secboot.PreinstallErrorDetails{
