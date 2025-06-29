@@ -42,15 +42,6 @@ define UBUNTU_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 endef
 
-define UBUNTU_16.04_CLOUD_INIT_USER_DATA_TEMPLATE
-$(CLOUD_INIT_USER_DATA_TEMPLATE)
-# The cloud image seems not to have ntp anymore but spread prepare stops the
-# service so pre-install it before we make other changes. Perhaps the selection
-# in server images is different.
-packages:
-- ntp
-endef
-
 # In the snapd project Ubuntu Core images are built from classic Ubuntu images
 # in a somewhat complex manner. Ubuntu Core 16 and 18 kernels do not support
 # booting from. Use a quirk to make those systems use SCSI storage instead.

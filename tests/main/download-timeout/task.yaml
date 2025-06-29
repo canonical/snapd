@@ -20,8 +20,13 @@ environment:
   OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
+  if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+      # TODO: Fix the issue
+      tests.exec skip-test "This test fails when proxy is set for snapd" && exit 0
+  fi
+
   device=ens4
-  if [ "$SPREAD_BACKEND" = openstack ]; then
+  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
     device=ens3
   fi
 
@@ -37,8 +42,10 @@ prepare: |
   systemctl restart snapd.{socket,service}
 
 restore: |
+  tests.exec is-skipped && exit 0
+
   device=ens4
-  if [ "$SPREAD_BACKEND" = openstack ]; then
+  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
     device=ens3
   fi
 
@@ -59,8 +66,10 @@ restore: |
   systemctl restart snapd.{socket,service}
 
 execute: |
+  tests.exec is-skipped && exit 0
+
   device=ens4
-  if [ "$SPREAD_BACKEND" = openstack ]; then
+  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
     device=ens3
   fi
 

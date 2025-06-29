@@ -17,7 +17,7 @@ restore: |
     systemctl restart snapd.service
 
 execute: |
-    if ! [ "$SPREAD_BACKEND" = "google" ] && ! [ "$SPREAD_BACKEND" = "openstack" ]; then
+    if ! [[ "$SPREAD_BACKEND" =~ google ]] && ! [[ "$SPREAD_BACKEND" =~ openstack ]]; then
         tests.exec skip-test "This test is only valid for google and openstack backends that provide cloud info" && exit 0
     fi
 
@@ -75,7 +75,7 @@ execute: |
         NOMATCH "manual_cache_clean: true" < /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
     fi
 
-    if [ "$SPREAD_BACKEND" = "google" ]; then
+    if [[ "$SPREAD_BACKEND" =~ google ]]; then
         # GCE sets the following in Ubuntu images:
         # {
         #    ...
@@ -96,7 +96,7 @@ execute: |
         # verify that the region and availability zone is set in HTTP requests
         journalctl -b -u snapd | MATCH -E "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
 
-    elif [ "$SPREAD_BACKEND" = "openstack" ]; then
+    elif [[ "$SPREAD_BACKEND" =~ openstack ]]; then
         # Openstack sets the following in Ubuntu images:
         # {
         #    ...

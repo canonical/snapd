@@ -11,6 +11,8 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
 prepare: |
+
+
     # Ensure there is no .partial for the core snap to be resumed, otherwise
     # it is not going to use the proxy to download it. The .partial file is
     # being automatically restored with the snapd state.
@@ -23,10 +25,34 @@ prepare: |
         find /var/lib/snapd/cache -inum "$inum" -delete
     done
 
+    systemctl stop snapd.socket snapd.service
+    rm -rf /var/lib/snapd/state.json
+
+    # Unset snapd proxy configuration when it is required
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        mv /etc/systemd/system/snapd.service.d/proxy.conf proxy.conf
+        cp /etc/environment environment
+        cp "$SNAPD_WORK_DIR"/environment.bak /etc/environment
+        systemctl daemon-reload
+
+        tests.cleanup defer mv proxy.conf /etc/systemd/system/snapd.service.d/proxy.conf
+        tests.cleanup defer mv environment /etc/environment
+        tests.cleanup defer systemctl daemon-reload
+    else
+        # only allow test user to connect to http/https
+        iptables -I OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
+        iptables -I OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+        iptables -I OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
+    fi
+    systemctl start snapd.socket snapd.service
+
+
 restore: |
-    iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j ACCEPT -p tcp
-    iptables -D OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
-    iptables -D OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j ACCEPT -p tcp
+        iptables -D OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
+        iptables -D OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+    fi
     snap set core proxy.https=
     systemctl stop tinyproxy || true
 
@@ -35,18 +61,15 @@ execute: |
        echo "SKIP: need python3"
        exit 0
     fi
-    systemctl stop snapd.socket snapd.service
-    rm -rf /var/lib/snapd/state.json
-    systemctl start snapd.socket snapd.service
 
-    # only allow test user to connect to http/https
-    iptables -I OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
-    iptables -I OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
-    iptables -I OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
-
-    # run a proxy that can access http/https (via the owner rule)
-    systemd-run --service-type=notify --uid=test --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
-    tests.systemd wait-for-service -n 30 --state active tinyproxy
+    # We need the tiny proxy just when snapd does not connect to the store through a real proxy
+    PROXY="$HTTPS_PROXY"
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        # run a proxy that can access http/https (via the owner rule)
+        systemd-run --service-type=notify --uid=test --unit tinyproxy -- python3 "$TESTSLIB/tinyproxy/tinyproxy.py"
+        tests.systemd wait-for-service -n 30 --state active tinyproxy
+        PROXY="http://localhost:3128"
+    fi
 
     echo "Ensure normal install without proxy does not work"
     if snap install core; then
@@ -54,10 +77,13 @@ execute: |
         exit 1
     fi
 
+
     echo "Setup proxy config"
-    snap set core proxy.https=http://localhost:3128
+    snap set core proxy.https="$PROXY"
 
     echo "Ensure that snap install works even without an installed core to install core"
     snap install core
 
-    "$TESTSTOOLS"/journal-state match-log 'CONNECT (.*.cdn.snapcraft.io|.*.cdn.snapcraftcontent.com)' -u tinyproxy
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        "$TESTSTOOLS"/journal-state match-log 'CONNECT (.*.cdn.snapcraft.io|.*.cdn.snapcraftcontent.com)' -u tinyproxy
+    fi

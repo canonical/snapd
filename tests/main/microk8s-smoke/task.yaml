@@ -45,8 +45,11 @@ prepare: |
     tests.cleanup defer mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
 
     if [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ; then
+        ENV_FILE=/etc/environment
+        ENV_FILE_BAK="$PWD"/environment.bak
+
         # Configuration done following https://microk8s.io/docs/install-proxy
-        cp /etc/environment /etc/environment.bak
+        cp "$ENV_FILE" "$ENV_FILE_BAK"
         {
         echo "http_proxy=$http_proxy"
         echo "HTTP_PROXY=$https_proxy"
@@ -54,8 +57,8 @@ prepare: |
         echo "HTTPS_PROXY=$https_proxy"
         echo "NO_PROXY=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"
         echo "no_proxy=10.0.0.0/8,192.168.0.0/16,127.0.0.1,172.16.0.0/16,.svc,localhost"
-        } >> /etc/environment
-        tests.cleanup defer mv /etc/environment.bak /etc/environment
+        } >> "$ENV_FILE"
+        tests.cleanup defer cp "$ENV_FILE_BAK" "$ENV_FILE"
     fi
 
     systemctl daemon-reload

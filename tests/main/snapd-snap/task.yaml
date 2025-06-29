@@ -45,6 +45,10 @@ environment:
     no_proxy: ppa.launchpad.net
 
 prepare: |
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        tests.exec skip-test "Snapcraft fails to snap snapd when the proxy is set" && exit 0
+    fi
+
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
@@ -128,6 +132,8 @@ prepare: |
     fi
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     # get the snapd sandbox features
     snap debug sandbox-features
 
@@ -136,6 +142,8 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log
 
 execute: |
+    tests.exec is-skipped && exit 0
+
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 

@@ -24,14 +24,7 @@ prepare: |
     fi
     echo "Install lxd"
     "$TESTSTOOLS"/lxd-state prepare-snap
-
-    REMOTE=ubuntu
-    # There isn't an official image for 25.10 yet, let's use the daily one
-    if os.query is-ubuntu 25.10; then
-      REMOTE=ubuntu-daily
-    fi
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-ubuntu
+    "$TESTSTOOLS"/lxd-state launch --name my-ubuntu
 
     # precondition check
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
@@ -46,15 +39,7 @@ prepare: |
     echo "Push snapd into container"
     lxd.lxc file push --quiet prep-snapd-in-lxd.sh "my-ubuntu/root/"
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/root/"
-
-    echo "Setting up proxy *inside* the container"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc exec my-ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    fi
-
+    
     echo "Install snapd in container"
     lxd.lxc exec my-ubuntu -- /root/prep-snapd-in-lxd.sh
 

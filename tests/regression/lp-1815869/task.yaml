@@ -35,15 +35,7 @@ prepare: |
     "$TESTSTOOLS"/lxd-state prepare-snap
 
     # Launch a bionic container.
-    lxc launch --quiet ubuntu:bionic mycontainer
-
-    # Set the proxy inside the container.
-    if [ -n "${http_proxy:-}" ]; then
-        lxc exec mycontainer -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxc exec mycontainer -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    fi
+    "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image bionic --name mycontainer
 
     # Install snapd we've built inside the container.
     lxc exec mycontainer -- apt autoremove --purge -y snapd ubuntu-core-launcher

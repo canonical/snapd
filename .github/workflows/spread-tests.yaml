@@ -369,14 +369,6 @@ jobs:
         path: "spread-logs/*.log"
         if-no-files-found: ignore
 
-    - name: Discard spread workers
-      if: always()
-      run: |
-        shopt -s nullglob;
-        for r in .spread-reuse.*.yaml; do
-          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-        done
-
     - name: Report spread errors
       if: always()
       run: |
@@ -451,3 +443,11 @@ jobs:
         name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
         path: "spread-results.json"
         if-no-files-found: ignore
+
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done

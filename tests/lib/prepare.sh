@@ -87,16 +87,44 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 }
 
-setup_systemd_snapd_overrides() {
-    local PROXY_PARAM=""
-    if [ -n "$HTTPS_PROXY" ] && [ "${SNAPD_USE_PROXY:-}" == true ]; then
-        PROXY_PARAM="HTTPS_PROXY=$HTTPS_PROXY"
+setup_snapd_proxy() {
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        return
     fi
 
     mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
+[Service]
+Environment="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
+EOF
+
+    # We change the service configuration so reload and restart
+    # the units to get them applied
+    systemctl daemon-reload
+    # restart the service (it pulls up the socket)
+    systemctl restart snapd.service
+}
+
+setup_system_proxy() {
+    mkdir -p "$SNAPD_WORK_DIR"
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then    
+        cp -f /etc/environment "$SNAPD_WORK_DIR"/environment.bak
+        {
+            echo "HTTPS_PROXY=$HTTPS_PROXY"
+            echo "HTTP_PROXY=$HTTP_PROXY"
+            echo "https_proxy=$HTTPS_PROXY"
+            echo "http_proxy=$HTTP_PROXY"
+            echo "NO_PROXY=$NO_PROXY"
+            echo "no_proxy=$NO_PROXY"
+        } >> /etc/environment
+    fi
+}
+
+setup_systemd_snapd_overrides() {
+    mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE $PROXY_PARAM
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 
 [Unit]
@@ -359,6 +387,9 @@ prepare_each_core() {
 }
 
 prepare_classic() {
+    # Configure the proxy in the system when it is required
+    setup_system_proxy   
+
     # Skip building snapd when REUSE_SNAPD is set to 1
     if [ "$REUSE_SNAPD" != 1 ]; then
         distro_install_build_snapd
@@ -416,6 +447,8 @@ prepare_classic() {
         snap wait system seed.loaded
     fi
     snap list snapd
+
+    setup_snapd_proxy
 
     mount_dir="$(os.paths snap-mount-dir)"
     if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
@@ -1679,10 +1712,21 @@ EOF
 
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
+    # Configure the proxy in the system when it is required
+    setup_system_proxy
+
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
         setup_reflash_magic
         REBOOT
+    fi
+    setup_snapd_proxy
+
+    # We setup the ntp server in case it is defined in the current env
+    # This is not needed in classic systems becuase the images already have ntp configured
+    if [ -n "${NTP_SERVER:-}" ]; then
+        sed -i "s/^#NTP=.*/NTP=$NTP_SERVER/" /etc/systemd/timesyncd.conf
+        systemctl restart systemd-timesyncd
     fi
 
     disable_journald_rate_limiting
