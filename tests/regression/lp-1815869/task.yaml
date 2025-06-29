@@ -36,7 +36,6 @@ prepare: |
 
     # Launch a bionic container.
     "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image bionic --name mycontainer
-    "$TESTSTOOLS"/lxd-state setup-proxy mycontainer force
 
     # Install snapd we've built inside the container.
     lxc exec mycontainer -- apt autoremove --purge -y snapd ubuntu-core-launcher
