@@ -14,13 +14,13 @@ execute: |
         snap debug sandbox-features | grep "confinement-options: " | NOMATCH "classic"
         snap debug sandbox-features | MATCH "apparmor: .+"
         ;;
+    fedora-*|opensuse-*-selinux-*)
+        # Fedora because it uses SELinux
+        snap debug sandbox-features | NOMATCH "apparmor: .+"
+        ;;
     ubuntu-*|opensuse-*|debian-sid-*|arch-linux-*)
         # Debian, openSUSE, Arch because partial apparmor is enabled
         snap debug sandbox-features | MATCH "apparmor: .+"
-        ;;
-    fedora-*)
-        # Fedora because it uses SELinux
-        snap debug sandbox-features | NOMATCH "apparmor: .+"
         ;;
     esac
     snap debug sandbox-features | MATCH "dbus: .+"
