@@ -461,12 +461,13 @@ func validateRequestStoragePair(request, storage string) (reqAccessors []accesso
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
-	reqKeyVars, err := getKeyPlaceholders(reqAccessors)
+
+	reqKeyVars, err := getPlaceholdersOfType(reqAccessors, keyPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	storageKeyVars, err := getKeyPlaceholders(storageAccessors)
+	storageKeyVars, err := getPlaceholdersOfType(storageAccessors, keyPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -478,12 +479,12 @@ func validateRequestStoragePair(request, storage string) (reqAccessors []accesso
 	}
 
 	// check that the request and storage list index placeholders match
-	reqIndexVars, err := getIndexPlaceholders(reqAccessors)
+	reqIndexVars, err := getPlaceholdersOfType(reqAccessors, indexPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	storageIndexVars, err := getIndexPlaceholders(storageAccessors)
+	storageIndexVars, err := getPlaceholdersOfType(storageAccessors, indexPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -565,8 +566,26 @@ func validateViewDottedPath(path string, opts *validationOptions) ([]accessor, e
 	return pathIntoAccessors(subkeys), nil
 }
 
+type keyType uint8
+
+const (
+	mapKeyType keyType = iota
+	listIndexType
+	keyPlaceholderType
+	indexPlaceholderType
+)
+
 type accessor interface {
-	fmt.Stringer
+	// name returns the value of the path sub-key excluding any separators (dots
+	// or brackets), both for literal and placeholders.
+	name() string
+
+	// access returns the value of the sub-key wrapped in any separators or brackets
+	// the type may require
+	access() string
+
+	// keytype returns a type that represents the kind of path sub-key the accessor is.
+	keyType() keyType
 }
 
 func pathIntoAccessors(path []string) []accessor {
@@ -582,7 +601,7 @@ func pathIntoAccessors(path []string) []accessor {
 			if subkey[1] == '{' {
 				next = indexPlaceholder(subkey[2 : len(subkey)-2])
 			} else {
-				next = index(subkey)
+				next = index(subkey[1 : len(subkey)-1])
 			}
 
 		default:
@@ -638,35 +657,26 @@ func splitViewPath(path string) ([]string, error) {
 	return subkeys, nil
 }
 
-// getPlaceholders returns the number of occurrences of placeholder names, for
-// a given type of placeholder.
-func getPlaceholders[T key | keyPlaceholder | index | indexPlaceholder](accessors []accessor) (map[string]int, error) {
+// getPlaceholdersOfType returns the number of occurrences of placeholder names,
+// for a given type of placeholder.
+func getPlaceholdersOfType(accessors []accessor, keyType keyType) (map[string]int, error) {
 	var placeholders map[string]int
-	count := func(key T) {
+	count := func(key accessor) {
 		if placeholders == nil {
 			placeholders = make(map[string]int)
 		}
-		placeholders[string(key)]++
+		placeholders[key.name()]++
 	}
 
 	for _, acc := range accessors {
-		subAcc, ok := acc.(T)
-		if !ok {
+		if acc.keyType() != keyType {
 			continue
 		}
 
-		count(subAcc)
+		count(acc)
 	}
 
 	return placeholders, nil
-}
-
-func getKeyPlaceholders(accs []accessor) (map[string]int, error) {
-	return getPlaceholders[keyPlaceholder](accs)
-}
-
-func getIndexPlaceholders(accs []accessor) (map[string]int, error) {
-	return getPlaceholders[indexPlaceholder](accs)
 }
 
 // View returns a view from the confdb schema.
@@ -1481,12 +1491,11 @@ func newViewRule(request, storage []accessor, accesstype string) (*viewRule, err
 func joinPathParts(parts []accessor) string {
 	var sb strings.Builder
 	for i, part := range parts {
-		_, isIndexPlaceholder := part.(indexPlaceholder)
-		_, isIndex := part.(index)
-		if !(isIndexPlaceholder || isIndex || i == 0) {
+		if !(part.keyType() == indexPlaceholderType || part.keyType() == listIndexType || i == 0) {
 			sb.WriteRune('.')
 		}
-		sb.WriteString(part.String())
+
+		sb.WriteString(part.access())
 	}
 
 	return sb.String()
@@ -1533,7 +1542,7 @@ func (p *viewRule) match(reqSubkeys []string) (matched *matchedPlaceholders, res
 	}
 
 	for _, key := range p.request[len(reqSubkeys):] {
-		restSuffix = append(restSuffix, key.String())
+		restSuffix = append(restSuffix, key.access())
 	}
 
 	return matched, restSuffix, true
@@ -1600,7 +1609,7 @@ func (p keyPlaceholder) write(sb *strings.Builder, matched *matchedPlaceholders,
 	subkey, ok := matched.key[string(p)]
 	if !ok {
 		// placeholder wasn't matched, return the original key in brackets
-		subkey = p.String()
+		subkey = p.access()
 	}
 
 	if !opts.topLevel {
@@ -1610,10 +1619,12 @@ func (p keyPlaceholder) write(sb *strings.Builder, matched *matchedPlaceholders,
 	sb.WriteString(subkey)
 }
 
-// String returns the placeholder as a string.
-func (p keyPlaceholder) String() string {
+func (p keyPlaceholder) access() string {
 	return "{" + string(p) + "}"
 }
+
+func (p keyPlaceholder) name() string     { return string(p) }
+func (p keyPlaceholder) keyType() keyType { return keyPlaceholderType }
 
 type matchedPlaceholders struct {
 	index map[string]string
@@ -1651,16 +1662,17 @@ func (p indexPlaceholder) write(sb *strings.Builder, matched *matchedPlaceholder
 	subkey, ok := matched.index[string(p)]
 	if !ok {
 		// placeholder wasn't matched, return the original key in brackets
-		subkey = p.String()
+		subkey = p.access()
+	} else {
+		subkey = "[" + subkey + "]"
 	}
 
-	sb.WriteString("[" + subkey + "]")
+	sb.WriteString(subkey)
 }
 
-// String returns the placeholder as a string.
-func (p indexPlaceholder) String() string {
-	return "[{" + string(p) + "}]"
-}
+func (p indexPlaceholder) access() string   { return "[{" + string(p) + "}]" }
+func (p indexPlaceholder) name() string     { return string(p) }
+func (p indexPlaceholder) keyType() keyType { return indexPlaceholderType }
 
 // key is a non-placeholder object key.
 type key string
@@ -1676,31 +1688,33 @@ func (k key) write(sb *strings.Builder, _ *matchedPlaceholders, opts writeOpts) 
 	if !opts.topLevel {
 		sb.WriteRune('.')
 	}
-
-	sb.WriteString(string(k))
+	sb.WriteString(k.access())
 }
 
-// String returns the key as a string.
-func (k key) String() string {
-	return string(k)
-}
+func (k key) access() string   { return k.name() }
+func (k key) name() string     { return string(k) }
+func (k key) keyType() keyType { return mapKeyType }
 
 type index string
 
 // match returns true if the subkey is equal to the literal.
 func (i index) match(subkey string, _ *matchedPlaceholders) bool {
+	subkey, ok := stripIndex(subkey)
+	if !ok {
+		return false
+	}
+
 	return string(i) == subkey
 }
 
 // write writes the literal subkey into the strings.Builder.
-func (p index) write(sb *strings.Builder, _ *matchedPlaceholders, opts writeOpts) {
-	sb.WriteString(string(p))
+func (i index) write(sb *strings.Builder, _ *matchedPlaceholders, _ writeOpts) {
+	sb.WriteString(i.access())
 }
 
-// String returns the index wrapped in brackets.
-func (i index) String() string {
-	return string(i)
-}
+func (i index) access() string   { return "[" + i.name() + "]" }
+func (i index) name() string     { return string(i) }
+func (i index) keyType() keyType { return listIndexType }
 
 type PathError string
 
