@@ -211,7 +211,9 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 		}
 	}
 
-	resealOpts := ResealKeyToModeenvOptions{}
+	// None of the implementation of successfulBootState is expected to modify the model.
+	// So we can safely ignore FDE hooks.
+	resealOpts := ResealKeyToModeenvOptions{IgnoreFDEHooks: true}
 
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {

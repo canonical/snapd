@@ -784,7 +784,8 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		// boot assets was updated
 		return nil
 	}
-	opts := ResealKeyToModeenvOptions{ExpectReseal: true}
+	// no model changed => ignore FDE hooks
+	opts := ResealKeyToModeenvOptions{ExpectReseal: true, IgnoreFDEHooks: true}
 	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, opts, nil); err != nil {
 		return err
 	}
@@ -850,7 +851,8 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	opts := ResealKeyToModeenvOptions{ExpectReseal: true}
+	// no model changed => ignore FDE hooks
+	opts := ResealKeyToModeenvOptions{ExpectReseal: true, IgnoreFDEHooks: true}
 	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, opts, nil); err != nil {
 		return fmt.Errorf("while canceling gadget update: %v", err)
 	}

@@ -549,6 +549,7 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 			Force:             opts.Force,
 			EnsureProvisioned: opts.EnsureProvisioned,
 			Revoke:            params.RevokeOldKeys,
+			IgnoreFDEHooks:    opts.IgnoreFDEHooks,
 		})
 }
 
@@ -571,6 +572,8 @@ func ResealKeysForSignaturesDBUpdate(
 			// to the relevant EFI variables (in which case this is a
 			// post-update reseal)
 			Force: true,
+			// no model changed => ignore FDE hooks
+			IgnoreFDEHooks: true,
 		})
 }
 
@@ -584,6 +587,7 @@ type resealOptions struct {
 	Force             bool
 	EnsureProvisioned bool
 	Revoke            bool
+	IgnoreFDEHooks    bool
 }
 
 func resealKeys(
@@ -593,6 +597,10 @@ func resealKeys(
 ) error {
 	switch method {
 	case device.SealingMethodFDESetupHook:
+		if opts.IgnoreFDEHooks {
+			return nil
+		}
+
 		if err := recalculateParamatersFDEHook(manager, method, rootdir, inputs, opts); err != nil {
 			return err
 		}

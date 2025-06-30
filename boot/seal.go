@@ -276,6 +276,9 @@ type ResealKeyToModeenvOptions struct {
 	// TPM is provisioned correctly, but keeping the same lockout
 	// authorization value.
 	EnsureProvisioned bool
+	// When IgnoreFDEHooks is true, FDE hook keys should not be
+	// resealed.
+	IgnoreFDEHooks bool
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the

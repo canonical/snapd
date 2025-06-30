@@ -94,7 +94,10 @@ func clearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 
 	// but we still want to reseal, in case the cleanup did not reach this
 	// point before
-	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
+	// Because we potential removed try models, this will affect
+	// FDE hooks keys. We need to make sure those are also
+	// resealed.
+	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true, IgnoreFDEHooks: false}
 	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil)
 
 	if resealErr != nil {
@@ -176,7 +179,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	// until the keys are resealed, even if we unexpectedly boot into the
 	// tried system, data will still be inaccessible and the system will be
 	// considered as nonoperational
-	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
+	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true, IgnoreFDEHooks: false}
 	return resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil)
 }
 
