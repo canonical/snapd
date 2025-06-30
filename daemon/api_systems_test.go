@@ -1525,7 +1525,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20250619", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
@@ -1679,7 +1679,7 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20250619", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),

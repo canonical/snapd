@@ -482,7 +482,7 @@ func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedRe
 	req, err := http.NewRequest("GET", fmt.Sprintf("/v2/system-volumes%s", query), nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
 	c.Check(rsp.Result, DeepEquals, expectedResult)
@@ -563,7 +563,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetQueryConflictError(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-volumes?by-container-role=true&container-role=mbr", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, `"container-role" query parameter conflicts with "by-container-role"`)
 }
@@ -574,7 +574,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetQueryByContainerRoleError(c *C)
 	req, err := http.NewRequest("GET", "/v2/system-volumes?by-container-role=ok", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, `"by-container-role" query parameter when used must be set to "true" or "false" or left unset`)
 }
@@ -589,7 +589,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetGadgetError(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-volumes", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 500)
 	c.Assert(rsp.Message, Equals, "cannot get encryption information for gadget volumes: boom!")
 }
@@ -624,7 +624,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
@@ -689,7 +689,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 		c.Assert(err, IsNil)
 		req.Header.Add("Content-Type", "application/json")
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, tc.expectedStatus)
 		c.Check(rspe.Kind, Equals, tc.expectedErrKind)
 		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
@@ -727,7 +727,7 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 	c.Check(rsp.Result, DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
@@ -792,7 +792,7 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPINError(c *C) {
 		c.Assert(err, IsNil)
 		req.Header.Add("Content-Type", "application/json")
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, tc.expectedStatus)
 		c.Check(rspe.Kind, Equals, tc.expectedErrKind)
 		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
