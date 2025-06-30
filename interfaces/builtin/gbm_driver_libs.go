@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,22 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	if err := slot.Attr("kernel-driver", &kernelDriver); err != nil {
 		return fmt.Errorf("invalid kernel-driver: %w", err)
 	}
+	var compatField string
+	if err := slot.Attr("compatibility", &compatField); err != nil {
+		return err
+	}
+	// Validate format of compatibility field - we don't actually need to
+	// do anything else with it until we start to support regular snaps.
+	// Here we only support 64 bits, it is not clear that we need anything
+	// else for desktop (no deb package in the archive ships anything in
+	// /usr/lib/i386-linux-gnu/gbm/).
+	_, err := decodeCompatField(compatField, &CompatSpec{[]CompatDimension{
+		{Tag: "gbmbackend", Values: []CompatRange{{0, math.MaxUint}}},
+		{Tag: "arch", Values: []CompatRange{{64, 64}}},
+	}})
+	if err != nil {
+		return err
+	}
 	// We want a file name in client-driver, without directories
 	if strings.ContainsRune(clientDriver, os.PathSeparator) {
 		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
@@ -86,7 +103,7 @@ var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})
 var _ = symlinks.ConnectedPlugCallback(&gbmDriverLibsInterface{})
 
 func gbmVendorPath() string {
-	// TODO consider alternative architectures
+	// TODO consider alternative architectures?
 	return fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())
 }
 
