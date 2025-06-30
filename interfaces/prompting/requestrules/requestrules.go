@@ -952,7 +952,7 @@ func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompti
 	} else if err != nil {
 		return 0, err
 	}
-	return newID, err
+	return newID, nil
 }
 
 // Creates a rule with the given information and adds it to the rule database.
