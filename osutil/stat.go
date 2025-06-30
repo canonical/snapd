@@ -22,6 +22,7 @@ package osutil
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
@@ -85,6 +86,19 @@ func LookPathDefault(name string, defaultPath string) string {
 		return defaultPath
 	}
 	return p
+}
+
+// LookInPaths is a simplified version of exec.LookPath which looks for am
+// executable in caller provided list of colon separated paths. Returns empty
+// string if executable was not found.
+func LookInPaths(name string, searchPath string) string {
+	for _, dir := range filepath.SplitList(searchPath) {
+		p := filepath.Join(dir, name)
+		if IsExecutable(p) {
+			return p
+		}
+	}
+	return ""
 }
 
 // IsWritable checks if the given file/directory can be written by
