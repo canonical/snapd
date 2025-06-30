@@ -35,8 +35,8 @@ debug: |
 execute: |
     "$TESTSTOOLS"/lxd-state prepare-snap
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image 22.04 --name my-ubuntu
 
-    lxd.lxc launch --quiet "ubuntu:18.04" my-ubuntu
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd

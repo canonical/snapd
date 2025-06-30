@@ -18,8 +18,8 @@
       },
       {
         "group": "ubuntu-noble (fundamental)",
-        "backend": "google",
-        "alternative-backend": "openstack",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google",
         "systems": "ubuntu-24.04-64",
         "tasks": "tests/...",
         "rules": "main"

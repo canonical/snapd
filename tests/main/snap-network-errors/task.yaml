@@ -9,9 +9,11 @@ details: |
 systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 
 restore: |
-    echo "Restoring iptables rules"
-    iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
-    iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        echo "Restoring iptables rules"
+        iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+        iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+    fi
 
 debug: |
     echo "iptables rules:"
@@ -24,10 +26,22 @@ execute: |
 
     systemctl stop snapd.{socket,service}
 
-    echo "Disabling DNS queries"
-    # DNS queries generally use port 53 through UDP protocol, but TCP could be used as well
-    iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
-    iptables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
+        echo "Disabling DNS queries"
+        # DNS queries generally use port 53 through UDP protocol, but TCP could be used as well
+        iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+        iptables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+    else
+        # The proxy is unset to produce a network error when snapd tries to contact the store
+        mv /etc/systemd/system/snapd.service.d/proxy.conf proxy.conf
+        cp /etc/environment environment
+        cp "$SNAPD_WORK_DIR"/environment.bak /etc/environment
+        systemctl daemon-reload
+
+        tests.cleanup defer mv proxy.conf /etc/systemd/system/snapd.service.d/proxy.conf
+        tests.cleanup defer mv environment /etc/environment
+        tests.cleanup defer systemctl daemon-reload
+    fi
 
     if systemctl is-active systemd-resolved; then
         # before systemd 239, the tool was named systemd-resolve some systems do not support

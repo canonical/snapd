@@ -3,6 +3,7 @@
 show_help() {
     echo "usage: lxd-state undo-mount-changes"
     echo "       lxd-state prepare-snap"
+    echo "       lxd-state setup-proxy <INSTANCE-NAME>"
 }
 
 prepare_snap(){
@@ -26,10 +27,113 @@ prepare_snap(){
     echo "lxd-state: setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
         lxd.lxc config set core.proxy_http "$http_proxy"
+        lxd.lxc profile set default environment.http_proxy "$http_proxy"
     fi
     if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
+        lxd.lxc config set core.proxy_https "$https_proxy"
+        lxd.lxc profile set default environment.https_proxy "$https_proxy"
     fi
+    if [ -n "${no_proxy:-}" ]; then
+        lxd.lxc profile set default environment.no_proxy "$no_proxy"
+    fi
+
+    # Set the default proxy configuration to the default profile
+    write_default_proxy_config lxd_default_proxy.yaml
+    lxd.lxc profile set default user.user-data "$(cat lxd_default_proxy.yaml)"
+}
+
+launch() {
+    local name params remote image
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --name)
+                name=$2
+                shift 2
+                ;;
+            --remote)
+                remote=$2
+                shift 2
+                ;;
+            --image)
+                image=$2
+                shift 2
+                ;;
+            --params)
+                params=$2
+                shift 2
+                ;;
+            *)
+                "lxd-state: parameter \"$1\" not supported"
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$name" ]; then
+        "lxd-state: instance name is required"
+        exit 1
+    fi
+
+    if [ -z "$remote" ]; then
+        remote="$(default_remote)"
+    fi
+    if [ -z "$image" ]; then
+        image="$(default_image)"
+    fi
+
+    # shellcheck disable=SC2086
+    lxc launch --quiet "${remote}:${image}" "$name" $params
+
+    # wait for cloud-init to finish before doing any apt operations
+    local ret=0
+    cloud-init status --wait || ret=$?
+    if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
+        echo "cloud-init finished with error $ret"
+        exit 1
+    fi
+}
+
+default_remote() {
+    # There isn't an official image for noble yet, let's use the community one
+    remote=ubuntu
+    # There isn't an official image for 25.10 yet, let's use the daily one
+    if os.query is-ubuntu 25.10; then
+        remote=ubuntu-daily
+    fi
+    echo "$remote"
+}
+
+default_image() {
+    # shellcheck disable=SC1091
+    . /etc/os-release && echo "$VERSION_ID"
+}
+
+write_default_proxy_config() {
+    local proxy_file="${1:-lxd_default_proxy.yaml}"
+    local snapd_https_proxy snapd_http_proxy snapd_no_proxy
+    snapd_https_proxy="$https_proxy"
+    snapd_http_proxy="$http_proxy"
+    snapd_no_proxy="$no_proxy"
+
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+       snapd_https_proxy="$https_proxy"
+       snapd_http_proxy="$http_proxy"
+       snapd_no_proxy="$no_proxy"
+    fi
+
+    cat <<EOF > "$proxy_file"
+#cloud-config
+write_files:
+- path: /etc/environment
+  append: true
+  content: |    
+    HTTPS_PROXY="$snapd_https_proxy"
+    HTTP_PROXY="$snapd_http_proxy"
+    NO_PROXY="$snapd_no_proxy"
+    https_proxy="$snapd_https_proxy"
+    http_proxy="$snapd_http_proxy"
+    no_proxy="$snapd_no_proxy"
+EOF
 }
 
 main() {
@@ -74,6 +178,18 @@ main() {
         prepare-snap)
                 shift
                 prepare_snap "$@"
+            ;;
+        launch)
+                shift
+                launch "$@"
+            ;;
+        default-remote)
+                shift
+                default_remote
+            ;;
+        default-image)
+                shift
+                default_image
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2

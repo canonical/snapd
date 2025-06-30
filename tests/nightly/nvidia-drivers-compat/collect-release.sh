@@ -17,9 +17,7 @@ if [ -e "$release-done" ]; then
 fi
 
 # shellcheck disable=SC2086
-lxc launch "ubuntu:$release" "$cname" --ephemeral -c limits.cpu=8 -c limits.memory=8GiB ${EXTRA_LXC_ARGS-}
-lxc exec "$cname" -- cloud-init status --wait
-echo "--- container ready"
+"$TESTSTOOLS"/lxd-state launch --remote ubuntu --image "$release" --name "$cname" --params "--ephemeral -c limits.cpu=8 -c limits.memory=8GiB ${EXTRA_LXC_ARGS-}"
 driver_versions=$(lxc exec "$cname" -- sh -c "apt-cache search nvidia-driver | grep nvidia-driver | grep -v -i transition | cut -f1 -d' '")
 
 echo "-- release $release"
