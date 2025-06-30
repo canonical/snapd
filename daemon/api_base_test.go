@@ -64,6 +64,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -128,15 +129,6 @@ func skipActionCoverage() bool {
 	return false
 }
 
-func sliceContains(s []string, v string) bool {
-	for _, item := range s {
-		if item == v {
-			return true
-		}
-	}
-	return false
-}
-
 func TestMain(m *testing.M) {
 	actionsMap = &concurrentActionsMap{data: map[*daemon.Command][]string{}}
 	disableMap = map[string][]string{}
@@ -157,10 +149,10 @@ func TestMain(m *testing.M) {
 			path = cmd.PathPrefix
 		}
 		for _, action := range cmd.Actions {
-			if l, exists := disableMap[path]; exists && sliceContains(l, action) {
+			if l, exists := disableMap[path]; exists && strutil.ListContains(l, action) {
 				continue
 			}
-			if !sliceContains(actions, action) {
+			if !strutil.ListContains(actions, action) {
 				fmt.Printf("No test for action %s of command %s - if that action no longer exists, remove it from the Actions field slice in the relevant command. If it should not appear in unit tests, disable it calling apiBaseSuite.DisableActionsCheck(\"%s\", \"%s\")\n", action, path, path, action)
 				code = 1
 			}
@@ -810,7 +802,7 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, act
 			if err := json.Unmarshal(bodyBytes, &data); err == nil {
 				if data.Action != "" {
 					actionsMap.AddAction(cmd, data.Action)
-					if !sliceContains(cmd.Actions, data.Action) {
+					if !strutil.ListContains(cmd.Actions, data.Action) {
 						c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
 					}
 				}
@@ -873,7 +865,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 		if err := json.Unmarshal(bodyBytes, &data); err == nil {
 			if data.Action != "" {
 				actionsMap.AddAction(cmd, data.Action)
-				if !sliceContains(cmd.Actions, data.Action) {
+				if !strutil.ListContains(cmd.Actions, data.Action) {
 					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
 				}
 			}
