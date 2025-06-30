@@ -72,7 +72,7 @@ func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 	// reseal with both models now, such that we'd still be able to boot
 	// even if there is a reboot before the device/model file is updated, or
 	// before the final reseal with one model
-	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
+	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true, IgnoreHooks: false}
 	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, unlocker); err != nil {
 		// best effort clear the modeenv's try model
 		m.clearTryModel()
