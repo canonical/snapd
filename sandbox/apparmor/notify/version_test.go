@@ -20,10 +20,12 @@
 package notify_test
 
 import (
-	"fmt"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -55,57 +57,95 @@ func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
 	defer restore()
 
 	for _, testCase := range []struct {
-		featuresList    []string
-		featuresErr     error
-		expectedSupport []bool // corresponds to ordered list notify.Versions
+		versionsDirExists     bool
+		versionFiles          []string
+		metadataTagsSupported bool
+		expectedSupport       []bool // corresponds to ordered list notify.Versions
 	}{
 		{
-			// error getting features
-			featuresList:    nil,
-			featuresErr:     fmt.Errorf("couldn't get kernel features"),
-			expectedSupport: []bool{false, false},
-		},
-		{
 			// no features related to prompting support
-			featuresList:    nil,
-			featuresErr:     nil,
-			expectedSupport: []bool{false, true},
+			versionsDirExists:     false,
+			versionFiles:          nil,
+			metadataTagsSupported: false,
+			expectedSupport:       []bool{false, true},
 		},
 		{
-			// policy:notify_versions dir present, but no versions
-			featuresList:    []string{"policy:notify_versions"},
-			featuresErr:     nil,
-			expectedSupport: []bool{false, false},
+			// notify_versions dir present, but no versions
+			versionsDirExists:     true,
+			versionFiles:          nil,
+			metadataTagsSupported: false,
+			expectedSupport:       []bool{false, false},
 		},
 		{
-			// policy:notify_versions:v3 present
-			featuresList:    []string{"policy:notify_versions", "policy:notify_versions:v3"},
-			featuresErr:     nil,
-			expectedSupport: []bool{false, true},
+			// only metadata tags supported (no notify_versions directory)
+			versionsDirExists:     false,
+			versionFiles:          nil,
+			metadataTagsSupported: true,
+			expectedSupport:       []bool{false, true},
 		},
 		{
-			// policy:notify_versions:v5 present
-			featuresList:    []string{"policy:notify_versions", "policy:notify_versions:v5"},
-			featuresErr:     nil,
-			expectedSupport: []bool{false, false},
+			// notify_versions/v3 present
+			versionsDirExists:     true,
+			versionFiles:          []string{"v3"},
+			metadataTagsSupported: false,
+			expectedSupport:       []bool{false, true},
 		},
 		{
-			// policy:notify_versions:v5 and policy:notify:user:tags present
-			featuresList:    []string{"policy:notify_versions", "policy:notify_versions:v5", "policy:notify:user:tags"},
-			featuresErr:     nil,
-			expectedSupport: []bool{true, false},
+			// notify_versions/v5 present
+			versionsDirExists:     true,
+			versionFiles:          []string{"v5"},
+			metadataTagsSupported: false,
+			expectedSupport:       []bool{false, false},
 		},
 		{
-			// only policy:notify:user:tags present
-			featuresList:    []string{"policy:notify:user:tags"},
-			featuresErr:     nil,
-			expectedSupport: []bool{false, true},
+			// notify_versions/{v3,v5} present
+			versionsDirExists:     true,
+			versionFiles:          []string{"v3", "v5"},
+			metadataTagsSupported: false,
+			expectedSupport:       []bool{false, true},
+		},
+		{
+			// notify_versions/v3 and metadata tags supported
+			versionsDirExists:     true,
+			versionFiles:          []string{"v3"},
+			metadataTagsSupported: true,
+			expectedSupport:       []bool{false, true},
+		},
+		{
+			// notify_versions/v5 and metadata tags supported
+			versionsDirExists:     true,
+			versionFiles:          []string{"v5"},
+			metadataTagsSupported: true,
+			expectedSupport:       []bool{true, false},
+		},
+		{
+			// notify_versions/{v3,v5} and metadata tags supported
+			versionsDirExists:     true,
+			versionFiles:          []string{"v3", "v5"},
+			metadataTagsSupported: true,
+			expectedSupport:       []bool{true, true},
 		},
 	} {
 		c.Assert(testCase.expectedSupport, HasLen, len(notify.Versions))
 
-		restore := notify.MockApparmorKernelFeatures(func() ([]string, error) {
-			return testCase.featuresList, testCase.featuresErr
+		tmpdir := c.MkDir()
+		restore := apparmor.MockFsRootPath(tmpdir)
+		defer restore()
+
+		versionsDir := filepath.Join(tmpdir, "sys/kernel/security/apparmor/features/policy/notify_versions")
+
+		if testCase.versionsDirExists {
+			c.Assert(os.MkdirAll(versionsDir, 0o755), IsNil)
+		}
+
+		for _, versionFilename := range testCase.versionFiles {
+			f, err := os.Create(filepath.Join(versionsDir, versionFilename))
+			c.Assert(err, IsNil)
+			c.Assert(f.Close(), IsNil)
+		}
+
+		restore = notify.MockApparmorMetadataTagsSupported(func() bool {
+			return testCase.metadataTagsSupported
 		})
 		defer restore()
 
