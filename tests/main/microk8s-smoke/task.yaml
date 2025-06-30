@@ -17,6 +17,7 @@ systems:
   - -fedora-42-*         # fails to start service daemon-containerd
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
+  - -opensuse-*          # install hook fails
   - -ubuntu-*-arm*       # not available on arm
   # 25.04 and 25.10 failing due to old apparmor parser not recognizing kernel
   # features https://bugs.launchpad.net/apparmor/+bug/2105986 and microk8s uses
