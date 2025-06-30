@@ -847,6 +847,7 @@ func (v *View) Unset(databag Databag, request string) error {
 
 func (v *View) matchWriteRequest(request string) ([]requestMatch, error) {
 	var matches []requestMatch
+	// TODO: replace with []accessors
 	subkeys, err := splitViewPath(request)
 	if err != nil {
 		return nil, err
@@ -1392,6 +1393,7 @@ type requestMatch struct {
 func (v *View) matchGetRequest(request string) (matches []requestMatch, err error) {
 	var subkeys []string
 	if request != "" {
+		// TODO: replace with []accessors
 		subkeys, err = splitViewPath(request)
 		if err != nil {
 			return nil, err
