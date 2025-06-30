@@ -462,12 +462,12 @@ func validateRequestStoragePair(request, storage string) (reqAccessors []accesso
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
 
-	reqKeyVars, err := getPlaceholdersOfType(reqAccessors, keyPlaceholderType)
+	reqKeyVars, err := countAccessorsOfType(reqAccessors, keyPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	storageKeyVars, err := getPlaceholdersOfType(storageAccessors, keyPlaceholderType)
+	storageKeyVars, err := countAccessorsOfType(storageAccessors, keyPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -479,12 +479,12 @@ func validateRequestStoragePair(request, storage string) (reqAccessors []accesso
 	}
 
 	// check that the request and storage list index placeholders match
-	reqIndexVars, err := getPlaceholdersOfType(reqAccessors, indexPlaceholderType)
+	reqIndexVars, err := countAccessorsOfType(reqAccessors, indexPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	storageIndexVars, err := getPlaceholdersOfType(storageAccessors, indexPlaceholderType)
+	storageIndexVars, err := countAccessorsOfType(storageAccessors, indexPlaceholderType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -581,10 +581,10 @@ type accessor interface {
 	name() string
 
 	// access returns the value of the sub-key wrapped in any separators or brackets
-	// the type may require
+	// the type may require to be composed into a path.
 	access() string
 
-	// keytype returns a type that represents the kind of path sub-key the accessor is.
+	// keyType returns a type that represents the kind of path sub-key the accessor is.
 	keyType() keyType
 }
 
@@ -657,15 +657,15 @@ func splitViewPath(path string) ([]string, error) {
 	return subkeys, nil
 }
 
-// getPlaceholdersOfType returns the number of occurrences of placeholder names,
-// for a given type of placeholder.
-func getPlaceholdersOfType(accessors []accessor, keyType keyType) (map[string]int, error) {
-	var placeholders map[string]int
+// countAccessorsOfType returns the number of occurrences of path sub-keys of
+// a given type of accessor (e.g., key placeholder, etc).
+func countAccessorsOfType(accessors []accessor, keyType keyType) (map[string]int, error) {
+	var freqs map[string]int
 	count := func(key accessor) {
-		if placeholders == nil {
-			placeholders = make(map[string]int)
+		if freqs == nil {
+			freqs = make(map[string]int)
 		}
-		placeholders[key.name()]++
+		freqs[key.name()]++
 	}
 
 	for _, acc := range accessors {
@@ -676,7 +676,7 @@ func getPlaceholdersOfType(accessors []accessor, keyType keyType) (map[string]in
 		count(acc)
 	}
 
-	return placeholders, nil
+	return freqs, nil
 }
 
 // View returns a view from the confdb schema.
