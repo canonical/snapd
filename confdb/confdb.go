@@ -452,12 +452,12 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 // path.
 func validateRequestStoragePair(request, storage string) (reqAccessors []accessor, storageAccessors []accessor, err error) {
 	opts := &validationOptions{allowPlaceholder: true}
-	reqAccessors, err = validateViewDottedPath(request, opts)
+	reqAccessors, err = parsePathIntoAccessors(request, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	storageAccessors, err = validateViewDottedPath(storage, opts)
+	storageAccessors, err = parsePathIntoAccessors(storage, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
@@ -532,7 +532,7 @@ type validationOptions struct {
 	allowPlaceholder bool
 }
 
-// validateViewDottedPath validates that request/storage strings in a view definition are:
+// parsePathIntoAccessors validates that request/storage strings in a view definition are:
 //   - composed of non-empty, dot or bracket separated subkeys with optional
 //     placeholders (e.g., foo.{bar}, a[{n}].bar), if allowed by the validationOptions
 //   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
@@ -542,7 +542,7 @@ type validationOptions struct {
 //
 // If the validation succeeds, it returns an []accessor which contains typed
 // representations of each type of subkey (e.g., key placeholder, index, etc).
-func validateViewDottedPath(path string, opts *validationOptions) ([]accessor, error) {
+func parsePathIntoAccessors(path string, opts *validationOptions) ([]accessor, error) {
 	if opts == nil {
 		opts = &validationOptions{}
 	}
@@ -552,18 +552,27 @@ func validateViewDottedPath(path string, opts *validationOptions) ([]accessor, e
 		return nil, err
 	}
 
+	accessors := make([]accessor, 0, len(subkeys))
 	for _, subkey := range subkeys {
+		switch {
 		// straight literal accesses, without placeholders (e.g., foo.bar, foo[1])
-		isLiteral := validSubkey.MatchString(subkey) || validIndexSubkey.MatchString(subkey)
+		case validSubkey.MatchString(subkey):
+			accessors = append(accessors, key(subkey))
+		case validIndexSubkey.MatchString(subkey):
+			accessors = append(accessors, index(subkey[1:len(subkey)-1]))
+		case !opts.allowPlaceholder:
+			return nil, fmt.Errorf("invalid subkey %q", subkey)
 		// placeholder subkeys (e.g., foo.{bar}, foo[{n}])
-		isPlaceholder := validPlaceholder.MatchString(subkey) || validIndexPlaceholder.MatchString(subkey)
-
-		if !isLiteral && (!opts.allowPlaceholder || !isPlaceholder) {
+		case validPlaceholder.MatchString(subkey):
+			accessors = append(accessors, keyPlaceholder(subkey[1:len(subkey)-1]))
+		case validIndexPlaceholder.MatchString(subkey):
+			accessors = append(accessors, indexPlaceholder(subkey[2:len(subkey)-2]))
+		default:
 			return nil, fmt.Errorf("invalid subkey %q", subkey)
 		}
 	}
 
-	return pathIntoAccessors(subkeys), nil
+	return accessors, nil
 }
 
 type keyType uint8
@@ -586,32 +595,6 @@ type accessor interface {
 
 	// keyType returns a type that represents the kind of path sub-key the accessor is.
 	keyType() keyType
-}
-
-func pathIntoAccessors(path []string) []accessor {
-	accessors := make([]accessor, 0, len(path))
-
-	for _, subkey := range path {
-		var next accessor
-		switch subkey[0] {
-		case '{':
-			next = keyPlaceholder(subkey[1 : len(subkey)-1])
-
-		case '[':
-			if subkey[1] == '{' {
-				next = indexPlaceholder(subkey[2 : len(subkey)-2])
-			} else {
-				next = index(subkey[1 : len(subkey)-1])
-			}
-
-		default:
-			next = key(subkey)
-		}
-
-		accessors = append(accessors, next)
-	}
-
-	return accessors
 }
 
 func splitViewPath(path string) ([]string, error) {
@@ -751,7 +734,7 @@ func validateSetValue(v any, depth int) error {
 // Set sets the named view to a specified non-nil value.
 func (v *View) Set(databag Databag, request string, value any) error {
 	// TODO: ignore accessors for now (will address in its own PR)
-	if _, err := validateViewDottedPath(request, nil); err != nil {
+	if _, err := parsePathIntoAccessors(request, nil); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
@@ -828,7 +811,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 
 func (v *View) Unset(databag Databag, request string) error {
 	// TODO: ignore accessors for now (will address in its own PR)
-	if _, err := validateViewDottedPath(request, nil); err != nil {
+	if _, err := parsePathIntoAccessors(request, nil); err != nil {
 		return badRequestErrorFrom(v, "unset", request, err.Error())
 	}
 
@@ -1217,7 +1200,7 @@ func namespaceResult(res any, suffixParts []string) (any, error) {
 func (v *View) Get(databag Databag, request string) (any, error) {
 	if request != "" {
 		// TODO: ignore accessors for now (will address in its own PR)
-		if _, err := validateViewDottedPath(request, nil); err != nil {
+		if _, err := parsePathIntoAccessors(request, nil); err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
 		}
 	}
