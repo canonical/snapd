@@ -20,8 +20,10 @@
 package selinux
 
 import (
+	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 
 	"github.com/snapcore/snapd/osutil"
@@ -31,6 +33,11 @@ var (
 	// actual matchpathcon -V output:
 	// /home/guest/snap has context unconfined_u:object_r:user_home_t:s0, should be unconfined_u:object_r:snappy_home_t:s0
 	matchIncorrectLabel = regexp.MustCompile("^.* has context .* should be .*\n$")
+
+	// default paths where we expect the tools to be located, where on Fedora
+	// SELinux tools are typically under /usr/bin, but on openSUSE that's /sbin
+	// (or /usr/sbin).
+	toolsSearchPath = "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin"
 )
 
 // VerifyPathContext checks whether a given path is labeled according to its default
@@ -40,9 +47,16 @@ func VerifyPathContext(aPath string) (bool, error) {
 		// path that cannot be accessed cannot be verified
 		return false, err
 	}
+
+	matchpathconPath := osutil.LookInPaths("matchpathcon",
+		os.Getenv("PATH")+string(filepath.ListSeparator)+toolsSearchPath)
+	if matchpathconPath == "" {
+		return false, errors.New(`cannot locate "matchpathcon" executable`)
+	}
+
 	// matchpathcon -V verifies whether the context of a path matches the
 	// default
-	cmd := exec.Command("matchpathcon", "-V", aPath)
+	cmd := exec.Command(matchpathconPath, "-V", aPath)
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	out, err := cmd.Output()
 	if err == nil {
@@ -76,7 +90,13 @@ func RestoreContext(aPath string, mode RestoreMode) error {
 	}
 	args = append(args, aPath)
 
-	return exec.Command("restorecon", args...).Run()
+	restoreconPath := osutil.LookInPaths("restorecon",
+		os.Getenv("PATH")+string(filepath.ListSeparator)+toolsSearchPath)
+	if restoreconPath == "" {
+		return errors.New(`cannot locate "restorecon" executable`)
+	}
+
+	return exec.Command(restoreconPath, args...).Run()
 }
 
 // SnapMountContext finds out the right context for mounting snaps
