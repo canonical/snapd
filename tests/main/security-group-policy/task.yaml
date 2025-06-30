@@ -24,10 +24,11 @@ prepare: |
 
     if os.query is-ubuntu && [ "$SPREAD_VARIANT" = "no_reexec" ]; then
         # Ubuntu is the only distribution where snapd comes preinstalled, so
-        # unless we are doing SRU validation, the no-reexec variant would
-        # actually try to exercise this feature using the native package, which
-        # may be too old to have it in the first place
-        if [ "$SRU_VALIDATION" != "1" ]; then
+        # unless we are doing SRU validation or installing from a private PPA
+        # (as part of the release process) the no-reexec variant would actually
+        # try to exercise this feature using the native package, which may be
+        # too old to have it in the first place
+        if [ "$SRU_VALIDATION" != "1" ] && [ -z "$PPA_SOURCE_LINE" ] && [ -z "$PPA_VALIDATION_NAME" ]; then
             tests.exec skip-test "This test needs a test build of snapd, got native version $vers instead"
         fi
     fi
