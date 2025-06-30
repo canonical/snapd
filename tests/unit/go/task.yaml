@@ -21,6 +21,7 @@ environment:
     VARIANT/clang: clang
     VARIANT/gcc: gcc
     VARIANT/static: static
+    SNAP_REEXEC: 1
 
 prepare: |
     if not os.query is-trusty; then
