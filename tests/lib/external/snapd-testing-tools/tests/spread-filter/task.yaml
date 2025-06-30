@@ -89,3 +89,34 @@ execute: |
     # Scenario: check the rules file
     FILE_TEXT="spread-filter: rules file 'noexist.yaml' does not exist"
     spread-filter -r noexist.yaml -p google:ubuntu -c tests/lib/nested.sh 2>&1 | MATCH "$FILE_TEXT"
+
+    # Scenario: When naming a specific task, any changes that would cause the entire
+    # suite to run, only cause that specified file to run
+    spread-filter -r rules.yaml -p google:ubuntu -c some-path/some-file.go -t tests/main/test1 > res
+    MATCH "^google:ubuntu:tests/main/test1$" < res
+
+    # Scenario: When naming a specific task, any change to that file will cause it to run
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/main/test1/task.yaml -t tests/main/test1 > res
+    MATCH "^google:ubuntu:tests/main/test1$" < res
+
+    # Scenario: When naming a specific task, any change to a different test will not cause it to run
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/main/test2/task.yaml -t tests/main/test1 > res
+    test "$(wc -w < res)" -eq 0
+
+    # Scenario: When naming a task folder, any changes that would cause the entire
+    # suite to run, only result in that folder
+    spread-filter -r rules.yaml -p google:ubuntu -c some-path/some-file.go -t tests/nested/core/ > res
+    MATCH "^google:ubuntu:tests/nested/core/$" < res
+
+    # Scenario: When naming a task folder, any changes that would cause the entire
+    # suite to run, only result in that folder
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/lib/nested.sh -t tests/nested/core/ > res
+    MATCH "^google:ubuntu:tests/nested/core/$" < res
+
+    # Scenario: When naming a task folder, any change within that folder will only run that change
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/nested/core/test1/task.yaml -c tests/nested/core/test2/task.yaml -t tests/nested/core/ > res
+    MATCH "^google:ubuntu:tests/nested/core/test1 google:ubuntu:tests/nested/core/test2$" < res
+
+    # Scenario: When naming a task folder, any change to a task in a different folder will not cause it to run
+    spread-filter -r rules.yaml -p google:ubuntu -c tests/nested/test1/task.yaml -t tests/nested/core/ > res
+    test "$(wc -w < res)" -eq 0
