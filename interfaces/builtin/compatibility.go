@@ -45,9 +45,18 @@ type CompatField struct {
 	Dimensions []CompatDimension
 }
 
+// CompatSpec specifies valid values for a compatibility field, this can be
+// used to further restrict these fields for a given interface. The number of
+// dimensions, tags, and number of values per dimension must match the ones in
+// this struct. The value ranges specified must be contained in the ranges
+// specified here.
+type CompatSpec struct {
+	Dimensions []CompatDimension
+}
+
 const (
-	maxDimensions = 3
-	maxIntegers   = 3
+	absoluteMaxDimensions = 3
+	absoluteMaxIntegers   = 3
 )
 
 var (
@@ -82,9 +91,6 @@ func appendRange(ranges []CompatRange, rg CompatRange) ([]CompatRange, error) {
 	numVal := len(ranges)
 	if numVal > 0 && isRealCompatRange(ranges[numVal-1]) {
 		return nil, fmt.Errorf("ranges only allowed at the end of compatibility field")
-	}
-	if numVal == maxIntegers {
-		return nil, fmt.Errorf("only %d integer/integer ranges allowed per dimension in compatibility field", maxIntegers)
 	}
 	return append(ranges, rg), nil
 }
@@ -126,16 +132,34 @@ func parseIntegerRange(token, compat string) (rg *CompatRange, err error) {
 // decodeCompatField decodes a compatibility string, which is a sequence of
 // dimensions separated by dashes. Each dimension consist of an alphanumerical
 // descriptor followed by a dash-separated series of integer or integer ranges.
-func decodeCompatField(compat string) (*CompatField, error) {
+// An optional spec can be provided to restrict the valid compatibility fields.
+func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
+	maxNumDim := absoluteMaxDimensions
+	maxNumInt := absoluteMaxIntegers
+	if spec != nil {
+		maxNumDim = len(spec.Dimensions)
+	}
 	tokens := strings.Split(compat, "-")
 	dimensions := []CompatDimension{}
 	var currentDimension *CompatDimension
 	var err error
 	for _, t := range tokens {
 		if tagRegexp.MatchString(t) {
-			if len(dimensions)+1 >= maxDimensions {
+			dimIdx := len(dimensions) + 1
+			if currentDimension == nil {
+				dimIdx = 0
+			}
+			if dimIdx == maxNumDim {
 				return nil, fmt.Errorf("only %d dimensions allowed in compatibility field: %q",
-					maxDimensions, compat)
+					maxNumDim, compat)
+			}
+			if spec != nil {
+				if spec.Dimensions[dimIdx].Tag != t {
+					return nil, fmt.Errorf("tag does not match compatibility spec (%s != %s)",
+						t, spec.Dimensions[dimIdx].Tag)
+				}
+				// Maximum integers/ranges allowed for this dimension
+				maxNumInt = len(spec.Dimensions[dimIdx].Values)
 			}
 			dimensions, err = appendDimension(dimensions, currentDimension)
 			if err != nil {
@@ -152,6 +176,17 @@ func decodeCompatField(compat string) (*CompatField, error) {
 		rg, err := parseIntegerRange(t, compat)
 		if err != nil {
 			return nil, err
+		}
+		currNumVal := len(currentDimension.Values)
+		if currNumVal == maxNumInt {
+			return nil, fmt.Errorf("only %d integer/integer ranges allowed per dimension in compatibility field", maxNumInt)
+		}
+		if spec != nil {
+			rgSpec := spec.Dimensions[len(dimensions)].Values[currNumVal]
+			if rg.Min < rgSpec.Min || rg.Max > rgSpec.Max {
+				return nil, fmt.Errorf("range (%d..%d) is not included in valid range (%d..%d)",
+					rg.Min, rg.Max, rgSpec.Min, rgSpec.Max)
+			}
 		}
 		currentDimension.Values, err = appendRange(currentDimension.Values, *rg)
 		if err != nil {
