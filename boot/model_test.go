@@ -206,6 +206,7 @@ func (s *modelSuite) TestDeviceChangeHappy(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
@@ -269,6 +270,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstReseal(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
@@ -320,6 +322,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFirstSwapModelFile(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
@@ -373,6 +376,7 @@ func (s *modelSuite) TestDeviceChangeUnhappySecondReseal(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
@@ -469,6 +473,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -588,6 +593,7 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		// timeline & calls:
 		// 1 - pre reboot, run & recovery keys, try model set
 		// 2 - run key, after model file has been modified, try model cleared, unexpected
@@ -708,6 +714,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -851,6 +858,7 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
@@ -974,6 +982,7 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 	resealKeysCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		if resealKeysCalls == 2 {
 			m, err := boot.ReadModeenv("")
 			c.Assert(err, IsNil)
@@ -1062,6 +1071,7 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
+		c.Check(opts.IgnoreFDEHooks, Equals, false)
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
 		currForSealing := boot.ModelUniqueID(m.ModelForSealing())

@@ -792,6 +792,7 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	resealCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, true)
 		return nil
 	})
 	defer restore()
@@ -897,6 +898,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	resealCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, true)
 		return nil
 	})
 	defer restore()
@@ -1653,6 +1655,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	resealCalls := 0
 	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 		resealCalls++
+		c.Check(opts.IgnoreFDEHooks, Equals, true)
 		return nil
 	})
 	defer restore()
@@ -2614,6 +2617,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		c.Check(recoveryAsset.Hashes, testutil.Contains, dataHash)
 		c.Check(recoveryChain.Kernel, Equals, "pc-kernel")
 		c.Check(recoveryChain.KernelRevision, Equals, "1")
+		c.Check(opts.IgnoreFDEHooks, Equals, true)
 
 		return nil
 	})
@@ -2763,6 +2767,8 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		c.Check(recoveryAsset.Hashes, testutil.Contains, "assethash")
 		c.Check(recoveryChain.Kernel, Equals, "pc-kernel")
 		c.Check(recoveryChain.KernelRevision, Equals, "1")
+
+		c.Check(opts.IgnoreFDEHooks, Equals, true)
 
 		return nil
 	})

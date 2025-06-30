@@ -2137,6 +2137,83 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 	c.Check(resealCalls, Equals, 3)
 }
 
+func (s *resealTestSuite) TestHooksResealIgnoreFDEHooks(c *C) {
+	model := boottest.MakeMockUC20Model()
+	bootChains := boot.BootChains{
+		RunModeBootChains: []boot.BootChain{
+			{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: []string{
+					"mode=run",
+				},
+			},
+		},
+
+		RecoveryBootChainsForRunKey: []boot.BootChain{
+			{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: []string{
+					"mode=recover",
+				},
+			},
+		},
+
+		RecoveryBootChains: []boot.BootChain{
+			{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Classic:        model.Classic(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				KernelCmdlines: []string{
+					"mode=recover",
+				},
+			},
+		},
+	}
+
+	defer backend.MockSecbootResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []secboot.ModelForSealing, bootModes []string) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	myState := &fakeState{}
+	myState.EncryptedContainers = []backend.EncryptedContainer{
+		&encryptedContainer{
+			uuid:          "123",
+			containerRole: "system-data",
+			legacyKeys: map[string]string{
+				"default":          filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
+			},
+		},
+		&encryptedContainer{
+			uuid:          "456",
+			containerRole: "system-save",
+			legacyKeys: map[string]string{
+				"default-fallback": filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
+			},
+		},
+	}
+
+	defer backend.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFile string) ([]byte, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})()
+
+	opts := boot.ResealKeyToModeenvOptions{IgnoreFDEHooks: true}
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	c.Assert(err, IsNil)
+}
+
 func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	mockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
