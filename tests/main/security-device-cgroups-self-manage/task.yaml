@@ -31,6 +31,11 @@ execute: |
     if os.query is-fedora || os.query is-centos || os.query is-amazon-linux ; then
         has_apparmor=0
     fi
+    case "$SPREAD_SYSTEM" in
+        opensuse-*-selinux-*)
+            has_apparmor=0
+            ;;
+    esac
 
     echo "No devices are assigned to the snap"
     udevadm info "/dev/null" | NOMATCH "E: (CURRENT_)?TAGS=.*container-mgr-snap.*"
