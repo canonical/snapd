@@ -463,7 +463,8 @@ gen_require(`
 ')
 allow snappy_t devicekit_power_exec_t:file { getattr };
 
-
+# Snapd monitors cgroup hierarchy for refresh app awareness.
+fs_watch_cgroup_dirs(snappy_t)
 
 ########################################
 #
