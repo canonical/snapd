@@ -434,6 +434,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.54.0/24:4000]
+        volume-auto-delete: true
         environment:
             SNAPD_USE_PROXY: 'true'
             HTTP_PROXY: 'http://egress.ps7.internal:3128'
@@ -479,7 +480,6 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64-uefi
                 workers: 8
 
-
     openstack-arm-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
@@ -489,6 +489,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.53.0/24:3000]
+        volume-auto-delete: true
         environment:
             SNAPD_USE_PROXY: 'true'
             HTTP_PROXY: 'http://egress.ps7.internal:3128'
