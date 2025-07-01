@@ -237,10 +237,15 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
 	// Update the last notice timestamp if the one saved to disk is later.
-	// The timestamp on disk does not necessarily reflect the most recent
-	// timestamp of notices which are not stored in state, so the other notice
-	// backends should similarly update the last notice timestamp during
-	// startup.
+	// The timestamp on disk is only guaranteed to reflect the most recent
+	// timestamp of notices which are stored in state, since state lock was
+	// held for writing when adding those notices. Notices from backends
+	// outside state do not hold state lock while getting a timestamp from
+	// state, so it's possible snapd was terminated without later marshalling
+	// state to disk, causing the last notice timestamp on disk to be stale.
+	// Thus, other notice backends should update the last notice timestamp
+	// during startup to ensure it reflects the last timestamp across all
+	// notices in all backends.
 	s.HandleReportedLastNoticeTimestamp(unmarshalled.LastNoticeTimestamp)
 	// backlink state again
 	for _, t := range s.tasks {
