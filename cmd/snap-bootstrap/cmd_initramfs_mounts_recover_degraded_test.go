@@ -95,9 +95,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						MountState: "absent-but-optional",
 					},
 				},
-				ErrorLog: []string{
-					"cannot find ubuntu-boot partition on disk 259:0",
-				},
 			},
 			degraded: true,
 			comment:  "unencrypted, error mounting boot",
@@ -119,9 +116,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						MountState: "absent-but-optional",
 					},
 				},
-				ErrorLog: []string{
-					"cannot find ubuntu-data partition on disk 259:0",
-				},
 			},
 			degraded: true,
 			comment:  "unencrypted, error mounting data",
@@ -142,9 +136,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 					PartitionState: boot.PartitionState{
 						MountState: "error-mounting",
 					},
-				},
-				ErrorLog: []string{
-					"cannot find ubuntu-save partition on disk 259:0",
 				},
 			},
 			degraded: true,
@@ -200,9 +191,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						UnlockKey:   "run",
 					},
 				},
-				ErrorLog: []string{
-					"cannot find ubuntu-boot partition on disk 259:0",
-				},
 			},
 			encrypted: true,
 			degraded:  true,
@@ -228,9 +216,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						UnlockState: "unlocked",
 						UnlockKey:   "run",
 					},
-				},
-				ErrorLog: []string{
-					"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data",
 				},
 			},
 			encrypted: true,
@@ -258,9 +243,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						UnlockKey:   "fallback",
 					},
 				},
-				ErrorLog: []string{
-					"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save",
-				},
 			},
 			encrypted: true,
 			degraded:  true,
@@ -286,9 +268,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						UnlockState: "unlocked",
 						UnlockKey:   "recovery",
 					},
-				},
-				ErrorLog: []string{
-					"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save",
 				},
 			},
 			encrypted: true,
@@ -316,9 +295,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						UnlockKey:   "fallback",
 					},
 				},
-				ErrorLog: []string{
-					"cannot unlock encrypted ubuntu-data with sealed run key: failed to unlock ubuntu-data",
-				},
 			},
 			encrypted: true,
 			degraded:  true,
@@ -343,10 +319,6 @@ func (s *initramfsMountsSuite) TestInitramfsDegradedState(c *C) {
 						MountState:  "not-mounted",
 						UnlockState: "not-unlocked",
 					},
-				},
-				ErrorLog: []string{
-					"cannot unlock encrypted ubuntu-save with sealed run key: failed to unlock ubuntu-save",
-					"cannot unlock encrypted ubuntu-save with sealed fallback key: failed to unlock ubuntu-save",
 				},
 			},
 			encrypted: true,
