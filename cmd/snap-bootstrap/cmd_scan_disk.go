@@ -261,7 +261,7 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 	}
 
 	for _, part := range partitions {
-		if part.FilesystemLabel == fallbackPartition {
+		if part.Name == fallbackPartition || part.FilesystemLabel == fallbackPartition {
 			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 			return nil
 		}
