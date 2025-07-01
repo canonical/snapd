@@ -158,7 +158,12 @@ func probeDisk(node string) ([]Partition, error) {
 
 	ret := make([]Partition, 0)
 	for _, partition := range partitions.GetPartitions() {
-		if !gpt {
+		if gpt {
+			ret = append(ret, Partition{
+				Name: partition.GetName(),
+				UUID: partition.GetUUID(),
+			})
+		} else {
 			// For MBR we have to probe the filesystem for details
 			pnode := fmt.Sprintf("%sp%d", node, partition.GetPartNo())
 			p, err := probeFilesystem(pnode)
@@ -166,11 +171,6 @@ func probeDisk(node string) ([]Partition, error) {
 				return ret, err
 			}
 			ret = append(ret, p)
-		} else {
-			ret = append(ret, Partition{
-				Name: partition.GetName(),
-				UUID: partition.GetUUID(),
-			})
 		}
 	}
 
