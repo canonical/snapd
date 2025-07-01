@@ -507,6 +507,8 @@ func (s *State) unflattenNotices(flat []*Notice) {
 		}
 		userID, hasUserID := n.UserID()
 		uniqueKey := noticeKey{hasUserID, userID, n.noticeType, n.key}
+		// TODO: migrate any notices for types which should no longer be stored
+		// in state to their appropriate backends, and don't include in state.
 		s.notices[uniqueKey] = n
 	}
 }

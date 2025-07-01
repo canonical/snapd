@@ -93,8 +93,13 @@ type State struct {
 	lastHandlerId int
 
 	// lastNoticeTimestamp is protected by a mutex, and is unique and
-	// monotonically increasing timestamp. It is not saved to disk along
-	// with the other state, and is instead populated during startup.
+	// monotonically increasing timestamp. It is still saved to disk for
+	// backwards compatibility, but getting a timestamp does not require
+	// holding state lock, so the it is only saved to disk if the caller or
+	// some subsequent operation holds the state lock for writing. As such, the
+	// lastNoticeTimestamp on disk should not be relied upon to be correct for
+	// any notice which is not stored in state. Notice backends outside of
+	// state should adjust this value during startup.
 	lastNoticeTimestampMu sync.Mutex
 	lastNoticeTimestamp   time.Time
 
@@ -191,6 +196,8 @@ type marshalledState struct {
 	LastTaskId   int `json:"last-task-id"`
 	LastLaneId   int `json:"last-lane-id"`
 	LastNoticeId int `json:"last-notice-id"`
+
+	LastNoticeTimestamp time.Time `json:"last-notice-timestamp,omitzero"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -207,6 +214,8 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastChangeId: s.lastChangeId,
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
+
+		LastNoticeTimestamp: s.lastNoticeTimestamp,
 	})
 }
 
@@ -227,6 +236,12 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
+	// Update the last notice timestamp if the one saved to disk is later.
+	// The timestamp on disk does not necessarily reflect the most recent
+	// timestamp of notices which are not stored in state, so the other notice
+	// backends should similarly update the last notice timestamp during
+	// startup.
+	s.HandleReportedLastNoticeTimestamp(unmarshalled.LastNoticeTimestamp)
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s
@@ -234,11 +249,6 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	for _, chg := range s.changes {
 		chg.state = s
 		chg.finishUnmarshal()
-	}
-	notices := s.Notices(nil)
-	if len(notices) > 0 {
-		lastRepeatedTimestamp := notices[len(notices)-1].lastRepeated
-		s.HandleReportedLastNoticeTimestamp(lastRepeatedTimestamp)
 	}
 	return nil
 }

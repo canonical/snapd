@@ -20,8 +20,10 @@
 package state_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "gopkg.in/check.v1"
 
@@ -79,7 +81,18 @@ var srcStateContent = []byte(`
 }
 `)
 
-const stateSuffix = `,"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0}`
+func getStateSuffix() string {
+	lastTimestampField := ""
+	if runtime.Version() < "go1.24" {
+		// Go versions prior to 1.24 don't omit zero times properly, as time
+		// zero is not empty so "omitempty" does not work, and those Go
+		// versions do not recognize "omitzero", which does omit time zero.
+		lastTimestampField = `,"last-notice-timestamp":"0001-01-01T00:00:00Z"`
+	}
+	return fmt.Sprintf(`,"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0%s}`, lastTimestampField)
+}
+
+var stateSuffix = getStateSuffix()
 
 func (ss *stateSuite) TestCopyStateIntegration(c *C) {
 	// create a mock srcState
