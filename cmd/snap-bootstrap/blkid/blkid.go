@@ -36,7 +36,6 @@ const (
 	BLKID_PARTS_ENTRY_DETAILS int = C.BLKID_PARTS_ENTRY_DETAILS
 
 	BLKID_SUBLKS_LABEL int = C.BLKID_SUBLKS_LABEL
-	BLKID_SUBLKS_UUID  int = C.BLKID_SUBLKS_UUID
 )
 
 // AbstractBlkidProbe is wrapper for blkid_probe

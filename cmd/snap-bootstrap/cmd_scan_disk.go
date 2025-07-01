@@ -96,6 +96,12 @@ func (c *cmdScanDisk) Execute([]string) error {
 type Partition struct {
 	Name string
 	UUID string
+
+	// FilesystemLabel is the label of the filesystem of the
+	// partition. On MBR schemas, partitions do not have a name,
+	// instead we probe for the label of the filesystem. So this
+	// will only be set if it's a non-GPT.
+	FilesystemLabel string
 }
 
 func isGpt(probe blkid.AbstractBlkidProbe) bool {
@@ -116,7 +122,7 @@ func probeFilesystem(node string) (Partition, error) {
 	defer probe.Close()
 
 	probe.EnableSuperblocks(true)
-	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL | blkid.BLKID_SUBLKS_UUID)
+	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL)
 
 	if err := probe.DoSafeprobe(); err != nil {
 		return p, err
@@ -126,17 +132,11 @@ func probeFilesystem(node string) (Partition, error) {
 	if err != nil {
 		return p, err
 	}
-	p.Name = val
-
-	// UUID is not required as a part of fallback mode
-	val, err = probe.LookupValue("UUID")
-	if err == nil {
-		p.UUID = val
-	}
+	p.FilesystemLabel = val
 	return p, nil
 }
 
-func probeDisk(node string, fallbackMode bool) ([]Partition, error) {
+func probeDisk(node string) ([]Partition, error) {
 	probe, err := blkid.NewProbeFromFilename(node)
 	if err != nil {
 		return nil, err
@@ -150,13 +150,7 @@ func probeDisk(node string, fallbackMode bool) ([]Partition, error) {
 		return nil, err
 	}
 
-	// In fallback mode, which is non-UEFI, it may be
-	// MBR disk schema and not gpt, so we still want to
-	// discover filesystem labels.
-	if !fallbackMode && !isGpt(probe) {
-		return nil, nil
-	}
-
+	gpt := isGpt(probe)
 	partitions, err := probe.GetPartitions()
 	if err != nil {
 		return nil, err
@@ -164,8 +158,7 @@ func probeDisk(node string, fallbackMode bool) ([]Partition, error) {
 
 	ret := make([]Partition, 0)
 	for _, partition := range partitions.GetPartitions() {
-		name := partition.GetName()
-		if name == "" && fallbackMode {
+		if !gpt {
 			// For MBR we have to probe the filesystem for details
 			pnode := fmt.Sprintf("%sp%d", node, partition.GetPartNo())
 			p, err := probeFilesystem(pnode)
@@ -199,8 +192,7 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
-	const fallbackMode = true
-	partitions, err := probeDisk(node, fallbackMode)
+	partitions, err := probeDisk(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -269,7 +261,7 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 	}
 
 	for _, part := range partitions {
-		if part.Name == fallbackPartition {
+		if part.FilesystemLabel == fallbackPartition {
 			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 			return nil
 		}
@@ -307,8 +299,7 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	const fallbackMode = false
-	partitions, err := probeDisk(node, fallbackMode)
+	partitions, err := probeDisk(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
