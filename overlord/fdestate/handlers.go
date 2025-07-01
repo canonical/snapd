@@ -100,6 +100,8 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 			return fmt.Errorf("failed to add recovery key slot %s: %v", keyslotRef.String(), err)
 		}
 	}
+	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
@@ -125,10 +127,11 @@ func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
 
 	for _, keyslot := range currentKeyslots {
 		if err := secbootDeleteContainerKey(keyslot.devPath, keyslot.Name); err != nil {
-			// XXX: keep going and report errors afterwards?
 			return fmt.Errorf("failed to remove key slot %s: %v", keyslot.Ref().String(), err)
 		}
 	}
+	// avoid re-runs in case of abrupt shutdown since all key slots are now removed.
+	t.SetStatus(state.DoneStatus)
 
 	// XXX: request reboot to acconut for the case where the unlock key
 	// in the kernel keyring is one of the deleted key slots?
@@ -186,10 +189,11 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	for _, keyslot := range currentKeyslots {
 		refKey := keyslot.Ref().String()
 		if err := secbootRenameContainerKey(keyslot.devPath, keyslot.Name, renames[refKey]); err != nil {
-			// XXX: keep going and report errors afterwards?
 			return fmt.Errorf("failed to rename key slot %s to %q: %v", keyslot.Ref().String(), renames[refKey], err)
 		}
 	}
+	// avoid re-runs in case of abrupt shutdown since all key slots are now renamed.
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
