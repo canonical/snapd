@@ -19,7 +19,9 @@
 package fdestate
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -75,33 +77,35 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		}
 	}()
 
-	currentKeyslots, missing, err := m.GetKeyslots(keyslotRefs)
+	_, missingRefs, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
 		return fmt.Errorf("failed to find key slots: %v", err)
 	}
-	if len(missing) == 0 {
+	if len(missingRefs) == 0 {
 		// this could be re-run and all key slots were already added, do nothing
 		return nil
 	}
-	if len(currentKeyslots) != 0 {
-		return &keyslotsAlreadyExistsError{keyslots: currentKeyslots}
-	}
 
-	rkey, err := m.getRecoveryKey(recoveryKeyID)
+	rkeyInfo, err := m.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
-		// most likely a re-run as keys expire after first use and
-		// clean up is needed.
 		return fmt.Errorf("failed to find recovery key with id %q: %v", recoveryKeyID, err)
 	}
+	if rkeyInfo.Expired(time.Now()) {
+		return errors.New("recovery key has expired")
+	}
 
-	for _, keyslotRef := range keyslotRefs {
-		devicePath := containerDevicePath[keyslotRef.ContainerRole]
-		if err := secbootAddContainerRecoveryKey(devicePath, keyslotRef.Name, rkey); err != nil {
-			return fmt.Errorf("failed to add recovery key slot %s: %v", keyslotRef.String(), err)
+	// we only care about missing key slots because this might be
+	// a re-run due a force reboot or abrupt shutdown, so we want
+	// to continue adding the remaining key slots.
+	for _, ref := range missingRefs {
+		devicePath := containerDevicePath[ref.ContainerRole]
+		if err := secbootAddContainerRecoveryKey(devicePath, ref.Name, rkeyInfo.Key); err != nil {
+			return fmt.Errorf("failed to add recovery key slot %s: %v", ref.String(), err)
 		}
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
 	t.SetStatus(state.DoneStatus)
+	m.recoveryKeyCache.RemoveKey(recoveryKeyID)
 
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -115,6 +116,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		keyslots                      []fdestate.KeyslotRef
 		expectedAdds, expectedDeletes []string
 		badRecoveryKeyID              bool
+		expiredRecoveryKeyID          bool
 		errOn                         []string
 		expectedErr                   string
 	}
@@ -122,6 +124,25 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		{
 			keyslots:     []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "tmp-default-recovery"}},
 			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default-recovery"}, // already exists
+				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
+			},
+			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
+				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
+			},
+			expiredRecoveryKeyID: true,
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery",
+				"/dev/disk/by-uuid/save:tmp-default-recovery",
+			},
+			expectedErr: `recovery key has expired`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
@@ -148,17 +169,6 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
-				{ContainerRole: "system-data", Name: "default-recovery"},
-				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
-			},
-			expectedDeletes: []string{
-				"/dev/disk/by-uuid/data:default-recovery",
-				"/dev/disk/by-uuid/data:tmp-default-recovery",
-			},
-			expectedErr: `key slot \(container-role: "system-data", name: "default-recovery"\) already exists`,
-		},
-		{
-			keyslots: []fdestate.KeyslotRef{
 				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
 				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
 			},
@@ -171,12 +181,14 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 			expectedErr: `failed to add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
 		},
 	}
-	for _, tc := range tcs {
+	for i, tc := range tcs {
+		cmt := Commentf("tcs[%d] failed", i)
+
 		var expectedRecoveryKey keys.RecoveryKey
 		var added, deleted []string
 
 		defer fdestate.MockSecbootAddContainerRecoveryKey(func(devicePath, slotName string, rkey keys.RecoveryKey) error {
-			c.Check(rkey, DeepEquals, expectedRecoveryKey)
+			c.Check(rkey, DeepEquals, expectedRecoveryKey, cmt)
 			entry := fmt.Sprintf("%s:%s", devicePath, slotName)
 			if strutil.ListContains(tc.errOn, fmt.Sprintf("add:%s", entry)) {
 				return fmt.Errorf("add error on %s", entry)
@@ -201,9 +213,14 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		var err error
 		if tc.badRecoveryKeyID {
 			rkeyID = "bad-id"
+		} else if tc.expiredRecoveryKeyID {
+			restore := fdestate.MockTimeNow(func() time.Time { return time.Now().Add(-100000 * time.Hour) })
+			expectedRecoveryKey, rkeyID, err = manager.GenerateRecoveryKey()
+			restore()
+			c.Assert(err, IsNil, cmt)
 		} else {
 			expectedRecoveryKey, rkeyID, err = manager.GenerateRecoveryKey()
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, cmt)
 		}
 		task.Set("recovery-key-id", rkeyID)
 
@@ -213,17 +230,17 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		s.settle(c)
 
 		if tc.expectedErr == "" {
-			c.Check(chg.Status(), Equals, state.DoneStatus)
+			c.Check(chg.Status(), Equals, state.DoneStatus, cmt)
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
-- test \(%s\)`, tc.expectedErr))
+- test \(%s\)`, tc.expectedErr), cmt)
 		}
 
 		sort.Strings(added)
-		c.Check(tc.expectedAdds, DeepEquals, added)
+		c.Check(tc.expectedAdds, DeepEquals, added, cmt)
 
 		sort.Strings(deleted)
-		c.Check(tc.expectedDeletes, DeepEquals, deleted)
+		c.Check(tc.expectedDeletes, DeepEquals, deleted, cmt)
 	}
 }
 
