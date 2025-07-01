@@ -20,5 +20,5 @@ jobs:
     - name: Apply draft label using gh CLI
       env:
         GH_TOKEN: ${{ github.token }}
-      if: github.event.action == 'opened' && github.event.pull_request.draft == true
+      if: github.event.action == 'opened' && github.event.pull_request.draft == true && !contains(github.event.pull_request.labels.*.name, 'Skip spread')
       run: gh pr edit ${{ github.event.pull_request.number }} --add-label 'Run only one system'
