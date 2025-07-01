@@ -215,7 +215,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
 
-		LastNoticeTimestamp: s.lastNoticeTimestamp,
+		LastNoticeTimestamp: s.LastNoticeTimestamp(),
 	})
 }
 

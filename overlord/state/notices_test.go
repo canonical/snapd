@@ -888,15 +888,23 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 	restore := state.MockTime(testDate)
 	defer restore()
 
+	c.Check(st.LastNoticeTimestamp().IsZero(), Equals, true)
+
 	ts1 := st.NextNoticeTimestamp()
 	c.Check(ts1, Equals, testDate)
+
+	c.Check(st.LastNoticeTimestamp(), Equals, ts1)
 
 	ts2 := st.NextNoticeTimestamp()
 	c.Check(ts2.After(ts1), Equals, true)
 
+	c.Check(st.LastNoticeTimestamp(), Equals, ts2)
+
 	ts3 := st.NextNoticeTimestamp()
 	c.Check(ts3.After(ts1), Equals, true)
 	c.Check(ts3.After(ts2), Equals, true)
+
+	c.Check(st.LastNoticeTimestamp(), Equals, ts3)
 
 	// Set time.Now() earlier
 	testDate2 := testDate.Add(-5 * time.Second)
@@ -907,6 +915,8 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 	c.Check(ts4.After(ts1), Equals, true)
 	c.Check(ts4.After(ts2), Equals, true)
 	c.Check(ts4.After(ts3), Equals, true)
+
+	c.Check(st.LastNoticeTimestamp(), Equals, ts4)
 }
 
 func (s *noticesSuite) TestHandleReportedLastNoticeTimestamp(c *C) {

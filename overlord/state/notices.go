@@ -291,6 +291,13 @@ func (s *State) NextNoticeTimestamp() time.Time {
 	return s.lastNoticeTimestamp
 }
 
+// LastNoticeTimestamp returns the current lastNoticeTimestamp.
+func (s *State) LastNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	return s.lastNoticeTimestamp
+}
+
 // HandleReportedLastNoticeTimestamp updates lastNoticeTimestamp to the given
 // time if the given time is after the current lastNoticeTimestamp.
 //
