@@ -154,7 +154,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 				"/dev/disk/by-uuid/data:tmp-default-recovery",
 				"/dev/disk/by-uuid/save:tmp-default-recovery",
 			},
-			expectedErr: `failed to find recovery key with id "bad-id": no recovery key entry for key-id`,
+			expectedErr: `cannot find recovery key with id "bad-id": no recovery key entry for key-id`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
@@ -165,7 +165,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 			errOn:            []string{"delete:/dev/disk/by-uuid/data:tmp-default-recovery"},
 			// best effort deletion for clean up
 			expectedDeletes: []string{"/dev/disk/by-uuid/save:tmp-default-recovery"},
-			expectedErr:     `failed to find recovery key with id "bad-id": no recovery key entry for key-id`,
+			expectedErr:     `cannot find recovery key with id "bad-id": no recovery key entry for key-id`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
@@ -178,7 +178,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 				"/dev/disk/by-uuid/data:tmp-default-recovery",
 				"/dev/disk/by-uuid/save:tmp-default-recovery",
 			},
-			expectedErr: `failed to add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
+			expectedErr: `cannot add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
 		},
 	}
 	for i, tc := range tcs {
@@ -444,7 +444,7 @@ func (s *fdeMgrSuite) TestDoRemoveKeysGetKeyslotsError(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
-- test \(failed to find key slots: cannot find UUID for mount .*/run/mnt/data: boom!\)`)
+- test \(cannot find key slots: cannot find UUID for mount .*/run/mnt/data: boom!\)`)
 }
 
 func (s *fdeMgrSuite) TestDoRemoveKeysRemoveError(c *C) {
@@ -467,7 +467,7 @@ func (s *fdeMgrSuite) TestDoRemoveKeysRemoveError(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
-- test \(failed to remove key slot \(container-role: "system-data", name: "default-recovery"\): boom!\)`)
+- test \(cannot remove key slot \(container-role: "system-data", name: "default-recovery"\): boom!\)`)
 }
 
 func (s *fdeMgrSuite) TestDoRenameKeys(c *C) {
@@ -626,7 +626,7 @@ func (s *fdeMgrSuite) TestDoRenameKeysRenameError(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
-- test \(failed to rename key slot \(container-role: "system-data", name: "default"\) to "new-default": boom!\)`)
+- test \(cannot rename key slot \(container-role: "system-data", name: "default"\) to "new-default": boom!\)`)
 }
 
 func (s *fdeMgrSuite) TestDoRenameKeysRenameAlreadyExists(c *C) {

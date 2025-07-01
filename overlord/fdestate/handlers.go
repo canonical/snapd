@@ -72,14 +72,14 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
-				logger.Noticef("failed to delete %s during clean up: %v", keyslotRef.String(), err)
+				logger.Noticef("cannot delete %s during clean up: %v", keyslotRef.String(), err)
 			}
 		}
 	}()
 
 	_, missingRefs, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
-		return fmt.Errorf("failed to find key slots: %v", err)
+		return fmt.Errorf("cannot find key slots: %v", err)
 	}
 	if len(missingRefs) == 0 {
 		// this could be re-run and all key slots were already added, do nothing
@@ -88,7 +88,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 
 	rkeyInfo, err := m.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
-		return fmt.Errorf("failed to find recovery key with id %q: %v", recoveryKeyID, err)
+		return fmt.Errorf("cannot find recovery key with id %q: %v", recoveryKeyID, err)
 	}
 	if rkeyInfo.Expired(time.Now()) {
 		return errors.New("recovery key has expired")
@@ -100,7 +100,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 	for _, ref := range missingRefs {
 		devicePath := containerDevicePath[ref.ContainerRole]
 		if err := secbootAddContainerRecoveryKey(devicePath, ref.Name, rkeyInfo.Key); err != nil {
-			return fmt.Errorf("failed to add recovery key slot %s: %v", ref.String(), err)
+			return fmt.Errorf("cannot add recovery key slot %s: %v", ref.String(), err)
 		}
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
@@ -126,12 +126,12 @@ func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
 	// to continue deleting the remaining key slots.
 	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
-		return fmt.Errorf("failed to find key slots: %v", err)
+		return fmt.Errorf("cannot find key slots: %v", err)
 	}
 
 	for _, keyslot := range currentKeyslots {
 		if err := secbootDeleteContainerKey(keyslot.devPath, keyslot.Name); err != nil {
-			return fmt.Errorf("failed to remove key slot %s: %v", keyslot.Ref().String(), err)
+			return fmt.Errorf("cannot remove key slot %s: %v", keyslot.Ref().String(), err)
 		}
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now removed.
@@ -169,7 +169,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	// to continue renaming the remaining key slots.
 	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
-		return fmt.Errorf("failed to find key slots: %v", err)
+		return fmt.Errorf("cannot find key slots: %v", err)
 	}
 
 	// check that all remaining renames do not already exist to
@@ -183,7 +183,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 		}
 		currentRenamedKeyslots, _, err := m.GetKeyslots(renamedKeyslotRefs)
 		if err != nil {
-			return fmt.Errorf("failed to find key slots: %v", err)
+			return fmt.Errorf("cannot find key slots: %v", err)
 		}
 		if len(currentRenamedKeyslots) != 0 {
 			return &keyslotsAlreadyExistsError{keyslots: currentRenamedKeyslots}
@@ -193,7 +193,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	for _, keyslot := range currentKeyslots {
 		refKey := keyslot.Ref().String()
 		if err := secbootRenameContainerKey(keyslot.devPath, keyslot.Name, renames[refKey]); err != nil {
-			return fmt.Errorf("failed to rename key slot %s to %q: %v", keyslot.Ref().String(), renames[refKey], err)
+			return fmt.Errorf("cannot rename key slot %s to %q: %v", keyslot.Ref().String(), renames[refKey], err)
 		}
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now renamed.
