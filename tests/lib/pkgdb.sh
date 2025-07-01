@@ -272,6 +272,12 @@ distro_purge_package() {
             exit 1
             ;;
     esac
+
+    if [ "$1" = "snapd" ] && os.query is-opensuse tumbleweed; then
+        # explicitly attempt to stop the snapd.socket due to
+        # https://bugzilla.suse.com/show_bug.cgi?id=1245551
+        systemctl disable --now snapd.socket
+    fi
 }
 
 distro_update_package_db() {
@@ -489,7 +495,7 @@ distro_install_build_snapd(){
         if ! systemctl is-enabled snapd.socket ; then
             # Can't use --now here as not all distributions we run on support it
             systemctl enable snapd.socket
-            systemctl start snapd.socket
+            systemctl restart snapd.socket
         fi
     fi
 }
