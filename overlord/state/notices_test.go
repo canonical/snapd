@@ -546,6 +546,50 @@ func (s *noticesSuite) TestNoticesFilterBefore(c *C) {
 	c.Check(n["key"], Equals, "foo.com/x")
 }
 
+func (s *noticesSuite) TestDrainNotices(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
+	addNotice(c, st, nil, state.WarningNotice, "danger!", nil)
+	addNotice(c, st, nil, state.WarningNotice, "something else", nil)
+
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 4)
+
+	// Get ChangeUpdateNotices
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+	c.Assert(notices, HasLen, 1)
+	// Drain ChangeUpdateNotices
+	drained := st.DrainNotices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+	c.Assert(drained, HasLen, 1)
+	c.Assert(drained, DeepEquals, notices)
+	// Check that there are no longer ChangeUpdateNotices present
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+	c.Assert(notices, HasLen, 0)
+
+	// Check that there are now only 3 notices
+	notices = st.Notices(nil)
+	c.Assert(notices, HasLen, 3)
+
+	// Get WarningNotices
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, HasLen, 2)
+	// Drain WarningNotices
+	drained = st.DrainNotices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(drained, HasLen, 2)
+	c.Assert(drained, DeepEquals, notices)
+	// Check that there are no longer WarningNotices present
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, HasLen, 0)
+
+	// Check that there is now only 1 notice
+	notices = st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+}
+
 func (s *noticesSuite) TestNotice(c *C) {
 	st := state.New(nil)
 	st.Lock()

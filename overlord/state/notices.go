@@ -466,6 +466,33 @@ func (f *NoticeFilter) futureNoticesPossible(now time.Time) bool {
 	return false
 }
 
+// DrainNotices finds all notices in the state that match the filter (if any),
+// removes them from state, and returns them, ordered by the last-repeated time.
+//
+// This should only be called by the notice manager in order to migrate notices
+// from state to another notice backend.
+func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
+	s.writing()
+
+	now := time.Now()
+	var toRemove []noticeKey
+	var notices []*Notice
+	for k, n := range s.notices {
+		if n.expired(now) || !filter.matches(n) {
+			continue
+		}
+		toRemove = append(toRemove, k)
+		notices = append(notices, n)
+	}
+	for _, k := range toRemove {
+		delete(s.notices, k)
+	}
+	sort.Slice(notices, func(i, j int) bool {
+		return notices[i].lastRepeated.Before(notices[j].lastRepeated)
+	})
+	return notices
+}
+
 // Notices returns the list of notices that match the filter (if any),
 // ordered by the last-repeated time.
 func (s *State) Notices(filter *NoticeFilter) []*Notice {
