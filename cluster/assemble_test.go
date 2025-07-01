@@ -59,7 +59,7 @@ func TestAssemble(t *testing.T) {
 		},
 	}))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
 	ctx, cancel = signal.NotifyContext(ctx, os.Interrupt)

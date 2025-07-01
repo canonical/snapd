@@ -8,27 +8,50 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 )
 
-// Messenger is used to communicate with our peers.
-type Messenger interface {
+// Transport provides an abstraction for defining how incoming and outgoing
+// messages are handled in an assembly session.
+type Transport interface {
+	// Serve starts a server that handles incoming requests and routes them to
+	// the provided [AssembleState].
+	Serve(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error
+
+	// NewClient creates a client for sending outbound messages compatible with
+	// this [Transport].
+	NewClient(cert tls.Certificate) Client
+
+	// Stats returns the sent and received byte counts for this assembly
+	// session.
+	Stats() (tx, rx int64)
+}
+
+// Client is used to communicate with our peers.
+type Client interface {
 	// Trusted sends a message to a trusted peer. Implementations must verify
 	// that the peer is using the given certificate.
-	Trusted(ctx context.Context, rdt RDT, addr string, cert []byte, kind string, message any) error
+	Trusted(ctx context.Context, addr string, cert []byte, kind string, message any) error
 	// Untrusted sends a message to a peer that we do not yet trust. The
 	// certificate that the peer used to communicate is returned.
 	Untrusted(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
 }
+
+// Discoverer returns a set of addresses that should be considered for assembly.
+type Discoverer = func(context.Context) ([]string, error)
 
 // AssembleState contains this device's knowledge of the state of an assembly
 // session.
 type AssembleState struct {
 	st     *state.State
 	config AssembleConfig
+	logger *slog.Logger
 
 	cert tls.Certificate
 
@@ -110,7 +133,7 @@ type peer struct {
 // NewAssembleState create a new [AssembleState]. This currently pulls data from
 // the given [state.State] and will resume an existing assemble session. This
 // might go away, and we'd take in a more conventional configuration struct.
-func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, error)) (*AssembleState, error) {
+func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, error), logger *slog.Logger) (*AssembleState, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -203,6 +226,7 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 	as := AssembleState{
 		st:           st,
 		config:       config,
+		logger:       logger,
 		cert:         cert,
 		trusted:      trusted,
 		fingerprints: session.Fingerprints,
@@ -224,33 +248,14 @@ type AssembleConfig struct {
 	TLSKey  []byte `json:"key"`
 }
 
-// Routes returns all of the routes that we've collected and verified.
-func (as *AssembleState) Routes() Routes {
-	as.lock.Lock()
-	defer as.lock.Unlock()
-
-	return as.selector.Routes()
-}
-
-// Address returns the address of this local node.
-func (as *AssembleState) Address() string {
-	return fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
-}
-
-// Cert returns the TLS certificate that this local node should use when
-// communicating with other peers.
-func (as *AssembleState) Cert() tls.Certificate {
-	return as.cert
-}
-
-// PublishAuth calls send for each given address. If send succeeds, then the
+// publishAuth calls send for each given address. If send succeeds, then the
 // certificate returned by send (the certificate that the peer used to
 // communicate with us) is associated with the address that we reached them at.
 //
 // If the certificate the peer used is already trusted (they've already
 // published their auth message to us), then we verify the route from this local
 // node to that peer.
-func (as *AssembleState) PublishAuth(ctx context.Context, addresses []string, msg Messenger) error {
+func (as *AssembleState) publishAuth(ctx context.Context, addresses []string, client Client) error {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -262,7 +267,7 @@ func (as *AssembleState) PublishAuth(ctx context.Context, addresses []string, ms
 		}
 
 		as.lock.Unlock()
-		cert, err := msg.Untrusted(ctx, addr, "auth", Auth{
+		cert, err := client.Untrusted(ctx, addr, "auth", Auth{
 			HMAC: hmac,
 			RDT:  as.config.RDT,
 		})
@@ -271,6 +276,8 @@ func (as *AssembleState) PublishAuth(ctx context.Context, addresses []string, ms
 		if err != nil {
 			continue
 		}
+
+		as.logger.Debug("sent auth message", "peer-address", addr)
 
 		fp := CalculateFP(cert)
 
@@ -292,10 +299,10 @@ func (as *AssembleState) PublishAuth(ctx context.Context, addresses []string, ms
 	return nil
 }
 
-// PublishDeviceQueries requests device information from our trusted peers. We
+// publishDeviceQueries requests device information from our trusted peers. We
 // request information for devices that have appeared in a route but we don't
 // yet have identifying information for.
-func (as *AssembleState) PublishDeviceQueries(ctx context.Context, msg Messenger) {
+func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -313,18 +320,22 @@ func (as *AssembleState) PublishDeviceQueries(ctx context.Context, msg Messenger
 		}
 
 		as.lock.Unlock()
-		// nothing to do on a failed publication here. any logging is done a
-		// layer up
-		_ = msg.Trusted(ctx, p.RDT, addr, p.Cert, "unknown", UnknownDevices{
+		err := client.Trusted(ctx, addr, p.Cert, "unknown", UnknownDevices{
 			Devices: queries,
 		})
 		as.lock.Lock()
+
+		if err != nil {
+			continue
+		}
+
+		as.logger.Debug("sent device queries", "peer-rdt", p.RDT, "peer-address", addr, "queries-count", len(queries))
 	}
 }
 
-// PublishDevices responds to queries for device information that our peers
+// publishDevices responds to queries for device information that our peers
 // have sent us.
-func (as *AssembleState) PublishDevices(ctx context.Context, msg Messenger) {
+func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -340,7 +351,7 @@ func (as *AssembleState) PublishDevices(ctx context.Context, msg Messenger) {
 		}
 
 		as.lock.Unlock()
-		err := msg.Trusted(ctx, p.RDT, addr, p.Cert, "devices", Devices{
+		err := client.Trusted(ctx, addr, p.Cert, "devices", Devices{
 			Devices: ids,
 		})
 		as.lock.Lock()
@@ -351,6 +362,7 @@ func (as *AssembleState) PublishDevices(ctx context.Context, msg Messenger) {
 		}
 
 		as.devices.AckQueries(p.RDT, ids)
+		as.logger.Debug("sent device information", "peer-rdt", p.RDT, "peer-address", addr, "devices-count", len(ids))
 	}
 
 	// committing here prevents us from responding to requests more than once
@@ -359,10 +371,10 @@ func (as *AssembleState) PublishDevices(ctx context.Context, msg Messenger) {
 	as.commit()
 }
 
-// PublishRoutes publishes routes that we know about to our trusted peers. See
+// publishRoutes publishes routes that we know about to our trusted peers. See
 // implementation of [RouteSelector] for more details on route and peer
 // selection strategy.
-func (as *AssembleState) PublishRoutes(ctx context.Context, msg Messenger, peers, maxRoutes int) {
+func (as *AssembleState) publishRoutes(ctx context.Context, client Client, peers, maxRoutes int) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -395,14 +407,17 @@ func (as *AssembleState) PublishRoutes(ctx context.Context, msg Messenger, peers
 		}
 
 		// unlock for the duration of the send. this is safe, since all of the
-		// data that is passed to the send function is owned.
+		// data that is passed in here is owned.
 		as.lock.Unlock()
-		err := msg.Trusted(ctx, p.RDT, addr, p.Cert, "routes", routes)
+		err := client.Trusted(ctx, addr, p.Cert, "routes", routes)
 		as.lock.Lock()
 
-		if err == nil {
-			ack() // only acknowledge successful sends
+		if err != nil {
+			continue
 		}
+
+		ack()
+		as.logger.Debug("sent routes", "peer-rdt", p.RDT, "peer-address", addr, "routes-count", len(routes.Routes)/3)
 	}
 
 	// we don't commit on route publishes, since we don't keep track of which
@@ -449,6 +464,8 @@ func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
 
 	as.commit()
 
+	as.logger.Debug("got valid auth message", "peer-rdt", auth.RDT)
+
 	return nil
 }
 
@@ -474,6 +491,116 @@ func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
 	}, nil
 }
 
+// Run starts the assembly process, managing both the server and periodic client operations.
+// It returns when the context is cancelled, returning the final routes discovered.
+func (as *AssembleState) Run(
+	ctx context.Context,
+	transport Transport,
+	discover Discoverer,
+) (Routes, error) {
+	addr := fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
+	client := transport.NewClient(as.cert)
+
+	var wg sync.WaitGroup
+
+	// start the server that handles incoming requests
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := transport.Serve(ctx, addr, as.cert, as); err != nil {
+			as.logger.Error(err.Error())
+		}
+	}()
+
+	// start periodic discovery of peers.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		periodic(ctx, time.Second*5, time.Second*1, func(ctx context.Context) {
+			discoveries, err := discover(ctx)
+			if err != nil {
+				as.logger.Error(err.Error())
+				return
+			}
+
+			// filter out our address
+			addrs := make([]string, 0, len(discoveries))
+			for _, d := range discoveries {
+				if d == addr {
+					continue
+				}
+				addrs = append(addrs, d)
+			}
+
+			if err := as.publishAuth(ctx, addrs, client); err != nil {
+				as.logger.Error(err.Error())
+				return
+			}
+		})
+	}()
+
+	// TODO: start up the periodic publication of everything, this will change in next commit
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		const (
+			period = time.Second * 5
+			jitter = time.Second
+			peers  = 5
+			routes = 5000
+		)
+		periodic(ctx, period, jitter, func(ctx context.Context) {
+			as.publishRoutes(ctx, client, peers, routes)
+			as.publishDevices(ctx, client)
+			as.publishDeviceQueries(ctx, client)
+		})
+	}()
+
+	// wait for context cancellation
+	wg.Wait()
+
+	sent, received := transport.Stats()
+	as.logger.Info("assemble stopped",
+		"sent-bytes", sent,
+		"received-bytes", received,
+	)
+
+	return as.selector.Routes(), nil
+}
+
+func periodic(
+	ctx context.Context,
+	interval time.Duration,
+	jitter time.Duration,
+	work func(ctx context.Context),
+) {
+	delay := func() time.Duration {
+		if jitter <= 0 {
+			return interval
+		}
+
+		// +- jitter from the given interval
+		j := time.Duration(randutil.Int63n(int64(jitter)*2)) - jitter
+		return interval + j
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay()):
+		}
+
+		// even if the timer won the select, we should still check if the
+		// context has been cancelled
+		if ctx.Err() != nil {
+			return
+		}
+
+		work(ctx)
+	}
+}
+
 type PeerHandle struct {
 	as   *AssembleState
 	peer RDT
@@ -497,12 +624,13 @@ func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
 	}
 
 	h.as.commit()
+	h.as.logger.Debug("got device queries", "peer-rdt", h.peer)
 
 	return nil
 }
 
 // AddRoutes updates the state of the cluster with the given routes.
-func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
+func (h *PeerHandle) AddRoutes(routes Routes) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -512,12 +640,20 @@ func (h *PeerHandle) AddRoutes(routes Routes) (int, int, error) {
 
 	added, total, err := h.as.selector.AddRoutes(h.peer, routes, h.as.devices.Identified)
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 
 	h.as.commit()
 
-	return added, total, nil
+	received := len(routes.Routes) / 3
+	h.as.logger.Debug("got routes update",
+		"peer-rdt", h.peer,
+		"received-routes", received,
+		"wasted-routes", received-added,
+		"total-routes", total,
+	)
+
+	return nil
 }
 
 // AddDevices records the given device identities. All new device identities are
