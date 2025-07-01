@@ -79,7 +79,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 
 	_, missingRefs, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
-		return fmt.Errorf("cannot find key slots: %v", err)
+		return fmt.Errorf("cannot get key slots: %v", err)
 	}
 	if len(missingRefs) == 0 {
 		// this could be re-run and all key slots were already added, do nothing
@@ -126,7 +126,7 @@ func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
 	// to continue deleting the remaining key slots.
 	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
-		return fmt.Errorf("cannot find key slots: %v", err)
+		return fmt.Errorf("cannot get key slots: %v", err)
 	}
 
 	for _, keyslot := range currentKeyslots {
@@ -169,7 +169,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	// to continue renaming the remaining key slots.
 	currentKeyslots, _, err := m.GetKeyslots(keyslotRefs)
 	if err != nil {
-		return fmt.Errorf("cannot find key slots: %v", err)
+		return fmt.Errorf("cannot get key slots: %v", err)
 	}
 
 	// check that all remaining renames do not already exist to
@@ -183,7 +183,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 		}
 		currentRenamedKeyslots, _, err := m.GetKeyslots(renamedKeyslotRefs)
 		if err != nil {
-			return fmt.Errorf("cannot find key slots: %v", err)
+			return fmt.Errorf("cannot get key slots: %v", err)
 		}
 		if len(currentRenamedKeyslots) != 0 {
 			return &keyslotsAlreadyExistsError{keyslots: currentRenamedKeyslots}

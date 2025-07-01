@@ -444,7 +444,7 @@ func (s *fdeMgrSuite) TestDoRemoveKeysGetKeyslotsError(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
-- test \(cannot find key slots: cannot find UUID for mount .*/run/mnt/data: boom!\)`)
+- test \(cannot get key slots: cannot find UUID for mount .*/run/mnt/data: boom!\)`)
 }
 
 func (s *fdeMgrSuite) TestDoRemoveKeysRemoveError(c *C) {
