@@ -59,7 +59,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		containerDevicePath[container.ContainerRole()] = container.DevPath()
 	}
 
-	// IMPORTANT: this clean up must be decalred as early as possible
+	// IMPORTANT: this clean up must be declared as early as possible
 	// to account for real errors and potential re-runs (that will fail
 	// anyway as soon as the recovery key ID is reused).
 	defer func() {
