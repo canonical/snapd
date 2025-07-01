@@ -106,6 +106,26 @@ func (ts *StatTestSuite) TestLookPathDefaultReturnsDefaultWhenNotFound(c *C) {
 	c.Assert(osutil.LookPathDefault("bar", "/bin/bla"), Equals, "/bin/bla")
 }
 
+func (ts *StatTestSuite) TestLookInPaths(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+	d3 := c.MkDir()
+
+	makeTestPathInDir(c, d1, "ls", 0o755)
+	makeTestPathInDir(c, d2, "ls", 0o755)
+	makeTestPathInDir(c, d3, "ls", 0o644)
+
+	c.Check(osutil.LookInPaths("ls", ""), Equals, "")
+	realLs := osutil.LookInPaths("ls", os.Getenv("PATH"))
+	c.Check(realLs, Not(Equals), "")
+	c.Check(osutil.LookInPaths("ls", d1+":"+d2+":"+d3), Equals, filepath.Join(d1, "ls"))
+	c.Check(osutil.LookInPaths("ls", d2+":"+d1+":"+d3), Equals, filepath.Join(d2, "ls"))
+	// ls in d3 is not executable
+	c.Check(osutil.LookInPaths("ls", d3+":"+d2+":"+d1), Equals, filepath.Join(d2, "ls"))
+	c.Check(osutil.LookInPaths("ls", d1+":"+d2+":"+os.Getenv("PATH")), Equals, filepath.Join(d1, "ls"))
+	c.Check(osutil.LookInPaths("ls", os.Getenv("PATH")+":"+d1+":"+d2), Equals, realLs)
+}
+
 func makeTestPath(c *C, path string, mode os.FileMode) string {
 	return makeTestPathInDir(c, c.MkDir(), path, mode)
 }

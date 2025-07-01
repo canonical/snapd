@@ -22,11 +22,11 @@ package selinux_test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -82,11 +82,11 @@ func (l *labelSuite) TestVerifyFailNoPath(c *check.C) {
 }
 
 func (l *labelSuite) TestVerifyFailNoTool(c *check.C) {
-	if _, err := exec.LookPath("matchpathcon"); err == nil {
+	if p := osutil.LookInPaths("matchpathcon", selinux.ToolsSearchPath); p != "" {
 		c.Skip("matchpathcon found in $PATH")
 	}
 	ok, err := selinux.VerifyPathContext(l.path)
-	c.Assert(err, check.ErrorMatches, `exec: "matchpathcon": executable file not found in \$PATH`)
+	c.Assert(err, check.ErrorMatches, `cannot locate "matchpathcon" executable`)
 	c.Assert(ok, check.Equals, false)
 }
 
@@ -121,11 +121,11 @@ func (l *labelSuite) TestRestoreHappy(c *check.C) {
 }
 
 func (l *labelSuite) TestRestoreFailNoTool(c *check.C) {
-	if _, err := exec.LookPath("matchpathcon"); err == nil {
+	if p := osutil.LookInPaths("matchpathcon", selinux.ToolsSearchPath); p != "" {
 		c.Skip("matchpathcon found in $PATH")
 	}
 	err := selinux.RestoreContext(l.path, selinux.RestoreMode{})
-	c.Assert(err, check.ErrorMatches, `exec: "restorecon": executable file not found in \$PATH`)
+	c.Assert(err, check.ErrorMatches, `cannot locate "restorecon" executable`)
 }
 
 func (l *labelSuite) TestRestoreFail(c *check.C) {
