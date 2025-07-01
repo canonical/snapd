@@ -1052,7 +1052,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
-func (s *snapmgrTestSuite) TestRemoveCurrentActiveRevisionRefused(c *C) {
+func (s *snapmgrTestSuite) TestRemoveLastActiveRevisionRunThrough(c *C) {
+	// run through a removal of a last active revision of a snap where revision
+	// is expliciltly provided in options, making it effectively the same as
+	// regular removal of all revisions of the snap
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(2),
@@ -1068,15 +1071,104 @@ func (s *snapmgrTestSuite) TestRemoveCurrentActiveRevisionRefused(c *C) {
 		SnapType: "app",
 	})
 
-	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
+	chg := s.state.NewChange("remove", "remove a snap")
+	// remove last active revision, is essentially like snap remove
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
 
-	c.Check(err, ErrorMatches, `cannot remove active revision 2 of snap "some-snap"`)
+	s.settle(c)
+
+	c.Check(len(s.fakeBackend.ops), Equals, 13)
+	expected := fakeOps{
+		{
+			op:    "auto-disconnect:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
+			op:   "remove-snap-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+		},
+		{
+			op:   "remove-snap-data-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapDataDir, "some-snap"),
+		},
+		{
+			op:    "remove-snap-files",
+			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
+		},
+		{
+			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-inhibit-lock",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-snap-dir",
+			name: "some-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify snapSetup info
+	tasks := ts.Tasks()
+	for _, t := range tasks {
+		c.Logf("task kind: %v", t.Kind())
+		if t.Kind() == "save-snapshot" || t.Kind() == "run-hook" {
+			continue
+		}
+
+		_, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+	}
+
+	// verify that the snap was removed and no more snaps remain in the system
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestRemoveCurrentRevisionOfSeveralRefused(c *C) {
-	si := snap.SideInfo{
+	si2 := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(2),
+	}
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
 	}
 
 	s.state.Lock()
@@ -1084,8 +1176,8 @@ func (s *snapmgrTestSuite) TestRemoveCurrentRevisionOfSeveralRefused(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si}),
-		Current:  si.Revision,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si2, &si1}),
+		Current:  si2.Revision,
 		SnapType: "app",
 	})
 

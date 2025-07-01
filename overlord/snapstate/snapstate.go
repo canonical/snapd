@@ -3979,7 +3979,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		revision = snapst.Current
 		removeAll = true
 	} else {
-		if active {
+		if active && len(snapst.Sequence.Revisions) > 1 {
 			if revision == snapst.Current {
 				msg := "cannot remove active revision %s of snap %q"
 				if len(snapst.Sequence.Revisions) > 1 {
