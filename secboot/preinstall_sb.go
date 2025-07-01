@@ -48,10 +48,14 @@ var (
 // To support testing, when the system is running in a Virtual Machine, the check
 // configuration is modified to permit this to avoid an error.
 func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
-	// do not customize check configuration
-	checkFlags := sb_preinstall.CheckFlagsDefault
+	// allow value-added-retailer drivers that are:
+	//  - listed as Driver#### load options
+	//  - referenced in the DriverOrder UEFI variable
+	//  - loaded from PCI device option ROMs (e.g. network card PXE ROMs)
+	//TODO:FDEM: remove once secboot provides an action to apply this configuration
+	checkFlags := sb_preinstall.PermitVARSuppliedDrivers
 	if systemd.IsVirtualMachine() {
-		// with exception of running in a virtual machine
+		// when running in Virtual Machine, allow it
 		checkFlags |= sb_preinstall.PermitVirtualMachine
 	}
 
