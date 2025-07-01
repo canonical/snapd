@@ -9,17 +9,45 @@ details: |
 execute: |
     tests.exec is-skipped && exit 0
 
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    test -d "$SNAP_MOUNT_DIR/test-snapd-sh"
+    test -d "$SNAP_MOUNT_DIR/test-snapd-sh-core24"
 
     echo "Ensure remove works"
-    snap remove test-snapd-sh
-    test ! -d "$SNAP_MOUNT_DIR/test-snapd-sh"
+    snap remove test-snapd-sh-core24
+    test ! -d "$SNAP_MOUNT_DIR/test-snapd-sh-core24"
 
-    if snap list test-snapd-sh; then
-        echo "test-snapd-sh should be removed but it is not"
+    if snap list test-snapd-sh-core24; then
+        echo "test-snapd-sh-core24 should be removed but it is not"
         snap list
         exit 1
     fi
+
+    echo "Ensure removal of last active revision works"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    snap list test-snapd-sh-core24
+    snap remove --revision=x1 test-snapd-sh-core24
+    not snap list test-snapd-sh-core24
+
+    echo "Ensure purge of last active revision works"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    snap list test-snapd-sh-core24
+    snap remove --revision=x1 --purge test-snapd-sh-core24
+    not snap list test-snapd-sh-core24
+
+    echo "Ensure removal by revision of inactive revision works"
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 # x1
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 # x2
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 # x3
+    # x3 is currently active revision
+    echo "Ensure removal of inactive revision"
+    snap remove --revision=x1 --purge test-snapd-sh-core24
+    snap list --all test-snapd-sh-core24 | NOMATCH x1
+    snap list --all test-snapd-sh-core24 | MATCH x2
+    snap list --all test-snapd-sh-core24 | MATCH x3
+
+    echo "Ensure currently active revision cannot be removed, but has to be reverted"
+    not snap remove --revision=x3 --purge test-snapd-sh-core24 2> stderr.out
+    MATCH 'cannot remove active revision x3' < stderr.out
