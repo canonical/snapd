@@ -86,7 +86,7 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
           # Make sure there are not spread processes running
-          killall spread || true
+          killall -s SIGQUIT spread || true
 
     - name: Checkout code
       uses: actions/checkout@v4
@@ -367,7 +367,7 @@ jobs:
       if: always()
       run: |
         # Make sure there is not spread process running which locks the .spread-reuse.*.yaml files
-        killall spread || true
+        killall -s SIGQUIT spread || true
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
