@@ -75,10 +75,10 @@ type AssembleState struct {
 	// won't re-send auth messages to these addresses.
 	discovered map[string]bool
 
-	// devices keeps track of which devices for which we've seen their
-	// identifying information. Additionally, it keeps track of the set of
-	// devices that each of our peers knows about.
-	devices deviceIDs
+	// devices keeps track of device identities. Additionally, it helps manage
+	// the events that trigger responses to device queries and the events that
+	// result in us sending our own queries.
+	devices DeviceTracker
 
 	// selector keeps track of our routes and decides the strategy for
 	// publishing routes to our peers.
@@ -92,7 +92,6 @@ type AssembleSession struct {
 	Fingerprints map[RDT]FP        `json:"fingerprints"`
 	Addresses    map[string]string `json:"addresses"`
 	Discovered   map[string]bool   `json:"discovered"`
-	Devices      deviceIDs         `json:"devices"`
 	Routes       Routes            `json:"routes"`
 }
 
@@ -112,7 +111,6 @@ func (as *AssembleState) export() AssembleSession {
 		Fingerprints: as.fingerprints,
 		Addresses:    addresses,
 		Discovered:   as.discovered,
-		Devices:      as.devices,
 		Routes:       as.selector.Routes(),
 	}
 }
@@ -159,10 +157,6 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 			Fingerprints: make(map[RDT]FP),
 			Addresses:    make(map[string]string),
 			Discovered:   make(map[string]bool),
-			Devices: newDeviceIDs(Identity{
-				RDT: config.RDT,
-				FP:  CalculateFP(config.TLSCert),
-			}),
 		}
 	}
 
@@ -203,11 +197,16 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 		return nil, err
 	}
 
+	devices := NewDeviceTracker(Identity{
+		RDT: config.RDT,
+		FP:  CalculateFP(config.TLSCert),
+	}, time.Minute*5)
+
 	// inform the selector of any routes that we already know. we state that
 	// their provenance is this local node, since we don't persist which routes
 	// came from which peer. this will lead to our local node doing some wasted
 	// publications, but that is okay.
-	if _, _, err := sel.AddRoutes(config.RDT, session.Routes, session.Devices.Identified); err != nil {
+	if _, _, err := sel.AddRoutes(config.RDT, session.Routes, devices.Identified); err != nil {
 		return nil, err
 	}
 
@@ -232,7 +231,7 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 		fingerprints: session.Fingerprints,
 		addresses:    addresses,
 		discovered:   session.Discovered,
-		devices:      session.Devices,
+		devices:      devices,
 		selector:     sel,
 	}
 
@@ -306,15 +305,14 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
-	// TODO: this could be smarter, but the complexity probably isn't worth it
-	// since the large majority of bandwidth is used for route propagation
+	failure := false
 	for fp, p := range as.trusted {
 		addr, ok := as.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		queries := as.devices.UnknownKnownBy(p.RDT)
+		queries, ack := as.devices.QueryableFrom(p.RDT)
 		if len(queries) == 0 {
 			continue
 		}
@@ -326,10 +324,17 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 		as.lock.Lock()
 
 		if err != nil {
+			failure = true
 			continue
 		}
 
+		ack()
 		as.logger.Debug("sent device queries", "peer-rdt", p.RDT, "peer-address", addr, "queries-count", len(queries))
+	}
+
+	// if anything failed, we need to schedule a retry
+	if failure {
+		as.devices.RetryQueries()
 	}
 }
 
@@ -339,13 +344,14 @@ func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
+	failure := false
 	for fp, p := range as.trusted {
 		addr, ok := as.addresses[fp]
 		if !ok {
 			continue
 		}
 
-		ids := as.devices.QueryResponses(p.RDT)
+		ids, ack := as.devices.QueryResponses(p.RDT)
 		if len(ids) == 0 {
 			continue
 		}
@@ -358,11 +364,17 @@ func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 
 		// skip acking if this publication failed
 		if err != nil {
+			failure = true
 			continue
 		}
 
-		as.devices.AckQueries(p.RDT, ids)
+		ack()
 		as.logger.Debug("sent device information", "peer-rdt", p.RDT, "peer-address", addr, "devices-count", len(ids))
+	}
+
+	// if anything failed, we need to schedule a retry
+	if failure {
+		as.devices.RetryResponses()
 	}
 
 	// committing here prevents us from responding to requests more than once
@@ -539,7 +551,7 @@ func (as *AssembleState) Run(
 		})
 	}()
 
-	// TODO: start up the periodic publication of everything, this will change in next commit
+	// start up the periodic publication of routes
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -551,9 +563,24 @@ func (as *AssembleState) Run(
 		)
 		periodic(ctx, period, jitter, func(ctx context.Context) {
 			as.publishRoutes(ctx, client, peers, routes)
-			as.publishDevices(ctx, client)
-			as.publishDeviceQueries(ctx, client)
 		})
+	}()
+
+	// start event-driven device operations
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-as.devices.Responses():
+				as.publishDevices(ctx, client)
+			case <-as.devices.Queries():
+				as.publishDeviceQueries(ctx, client)
+			case <-ctx.Done():
+				return
+			}
+		}
 	}()
 
 	// wait for context cancellation
@@ -619,9 +646,7 @@ func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
-	if err := h.as.devices.AddQueries(h.peer, unknown.Devices); err != nil {
-		return err
-	}
+	h.as.devices.Query(h.peer, unknown.Devices)
 
 	h.as.commit()
 	h.as.logger.Debug("got device queries", "peer-rdt", h.peer)
@@ -636,7 +661,7 @@ func (h *PeerHandle) AddRoutes(routes Routes) error {
 
 	// if this peer is sending us routes that include these devices, then we
 	// know that they must have identifying information for those devices.
-	h.as.devices.AddSources(h.peer, routes.Devices)
+	h.as.devices.UpdateSource(h.peer, routes.Devices)
 
 	added, total, err := h.as.selector.AddRoutes(h.peer, routes, h.as.devices.Identified)
 	if err != nil {
@@ -672,7 +697,7 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 	}
 
 	for _, id := range devices.Devices {
-		h.as.devices.Save(id)
+		h.as.devices.Identify(id)
 	}
 
 	// since we got new device info, we have to recalculate which routes are
@@ -681,113 +706,9 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 
 	h.as.commit()
 
-	return nil
-}
-
-func newDeviceIDs(self Identity) deviceIDs {
-	return deviceIDs{
-		Identities: map[RDT]Identity{
-			self.RDT: self,
-		},
-		Sources: make(map[RDT]map[RDT]struct{}),
-		Queries: make(map[RDT]map[RDT]struct{}),
-	}
-}
-
-// deviceIDs keeps track of which devices we and our peers know about.
-//
-// TODO: JSON serialization of this data structure is really wasteful
-type deviceIDs struct {
-	Identities map[RDT]Identity         `json:"identities"`
-	Sources    map[RDT]map[RDT]struct{} `json:"sources"`
-	Queries    map[RDT]map[RDT]struct{} `json:"queries"`
-}
-
-// Identified returns true if this local node has identifying information for
-// the peer with the given [RDT].
-func (d *deviceIDs) Identified(rdt RDT) bool {
-	_, ok := d.Identities[rdt]
-	return ok
-}
-
-// Save saves the given device identity.
-func (d *deviceIDs) Save(id Identity) {
-	d.Identities[id.RDT] = id
-}
-
-// Lookup returns the [Identity] of the device with the given [RDT], if we have
-// it.
-func (d *deviceIDs) Lookup(rdt RDT) (Identity, bool) {
-	id, ok := d.Identities[rdt]
-	return id, ok
-}
-
-// AddQueries records queries for device information from the given [RDT].
-func (d *deviceIDs) AddQueries(from RDT, queries []RDT) error {
-	for _, rdt := range queries {
-		if !d.Identified(rdt) {
-			return fmt.Errorf("unknown device: %s", rdt)
-		}
-	}
-
-	if d.Queries[from] == nil {
-		d.Queries[from] = make(map[RDT]struct{})
-	}
-
-	for _, rdt := range queries {
-		d.Queries[from][rdt] = struct{}{}
-	}
+	h.as.logger.Debug("got unknown device information", "peer-rdt", h.peer, "devices-count", len(devices.Devices))
 
 	return nil
-}
-
-// QueryResponses returns the set of device identities that the given peer has
-// requested.
-func (d *deviceIDs) QueryResponses(from RDT) []Identity {
-	ids := make([]Identity, 0, len(d.Queries[from]))
-	for rdt := range d.Queries[from] {
-		id, ok := d.Lookup(rdt)
-		if !ok {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-// AckQueries removes the given set of devices from the given RDT's queries.
-// Should be called once we respond to a device's query.
-func (d *deviceIDs) AckQueries(from RDT, ids []Identity) {
-	for _, id := range ids {
-		delete(d.Queries[from], id.RDT)
-	}
-}
-
-// AddSources records that the given RDT knows about the given set of devices.
-// We should be able to query this peer for that device information, if we don't
-// have it.
-func (d *deviceIDs) AddSources(source RDT, devices []RDT) {
-	if d.Sources[source] == nil {
-		d.Sources[source] = make(map[RDT]struct{})
-	}
-
-	for _, rdt := range devices {
-		d.Sources[source][rdt] = struct{}{}
-	}
-}
-
-// UnknownKnownBy returns the list of devices that we don't have identifying
-// info for, but the given peer does.
-func (d *deviceIDs) UnknownKnownBy(source RDT) []RDT {
-	var unknown []RDT
-	for rdt := range d.Sources[source] {
-		if d.Identified(rdt) {
-			continue
-		}
-
-		unknown = append(unknown, rdt)
-	}
-	return unknown
 }
 
 func CalculateHMAC(rdt RDT, fp FP, secret string) []byte {
