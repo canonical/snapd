@@ -277,7 +277,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeysIdempotence(c *C) {
 	chg := s.st.NewChange("sample", "...")
 
 	for i := 1; i <= 3; i++ {
-		t := s.st.NewTask("add-recovery-keys", fmt.Sprintf("test add recovery %d", i))
+		t := s.st.NewTask("fde-add-recovery-keys", fmt.Sprintf("test add recovery %d", i))
 		t.Set("keyslots", keyslotRefs)
 		// notice that the same (already consumed key-id is used).
 		t.Set("recovery-key-id", rkeyID)
@@ -383,7 +383,7 @@ func (s *fdeMgrSuite) TestDoRemoveKeysIdempotence(c *C) {
 	chg := s.st.NewChange("sample", "...")
 
 	for i := 1; i <= 3; i++ {
-		t := s.st.NewTask("remove-keys", fmt.Sprintf("test remove %d", i))
+		t := s.st.NewTask("fde-remove-keys", fmt.Sprintf("test remove %d", i))
 		t.Set("keyslots", keyslotRefs)
 		chg.AddTask(t)
 	}
@@ -549,7 +549,7 @@ func (s *fdeMgrSuite) TestDoRenameKeysIdempotence(c *C) {
 	chg := s.st.NewChange("sample", "...")
 
 	for i := 1; i <= 3; i++ {
-		t := s.st.NewTask("rename-keys", fmt.Sprintf("test rename %d", i))
+		t := s.st.NewTask("fde-rename-keys", fmt.Sprintf("test rename %d", i))
 		t.Set("keyslots", keyslotRefs)
 		t.Set("renames", renames)
 		chg.AddTask(t)
@@ -620,7 +620,7 @@ func (s *fdeMgrSuite) TestDoRenameKeysRenameAlreadyExists(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	task := s.st.NewTask("rename-keys", "test")
+	task := s.st.NewTask("fde-rename-keys", "test")
 	task.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}})
 	// default-fallback already exists on system-data
 	task.Set("renames", map[string]string{`(container-role: "system-data", name: "default")`: "default-fallback"})
