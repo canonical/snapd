@@ -34,6 +34,7 @@ endef
 
 define OPENSUSE_tumbleweed-selinux_CLOUD_INIT_USER_DATA_TEMPLATE
 $(BASE_CLOUD_INIT_USER_DATA_TEMPLATE)
+- sed -i -e 's/^SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
 # Add empty /etc/environment file that snapd test suite wants to back up.
 - touch /etc/environment
 endef
