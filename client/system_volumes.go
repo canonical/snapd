@@ -53,3 +53,8 @@ type SystemVolumesOptions struct {
 	ContainerRoles  []string
 	ByContainerRole bool
 }
+
+type ChangePassphraseOptions struct {
+	OldPassphrase string `json:"old-passphrase"`
+	NewPassphrase string `json:"new-passphrase"`
+}

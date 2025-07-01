@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,6 +38,10 @@ func MockFdeMgrCheckRecoveryKey(f func(fdemgr *fdestate.FDEManager, rkey keys.Re
 
 func MockFdestateReplaceRecoveryKey(f func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error)) (restore func()) {
 	return testutil.Mock(&fdestateReplaceRecoveryKey, f)
+}
+
+func MockFdestateChangeAuth(f func(st *state.State, authMode device.AuthMode, old string, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&fdestateChangeAuth, f)
 }
 
 func MockDevicestateGetVolumeStructuresWithKeyslots(f func(st *state.State) ([]devicestate.VolumeStructureWithKeyslots, error)) (restore func()) {

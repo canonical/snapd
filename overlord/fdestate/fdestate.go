@@ -508,3 +508,8 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslots []Keyslo
 
 	return ts, nil
 }
+
+func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	// TODO:FDEM: mock for actual implementation
+	return state.NewTaskSet(), nil
+}
