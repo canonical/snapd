@@ -65,6 +65,10 @@ func EFISecureBootDBUpdatePrepare(st *state.State, db EFISecurebootKeyDatabase, 
 		return err
 	}
 
+	if err := checkFDEChangeConflict(st); err != nil {
+		return err
+	}
+
 	op, err := addEFISecurebootDBUpdateChange(st, method, payload)
 	if err != nil {
 		return err
@@ -562,7 +566,7 @@ func checkDBXChangeConflicts(st *state.State) error {
 		return nil
 	}
 
-	// make sure that are no other DBX changes in progress
+	// make sure that there are no other DBX changes in progress
 	op, err := findFirstPendingExternalOperationByKind(st, "fde-efi-secureboot-db-update")
 	if err != nil {
 		return err

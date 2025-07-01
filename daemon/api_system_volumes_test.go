@@ -224,7 +224,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 			{ContainerRole: "some-container-role", Name: "some-name"},
 		})
 
-		return state.NewTaskSet(), nil
+		return state.NewTaskSet(st.NewTask("some-task", "")), nil
 	}))
 
 	body := strings.NewReader(`
@@ -244,28 +244,49 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 
 	st.Lock()
 	chg := st.Change(rsp.Change)
+	tsks := chg.Tasks()
 	st.Unlock()
 	c.Check(chg, NotNil)
 	c.Check(chg.ID(), Equals, "1")
-	c.Check(chg.Kind(), Equals, "replace-recovery-key")
+	c.Check(chg.Kind(), Equals, "fde-replace-recovery-key")
+	c.Assert(tsks, HasLen, 1)
+	c.Check(tsks[0].Kind(), Equals, "some-task")
 	c.Check(called, Equals, 1)
+
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
 	s.daemon(c)
 
+	var mockErr error
 	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
-		return nil, errors.New("boom!")
+		return nil, mockErr
 	}))
 
+	// catch all, bad request error
 	body := strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
+	mockErr = errors.New("boom!")
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, "cannot replace recovery key: boom!")
+	c.Check(rsp.Message, Equals, "cannot replace recovery key: boom!")
+
+	// typed conflict detection error kind
+	mockErr = &snapstate.ChangeConflictError{
+		Message: fmt.Sprintf("conflict error: boom!"),
+	}
+	body = strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 409)
+	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rsp.Message, Equals, "conflict error: boom!")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -254,11 +255,10 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 
 	ts, err := fdestateReplaceRecoveryKey(st, req.KeyID, req.Keyslots)
 	if err != nil {
-		return BadRequest("cannot replace recovery key: %v", err)
+		return errToResponse(err, nil, BadRequest, "cannot replace recovery key: %v")
 	}
 
-	chg := st.NewChange("replace-recovery-key", "Replace recovery key")
-	chg.AddAll(ts)
+	chg := newChange(st, "fde-replace-recovery-key", "Replace recovery key", []*state.TaskSet{ts}, nil)
 
 	st.EnsureBefore(0)
 

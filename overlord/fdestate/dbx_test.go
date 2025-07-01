@@ -248,6 +248,24 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
 	})
 }
 
+func (s *fdeMgrSuite) TestEFIDBXPrepareConflictFDEChange(c *C) {
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	st := s.st
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	st.Lock()
+	// mock conflicting FDE change
+	chg := st.NewChange("some-fde-change", "")
+	tsk := st.NewTask("fde-op", "")
+	chg.AddTask(tsk)
+	st.Unlock()
+
+	err := fdestate.EFISecureBootDBUpdatePrepare(st, fdestate.EFISecurebootDBX, []byte("payload"))
+	c.Assert(err, ErrorMatches, "FDE change in progress, no other FDE changes allowed until this is done")
+}
+
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictOperationNotInDoingYet(c *C) {
 	// attempting to run cleanup or startup when the operation has not yet
 	// reached Doing status raises a conflict
