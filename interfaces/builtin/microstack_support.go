@@ -128,6 +128,9 @@ const microStackSupportConnectedPlugAppArmor = `
 
 # Libvirt needs access to the PCI config space in order to be able to reset devices.
 /sys/devices/pci*/**/config rw,
+/sys/devices/pci*/**/driver_override rw,
+/sys/bus/pci/drivers/**/unbind rw,
+/sys/bus/pci/drivers_probe rw,
 
 # Spice
 owner /{dev,run}/shm/spice.* rw,
