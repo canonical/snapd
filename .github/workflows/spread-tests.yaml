@@ -85,6 +85,8 @@ jobs:
       run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
+          # Make sure there are not spread processes running
+          killall -s SIGQUIT spread || true
 
     - name: Checkout code
       uses: actions/checkout@v4
@@ -361,6 +363,16 @@ jobs:
               tee spread.log
           )
 
+    - name: Discard spread workers
+      if: always()
+      run: |
+        # Make sure there is not spread process running which locks the .spread-reuse.*.yaml files
+        killall -s SIGQUIT spread || true
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+
     - name: Upload spread logs
       if: always()
       uses: actions/upload-artifact@v4
@@ -444,10 +456,3 @@ jobs:
         path: "spread-results.json"
         if-no-files-found: ignore
 
-    - name: Discard spread workers
-      if: always()
-      run: |
-        shopt -s nullglob;
-        for r in .spread-reuse.*.yaml; do
-          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-        done
