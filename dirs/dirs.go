@@ -458,6 +458,12 @@ func SnapKernelDriversTreesDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "kernel")
 }
 
+// SnapExportDirUnder returns the path to files with information about things
+// exported from snaps to the rootfs, under rootdir.
+func SnapExportDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "export")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
