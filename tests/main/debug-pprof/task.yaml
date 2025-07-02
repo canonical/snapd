@@ -7,7 +7,10 @@ details: |
     the http://localhost/v2/debug/pprof/ API
 
 # ubuntu-core: no jq and no go
-systems: [-ubuntu-core-*]
+systems:
+    - -ubuntu-core-*
+    # https://bugzilla.opensuse.org/show_bug.cgi?id=1233357
+    - -opensuse-tumbleweed-*
 
 execute: |
     # endpoints are accessible only for the root user
