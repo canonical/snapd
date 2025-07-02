@@ -72,3 +72,7 @@ var (
 func (s *State) NumNotices() int {
 	return len(s.notices)
 }
+
+func (s *State) GetLastNoticeTimestamp() time.Time {
+	return s.getLastNoticeTimestamp()
+}

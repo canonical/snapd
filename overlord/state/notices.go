@@ -291,8 +291,8 @@ func (s *State) NextNoticeTimestamp() time.Time {
 	return s.lastNoticeTimestamp
 }
 
-// LastNoticeTimestamp returns the current lastNoticeTimestamp.
-func (s *State) LastNoticeTimestamp() time.Time {
+// getLastNoticeTimestamp returns the current lastNoticeTimestamp.
+func (s *State) getLastNoticeTimestamp() time.Time {
 	s.lastNoticeTimestampMu.Lock()
 	defer s.lastNoticeTimestampMu.Unlock()
 	return s.lastNoticeTimestamp
