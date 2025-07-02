@@ -387,7 +387,7 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 // stripAlias removes the ${...} used to refer to an alias and returns the alias
 // name. If the string isn't wrapped in ${}, it returns an empty string and false.
 func stripAlias(str string) (string, bool) {
-	if len(str) < 4 || str[:2] != "${" || str[len(str)-1] != '}' {
+	if len(str) < 4 || !strings.HasPrefix(str, "${") || !strings.HasSuffix(str, "}") {
 		return "", false
 	}
 	return str[2 : len(str)-1], true
