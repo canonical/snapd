@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -901,4 +902,257 @@ func (c *Change) CheckTaskDependencies() error {
 		}
 	}
 	return nil
+}
+
+type ExecutionProfile struct {
+	change     *Change                  // The change
+	runOrder   [][]*Task                // Execution order
+	runDeps    map[*Task]map[*Task]bool // Dependencies of tasks that was executed, redundant or not
+	unresolved []*Task                  // Tasks with unresolved dependencies
+}
+
+func newExecutionProfile(c *Change) *ExecutionProfile {
+	taskCount := len(c.taskIDs)
+	return &ExecutionProfile{
+		change:     c,
+		runOrder:   make([][]*Task, 0, taskCount),
+		runDeps:    make(map[*Task]map[*Task]bool, taskCount),
+		unresolved: make([]*Task, 0, taskCount),
+	}
+}
+
+// Add parallel tasks to build run order
+func (ep *ExecutionProfile) addParallelTasks(tasks []*Task) {
+	if len(tasks) == 0 {
+		return // nothing to add
+	}
+
+	// add copy of parallel tasks
+	ep.runOrder = append(ep.runOrder, append([]*Task{}, tasks...))
+
+	if len(tasks) > 1 {
+		// sort the latest batch of parallel tasks
+		parallelTasks := ep.runOrder[len(ep.runOrder)-1]
+		sort.Slice(parallelTasks, func(i, j int) bool {
+			iID, _ := strconv.Atoi(parallelTasks[i].ID())
+			jID, _ := strconv.Atoi(parallelTasks[j].ID())
+			return iID < jID
+		})
+	}
+}
+
+func (ep *ExecutionProfile) printRunOrder() {
+	fmt.Printf("Printing run order:\n")
+	for iter, parallelTasks := range ep.runOrder {
+		for _, task := range parallelTasks {
+			fmt.Printf("%-4d | %-4s | %s\n", iter, task.ID(), task.Summary())
+		}
+	}
+}
+
+// Copy dependencies from one task to another
+func (ep *ExecutionProfile) copyTaskDependencies(destTask, srcTask *Task) {
+	if ep.runDeps[destTask] == nil {
+		// allocate when required
+		ep.runDeps[destTask] = make(map[*Task]bool)
+	}
+
+	// copy all dependencies of srcTask to depTask
+	for depTask, _ := range ep.runDeps[srcTask] {
+		// do not inherit tasks from other dependencies as redundant
+		ep.runDeps[destTask][depTask] = true
+	}
+}
+
+// Add dependencies
+func (ep *ExecutionProfile) addTaskDependencies(destTask *Task, depTasks []*Task) {
+	if ep.runDeps[destTask] == nil {
+		// allocate when required
+		ep.runDeps[destTask] = make(map[*Task]bool)
+	}
+
+	// add all dependency tasks
+	for _, depTask := range depTasks {
+		_, exists := ep.runDeps[destTask][depTask]
+		ep.runDeps[destTask][depTask] = !exists
+	}
+}
+
+func (ep *ExecutionProfile) printDependencies() {
+	fmt.Printf("Printing dependencies:\n")
+
+	// create sorted list of tasks
+	tasks := make([]*Task, 0, len(ep.runDeps))
+	for task := range ep.runDeps {
+		tasks = append(tasks, task)
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		iID, _ := strconv.Atoi(tasks[i].ID())
+		jID, _ := strconv.Atoi(tasks[j].ID())
+		return iID < jID
+	})
+
+	depTasks := make([]*Task, 0, len(tasks))
+	for _, task := range tasks {
+		// create sorted list of depTasks
+		for depTask := range ep.runDeps[task] {
+			depTasks = append(depTasks, depTask)
+		}
+		sort.Slice(depTasks, func(i, j int) bool {
+			iID, _ := strconv.Atoi(depTasks[i].ID())
+			jID, _ := strconv.Atoi(depTasks[j].ID())
+			return iID < jID
+		})
+
+		// print sorted tasks with depTasks
+		fmt.Printf("%-4s |", task.ID())
+		for _, depTask := range depTasks {
+			fmt.Printf(" %s", depTask.ID())
+		}
+		fmt.Printf("\n")
+		depTasks = depTasks[:0]
+	}
+}
+
+func (ep *ExecutionProfile) printRedundantDependencies() {
+	fmt.Printf("Printing redundent dependencies:\n")
+
+	// create sorted list of tasks
+	tasks := make([]*Task, 0, len(ep.runDeps))
+	for task := range ep.runDeps {
+		tasks = append(tasks, task)
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		iID, _ := strconv.Atoi(tasks[i].ID())
+		jID, _ := strconv.Atoi(tasks[j].ID())
+		return iID < jID
+	})
+
+	depTasks := make([]*Task, 0, len(tasks))
+	for _, task := range tasks {
+		// create sorted list of depTasks
+		for depTask := range ep.runDeps[task] {
+			depTasks = append(depTasks, depTask)
+		}
+		sort.Slice(depTasks, func(i, j int) bool {
+			iID, _ := strconv.Atoi(depTasks[i].ID())
+			jID, _ := strconv.Atoi(depTasks[j].ID())
+			return iID < jID
+		})
+
+		// print sorted tasks with depTasks
+		fmt.Printf("%-4s |", task.ID())
+		for _, depTask := range depTasks {
+			if !ep.runDeps[task][depTask] {
+				fmt.Printf(" %s", depTask.ID())
+			}
+		}
+		fmt.Printf("\n")
+		depTasks = depTasks[:0]
+	}
+}
+
+// Add dependencies
+func (ep *ExecutionProfile) addUnresolvedTasks(tasks []*Task) {
+	// copy the tasks
+	ep.unresolved = append(ep.unresolved, tasks...)
+	// sort by task ID
+	sort.Slice(ep.unresolved, func(i, j int) bool {
+		iID, _ := strconv.Atoi(ep.unresolved[i].ID())
+		jID, _ := strconv.Atoi(ep.unresolved[j].ID())
+		return iID < jID
+	})
+}
+
+func (ep *ExecutionProfile) printUnresolvedTasks() {
+	fmt.Printf("Unresolved tasks:\n")
+	for _, task := range ep.unresolved {
+		fmt.Printf("%s ", task.ID())
+	}
+	fmt.Printf("\n")
+}
+
+func (ep *ExecutionProfile) UnresolvedTaskCount() int {
+	return len(ep.unresolved)
+}
+
+func (ep *ExecutionProfile) IsRedundant(destTask, depTask *Task) bool{
+	if _, exists := ep.runDeps[destTask]; !exists {
+		return false
+	}
+	required, exists := ep.runDeps[destTask][depTask]
+	if !exists {
+		return false
+	}
+	return !required
+}
+
+func (c *Change) ProfileExecution() (*ExecutionProfile, error) {
+	tasks := c.Tasks()
+	taskLen := len(tasks)
+	if taskLen == 0 {
+		return nil, fmt.Errorf("Cannot profile change %s with no tasks", c.ID())
+	}
+
+	// execution profile and output builders
+	execProf := newExecutionProfile(c)
+
+	// count depdencies per task and identify tasks that are ready to run
+	predecessorCount := make(map[*Task]int, taskLen)
+	doingQueue := make([]*Task, 0, taskLen)
+	for _, t := range tasks {
+		if l := len(t.WaitTasks()); l > 0 {
+			// task has dependencies
+			predecessorCount[t] = len(t.WaitTasks())
+		} else {
+			// independent task is ready to run
+			doingQueue = append(doingQueue, t)
+			execProf.addTaskDependencies(t, nil)
+		}
+	}
+	execProf.addParallelTasks(doingQueue)
+
+	// doQueue accumulates tasks that become ready to run
+	doQueue := make([]*Task, 0, taskLen-len(doingQueue))
+
+	// attempt to iterate through all tasks
+	for len(doingQueue) > 0 {
+		predecessorTask := doingQueue[0]
+		doingQueue = doingQueue[1:]
+
+		// identify ready tasks
+		for _, successorTask := range predecessorTask.HaltTasks() {
+			predecessorCount[successorTask]--
+			execProf.copyTaskDependencies(successorTask, predecessorTask)
+
+			if predecessorCount[successorTask] == 0 {
+				delete(predecessorCount, successorTask)
+				doQueue = append(doQueue, successorTask)
+				execProf.addTaskDependencies(successorTask, successorTask.WaitTasks())
+			}
+		}
+
+		// after servicing all parallel tasks in doing state, load ready tasks
+		if len(doingQueue) == 0 {
+			doingQueue = append(doingQueue, doQueue...)
+			doQueue = doQueue[:0]
+			execProf.addParallelTasks(doingQueue)
+		}
+	}
+
+	if len(predecessorCount) != 0 {
+		// tasks with unresolved dependencies
+		unresolved := make([]*Task, 0, len(predecessorCount))
+		for task := range predecessorCount {
+			unresolved = append(unresolved, task)
+		}
+		execProf.addUnresolvedTasks(unresolved)
+	}
+
+	execProf.printRunOrder()
+	execProf.printDependencies()
+	execProf.printRedundantDependencies()
+	execProf.printUnresolvedTasks()
+
+	return execProf, nil
 }

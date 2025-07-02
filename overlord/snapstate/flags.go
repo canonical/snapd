@@ -60,6 +60,10 @@ type Flags struct {
 	// running the configure hook should be skipped.
 	SkipConfigure bool `json:"skip-configure,omitempty"`
 
+	// ConfigureDefaults is used with InstallPath to flag that creating a task
+	// running the configure hook should use the default configuration
+	ConfigureDefaults bool `json:"configure-defaults,omitempty"`
+
 	// SkipKernelExtraction is used with InstallPath to flag that the
 	// kernel extraction should be skipped. This is useful during seeding.
 	SkipKernelExtraction bool `json:"skip-kernel-extraction,omitempty"`
@@ -126,6 +130,7 @@ func (f Flags) DevModeAllowed() bool {
 func (f Flags) ForSnapSetup() Flags {
 	// TODO: consider using instead/also json:"-" in the struct?
 	f.SkipConfigure = false
+	f.ConfigureDefaults = false
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
 	f.ApplySnapDevMode = false
