@@ -38,7 +38,7 @@
 
 # The list of systemd services we are expected to ship. Note that this does
 # not include services that are only required on core systems.
-%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service} snapd.mounts.target snapd.mounts-pre.target
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service %{?with_apparmor:snapd.apparmor.service} snapd.mounts.target snapd.mounts-pre.target
 %global systemd_user_services_list snapd.session-agent.socket
 
 # Alternate snap mount directory: not used by openSUSE.
@@ -406,6 +406,9 @@ install -pm 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_dat
 # Remove gpio-chardev ordering target
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
+# Drop the last remaining Ubuntu Core specific service
+rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
+
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
 
@@ -588,7 +591,6 @@ fi
 %{_systemdgeneratordir}/snapd-generator
 # TODO: will need whitelisting in rpmlint?
 %{_tmpfilesdir}/snapd.conf
-%{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
