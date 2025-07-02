@@ -376,12 +376,21 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 	case "array":
 		return &arraySchema{topSchema: s}, nil
 	default:
-		if typ != "" && typ[0] == '$' {
-			return s.getAlias(typ[1:])
+		if alias, ok := stripAlias(typ); ok {
+			return s.getAlias(alias)
 		}
 
 		return nil, fmt.Errorf("cannot parse unknown type %q", typ)
 	}
+}
+
+// stripAlias removes the ${...} used to refer to an alias and returns the alias
+// name. If the string isn't wrapped in ${}, it returns an empty string and false.
+func stripAlias(str string) (string, bool) {
+	if len(str) < 4 || str[:2] != "${" || str[len(str)-1] != '}' {
+		return "", false
+	}
+	return str[2 : len(str)-1], true
 }
 
 func (s *StorageSchema) getAlias(ref string) (*aliasReference, error) {
@@ -809,14 +818,14 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (DatabagSchema, error) 
 		return &stringSchema{}, nil
 	}
 
-	if typ != "" && typ[0] == '$' {
-		alias, err := v.topSchema.getAlias(typ[1:])
+	if aliasName, ok := stripAlias(typ); ok {
+		alias, err := v.topSchema.getAlias(aliasName)
 		if err != nil {
 			return nil, err
 		}
 
 		if !alias.isStringBased() {
-			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
+			return nil, fmt.Errorf(`key type %q must be based on string`, aliasName)
 		}
 
 		return alias, nil
