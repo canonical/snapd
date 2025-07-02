@@ -8,6 +8,10 @@ details: |
 # ubuntu-14.04: Docker is not supported anymore in ubuntu 14.04
 systems: [-ubuntu-14.04-64]
 
+
+environment:
+  IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-18.04.tar
+
 prepare: |
     # build and install the strict test snap
     snap pack container-mgr-snap
@@ -135,6 +139,10 @@ execute: |
     CHANNEL=latest/stable
     snap install --channel="$CHANNEL" docker
     tests.cleanup defer snap remove --purge docker
+
+    wget --quiet "$IMAGE_URL" -O ubuntu-18.04.tar
+    "$TESTSTOOLS"/docker-state setup-local-registry
+    "$TESTSTOOLS"/docker-state add-local-image ubuntu-18.04 ubuntu-18.04.tar
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 
