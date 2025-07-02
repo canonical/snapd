@@ -941,9 +941,36 @@ func (*schemaSuite) TestMapBasedAliasFail(c *C) {
 }
 
 func (*schemaSuite) TestBadAliasName(c *C) {
-	schemaStr := []byte(`{
+	type testcase struct {
+		alias  string
+		ref    string
+		errMsg string
+	}
+
+	tcs := []testcase{
+		{
+			alias:  "-foo",
+			ref:    "-foo",
+			errMsg: `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`,
+		},
+		{
+			alias: "foo",
+			ref:   "-foo",
+			// we don't check the reference for validity but we do check the definition
+			// so it can't exist
+			errMsg: `cannot find alias "-foo"`,
+		},
+		{
+			alias:  "foo",
+			ref:    "",
+			errMsg: `cannot parse unknown type "${}"`,
+		},
+	}
+
+	for _, tc := range tcs {
+		schemaStr := []byte(fmt.Sprintf(`{
 	"aliases": {
-		"-foo": {
+		"%s": {
 			"schema": {
 				"name": "string",
 				"version": "string"
@@ -952,14 +979,15 @@ func (*schemaSuite) TestBadAliasName(c *C) {
 	},
 	"schema": {
 		"snaps": {
-			"values": "${-foo}"
+			"values": "${%s}"
 		}
 	}
-}`)
+}`, tc.alias, tc.ref))
 
-	_, err := confdb.ParseStorageSchema(schemaStr)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`)
+		_, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, tc.errMsg)
+	}
 }
 
 func (*schemaSuite) TestIntegerHappy(c *C) {
