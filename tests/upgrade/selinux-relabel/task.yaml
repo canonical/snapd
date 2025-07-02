@@ -5,7 +5,10 @@ details: |
     specific labels to programs related to snapd.
 
 # Only distros that support SELinux and have snapd in their repositories
-systems: [fedora-*, centos-*]
+# TODO: add opensuse-tumbleweed-selinux-* once snapd is in repositories
+systems:
+    - fedora-*
+    - centos-*
 
 execute: |
     # TODO: remove this when snapd and snap-confine are uploaded to CentOS Stream 9 repo
