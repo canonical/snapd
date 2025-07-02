@@ -804,6 +804,17 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	})
 }
 
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
+// snap's mount namespace for all elements of paths.
+func (s *Info) ExpandSliceSnapVariables(paths []string) []string {
+	expandedDirs := make([]string, 0, len(paths))
+	for _, dir := range paths {
+		expandedDirs = append(expandedDirs, filepath.Clean(s.ExpandSnapVariables(
+			filepath.Join(dirs.GlobalRootDir, dir))))
+	}
+	return expandedDirs
+}
+
 // InstallDate returns the "install date" of the snap.
 //
 // If the snap is not active, it'll return nil; otherwise
