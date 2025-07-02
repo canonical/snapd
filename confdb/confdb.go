@@ -1456,12 +1456,20 @@ func newViewRule(request, storage []accessor, accesstype string) (*viewRule, err
 
 	requestMatchers := make([]requestMatcher, 0, len(request))
 	for _, acc := range request {
-		requestMatchers = append(requestMatchers, acc.(requestMatcher))
+		matcher, ok := acc.(requestMatcher)
+		if !ok {
+			return nil, fmt.Errorf("internal error: cannot convert accessor into requestMatcher")
+		}
+		requestMatchers = append(requestMatchers, matcher)
 	}
 
 	pathWriters := make([]storageWriter, 0, len(storage))
 	for _, acc := range storage {
-		pathWriters = append(pathWriters, acc.(storageWriter))
+		writer, ok := acc.(storageWriter)
+		if !ok {
+			return nil, fmt.Errorf("internal error: cannot convert accessor into storageWriter")
+		}
+		pathWriters = append(pathWriters, writer)
 	}
 
 	return &viewRule{
@@ -1559,9 +1567,11 @@ func (p viewRule) isWriteable() bool {
 // pattern is an individual subkey of a dot-separated name or path pattern. It
 // can be a literal value of a placeholder delineated by curly brackets.
 type requestMatcher interface {
-	accessor
-
 	match(subkey string, matched *matchedPlaceholders) bool
+
+	// access returns the value of the sub-key wrapped in any separators or brackets
+	// the type may require to be composed into a path.
+	access() string
 }
 
 type writeOpts struct {
@@ -1569,8 +1579,6 @@ type writeOpts struct {
 }
 
 type storageWriter interface {
-	accessor
-
 	write(sb *strings.Builder, matched *matchedPlaceholders, opts writeOpts)
 }
 
