@@ -463,7 +463,12 @@ gen_require(`
 ')
 allow snappy_t devicekit_power_exec_t:file { getattr };
 
+# Snapd monitors cgroup hierarchy for refresh app awareness.
+fs_watch_cgroup_dirs(snappy_t)
 
+# connect to unix socket of snap session agent usually executing as unconfined_t.
+# TODO: define separate policy for user session agent
+allow snappy_t unconfined_t:unix_stream_socket connectto;
 
 ########################################
 #
