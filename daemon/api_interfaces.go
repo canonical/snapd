@@ -39,6 +39,7 @@ var (
 		Path:        "/v2/interfaces",
 		GET:         interfacesConnectionsMultiplexer,
 		POST:        changeInterfaces,
+		Actions:     []string{"connect", "disconnect"},
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}

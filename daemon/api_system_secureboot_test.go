@@ -65,7 +65,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootContentType(c *C) {
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, `unexpected content type: ""`)
 }
@@ -78,7 +78,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootBogusAction(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, `unsupported EFI secure boot action "blah"`)
 }
@@ -98,7 +98,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateStartup(c *C) {
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
 	c.Check(startupCalls, Equals, 1)
@@ -119,7 +119,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBCleanup(c *C) {
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
 	c.Check(cleanupCalls, Equals, 1)
@@ -137,7 +137,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareNoData(c *C) {
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Check(rsp.Message, Matches, "update payload not provided")
 }
@@ -154,7 +154,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBogusDB(c *C) {
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Check(rsp.Message, Equals, `invalid key database "FOO"`)
 }
@@ -172,7 +172,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBadPayload(c *C)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Check(rsp.Message, Matches, `cannot decode payload: illegal base64 .*`)
 }
@@ -199,7 +199,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareHappy(c *C) {
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
 	c.Check(updatePrepareCalls, Equals, 1)

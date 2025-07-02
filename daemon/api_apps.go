@@ -45,6 +45,7 @@ var (
 		Path:        "/v2/apps",
 		GET:         getAppsInfo,
 		POST:        postApps,
+		Actions:     []string{"start", "stop", "restart"},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"ros-snapd-support"}},
 		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"ros-snapd-support"}, Polkit: polkitActionManage},
 	}

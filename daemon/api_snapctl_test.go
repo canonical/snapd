@@ -50,7 +50,7 @@ func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
@@ -68,7 +68,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
@@ -87,7 +87,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenErrorWithStdin(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "", "args": [%q, %q], "stdin": "MTIz"}`, "set", "foo=bar"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
@@ -105,7 +105,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 200)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindUnsuccessful)
 	c.Check(rspe.Value, check.DeepEquals, map[string]any{

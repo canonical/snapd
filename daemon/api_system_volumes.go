@@ -36,9 +36,12 @@ import (
 )
 
 var systemVolumesCmd = &Command{
-	Path:        "/v2/system-volumes",
-	GET:         getSystemVolumes,
-	POST:        postSystemVolumesAction,
+	Path: "/v2/system-volumes",
+	GET:  getSystemVolumes,
+	POST: postSystemVolumesAction,
+	Actions: []string{
+		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
+		"check-passphrase", "check-pin", "change-passphrase"},
 	ReadAccess:  rootAccess{},
 	WriteAccess: rootAccess{},
 }

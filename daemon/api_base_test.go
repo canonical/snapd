@@ -20,6 +20,7 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"encoding/json"
@@ -28,6 +29,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -59,6 +64,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -100,6 +106,95 @@ type apiBaseSuite struct {
 
 	expectedReadAccess  daemon.AccessChecker
 	expectedWriteAccess daemon.AccessChecker
+}
+
+var (
+	actionsMap   *concurrentActionsMap
+	callCount    int64
+	disableMutex sync.RWMutex
+	disableMap   map[string][]string
+)
+
+func skipActionCoverage() bool {
+	if callCount <= 1 {
+		// If only one test suite ran, then it makes no sense to check action coverage
+		return true
+	}
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "-check.f") {
+			// If running a subset of tests, it doesn't make sense to check action coverage
+			return true
+		}
+	}
+	return false
+}
+
+func TestMain(m *testing.M) {
+	actionsMap = &concurrentActionsMap{data: map[*daemon.Command][]string{}}
+	disableMap = map[string][]string{}
+	code := m.Run()
+	if skipActionCoverage() {
+		os.Exit(code)
+	}
+	for _, cmd := range actionsMap.Keys() {
+		if cmd.Path == "/v2/debug" {
+			// API coverage for /v2/debug doesn't matter
+			continue
+		}
+		actions := actionsMap.Actions(cmd)
+		var path string
+		if cmd.Path != "" {
+			path = cmd.Path
+		} else {
+			path = cmd.PathPrefix
+		}
+		for _, action := range cmd.Actions {
+			if l, exists := disableMap[path]; exists && strutil.ListContains(l, action) {
+				continue
+			}
+			if !strutil.ListContains(actions, action) {
+				fmt.Printf("No test for action %s of command %s - if that action no longer exists, remove it from the Actions field slice in the relevant command. If it should not appear in unit tests, disable it calling apiBaseSuite.DisableActionsCheck(\"%s\", \"%s\")\n", action, path, path, action)
+				code = 1
+			}
+		}
+	}
+	os.Exit(code)
+}
+
+type concurrentActionsMap struct {
+	mu   sync.RWMutex
+	data map[*daemon.Command][]string
+}
+
+func (m *concurrentActionsMap) AddAction(cmd *daemon.Command, action string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.data[cmd]; !exists {
+		m.data[cmd] = []string{}
+	}
+	m.data[cmd] = append(m.data[cmd], action)
+}
+
+func (m *concurrentActionsMap) Keys() []*daemon.Command {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	keys := make([]*daemon.Command, 0, len(m.data))
+	for cmd := range m.data {
+		keys = append(keys, cmd)
+	}
+	return keys
+}
+
+func (m *concurrentActionsMap) Actions(cmd *daemon.Command) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	actionsMap, exists := m.data[cmd]
+	if !exists {
+		return nil
+	}
+	return actionsMap
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -172,7 +267,18 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
+// DisableActionsCheck disables the final check for command action coverage
+func (s *apiBaseSuite) DisableActionsCheck(path, action string) {
+	disableMutex.Lock()
+	defer disableMutex.Unlock()
+	if _, exists := disableMap[path]; !exists {
+		disableMap[path] = []string{}
+	}
+	disableMap[path] = append(disableMap[path], action)
+}
+
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
+	atomic.AddInt64(&callCount, 1)
 	s.restoreMuxVars = daemon.MockMuxVars(s.muxVars)
 	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
@@ -659,7 +765,14 @@ func (s *apiBaseSuite) expectWriteAccess(a daemon.AccessChecker) {
 	s.expectedWriteAccess = a
 }
 
-func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
+type actionExpectedBool bool
+
+const (
+	actionIsUnexpected actionExpectedBool = false
+	actionIsExpected   actionExpectedBool = true
+)
+
+func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) daemon.Response {
 	if s.d == nil {
 		panic("call s.daemon(c) etc in your test first")
 	}
@@ -680,6 +793,22 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 		acc = cmd.WriteAccess
 		expAcc = s.expectedWriteAccess
 		whichAcc = "WriteAccess"
+		if actionExpected && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
+			bodyBytes, err := io.ReadAll(req.Body)
+			c.Assert(err, check.IsNil)
+			var data struct {
+				Action string `json:"action"`
+			}
+			if err := json.Unmarshal(bodyBytes, &data); err == nil {
+				if data.Action != "" {
+					actionsMap.AddAction(cmd, data.Action)
+					if !strutil.ListContains(cmd.Actions, data.Action) {
+						c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
+					}
+				}
+			}
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
 	case "PUT":
 		f = cmd.PUT
 		acc = cmd.WriteAccess
@@ -695,26 +824,26 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	return f(cmd, req, u)
 }
 
-func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp, ok := s.req(c, req, u).(daemon.StructuredResponse)
+func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.RespJSON {
+	rsp, ok := s.req(c, req, u, actionExpected).(daemon.StructuredResponse)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected structured response"))
 	return rsp.JSON()
 }
 
-func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp := s.jsonReq(c, req, u)
+func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.RespJSON {
+	rsp := s.jsonReq(c, req, u, actionExpected)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v, result: %+v", rsp, rsp.Result))
 	return rsp
 }
 
-func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp := s.jsonReq(c, req, u)
+func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.RespJSON {
+	rsp := s.jsonReq(c, req, u, actionExpected)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v, result %v", rsp, rsp.Result))
 	return rsp
 }
 
-func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
-	rsp := s.req(c, req, u)
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) *daemon.APIError {
+	rsp := s.req(c, req, u, actionExpected)
 	rspe, ok := rsp.(*daemon.APIError)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected apiError resp: %#v", rsp))
 	return rspe
@@ -727,6 +856,22 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
+	if req.Method == "POST" && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
+		bodyBytes, err := io.ReadAll(req.Body)
+		c.Assert(err, check.IsNil)
+		var data struct {
+			Action string `json:"action"`
+		}
+		if err := json.Unmarshal(bodyBytes, &data); err == nil {
+			if data.Action != "" {
+				actionsMap.AddAction(cmd, data.Action)
+				if !strutil.ListContains(cmd.Actions, data.Action) {
+					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
+				}
+			}
+		}
+		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	}
 
 	cmd.ServeHTTP(w, req)
 }

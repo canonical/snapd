@@ -59,7 +59,7 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
 }
@@ -75,7 +75,7 @@ func (s *postDebugSuite) TestDebugConnectivityHappy(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result, check.DeepEquals, daemon.ConnectivityStatus{
 		Connectivity: true,
 		Unreachable:  []string(nil),
@@ -93,7 +93,7 @@ func (s *postDebugSuite) TestDebugConnectivityUnhappy(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result, check.DeepEquals, daemon.ConnectivityStatus{
 		Connectivity: false,
 		Unreachable:  []string{"bad.host.com"},
@@ -106,7 +106,7 @@ func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=base-declaration", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	c.Check(rsp.Result.(map[string]any)["base-declaration"],
 		testutil.Contains, "type: base-declaration")
@@ -167,7 +167,7 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []any {
 
 	st.Unlock()
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	data, err := json.Marshal(rsp.Result)
 	c.Assert(err, check.IsNil)
 	var dataJSON []any
@@ -215,12 +215,12 @@ func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
 
 	req, err = http.NewRequest("GET", "/v2/debug?aspect=change-timings&change-id=9999", nil)
 	c.Assert(err, check.IsNil)
-	rsp = s.errorReq(c, req, nil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
 }
 
@@ -263,7 +263,7 @@ func (s *postDebugSuite) TestMigrateHome(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", body)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
+	rsp := s.req(c, req, nil, actionIsExpected)
 	c.Assert(rsp, check.FitsTypeOf, &daemon.RespJSON{})
 
 	rspJSON := rsp.(*daemon.RespJSON)
@@ -286,7 +286,7 @@ func (s *postDebugSuite) TestMigrateHomeNoSnaps(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", body)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
+	rsp := s.req(c, req, nil, actionIsExpected)
 	c.Assert(rsp, check.FitsTypeOf, &daemon.APIError{})
 	apiErr := rsp.(*daemon.APIError)
 
@@ -307,7 +307,7 @@ func (s *postDebugSuite) TestMigrateHomeNotInstalled(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", body)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
+	rsp := s.req(c, req, nil, actionIsExpected)
 	c.Assert(rsp, check.FitsTypeOf, &daemon.APIError{})
 	apiErr := rsp.(*daemon.APIError)
 
@@ -330,7 +330,7 @@ func (s *postDebugSuite) TestMigrateHomeInternalError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", body)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
+	rsp := s.req(c, req, nil, actionIsExpected)
 	c.Assert(rsp, check.FitsTypeOf, &daemon.APIError{})
 	apiErr := rsp.(*daemon.APIError)
 
@@ -367,7 +367,7 @@ func (s *postDebugSuite) TestRefreshAppAwarenessHappy(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=raa", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result, check.DeepEquals, &daemon.RAAInfo{
 		MonitoredSnaps: map[string]daemon.MonitoredSnapInfo{
 			"snap-a": {
@@ -405,7 +405,7 @@ func (s *postDebugSuite) TestRefreshAppAwarenessUnhappy(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=raa", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Message, check.Equals, "boom!")
 }

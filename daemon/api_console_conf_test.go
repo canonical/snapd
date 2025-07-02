@@ -53,7 +53,7 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	c.Assert(err, IsNil)
 
 	// no changes in state, no changes in response
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Result, DeepEquals, &daemon.ConsoleConfStartRoutineResult{})
 
 	// we did set the refresh.hold time back 20 minutes though
@@ -101,7 +101,7 @@ func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 
 	req2, err := http.NewRequest("POST", "/v2/internal/console-conf-start", body)
 	c.Assert(err, IsNil)
-	rsp2 := s.syncReq(c, req2, nil)
+	rsp2 := s.syncReq(c, req2, nil, actionIsExpected)
 	c.Assert(rsp2.Result, FitsTypeOf, &daemon.ConsoleConfStartRoutineResult{})
 	res := rsp2.Result.(*daemon.ConsoleConfStartRoutineResult)
 	sort.Strings(res.ActiveAutoRefreshChanges)

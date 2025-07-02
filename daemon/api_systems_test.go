@@ -235,7 +235,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -306,7 +306,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -398,7 +398,9 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 		c.Logf("tc: %#v", tc)
 		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionExpectedBool(
+			!strings.Contains(tc.error, "unsupported action") &&
+				!strings.Contains(tc.error, "system action requires the system label to be provided")))
 		c.Check(rspe.Status, check.Equals, tc.status)
 		c.Check(rspe.Message, check.Matches, tc.error)
 	}
@@ -663,7 +665,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 500)
 	c.Check(rspe.Message, check.Matches, `cannot load seed system: cannot load assertions for label "20191119": .*`)
 }
@@ -944,7 +946,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 
 		req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
 		c.Assert(err, check.IsNil)
-		rsp := s.syncReq(c, req, nil)
+		rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 		c.Assert(rsp.Status, check.Equals, 200)
 		sys := rsp.Result.(client.SystemDetails)
@@ -986,7 +988,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/systems/something", nil)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 
 	c.Assert(rspe.Status, check.Equals, 500)
 	c.Check(rspe.Message, check.Equals, `boom`)
@@ -1001,7 +1003,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C
 
 	req, err := http.NewRequest("GET", "/v2/systems/does-not-exist", nil)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 500)
 	c.Check(rspe.Message, check.Equals, `cannot load assertions for label "does-not-exist": no seed assertions`)
 }
@@ -1034,7 +1036,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(client.SystemDetails)
@@ -1226,7 +1228,7 @@ func (s *systemsSuite) testSystemInstallActionFinishCallsDevicestate(c *check.C,
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st.Lock()
 	chg := st.Change(rsp.Change)
@@ -1276,7 +1278,7 @@ func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestateAllAndSpecif
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Message, check.Equals, "cannot specify both all and individual optional snaps and components to install")
 }
@@ -1323,7 +1325,7 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st.Lock()
 	chg := st.Change(rsp.Change)
@@ -1367,7 +1369,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20250529", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 
 	res := rsp.Result.(map[string]string)
@@ -1394,7 +1396,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.
 	req, err := http.NewRequest("POST", "/v2/systems/20250529", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Message, check.Equals, `cannot generate recovery key for "20250529": boom!`)
 }
@@ -1432,7 +1434,7 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.asyncReq(c, req, nil)
+		rsp := s.asyncReq(c, req, nil, actionIsExpected)
 
 		st.Lock()
 		chg := st.Change(rsp.Change)
@@ -1467,7 +1469,7 @@ func (s *systemsSuite) TestSystemInstallActionErrorMissingVolumes(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Error(), check.Equals, tc.expectedErr)
 	}
 }
@@ -1485,7 +1487,7 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }
 
@@ -1523,13 +1525,30 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20250619", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
 		"min-entropy-bits":     uint32(20),
 		"optimal-entropy-bits": uint32(50),
 	})
+}
+
+func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]string{
+		"action": "install",
+		"step":   "unknown-install-step",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }
 
 func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
@@ -1618,7 +1637,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		req, err := http.NewRequest("POST", route, buf)
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionExpectedBool(!tc.noLabel))
 		c.Assert(rspe.Status, check.Equals, tc.expectedStatus)
 		c.Assert(rspe.Kind, check.Equals, tc.expectedErrKind)
 		c.Assert(rspe.Message, check.Matches, tc.expectedErrMsg)
@@ -1660,7 +1679,7 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20250619", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.DeepEquals, map[string]any{
 		"entropy-bits":         uint32(10),
@@ -1759,7 +1778,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		req, err := http.NewRequest("POST", route, buf)
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionExpectedBool(!tc.noLabel))
 		c.Assert(rspe.Status, check.Equals, tc.expectedStatus)
 		c.Assert(rspe.Kind, check.Equals, tc.expectedErrKind)
 		c.Assert(rspe.Message, check.Matches, tc.expectedErrMsg)
@@ -1797,7 +1816,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c
 		req, err := http.NewRequest("POST", "/v2/systems/20250122", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.syncReq(c, req, nil)
+		rsp := s.syncReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, check.Equals, 200)
 	}
 
@@ -1813,7 +1832,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c
 		req, err := http.NewRequest("POST", "/v2/systems/20250122", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.syncReq(c, req, nil)
+		rsp := s.syncReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, check.Equals, 200)
 	}
 
@@ -1987,7 +2006,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionBadRequests(c *check.C) {
 		req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe, check.ErrorMatches, tc.result, check.Commentf("%+v", tc))
 	}
@@ -2095,7 +2114,7 @@ func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetS
 	req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
 	c.Assert(err, check.IsNil)
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -2148,7 +2167,7 @@ func (s *systemsCreateSuite) TestRemoveSystemAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/"+expectedLabel, bytes.NewBuffer(b))
 	c.Assert(err, check.IsNil)
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -2175,7 +2194,7 @@ func (s *systemsCreateSuite) TestRemoveSystemActionNotFound(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/"+expectedLabel, bytes.NewBuffer(b))
 	c.Assert(err, check.IsNil)
 
-	res := s.errorReq(c, req, nil)
+	res := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(res.Status, check.Equals, 404)
 	c.Check(res.Message, check.Equals, "recovery system does not exist")
 }
@@ -2257,7 +2276,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 		req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 		req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe, check.ErrorMatches, tc.result, check.Commentf("%+v", tc))
 
@@ -2369,7 +2388,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -2522,7 +2541,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st.Lock()
 	defer st.Unlock()
@@ -2596,7 +2615,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledJSON(c *ch
 	req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
 	c.Assert(err, check.IsNil)
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -2631,7 +2650,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledForm(c *ch
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -2704,7 +2723,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
 
-	res := s.asyncReq(c, req, nil)
+	res := s.asyncReq(c, req, nil, actionIsExpected)
 
 	st := s.d.Overlord().State()
 	st.Lock()

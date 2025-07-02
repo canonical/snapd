@@ -35,6 +35,11 @@ var systemSecurebootCmd = &Command{
 
 	Path: "/v2/system-secureboot",
 	POST: postSystemSecurebootAction,
+	Actions: []string{
+		"efi-secureboot-update-startup",
+		"efi-secureboot-update-db-cleanup",
+		"efi-secureboot-update-db-prepare",
+	},
 	WriteAccess: interfaceProviderRootAccess{
 		// TODO:FDEM: find a specialized interface for this, but for now assume that
 		// requests will come only from snaps plugging fwupd interface on the

@@ -48,6 +48,7 @@ var (
 		Path:        "/v2/validation-sets/{account}/{name}",
 		GET:         getValidationSet,
 		POST:        applyValidationSet,
+		Actions:     []string{"forget", "apply"},
 		ReadAccess:  authenticatedAccess{},
 		WriteAccess: authenticatedAccess{},
 	}

@@ -76,7 +76,7 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Matches, "cannot decode new model assertion: .*")
 }
@@ -94,7 +94,7 @@ func (s *modelSuite) TestPostRemodelUnhappyWrongAssertion(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Matches, "new model is not a model assertion: .*")
 }
@@ -159,7 +159,7 @@ func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	// devicestateRemodel
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
 
@@ -199,7 +199,7 @@ func (s *modelSuite) TestPostRemodelWrongBody(c *check.C) {
 		req.Header.Set("Content-Type", "application/json")
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Assert(rspe.Status, check.Equals, 400)
 		c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
 		c.Assert(rspe.Value, check.IsNil)
@@ -221,7 +221,7 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 	req.Header.Set("Content-Type", "footype")
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
 	c.Assert(rspe.Value, check.IsNil)
@@ -231,7 +231,7 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/form-data")
 	c.Assert(err, check.IsNil)
 
-	rspe = s.errorReq(c, req, nil)
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
 	c.Assert(rspe.Value, check.IsNil)
@@ -249,7 +249,7 @@ func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model", nil)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 404)
 	c.Assert(rspe.Kind, check.Equals, client.ErrorKindAssertionNotFound)
 	c.Assert(rspe.Value, check.Equals, "model")
@@ -278,7 +278,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/model", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
@@ -320,7 +320,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	// make a new get request to the model endpoint with json as true
 	req, err := http.NewRequest("GET", "/v2/model?json=true", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	// get the body and try to unmarshal into modelAssertJSON
 	c.Assert(rsp.Result, check.FitsTypeOf, clientutil.ModelAssertJSON{})
 
@@ -346,7 +346,7 @@ func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
 	c.Assert(err, check.IsNil)
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rspe.Status, check.Equals, 404)
 	c.Assert(rspe.Kind, check.Equals, client.ErrorKindAssertionNotFound)
 	c.Assert(rspe.Value, check.Equals, "serial")
@@ -400,7 +400,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
-	s.req(c, req, nil).ServeHTTP(rec, req)
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
@@ -467,7 +467,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	// make a new get request to the model endpoint with json as true
 	req, err := http.NewRequest("GET", "/v2/model/serial?json=true", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	// get the body and try to unmarshal into modelAssertJSON
 	c.Assert(rsp.Result, check.FitsTypeOf, clientutil.ModelAssertJSON{})
 
@@ -488,7 +488,7 @@ func (s *userSuite) TestPostSerialBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`unsupported serial action "what"`))
 }
 
@@ -505,7 +505,7 @@ func (s *userSuite) TestPostSerialForget(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result, check.IsNil)
 
 	c.Check(unregister, check.Equals, 1)
@@ -524,7 +524,7 @@ func (s *userSuite) TestPostSerialForgetNoRegistrationUntilReboot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Result, check.IsNil)
 
 	c.Check(unregister, check.Equals, 1)
@@ -539,7 +539,7 @@ func (s *userSuite) TestPostSerialForgetError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe, check.DeepEquals, daemon.InternalError(`forgetting serial failed: boom`))
 }
 
@@ -657,11 +657,11 @@ func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineR
 	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
 
 	if params.badModel {
-		rsp := s.errorReq(c, req, nil)
+		rsp := s.errorReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, check.Equals, 400)
 		c.Check(rsp.Error(), check.Equals, "cannot decode new model assertion: assertion content/signature separator not found (api)")
 	} else {
-		rsp := s.asyncReq(c, req, nil)
+		rsp := s.asyncReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, check.Equals, 202)
 		c.Check(rsp.Change, check.DeepEquals, "1")
 		c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
@@ -810,7 +810,7 @@ func (s *modelSuite) TestPostOfflineRemodelWithComponents(c *check.C) {
 	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
 
 	st.Unlock()
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	st.Lock()
 
 	c.Assert(rsp.Status, check.Equals, 202)

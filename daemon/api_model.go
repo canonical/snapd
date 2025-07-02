@@ -46,6 +46,7 @@ var (
 		Path:        "/v2/model/serial",
 		GET:         getSerial,
 		POST:        postSerial,
+		Actions:     []string{"forget"},
 		ReadAccess:  openAccess{},
 		WriteAccess: rootAccess{},
 	}
