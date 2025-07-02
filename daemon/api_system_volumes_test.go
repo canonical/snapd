@@ -285,7 +285,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 	req.Header.Add("Content-Type", "application/json")
 
 	c.Assert(err, IsNil)
-	rsp = s.errorReq(c, req, nil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 409)
 	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
 	c.Check(rsp.Message, Equals, "conflict error: boom!")
@@ -335,7 +335,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 202)
 
 	st.Lock()
@@ -357,7 +357,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPa
 
 	s.asUserAuth(c, req)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires old-passphrase to be provided")
 }
@@ -373,7 +373,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPa
 
 	s.asRootAuth(req)
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires old-passphrase to be provided")
 }
@@ -386,7 +386,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingNewPa
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires new-passphrase to be provided")
 }
@@ -406,7 +406,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthEr
 	req.Header.Add("Content-Type", "application/json")
 
 	mockErr = errors.New("boom!")
-	rsp := s.errorReq(c, req, nil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "cannot change passphrase: boom!")
 
@@ -419,7 +419,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthEr
 	req.Header.Add("Content-Type", "application/json")
 
 	c.Assert(err, IsNil)
-	rsp = s.errorReq(c, req, nil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 409)
 	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
 	c.Check(rsp.Message, Equals, "conflict error: boom!")

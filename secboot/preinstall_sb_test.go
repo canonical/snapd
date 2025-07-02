@@ -259,7 +259,7 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
 			if permitVM {
-				c.Assert(initialFlags, Equals, sb_preinstall.PermitVirtualMachine | sb_preinstall.PermitVARSuppliedDrivers)
+				c.Assert(initialFlags, Equals, sb_preinstall.PermitVirtualMachine|sb_preinstall.PermitVARSuppliedDrivers)
 			} else {
 				c.Assert(initialFlags, Equals, sb_preinstall.PermitVARSuppliedDrivers)
 			}

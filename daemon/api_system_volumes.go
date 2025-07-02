@@ -41,7 +41,7 @@ var systemVolumesCmd = &Command{
 	POST: postSystemVolumesAction,
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
-		"check-passphrase", "check-pin"},
+		"check-passphrase", "check-pin", "change-passphrase"},
 	ReadAccess:  rootAccess{},
 	WriteAccess: rootAccess{},
 }
