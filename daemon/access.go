@@ -167,6 +167,11 @@ func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 // the root user according to peer credentials, or granted access by
 // Polkit.
 type authenticatedAccess struct {
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root or does not provide a macaroon.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
 	Polkit string
 }
 
@@ -181,7 +186,15 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
+//
+// A user is considered authenticated if they  are the root user
+// according to peer credentials, or granted access by Polkit.
 type rootAccess struct {
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
 	Polkit string
 }
 
@@ -194,7 +207,7 @@ func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 	return checkAccess(d, r, ucred, user, opts)
 }
 
-// snapAccess allows requests from the snapd-snap.socket
+// snapAccess allows requests from the snapd-snap.socket only.
 type snapAccess struct{}
 
 func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -310,7 +323,12 @@ func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 // interfaces.
 type interfaceAuthenticatedAccess struct {
 	Interfaces []string
-	Polkit     string
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root or does not provide a macaroon.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
+	Polkit string
 }
 
 func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -330,7 +348,12 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 // and are present on the slot side of that connection.
 type interfaceProviderRootAccess struct {
 	Interfaces []string
-	Polkit     string
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
+	Polkit string
 }
 
 func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -350,7 +373,12 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 // and are present on the plug side of that connection.
 type interfaceRootAccess struct {
 	Interfaces []string
-	Polkit     string
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
+	Polkit string
 }
 
 func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -369,6 +397,9 @@ type actionRequest struct {
 	Action string `json:"action"`
 }
 
+// byActionAccess is an access checker multiplexer. The correct
+// access checker is chosen based on the "action" field in the
+// incoming request.
 type byActionAccess struct {
 	// ByAction maps from detected request action to access checker.
 	ByAction map[string]accessChecker
