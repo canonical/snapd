@@ -785,8 +785,7 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
-// snap's mount namespace.
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON in path for this snap.
 func (s *Info) ExpandSnapVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
@@ -803,6 +802,16 @@ func (s *Info) ExpandSnapVariables(path string) string {
 		}
 		return ""
 	})
+}
+
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON in paths for this snap.
+func (s *Info) ExpandSliceSnapVariables(paths []string) []string {
+	expandedDirs := make([]string, 0, len(paths))
+	for _, dir := range paths {
+		expandedDirs = append(expandedDirs, filepath.Clean(s.ExpandSnapVariables(
+			filepath.Join(dirs.GlobalRootDir, dir))))
+	}
+	return expandedDirs
 }
 
 // InstallDate returns the "install date" of the snap.
