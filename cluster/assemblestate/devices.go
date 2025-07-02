@@ -16,8 +16,8 @@ type DeviceTracker struct {
 	ids      map[RDT]Identity
 }
 
-func NewDeviceTracker(self Identity, timeout time.Duration) DeviceTracker {
-	return DeviceTracker{
+func NewDeviceTracker(self Identity, timeout time.Duration, data DeviceTrackerData) DeviceTracker {
+	dt := DeviceTracker{
 		timeout:   timeout,
 		responses: make(chan struct{}, 1),
 		queries:   make(chan struct{}, 1),
@@ -28,6 +28,29 @@ func NewDeviceTracker(self Identity, timeout time.Duration) DeviceTracker {
 			self.RDT: self,
 		},
 	}
+
+	// seed with provided any data
+	for rdt, identity := range data.IDs {
+		dt.ids[rdt] = identity
+	}
+
+	// convert unknowns from map[RDT][]RDT to map[RDT]map[RDT]struct{}
+	for peer, devices := range data.Unknowns {
+		dt.unknowns[peer] = make(map[RDT]struct{}, len(devices))
+		for _, device := range devices {
+			dt.unknowns[peer][device] = struct{}{}
+		}
+	}
+
+	// convert sources from map[RDT][]RDT to map[RDT]map[RDT]struct{}
+	for peer, devices := range data.Sources {
+		dt.sources[peer] = make(map[RDT]struct{}, len(devices))
+		for _, device := range devices {
+			dt.sources[peer][device] = struct{}{}
+		}
+	}
+
+	return dt
 }
 
 func (d *DeviceTracker) Responses() <-chan struct{} {
@@ -157,4 +180,35 @@ func (d *DeviceTracker) Lookup(rdt RDT) (Identity, bool) {
 
 func (d *DeviceTracker) Identify(id Identity) {
 	d.ids[id.RDT] = id
+}
+
+// DeviceTrackerData represents the serializable state of DeviceTracker
+type DeviceTrackerData struct {
+	Unknowns map[RDT][]RDT    `json:"unknowns"`
+	Sources  map[RDT][]RDT    `json:"sources"`
+	IDs      map[RDT]Identity `json:"ids"`
+}
+
+func (d *DeviceTracker) Export() DeviceTrackerData {
+	data := DeviceTrackerData{
+		Unknowns: make(map[RDT][]RDT),
+		Sources:  make(map[RDT][]RDT),
+		IDs:      d.ids,
+	}
+
+	// convert unknowns from map[RDT]map[RDT]struct{} to map[RDT][]RDT
+	for peer, devices := range d.unknowns {
+		for device := range devices {
+			data.Unknowns[peer] = append(data.Unknowns[peer], device)
+		}
+	}
+
+	// convert sources from map[RDT]map[RDT]struct{} to map[RDT][]RDT
+	for peer, devices := range d.sources {
+		for device := range devices {
+			data.Sources[peer] = append(data.Sources[peer], device)
+		}
+	}
+
+	return data
 }

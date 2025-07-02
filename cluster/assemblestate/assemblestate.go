@@ -93,6 +93,7 @@ type AssembleSession struct {
 	Addresses    map[string]string `json:"addresses"`
 	Discovered   map[string]bool   `json:"discovered"`
 	Routes       Routes            `json:"routes"`
+	Devices      DeviceTrackerData `json:"devices"`
 }
 
 func (as *AssembleState) export() AssembleSession {
@@ -112,6 +113,7 @@ func (as *AssembleState) export() AssembleSession {
 		Addresses:    addresses,
 		Discovered:   as.discovered,
 		Routes:       as.selector.Routes(),
+		Devices:      as.devices.Export(),
 	}
 }
 
@@ -192,15 +194,15 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 		addresses[fp] = addr
 	}
 
+	devices := NewDeviceTracker(Identity{
+		RDT: config.RDT,
+		FP:  CalculateFP(config.TLSCert),
+	}, time.Minute*5, session.Devices)
+
 	sel, err := selector(config.RDT)
 	if err != nil {
 		return nil, err
 	}
-
-	devices := NewDeviceTracker(Identity{
-		RDT: config.RDT,
-		FP:  CalculateFP(config.TLSCert),
-	}, time.Minute*5)
 
 	// inform the selector of any routes that we already know. we state that
 	// their provenance is this local node, since we don't persist which routes
