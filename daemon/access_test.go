@@ -975,7 +975,7 @@ func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
 }
 
 func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {
-	rawBody := fmt.Sprintf(`{"action": "%s"}`, action)
+	rawBody := fmt.Sprintf(`{"action": "%s", "some-field": "some-data"}`, action)
 	if malformed {
 		rawBody = "}this is not json{"
 	}
@@ -1046,13 +1046,14 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			},
 		},
 		{
-			ucred:     daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			ucred: daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
+			// content type is JSON, but it's invalid
 			malformed: true,
 			expectedErr: map[string]*daemon.APIError{
-				"action-1": errForbidden,
-				"action-2": errForbidden,
-				"action-3": errForbidden,
-				"default":  errForbidden,
+				"action-1": daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"action-2": daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"action-3": daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"default":  daemon.BadRequest("invalid character '}' looking for beginning of value"),
 			},
 		},
 		{
@@ -1065,9 +1066,16 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			noAuth:  true,
 		},
 		{
-			ucred:     daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			ucred:  daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
+			noAuth: true,
+			// content type is JSON, but it's invalid
 			malformed: true,
-			noAuth:    true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"action-2": daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"action-3": daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"default":  daemon.BadRequest("invalid character '}' looking for beginning of value"),
+			},
 		},
 	}
 
@@ -1095,4 +1103,30 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			c.Check(err, IsNil, cmt)
 		}
 	}
+}
+
+func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
+	body := strings.NewReader(fmt.Sprintf(`{"action": "%s"}`, strings.Repeat("a", 4*1024*1024)))
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	ac := daemon.ByActionAccess{}
+
+	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	err = ac.CheckAccess(nil, req, &ucred, nil)
+	c.Assert(err, DeepEquals, daemon.BadRequest("body size limit exceeded"))
+}
+
+func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
+	body := strings.NewReader(fmt.Sprintf(`{"action": "some-action"} data`))
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	ac := daemon.ByActionAccess{}
+
+	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	err = ac.CheckAccess(nil, req, &ucred, nil)
+	c.Assert(err, DeepEquals, daemon.BadRequest("unexpected data after request body"))
 }

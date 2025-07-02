@@ -22,6 +22,7 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -414,27 +415,37 @@ type byActionAccess struct {
 	Default accessChecker
 }
 
+const maxBodySize = 4 * 1024 * 1024 // 4MB
+
 func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if r.Header.Get("Content-Type") != "application/json" {
 		return ac.Default.CheckAccess(d, r, ucred, user)
 	}
 
-	bodyBuf := new(bytes.Buffer)
-	checkerBuf := new(bytes.Buffer)
-	w := io.MultiWriter(bodyBuf, checkerBuf)
-	if _, err := io.Copy(w, r.Body); err != nil {
-		return InternalError("cannot copy body")
-	}
-	r.Body.Close()
-	r.Body = io.NopCloser(bodyBuf)
-
 	req := actionRequest{}
 
-	decoder := json.NewDecoder(checkerBuf)
-	if err := decoder.Decode(&req); err != nil {
-		// JSON is malformed, fallback to default checker
-		return ac.Default.CheckAccess(d, r, ucred, user)
+	bufSize := r.ContentLength
+	if bufSize > maxBodySize {
+		bufSize = maxBodySize
 	}
+	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+	tr := io.TeeReader(r.Body, buf)
+	lr := io.LimitedReader{R: tr, N: maxBodySize}
+	decoder := json.NewDecoder(&lr)
+	err := decoder.Decode(&req)
+	if err != nil {
+		if (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) && lr.N <= 0 {
+			return BadRequest("body size limit exceeded")
+		}
+		// Content type is JSON, but it's invalid
+		return BadRequest(err.Error())
+	}
+	if decoder.More() {
+		return BadRequest("unexpected data after request body")
+	}
+
+	r.Body.Close()
+	r.Body = io.NopCloser(buf)
 
 	checker := ac.ByAction[req.Action]
 	if checker == nil {
