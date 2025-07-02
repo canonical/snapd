@@ -2,7 +2,7 @@ name: test-snapd-timedate-control-consumer
 version: 1.0
 summary: Basic timedate-control consumer generic snap (core20)
 description: A basic generic snap that can be used to plug a timedate slot
-base: core20
+base: core24
 
 apps:
     timedatectl-time:
