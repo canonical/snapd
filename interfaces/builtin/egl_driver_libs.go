@@ -28,8 +28,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -108,7 +110,10 @@ func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 
 var _ = symlinks.ConnectedPlugCallback(&eglDriverLibsInterface{})
 
-const eglVendorPath = "/etc/glvnd/egl_vendor.d"
+const (
+	eglDriverLibs = "egl-driver-libs"
+	eglVendorPath = "/etc/glvnd/egl_vendor.d"
+)
 
 func (iface *eglDriverLibsInterface) TrackedDirectories() []string {
 	return []string{eglVendorPath}
@@ -149,6 +154,24 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 	return nil
 }
 
+func (t *eglDriverLibsInterface) PathPatterns() []string {
+	// We need to add the interface name as a suffix in the files written
+	// in the export dir as other interfaces also write there and we need
+	// to differentiate the files maintained by each interface.
+	return []string{
+		filepath.Join(dirs.SnapExportDirUnder("/"), "*_*_"+eglDriverLibs+".source")}
+}
+
+func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesSourcePaths(eglDriverLibs, spec, slot); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// TODO This might need changes when we support plugs in non-system
 	// snaps for this interface.
@@ -158,7 +181,7 @@ func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 func init() {
 	registerIface(&eglDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "egl-driver-libs",
+			name:                 eglDriverLibs,
 			summary:              eglDriverLibsSummary,
 			baseDeclarationPlugs: eglDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: eglDriverLibsBaseDeclarationSlots,
