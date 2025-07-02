@@ -27,10 +27,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -103,10 +105,21 @@ func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 
 var _ = interfaces.ConfigfilesUser(&eglDriverLibsInterface{})
 
-const eglVendorPath = "/usr/share/glvnd/egl_vendor.d"
+const (
+	eglDriverLibs = "egl-driver-libs"
+	eglVendorPath = "/usr/share/glvnd/egl_vendor.d"
+)
 
 func (t *eglDriverLibsInterface) PathPatterns() []string {
-	return []string{filepath.Join(eglVendorPath, "*_snap_*_*.json")}
+	// In the list of tracked configuration files, we do not need to add
+	// the interface name in the EGL vendor path as we are the only
+	// interface expected to touch in that folder. However we need to add
+	// it as a suffix in the files written in the export dir as other
+	// interfaces also write there and we need to differentiate the files
+	// maintained by each interface.
+	return []string{
+		filepath.Join(eglVendorPath, "*_snap_*_*.json"),
+		filepath.Join(dirs.SnapExportDirUnder("/"), "*_*_"+eglDriverLibs+".source")}
 }
 
 func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -119,6 +132,13 @@ func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.
 	var clientDriver string
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesSourcePaths(eglDriverLibs, spec, slot); err != nil {
+			return err
+		}
 	}
 
 	var icd struct {
@@ -149,7 +169,7 @@ func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 func init() {
 	registerIface(&eglDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "egl-driver-libs",
+			name:                 eglDriverLibs,
 			summary:              eglDriverLibsSummary,
 			baseDeclarationPlugs: eglDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: eglDriverLibsBaseDeclarationSlots,
