@@ -4,7 +4,10 @@ details: |
     Verify that automatic file context transitions work and cover typical use cases
 
 # Only distros that support SELinux
-systems: [fedora-*, centos-*]
+systems:
+    - fedora-*
+    - centos-*
+    - opensuse-*-selinux-*
 
 prepare: |
     rm -rf /root/snap
