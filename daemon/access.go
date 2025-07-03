@@ -128,6 +128,7 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 	}
 
 	if opts.accessLevel == accessLevelAuthenticated && user != nil {
+		// user != nil means we have an authenticated user
 		return nil
 	}
 
@@ -425,7 +426,8 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	req := actionRequest{}
 
 	bufSize := r.ContentLength
-	if bufSize > maxBodySize {
+	// The value -1 indicates that the length is unknown.
+	if bufSize > maxBodySize || bufSize == -1 {
 		bufSize = maxBodySize
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
