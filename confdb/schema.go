@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/strutil"
@@ -1294,9 +1293,9 @@ func (v *arraySchema) SchemaAt(path []string) ([]DatabagSchema, error) {
 		return []DatabagSchema{v}, nil
 	}
 
+	// key can be a number or a placeholder in square brackets ([1] or [{n}])
 	key := path[0]
-	_, err := strconv.ParseUint(key, 10, 0)
-	if err != nil {
+	if !validIndexPlaceholder.Match([]byte(key)) && !validIndexSubkey.Match([]byte(key)) {
 		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key)
 	}
 

@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
@@ -210,8 +211,10 @@ var (
 	ValidConfdbName = validSubkey
 	ValidViewName   = validSubkey
 
-	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
-	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	validSubkey           = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
+	validIndexSubkey      = regexp.MustCompile(`^\[[0-9]+\]$`)
+	validPlaceholder      = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	validIndexPlaceholder = regexp.MustCompile(fmt.Sprintf("^\\[{%s}\\]$", subkeyRegex))
 	// TODO: decide on what the format should be for aliases in schemas
 	validAliasName = validSubkey
 	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
@@ -388,7 +391,21 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		return nil, errors.New(`"request" must be a string`)
 	}
 
-	if err := validateRequestStoragePair(request, storage); err != nil {
+	// content sub-rules are shorthands for paths that include the parent's path
+	if parent != nil {
+		if request[0] != '[' {
+			request = "." + request
+		}
+		request = parent.originalRequest + request
+
+		if storage[0] != '[' {
+			storage = "." + storage
+		}
+		storage = parent.originalStorage + storage
+	}
+
+	reqAccessors, storageAccessors, err := validateRequestStoragePair(request, storage)
+	if err != nil {
 		return nil, err
 	}
 
@@ -401,12 +418,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		}
 	}
 
-	if parent != nil {
-		request = parent.originalRequest + "." + request
-		storage = parent.originalStorage + "." + storage
-	}
-
-	rule, err := newViewRule(request, storage, access)
+	rule, err := newViewRule(reqAccessors, storageAccessors, access)
 	if err != nil {
 		return nil, err
 	}
@@ -432,30 +444,86 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 }
 
 // validateRequestStoragePair checks that:
-//   - request and storage are composed of valid subkeys (see: validateViewString)
+//   - request and storage are composed of valid subkeys (see: validateViewDottedPath)
 //   - all placeholders in a request are in the storage and vice-versa
-func validateRequestStoragePair(request, storage string) error {
+//   - names used for index placeholders are not used for key placeholders and vice-versa
+//
+// If the validation succeeds, it returns lists of typed representations of each
+// path.
+func validateRequestStoragePair(request, storage string) (reqAccessors []accessor, storageAccessors []accessor, err error) {
 	opts := &validationOptions{allowPlaceholder: true}
-	if err := validateViewDottedPath(request, opts); err != nil {
-		return fmt.Errorf("invalid request %q: %w", request, err)
+	reqAccessors, err = parsePathIntoAccessors(request, opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	if err := validateViewDottedPath(storage, opts); err != nil {
-		return fmt.Errorf("invalid storage %q: %w", storage, err)
+	storageAccessors, err = parsePathIntoAccessors(storage, opts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
 
-	reqPlaceholders, storagePlaceholders := getPlaceholders(request), getPlaceholders(storage)
+	reqKeyVars, err := countAccessorsOfType(reqAccessors, keyPlaceholderType)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	storageKeyVars, err := countAccessorsOfType(storageAccessors, keyPlaceholderType)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// check that the request and storage key placeholders match
+	err = checkForMatchingPlaceholders(request, storage, reqKeyVars, storageKeyVars)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// check that the request and storage list index placeholders match
+	reqIndexVars, err := countAccessorsOfType(reqAccessors, indexPlaceholderType)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	storageIndexVars, err := countAccessorsOfType(storageAccessors, indexPlaceholderType)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = checkForMatchingPlaceholders(request, storage, reqIndexVars, storageIndexVars)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// check that there are no key and index placeholders with the same name.
+	// technically, this would work (there's no ambiguity because no value matches
+	// both a key and an index) but it could make view paths very confusing
+	for name := range reqKeyVars {
+		if _, ok := reqIndexVars[name]; ok {
+			return nil, nil, fmt.Errorf("cannot use same name %q for key and index placeholder: %s", name, request)
+		}
+	}
+
+	return reqAccessors, storageAccessors, nil
+}
+
+// check that placeholders used in a request path are accounted in the storage
+// path (and vice-versa) and that we don't use them to mean more than one thing
+func checkForMatchingPlaceholders(request, storage string, reqPlaceholders, storagePlaceholders map[string]int) error {
 	if len(reqPlaceholders) != len(storagePlaceholders) {
 		return fmt.Errorf("request %q and storage %q have mismatched placeholders", request, storage)
 	}
 
-	for placeholder := range reqPlaceholders {
-		if !storagePlaceholders[placeholder] {
+	for name, count := range reqPlaceholders {
+		if count != 1 {
+			return fmt.Errorf("request cannot have more than one placeholder with the same name %q: %s",
+				name, request)
+		}
+
+		if storagePlaceholders[name] == 0 {
 			return fmt.Errorf("placeholder %q from request %q is absent from storage %q",
-				placeholder, request, storage)
+				name, request, storage)
 		}
 	}
-
 	return nil
 }
 
@@ -464,48 +532,134 @@ type validationOptions struct {
 	allowPlaceholder bool
 }
 
-// validateViewDottedPath validates that request/storage strings in a view definition are:
-//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}"),
-//     if allowed by the validationOptions
+// parsePathIntoAccessors validates that request/storage strings in a view definition are:
+//   - composed of non-empty, dot or bracket separated subkeys with optional
+//     placeholders (e.g., foo.{bar}, a[{n}].bar), if allowed by the validationOptions
 //   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
 //     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
 //   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
-func validateViewDottedPath(path string, opts *validationOptions) (err error) {
+//   - bracketed subkeys that aren't placeholders can only contain integers
+//
+// If the validation succeeds, it returns an []accessor which contains typed
+// representations of each type of subkey (e.g., key placeholder, index, etc).
+func parsePathIntoAccessors(path string, opts *validationOptions) ([]accessor, error) {
 	if opts == nil {
 		opts = &validationOptions{}
 	}
 
-	subkeys := strings.Split(path, ".")
-	for _, subkey := range subkeys {
-		if subkey == "" {
-			return errors.New("cannot have empty subkeys")
-		}
+	subkeys, err := splitViewPath(path)
+	if err != nil {
+		return nil, err
+	}
 
-		if !validSubkey.MatchString(subkey) && (!opts.allowPlaceholder || !validPlaceholder.MatchString(subkey)) {
-			return fmt.Errorf("invalid subkey %q", subkey)
+	accessors := make([]accessor, 0, len(subkeys))
+	for _, subkey := range subkeys {
+		switch {
+		// straight literal accesses, without placeholders (e.g., foo.bar, foo[1])
+		case validSubkey.MatchString(subkey):
+			accessors = append(accessors, key(subkey))
+		case validIndexSubkey.MatchString(subkey):
+			accessors = append(accessors, index(subkey[1:len(subkey)-1]))
+		case !opts.allowPlaceholder:
+			return nil, fmt.Errorf("invalid subkey %q", subkey)
+		// placeholder subkeys (e.g., foo.{bar}, foo[{n}])
+		case validPlaceholder.MatchString(subkey):
+			accessors = append(accessors, keyPlaceholder(subkey[1:len(subkey)-1]))
+		case validIndexPlaceholder.MatchString(subkey):
+			accessors = append(accessors, indexPlaceholder(subkey[2:len(subkey)-2]))
+		default:
+			return nil, fmt.Errorf("invalid subkey %q", subkey)
 		}
 	}
 
-	return nil
+	return accessors, nil
 }
 
-// getPlaceholders returns the set of placeholders in the string or nil, if
-// there is none.
-func getPlaceholders(viewStr string) map[string]bool {
-	var placeholders map[string]bool
+type keyType uint8
 
-	subkeys := strings.Split(viewStr, ".")
-	for _, subkey := range subkeys {
-		if isPlaceholder(subkey) {
-			if placeholders == nil {
-				placeholders = make(map[string]bool)
+const (
+	mapKeyType keyType = iota
+	listIndexType
+	keyPlaceholderType
+	indexPlaceholderType
+)
+
+type accessor interface {
+	// name returns the value of the path sub-key excluding any separators (dots
+	// or brackets), both for literal and placeholders.
+	name() string
+
+	// access returns the value of the sub-key wrapped in any separators or brackets
+	// the type may require to be composed into a path.
+	access() string
+
+	// keyType returns a type that represents the kind of path sub-key the accessor is.
+	keyType() keyType
+}
+
+func splitViewPath(path string) ([]string, error) {
+	var subkeys []string
+	sb := &strings.Builder{}
+
+	finishSubkey := func() error {
+		if sb.Len() == 0 {
+			return errors.New("cannot have empty subkeys")
+		}
+		subkeys = append(subkeys, sb.String())
+		sb.Reset()
+		return nil
+	}
+
+	for _, c := range path {
+		switch c {
+		case '.':
+			if err := finishSubkey(); err != nil {
+				return nil, err
 			}
 
-			placeholders[subkey] = true
+		case '[':
+			if err := finishSubkey(); err != nil {
+				return nil, err
+			}
+
+			// include the square brackets as they imply a different type of placeholder
+			fallthrough
+
+		default:
+			if _, err := sb.WriteRune(c); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return placeholders
+	// there should be a subkey to be finished (paths like "a." are invalid)
+	if err := finishSubkey(); err != nil {
+		return nil, err
+	}
+
+	return subkeys, nil
+}
+
+// countAccessorsOfType returns the number of occurrences of path sub-keys of
+// a given type of accessor (e.g., key placeholder, etc).
+func countAccessorsOfType(accessors []accessor, keyType keyType) (map[string]int, error) {
+	var freqs map[string]int
+	count := func(key accessor) {
+		if freqs == nil {
+			freqs = make(map[string]int)
+		}
+		freqs[key.name()]++
+	}
+
+	for _, acc := range accessors {
+		if acc.keyType() != keyType {
+			continue
+		}
+
+		count(acc)
+	}
+
+	return freqs, nil
 }
 
 // View returns a view from the confdb schema.
@@ -579,7 +733,8 @@ func validateSetValue(v any, depth int) error {
 
 // Set sets the named view to a specified non-nil value.
 func (v *View) Set(databag Databag, request string, value any) error {
-	if err := validateViewDottedPath(request, nil); err != nil {
+	// TODO: ignore accessors for now (will address in its own PR)
+	if _, err := parsePathIntoAccessors(request, nil); err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
@@ -655,7 +810,8 @@ func (v *View) Set(databag Databag, request string, value any) error {
 }
 
 func (v *View) Unset(databag Databag, request string) error {
-	if err := validateViewDottedPath(request, nil); err != nil {
+	// TODO: ignore accessors for now (will address in its own PR)
+	if _, err := parsePathIntoAccessors(request, nil); err != nil {
 		return badRequestErrorFrom(v, "unset", request, err.Error())
 	}
 
@@ -691,7 +847,12 @@ func (v *View) Unset(databag Databag, request string) error {
 
 func (v *View) matchWriteRequest(request string) ([]requestMatch, error) {
 	var matches []requestMatch
-	subkeys := strings.Split(request, ".")
+	// TODO: replace with []accessors
+	subkeys, err := splitViewPath(request)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, rule := range v.rules {
 		placeholders, suffixParts, ok := rule.match(subkeys)
 		if !ok {
@@ -724,13 +885,16 @@ func checkSchemaMismatch(schema DatabagSchema, rules []*viewRule) error {
 out:
 	for _, rule := range rules {
 		path := rule.originalStorage
-		pathParts := strings.Split(path, ".")
+		pathParts, err := splitViewPath(path)
+		if err != nil {
+			return err
+		}
+
 		schemas, err := schema.SchemaAt(pathParts)
 		if err != nil {
 			var serr *schemaAtError
 			if errors.As(err, &serr) {
-				parts := strings.Split(path, ".")
-				subParts := parts[:len(parts)-serr.left]
+				subParts := pathParts[:len(pathParts)-serr.left]
 				subPath := strings.Join(subParts, ".")
 
 				return fmt.Errorf(`storage path %q for request %q is invalid after %q: %w`,
@@ -866,6 +1030,7 @@ func replaceIn(path, key, value string) string {
 		}
 	}
 
+	// TODO: what to do about this. will have to do this manually
 	return strings.Join(parts, ".")
 }
 
@@ -878,7 +1043,10 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 		var err error
 		var pathParts []string
 		if path != "" {
-			pathParts = strings.Split(path, ".")
+			pathParts, err = splitViewPath(path)
+			if err != nil {
+				return err
+			}
 		}
 
 		copyValue, err = prunePathInValue(pathParts, copyValue)
@@ -1032,7 +1200,8 @@ func namespaceResult(res any, suffixParts []string) (any, error) {
 // the request.
 func (v *View) Get(databag Databag, request string) (any, error) {
 	if request != "" {
-		if err := validateViewDottedPath(request, nil); err != nil {
+		// TODO: ignore accessors for now (will address in its own PR)
+		if _, err := parsePathIntoAccessors(request, nil); err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
 		}
 	}
@@ -1224,7 +1393,11 @@ type requestMatch struct {
 func (v *View) matchGetRequest(request string) (matches []requestMatch, err error) {
 	var subkeys []string
 	if request != "" {
-		subkeys = strings.Split(request, ".")
+		// TODO: replace with []accessors
+		subkeys, err = splitViewPath(request)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for _, rule := range v.rules {
@@ -1275,49 +1448,61 @@ func (v *View) matchGetRequest(request string) (matches []requestMatch, err erro
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
-func newViewRule(request, storage, accesstype string) (*viewRule, error) {
+func newViewRule(request, storage []accessor, accesstype string) (*viewRule, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create view rule: %w", err)
 	}
 
-	requestSubkeys := strings.Split(request, ".")
-	requestMatchers := make([]requestMatcher, 0, len(requestSubkeys))
-	for _, subkey := range requestSubkeys {
-		var patt requestMatcher
-		if isPlaceholder(subkey) {
-			patt = placeholder(subkey[1 : len(subkey)-1])
-		} else {
-			patt = literal(subkey)
+	requestMatchers := make([]requestMatcher, 0, len(request))
+	for _, acc := range request {
+		matcher, ok := acc.(requestMatcher)
+		if !ok {
+			return nil, fmt.Errorf("internal error: cannot convert accessor into requestMatcher")
 		}
-
-		requestMatchers = append(requestMatchers, patt)
+		requestMatchers = append(requestMatchers, matcher)
 	}
 
-	pathSubkeys := strings.Split(storage, ".")
-	pathWriters := make([]storageWriter, 0, len(pathSubkeys))
-	for _, subkey := range pathSubkeys {
-		var patt storageWriter
-		if isPlaceholder(subkey) {
-			patt = placeholder(subkey[1 : len(subkey)-1])
-		} else {
-			patt = literal(subkey)
+	pathWriters := make([]storageWriter, 0, len(storage))
+	for _, acc := range storage {
+		writer, ok := acc.(storageWriter)
+		if !ok {
+			return nil, fmt.Errorf("internal error: cannot convert accessor into storageWriter")
 		}
-
-		pathWriters = append(pathWriters, patt)
+		pathWriters = append(pathWriters, writer)
 	}
 
 	return &viewRule{
-		originalRequest: request,
-		originalStorage: storage,
+		originalRequest: joinPathParts(request),
+		originalStorage: joinPathParts(storage),
 		request:         requestMatchers,
 		storage:         pathWriters,
 		access:          accType,
 	}, nil
 }
 
+func joinPathParts(parts []accessor) string {
+	var sb strings.Builder
+	for i, part := range parts {
+		if !(part.keyType() == indexPlaceholderType || part.keyType() == listIndexType || i == 0) {
+			sb.WriteRune('.')
+		}
+
+		sb.WriteString(part.access())
+	}
+
+	return sb.String()
+}
+
 func isPlaceholder(part string) bool {
-	return part[0] == '{' && part[len(part)-1] == '}'
+	return len(part) > 2 && part[0] == '{' && part[len(part)-1] == '}'
+}
+
+func stripIndex(part string) (string, bool) {
+	if len(part) < 3 || part[0] != '[' || part[len(part)-1] != ']' {
+		return "", false
+	}
+	return part[1 : len(part)-1], true
 }
 
 // viewRule represents an individual view rule. It can be used to match a
@@ -1333,44 +1518,39 @@ type viewRule struct {
 }
 
 // match returns true if the subkeys match the pattern exactly or as a prefix.
-// If placeholders are "filled in" when matching, those are returned in a map.
-// If the subkeys match as a prefix, the remaining suffix is returned.
-func (p *viewRule) match(reqSubkeys []string) (placeholders map[string]string, restSuffix []string, match bool) {
+// If placeholders are "filled in" when matching, those are returned in "matched"
+// according to which kind of placeholder they are. If the subkeys match as a
+// prefix, the remaining suffix is returned.
+func (p *viewRule) match(reqSubkeys []string) (matched *matchedPlaceholders, restSuffix []string, match bool) {
 	if len(p.request) < len(reqSubkeys) {
 		return nil, nil, false
 	}
 
-	placeholders = make(map[string]string)
+	matched = &matchedPlaceholders{}
 	for i, subkey := range reqSubkeys {
 		// empty request matches everything
-		if len(reqSubkeys) != 0 && !p.request[i].match(subkey, placeholders) {
+		if len(reqSubkeys) != 0 && !p.request[i].match(subkey, matched) {
 			return nil, nil, false
 		}
 	}
 
 	for _, key := range p.request[len(reqSubkeys):] {
-		restSuffix = append(restSuffix, key.String())
+		restSuffix = append(restSuffix, key.access())
 	}
 
-	return placeholders, restSuffix, true
+	return matched, restSuffix, true
 }
 
-// storagePath takes a map of placeholders to their values in the view name and
-// returns the path with its placeholder values filled in with the map's values.
-func (p *viewRule) storagePath(placeholders map[string]string) (string, error) {
+// storagePath takes a matchedPlaceholders struct mapping key and index
+// placeholder names to their values in the view name and returns the path with
+// its placeholder values filled in with the map's values.
+func (p *viewRule) storagePath(matched *matchedPlaceholders) (string, error) {
 	sb := &strings.Builder{}
 
+	opts := writeOpts{topLevel: true}
 	for _, subkey := range p.storage {
-		if sb.Len() > 0 {
-			if _, err := sb.WriteRune('.'); err != nil {
-				return "", err
-			}
-		}
-
-		if err := subkey.write(sb, placeholders); err != nil {
-			return "", err
-		}
-
+		subkey.write(sb, matched, opts)
+		opts.topLevel = false
 	}
 
 	return sb.String(), nil
@@ -1387,61 +1567,147 @@ func (p viewRule) isWriteable() bool {
 // pattern is an individual subkey of a dot-separated name or path pattern. It
 // can be a literal value of a placeholder delineated by curly brackets.
 type requestMatcher interface {
-	match(subkey string, placeholders map[string]string) bool
-	String() string
+	match(subkey string, matched *matchedPlaceholders) bool
+
+	// access returns the value of the sub-key wrapped in any separators or brackets
+	// the type may require to be composed into a path.
+	access() string
+}
+
+type writeOpts struct {
+	topLevel bool
 }
 
 type storageWriter interface {
-	write(sb *strings.Builder, placeholders map[string]string) error
+	write(sb *strings.Builder, matched *matchedPlaceholders, opts writeOpts)
 }
 
 // placeholder represents a subkey of a name/path (e.g., "{foo}") that can match
 // with any value and map it from the input name to the path.
-type placeholder string
+type keyPlaceholder string
 
-// match adds a mapping to the placeholders map from this placeholder key to the
+// match adds an entry to matchedPlaceholders mapping this placeholder key to the
 // supplied name subkey and returns true (a placeholder matches with any value).
-func (p placeholder) match(subkey string, placeholders map[string]string) bool {
-	placeholders[string(p)] = subkey
+func (p keyPlaceholder) match(subkey string, matched *matchedPlaceholders) bool {
+	if matched.key == nil {
+		matched.key = make(map[string]string)
+	}
+	matched.key[string(p)] = subkey
 	return true
 }
 
-// write writes the value from the placeholders map corresponding to this placeholder
-// key into the strings.Builder.
-func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) error {
-	subkey, ok := placeholders[string(p)]
+// write writes the value from the matchedPlaceholders entry corresponding to
+// this placeholder key into the strings.Builder.
+func (p keyPlaceholder) write(sb *strings.Builder, matched *matchedPlaceholders, opts writeOpts) {
+	subkey, ok := matched.key[string(p)]
 	if !ok {
 		// placeholder wasn't matched, return the original key in brackets
-		subkey = fmt.Sprintf("{%s}", string(p))
+		subkey = p.access()
 	}
 
-	_, err := sb.WriteString(subkey)
-	return err
+	if !opts.topLevel {
+		sb.WriteRune('.')
+	}
+
+	sb.WriteString(subkey)
 }
 
-// String returns the placeholder as a string.
-func (p placeholder) String() string {
+func (p keyPlaceholder) access() string {
 	return "{" + string(p) + "}"
 }
 
-// literal is a non-placeholder name/path subkey.
-type literal string
+func (p keyPlaceholder) name() string     { return string(p) }
+func (p keyPlaceholder) keyType() keyType { return keyPlaceholderType }
+
+type matchedPlaceholders struct {
+	index map[string]string
+	key   map[string]string
+}
+
+// indexPlaceholder represents a subkey of a name/path (e.g., "[{n}]") that can
+// match an index value and map it from the input name to the path.
+type indexPlaceholder string
+
+// match checks if the subkey can be used to index a list. If so, it adds an
+// entry to matchedPlaceholders mapping this placeholder key to the supplied
+// name subkey and returns true.
+func (p indexPlaceholder) match(subkey string, matched *matchedPlaceholders) bool {
+	subkey, ok := stripIndex(subkey)
+	if !ok {
+		return false
+	}
+
+	if _, err := strconv.Atoi(subkey); err != nil {
+		// subkey can't be used as a index placeholder value
+		return false
+	}
+
+	if matched.index == nil {
+		matched.index = make(map[string]string)
+	}
+	matched.index[string(p)] = subkey
+	return true
+}
+
+// write writes the value from the matchedPlaceholders entry corresponding to
+// this placeholder key into the strings.Builder.
+func (p indexPlaceholder) write(sb *strings.Builder, matched *matchedPlaceholders, _ writeOpts) {
+	subkey, ok := matched.index[string(p)]
+	if !ok {
+		// placeholder wasn't matched, return the original key in brackets
+		subkey = p.access()
+	} else {
+		subkey = "[" + subkey + "]"
+	}
+
+	sb.WriteString(subkey)
+}
+
+func (p indexPlaceholder) access() string   { return "[{" + string(p) + "}]" }
+func (p indexPlaceholder) name() string     { return string(p) }
+func (p indexPlaceholder) keyType() keyType { return indexPlaceholderType }
+
+// key is a non-placeholder object key.
+type key string
 
 // match returns true if the subkey is equal to the literal.
-func (p literal) match(subkey string, _ map[string]string) bool {
-	return string(p) == subkey
+func (k key) match(subkey string, _ *matchedPlaceholders) bool {
+	return string(k) == subkey
+}
+
+// write writes the key into the strings.Builder with a prefixing '.', if it's
+// not the top level accessor.
+func (k key) write(sb *strings.Builder, _ *matchedPlaceholders, opts writeOpts) {
+	if !opts.topLevel {
+		sb.WriteRune('.')
+	}
+	sb.WriteString(k.access())
+}
+
+func (k key) access() string   { return k.name() }
+func (k key) name() string     { return string(k) }
+func (k key) keyType() keyType { return mapKeyType }
+
+type index string
+
+// match returns true if the subkey is equal to the literal.
+func (i index) match(subkey string, _ *matchedPlaceholders) bool {
+	subkey, ok := stripIndex(subkey)
+	if !ok {
+		return false
+	}
+
+	return string(i) == subkey
 }
 
 // write writes the literal subkey into the strings.Builder.
-func (p literal) write(sb *strings.Builder, _ map[string]string) error {
-	_, err := sb.WriteString(string(p))
-	return err
+func (i index) write(sb *strings.Builder, _ *matchedPlaceholders, _ writeOpts) {
+	sb.WriteString(i.access())
 }
 
-// String returns the literal as a string.
-func (p literal) String() string {
-	return string(p)
-}
+func (i index) access() string   { return "[" + i.name() + "]" }
+func (i index) name() string     { return string(i) }
+func (i index) keyType() keyType { return listIndexType }
 
 type PathError string
 
