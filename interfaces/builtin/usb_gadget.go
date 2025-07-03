@@ -40,14 +40,6 @@ const usbgadgetConnectedPlugAppArmor = `
 
 # Allow access to UDC
 /sys/class/udc/ r,
-
-# Allow mounting the legacy gadgetfs
-mount fstype=gadgetfs options=(rw) gadgetfs -> /dev/gadget/,
-# Allow access to the legacy gadgetfs
-/dev/gadget/ rw,
-# Allow creating sub-directories, symlinks and files under those
-# directories
-/dev/gadget/** rw,
 `
 
 func init() {
