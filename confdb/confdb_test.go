@@ -393,6 +393,35 @@ func (s *viewSuite) TestConfdbNotFoundErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get "other-nested" through acc/foo/bar: no data`)
 }
 
+func (s *viewSuite) TestConfdbNoMatchAllSubkeyTypes(c *C) {
+	databag := confdb.NewJSONDatabag()
+	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
+		"bar": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a.{b}[1][{n}]", "storage": "a.{b}[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("bar")
+
+	err = view.Set(databag, "a.b[1][0]", "foo")
+	c.Assert(err, IsNil)
+
+	// check each sub-key in the rule path rejects an unmatchable request
+	for _, request := range []string{"b", "a[1]", "a.b[0]", "a.b[1].d"} {
+		_, err = view.Get(databag, request)
+		c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot get %q through acc/foo/bar: no matching rule`, request))
+	}
+
+	// but they accept the right request
+	val, err := view.Get(databag, "a.b[1][0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "foo")
+}
+
 func (s *viewSuite) TestViewBadRead(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
