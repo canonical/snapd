@@ -215,40 +215,6 @@ func (s *accessSuite) TestRootAccess(c *C) {
 	c.Check(ac.CheckAccess(nil, nil, ucred, nil), IsNil)
 }
 
-func (s *accessSuite) TestRootAccessPolkit(c *C) {
-	var ac daemon.AccessChecker = daemon.RootAccess{Polkit: "action-id"}
-
-	req := httptest.NewRequest("GET", "/", nil)
-	user := &auth.UserState{}
-	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-
-	// polkit is not checked if any of:
-	//   * ucred is missing
-	//   * user is root
-	restore := daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
-		c.Fail()
-		return daemon.Forbidden("access denied")
-	})
-	defer restore()
-	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
-
-	// polkit is checked for regular users with or without macaroon auth
-	called := 0
-	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
-		called++
-		c.Check(r, Equals, req)
-		c.Check(u, Equals, ucred)
-		c.Check(action, Equals, "action-id")
-		return nil
-	})
-	defer restore()
-	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
-	c.Check(ac.CheckAccess(nil, req, ucred, user), IsNil)
-	c.Check(called, Equals, 2)
-}
-
 func (s *accessSuite) TestSnapAccess(c *C) {
 	var ac daemon.AccessChecker = daemon.SnapAccess{}
 
@@ -634,90 +600,6 @@ plugs:
 		RemoteAddr: ucred.String(),
 	}
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
-}
-
-func (s *accessSuite) TestInterfaceProviderRootAccessPolkit(c *C) {
-	d := s.daemon(c)
-	s.mockSnap(c, `
-name: fwupd-app
-type: app
-version: 1
-slots:
-  fwupd-provider:
-    interface: fwupd
-  `)
-	s.mockSnap(c, `
-name: connected-fwupd-caller
-version: 1
-plugs:
-  fwupd-consumer:
-    interface: fwupd
-`)
-
-	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
-		switch pid {
-		case 42:
-			return "fwupd-app", nil
-		case 1042:
-			return "connected-fwupd-caller", nil
-		default:
-			return "", fmt.Errorf("not a snap")
-		}
-	})
-	defer restore()
-
-	st := d.Overlord().State()
-	st.Lock()
-	st.Set("conns", map[string]any{
-		"connected-fwupd-caller:fwupd fwupd-app:fwupd-provider": map[string]any{
-			"interface": "fwupd",
-		},
-	})
-	st.Unlock()
-
-	var ac daemon.AccessChecker = daemon.InterfaceProviderRootAccess{
-		Polkit:     "action-id",
-		Interfaces: []string{"fwupd"},
-	}
-
-	req := httptest.NewRequest("GET", "/", nil)
-	user := &auth.UserState{}
-
-	// polkit is not checked if any of:
-	//   * ucred is missing
-	//   * user is root
-	//   * snap request (as root) with relevant connected slot
-	//   * snap request without relevant connected slot
-	restore = daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
-		c.Fail()
-		return daemon.Forbidden("access denied")
-	})
-	defer restore()
-	// ucred is missing
-	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
-	// user is root (on snapd.socket)
-	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
-	// snap request (as root) with relevant connected slot (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}, nil), IsNil)
-	// snap request without relevant connected slot (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}, user), DeepEquals, errForbidden)
-
-	// polkit is checked for snaps with connected slot
-	called := 0
-	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
-		called++
-		c.Check(r, Equals, req)
-		c.Check(action, Equals, "action-id")
-		return nil
-	})
-	defer restore()
-	// regular user (on snapd.socket)
-	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 1001, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
-	// snap request (with macaroon) with relevant connected slot (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 42, Socket: dirs.SnapSocket}, user), IsNil)
-	// snap request (without macaroon) with relevant connected slot (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 42, Socket: dirs.SnapSocket}, nil), IsNil)
-	c.Check(called, Equals, 3)
 }
 
 func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {

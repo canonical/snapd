@@ -188,23 +188,12 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
-//
-// A user is considered authenticated if they  are the root user
-// according to peer credentials, or granted access by Polkit.
-type rootAccess struct {
-	// Polkit is an optional polkit action to check as fallback
-	// if the user is not root.
-	//
-	// Note: The specified polkit action must require auth_admin
-	// to avoid compromising security.
-	Polkit string
-}
+type rootAccess struct{}
 
 func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	opts := accessOptions{
 		accessLevel:   accessLevelRoot,
 		requireSocket: dirs.SnapdSocket,
-		polkitAction:  ac.Polkit,
 	}
 	return checkAccess(d, r, ucred, user, opts)
 }
@@ -350,12 +339,6 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 // and are present on the slot side of that connection.
 type interfaceProviderRootAccess struct {
 	Interfaces []string
-	// Polkit is an optional polkit action to check as fallback
-	// if the user is not root.
-	//
-	// Note: The specified polkit action must require auth_admin
-	// to avoid compromising security.
-	Polkit string
 }
 
 func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
@@ -365,7 +348,6 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 			Interfaces: ac.Interfaces,
 			Slot:       true,
 		},
-		polkitAction: ac.Polkit,
 	}
 	return checkAccess(d, r, ucred, user, opts)
 }
@@ -373,10 +355,15 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 // interfaceRootAccess behaves like rootAccess, but also allows requests
 // over snapd-snap.socket for snaps that have a connection of specific interface
 // and are present on the plug side of that connection.
+//
+// A user is considered authenticated if they are the root user according to
+// peer credentials, or granted access by Polkit.
 type interfaceRootAccess struct {
 	Interfaces []string
 	// Polkit is an optional polkit action to check as fallback
 	// if the user is not root.
+	// In most cases it is prefered to set Polkit since snaps
+	// are not usually running as root.
 	//
 	// Note: The specified polkit action must require auth_admin
 	// to avoid compromising security.
