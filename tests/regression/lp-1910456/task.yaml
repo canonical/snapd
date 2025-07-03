@@ -10,7 +10,7 @@ systems: [-ubuntu-14.04-64]
 
 
 environment:
-  IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-18.04.tar
+  IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04.tar
 
 prepare: |
     # build and install the strict test snap
@@ -140,14 +140,14 @@ execute: |
     snap install --channel="$CHANNEL" docker
     tests.cleanup defer snap remove --purge docker
 
-    wget --quiet "$IMAGE_URL" -O ubuntu-18.04.tar
+    wget --quiet "$IMAGE_URL" -O ubuntu-24.04.tar
     "$TESTSTOOLS"/docker-state setup-local-registry
-    "$TESTSTOOLS"/docker-state add-local-image ubuntu-18.04 ubuntu-18.04.tar
+    "$TESTSTOOLS"/docker-state add-local-image ubuntu-24.04 ubuntu-24.04.tar
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 
     # start a docker container - need to wait until dockerd comes alive
-    retry -n10 --wait 1 sh -c 'docker run -d --name test ubuntu:18.04 sleep infinity'
+    retry -n10 --wait 1 sh -c 'docker run -d --name test ubuntu:24.04 sleep infinity'
     tests.cleanup defer docker kill test
 
     # make sure that docker top can see the process
