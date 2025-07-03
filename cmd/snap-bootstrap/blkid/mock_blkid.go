@@ -47,8 +47,8 @@ func BuildFakeProbe(values map[string]string) *FakeBlkidProbe {
 	return &FakeBlkidProbe{values, &FakeBlkidPartlist{}}
 }
 
-func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, index int) *FakeBlkidProbe {
-	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid, index})
+func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string) *FakeBlkidProbe {
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid})
 
 	partition_values := make(map[string]string)
 	partition_values["LABEL"] = name
@@ -57,9 +57,8 @@ func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, index int) *FakeBl
 }
 
 type FakeBlkidPartition struct {
-	name  string
-	uuid  string
-	index int
+	name string
+	uuid string
 }
 
 type FakeBlkidPartlist struct {
@@ -102,6 +101,10 @@ func (p *FakeBlkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
 	return p.partlist, nil
 }
 
+func (p *FakeBlkidProbe) GetSectorSize() (uint, error) {
+	return 0, nil
+}
+
 func (p *FakeBlkidPartlist) GetPartitions() []AbstractBlkidPartition {
 	ret := make([]AbstractBlkidPartition, len(p.partitions))
 	for i, partition := range p.partitions {
@@ -118,6 +121,10 @@ func (p *FakeBlkidPartition) GetUUID() string {
 	return p.uuid
 }
 
-func (p *FakeBlkidPartition) GetPartNo() int {
-	return p.index
+func (p *FakeBlkidPartition) GetStart() int64 {
+	return 0
+}
+
+func (p *FakeBlkidPartition) GetSize() int64 {
+	return 0
 }

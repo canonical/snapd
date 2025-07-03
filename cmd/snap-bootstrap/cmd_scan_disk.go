@@ -112,10 +112,13 @@ func isGpt(probe blkid.AbstractBlkidProbe) bool {
 	return pttype == "gpt"
 }
 
-func probeFilesystem(node string) (Partition, error) {
+// probeFilesystem probes filesystem information in leiu of when
+// we cannot retrieve enough information from the partition table.
+// <start> and <size> must be byte offsets, not sector counts.
+func probeFilesystem(node string, start, size int64) (Partition, error) {
 	var p Partition
 
-	probe, err := blkid.NewProbeFromFilename(node)
+	probe, err := blkid.NewProbeFromRange(node, start, size)
 	if err != nil {
 		return p, err
 	}
@@ -156,7 +159,13 @@ func probeDisk(node string) ([]Partition, error) {
 		return nil, err
 	}
 
+	sectorSize, err := probe.GetSectorSize()
+	if sectorSize == 0 && err != nil {
+		return nil, err
+	}
+
 	ret := make([]Partition, 0)
+	ss64 := int64(sectorSize)
 	for _, partition := range partitions.GetPartitions() {
 		if gpt {
 			ret = append(ret, Partition{
@@ -165,8 +174,7 @@ func probeDisk(node string) ([]Partition, error) {
 			})
 		} else {
 			// For MBR we have to probe the filesystem for details
-			pnode := fmt.Sprintf("%sp%d", node, partition.GetPartNo())
-			p, err := probeFilesystem(pnode)
+			p, err := probeFilesystem(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
 			if err != nil {
 				return ret, err
 			}
