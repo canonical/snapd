@@ -305,6 +305,9 @@ apps:
   snap-fde:
     command: bin/run
     plugs: [ snap-fde ]
+  firmware-updater-support:
+    command: bin/run
+    plugs: [ firmware-updater-support ]
 
 plugs:
   custom-device:
