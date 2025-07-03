@@ -95,7 +95,9 @@ execute: |
 
     # Change server from docker to rocks.canonical.com because docker.io has download restrictions
     CONFIG_FILE=/var/snap/microk8s/current/args/certs.d/docker.io/hosts.toml
-    sed -i 's|server = "https://docker.io"|server = "https://rocks.canonical.com"|' "$CONFIG_FILE"
+    sed -i 's|"https://docker.io"|"https://rocks.canonical.com"|' "$CONFIG_FILE"
+    sed -i 's|"https://registry-1.docker.io"|"https://rocks.canonical.com"|' "$CONFIG_FILE"
+
     microk8s stop
     microk8s start
     microk8s status --wait-ready --timeout 180

@@ -18,13 +18,15 @@ prepare: |
       exit 1
   fi
 
-  if ! command -v curl; then
-      snap install --devmode --edge test-snapd-curl
-      snap alias test-snapd-curl.curl curl
-  fi    
-  curl -sL "$IMAGE_URL" -o hello-world.tar
-  # retry until docker is ready lo load images
-  retry -n 30 --wait 1 docker load -i hello-world.tar  
+  if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+    if ! command -v curl; then
+        snap install --devmode --edge test-snapd-curl
+        snap alias test-snapd-curl.curl curl
+    fi    
+    curl -sL "$IMAGE_URL" -o hello-world.tar
+    # retry until docker is ready lo load images
+    retry -n 30 --wait 1 docker load -i hello-world.tar  
+  fi
 
 debug: |
   "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
