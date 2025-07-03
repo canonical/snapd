@@ -732,12 +732,12 @@ func (*schemaSuite) TestStringBasedAlias(c *C) {
 	},
 	"schema": {
 		"snaps": {
-			"keys": "$snap-name",
+			"keys": "${snap-name}",
 			"values": {
 				"schema": {
-					"name": "$snap-name",
+					"name": "${snap-name}",
 					"version": "string",
-					"status": "$status"
+					"status": "${status}"
 				}
 			}
 		}
@@ -776,7 +776,7 @@ func (*schemaSuite) TestMapKeyMustBeStringAlias(c *C) {
 	},
 	"schema": {
 		"snaps": {
-			"keys": "$key-type"
+			"keys": "${key-type}"
 		}
 	}
 }`)
@@ -813,7 +813,7 @@ func (*schemaSuite) TestUnknownAlias(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"snaps": {
-			"values": "$foo"
+			"values": "${foo}"
 		}
 	}
 }`)
@@ -826,7 +826,7 @@ func (*schemaSuite) TestUnknownAliasInKeys(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"snaps": {
-			"keys": "$foo"
+			"keys": "${foo}"
 		}
 	}
 }`)
@@ -847,7 +847,7 @@ func (*schemaSuite) TestMapBasedAliasHappy(c *C) {
 	},
 	"schema": {
 		"snaps": {
-			"values": "$snap"
+			"values": "${snap}"
 		}
 	}
 }`)
@@ -883,7 +883,7 @@ func (*schemaSuite) TestAliasReferenceDoesntRequireConstraints(c *C) {
 		}
 	},
 	"schema": {
-		"a": "$my-type"
+		"a": "${my-type}"
 	}
 }`)
 
@@ -899,7 +899,7 @@ func (*schemaSuite) TestMapInAliasRequiresConstraints(c *C) {
 		"my-type": "map"
 	},
 	"schema": {
-		"a": "$my-type"
+		"a": "${my-type}"
 	}
 }`)
 
@@ -919,7 +919,7 @@ func (*schemaSuite) TestMapBasedAliasFail(c *C) {
 	},
 	"schema": {
 		"snaps": {
-			"values": "$snap"
+			"values": "${snap}"
 		}
 	}
 }`)
@@ -941,9 +941,36 @@ func (*schemaSuite) TestMapBasedAliasFail(c *C) {
 }
 
 func (*schemaSuite) TestBadAliasName(c *C) {
-	schemaStr := []byte(`{
+	type testcase struct {
+		alias  string
+		ref    string
+		errMsg string
+	}
+
+	tcs := []testcase{
+		{
+			alias:  "-foo",
+			ref:    "-foo",
+			errMsg: `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`,
+		},
+		{
+			alias: "foo",
+			ref:   "-foo",
+			// we don't check the reference for validity but we do check the definition
+			// so it can't exist
+			errMsg: `cannot find alias "-foo"`,
+		},
+		{
+			alias:  "foo",
+			ref:    "",
+			errMsg: `cannot parse unknown type "${}"`,
+		},
+	}
+
+	for _, tc := range tcs {
+		schemaStr := []byte(fmt.Sprintf(`{
 	"aliases": {
-		"-foo": {
+		"%s": {
 			"schema": {
 				"name": "string",
 				"version": "string"
@@ -952,14 +979,15 @@ func (*schemaSuite) TestBadAliasName(c *C) {
 	},
 	"schema": {
 		"snaps": {
-			"values": "$-foo"
+			"values": "${%s}"
 		}
 	}
-}`)
+}`, tc.alias, tc.ref))
 
-	_, err := confdb.ParseStorageSchema(schemaStr)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`)
+		_, err := confdb.ParseStorageSchema(schemaStr)
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, tc.errMsg)
+	}
 }
 
 func (*schemaSuite) TestIntegerHappy(c *C) {
@@ -1472,7 +1500,7 @@ func (*schemaSuite) TestAliasRejectsNull(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$mytype"
+		"foo": "${mytype}"
 	}
 }`)
 
@@ -1549,7 +1577,7 @@ func (*schemaSuite) TestArrayHappyWithAlias(c *C) {
 	"schema": {
 		"foo": {
 			"type": "array",
-			"values": "$my-type"
+			"values": "${my-type}"
 		}
 	}
 }`)
@@ -1744,7 +1772,7 @@ func (*schemaSuite) TestPathPrefixWithMapUnderUserType(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$my-type"
+		"foo": "${my-type}"
 	}
 }`)
 
@@ -1767,7 +1795,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderAlias(c *C) {
 	"schema": {
 		"foo": {
 			"type": "array",
-			"values": "$my-type"
+			"values": "${my-type}"
 		}
 	}
 }`)
@@ -1795,7 +1823,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderAliasWithAContainerElementType(c
 		}
 	},
 	"schema": {
-		"foo": "$my-type"
+		"foo": "${my-type}"
 	}
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
@@ -1846,8 +1874,8 @@ func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$my-type",
-		"bar": "$my-type"
+		"foo": "${my-type}",
+		"bar": "${my-type}"
 	}
 }`)
 
@@ -2248,7 +2276,7 @@ func (*schemaSuite) TestSchemaAtInUserDefinedType(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$my-type"
+		"foo": "${my-type}"
 	}
 }`)
 	schema, err := confdb.ParseStorageSchema(schemaStr)
@@ -2446,7 +2474,7 @@ func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$my-type"
+		"foo": "${my-type}"
 	}
 }`)
 	_, err := confdb.ParseStorageSchema(schemaStr)
@@ -2464,7 +2492,7 @@ func (*schemaSuite) TestUserDefinedTypeEphemeralFail(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$my-type"
+		"foo": "${my-type}"
 	}
 }`)
 	_, err = confdb.ParseStorageSchema(schemaStr)
@@ -2480,7 +2508,7 @@ func (*schemaSuite) TestUserTypeReferenceEphemeral(c *C) {
 	},
 	"schema": {
 		"foo": {
-			"type": "$my-type",
+			"type": "${my-type}",
 			"ephemeral": true
 		}
 	}

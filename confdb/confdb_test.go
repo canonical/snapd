@@ -1621,8 +1621,8 @@ func (s *viewSuite) TestSetValidatesDataWithSchemaPass(c *C) {
 		}
 	},
 	"schema": {
-		"foo": "$int-map",
-		"bar": "$str-array"
+		"foo": "${int-map}",
+		"bar": "${str-array}"
 	}
 }`))
 	c.Assert(err, IsNil)
