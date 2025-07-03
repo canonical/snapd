@@ -21,21 +21,37 @@ package blkid
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type Constructor func(string) (AbstractBlkidProbe, error)
 
-func MockBlkid(constr Constructor) func() {
-	old := NewProbeFromFilename
+func MockBlkidProbeFromFilename(constr Constructor) func() {
+	r := testutil.Backup(&NewProbeFromFilename)
 	NewProbeFromFilename = constr
-	return func() {
-		NewProbeFromFilename = old
-	}
+	return r
 }
 
 func MockBlkidMap(probeMap map[string]*FakeBlkidProbe) func() {
-	return MockBlkid(func(name string) (AbstractBlkidProbe, error) {
+	return MockBlkidProbeFromFilename(func(name string) (AbstractBlkidProbe, error) {
 		value, ok := probeMap[name]
+		if !ok {
+			return nil, fmt.Errorf("not found")
+		}
+		return value, nil
+	})
+}
+
+func MockBlkidProbeFromRange(f func(node string, start, size int64) (AbstractBlkidProbe, error)) func() {
+	r := testutil.Backup(&NewProbeFromRange)
+	NewProbeFromRange = f
+	return r
+}
+
+func MockBlkidPartitionMap(probeMap map[int64]*FakeBlkidProbe) func() {
+	return MockBlkidProbeFromRange(func(node string, start, size int64) (AbstractBlkidProbe, error) {
+		value, ok := probeMap[start]
 		if !ok {
 			return nil, fmt.Errorf("not found")
 		}
@@ -47,8 +63,8 @@ func BuildFakeProbe(values map[string]string) *FakeBlkidProbe {
 	return &FakeBlkidProbe{values, &FakeBlkidPartlist{}}
 }
 
-func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string) *FakeBlkidProbe {
-	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid})
+func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, start int64) *FakeBlkidProbe {
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid, start})
 
 	partition_values := make(map[string]string)
 	partition_values["LABEL"] = name
@@ -57,8 +73,9 @@ func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string) *FakeBlkidProbe {
 }
 
 type FakeBlkidPartition struct {
-	name string
-	uuid string
+	name  string
+	uuid  string
+	start int64
 }
 
 type FakeBlkidPartlist struct {
@@ -102,7 +119,8 @@ func (p *FakeBlkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
 }
 
 func (p *FakeBlkidProbe) GetSectorSize() (uint, error) {
-	return 0, nil
+	// Simplify for testing
+	return 1, nil
 }
 
 func (p *FakeBlkidPartlist) GetPartitions() []AbstractBlkidPartition {
@@ -122,7 +140,7 @@ func (p *FakeBlkidPartition) GetUUID() string {
 }
 
 func (p *FakeBlkidPartition) GetStart() int64 {
-	return 0
+	return p.start
 }
 
 func (p *FakeBlkidPartition) GetSize() int64 {
