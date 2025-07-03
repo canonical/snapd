@@ -58,7 +58,7 @@ var (
 	}
 )
 
-var serviceControlChangeKind = swfeats.RegChangeKind("service-control")
+var serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 
 var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
 	if isGlobal {

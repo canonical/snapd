@@ -43,7 +43,7 @@ func newChangeKindRegistry() *ChangeKindRegistry {
 }
 
 // Add a change kind string to the registry
-func RegChangeKind(kind string) string {
+func RegisterChangeKind(kind string) string {
 	if _, ok := changeReg.changes[kind]; !ok {
 		changeReg.changes[kind] = make([]string, 0)
 	}
@@ -99,7 +99,7 @@ func newEnsureRegistry() *EnsureRegistry {
 }
 
 // Add a ensure helper function to the registry
-func RegEnsure(manager, function string) {
+func RegisterEnsure(manager, function string) {
 	ensureReg.ensures[EnsureEntry{Manager: manager, Function: function}] = nil
 }
 

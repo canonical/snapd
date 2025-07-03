@@ -73,11 +73,11 @@ var (
 )
 
 var (
-	remodelChangeKind                           = swfeats.RegChangeKind("remodel")
-	removeRecoverySystemChangeKind              = swfeats.RegChangeKind("remove-recovery-system")
-	createRecoverySystemChangeKind              = swfeats.RegChangeKind("create-recovery-system")
-	installStepFinishChangeKind                 = swfeats.RegChangeKind("install-step-finish")
-	installStepSetupStorageEncryptionChangeKind = swfeats.RegChangeKind("install-step-setup-storage-encryption")
+	remodelChangeKind                           = swfeats.RegisterChangeKind("remodel")
+	removeRecoverySystemChangeKind              = swfeats.RegisterChangeKind("remove-recovery-system")
+	createRecoverySystemChangeKind              = swfeats.RegisterChangeKind("create-recovery-system")
+	installStepFinishChangeKind                 = swfeats.RegisterChangeKind("install-step-finish")
+	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
 )
 
 // findModel returns the device model assertion.

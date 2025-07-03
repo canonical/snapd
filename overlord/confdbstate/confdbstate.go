@@ -46,8 +46,8 @@ var (
 )
 
 var (
-	setConfdbChangeKind = swfeats.RegChangeKind("set-confdb")
-	getConfdbChangeKind = swfeats.RegChangeKind("get-confdb")
+	setConfdbChangeKind = swfeats.RegisterChangeKind("set-confdb")
+	getConfdbChangeKind = swfeats.RegisterChangeKind("get-confdb")
 )
 
 // SetViaView uses the view to set the requests in the transaction's databag.

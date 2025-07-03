@@ -38,8 +38,8 @@ import (
 )
 
 var (
-	hotplugAddSlotChangeKind = swfeats.RegChangeKind("hotplug-add-slot-%s")
-	hotplugRemoveChangeKind  = swfeats.RegChangeKind("hotplug-remove-%s")
+	hotplugAddSlotChangeKind = swfeats.RegisterChangeKind("hotplug-add-slot-%s")
+	hotplugRemoveChangeKind  = swfeats.RegisterChangeKind("hotplug-remove-%s")
 )
 
 // deviceKey determines a key for given device and hotplug interface. Every interface may provide a custom HotplugDeviceKey method

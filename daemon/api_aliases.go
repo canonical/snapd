@@ -45,9 +45,9 @@ var (
 )
 
 var (
-	aliasChangeKind   = swfeats.RegChangeKind("alias")
-	unaliasChangeKind = swfeats.RegChangeKind("unalias")
-	preferChangeKind  = swfeats.RegChangeKind("prefer")
+	aliasChangeKind   = swfeats.RegisterChangeKind("alias")
+	unaliasChangeKind = swfeats.RegisterChangeKind("unalias")
+	preferChangeKind  = swfeats.RegisterChangeKind("prefer")
 )
 
 // aliasAction is an action performed on aliases

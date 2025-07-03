@@ -47,7 +47,7 @@ func (s *swfeatsSuite) TestAddChange(c *C) {
 	restore := swfeats.MockChangeKindRegistry(registry)
 	defer restore()
 
-	changeKind := swfeats.RegChangeKind("my-change")
+	changeKind := swfeats.RegisterChangeKind("my-change")
 	c.Assert(changeKind, Equals, "my-change")
 }
 
@@ -56,14 +56,14 @@ func (s *swfeatsSuite) TestKnownChangeKinds(c *C) {
 	restore := swfeats.MockChangeKindRegistry(registry)
 	defer restore()
 
-	myChange1 := swfeats.RegChangeKind("my-change1")
+	myChange1 := swfeats.RegisterChangeKind("my-change1")
 	c.Assert(myChange1, Equals, "my-change1")
 
 	// Add the same change again to check that it isn't added
 	// more than once
-	myChange1 = swfeats.RegChangeKind("my-change1")
+	myChange1 = swfeats.RegisterChangeKind("my-change1")
 	c.Assert(myChange1, Equals, "my-change1")
-	myChange2 := swfeats.RegChangeKind("my-change2")
+	myChange2 := swfeats.RegisterChangeKind("my-change2")
 	c.Assert(myChange2, Equals, "my-change2")
 	changeKinds := swfeats.KnownChangeKinds()
 	c.Assert(changeKinds, HasLen, 2)
@@ -76,8 +76,8 @@ func (s *swfeatsSuite) TestNewChangeTemplateKnown(c *C) {
 	restore := swfeats.MockChangeKindRegistry(registry)
 	defer restore()
 
-	changeKind := swfeats.RegChangeKind("my-change-%s")
-	changeKind2 := swfeats.RegChangeKind("my-change-%s")
+	changeKind := swfeats.RegisterChangeKind("my-change-%s")
+	changeKind2 := swfeats.RegisterChangeKind("my-change-%s")
 	c.Assert(changeKind, Equals, changeKind2)
 	kinds := swfeats.KnownChangeKinds()
 	// Without possible values added, a templated change will generate
@@ -99,7 +99,7 @@ func (s *swfeatsSuite) TestAddEnsure(c *C) {
 	defer restore()
 
 	c.Assert(swfeats.KnownEnsures(), HasLen, 0)
-	swfeats.RegEnsure("MyManager", "myFunction")
+	swfeats.RegisterEnsure("MyManager", "myFunction")
 	knownEnsures := swfeats.KnownEnsures()
 	c.Assert(knownEnsures, HasLen, 1)
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction"})
@@ -110,10 +110,10 @@ func (s *swfeatsSuite) TestDuplicateAdd(c *C) {
 	restore := swfeats.MockEnsureRegistry(registry)
 	defer restore()
 
-	swfeats.RegEnsure("MyManager", "myFunction1")
-	swfeats.RegEnsure("MyManager", "myFunction1")
-	swfeats.RegEnsure("MyManager", "myFunction2")
-	swfeats.RegEnsure("MyManager", "myFunction2")
+	swfeats.RegisterEnsure("MyManager", "myFunction1")
+	swfeats.RegisterEnsure("MyManager", "myFunction1")
+	swfeats.RegisterEnsure("MyManager", "myFunction2")
+	swfeats.RegisterEnsure("MyManager", "myFunction2")
 	knownEnsures := swfeats.KnownEnsures()
 	c.Assert(knownEnsures, HasLen, 2)
 	c.Assert(knownEnsures, testutil.Contains, swfeats.EnsureEntry{Manager: "MyManager", Function: "myFunction1"})

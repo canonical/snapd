@@ -49,8 +49,8 @@ import (
 )
 
 var (
-	installComponentChangeKind = swfeats.RegChangeKind("install-component")
-	trySnapChangeKind          = swfeats.RegChangeKind("try-snap")
+	installComponentChangeKind = swfeats.RegisterChangeKind("install-component")
+	trySnapChangeKind          = swfeats.RegisterChangeKind("try-snap")
 )
 
 // Form is a multipart form that holds file and non-file parts

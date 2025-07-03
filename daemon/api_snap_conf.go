@@ -45,7 +45,7 @@ var (
 	}
 )
 
-var configureSnapChangeKind = swfeats.RegChangeKind("configure-snap")
+var configureSnapChangeKind = swfeats.RegisterChangeKind("configure-snap")
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)

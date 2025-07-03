@@ -46,7 +46,7 @@ var (
 )
 
 func init() {
-	swfeats.RegEnsure("SnapManager", "catalogRefresh.Ensure")
+	swfeats.RegisterEnsure("SnapManager", "catalogRefresh.Ensure")
 }
 
 type catalogRefresh struct {

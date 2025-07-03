@@ -40,7 +40,7 @@ import (
 var refreshHintsDelay = time.Duration(24 * time.Hour)
 
 func init() {
-	swfeats.RegEnsure("SnapManager", "refreshHints.Ensure")
+	swfeats.RegisterEnsure("SnapManager", "refreshHints.Ensure")
 }
 
 // refreshHints will ensure that we get regular data about refreshes

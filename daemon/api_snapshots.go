@@ -64,9 +64,9 @@ var (
 )
 
 var (
-	checkSnapshotChangeKind   = swfeats.RegChangeKind("check-snapshot")
-	restoreSnapshotChangeKind = swfeats.RegChangeKind("restore-snapshot")
-	forgetSnapshotChangeKind  = swfeats.RegChangeKind("forget-snapshot")
+	checkSnapshotChangeKind   = swfeats.RegisterChangeKind("check-snapshot")
+	restoreSnapshotChangeKind = swfeats.RegisterChangeKind("restore-snapshot")
+	forgetSnapshotChangeKind  = swfeats.RegisterChangeKind("forget-snapshot")
 )
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {

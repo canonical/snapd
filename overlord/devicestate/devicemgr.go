@@ -76,26 +76,26 @@ var (
 )
 
 var (
-	becomeOperationalChangeKind = swfeats.RegChangeKind("become-operational")
-	seedChangeKind              = swfeats.RegChangeKind("seed")
-	installSystemChangeKind     = swfeats.RegChangeKind("install-system")
-	factoryResetChangeKind      = swfeats.RegChangeKind("factory-reset")
+	becomeOperationalChangeKind = swfeats.RegisterChangeKind("become-operational")
+	seedChangeKind              = swfeats.RegisterChangeKind("seed")
+	installSystemChangeKind     = swfeats.RegisterChangeKind("install-system")
+	factoryResetChangeKind      = swfeats.RegisterChangeKind("factory-reset")
 )
 
 func init() {
-	swfeats.RegEnsure("DeviceManager", "ensureOperational")
-	swfeats.RegEnsure("DeviceManager", "ensureSeeded")
-	swfeats.RegEnsure("DeviceManager", "ensureAutoImportAssertions")
-	swfeats.RegEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
-	swfeats.RegEnsure("DeviceManager", "ensureBootOk")
-	swfeats.RegEnsure("DeviceManager", "ensureCloudInitRestricted")
-	swfeats.RegEnsure("DeviceManager", "ensureInstalled")
-	swfeats.RegEnsure("DeviceManager", "ensureFactoryReset")
-	swfeats.RegEnsure("DeviceManager", "ensureSeedInConfig")
-	swfeats.RegEnsure("DeviceManager", "ensureSeedInConfig")
-	swfeats.RegEnsure("DeviceManager", "ensureTriedRecoverySystem")
-	swfeats.RegEnsure("DeviceManager", "ensurePostFactoryReset")
-	swfeats.RegEnsure("DeviceManager", "ensureExpiredUsersRemoved")
+	swfeats.RegisterEnsure("DeviceManager", "ensureOperational")
+	swfeats.RegisterEnsure("DeviceManager", "ensureSeeded")
+	swfeats.RegisterEnsure("DeviceManager", "ensureAutoImportAssertions")
+	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureBootOk")
+	swfeats.RegisterEnsure("DeviceManager", "ensureCloudInitRestricted")
+	swfeats.RegisterEnsure("DeviceManager", "ensureInstalled")
+	swfeats.RegisterEnsure("DeviceManager", "ensureFactoryReset")
+	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfig")
+	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfig")
+	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystem")
+	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
+	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
 }
 
 // EarlyConfig is a hook set by configstate that can process early configuration

@@ -42,7 +42,7 @@ const (
 	coreOptionKernelDangerousCmdlineAppend = "core." + optionKernelDangerousCmdlineAppend
 )
 
-var applyCmdlineChangeKind = swfeats.RegChangeKind("apply-cmdline-append")
+var applyCmdlineChangeKind = swfeats.RegisterChangeKind("apply-cmdline-append")
 
 func init() {
 	supportedConfigurations[coreOptionKernelCmdlineAppend] = true

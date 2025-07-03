@@ -41,7 +41,7 @@ var restartRequest = restart.Request
 var servicestateControl = servicestate.Control
 var serviceStartChangeTimeout = time.Minute
 
-var serviceControlChangeKind = swfeats.RegChangeKind("service-control")
+var serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 
 func startHandlers(st *state.State, handlers []*snap.AppInfo) error {
 	var affectedSnaps []string
