@@ -96,6 +96,12 @@ func (c *cmdScanDisk) Execute([]string) error {
 type Partition struct {
 	Name string
 	UUID string
+
+	// FilesystemLabel is the label of the filesystem of the
+	// partition. On MBR schemas, partitions do not have a name,
+	// instead we probe for the label of the filesystem. So this
+	// will only be set if it's a non-GPT.
+	FilesystemLabel string
 }
 
 func isGpt(probe blkid.AbstractBlkidProbe) bool {
@@ -106,7 +112,34 @@ func isGpt(probe blkid.AbstractBlkidProbe) bool {
 	return pttype == "gpt"
 }
 
-func probePartitions(node string) ([]Partition, error) {
+// probeFilesystem probes filesystem information in leiu of when
+// we cannot retrieve enough information from the partition table.
+// <start> and <size> must be byte offsets, not sector counts.
+func probeFilesystem(node string, start, size int64) (Partition, error) {
+	var p Partition
+
+	probe, err := blkid.NewProbeFromRange(node, start, size)
+	if err != nil {
+		return p, err
+	}
+	defer probe.Close()
+
+	probe.EnableSuperblocks(true)
+	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL)
+
+	if err := probe.DoSafeprobe(); err != nil {
+		return p, err
+	}
+
+	val, err := probe.LookupValue("LABEL")
+	if err != nil {
+		return p, err
+	}
+	p.FilesystemLabel = val
+	return p, nil
+}
+
+func probeDisk(node string) ([]Partition, error) {
 	probe, err := blkid.NewProbeFromFilename(node)
 	if err != nil {
 		return nil, err
@@ -115,26 +148,38 @@ func probePartitions(node string) ([]Partition, error) {
 
 	probe.EnablePartitions(true)
 	probe.SetPartitionsFlags(blkid.BLKID_PARTS_ENTRY_DETAILS)
-	probe.EnableSuperblocks(true)
 
 	if err := probe.DoSafeprobe(); err != nil {
 		return nil, err
 	}
 
-	if !isGpt(probe) {
-		return nil, nil
-	}
-
+	gpt := isGpt(probe)
 	partitions, err := probe.GetPartitions()
 	if err != nil {
 		return nil, err
 	}
 
+	sectorSize, err := probe.GetSectorSize()
+	if sectorSize == 0 && err != nil {
+		return nil, err
+	}
+
 	ret := make([]Partition, 0)
+	ss64 := int64(sectorSize)
 	for _, partition := range partitions.GetPartitions() {
-		label := partition.GetName()
-		uuid := partition.GetUUID()
-		ret = append(ret, Partition{label, uuid})
+		if gpt {
+			ret = append(ret, Partition{
+				Name: partition.GetName(),
+				UUID: partition.GetUUID(),
+			})
+		} else {
+			// For MBR we have to probe the filesystem for details
+			p, err := probeFilesystem(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
+			if err != nil {
+				return ret, err
+			}
+			ret = append(ret, p)
+		}
 	}
 
 	return ret, nil
@@ -155,10 +200,11 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
-	partitions, err := probePartitions(node)
+	partitions, err := probeDisk(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
+
 	/*
 	 * If LoaderDevicePartUUID was not set, it is probably because
 	 * we did not boot with UEFI. In that case we try to detect
@@ -223,7 +269,7 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 	}
 
 	for _, part := range partitions {
-		if part.Name == fallbackPartition {
+		if part.Name == fallbackPartition || part.FilesystemLabel == fallbackPartition {
 			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 			return nil
 		}
@@ -261,7 +307,7 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	partitions, err := probePartitions(node)
+	partitions, err := probeDisk(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}

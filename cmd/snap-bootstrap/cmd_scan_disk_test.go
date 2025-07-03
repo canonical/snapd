@@ -38,9 +38,10 @@ import (
 type scanDiskSuite struct {
 	testutil.BaseTest
 
-	probeMap    map[string]*blkid.FakeBlkidProbe
-	cmdlineFile string
-	env         map[string]string
+	diskProbeMap map[string]*blkid.FakeBlkidProbe
+	partProbeMap map[int64]*blkid.FakeBlkidProbe
+	cmdlineFile  string
+	env          map[string]string
 }
 
 var _ = Suite(&scanDiskSuite{})
@@ -50,14 +51,16 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 
-	s.probeMap = make(map[string]*blkid.FakeBlkidProbe)
-	cleanupBlkid := blkid.MockBlkidMap(s.probeMap)
-	s.AddCleanup(cleanupBlkid)
+	s.diskProbeMap = make(map[string]*blkid.FakeBlkidProbe)
+	s.partProbeMap = make(map[int64]*blkid.FakeBlkidProbe)
+
+	s.AddCleanup(blkid.MockBlkidMap(s.diskProbeMap))
+	s.AddCleanup(blkid.MockBlkidPartitionMap(s.partProbeMap))
 
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
 	disk_probe := blkid.BuildFakeProbe(disk_values)
-	for _, partition := range []struct {
+	for i, partition := range []struct {
 		node  string
 		label string
 		uuid  string
@@ -67,12 +70,9 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 		{"/dev/foop3", "ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533"},
 		{"/dev/foop4", "ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a"},
 	} {
-		values := make(map[string]string)
-		values["PART_ENTRY_UUID"] = partition.uuid
-		s.probeMap[partition.node] = blkid.BuildFakeProbe(values)
-		disk_probe.AddPartition(partition.label, partition.uuid)
+		s.partProbeMap[int64(i)] = disk_probe.AddPartitionProbe(partition.label, partition.uuid, int64(i))
 	}
-	s.probeMap["/dev/foo"] = disk_probe
+	s.diskProbeMap["/dev/foo"] = disk_probe
 
 	s.cmdlineFile = filepath.Join(c.MkDir(), "proc-cmdline")
 	err := os.WriteFile(s.cmdlineFile, []byte("snapd_recovery_mode=run"), 0644)
@@ -135,13 +135,13 @@ func (s *scanDiskSuite) TestDetectBootDiskCVM(c *C) {
 	s.env["DEVNAME"] = "/dev/foo"
 	s.env["DEVTYPE"] = "disk"
 
-	s.probeMap = make(map[string]*blkid.FakeBlkidProbe)
-	defer blkid.MockBlkidMap(s.probeMap)()
+	s.diskProbeMap = make(map[string]*blkid.FakeBlkidProbe)
+	defer blkid.MockBlkidMap(s.diskProbeMap)()
 
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
 	disk_probe := blkid.BuildFakeProbe(disk_values)
-	for _, partition := range []struct {
+	for i, partition := range []struct {
 		node  string
 		label string
 		uuid  string
@@ -149,12 +149,9 @@ func (s *scanDiskSuite) TestDetectBootDiskCVM(c *C) {
 		{"/dev/foop1", "SEED", "6ae5a792-912e-43c9-ac92-e36723bbda12"},
 		{"/dev/foop2", "BOOT", "29261148-b8ba-4335-b934-417ed71e9e91"},
 	} {
-		values := make(map[string]string)
-		values["PART_ENTRY_UUID"] = partition.uuid
-		s.probeMap[partition.node] = blkid.BuildFakeProbe(values)
-		disk_probe.AddPartition(partition.label, partition.uuid)
+		s.partProbeMap[int64(i)] = disk_probe.AddPartitionProbe(partition.label, partition.uuid, int64(i))
 	}
-	s.probeMap["/dev/foo"] = disk_probe
+	s.diskProbeMap["/dev/foo"] = disk_probe
 
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	c.Assert(os.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=cloudimg-rootfs"), 0644), IsNil)
@@ -184,11 +181,36 @@ func (s *scanDiskSuite) TestDetectBootDiskNotUEFIBoot(c *C) {
 	c.Assert(len(lines), Equals, 0)
 }
 
-func (s *scanDiskSuite) TestDetectBootDiskFallback(c *C) {
+func (s *scanDiskSuite) TestDetectBootDiskFallbackGPT(c *C) {
 	main.MockPartitionUUIDForBootedKernelDisk("")
 
 	s.env["DEVNAME"] = "/dev/foo"
 	s.env["DEVTYPE"] = "disk"
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, true)
+	c.Assert(len(lines), Equals, 1)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskFallbackMBR(c *C) {
+	main.MockPartitionUUIDForBootedKernelDisk("")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	// default is setup to be PTTYPE=gpt, remake as MBR
+	disk_values := make(map[string]string)
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	s.partProbeMap[0] = disk_probe.AddPartitionProbe("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12", 0)
+	s.partProbeMap[1] = disk_probe.AddPartitionProbe("ubuntu-boot", "29261148-b8ba-4335-b934-417ed71e9e91", 1)
+	s.partProbeMap[2] = disk_probe.AddPartitionProbe("ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533", 2)
+	s.partProbeMap[3] = disk_probe.AddPartitionProbe("ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a", 3)
+	s.diskProbeMap["/dev/foo"] = disk_probe
 
 	output := newBuffer()
 	err := main.ScanDisk(output.File())
@@ -208,11 +230,11 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
 	disk_probe := blkid.BuildFakeProbe(disk_values)
-	disk_probe.AddPartition("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12")
-	s.probeMap["/dev/foo"] = disk_probe
-	delete(s.probeMap, "/dev/foop2")
-	delete(s.probeMap, "/dev/foop3")
-	delete(s.probeMap, "/dev/foop4")
+	s.partProbeMap[0] = disk_probe.AddPartitionProbe("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12", 0)
+	s.diskProbeMap["/dev/foo"] = disk_probe
+	delete(s.partProbeMap, 1)
+	delete(s.partProbeMap, 2)
+	delete(s.partProbeMap, 3)
 
 	output := newBuffer()
 	err := main.ScanDisk(output.File())
@@ -231,11 +253,11 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingBoot(c *C) {
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
 	disk_probe := blkid.BuildFakeProbe(disk_values)
-	disk_probe.AddPartition("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12")
-	disk_probe.AddPartition("ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533")
-	disk_probe.AddPartition("ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a")
-	s.probeMap["/dev/foo"] = disk_probe
-	delete(s.probeMap, "/dev/foop2")
+	s.partProbeMap[0] = disk_probe.AddPartitionProbe("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12", 0)
+	s.partProbeMap[2] = disk_probe.AddPartitionProbe("ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533", 2)
+	s.partProbeMap[3] = disk_probe.AddPartitionProbe("ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a", 3)
+	s.diskProbeMap["/dev/foo"] = disk_probe
+	delete(s.partProbeMap, 1)
 
 	output := newBuffer()
 	err := main.ScanDisk(output.File())
@@ -254,11 +276,12 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMissingSeedRecover(c *C) {
 	disk_values := make(map[string]string)
 	disk_values["PTTYPE"] = "gpt"
 	disk_probe := blkid.BuildFakeProbe(disk_values)
-	disk_probe.AddPartition("ubuntu-boot", "29261148-b8ba-4335-b934-417ed71e9e91")
-	disk_probe.AddPartition("ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533")
-	disk_probe.AddPartition("ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a")
-	s.probeMap["/dev/foo"] = disk_probe
-	delete(s.probeMap, "/dev/foop1")
+	s.partProbeMap[1] = disk_probe.AddPartitionProbe("ubuntu-boot", "29261148-b8ba-4335-b934-417ed71e9e91", 1)
+	s.partProbeMap[2] = disk_probe.AddPartitionProbe("ubuntu-data-enc", "c01a272d-fc72-40de-92fb-242c2da82533", 2)
+	s.partProbeMap[3] = disk_probe.AddPartitionProbe("ubuntu-save-enc", "050ee326-ab58-4eb4-ba7d-13694b2d0c8a", 3)
+
+	s.diskProbeMap["/dev/foo"] = disk_probe
+	delete(s.partProbeMap, 0)
 
 	output := newBuffer()
 	err := main.ScanDisk(output.File())

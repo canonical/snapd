@@ -21,21 +21,37 @@ package blkid
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type Constructor func(string) (AbstractBlkidProbe, error)
 
-func MockBlkid(constr Constructor) func() {
-	old := NewProbeFromFilename
+func MockBlkidProbeFromFilename(constr Constructor) func() {
+	r := testutil.Backup(&NewProbeFromFilename)
 	NewProbeFromFilename = constr
-	return func() {
-		NewProbeFromFilename = old
-	}
+	return r
 }
 
 func MockBlkidMap(probeMap map[string]*FakeBlkidProbe) func() {
-	return MockBlkid(func(name string) (AbstractBlkidProbe, error) {
+	return MockBlkidProbeFromFilename(func(name string) (AbstractBlkidProbe, error) {
 		value, ok := probeMap[name]
+		if !ok {
+			return nil, fmt.Errorf("not found")
+		}
+		return value, nil
+	})
+}
+
+func MockBlkidProbeFromRange(f func(node string, start, size int64) (AbstractBlkidProbe, error)) func() {
+	r := testutil.Backup(&NewProbeFromRange)
+	NewProbeFromRange = f
+	return r
+}
+
+func MockBlkidPartitionMap(probeMap map[int64]*FakeBlkidProbe) func() {
+	return MockBlkidProbeFromRange(func(node string, start, size int64) (AbstractBlkidProbe, error) {
+		value, ok := probeMap[start]
 		if !ok {
 			return nil, fmt.Errorf("not found")
 		}
@@ -47,13 +63,19 @@ func BuildFakeProbe(values map[string]string) *FakeBlkidProbe {
 	return &FakeBlkidProbe{values, &FakeBlkidPartlist{}}
 }
 
-func (p *FakeBlkidProbe) AddPartition(name, uuid string) {
-	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid})
+func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, start int64) *FakeBlkidProbe {
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid, start})
+
+	partition_values := make(map[string]string)
+	partition_values["LABEL"] = name
+	partition_values["UUID"] = uuid
+	return BuildFakeProbe(partition_values)
 }
 
 type FakeBlkidPartition struct {
-	name string
-	uuid string
+	name  string
+	uuid  string
+	start int64
 }
 
 type FakeBlkidPartlist struct {
@@ -79,10 +101,13 @@ func (p *FakeBlkidProbe) Close() {
 func (p *FakeBlkidProbe) EnablePartitions(value bool) {
 }
 
+func (p *FakeBlkidProbe) SetPartitionsFlags(flags int) {
+}
+
 func (p *FakeBlkidProbe) EnableSuperblocks(value bool) {
 }
 
-func (p *FakeBlkidProbe) SetPartitionsFlags(flags int) {
+func (p *FakeBlkidProbe) SetSuperblockFlags(flags int) {
 }
 
 func (p *FakeBlkidProbe) DoSafeprobe() error {
@@ -91,6 +116,11 @@ func (p *FakeBlkidProbe) DoSafeprobe() error {
 
 func (p *FakeBlkidProbe) GetPartitions() (AbstractBlkidPartlist, error) {
 	return p.partlist, nil
+}
+
+func (p *FakeBlkidProbe) GetSectorSize() (uint, error) {
+	// Simplify for testing
+	return 1, nil
 }
 
 func (p *FakeBlkidPartlist) GetPartitions() []AbstractBlkidPartition {
@@ -107,4 +137,12 @@ func (p *FakeBlkidPartition) GetName() string {
 
 func (p *FakeBlkidPartition) GetUUID() string {
 	return p.uuid
+}
+
+func (p *FakeBlkidPartition) GetStart() int64 {
+	return p.start
+}
+
+func (p *FakeBlkidPartition) GetSize() int64 {
+	return 0
 }
