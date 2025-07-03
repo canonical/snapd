@@ -23,7 +23,8 @@ prepare: |
       snap alias test-snapd-curl.curl curl
   fi    
   curl -sL "$IMAGE_URL" -o hello-world.tar
-  docker load -i hello-world.tar
+  # retry until docker is ready lo load images
+  retry -n 30 --wait 1 docker load -i hello-world.tar  
 
 debug: |
   "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd

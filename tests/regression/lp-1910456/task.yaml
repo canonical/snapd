@@ -144,8 +144,8 @@ execute: |
         snap install --devmode --edge test-snapd-curl
         snap alias test-snapd-curl.curl curl
     fi    
-    curl -sL "$IMAGE_URL" -o ubuntu-24.04.tar    
-    docker load -i ubuntu-24.04.tar
+    curl -sL "$IMAGE_URL" -o ubuntu-24.04.tar
+    retry -n 30 --wait 1 docker load -i ubuntu-24.04.tar
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 
