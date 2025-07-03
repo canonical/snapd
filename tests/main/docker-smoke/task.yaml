@@ -12,9 +12,6 @@ environment:
   CHANNEL: "latest/stable"
   IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/hello-world.tar
 
-debug: |
-  "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
-
 prepare: |
   if ! snap install --channel="$CHANNEL" docker; then
       echo "failed to install the docker snap!"
@@ -23,6 +20,9 @@ prepare: |
   wget --quiet "$IMAGE_URL" -O hello-world.tar
   "$TESTSTOOLS"/docker-state setup-local-registry
   "$TESTSTOOLS"/docker-state add-local-image hello-world hello-world.tar
+
+debug: |
+  "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
 
 execute: |
   if [ "$SPREAD_REBOOT" = 0 ]; then
