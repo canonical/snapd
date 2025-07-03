@@ -183,7 +183,9 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 
 func (s *promptingSuite) TestValidateExpiration(c *C) {
 	var unsetExpiration time.Time
+	var unsetSession prompting.IDType
 	currTime := time.Now()
+	currSession := prompting.IDType(0x12345)
 	negativeExpiration := currTime.Add(-5 * time.Second)
 	validExpiration := currTime.Add(10 * time.Minute)
 
@@ -191,19 +193,39 @@ func (s *promptingSuite) TestValidateExpiration(c *C) {
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
 	} {
-		err := lifespan.ValidateExpiration(unsetExpiration)
+		err := lifespan.ValidateExpiration(unsetExpiration, unsetSession)
 		c.Check(err, IsNil)
 		for _, exp := range []time.Time{negativeExpiration, validExpiration} {
-			err = lifespan.ValidateExpiration(exp)
+			for _, session := range []prompting.IDType{unsetSession, currSession} {
+				err = lifespan.ValidateExpiration(exp, session)
+				c.Check(err, ErrorMatches, `invalid expiration: cannot have specified expiration when lifespan is.*`)
+			}
+		}
+		err = lifespan.ValidateExpiration(unsetExpiration, currSession)
+		c.Check(err, ErrorMatches, `invalid expiration: cannot have specified session ID when lifespan is.*`)
+	}
+
+	for _, exp := range []time.Time{negativeExpiration, validExpiration} {
+		err := prompting.LifespanTimespan.ValidateExpiration(exp, unsetSession)
+		c.Check(err, IsNil)
+	}
+	for _, session := range []prompting.IDType{unsetSession, currSession} {
+		err := prompting.LifespanTimespan.ValidateExpiration(unsetExpiration, session)
+		c.Check(err, ErrorMatches, `invalid expiration: cannot have unspecified expiration when lifespan is.*`)
+	}
+	err := prompting.LifespanTimespan.ValidateExpiration(validExpiration, currSession)
+	c.Check(err, ErrorMatches, `invalid expiration: cannot have specified session ID when lifespan is.*`)
+
+	err = prompting.LifespanSession.ValidateExpiration(unsetExpiration, currSession)
+	c.Check(err, IsNil)
+	err = prompting.LifespanSession.ValidateExpiration(unsetExpiration, unsetSession)
+	c.Check(err, ErrorMatches, `invalid expiration: cannot have unspecified session ID when lifespan is.*`)
+	for _, exp := range []time.Time{negativeExpiration, validExpiration} {
+		for _, session := range []prompting.IDType{unsetSession, currSession} {
+			err = prompting.LifespanSession.ValidateExpiration(exp, session)
 			c.Check(err, ErrorMatches, `invalid expiration: cannot have specified expiration when lifespan is.*`)
 		}
 	}
-
-	err := prompting.LifespanTimespan.ValidateExpiration(unsetExpiration)
-	c.Check(err, ErrorMatches, `invalid expiration: cannot have unspecified expiration when lifespan is.*`)
-
-	err = prompting.LifespanTimespan.ValidateExpiration(validExpiration)
-	c.Check(err, IsNil)
 }
 
 func (s *promptingSuite) TestParseDuration(c *C) {

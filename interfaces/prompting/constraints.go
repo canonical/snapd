@@ -380,6 +380,8 @@ type PermissionEntry struct {
 // for a rule (i.e. not LifespanSingle), and that it has an appropriate
 // duration for that lifespan. If the lifespan is LifespanTimespan, then the
 // expiration is computed as the entry's duration after the given current time.
+// If the lifespan is LifepanSession, then the given current session ID must be
+// non-zero, and is saved in the RulePermissionEntry.
 func (e *PermissionEntry) toRulePermissionEntry(current At) (*RulePermissionEntry, error) {
 	if _, err := e.Outcome.AsBool(); err != nil {
 		return nil, err
@@ -392,10 +394,19 @@ func (e *PermissionEntry) toRulePermissionEntry(current At) (*RulePermissionEntr
 	if err != nil {
 		return nil, err
 	}
+	var sessionIDToUse IDType
+	if e.Lifespan == LifespanSession {
+		// SessionID should be 0 unless the lifespan is LifespanSession
+		if current.SessionID == IDType(0) {
+			return nil, prompting_errors.ErrNewSessionRuleNoSession
+		}
+		sessionIDToUse = current.SessionID
+	}
 	rulePermissionEntry := &RulePermissionEntry{
 		Outcome:    e.Outcome,
 		Lifespan:   e.Lifespan,
 		Expiration: expiration,
+		SessionID:  sessionIDToUse,
 	}
 	return rulePermissionEntry, nil
 }
@@ -409,27 +420,34 @@ func (e *PermissionEntry) toRulePermissionEntry(current At) (*RulePermissionEntr
 // rule.
 //
 // If the entry has a lifespan of LifespanTimespan, the expiration time should
-// be non-zero and stores the time at which the entry expires.
+// be non-zero and stores the time at which the entry expires. If the entry has
+// a lifespan of LifespanSession, then the session ID should be non-zero and
+// stores the user session ID associated with the rule at the time it was
+// created.
 type RulePermissionEntry struct {
 	Outcome    OutcomeType  `json:"outcome"`
 	Lifespan   LifespanType `json:"lifespan"`
 	Expiration time.Time    `json:"expiration,omitzero"`
+	SessionID  IDType       `json:"session-id,omitzero"`
 }
 
 // Expired returns true if the receiving permission entry has expired and
 // should no longer be considered when matching requests.
 //
-// This is the case if the permission has a lifespan of timespan and the
-// current time is after its expiration time.
+// This is the case if the permission has a lifespan of LifespanTimespan and
+// the current time is after its expiration time, or the permission has a
+// lifespan of LifespanSession and the associated user session ID is not equal
+// to the current user session ID.
 func (e *RulePermissionEntry) Expired(current At) bool {
 	switch e.Lifespan {
 	case LifespanTimespan:
 		if !current.Time.Before(e.Expiration) {
 			return true
 		}
-		// TODO: add lifespan session
-		//case LifespanSession:
-		// TODO: return true if the user session has changed
+	case LifespanSession:
+		if e.SessionID != current.SessionID {
+			return true
+		}
 	}
 	return false
 }
@@ -445,9 +463,10 @@ func (e *RulePermissionEntry) validate() error {
 		// We don't allow rules with lifespan "single"
 		return prompting_errors.NewRuleLifespanSingleError(SupportedRuleLifespans)
 	}
-	if err := e.Lifespan.ValidateExpiration(e.Expiration); err != nil {
+	if err := e.Lifespan.ValidateExpiration(e.Expiration, e.SessionID); err != nil {
 		// Should never error due to an API request, since rules are always
-		// added via the API using duration, rather than expiration.
+		// added via the API using duration, rather than expiration, and the
+		// user session should be active at the time the API request is made.
 		// Error may occur when validating a rule loaded from disk.
 		// We don't check whether the entry has expired as part of validation.
 		return err
@@ -458,10 +477,12 @@ func (e *RulePermissionEntry) validate() error {
 // Supersedes returns true if the receiver has a lifespan which supersedes that
 // of given other entry.
 //
-// LifespanForever supersedes all other lifespans. LifespanTimespan supersedes
-// LifespanSingle. If the entries are both LifespanTimespan, then whichever
-// entry has a later expiration timestamp supersedes the other entry.
-func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry) bool {
+// LifespanForever supersedes other lifespans. LifespanSession, if the entry's
+// session ID is equal to the current session ID, supersedes lifespans other
+// than LifespanForever. LifespanTimespan supersedes LifespanSingle. If the
+// entries are both LifespanTimespan, then whichever entry has a later
+// expiration timestamp supersedes the other entry.
+func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry, currSession IDType) bool {
 	// Nothing supersedes LifespanForever
 	if other.Lifespan == LifespanForever {
 		return false
@@ -470,7 +491,19 @@ func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry) bool {
 	if e.Lifespan == LifespanForever {
 		return true
 	}
-	// Neither lifespan is LifespanForever
+	// Nothing except LifespanForever supersedes LifespanSession with active session
+	if other.Lifespan == LifespanSession && other.SessionID == currSession {
+		return false
+	}
+	// LifespanSession with expired session supersedes nothing, but with active
+	// session supersedes everything remaining
+	if e.Lifespan == LifespanSession {
+		if e.SessionID != currSession {
+			return false
+		}
+		return true
+	}
+	// Neither lifespan is LifespanForever or LifespanSession
 	if other.Lifespan == LifespanTimespan {
 		if e.Lifespan == LifespanSingle {
 			return false
