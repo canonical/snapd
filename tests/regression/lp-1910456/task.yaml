@@ -140,9 +140,12 @@ execute: |
     snap install --channel="$CHANNEL" docker
     tests.cleanup defer snap remove --purge docker
 
-    wget --quiet "$IMAGE_URL" -O ubuntu-24.04.tar
-    "$TESTSTOOLS"/docker-state setup-local-registry
-    "$TESTSTOOLS"/docker-state add-local-image ubuntu-24.04 ubuntu-24.04.tar
+    if ! command -v curl; then
+        snap install --devmode --edge test-snapd-curl
+        snap alias test-snapd-curl.curl curl
+    fi    
+    curl -sL "$IMAGE_URL" -o ubuntu-24.04.tar    
+    docker load -i ubuntu-24.04.tar
 
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 

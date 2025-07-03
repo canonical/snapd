@@ -17,9 +17,13 @@ prepare: |
       echo "failed to install the docker snap!"
       exit 1
   fi
-  wget --quiet "$IMAGE_URL" -O hello-world.tar
-  "$TESTSTOOLS"/docker-state setup-local-registry
-  "$TESTSTOOLS"/docker-state add-local-image hello-world hello-world.tar
+
+  if ! command -v curl; then
+      snap install --devmode --edge test-snapd-curl
+      snap alias test-snapd-curl.curl curl
+  fi    
+  curl -sL "$IMAGE_URL" -o hello-world.tar
+  docker load -i hello-world.tar
 
 debug: |
   "$TESTSTOOLS"/journal-state get-log -u snap.docker.dockerd
