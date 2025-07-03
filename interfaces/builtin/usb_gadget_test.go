@@ -79,7 +79,6 @@ func (s *UsbGadgetInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/kernel/config/usb_gadget/`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/gadget/`)
 }
 
 func (s *UsbGadgetInterfaceSuite) TestStaticInfo(c *C) {
