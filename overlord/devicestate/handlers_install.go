@@ -1360,7 +1360,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 var (
 	secbootAddBootstrapKeyOnExistingDisk = secboot.AddBootstrapKeyOnExistingDisk
-	secbootRenameKeys                    = secboot.RenameKeys
+	secbootRenameKeysForFactoryReset     = secboot.RenameKeysForFactoryReset
 	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
 	secbootDeleteKeys                    = secboot.DeleteKeys
 	secbootDeleteOldKeys                 = secboot.DeleteOldKeys
@@ -1405,7 +1405,7 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 	}
 	// Temporarily rename keyslots across the factory reset to
 	// allow to create the new ones.
-	if err := secbootRenameKeys(saveNode, renames); err != nil {
+	if err := secbootRenameKeysForFactoryReset(saveNode, renames); err != nil {
 		return nil, fmt.Errorf("cannot rename existing keys: %w", err)
 	}
 

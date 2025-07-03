@@ -354,9 +354,7 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 // WARNING: this function is not always atomic. If cryptsetup is too
 // old, it will try to copy and delete keys instead. Please avoid
 // using this function in new code.
-//
-// XXX: s/RenameKeys/RenameContainerKeys
-func RenameKeys(node string, renames map[string]string) error {
+func RenameKeysForFactoryReset(node string, renames map[string]string) error {
 	targets := make(map[string]bool)
 
 	for _, renameTo := range renames {
