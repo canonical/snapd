@@ -138,11 +138,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
 			},
 			expiredRecoveryKeyID: true,
-			expectedDeletes: []string{
-				"/dev/disk/by-uuid/data:tmp-default-recovery",
-				"/dev/disk/by-uuid/save:tmp-default-recovery",
-			},
-			expectedErr: `recovery key has expired`,
+			expectedErr:          `recovery key has expired`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
@@ -150,37 +146,38 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
 			},
 			badRecoveryKeyID: true,
-			expectedDeletes: []string{
-				"/dev/disk/by-uuid/data:tmp-default-recovery",
-				"/dev/disk/by-uuid/save:tmp-default-recovery",
-			},
-			expectedErr: `cannot find recovery key with id "bad-id": no recovery key entry for key-id`,
+			expectedErr:      `cannot find recovery key with id "bad-id": no recovery key entry for key-id`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
-				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
-				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-3"},
 			},
-			badRecoveryKeyID: true,
-			errOn:            []string{"delete:/dev/disk/by-uuid/data:tmp-default-recovery"},
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-recovery-3",    // to trigger clean up
+				"delete:/dev/disk/by-uuid/data:tmp-default-recovery-2", // to test best effort deletion
+			},
 			// best effort deletion for clean up
-			expectedDeletes: []string{"/dev/disk/by-uuid/save:tmp-default-recovery"},
-			expectedErr:     `cannot find recovery key with id "bad-id": no recovery key entry for key-id`,
+			expectedDeletes: []string{"/dev/disk/by-uuid/data:tmp-default-recovery-1"},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-data", name: "tmp-default-recovery-3"\): add error on /dev/disk/by-uuid/data:tmp-default-recovery-3`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
 				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
 				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
 			},
-			errOn:        []string{"add:/dev/disk/by-uuid/save:tmp-default-recovery"},
-			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
-			expectedDeletes: []string{
-				"/dev/disk/by-uuid/data:tmp-default-recovery",
-				"/dev/disk/by-uuid/save:tmp-default-recovery",
-			},
-			expectedErr: `cannot add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
+			errOn:           []string{"add:/dev/disk/by-uuid/save:tmp-default-recovery"},
+			expectedAdds:    []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
+			expectedDeletes: []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
+			expectedErr:     `cannot add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
 		},
 	}
+
 	for i, tc := range tcs {
 		cmt := Commentf("tcs[%d] failed", i)
 
@@ -237,10 +234,10 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		}
 
 		sort.Strings(added)
-		c.Check(tc.expectedAdds, DeepEquals, added, cmt)
+		c.Check(added, DeepEquals, tc.expectedAdds, cmt)
 
 		sort.Strings(deleted)
-		c.Check(tc.expectedDeletes, DeepEquals, deleted, cmt)
+		c.Check(deleted, DeepEquals, tc.expectedDeletes, cmt)
 	}
 }
 

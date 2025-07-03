@@ -64,11 +64,15 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 	// IMPORTANT: this clean up must be declared as early as possible
 	// to account for real errors and potential re-runs (that will fail
 	// anyway as soon as the recovery key ID is reused).
+	var addedKeyslots []KeyslotRef
 	defer func() {
 		if err == nil {
 			return
 		}
-		for _, keyslotRef := range keyslotRefs {
+		// TODO:FDEM: a dedicated clean up for stray tmp key slots (recovery or not)
+		// is needed to account for left-over tmp key slot from a failed re-run for
+		// example.
+		for _, keyslotRef := range addedKeyslots {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
@@ -102,6 +106,8 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		if err := secbootAddContainerRecoveryKey(devicePath, ref.Name, rkeyInfo.Key); err != nil {
 			return fmt.Errorf("cannot add recovery key slot %s: %v", ref.String(), err)
 		}
+
+		addedKeyslots = append(addedKeyslots, ref)
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
 	t.SetStatus(state.DoneStatus)
