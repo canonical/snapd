@@ -136,6 +136,8 @@ func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	for _, keyslot := range currentKeyslots {
+		// TODO:FDEM: do not permit deleting the last key slot associated
+		// with a role that includes “recover” mode from any container.
 		if err := secbootDeleteContainerKey(keyslot.devPath, keyslot.Name); err != nil {
 			return fmt.Errorf("cannot remove key slot %s: %v", keyslot.Ref().String(), err)
 		}
@@ -143,7 +145,7 @@ func (m *FDEManager) doRemoveKeys(t *state.Task, tomb *tomb.Tomb) error {
 	// avoid re-runs in case of abrupt shutdown since all key slots are now removed.
 	t.SetStatus(state.DoneStatus)
 
-	// XXX: request reboot to acconut for the case where the unlock key
+	// XXX: request reboot to account for the case where the unlock key
 	// in the kernel keyring is one of the deleted key slots?
 	return nil
 }
