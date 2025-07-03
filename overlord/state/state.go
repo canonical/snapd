@@ -90,8 +90,18 @@ type State struct {
 	lastNoticeId int
 	// lastHandlerId is not serialized, it's only used during runtime
 	// for registering runtime callbacks
-	lastHandlerId       int
-	lastNoticeTimestamp time.Time
+	lastHandlerId int
+
+	// lastNoticeTimestamp is protected by a mutex, and is unique and
+	// monotonically increasing timestamp. It is still saved to disk for
+	// backwards compatibility, but getting a timestamp does not require
+	// holding state lock, so the it is only saved to disk if the caller or
+	// some subsequent operation holds the state lock for writing. As such, the
+	// lastNoticeTimestamp on disk should not be relied upon to be correct for
+	// any notice which is not stored in state. Notice backends outside of
+	// state should adjust this value during startup.
+	lastNoticeTimestampMu sync.Mutex
+	lastNoticeTimestamp   time.Time
 
 	backend Backend
 	data    customData
@@ -205,7 +215,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
 
-		LastNoticeTimestamp: s.lastNoticeTimestamp,
+		LastNoticeTimestamp: s.getLastNoticeTimestamp(),
 	})
 }
 
@@ -226,7 +236,17 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
-	s.lastNoticeTimestamp = unmarshalled.LastNoticeTimestamp
+	// Update the last notice timestamp if the one saved to disk is later.
+	// The timestamp on disk is only guaranteed to reflect the most recent
+	// timestamp of notices which are stored in state, since state lock was
+	// held for writing when adding those notices. Notices from backends
+	// outside state do not hold state lock while getting a timestamp from
+	// state, so it's possible snapd was terminated without later marshalling
+	// state to disk, causing the last notice timestamp on disk to be stale.
+	// Thus, other notice backends should update the last notice timestamp
+	// during startup to ensure it reflects the last timestamp across all
+	// notices in all backends.
+	s.HandleReportedLastNoticeTimestamp(unmarshalled.LastNoticeTimestamp)
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s

@@ -86,6 +86,48 @@ type Notice struct {
 	expireAfter time.Duration
 }
 
+// NewNotice returns a new notice with the given details.
+func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestamp time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) *Notice {
+	return &Notice{
+		id:            id,
+		userID:        userID,
+		noticeType:    nType,
+		key:           key,
+		firstOccurred: timestamp,
+		lastOccurred:  timestamp,
+		lastRepeated:  timestamp,
+		occurrences:   1,
+		lastData:      data,
+		repeatAfter:   repeatAfter,
+		expireAfter:   expireAfter,
+	}
+}
+
+// Reoccur updates the receiving notice to re-occur with the given timestamp
+// and data. Depending on its repeat after duration, the lastRepeated timestamp
+// may be updated. Returns whether the notice was repeated.
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (repeated bool) {
+	n.occurrences++
+	repeated = false
+	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
+		// Update last repeated time if repeat-after time has elapsed (or is zero)
+		// XXX: this is what was used previously, but it seems strange to look
+		// at the repeatAfter argument instead of n.repeatAfter when deciding if
+		// the lastRepeated timestamp should be updated for an existing notice.
+		// It seems like the saved n.repeatAfter should be used when deciding
+		// whether the current call should cause the notice to be repeated, and
+		// then the given repeatAfter argument should be stored as n.repeatAfter
+		// and used next time the notice is re-recorded. Otherwise, n.repeatAfter
+		// is never used, so what's the point of storing it in the notice?
+		n.lastRepeated = now
+		repeated = true
+	}
+	n.lastOccurred = now
+	n.lastData = data
+	n.repeatAfter = repeatAfter
+	return repeated
+}
+
 func (n *Notice) String() string {
 	userIDStr := "public"
 	if n.userID != nil {
@@ -224,6 +266,52 @@ func (t NoticeType) Valid() bool {
 	return false
 }
 
+// NextNoticeTimestamp computes a notice timestamp which is guaranteed to be
+// after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
+// the result and returns it.
+func (s *State) NextNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	now := timeNow().UTC()
+	// Ensure that two notices never have the same sent time.
+	//
+	// Since the Notices API receives an "after:" parameter with the
+	// date and time of the last received notice to filter all the
+	// previous notices and avoid duplicates, if two or more notices
+	// have the same date and time, only the first will be emitted,
+	// and the others will be silently discarded. This can happen in
+	// systems that don't guarantee a granularity of one nanosecond
+	// in their timers, which can happen in some not-so-old devices,
+	// where the HPET is used instead of internal high resolution
+	// timers, or in other architectures different from the X86_64.
+	if !now.After(s.lastNoticeTimestamp) {
+		now = s.lastNoticeTimestamp.Add(time.Nanosecond)
+	}
+	s.lastNoticeTimestamp = now
+	return s.lastNoticeTimestamp
+}
+
+// getLastNoticeTimestamp returns the current lastNoticeTimestamp.
+func (s *State) getLastNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	return s.lastNoticeTimestamp
+}
+
+// HandleReportedLastNoticeTimestamp updates lastNoticeTimestamp to the given
+// time if the given time is after the current lastNoticeTimestamp.
+//
+// This method should only be called during startup to ensure that the
+// lastNoticeTimestamp value is the last timestamp of all notices across all
+// notice backends.
+func (s *State) HandleReportedLastNoticeTimestamp(t time.Time) {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	if t.After(s.lastNoticeTimestamp) {
+		s.lastNoticeTimestamp = t
+	}
+}
+
 // AddNoticeOptions holds optional parameters for an AddNotice call.
 type AddNoticeOptions struct {
 	// Data is the optional key-value data for this occurrence.
@@ -252,24 +340,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 
 	now := options.Time
 	if now.IsZero() {
-		now = timeNow()
-		/**
-		 * Ensure that two notices never have the same sent time.
-		 *
-		 * Since the Notices API receives an "after:" parameter with the
-		 * date and time of the last received notice to filter all the
-		 * previous notices and avoid duplicates, if two or more notices
-		 * have the same date and time, only the first will be emitted,
-		 * and the others will be silently discarded. This can happen in
-		 * systems that don't guarantee a granularity of one nanosecond
-		 * in their timers, which can happen in some not-so-old devices,
-		 * where the HPET is used instead of internal high resolution
-		 * timers, or in other architectures different from the X86_64.
-		 */
-		if !now.After(s.lastNoticeTimestamp) {
-			now = s.lastNoticeTimestamp.Add(time.Nanosecond)
-		}
-		s.lastNoticeTimestamp = now
+		now = s.NextNoticeTimestamp()
 	}
 	now = now.UTC()
 	newOrRepeated := false
@@ -279,30 +350,13 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = &Notice{
-			id:            strconv.Itoa(s.lastNoticeId),
-			userID:        userID,
-			noticeType:    noticeType,
-			key:           key,
-			firstOccurred: now,
-			lastRepeated:  now,
-			expireAfter:   defaultNoticeExpireAfter,
-			occurrences:   1,
-		}
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice.occurrences++
-		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
-			// Update last repeated time if repeat-after time has elapsed (or is zero)
-			notice.lastRepeated = now
-			newOrRepeated = true
-		}
+		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
 	}
-	notice.lastOccurred = now
-	notice.lastData = options.Data
-	notice.repeatAfter = options.RepeatAfter
 
 	if newOrRepeated {
 		s.noticeCond.Broadcast()
@@ -348,6 +402,9 @@ type NoticeFilter struct {
 
 	// After, if set, includes only notices that were last repeated after this time.
 	After time.Time
+
+	// Before, if set, includes only notices that were last repeated before this time.
+	Before time.Time
 }
 
 // matches reports whether the notice n matches this filter
@@ -368,6 +425,19 @@ func (f *NoticeFilter) matches(n *Notice) bool {
 	if !f.After.IsZero() && !n.lastRepeated.After(f.After) {
 		return false
 	}
+	if !f.Before.IsZero() && !n.lastRepeated.Before(f.Before) {
+		// XXX: there's a chance for a notice which would otherwise be included
+		// to be omitted here, if it is repeated after the Before timestamp.
+		// For example, if a notice is first recorded between the After and
+		// Before timestamps, then we want it to be included, since it's a new
+		// notice within the requested timeframe, but if that notice is
+		// repeated after the Before timestamp, it will be omitted for being
+		// too new. We consider this to be acceptable: the newer notice can be
+		// retrieved by a future request, and potentially has more up-to-date
+		// data, so it supercedes the occurrence of the notice which is being
+		// omitted.
+		return false
+	}
 	return true
 }
 
@@ -378,6 +448,49 @@ func sliceContains[T comparable](haystack []T, needle T) bool {
 		}
 	}
 	return false
+}
+
+// futureNoticesPossible returns true if it is possible for future notices to
+// be recorded which match the filter, given that any new notices must have a
+// timestamp later than the given now timestamp.
+func (f *NoticeFilter) futureNoticesPossible(now time.Time) bool {
+	if f == nil {
+		return true
+	}
+	if f.Before.IsZero() {
+		return true
+	}
+	if f.Before.After(now) {
+		return true
+	}
+	return false
+}
+
+// DrainNotices finds all notices in the state that match the filter (if any),
+// removes them from state, and returns them, ordered by the last-repeated time.
+//
+// This should only be called by the notice manager in order to migrate notices
+// from state to another notice backend.
+func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
+	s.writing()
+
+	now := time.Now()
+	var toRemove []noticeKey
+	var notices []*Notice
+	for k, n := range s.notices {
+		if n.expired(now) || !filter.matches(n) {
+			continue
+		}
+		toRemove = append(toRemove, k)
+		notices = append(notices, n)
+	}
+	for _, k := range toRemove {
+		delete(s.notices, k)
+	}
+	sort.Slice(notices, func(i, j int) bool {
+		return notices[i].lastRepeated.Before(notices[j].lastRepeated)
+	})
+	return notices
 }
 
 // Notices returns the list of notices that match the filter (if any),
@@ -428,6 +541,8 @@ func (s *State) unflattenNotices(flat []*Notice) {
 		}
 		userID, hasUserID := n.UserID()
 		uniqueKey := noticeKey{hasUserID, userID, n.noticeType, n.key}
+		// TODO: migrate any notices for types which should no longer be stored
+		// in state to their appropriate backends, and don't include in state.
 		s.notices[uniqueKey] = n
 	}
 }
@@ -435,9 +550,10 @@ func (s *State) unflattenNotices(flat []*Notice) {
 // WaitNotices waits for notices that match the filter to exist or occur,
 // returning the list of matching notices ordered by the last-repeated time.
 //
-// It waits till there is at least one matching notice or the context is
-// cancelled. If there are existing notices that match the filter,
-// WaitNotices will return them immediately.
+// It waits till there is at least one matching notice, the context is
+// cancelled, or the timestamp of the before filter has passed (and is nonzero).
+// If there are existing notices that match the filter, WaitNotices will return
+// them immediately.
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
 	s.reading()
 
@@ -466,6 +582,16 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	defer stop()
 
 	for {
+		// Since the state lock is held for the duration of AddNotice, there
+		// can be no notices currently in-flight which have timestamps before
+		// now but have not yet been added to the notices map. Therefore, if
+		// the current time is after the Before filter, we know there can be no
+		// new notices which match the filter.
+		now := time.Now()
+		if !filter.futureNoticesPossible(now) {
+			return nil, nil
+		}
+
 		// Wait till a new notice occurs or a context is cancelled.
 		s.noticeCond.Wait()
 
