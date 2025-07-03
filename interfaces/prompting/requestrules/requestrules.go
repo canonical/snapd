@@ -244,10 +244,16 @@ func (rdb *RuleDB) load() (retErr error) {
 	// Use the same point in time for every rule
 	at := prompting.At{
 		Time: time.Now(),
+		// SessionID is set for each rule
 	}
+	sessionIDCache := make(userSessionIDCache)
 
 	var errInvalid error
 	for _, rule := range wrapped.Rules {
+		at.SessionID, err = sessionIDCache.getUserSessionID(rdb, rule.User)
+		if err != nil {
+			return err
+		}
 		expired, err := rule.validate(at)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
@@ -444,7 +450,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, at prompting.At, save bool) (added
 		// outcome, so preserve whichever entry has the greater lifespan.
 		// Since newPermissions[perm] already has the existing entry, only
 		// override it if the new rule has a greater lifespan.
-		if entry.Supersedes(existingEntry) {
+		if entry.Supersedes(existingEntry, at.SessionID) {
 			newPermissions[perm] = entry
 		}
 	}
@@ -916,6 +922,9 @@ func newUserSessionID() prompting.IDType {
 	return prompting.IDType(id)
 }
 
+// Allow readOrAssignUserSessionID to be mocked in tests.
+var readOrAssignUserSessionID = (*RuleDB).readOrAssignUserSessionID
+
 // readOrAssignUserSessionID returns the existing user session ID for the given
 // user, if an ID exists, otherwise generates a new ID and writes it as an
 // xattr on the root directory of the user session tmpfs, /run/user/$UID.
@@ -986,8 +995,13 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, prompting_errors.ErrRulesClosed
 	}
 
+	currSession, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return nil, err
+	}
 	at := prompting.At{
-		Time: time.Now(),
+		Time:      time.Now(),
+		SessionID: currSession,
 	}
 
 	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, at)
@@ -1039,8 +1053,13 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
 	allowedPerms = make([]string, 0, len(permissions))
 	outstandingPerms = make([]string, 0, len(permissions))
+	currSession, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return nil, false, nil, err
+	}
 	at := prompting.At{
-		Time: time.Now(),
+		Time:      time.Now(),
+		SessionID: currSession,
 	}
 	var errs []error
 	for _, perm := range permissions {
@@ -1061,6 +1080,7 @@ func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path
 	return allowedPerms, anyDenied, outstandingPerms, strutil.JoinErrors(errs...)
 }
 
+// Allow isPathPermAllowed to be mocked in tests.
 var isPathPermAllowed = (*RuleDB).isPathPermAllowed
 
 // isPathPermAllowed checks whether the given path with the given permission is
@@ -1137,8 +1157,17 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 	rules := make([]*Rule, 0)
 	at := prompting.At{
 		Time: time.Now(),
+		// SessionID is set for each rule
 	}
+	sessionIDCache := make(userSessionIDCache)
+	var err error
 	for _, rule := range rdb.rules {
+		at.SessionID, err = sessionIDCache.getUserSessionID(rdb, rule.User)
+		if err != nil {
+			// Something unexpected went wrong reading the user session ID.
+			// Treat the session ID as 0, and proceed.
+			at.SessionID = 0
+		}
 		if rule.expired(at) {
 			// XXX: it would be nice if we pruned expired permissions from a
 			// rule before including it in the rules list, if it's not expired.
@@ -1334,8 +1363,9 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 // to nil.
 //
 // Permission entries must be provided as complete units, containing both
-// outcome and lifespan (and duration, if lifespan is timespan). Since neither
-// outcome nor lifespan are omitempty, the unmarshaller enforces this for us.
+// outcome and lifespan (and duration or session ID, if lifespan is timespan or
+// session, respectively). Since neither outcome nor lifespan are omitempty,
+// the unmarshaller enforces this for us.
 //
 // Even if the given patch contents exactly match the existing rule contents,
 // the timestamp of the rule is updated to the current time. If there is any
@@ -1361,8 +1391,13 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	// support patching it? Currently, we don't include fully expired rules
 	// in the output of Rules(), should the same be done here?
 
+	currSession, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return nil, err
+	}
 	at := prompting.At{
-		Time: time.Now(),
+		Time:      time.Now(),
+		SessionID: currSession,
 	}
 
 	if constraintsPatch == nil {
@@ -1403,4 +1438,25 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
+}
+
+// userSessionIDCache provides an ergonomic wrapper for getting and caching
+// user session IDs for many rules.
+//
+// A cache should not be used beyond the scope of a single method call due to
+// an API request. In particular, it should not be persisted as part of a rule
+// database.
+type userSessionIDCache map[uint32]prompting.IDType
+
+func (cache userSessionIDCache) getUserSessionID(rdb *RuleDB, user uint32) (prompting.IDType, error) {
+	sessionID, ok := cache[user]
+	if ok {
+		return sessionID, nil
+	}
+	sessionID, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return 0, err
+	}
+	cache[user] = sessionID
+	return sessionID, nil
 }

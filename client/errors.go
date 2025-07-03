@@ -165,6 +165,9 @@ const (
 	// ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions: patched rule has no permission
 	ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions ErrorKind = "interfaces-requests-patched-rule-has-no-permissions"
 
+	// ErrorKindInterfacesRequestsNewSessionRuleNoSession: cannot create a rule with lifespan "session" when the user session is not present
+	ErrorKindInterfacesRequestsNewSessionRuleNoSession ErrorKind = "interfaces-requests-new-session-rule-no-session"
+
 	// ErrorKindInterfacesRequestsReplyNotMatchRequest: the prompt reply does not match the path and/or permissions which were requested.
 	ErrorKindInterfacesRequestsReplyNotMatchRequest ErrorKind = "interfaces-requests-reply-not-match-request"
 

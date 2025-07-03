@@ -551,6 +551,18 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 			},
 		},
 		{
+			err: prompting_errors.ErrNewSessionRuleNoSession,
+			body: map[string]any{
+				"result": map[string]any{
+					"message": `cannot create rule with lifespan "session" when user session is not present`,
+					"kind":    "interfaces-requests-new-session-rule-no-session",
+				},
+				"status":      "Bad Request",
+				"status-code": 400.0,
+				"type":        "error",
+			},
+		},
+		{
 			err: &prompting_errors.RequestedPathNotMatchedError{
 				Requested: "foo",
 				Replied:   "bar",

@@ -285,7 +285,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	good := s.ruleTemplateWithRead(c, prompting.IDType(1))
 	// Expired rules should still get a {"removed": "expired"} notice, even if they don't conflict
 	expired := s.ruleTemplateWithPathPattern(c, prompting.IDType(2), "/home/test/other")
-	setPermissionsOutcomeLifespanExpiration(c, expired, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second))
+	setPermissionsOutcomeLifespanExpirationSession(c, expired, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second), 0)
 	// Add rule which conflicts with IDs but doesn't otherwise conflict
 	conflicting := s.ruleTemplateWithRead(c, prompting.IDType(1))
 	conflicting.Constraints.PathPattern = mustParsePathPattern(c, "/home/test/another")
@@ -297,12 +297,13 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleIDConflict), rules, checkWritten)
 }
 
-func setPermissionsOutcomeLifespanExpiration(c *C, rule *requestrules.Rule, permissions []string, outcome prompting.OutcomeType, lifespan prompting.LifespanType, expiration time.Time) {
+func setPermissionsOutcomeLifespanExpirationSession(c *C, rule *requestrules.Rule, permissions []string, outcome prompting.OutcomeType, lifespan prompting.LifespanType, expiration time.Time, userSessionID prompting.IDType) {
 	for _, perm := range permissions {
 		rule.Constraints.Permissions[perm] = &prompting.RulePermissionEntry{
 			Outcome:    outcome,
 			Lifespan:   lifespan,
 			Expiration: expiration,
+			SessionID:  userSessionID,
 		}
 	}
 }
@@ -314,12 +315,12 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	// Expired rules should still get a {"removed": "expired"} notice, even if they don't conflict
 	expired := s.ruleTemplateWithRead(c, prompting.IDType(2))
 	expired.Constraints.PathPattern = mustParsePathPattern(c, "/home/test/other")
-	setPermissionsOutcomeLifespanExpiration(c, expired, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second))
+	setPermissionsOutcomeLifespanExpirationSession(c, expired, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second), 0)
 	// Add rule with conflicting permissions but not conflicting ID.
 	conflicting := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(3), "/home/test/{bar,foo}")
 	// Even with not all permissions being in conflict, still error
 	var timeZero time.Time
-	setPermissionsOutcomeLifespanExpiration(c, conflicting, []string{"read", "write"}, prompting.OutcomeDeny, prompting.LifespanForever, timeZero)
+	setPermissionsOutcomeLifespanExpirationSession(c, conflicting, []string{"read", "write"}, prompting.OutcomeDeny, prompting.LifespanForever, timeZero, 0)
 
 	rules := []*requestrules.Rule{good, expired, conflicting}
 	s.writeRules(c, dbPath, rules)
@@ -331,6 +332,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	dbPath := s.prepDBPath(c)
 	currTime := time.Now()
+	var timeZero time.Time
 
 	good1 := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(1), "/home/test/{foo,bar}")
 
@@ -338,15 +340,14 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	// but we don't want to test this as part of our contract
 
 	expired1 := s.ruleTemplateWithPathPattern(c, prompting.IDType(2), "/home/test/other")
-	setPermissionsOutcomeLifespanExpiration(c, expired1, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second))
+	setPermissionsOutcomeLifespanExpirationSession(c, expired1, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanSession, timeZero, prompting.IDType(0x12345))
 
 	// Rules with overlapping pattern but non-conflicting permissions do not conflict
 	good2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(3), "/home/test/{bar,foo}")
-	var timeZero time.Time
-	setPermissionsOutcomeLifespanExpiration(c, good2, []string{"write"}, prompting.OutcomeDeny, prompting.LifespanForever, timeZero)
+	setPermissionsOutcomeLifespanExpirationSession(c, good2, []string{"write"}, prompting.OutcomeDeny, prompting.LifespanForever, timeZero, 0)
 
 	expired2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(4), "/home/test/another")
-	setPermissionsOutcomeLifespanExpiration(c, expired2, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-time.Nanosecond))
+	setPermissionsOutcomeLifespanExpirationSession(c, expired2, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-time.Nanosecond), 0)
 
 	// Rules with different pattern and conflicting permissions do not conflict
 	good3 := s.ruleTemplateWithRead(c, prompting.IDType(5))
@@ -889,6 +890,12 @@ type addRuleContents struct {
 }
 
 func (s *requestrulesSuite) TestAddRuleHappy(c *C) {
+	currSession := prompting.IDType(0x12345)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -916,10 +923,11 @@ func (s *requestrulesSuite) TestAddRuleHappy(c *C) {
 		// Differing Outcome, Lifespan or Duration does not prevent conflict
 		{PathPattern: "/home/test/1", Outcome: prompting.OutcomeDeny},
 		{PathPattern: "/home/test/2", Lifespan: prompting.LifespanTimespan, Duration: "10s"},
+		{PathPattern: "/home/test/3", Lifespan: prompting.LifespanSession},
 	} {
 		rule, err := addRuleFromTemplate(c, rdb, template, ruleContents)
-		c.Check(err, IsNil)
-		c.Check(rule, NotNil)
+		c.Assert(err, IsNil)
+		c.Assert(rule, NotNil)
 		addedRules = append(addedRules, rule)
 		s.checkWrittenRuleDB(c, addedRules)
 		s.checkNewNoticesSimple(c, nil, rule)
@@ -1081,6 +1089,10 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 			&addRuleContents{Lifespan: prompting.LifespanTimespan, Duration: "-10s"},
 			"invalid duration: cannot have zero or negative duration:.*",
 		},
+		{ // Invalid lifespan "session" when no active user session
+			&addRuleContents{Lifespan: prompting.LifespanSession},
+			prompting_errors.ErrNewSessionRuleNoSession.Error(),
+		},
 		{ // Invalid lifespan
 			&addRuleContents{Lifespan: prompting.LifespanType("invalid")},
 			`invalid lifespan: "invalid"`,
@@ -1225,6 +1237,15 @@ outer:
 }
 
 func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
+	currSession := prompting.IDType(0x12345)
+	// Session will be found for all test cases, so rules with LifespanSession
+	// will never be expired. It would be nice to test expired "session" rules
+	// here too, but we can do this in other easier to implement tests.
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	for _, testCase := range []struct {
 		input  []prompting.PermissionMap
 		output []prompting.PermissionMap
@@ -1285,7 +1306,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 					},
 					"write": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
+						Lifespan: prompting.LifespanSession,
 					},
 				},
 			},
@@ -1297,7 +1318,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 					},
 					"write": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
+						Lifespan: prompting.LifespanSession,
 					},
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -1319,8 +1340,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 					},
 					"write": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanTimespan,
-						Duration: "10s",
+						Lifespan: prompting.LifespanSession,
 					},
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -1486,7 +1506,8 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 				Permissions: perms,
 			}
 			at := prompting.At{
-				Time: rule.Timestamp,
+				Time:      rule.Timestamp,
+				SessionID: prompting.IDType(0x12345),
 			}
 			ruleConstraints, err := constraints.ToRuleConstraints(iface, at)
 			c.Assert(err, IsNil)
@@ -1522,6 +1543,12 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 }
 
 func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
+	var currSession prompting.IDType
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -1540,10 +1567,56 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	good, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{Snap: "gimp"})
 	c.Assert(err, IsNil)
 	c.Assert(good, NotNil)
+	// initialSessionAllow rule should still be on disk, along with new rule
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
+	s.checkNewNoticesSimple(c, nil, good)
 
 	// TODO: ADD test which tests behavior of rules which partially expire
 
-	// Add initial rule which will expire quickly
+	// First add deny rule with lifespan "session"
+	currSession = prompting.IDType(0x12345)
+	initialSessionDeny, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
+		Outcome: prompting.OutcomeDeny,
+		// Make path pattern conflict but not be identical
+		PathPattern: "/home/test/**/{secret,private,foo}/**",
+		Lifespan:    prompting.LifespanSession,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(initialSessionDeny, NotNil)
+	// Rule should be on disk and have notice
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{good, initialSessionDeny})
+	s.checkNewNoticesSimple(c, nil, initialSessionDeny)
+
+	// Next add conflicting allow rule with lifespan "session"
+	currSession = prompting.IDType(0xabcdef)
+	initialSessionAllow, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
+		Outcome: prompting.OutcomeAllow,
+		// Make path pattern conflict but not be identical
+		PathPattern: "/home/test/**/{secret,private,bar}/**",
+		Lifespan:    prompting.LifespanSession,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(initialSessionAllow, NotNil)
+	// Rule should be on disk and have notice, along with notice for expired rule
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{good, initialSessionAllow})
+	expectedNoticeInfo := []*noticeInfo{
+		{
+			userID: initialSessionDeny.User,
+			ruleID: initialSessionDeny.ID,
+			data:   map[string]string{"removed": "expired"},
+		},
+		{
+			userID: initialSessionAllow.User,
+			ruleID: initialSessionAllow.ID,
+		},
+	}
+	s.checkNewNotices(c, expectedNoticeInfo)
+	// Change user session again so future timespan rule will conflict and
+	// expire this rule.
+	currSession = prompting.IDType(0xf00)
+
+	// Add initial LifespanTimespan rule which will conflict with
+	// initialSessionAllow and then expire quickly
 	prev, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
 		Outcome:  prompting.OutcomeDeny,
 		Lifespan: prompting.LifespanTimespan,
@@ -1555,7 +1628,18 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 
 	// Both rules should be on disk and have notices
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good, prev})
-	s.checkNewNoticesSimple(c, nil, good, prev)
+	expectedNoticeInfo = []*noticeInfo{
+		{
+			userID: initialSessionAllow.User,
+			ruleID: initialSessionAllow.ID,
+			data:   map[string]string{"removed": "expired"},
+		},
+		{
+			userID: prev.User,
+			ruleID: prev.ID,
+		},
+	}
+	s.checkNewNotices(c, expectedNoticeInfo)
 
 	// Add rules which all conflict but each expire before the next is added,
 	// thus causing the prior one to be removed and not causing a conflict error.
@@ -1595,7 +1679,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(final, NotNil)
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good, final})
-	expectedNoticeInfo := []*noticeInfo{
+	expectedNoticeInfo = []*noticeInfo{
 		{
 			userID: prev.User,
 			ruleID: prev.ID,
@@ -1611,6 +1695,12 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 }
 
 func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
+	var currSession prompting.IDType
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -1618,6 +1708,7 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	snap := "firefox"
 	iface := "home"
 
+	currSession = prompting.IDType(0x12345)
 	constraints1 := &prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, "/path/to/{foo,bar}"),
 		Permissions: prompting.PermissionMap{
@@ -1632,8 +1723,7 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 			},
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanTimespan,
-				Duration: "1ns",
+				Lifespan: prompting.LifespanSession,
 			},
 		},
 	}
@@ -1642,6 +1732,9 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	c.Assert(rule1, NotNil)
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule1})
 	s.checkNewNoticesSimple(c, nil, rule1)
+	// Now that the rule has been added, change the user session ID so the
+	// execute permission is treated as expired
+	currSession = prompting.IDType(0xf00)
 
 	constraints2 := &prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, "/path/to/{bar,baz}"), // overlap
@@ -1825,6 +1918,12 @@ func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
 }
 
 func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
+	currSession := prompting.IDType(0x12345)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
@@ -1872,6 +1971,16 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 			allowed:      false,
 			err:          nil,
 		},
+		{ // Matching allow session rule
+			ruleContents: &addRuleContents{Lifespan: prompting.LifespanSession},
+			allowed:      true,
+			err:          nil,
+		},
+		{ // Matching deny session rule
+			ruleContents: &addRuleContents{Outcome: prompting.OutcomeDeny, Lifespan: prompting.LifespanSession},
+			allowed:      false,
+			err:          nil,
+		},
 		{ // Rule with wrong user
 			ruleContents: &addRuleContents{User: s.defaultUser + 1},
 			allowed:      false,
@@ -1908,7 +2017,8 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 		}
 
 		at := prompting.At{
-			Time: time.Now(),
+			Time:      time.Now(),
+			SessionID: currSession,
 		}
 		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
 		c.Check(err, Equals, testCase.err)
@@ -1981,8 +2091,10 @@ func (s *requestrulesSuite) TestIsPathPermAllowedPrecedence(c *C) {
 		mostRecentOutcome, err := ruleContents.Outcome.AsBool()
 		c.Check(err, IsNil)
 
+		// The point in time doesn't matter for this test
 		at := prompting.At{
-			Time: time.Now(),
+			Time:      time.Now(),
+			SessionID: prompting.IDType(0x12345),
 		}
 
 		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
@@ -2054,7 +2166,8 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 	// The point in time is set after all rules have been added but before any
 	// have expired.
 	at := prompting.At{
-		Time: time.Now(),
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0x12345), // doesn't matter for this test
 	}
 
 	for i := len(addedRules) - 1; i >= 0; i-- {
@@ -2073,6 +2186,113 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 		// Advance the point in time to cause highest precedence rule to expire.
 		at.Time = at.Time.Add(time.Hour)
 	}
+}
+
+func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
+	var currSession prompting.IDType
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
+	// Target
+	user := s.defaultUser
+	snap := "firefox"
+	iface := "home"
+	path := "/home/test/Documents/foo/bar/baz/file.txt"
+	permission := "read"
+
+	template := &addRuleContents{
+		User:        user,
+		Snap:        snap,
+		Interface:   iface,
+		PathPattern: path,
+		Permissions: []string{permission},
+		Outcome:     prompting.OutcomeAllow,
+		Lifespan:    prompting.LifespanSession,
+		Duration:    "1h",
+	}
+
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+	c.Assert(rdb, NotNil)
+
+	// Add all rules initially with session ID 0x12345
+	currSession = prompting.IDType(0x12345)
+	// Define another session ID which rules will change to later to emulate expiration
+	otherSession := prompting.IDType(0xabcd)
+	var addedRules []*requestrules.Rule
+	at := prompting.At{
+		Time:      time.Now(), // doesn't matter for this test
+		SessionID: currSession,
+	}
+
+	// Add these rules, where each has higher precedence than prior rules.
+	// Then, from last to first, mark the rule as expired by setting the
+	// session ID to something else, and then test that they always match the
+	// most specific rule contents.
+	for i, ruleContents := range []*addRuleContents{
+		{PathPattern: "/home/test/**"},
+		{PathPattern: "/home/test/Doc*/**"},
+		{PathPattern: "/home/test/Documents/**"},
+		{PathPattern: "/home/test/Documents/foo/**"},
+		{PathPattern: "/home/test/Documents/foo/**/ba?/*.txt"},
+		{PathPattern: "/home/test/Documents/foo/**/ba?/file.txt"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/**"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/baz/**"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/baz/*"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/baz/*.txt"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/{somewhere/else,baz}/file.txt"},
+		{PathPattern: "/home/test/Documents/foo/*/baz/file.{txt,md,pdf}"},
+		{PathPattern: "/home/test/{Documents,Pictures}/foo/bar/baz/file.{txt,md,pdf,png,jpg,svg}"},
+	} {
+		if i%2 == 0 {
+			ruleContents.Outcome = prompting.OutcomeAllow
+		} else {
+			ruleContents.Outcome = prompting.OutcomeDeny
+		}
+		rule, err := addRuleFromTemplate(c, rdb, template, ruleContents)
+		c.Assert(err, IsNil)
+		c.Assert(rule, NotNil)
+		addedRules = append(addedRules, rule)
+		s.checkWrittenRuleDB(c, addedRules)
+		s.checkNewNoticesSimple(c, nil, rule)
+	}
+
+	for i := len(addedRules) - 1; i >= 0; i-- {
+		rule := addedRules[i]
+		expectedOutcome, err := rule.Constraints.Permissions["read"].Outcome.AsBool()
+		c.Check(err, IsNil)
+
+		// Check that the outcome of the most specific unexpired rule has precedence
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
+		c.Check(err, IsNil)
+		c.Check(allowed, Equals, expectedOutcome, Commentf("last unexpired: %+v", rule))
+
+		// Check that no new notices are recorded from lookup or expiration
+		s.checkNewNoticesSimple(c, nil)
+
+		// Expire the highest precedence rule by changing its session to be
+		// different from the session at the current point in time
+		rule.Constraints.Permissions["read"].SessionID = otherSession
+	}
+
+	// Now that currSession is different from the session of any of the rules,
+	// there should be no matching rules.
+	allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
+	c.Check(err, Equals, prompting_errors.ErrNoMatchingRule)
+	c.Check(allowed, Equals, false)
+
+	// Same if the user session ends (at.SessionID = 0)
+	at.SessionID = 0
+	allowed, err = rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
+	c.Check(err, Equals, prompting_errors.ErrNoMatchingRule)
+	c.Check(allowed, Equals, false)
+
+	// But if the session matches that of the rules, they'll again match
+	at.SessionID = otherSession
+	_, err = rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
+	c.Check(err, IsNil)
 }
 
 func (s *requestrulesSuite) TestRuleWithID(c *C) {
@@ -2166,6 +2386,12 @@ func (s *requestrulesSuite) prepRuleDBForRulesForSnapInterface(c *C, rdb *reques
 }
 
 func (s *requestrulesSuite) TestRulesExpired(c *C) {
+	currSession := prompting.IDType(0x12345)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
@@ -2178,8 +2404,10 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 	// This is brittle, relies on details of the rules added by prepRuleDBForRulesForSnapInterface
 	rules[0].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
 	rules[0].Constraints.Permissions["read"].Expiration = time.Now()
-	rules[2].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
-	rules[2].Constraints.Permissions["read"].Expiration = time.Now()
+	rules[1].Constraints.Permissions["write"].Lifespan = prompting.LifespanSession
+	rules[1].Constraints.Permissions["write"].SessionID = currSession // not expired
+	rules[2].Constraints.Permissions["read"].Lifespan = prompting.LifespanSession
+	rules[2].Constraints.Permissions["read"].SessionID = currSession + 1 // expired
 	rules[4].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
 	rules[4].Constraints.Permissions["read"].Expiration = time.Now()
 
@@ -2501,6 +2729,12 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 }
 
 func (s *requestrulesSuite) TestPatchRule(c *C) {
+	currSession := prompting.IDType(0x12345)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -2636,8 +2870,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 			},
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanTimespan,
-				Duration: "10s",
+				Lifespan: prompting.LifespanSession,
 			},
 		},
 	}
@@ -2650,9 +2883,9 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	// After making timestamp the same again, check that the rules are identical
 	patched.Timestamp = rule.Timestamp
 	rule.Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
-	rule.Constraints.Permissions["execute"].Lifespan = prompting.LifespanTimespan
 	rule.Constraints.Permissions["read"].Expiration = patched.Constraints.Permissions["read"].Expiration
-	rule.Constraints.Permissions["execute"].Expiration = patched.Constraints.Permissions["execute"].Expiration
+	rule.Constraints.Permissions["execute"].Lifespan = prompting.LifespanSession
+	rule.Constraints.Permissions["execute"].SessionID = currSession
 	c.Check(patched, DeepEquals, rule)
 
 	rule = patched
@@ -2800,6 +3033,12 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 }
 
 func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
+	currSession := prompting.IDType(0x12345)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return currSession, nil
+	})
+	defer restore()
+
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -2817,7 +3056,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 
 	for _, ruleContents := range []*addRuleContents{
 		{PathPattern: "/foo", Lifespan: prompting.LifespanTimespan, Duration: "1ms"},
-		{PathPattern: "/bar", Lifespan: prompting.LifespanTimespan, Duration: "1ms", Permissions: []string{"read"}},
+		{PathPattern: "/bar", Lifespan: prompting.LifespanSession, Permissions: []string{"read"}},
 		{PathPattern: "/baz", Permissions: []string{"execute"}},
 	} {
 		rule, err := addRuleFromTemplate(c, rdb, template, ruleContents)
@@ -2828,7 +3067,9 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
+	// Expire first two rules by advancing time and changing current session ID
 	time.Sleep(time.Millisecond)
+	currSession += 1
 
 	// Patching doesn't conflict with already-expired rules
 	rule := rules[2]
@@ -2837,7 +3078,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		Permissions: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanForever,
+				Lifespan: prompting.LifespanSession,
 			},
 			"write": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -2854,13 +3095,13 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{patched})
 	expectedNotices := []*noticeInfo{
 		{
-			userID: rules[1].User,
-			ruleID: rules[1].ID,
+			userID: rules[0].User,
+			ruleID: rules[0].ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
-			userID: rules[0].User,
-			ruleID: rules[0].ID,
+			userID: rules[1].User,
+			ruleID: rules[1].ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
@@ -2878,8 +3119,9 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		PathPattern: mustParsePathPattern(c, "/{foo,bar}"),
 		Permissions: prompting.RulePermissionMap{
 			"read": &prompting.RulePermissionEntry{
-				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanForever,
+				Outcome:   prompting.OutcomeDeny,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -2892,4 +3134,87 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		},
 	}
 	c.Check(patched, DeepEquals, rule)
+}
+
+func (s *requestrulesSuite) TestUserSessionIDCache(c *C) {
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	checkedDiskForUser := make(map[uint32]int)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(ruleDB *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		c.Assert(ruleDB, Equals, rdb)
+		checkedDiskForUser[user] += 1
+
+		switch user {
+		case 1000:
+			return prompting.IDType(0x12345), nil
+		case 1234:
+			return prompting.IDType(0xabcd), nil
+		case 11235:
+			// Pretend there's no user session for this user
+			return prompting.IDType(0), fmt.Errorf("foo: %w", requestrules.ErrNoUserSession)
+		case 5000:
+			// Pretend there's some other error
+			return prompting.IDType(0), errors.New("foo")
+		}
+		c.Fatalf("unexpected user: %d", user)
+		return 0, fmt.Errorf("unexpected user: %d", user)
+	})
+	defer restore()
+
+	cache := make(requestrules.UserSessionIDCache)
+
+	// Get the same user multiple times
+	for i := 0; i < 5; i++ {
+		result, err := cache.GetUserSessionID(rdb, 1000)
+		c.Assert(err, IsNil)
+		c.Assert(result, Equals, prompting.IDType(0x12345))
+	}
+	// Check that readOrAssignUserSessionID was only called once
+	count, ok := checkedDiskForUser[1000]
+	c.Assert(count, Equals, 1)
+	c.Assert(ok, Equals, true)
+
+	// Get some other user several times
+	for i := 0; i < 5; i++ {
+		result, err := cache.GetUserSessionID(rdb, 1234)
+		c.Assert(err, IsNil)
+		c.Assert(result, Equals, prompting.IDType(0xabcd))
+	}
+	// Check that readOrAssignUserSessionID was only called once
+	count, ok = checkedDiskForUser[1234]
+	c.Assert(count, Equals, 1)
+	c.Assert(ok, Equals, true)
+
+	// Get a user which has no session
+	for i := 0; i < 5; i++ {
+		result, err := cache.GetUserSessionID(rdb, 11235)
+		// Error should be nil even though there was no session
+		c.Assert(err, IsNil)
+		c.Assert(result, Equals, prompting.IDType(0))
+	}
+	// Check that readOrAssignUserSessionID was only called once
+	count, ok = checkedDiskForUser[11235]
+	c.Assert(count, Equals, 1)
+	c.Assert(ok, Equals, true)
+
+	// Get a user which causes error
+	for i := 0; i < 5; i++ {
+		result, err := cache.GetUserSessionID(rdb, 5000)
+		c.Assert(err, ErrorMatches, "foo")
+		c.Assert(result, Equals, prompting.IDType(0))
+	}
+	// With other error, readOrAssignUserSessionID should be called every time
+	count, ok = checkedDiskForUser[5000]
+	c.Assert(count, Equals, 5)
+	c.Assert(ok, Equals, true)
+
+	// Get a previous user again, it should again reuse the cache
+	result, err := cache.GetUserSessionID(rdb, 1000)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, prompting.IDType(0x12345))
+	// Check that readOrAssignUserSessionID was only called once
+	count, ok = checkedDiskForUser[1000]
+	c.Assert(count, Equals, 1)
+	c.Assert(ok, Equals, true)
 }
