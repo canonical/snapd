@@ -41,10 +41,16 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	installComponentChangeKind = swfeats.RegisterChangeKind("install-component")
+	trySnapChangeKind          = swfeats.RegisterChangeKind("try-snap")
 )
 
 // Form is a multipart form that holds file and non-file parts
@@ -439,7 +445,7 @@ func sideloadManySnaps(ctx context.Context, st *state.State, uploads []*uploaded
 
 	msg := multiPathInstallMessage(slInfo)
 
-	chg := newChange(st, "install-snap", msg, tss, snapNames)
+	chg := newChange(st, installSnapChangeKind, msg, tss, snapNames)
 	apiData := make(map[string]any, 0)
 
 	if len(snapNames) > 0 {
@@ -569,10 +575,12 @@ func sideloadSnap(_ context.Context, st *state.State, upload *uploadedContainer,
 
 	var tset *state.TaskSet
 	contType := "snap"
+	var changeType string
 	message := fmt.Sprintf("%q snap", instanceName)
 	if compInfo == nil {
 		// TODO pass per request context
 		tset, _, err = snapstateInstallPath(st, &info.SideInfo, upload.tmpPath, instanceName, "", flags.Flags, nil)
+		changeType = installSnapChangeKind
 	} else {
 		// It is a component
 		contType = "component"
@@ -581,13 +589,14 @@ func sideloadSnap(_ context.Context, st *state.State, upload *uploadedContainer,
 		tset, err = snapstateInstallComponentPath(st, &compInfo.ComponentSideInfo, snapInfo, upload.tmpPath, snapstate.Options{
 			Flags: flags.Flags,
 		})
+		changeType = installComponentChangeKind
 	}
 	if err != nil {
 		return nil, errToResponse(err, []string{info.RealName}, InternalError, "cannot install %s file: %v", contType)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %s from file %q"), message, upload.filename)
-	chg := newChange(st, "install-"+contType, msg, []*state.TaskSet{tset}, []string{instanceName})
+	chg := newChange(st, changeType, msg, []*state.TaskSet{tset}, []string{instanceName})
 	apiData := map[string]any{}
 	if compInfo == nil {
 		apiData = map[string]any{
@@ -985,7 +994,7 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
+	chg := newChange(st, trySnapChangeKind, msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
 	chg.Set("api-data", map[string]any{
 		"snap-name":  info.InstanceName(),
 		"snap-names": []string{info.InstanceName()},

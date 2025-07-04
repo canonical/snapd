@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -41,6 +42,12 @@ var (
 		ReadAccess:  openAccess{},
 		WriteAccess: authenticatedAccess{},
 	}
+)
+
+var (
+	aliasChangeKind   = swfeats.RegisterChangeKind("alias")
+	unaliasChangeKind = swfeats.RegisterChangeKind("unalias")
+	preferChangeKind  = swfeats.RegisterChangeKind("prefer")
 )
 
 // aliasAction is an action performed on aliases
@@ -102,21 +109,25 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		return errToResponse(err, nil, BadRequest, "%v")
 	}
 
+	var changeKind string
 	var summary string
 	switch a.Action {
 	case "alias":
 		summary = fmt.Sprintf(i18n.G("Setup alias %q => %q for snap %q"), a.Alias, a.App, a.Snap)
+		changeKind = aliasChangeKind
 	case "unalias":
 		if a.Alias != "" {
 			summary = fmt.Sprintf(i18n.G("Remove manual alias %q for snap %q"), a.Alias, a.Snap)
 		} else {
 			summary = fmt.Sprintf(i18n.G("Disable all aliases for snap %q"), a.Snap)
 		}
+		changeKind = unaliasChangeKind
 	case "prefer":
 		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
+		changeKind = preferChangeKind
 	}
 
-	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
+	change := newChange(st, changeKind, summary, []*state.TaskSet{taskset}, []string{a.Snap})
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, change.ID())

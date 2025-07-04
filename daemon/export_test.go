@@ -83,6 +83,17 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 
 type Ucrednet = ucrednet
 
+func BeforeNewChange(beforeNewChange func(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string)) (restore func()) {
+	oldNewChange := newChange
+	newChange = func(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
+		beforeNewChange(st, kind, summary, tsets, snapNames)
+		return newChangeImpl(st, kind, summary, tsets, snapNames)
+	}
+	return func() {
+		newChange = oldNewChange
+	}
+}
+
 func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
 	oldUcrednetGet := ucrednetGet
 	ucrednetGet = mock

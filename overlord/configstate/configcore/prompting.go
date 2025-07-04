@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -39,6 +40,8 @@ var restartRequest = restart.Request
 
 var servicestateControl = servicestate.Control
 var serviceStartChangeTimeout = time.Minute
+
+var serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 
 func startHandlers(st *state.State, handlers []*snap.AppInfo) error {
 	var affectedSnaps []string
@@ -65,7 +68,7 @@ func startHandlers(st *state.State, handlers []*snap.AppInfo) error {
 	}
 
 	st.Lock()
-	chg := st.NewChange("service-control", fmt.Sprintf("Enable and start prompt handler services from snaps: %v", affectedSnaps))
+	chg := st.NewChange(serviceControlChangeKind, fmt.Sprintf("Enable and start prompt handler services from snaps: %v", affectedSnaps))
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}

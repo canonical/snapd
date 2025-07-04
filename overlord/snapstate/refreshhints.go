@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -37,6 +38,10 @@ import (
 )
 
 var refreshHintsDelay = time.Duration(24 * time.Hour)
+
+func init() {
+	swfeats.RegisterEnsure("SnapManager", "refreshHints.Ensure")
+}
 
 // refreshHints will ensure that we get regular data about refreshes
 // so that we can potentially warn the user about important missing

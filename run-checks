@@ -518,6 +518,18 @@ if [ "$STATIC" = 1 ]; then
     else
         echo ">> [C] Skipping C source code formatting check"
     fi
+
+    echo ">> [Go] Checking that all ensure helper methods have been registered"
+    missing=0
+    while IFS=' ' read -r manager func; do
+        if ! grep -rq "swfeats.RegisterEnsure(\"$manager\",.*\"$func\")" .; then
+            echo "Missing ensure function registration. Add the following to the relevant file: swfeats.RegEnsure(\"$manager\", \"$func\")"
+            missing=1
+        fi
+    done < <(grep -r '.Trace("ensure"' overlord | sed -n 's/.*\.Trace("ensure",.*"manager",.*"\([^"]*\)",.*"func",.*"\([^"]*\)").*/\1 \2/p')
+    if [ $missing -eq 1 ]; then
+        exit 1
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then

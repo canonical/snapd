@@ -29,9 +29,14 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
+
+func init() {
+	swfeats.RegisterEnsure("SnapManager", "ensureAliasesV2")
+}
 
 // AliasTarget carries the targets of an alias in the context of snap.
 // If Manual is set it is the target of an enabled manual alias.

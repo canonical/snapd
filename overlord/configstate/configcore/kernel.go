@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 )
 
 const (
@@ -40,6 +41,8 @@ const (
 	coreOptionKernelCmdlineAppend          = "core." + optionKernelCmdlineAppend
 	coreOptionKernelDangerousCmdlineAppend = "core." + optionKernelDangerousCmdlineAppend
 )
+
+var applyCmdlineChangeKind = swfeats.RegisterChangeKind("apply-cmdline-append")
 
 func init() {
 	supportedConfigurations[coreOptionKernelCmdlineAppend] = true
@@ -152,7 +155,7 @@ func createApplyCmdlineChange(c RunTransaction, kernelOpts []string) (*state.Cha
 	// command line and wait for it to finish, otherwise we cannot
 	// wait on the changes to happen.
 	// TODO fix this in the future.
-	cmdlineChg := st.NewChange("apply-cmdline-append",
+	cmdlineChg := st.NewChange(applyCmdlineChangeKind,
 		i18n.G("Update kernel command line due to change in system configuration"))
 	// Add task to the new change to set the new kernel command line
 	t := st.NewTask("update-gadget-cmdline",

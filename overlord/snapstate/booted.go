@@ -25,8 +25,11 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 )
+
+var updateRevisionsChangeKind = swfeats.RegisterChangeKind("update-revisions")
 
 // UpdateBootRevisions synchronizes the active kernel and OS snap versions
 // with the versions that actually booted. This is needed because a
@@ -85,7 +88,7 @@ func UpdateBootRevisions(st *state.State) error {
 	}
 
 	msg := "Update kernel and core snap revisions"
-	chg := st.NewChange("update-revisions", msg)
+	chg := st.NewChange(updateRevisionsChangeKind, msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}

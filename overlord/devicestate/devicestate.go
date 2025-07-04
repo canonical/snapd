@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -69,6 +70,14 @@ var (
 	snapstatePathUpdateGoal       = snapstate.PathUpdateGoal
 	snapstateInstallComponents    = snapstate.InstallComponents
 	snapstateInstallComponentPath = snapstate.InstallComponentPath
+)
+
+var (
+	remodelChangeKind                           = swfeats.RegisterChangeKind("remodel")
+	removeRecoverySystemChangeKind              = swfeats.RegisterChangeKind("remove-recovery-system")
+	createRecoverySystemChangeKind              = swfeats.RegisterChangeKind("create-recovery-system")
+	installStepFinishChangeKind                 = swfeats.RegisterChangeKind("install-step-finish")
+	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
 )
 
 // findModel returns the device model assertion.
@@ -1651,7 +1660,7 @@ func Remodel(st *state.State, new *asserts.Model, opts RemodelOptions) (*state.C
 		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
 	}
 
-	chg := st.NewChange("remodel", msg)
+	chg := st.NewChange(remodelChangeKind, msg)
 	remodCtx.Init(chg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -1852,7 +1861,7 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 		return nil, fmt.Errorf("%q not found: %w", label, ErrNoRecoverySystem)
 	}
 
-	chg := st.NewChange("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+	chg := st.NewChange(removeRecoverySystemChangeKind, fmt.Sprintf("Remove recovery system with label %q", label))
 
 	removeTS, err := removeRecoverySystemTasks(st, label)
 	if err != nil {
@@ -2131,7 +2140,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	opts.LocalComponents = usedLocalComps
 	opts.LocalSnaps = usedLocalSnaps
 
-	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	chg := st.NewChange(createRecoverySystemChangeKind, fmt.Sprintf("Create new recovery system with label %q", label))
 	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, compsupTaskIDs, opts)
 	if err != nil {
 		return nil, err
@@ -2306,7 +2315,7 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 		return nil, fmt.Errorf("cannot finish install without volumes data")
 	}
 
-	chg := st.NewChange("install-step-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	chg := st.NewChange(installStepFinishChangeKind, fmt.Sprintf("Finish setup of run system for %q", label))
 	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish setup of run system for %q", label))
 	finishTask.Set("system-label", label)
 	finishTask.Set("on-volumes", onVolumes)
@@ -2336,7 +2345,7 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		st.Cache(volumesAuthOptionsKey{label}, volumesAuth)
 	}
 
-	chg := st.NewChange("install-step-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	chg := st.NewChange(installStepSetupStorageEncryptionChangeKind, fmt.Sprintf("Setup storage encryption for installing system %q", label))
 	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
 	setupStorageEncryptionTask.Set("system-label", label)
 	setupStorageEncryptionTask.Set("on-volumes", onVolumes)

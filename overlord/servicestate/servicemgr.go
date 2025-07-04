@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -42,6 +43,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
+
+func init() {
+	swfeats.RegisterEnsure("ServiceManager", "ensureSnapServicesUpdated")
+}
 
 // ServiceManager is responsible for starting and stopping snap services.
 type ServiceManager struct {

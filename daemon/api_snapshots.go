@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -60,6 +61,12 @@ var (
 	snapshotSave    = snapshotstate.Save
 	snapshotExport  = snapshotstate.Export
 	snapshotImport  = snapshotstate.Import
+)
+
+var (
+	checkSnapshotChangeKind   = swfeats.RegisterChangeKind("check-snapshot")
+	restoreSnapshotChangeKind = swfeats.RegisterChangeKind("restore-snapshot")
+	forgetSnapshotChangeKind  = swfeats.RegisterChangeKind("forget-snapshot")
 )
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -136,16 +143,20 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	st.Lock()
 	defer st.Unlock()
 
+	var changeKind string
 	switch action.Action {
 	case "check":
 		affected, ts, err = snapshotCheck(st, action.SetID, action.Snaps, action.Users)
+		changeKind = checkSnapshotChangeKind
 	case "restore":
 		affected, ts, err = snapshotRestore(st, action.SetID, action.Snaps, action.Users)
+		changeKind = restoreSnapshotChangeKind
 	case "forget":
 		if len(action.Users) != 0 {
 			return BadRequest(`snapshot "forget" operation cannot specify users`)
 		}
 		affected, ts, err = snapshotForget(st, action.SetID, action.Snaps)
+		changeKind = forgetSnapshotChangeKind
 	default:
 		return BadRequest("unknown snapshot operation %q", action.Action)
 	}
@@ -159,7 +170,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 		return InternalError("%v", err)
 	}
 
-	chg := newChange(st, action.Action+"-snapshot", action.String(), []*state.TaskSet{ts}, affected)
+	chg := newChange(st, changeKind, action.String(), []*state.TaskSet{ts}, affected)
 	chg.Set("api-data", map[string]any{"snap-names": affected})
 	ensureStateSoon(st)
 

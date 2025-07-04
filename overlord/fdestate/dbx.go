@@ -32,11 +32,14 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 )
 
 var (
 	backendResealKeysForSignaturesDBUpdate = backend.ResealKeysForSignaturesDBUpdate
 )
+
+var fdeEfiSecurebootDbUpdateChangeKind = swfeats.RegisterChangeKind("fde-efi-secureboot-db-update")
 
 type EFISecurebootKeyDatabase int
 
@@ -237,7 +240,7 @@ func addEFISecurebootDBUpdateChange(st *state.State, method device.SealingMethod
 	tUpdateWait.WaitFor(tPrep)
 	ts := state.NewTaskSet(tPrep, tUpdateWait)
 
-	chg := st.NewChange("fde-efi-secureboot-db-update", "External EFI DBX update")
+	chg := st.NewChange(fdeEfiSecurebootDbUpdateChangeKind, "External EFI DBX update")
 	chg.AddAll(ts)
 
 	data, err := json.Marshal(dbxUpdateContext{
