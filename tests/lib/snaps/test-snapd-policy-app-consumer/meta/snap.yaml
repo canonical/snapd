@@ -290,6 +290,9 @@ apps:
   unity8-contacts:
     command: bin/run
     plugs: [ unity8-contacts ]
+  usb-gadget:
+    command: bin/run
+    plugs: [ usb-gadget ]
   vcio:
     command: bin/run
     plugs: [ vcio ]
