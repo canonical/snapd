@@ -8,6 +8,10 @@ details: |
 # ubuntu-14.04: Docker is not supported anymore in ubuntu 14.04
 systems: [-ubuntu-14.04-64]
 
+
+environment:
+  IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04.tar
+
 prepare: |
     # build and install the strict test snap
     snap pack container-mgr-snap
@@ -136,10 +140,19 @@ execute: |
     snap install --channel="$CHANNEL" docker
     tests.cleanup defer snap remove --purge docker
 
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        if ! command -v curl; then
+            snap install --devmode --edge test-snapd-curl
+            snap alias test-snapd-curl.curl curl
+        fi    
+        curl -sL "$IMAGE_URL" -o ubuntu-24.04.tar
+        retry -n 30 --wait 1 docker load -i ubuntu-24.04.tar
+    fi
+
     echo "Test that docker container cgroups on ubuntu are not moved when systemctl daemon-reload is executed"
 
     # start a docker container - need to wait until dockerd comes alive
-    retry -n10 --wait 1 sh -c 'docker run -d --name test ubuntu:18.04 sleep infinity'
+    retry -n10 --wait 1 sh -c 'docker run -d --name test ubuntu:24.04 sleep infinity'
     tests.cleanup defer docker kill test
 
     # make sure that docker top can see the process

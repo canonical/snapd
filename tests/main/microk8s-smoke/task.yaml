@@ -18,6 +18,9 @@ systems:
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
   - -ubuntu-*-arm*       # not available on arm
+  - -ubuntu-16.04-*      # TODO: remove once it doesn't fail to load rockcraft images
+  - -ubuntu-18.04-*      # TODO: remove once it doesn't fail to load rockcraft images
+  - -ubuntu-core-22-*    # TODO: remove once it doesn't fail to load rockcraft images
   # 25.04 and 25.10 failing due to old apparmor parser not recognizing kernel
   # features https://bugs.launchpad.net/apparmor/+bug/2105986 and microk8s uses
   # core18/core20 base which ships apparmor 2.12
@@ -92,7 +95,17 @@ restore: |
 
 execute: |
     snap install --channel="$CHANNEL" microk8s
+
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        # Change server from docker to rocks.canonical.com because docker.io has download restrictions
+        CONFIG_FILE=/var/snap/microk8s/current/args/certs.d/docker.io/hosts.toml
+        sed -i 's|"https://docker.io"|"https://rocks.canonical.com"|' "$CONFIG_FILE"
+        microk8s stop
+        microk8s start
+    fi
+
     microk8s status --wait-ready --timeout 180
+
     # XXX: enable dashboard etc? doing this is slow :/
     #microk8s enable dashboard dns registry istio
     microk8s kubectl get nodes | MATCH Ready
