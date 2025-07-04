@@ -530,3 +530,11 @@ func MockTPMRevokeOldPCRProtectionPolicies(f func(key MaybeSealedKeyData, tpm *s
 func MockSbNewSealedKeyData(f func(k *sb.KeyData) (MaybeSealedKeyData, error)) (restore func()) {
 	return testutil.Mock(&sbNewSealedKeyData, f)
 }
+
+func MockSbKeyDataChangePassphrase(f func(d *sb.KeyData, oldPassphrase string, newPassphrase string) error) (restore func()) {
+	return testutil.Mock(&sbKeyDataChangePassphrase, f)
+}
+
+func NewKeyData(kd *sb.KeyData) KeyData {
+	return &keyData{kd: kd}
+}

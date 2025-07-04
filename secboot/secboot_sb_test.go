@@ -4018,6 +4018,24 @@ func (s *secbootSuite) TestAddContainerRecoveryKey(c *C) {
 	c.Check(called, Equals, 1)
 }
 
+func (s *secbootSuite) TestKeyDataChangePassphrase(c *C) {
+	sbKeyData := &sb.KeyData{}
+
+	called := 0
+	defer secboot.MockSbKeyDataChangePassphrase(func(d *sb.KeyData, oldPassphrase, newPassphrase string) error {
+		called++
+		c.Check(d, Equals, sbKeyData)
+		c.Check(oldPassphrase, Equals, "old")
+		c.Check(newPassphrase, Equals, "new")
+		return nil
+	})()
+
+	kd := secboot.NewKeyData(sbKeyData)
+	err := kd.ChangePassphrase("old", "new")
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
 func (s *secbootSuite) TestAddContainerRecoveryKeyKeyringError(c *C) {
 	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
 		return nil, errors.New("boom!")
@@ -4032,4 +4050,30 @@ func (s *secbootSuite) TestAddContainerRecoveryKeyKeyringError(c *C) {
 	err := secboot.AddContainerRecoveryKey("/dev/foo", "bar", keys.RecoveryKey{'r', 'k', 'e', 'y'})
 	c.Assert(err, ErrorMatches, "cannot get key from kernel keyring for unlocked disk /dev/foo: boom!")
 	c.Check(called, Equals, 0)
+}
+
+func (s *secbootSuite) TestKeyDataWriteTokenAtomic(c *C) {
+	writer := &myKeyDataWriter{}
+	c.Assert(writer.Len(), Equals, 0)
+
+	defer secboot.MockNewLUKS2KeyDataWriter(func(devicePath, name string) (secboot.KeyDataWriter, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(name, Equals, "bar")
+		return writer, nil
+	})()
+
+	kd := secboot.NewKeyData(&sb.KeyData{})
+	err := kd.WriteTokenAtomic("/dev/foo", "bar")
+	c.Assert(err, IsNil)
+	c.Check(writer.Len(), testutil.IntGreaterThan, 0)
+}
+
+func (s *secbootSuite) TestKeyDataWriteTokenAtomicError(c *C) {
+	defer secboot.MockNewLUKS2KeyDataWriter(func(devicePath, name string) (secboot.KeyDataWriter, error) {
+		return nil, errors.New("boom!")
+	})()
+
+	kd := secboot.NewKeyData(&sb.KeyData{})
+	err := kd.WriteTokenAtomic("/dev/foo", "bar")
+	c.Assert(err, ErrorMatches, "boom!")
 }

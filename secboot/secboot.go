@@ -180,6 +180,11 @@ type KeyData interface {
 	PlatformName() string
 	Roles() []string
 	AuthMode() device.AuthMode
+	// ChangePassphrase changes passphrase given old passphrase.
+	// AuthMode must be device.AuthModePassphrase.
+	ChangePassphrase(oldPassphrase, newPassphrase string) error
+	// WriteTokenAtomic saves this key data to the specified LUKS2 token.
+	WriteTokenAtomic(devicePath, slotName string) error
 }
 
 // SerializedPCRProfile wraps a serialized PCR profile which is treated as an

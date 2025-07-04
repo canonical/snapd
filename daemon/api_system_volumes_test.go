@@ -429,21 +429,35 @@ type mockKeyData struct {
 	authMode     device.AuthMode
 	platformName string
 	roles        []string
+
+	changePassphrase func(oldPassphrase, newPassphrase string) error
+	writeTokenAtomic func(devicePath, slotName string) error
 }
 
-// AuthMode indicates the authentication mechanisms enabled for this key data.
 func (k *mockKeyData) AuthMode() device.AuthMode {
 	return k.authMode
 }
 
-// PlatformName returns the name of the platform that handles this key data.
 func (k *mockKeyData) PlatformName() string {
 	return k.platformName
 }
 
-// Role indicates the role of this key.
 func (k *mockKeyData) Roles() []string {
 	return k.roles
+}
+
+func (k *mockKeyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
+	if k.changePassphrase != nil {
+		return k.changePassphrase(oldPassphrase, newPassphrase)
+	}
+	return nil
+}
+
+func (k *mockKeyData) WriteTokenAtomic(devicePath, slotName string) error {
+	if k.writeTokenAtomic != nil {
+		return k.writeTokenAtomic(devicePath, slotName)
+	}
+	return nil
 }
 
 func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedResult any) {
@@ -474,8 +488,16 @@ func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedRe
 				},
 			},
 		}
-		fdestate.MockKeyslotKeyData(&structures[4].Keyslots[0], &mockKeyData{device.AuthModePIN, "tpm2", []string{"run+recover"}})
-		fdestate.MockKeyslotKeyData(&structures[5].Keyslots[0], &mockKeyData{device.AuthModeNone, "tpm2", []string{"recover"}})
+		fdestate.MockKeyslotKeyData(&structures[4].Keyslots[0], &mockKeyData{
+			authMode:     device.AuthModePIN,
+			platformName: "tpm2",
+			roles:        []string{"run+recover"},
+		})
+		fdestate.MockKeyslotKeyData(&structures[5].Keyslots[0], &mockKeyData{
+			authMode:     device.AuthModeNone,
+			platformName: "tpm2",
+			roles:        []string{"recover"},
+		})
 		return structures, nil
 	}))
 

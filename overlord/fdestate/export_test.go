@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
@@ -132,4 +133,28 @@ func MockSecbootRenameContainerKey(f func(devicePath string, oldName string, new
 
 func KeyslotsAlreadyExistsError(keyslots []Keyslot) keyslotsAlreadyExistsError {
 	return keyslotsAlreadyExistsError{keyslots: keyslots}
+}
+
+func MockChangeAuthOptionsInCache(st *state.State, old, new string) (restore func()) {
+	st.Lock()
+	defer st.Unlock()
+	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
+
+	return func() { st.Cache(changeAuthOptionsKey{}, nil) }
+}
+
+func GetChangeAuthOptionsFromCache(st *state.State) *changeAuthOptions {
+	cached := st.Cached(changeAuthOptionsKey{})
+	if cached == nil {
+		return nil
+	}
+	return cached.(*changeAuthOptions)
+}
+
+func (o *changeAuthOptions) Old() string {
+	return o.old
+}
+
+func (o *changeAuthOptions) New() string {
+	return o.new
 }

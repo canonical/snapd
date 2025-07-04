@@ -533,7 +533,93 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	return ts, nil
 }
 
+type changeAuthOptions struct {
+	old, new string
+}
+
+type changeAuthOptionsKey struct{}
+
+// ChangeAuth creates a taskset that changes the PIN or
+// passphrase for the specified target key slots.
+//
+// If keyslotRefs is empty, the following key slots are targets:
+//   - container-role: system-data, name: default
+//   - container-role: system-data, name: default-fallback
+//   - container-role: system-save, name: default-fallback
 func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
-	// TODO:FDEM: mock for actual implementation
-	return state.NewTaskSet(), nil
+	// TODO:FDEM: relax for PINs
+	if authMode != device.AuthModePassphrase {
+		return nil, fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
+	if len(keyslotRefs) == 0 {
+		// by default, target keys that would have been PIN/passphrase protected during installation.
+		keyslotRefs = append(keyslotRefs,
+			KeyslotRef{ContainerRole: "system-data", Name: "default"},
+			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"},
+		)
+	}
+
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
+		}
+		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
+		}
+	}
+
+	// Note: checking that there are no ongoing conflicting changes and that the
+	// targeted key slots exist while state is locked ensures that we don't suffer
+	// from TOCTOU.
+
+	if err := checkFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	mgr := fdeMgr(st)
+
+	keyslots, missing, err := mgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(missing) != 0 {
+		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+
+	for _, keyslot := range keyslots {
+		if keyslot.Type != KeyslotTypePlatform {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypePlatform)
+		}
+		kd, err := keyslot.KeyData()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+		if kd.AuthMode() != authMode {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), authMode)
+		}
+	}
+
+	// Auth data must be in memory to avoid leaking credentials.
+	if st.Cached(changeAuthOptionsKey{}) != nil {
+		logger.Noticef("WARNING: authentication change options already exists in memory")
+	}
+	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
+
+	ts := state.NewTaskSet()
+
+	var summary string
+	switch authMode {
+	case device.AuthModePassphrase:
+		summary = "Change passphrase protected key slots"
+	}
+	changeAuth := st.NewTask("fde-change-auth", summary)
+	changeAuth.Set("keyslots", keyslotRefs)
+	changeAuth.Set("auth-mode", authMode)
+	ts.AddTask(changeAuth)
+
+	return ts, nil
 }

@@ -30,6 +30,9 @@ func (s *fdeMgrSuite) TestKeyslotsNotFoundErrorMessage(c *C) {
 	err := fdestate.KeyslotRefsNotFoundError{KeyslotRefs: []fdestate.KeyslotRef{{ContainerRole: "some-role", Name: "some-slot"}}}
 	c.Check(err.Error(), Equals, `key slot reference (container-role: "some-role", name: "some-slot") not found`)
 
+	err = fdestate.KeyslotRefsNotFoundError{}
+	c.Check(err.Error(), Equals, "key slot reference not found")
+
 	err = fdestate.KeyslotRefsNotFoundError{KeyslotRefs: []fdestate.KeyslotRef{
 		{ContainerRole: "some-role", Name: "some-slot-1"},
 		{ContainerRole: "some-role", Name: "some-slot-2"},

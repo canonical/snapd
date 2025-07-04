@@ -1021,21 +1021,35 @@ type mockKeyData struct {
 	authMode     device.AuthMode
 	platformName string
 	roles        []string
+
+	changePassphrase func(oldPassphrase, newPassphrase string) error
+	writeTokenAtomic func(devicePath, slotName string) error
 }
 
-// AuthMode indicates the authentication mechanisms enabled for this key data.
 func (k *mockKeyData) AuthMode() device.AuthMode {
 	return k.authMode
 }
 
-// PlatformName returns the name of the platform that handles this key data.
 func (k *mockKeyData) PlatformName() string {
 	return k.platformName
 }
 
-// Role indicates the role of this key.
 func (k *mockKeyData) Roles() []string {
 	return k.roles
+}
+
+func (k *mockKeyData) ChangePassphrase(oldPassphrase, newPassphrase string) error {
+	if k.changePassphrase != nil {
+		return k.changePassphrase(oldPassphrase, newPassphrase)
+	}
+	return nil
+}
+
+func (k *mockKeyData) WriteTokenAtomic(devicePath, slotName string) error {
+	if k.writeTokenAtomic != nil {
+		return k.writeTokenAtomic(devicePath, slotName)
+	}
+	return nil
 }
 
 func (s *fdeMgrSuite) TestKeyslotKeyDataLazyLoad(c *C) {
@@ -1085,7 +1099,7 @@ func (s *fdeMgrSuite) TestKeyslotKeyDataErrors(c *C) {
 		return nil, errors.New("boom!")
 	})()
 	_, err = keyslot.KeyData()
-	c.Assert(err, ErrorMatches, `failed to read key data for "some-slot" from "/dev/some-device": boom!`)
+	c.Assert(err, ErrorMatches, `cannot read key data for "some-slot" from "/dev/some-device": boom!`)
 }
 
 func (s *fdeMgrSuite) testGetKeyslots(c *C, allKeyslots bool) {
@@ -1212,7 +1226,7 @@ func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
 	})()
 
 	_, _, err := manager.GetKeyslots(nil)
-	c.Assert(err, ErrorMatches, `failed to obtain recovery keys for "/dev/disk/by-uuid/aaa": boom!`)
+	c.Assert(err, ErrorMatches, `cannot obtain recovery keys for "/dev/disk/by-uuid/aaa": boom!`)
 
 	defer fdestate.MockSecbootListContainerRecoveryKeyNames(func(devicePath string) ([]string, error) {
 		return nil, nil
@@ -1222,7 +1236,7 @@ func (s *fdeMgrSuite) TestGetKeyslotsErrors(c *C) {
 	})()
 
 	_, _, err = manager.GetKeyslots(nil)
-	c.Assert(err, ErrorMatches, `failed to obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
+	c.Assert(err, ErrorMatches, `cannot obtain platform keys for "/dev/disk/by-uuid/aaa": boom!`)
 }
 
 func (s *fdeMgrSuite) TestFDEBlockedTasks(c *C) {
