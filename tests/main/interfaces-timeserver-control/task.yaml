@@ -32,9 +32,9 @@ prepare: |
     esac
 
     # Install a snap declaring a plug on timeserver-control.
-    if systemctl list-unit-files | grep systemd-timesyncd | awk '{print $2}' | MATCH "enabled"; then
+    if systemctl is-enabled systemd-timesyncd.service ; then
         # Install the base core20 variant with timedatectl that supports systemd-timesyncd commands.
-        "$TESTSTOOLS"/snaps-state install-local-variant test-snapd-timedate-control-consumer-core20 test-snapd-timedate-control-consumer
+        "$TESTSTOOLS"/snaps-state install-local-variant test-snapd-timedate-control-consumer-core24 test-snapd-timedate-control-consumer
     else
         # Install the default version.
         "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
