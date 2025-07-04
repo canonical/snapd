@@ -96,13 +96,14 @@ restore: |
 execute: |
     snap install --channel="$CHANNEL" microk8s
 
-    # Change server from docker to rocks.canonical.com because docker.io has download restrictions
-    CONFIG_FILE=/var/snap/microk8s/current/args/certs.d/docker.io/hosts.toml
-    sed -i 's|"https://docker.io"|"https://rocks.canonical.com"|' "$CONFIG_FILE"
-    sed -i 's|"https://registry-1.docker.io"|"https://rocks.canonical.com"|' "$CONFIG_FILE"
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        # Change server from docker to rocks.canonical.com because docker.io has download restrictions
+        CONFIG_FILE=/var/snap/microk8s/current/args/certs.d/docker.io/hosts.toml
+        sed -i 's|"https://docker.io"|"https://rocks.canonical.com"|' "$CONFIG_FILE"
+        microk8s stop
+        microk8s start
+    fi
 
-    microk8s stop
-    microk8s start
     microk8s status --wait-ready --timeout 180
 
     # XXX: enable dashboard etc? doing this is slow :/
