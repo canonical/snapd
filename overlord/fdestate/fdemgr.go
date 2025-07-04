@@ -436,12 +436,12 @@ func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot,
 
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)
 
-func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error {
+func (m *FDEManager) resealKeyForBootChains(unlocker boot.Unlocker, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
 	wrapped := &unlockedStateManager{
 		FDEManager: m,
 		unlocker:   unlocker,
 	}
-	return backendResealKeyForBootChains(wrapped, method, rootdir, params, expectReseal)
+	return backendResealKeyForBootChains(wrapped, method, rootdir, params, opts)
 }
 
 func fdeMgr(st *state.State) *FDEManager {

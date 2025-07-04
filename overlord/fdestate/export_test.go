@@ -54,7 +54,7 @@ var (
 
 type ExternalOperation = externalOperation
 
-func MockBackendResealKeyForBootChains(f func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, expectReseal bool) error) (restore func()) {
+func MockBackendResealKeyForBootChains(f func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error) (restore func()) {
 	restore = testutil.Backup(&backendResealKeyForBootChains)
 	backendResealKeyForBootChains = f
 	return restore

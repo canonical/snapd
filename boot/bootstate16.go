@@ -114,7 +114,7 @@ func newBootStateUpdate16(u bootStateUpdate, names ...string) (*bootStateUpdate1
 	return &bootStateUpdate16{bl: bl, env: m, toCommit: make(map[string]string)}, nil
 }
 
-func (u16 *bootStateUpdate16) commit() error {
+func (u16 *bootStateUpdate16) commit(markedSuccessful bool) error {
 	if len(u16.toCommit) == 0 {
 		// nothing to do
 		return nil
