@@ -302,6 +302,12 @@ apps:
   gpio-chardev:
     command: bin/run
     plugs: [ gpio-chardev ]
+  snap-fde-control:
+    command: bin/run
+    plugs: [ snap-fde-control ]
+  firmware-updater-support:
+    command: bin/run
+    plugs: [ firmware-updater-support ]
 
 plugs:
   custom-device:

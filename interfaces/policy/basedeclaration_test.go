@@ -1081,6 +1081,8 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"unity8":                           true,
 		"userns":                           true,
 		"xilinx-dma":                       true,
+		"snap-fde-control":                 true,
+		"firmware-updater-support":         true,
 	}
 
 	for _, iface := range all {
@@ -1396,6 +1398,8 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"wayland":                          true,
 		"xilinx-dma":                       true,
 		"confdb":                           true,
+		"snap-fde-control":                 true,
+		"firmware-updater-support":         true,
 	}
 
 	for _, iface := range all {
