@@ -157,6 +157,8 @@ type bootStateUpdate20 struct {
 
 	// tasks to run after the modeenv has been written
 	postModeenvTasks []bootCommitTask
+
+	revokeOldKeys bool
 }
 
 func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
@@ -211,7 +213,7 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 		}
 	}
 
-	resealOpts := ResealKeyToModeenvOptions{}
+	resealOpts := ResealKeyToModeenvOptions{RevokeOldKeys: u20.revokeOldKeys}
 
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
@@ -834,7 +836,10 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 		return update, nil
 	}
 
-	newM, dropAssets, err := observeSuccessfulBootAssets(u20.writeModeenv)
+	newM, dropAssets, revokeOldKeys, err := observeSuccessfulBootAssets(u20.writeModeenv)
+	if revokeOldKeys {
+		u20.revokeOldKeys = true
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful boot assets: %v", err)
 	}

@@ -276,6 +276,9 @@ type ResealKeyToModeenvOptions struct {
 	// TPM is provisioned correctly, but keeping the same lockout
 	// authorization value.
 	EnsureProvisioned bool
+
+	// RevokeOldKeys tells whether older TPM2 keys should be revoked
+	RevokeOldKeys bool
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
@@ -304,8 +307,7 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToMo
 
 type ResealKeyForBootChainsParams struct {
 	BootChains
-	// RevokeOldKeys tells whether older TPM2 keys should be revoked
-	RevokeOldKeys bool
+	Options ResealKeyToModeenvOptions
 }
 
 // WithBootChains calls the provided function passing the boot chains which may
@@ -432,10 +434,10 @@ func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod,
 		return err
 	}
 
-	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains}, options)
+	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains, Options: options})
 }
 
-func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, options ResealKeyToModeenvOptions) error {
+func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams) error {
 	return fmt.Errorf("FDE manager was not started")
 }
 
