@@ -21,6 +21,12 @@ package builtin
 
 const snapFDEControlSummary = `allows access to the FDE subset of snapd's system-volumes API`
 
+const snapFDEControlBaseDeclarationPlugs = `
+  snap-fde-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const snapFDEControlBaseDeclarationSlots = `
   snap-fde-control:
     allow-installation:
@@ -35,6 +41,7 @@ func init() {
 		summary:              snapFDEControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
+		baseDeclarationPlugs: snapFDEControlBaseDeclarationPlugs,
 		baseDeclarationSlots: snapFDEControlBaseDeclarationSlots,
 	})
 }

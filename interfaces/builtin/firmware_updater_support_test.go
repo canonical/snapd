@@ -104,6 +104,8 @@ func (s *FirmwareUpdaterSupportInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows operating as the Firmware Updater`)
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "deny-auto-connection: true")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "allow-installation: false")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 

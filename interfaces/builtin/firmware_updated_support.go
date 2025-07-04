@@ -21,6 +21,12 @@ package builtin
 
 const firmwareUpdaterSupportSummary = `allows operating as the Firmware Updater`
 
+const firmwareUpdaterSupportBaseDeclarationPlugs = `
+  firmware-updater-support:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const firmwareUpdaterSupportBaseDeclarationSlots = `
   firmware-updater-support:
     allow-installation:
@@ -35,6 +41,7 @@ func init() {
 		summary:              firmwareUpdaterSupportSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
+		baseDeclarationPlugs: firmwareUpdaterSupportBaseDeclarationPlugs,
 		baseDeclarationSlots: firmwareUpdaterSupportBaseDeclarationSlots,
 	})
 }
