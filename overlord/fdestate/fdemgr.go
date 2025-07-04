@@ -536,17 +536,24 @@ func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, 
 	return mgr.GenerateRecoveryKey()
 }
 
-func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err error) {
-	if m.recoveryKeyCache == nil {
+// GetRecoveryKey retrieves a recovery key by its key-id. The key can only
+// be retrieved once and is immediately deleted after being retrieved.
+// An error is returned if the corresponding recovery key is expired.
+//
+// The state needs to be locked by the caller.
+func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+	mgr := fdeMgr(st)
+
+	if mgr.recoveryKeyCache == nil {
 		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyCache is nil")
 	}
 
-	rkeyInfo, err := m.recoveryKeyCache.Key(keyID)
+	rkeyInfo, err := mgr.recoveryKeyCache.Key(keyID)
 	if err != nil {
 		return keys.RecoveryKey{}, err
 	}
 	// generated recovery key can only be used once.
-	if err := m.recoveryKeyCache.RemoveKey(keyID); err != nil {
+	if err := mgr.recoveryKeyCache.RemoveKey(keyID); err != nil {
 		return keys.RecoveryKey{}, err
 	}
 
@@ -555,16 +562,6 @@ func (m *FDEManager) getRecoveryKey(keyID string) (rkey keys.RecoveryKey, err er
 	}
 
 	return rkeyInfo.Key, nil
-}
-
-// GetRecoveryKey retrieves a recovery key by its key-id. The key can only
-// be retrieved once and is immediately deleted after being retrieved.
-// An error is returned if the corresponding recovery key is expired.
-//
-// The state needs to be locked by the caller.
-func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
-	mgr := fdeMgr(st)
-	return mgr.getRecoveryKey(keyID)
 }
 
 // CheckRecoveryKey tests that the specified recovery key unlocks the

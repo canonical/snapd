@@ -2339,7 +2339,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+	defer devicestate.MockSecbootRenameKeysForFactoryReset(func(node string, renames map[string]string) error {
 		if tc.encrypt {
 			c.Check(node, Equals, "/dev/disk/by-uuid/570faa3d-e3bc-49db-979b-e7814b6bd390")
 			c.Check(renames, DeepEquals, map[string]string{
@@ -2707,7 +2707,7 @@ echo "mock output of: $(basename "$0") $*"
 			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
 		}, nil
 	})()
-	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+	defer devicestate.MockSecbootRenameKeysForFactoryReset(func(node string, renames map[string]string) error {
 		c.Check(node, Equals, "foo")
 		c.Check(renames, DeepEquals, map[string]string{
 			"default":          "reprovision-default",
@@ -2801,7 +2801,7 @@ echo "mock output of: $(basename "$0") $*"
 			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
 		}, nil
 	})()
-	defer devicestate.MockSecbootRenameKeys(func(node string, renames map[string]string) error {
+	defer devicestate.MockSecbootRenameKeysForFactoryReset(func(node string, renames map[string]string) error {
 		c.Check(node, Equals, "foo")
 		c.Check(renames, DeepEquals, map[string]string{
 			"default":          "reprovision-default",

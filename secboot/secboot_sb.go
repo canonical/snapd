@@ -354,7 +354,7 @@ func AddBootstrapKeyOnExistingDisk(node string, newKey keys.EncryptionKey) error
 // WARNING: this function is not always atomic. If cryptsetup is too
 // old, it will try to copy and delete keys instead. Please avoid
 // using this function in new code.
-func RenameKeys(node string, renames map[string]string) error {
+func RenameKeysForFactoryReset(node string, renames map[string]string) error {
 	targets := make(map[string]bool)
 
 	for _, renameTo := range renames {
@@ -367,6 +367,7 @@ func RenameKeys(node string, renames map[string]string) error {
 
 	// TODO:FDEM:FIX: listing keys, then modifying could be a TOCTOU issue.
 	// we expect here nothing else is messing with the key slots.
+	// XXX: include recovery key slots sbListLUKS2ContainerRecoveryKeyNames
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
@@ -397,9 +398,18 @@ func RenameKeys(node string, renames map[string]string) error {
 	return nil
 }
 
+// RenameContainerKey renames a key slot on LUKS2 container. An error
+// is returned if cryptsetup does not support --token-replace option.
+func RenameContainerKey(devicePath, oldName, newName string) error {
+	return sbRenameLUKS2ContainerKey(devicePath, oldName, newName)
+}
+
 // DeleteKeys delete key slots on a LUKS2 container. Slots that do not
 // exist are ignored.
+//
+// XXX: s/DeleteKey/DeleteContainerKey
 func DeleteKeys(node string, matches map[string]bool) error {
+	// XXX: include recovery key slots sbListLUKS2ContainerRecoveryKeyNames
 	slots, err := sbListLUKS2ContainerUnlockKeyNames(node)
 	if err != nil {
 		return fmt.Errorf("cannot list slots in partition save partition: %v", err)
@@ -414,6 +424,11 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	}
 
 	return nil
+}
+
+// DeleteContainerKey deletes a key slot on a LUKS2 container.
+func DeleteContainerKey(devicePath, slotName string) error {
+	return sbDeleteLUKS2ContainerKey(devicePath, slotName)
 }
 
 func findPrimaryKey(devicePath string) ([]byte, error) {
@@ -628,4 +643,15 @@ func EntropyBits(passphrase string) (uint32, error) {
 		return 0, err
 	}
 	return stats.EntropyBits, nil
+}
+
+// AddContainerRecoveryKey adds a new recovery key to specified device.
+//
+// Note: The unlock key is implicitly obtained from the kernel keyring.
+func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.RecoveryKey) error {
+	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultKeyringPrefix, devicePath, false)
+	if err != nil {
+		return fmt.Errorf("cannot get key from kernel keyring for unlocked disk %s: %v", devicePath, err)
+	}
+	return sbAddLUKS2ContainerRecoveryKey(devicePath, slotName, unlockKey, sb.RecoveryKey(rkey))
 }

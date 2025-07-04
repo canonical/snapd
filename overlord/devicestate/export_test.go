@@ -620,11 +620,11 @@ func MockSecbootAddBootstrapKeyOnExistingDisk(f func(node string, newKey keys.En
 	}
 }
 
-func MockSecbootRenameKeys(f func(node string, renames map[string]string) error) (restore func()) {
-	old := secbootRenameKeys
-	secbootRenameKeys = f
+func MockSecbootRenameKeysForFactoryReset(f func(node string, renames map[string]string) error) (restore func()) {
+	old := secbootRenameKeysForFactoryReset
+	secbootRenameKeysForFactoryReset = f
 	return func() {
-		secbootRenameKeys = old
+		secbootRenameKeysForFactoryReset = old
 	}
 }
 
