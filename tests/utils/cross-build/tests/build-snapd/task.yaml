@@ -1,0 +1,27 @@
+summary: Build snap in armhf architecture
+
+details: |
+  Verifies that snapd can be built in armhf architecture.
+
+backends: [testflinger]
+
+prepare: |
+  apt update
+  apt install -y git  
+
+  # make sure snapd snap is refreshed
+  snap refresh snapd
+  snap install yq
+
+  git clone https://github.com/snapcore/snapd.git
+  yaml=snapd/build-aux/snap/snapcraft.yaml
+  channel="$(yq '.parts.snapd.build-snaps[]' $yaml | awk -F'/' '{print $2"/"$3}')"
+
+  snap install go --classic --channel "$channel"
+  snap install snapcraft --classic
+  snap install lxd
+  lxd init --auto
+
+execute: |  
+  cd snapd
+  snapcraft --verbose
