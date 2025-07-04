@@ -19,10 +19,10 @@
 
 package builtin
 
-const snapFDESummary = `allows access to snapd's system-volumes API`
+const snapFDEControlSummary = `allows access to the FDE subset of snapd's system-volumes API`
 
-const snapFDEBaseDeclarationSlots = `
-  snap-fde:
+const snapFDEControlBaseDeclarationSlots = `
+  snap-fde-control:
     allow-installation:
       slot-snap-type:
         - core
@@ -31,10 +31,10 @@ const snapFDEBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "snap-fde",
-		summary:              snapFDESummary,
+		name:                 "snap-fde-control",
+		summary:              snapFDEControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationSlots: snapFDEBaseDeclarationSlots,
+		baseDeclarationSlots: snapFDEControlBaseDeclarationSlots,
 	})
 }

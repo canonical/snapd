@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SnapFDEInterfaceSuite struct {
+type SnapFDEControlInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,42 +37,42 @@ type SnapFDEInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&SnapFDEInterfaceSuite{
-	iface: builtin.MustInterface("snap-fde"),
+var _ = Suite(&SnapFDEControlInterfaceSuite{
+	iface: builtin.MustInterface("snap-fde-control"),
 })
 
-func (s *SnapFDEInterfaceSuite) SetUpTest(c *C) {
+func (s *SnapFDEControlInterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `
 name: other
 version: 0
 apps:
  app:
   command: foo
-  plugs: [snap-fde]
+  plugs: [snap-fde-control]
 `
 	const mockSlotSnapInfoYaml = `name: core
 version: 1.0
 type: os
 slots:
- snap-fde:
+ snap-fde-control:
 `
-	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "snap-fde")
-	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "snap-fde")
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "snap-fde-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "snap-fde-control")
 }
 
-func (s *SnapFDEInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "snap-fde")
+func (s *SnapFDEControlInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "snap-fde-control")
 }
 
-func (s *SnapFDEInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *SnapFDEControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *SnapFDEInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *SnapFDEControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SnapFDEInterfaceSuite) TestAppArmor(c *C) {
+func (s *SnapFDEControlInterfaceSuite) TestAppArmor(c *C) {
 	// The interface generates no AppArmor rules
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -99,14 +99,14 @@ func (s *SnapFDEInterfaceSuite) TestAppArmor(c *C) {
 	c.Check(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *SnapFDEInterfaceSuite) TestStaticInfo(c *C) {
+func (s *SnapFDEControlInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to snapd's system-volumes API`)
+	c.Assert(si.Summary, Equals, `allows access to the FDE subset of snapd's system-volumes API`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 
-func (s *SnapFDEInterfaceSuite) TestInterfaces(c *C) {
+func (s *SnapFDEControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

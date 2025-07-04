@@ -103,7 +103,7 @@ func (s *FirmwareUpdaterSupportInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to snapd's system-volumes API "check-recovery-key" action`)
+	c.Assert(si.Summary, Equals, `allows operating as the Firmware Updater`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 

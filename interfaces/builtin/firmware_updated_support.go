@@ -19,7 +19,7 @@
 
 package builtin
 
-const firmwareUpdaterSupportSummary = `allows access to snapd's system-volumes API "check-recovery-key" action`
+const firmwareUpdaterSupportSummary = `allows operating as the Firmware Updater`
 
 const firmwareUpdaterSupportBaseDeclarationSlots = `
   firmware-updater-support:

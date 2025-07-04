@@ -302,9 +302,9 @@ apps:
   gpio-chardev:
     command: bin/run
     plugs: [ gpio-chardev ]
-  snap-fde:
+  snap-fde-control:
     command: bin/run
-    plugs: [ snap-fde ]
+    plugs: [ snap-fde-control ]
   firmware-updater-support:
     command: bin/run
     plugs: [ firmware-updater-support ]
