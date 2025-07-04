@@ -65,7 +65,6 @@ func (s *diskUnlockStateSuite) TestUnlockedStateWriteTo(c *C) {
 			"mount-state": "mounted",
 		},
 		"ubuntu-save": map[string]any{},
-		"error-log":   any(nil),
 	})
 }
 
