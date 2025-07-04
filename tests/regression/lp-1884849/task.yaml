@@ -32,7 +32,7 @@ restore: |
 execute: |
   # I can update the mount namespace without an error.
   SNAPD_DEBUG=1 snapd.tool exec snap-update-ns test-snapd-desktop 2>snap-update-ns.log
-  MATCH 'DEBUG: ignoring EINVAL from unmount, "/var/cache/fontconfig" is not mounted' <snap-update-ns.log
+  MATCH 'DEBUG:+.*ignoring EINVAL from unmount, [\]?"/var/cache/fontconfig[\]?" is not mounted' <snap-update-ns.log
   # And confirm snap-update-ns fixed the situation
   not grep -qF '/var/lib/snapd/hostfs/var/cache/fontconfig /var/cache/fontconfig none bind,ro 0 0' < /run/snapd/ns/snap.test-snapd-desktop.fstab
   nsenter -m/run/snapd/ns/test-snapd-desktop.mnt test ! -e /var/cache/fontconfig/.canary
