@@ -84,11 +84,11 @@ const cpuControlConnectedPlugAppArmor = `
 /dev/cpu_dma_latency rw,
 
 # Allow interrupt affinity settings, see https://www.kernel.org/doc/html/latest/core-api/irq/irq-affinity.html
-/sys/kernel/irq/[0-9]*/* r,
+/sys/kernel/irq{/,/[0-9]**} r,
 /proc/interrupts r,
-/proc/irq/[0-9]+/smp_affinity rw,
-/proc/irq/[0-9]+/smp_affinity_list rw,
-/proc/irq/default_smp_affinity rw,
+/proc/irq/[0-9]*/smp_affinity rwk,
+/proc/irq/[0-9]*/smp_affinity_list rwk,
+/proc/irq/default_smp_affinity rwk,
 `
 
 var cpuControlConnectedPlugUDev = []string{
