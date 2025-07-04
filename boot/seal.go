@@ -63,7 +63,7 @@ var (
 )
 
 // MockResealKeyToModeenv is only useful in testing.
-func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, opts ResealKeyToModeenvOptions, unlocker Unlocker, revokeOldKeys bool) error) (restore func()) {
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, opts ResealKeyToModeenvOptions, unlocker Unlocker) error) (restore func()) {
 	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
 	old := resealKeyToModeenv
 	resealKeyToModeenv = f
@@ -276,6 +276,9 @@ type ResealKeyToModeenvOptions struct {
 	// TPM is provisioned correctly, but keeping the same lockout
 	// authorization value.
 	EnsureProvisioned bool
+
+	// RevokeOldKeys tells whether older TPM2 keys should be revoked
+	RevokeOldKeys bool
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
@@ -285,7 +288,7 @@ type ResealKeyToModeenvOptions struct {
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToModeenvOptions, unlocker Unlocker, revokeOldKeys bool) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToModeenvOptions, unlocker Unlocker) error {
 	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
@@ -299,13 +302,12 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToMo
 		return err
 	}
 
-	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, opts, revokeOldKeys)
+	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, opts)
 }
 
 type ResealKeyForBootChainsParams struct {
 	BootChains
-	// RevokeOldKeys tells whether older TPM2 keys should be revoked
-	RevokeOldKeys bool
+	Options ResealKeyToModeenvOptions
 }
 
 // WithBootChains calls the provided function passing the boot chains which may
@@ -426,16 +428,16 @@ func bootChains(modeenv *Modeenv, method device.SealingMethod) (BootChains, erro
 	return bc, nil
 }
 
-func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, options ResealKeyToModeenvOptions, revokeOldKeys bool) error {
+func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod, rootdir string, modeenv *Modeenv, options ResealKeyToModeenvOptions) error {
 	bootChains, err := bootChains(modeenv, method)
 	if err != nil {
 		return err
 	}
 
-	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains, RevokeOldKeys: revokeOldKeys}, options)
+	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains, Options: options})
 }
 
-func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams, options ResealKeyToModeenvOptions) error {
+func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams) error {
 	return fmt.Errorf("FDE manager was not started")
 }
 

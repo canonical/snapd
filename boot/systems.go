@@ -95,7 +95,7 @@ func clearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 	// but we still want to reseal, in case the cleanup did not reach this
 	// point before
 	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
-	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil, false)
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil)
 
 	if resealErr != nil {
 		return resealErr
@@ -177,7 +177,7 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	// tried system, data will still be inaccessible and the system will be
 	// considered as nonoperational
 	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
-	return resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil, false)
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil)
 }
 
 type errInconsistentRecoverySystemState struct {
@@ -421,7 +421,7 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 	}
 
 	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil, false); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil); err != nil {
 		if cleanupErr := dropRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
@@ -464,7 +464,7 @@ func dropRecoverySystem(dev snap.Device, systemLabel string) error {
 	}
 
 	resealOpts := ResealKeyToModeenvOptions{ExpectReseal: true}
-	return resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil, false)
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, resealOpts, nil)
 }
 
 // MarkRecoveryCapableSystem records a given system as one that we can recover

@@ -213,7 +213,7 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 		}
 	}
 
-	resealOpts := ResealKeyToModeenvOptions{}
+	resealOpts := ResealKeyToModeenvOptions{RevokeOldKeys: u20.revokeOldKeys}
 
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
@@ -244,7 +244,7 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 	// changed because of unasserted kernels, then pass a
 	// flag as hint whether to reseal based on whether we
 	// wrote the modeenv
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, resealOpts, nil, u20.revokeOldKeys); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, resealOpts, nil); err != nil {
 		return err
 	}
 
