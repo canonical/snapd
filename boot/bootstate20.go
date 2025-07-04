@@ -211,7 +211,8 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 		}
 	}
 
-	resealOpts := ResealKeyToModeenvOptions{}
+	// MarkSuccessful does not do the switch TryModel -> Model
+	resealOpts := ResealKeyToModeenvOptions{IgnoreHooks: true}
 
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
