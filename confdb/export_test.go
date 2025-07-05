@@ -36,7 +36,17 @@ func (a Authentication) ToStrings() []string {
 
 // TODO: remove this once we remove the temporary test TestRequestMatch
 func (v *View) MatchGetRequest(request string) (matches []requestMatch, err error) {
-	return v.matchGetRequest(request)
+	opts := validationOptions{pathType: userPath}
+	accessors, err := parsePathIntoAccessors(request, opts)
+	if err != nil {
+		return nil, err
+	}
+	return v.matchGetRequest(accessors)
+}
+
+func ParsePathIntoAccessors(path string) ([]accessor, error) {
+	opts := validationOptions{pathType: viewPath}
+	return parsePathIntoAccessors(path, opts)
 }
 
 type RequestMatch = requestMatch
