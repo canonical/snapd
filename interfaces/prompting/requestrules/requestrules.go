@@ -28,8 +28,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
@@ -38,7 +41,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	// userSessionIDXattr is a trusted xattr so unprivileged users cannot
+	// interfere with the user session ID snapd assigns.
+	userSessionIDXattr = "trusted.snapd_user_session_id"
+	// errNoUserSession indicates that the user session tmpfs is not present.
+	errNoUserSession = errors.New("cannot find systemd user session tmpfs for user")
 )
 
 // Rule stores the contents of a request rule.
@@ -115,7 +127,7 @@ type RuleDB struct {
 	mutex     sync.RWMutex
 	maxIDMmap maxidmmap.MaxIDMmap
 
-	// index to the rules by their rule IR
+	// index to the rules by their rule ID
 	indexByID map[prompting.IDType]int
 	rules     []*Rule
 
@@ -128,6 +140,10 @@ type RuleDB struct {
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+
+	// userSessionIDMu ensures that two threads cannot race to write a new user
+	// session ID.
+	userSessionIDMu sync.Mutex
 }
 
 // New creates a new rule database, loads existing rules from the database file,
@@ -868,6 +884,75 @@ func (rdb *RuleDB) Close() error {
 	}
 
 	return rdb.save()
+}
+
+func userSessionPath(user uint32) string {
+	userIDStr := strconv.FormatUint(uint64(user), 10)
+	return filepath.Join(dirs.XdgRuntimeDirBase, userIDStr)
+}
+
+func newUserSessionID() prompting.IDType {
+	id := randutil.Uint64()
+	return prompting.IDType(id)
+}
+
+// readOrAssignUserSessionID returns the existing user session ID for the given
+// user, if an ID exists, otherwise generates a new ID and writes it as an
+// xattr on the root directory of the user session tmpfs, /run/user/$UID.
+//
+// Snapd defines a unique ID for the user session and stores it as an xattr on
+// /run/user/$UID in order to identify when the user session has ended or been
+// restarted. When the user session ends, systemd removes the tmpfs at
+// /run/user/$UID. Therefore, if that directory is missing, or it does not have
+// the xattr set, snapd knows the session has ended or restarted, and by
+// associating the current session ID with rules which have lifespan "session",
+// it can later tell whether those rules should be discarded.
+//
+// Returns the existing or newly-assigned ID, or an error if it occurs. If the
+// user session does not exist for the given user, returns an error which wraps
+// errNoUserSession.
+func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
+	rdb.userSessionIDMu.Lock()
+	defer rdb.userSessionIDMu.Unlock()
+
+	path := userSessionPath(user)
+
+	// It's important to check for an existing session ID xattr before trying
+	// to write a new session ID, as the /run/user/$UID tmpfs may be removed,
+	// but snapd is the only process which should ever write a session ID xattr.
+
+	userSessionIDXattrLen := 16 // 64-bit number as hex string
+	sessionIDBuf := make([]byte, userSessionIDXattrLen)
+	_, err = unix.Getxattr(path, userSessionIDXattr, sessionIDBuf)
+	if err == nil {
+		if e := userSessionID.UnmarshalText(sessionIDBuf); e == nil {
+			return userSessionID, nil
+		}
+		// Xattr present, but couldn't parse it, so ignore and overwrite it
+	} else if errors.Is(err, unix.ENOENT) {
+		// User session tmpfs does not exist
+		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
+	} else if !errors.Is(err, unix.ENODATA) {
+		return 0, err
+		// Something else went wrong
+	}
+
+	// No existing ID
+
+	newID := newUserSessionID()
+	data, _ := newID.MarshalText() // error is always nil
+	err = unix.Setxattr(path, userSessionIDXattr, data, 0)
+	if errors.Is(err, unix.ENOENT) {
+		// User session tmpfs does not exist (but it existed above). This is
+		// highly unlikely, and should only occur if the directory existed but
+		// had no session ID xattr, then between the Getxattr call and this
+		// Setxattr call, the user session was removed. But no problem, we can
+		// still correctly return an error wrapping errNoUserSession.
+		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
+	} else if err != nil {
+		return 0, err
+	}
+	return newID, nil
 }
 
 // Creates a rule with the given information and adds it to the rule database.

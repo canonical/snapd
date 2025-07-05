@@ -27,8 +27,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	. "gopkg.in/check.v1"
 
@@ -722,6 +725,156 @@ func (s *requestrulesSuite) TestCloseErrors(c *C) {
 	defer os.Chmod(dirs.SnapInterfacesRequestsStateDir, 0o755)
 
 	c.Check(rdb.Close(), NotNil)
+}
+
+func (s *requestrulesSuite) TestUserSessionPath(c *C) {
+	for _, testCase := range []struct {
+		userID   uint32
+		expected string
+	}{
+		{1000, "/run/user/1000"},
+		{0, "/run/user/0"},
+		{1, "/run/user/1"},
+		{65535, "/run/user/65535"},
+		{65536, "/run/user/65536"},
+		{4294967295, "/run/user/4294967295"},
+	} {
+		expectedWithTestPrefix := filepath.Join(dirs.GlobalRootDir, testCase.expected)
+		c.Check(requestrules.UserSessionPath(testCase.userID), Equals, expectedWithTestPrefix)
+	}
+}
+
+func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
+	userSessionIDXattr, restore := requestrules.MockUserSessionIDXattr()
+	defer restore()
+
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	// If there is no user session dir, expect errNoUserSession
+	noSessionID, err := rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, ErrorMatches, "cannot find systemd user session tmpfs for user: 1000")
+	c.Assert(noSessionID, Equals, prompting.IDType(0))
+
+	// Make user session dir, as if systemd had done so for this user
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "run/user/1000"), 0o700), IsNil)
+
+	// If there is a user session dir, expect some non-zero user ID
+	origID, err := rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, IsNil)
+	c.Assert(origID, Not(Equals), prompting.IDType(0))
+
+	// If a user session ID is already present for this session, retrieve it
+	// rather than defining a new one
+	retrievedID, err := rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, IsNil)
+	c.Assert(retrievedID, Equals, origID)
+	// Try again, for good measure
+	retrievedID, err = rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, IsNil)
+	c.Assert(retrievedID, Equals, origID)
+
+	// If the user session restarts, the user session tmpfs is deleted and
+	// re-created, so the xattr is no longer present. So we set a new ID.
+	c.Assert(os.Remove(filepath.Join(dirs.GlobalRootDir, "run/user/1000")), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "run/user/1000"), 0o700), IsNil)
+	newID, err := rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, IsNil)
+	c.Assert(newID, Not(Equals), 0)
+	c.Assert(newID, Not(Equals), origID)
+
+	// If we try for a different user without a session, we get the error
+	noSessionID, err = rdb.ReadOrAssignUserSessionID(1234)
+	c.Assert(err, ErrorMatches, "cannot find systemd user session tmpfs for user: 1234")
+	c.Assert(noSessionID, Equals, prompting.IDType(0))
+
+	// Make user session dir, as if systemd had done so for this user
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "run/user/1234"), 0o700), IsNil)
+
+	// If there is a user session dir, expect some non-zero user ID different
+	// from that of the other user
+	secondUserID, err := rdb.ReadOrAssignUserSessionID(1234)
+	c.Assert(err, IsNil)
+	c.Assert(secondUserID, Not(Equals), prompting.IDType(0))
+	c.Assert(secondUserID, Not(Equals), newID)
+
+	// If we get the first user's session ID, it's still the same
+	firstUserID, err := rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, IsNil)
+	c.Assert(firstUserID, Not(Equals), prompting.IDType(0))
+	c.Assert(firstUserID, Not(Equals), secondUserID)
+	c.Assert(firstUserID, Equals, newID)
+
+	// If we remove the user session for the first user, we get the error again
+	c.Assert(os.Remove(filepath.Join(dirs.GlobalRootDir, "run/user/1000")), IsNil)
+	noSessionID, err = rdb.ReadOrAssignUserSessionID(1000)
+	c.Assert(err, ErrorMatches, "cannot find systemd user session tmpfs for user: 1000")
+	c.Assert(noSessionID, Equals, prompting.IDType(0))
+
+	// But we can still retrieve the session ID for the second user
+	retrievedID, err = rdb.ReadOrAssignUserSessionID(1234)
+	c.Assert(err, IsNil)
+	c.Assert(retrievedID, Not(Equals), prompting.IDType(0))
+	c.Assert(retrievedID, Equals, secondUserID)
+
+	// If the xattr is corrupted, we get a new ID
+	c.Assert(unix.Setxattr(filepath.Join(dirs.GlobalRootDir, "run/user/1234"), userSessionIDXattr, []byte("foo"), 0), IsNil)
+	regeneratedID, err := rdb.ReadOrAssignUserSessionID(1234)
+	c.Assert(err, IsNil)
+	c.Assert(regeneratedID, Not(Equals), prompting.IDType(0))
+	c.Assert(regeneratedID, Not(Equals), secondUserID)
+}
+
+func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
+	_, restore := requestrules.MockUserSessionIDXattr()
+	defer restore()
+
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Assert(err, IsNil)
+
+	// Multiple threads acting at once all return the same ID
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "run/user/5000"), 0o700), IsNil)
+	startChan := make(chan struct{}) // close to broadcast to all threads
+	count := 10
+	var startWG sync.WaitGroup
+	startWG.Add(count)
+	resultChan := make(chan prompting.IDType, count)
+	for i := 0; i < count; i++ {
+		go func() {
+			startWG.Done()
+			<-startChan // wait for broadcast
+			sessionID, err := rdb.ReadOrAssignUserSessionID(5000)
+			c.Assert(err, IsNil)
+			c.Assert(sessionID, Not(Equals), prompting.IDType(0))
+			resultChan <- sessionID
+		}()
+	}
+	startWG.Wait()
+	time.Sleep(10 * time.Millisecond) // wait until they're all waiting on startChan
+	// Start all goroutines simultaneously
+	close(startChan)
+
+	// Get session ID from first that sends one
+	var firstID prompting.IDType
+	select {
+	case firstID = <-resultChan:
+		c.Assert(firstID, NotNil)
+		c.Assert(firstID, Not(Equals), prompting.IDType(0))
+	case <-time.NewTimer(time.Second).C:
+		c.Fatal("timed out waiting for first user ID")
+	}
+
+	// Check that each other goroutine retrieved the same session ID
+	for i := 1; i < count; i++ {
+		select {
+		case retrievedID := <-resultChan:
+			c.Assert(retrievedID, NotNil)
+			c.Assert(retrievedID, Not(Equals), prompting.IDType(0))
+			c.Assert(retrievedID, Equals, firstID)
+		case <-time.NewTimer(time.Second).C:
+			c.Fatalf("timed out waiting for %dth ID", i)
+		}
+	}
 }
 
 type addRuleContents struct {

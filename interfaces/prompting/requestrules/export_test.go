@@ -22,12 +22,25 @@ package requestrules
 import (
 	"time"
 
+	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/testutil"
 )
 
-var JoinInternalErrors = joinInternalErrors
+var (
+	ErrNoUserSession   = errNoUserSession
+	JoinInternalErrors = joinInternalErrors
+	UserSessionPath    = userSessionPath
+)
 
 type RulesDBJSON rulesDBJSON
+
+func MockUserSessionIDXattr() (xattr string, restore func()) {
+	// Test code doesn't have CAP_SYS_ADMIN, so replace the "trusted" namespace
+	// with "user" for the sake of testing.
+	testXattr := "user.snapd_user_session_id"
+	restore = testutil.Mock(&userSessionIDXattr, testXattr)
+	return testXattr, restore
+}
 
 func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
 	return rule.validate(currTime)
@@ -35,6 +48,10 @@ func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
 
 func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
+}
+
+func (rdb *RuleDB) ReadOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
+	return rdb.readOrAssignUserSessionID(user)
 }
 
 func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error)) func() {
