@@ -362,6 +362,11 @@ jobs:
 
   read-systems:
     runs-on: ubuntu-latest
+    # This dependency only serves to ensure this job runs after the
+    # labeler finishes its work
+    needs: snap-builds
+    env:
+      GH_TOKEN: ${{ github.token }}
     outputs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
@@ -378,9 +383,21 @@ jobs:
           echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
 
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
+            if grep -q '^Run only one system$' <<<$labels; then
+              echo "fundamental-systems=$(jq -c ".include |= map(select(.systems == \"ubuntu-24.04-64\"))" .github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
+              echo "non-fundamental-systems=" >> $GITHUB_OUTPUT
+              if ! grep -q '^Run nested$' <<<$labels; then
+                echo "nested-systems=" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
+
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    if: needs.read-systems.outputs.fundamental-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -406,7 +423,7 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro')
+    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
@@ -463,6 +480,7 @@ jobs:
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    if: needs.read-systems.outputs.nested-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
