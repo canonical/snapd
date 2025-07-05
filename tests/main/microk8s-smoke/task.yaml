@@ -17,6 +17,7 @@ systems:
   - -fedora-42-*         # fails to start service daemon-containerd
   - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
   - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
+  - -opensuse-*          # install hook fails
   - -ubuntu-*-arm*       # not available on arm
   - -ubuntu-16.04-*      # TODO: remove once it doesn't fail to load rockcraft images
   - -ubuntu-18.04-*      # TODO: remove once it doesn't fail to load rockcraft images
