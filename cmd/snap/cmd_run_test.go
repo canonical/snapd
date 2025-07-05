@@ -1642,6 +1642,66 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
 
+func (s *RunSuite) TestSnapRunExposeKerberosTickets(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap; happily this also gives us a directory
+	// below /tmp which Kerberos ticket exposal expects.
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// create mock Kerberos ticket
+	f, err := os.CreateTemp("/tmp", "krb5cc_")
+	c.Assert(err, check.IsNil)
+	f.Close()
+	krbTicketPath := f.Name()
+	defer os.Remove(krbTicketPath)
+
+	defer snaprun.MockGetEnv(func(name string) string {
+		if name == "KRB5CCNAME" {
+			return "FILE:" + krbTicketPath
+		}
+		return ""
+	})()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app"})
+
+	// Ensure environment has expected KRBCCNAME
+	expectedKrbTicketPath := "/var/lib/snapd/hostfs/tmp/krb5cc_"
+	result := false
+	actualKrbTicketPath := ""
+	for _, el := range execEnv {
+		if strings.HasPrefix(el, "KRB5CCNAME=FILE:") {
+			actualKrbTicketPath = filepath.Clean(strings.TrimPrefix(el, "KRB5CCNAME=FILE:"))
+			result = strings.HasPrefix(actualKrbTicketPath, expectedKrbTicketPath)
+			break
+		}
+	}
+	c.Check(result, check.Equals, true)
+}
+
 func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
