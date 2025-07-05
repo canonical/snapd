@@ -22,21 +22,48 @@ package requestrules
 import (
 	"time"
 
+	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/testutil"
 )
 
-var JoinInternalErrors = joinInternalErrors
+var (
+	ErrNoUserSession   = errNoUserSession
+	JoinInternalErrors = joinInternalErrors
+	UserSessionPath    = userSessionPath
+)
 
 type RulesDBJSON rulesDBJSON
 
-func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
-	return rule.validate(currTime)
+type UserSessionIDCache = userSessionIDCache
+
+func (cache *UserSessionIDCache) GetUserSessionID(rdb *RuleDB, user uint32) (prompting.IDType, error) {
+	return cache.getUserSessionID(rdb, user)
 }
 
-func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
-	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
+func MockUserSessionIDXattr() (xattr string, restore func()) {
+	// Test code doesn't have CAP_SYS_ADMIN, so replace the "trusted" namespace
+	// with "user" for the sake of testing.
+	testXattr := "user.snapd_user_session_id"
+	restore = testutil.Mock(&userSessionIDXattr, testXattr)
+	return testXattr, restore
 }
 
-func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error)) func() {
-	return testutil.Mock(&isPathPermAllowedByRuleDB, f)
+func (rule *Rule) Validate(currTime time.Time, currSession prompting.IDType) (expired bool, err error) {
+	return rule.validate(currTime, currSession)
+}
+
+func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string, currTime time.Time, currSession prompting.IDType) (bool, error) {
+	return rdb.isPathPermAllowed(user, snap, iface, path, permission, currTime, currSession)
+}
+
+func MockReadOrAssignUserSessionID(f func(rdb *RuleDB, user uint32) (prompting.IDType, error)) (restore func()) {
+	return testutil.Mock(&readOrAssignUserSessionID, f)
+}
+
+func (rdb *RuleDB) ReadOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
+	return rdb.readOrAssignUserSessionID(user)
+}
+
+func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string, currTime time.Time, currSession prompting.IDType) (bool, error)) func() {
+	return testutil.Mock(&isPathPermAllowed, f)
 }

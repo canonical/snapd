@@ -28,8 +28,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
@@ -38,7 +41,16 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	// userSessionIDXattr is a trusted xattr so unprivileged users cannot
+	// interfere with the user session ID snapd assigns.
+	userSessionIDXattr = "trusted.snapd_user_session_id"
+	// errNoUserSession indicates that the user session tmpfs is not present.
+	errNoUserSession = errors.New("cannot find systemd user session tmpfs for user")
 )
 
 // Rule stores the contents of a request rule.
@@ -54,13 +66,13 @@ type Rule struct {
 // Validate verifies internal correctness of the rule's constraints and
 // permissions and prunes any expired permissions. If all permissions are
 // expired, then returns true. If the rule is invalid, returns an error.
-func (rule *Rule) validate(currTime time.Time) (expired bool, err error) {
-	return rule.Constraints.ValidateForInterface(rule.Interface, currTime)
+func (rule *Rule) validate(currTime time.Time, currSession prompting.IDType) (expired bool, err error) {
+	return rule.Constraints.ValidateForInterface(rule.Interface, currTime, currSession)
 }
 
 // expired returns true if all permissions for the receiving rule have expired.
-func (rule *Rule) expired(currTime time.Time) bool {
-	return rule.Constraints.Permissions.Expired(currTime)
+func (rule *Rule) expired(currTime time.Time, currSession prompting.IDType) bool {
+	return rule.Constraints.Permissions.Expired(currTime, currSession)
 }
 
 // variantEntry stores the actual pattern variant struct which can be used to
@@ -115,7 +127,7 @@ type RuleDB struct {
 	mutex     sync.RWMutex
 	maxIDMmap maxidmmap.MaxIDMmap
 
-	// index to the rules by their rule IR
+	// index to the rules by their rule ID
 	indexByID map[prompting.IDType]int
 	rules     []*Rule
 
@@ -128,6 +140,10 @@ type RuleDB struct {
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
 	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+
+	// userSessionIDMu ensures that two threads cannot race to write a new user
+	// session ID.
+	userSessionIDMu sync.Mutex
 }
 
 // New creates a new rule database, loads existing rules from the database file,
@@ -213,10 +229,15 @@ func (rdb *RuleDB) load() (retErr error) {
 	}
 
 	currTime := time.Now()
+	sessionIDCache := make(userSessionIDCache)
 
 	var errInvalid error
 	for _, rule := range wrapped.Rules {
-		expired, err := rule.validate(currTime)
+		currSession, err := sessionIDCache.getUserSessionID(rdb, rule.User)
+		if err != nil {
+			return err
+		}
+		expired, err := rule.validate(currTime, currSession)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
 			errInvalid = fmt.Errorf("internal error: %w", err)
@@ -228,7 +249,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		}
 
 		const save = false
-		mergedRule, merged, conflictErr := rdb.addOrMergeRule(rule, save)
+		mergedRule, merged, conflictErr := rdb.addOrMergeRule(rule, currSession, save)
 		if conflictErr != nil {
 			// Duplicate rules on disk or conflicting rule, should not occur
 			errInvalid = fmt.Errorf("cannot add rule: %w", conflictErr)
@@ -363,7 +384,7 @@ func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 // returns an error, and the rule DB is left unchanged.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rule, merged bool, err error) {
+func (rdb *RuleDB) addOrMergeRule(rule *Rule, currSession prompting.IDType, save bool) (addedOrMergedRule *Rule, merged bool, err error) {
 	// Check if rule with identical path pattern exists.
 	existingRule, exists, err := rdb.lookupRuleByPathPattern(rule.User, rule.Snap, rule.Interface, rule.Constraints)
 	if err != nil {
@@ -371,7 +392,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return nil, false, err
 	}
 	if !exists {
-		if err := rdb.addNewRule(rule, save); err != nil {
+		if err := rdb.addNewRule(rule, currSession, save); err != nil {
 			return nil, false, err
 		}
 		return rule, false, nil
@@ -382,7 +403,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 	// be overridden by a permission entry in the new rule, if the latter has a
 	// broader lifespan (and doesn't otherwise conflict).
 	for existingPerm, existingEntry := range existingRule.Constraints.Permissions {
-		if existingEntry.Expired(rule.Timestamp) {
+		if existingEntry.Expired(rule.Timestamp, currSession) {
 			continue
 		}
 		newPermissions[existingPerm] = existingEntry
@@ -409,7 +430,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		// outcome, so preserve whichever entry has the greater lifespan.
 		// Since newPermissions[perm] already has the existing entry, only
 		// override it if the new rule has a greater lifespan.
-		if prompting.FirstLifespanGreater(entry.Lifespan, entry.Expiration, existingEntry.Lifespan, existingEntry.Expiration) {
+		if entry.Supersedes(existingEntry, currSession) {
 			newPermissions[perm] = entry
 		}
 	}
@@ -437,7 +458,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 	// we just looked up the rule and know it exists.
 	rdb.removeRuleByID(existingRule.ID)
 
-	if err := rdb.addNewRule(&newRule, save); err != nil {
+	if err := rdb.addNewRule(&newRule, currSession, save); err != nil {
 		// Error while adding the new merged rule, likely due to a conflict
 		// caused by the new permissions in the rule to be added.
 
@@ -446,7 +467,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		// we're now simply re-adding the existing rule which we just removed.
 		// Don't save, since nothing should have changed after the rollback is
 		// complete.
-		if restoreErr := rdb.addNewRule(existingRule, false); restoreErr != nil {
+		if restoreErr := rdb.addNewRule(existingRule, currSession, false); restoreErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add existing rule: %w", restoreErr))
 		}
@@ -466,7 +487,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 // Returns an error if the rule conflicts with an existing rule.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addNewRule(rule *Rule, save bool) error {
+func (rdb *RuleDB) addNewRule(rule *Rule, currSession prompting.IDType, save bool) error {
 	// If the rule has no ID, assign a new one.
 	if rule.ID == 0 {
 		id, _ := rdb.maxIDMmap.NextID()
@@ -475,7 +496,7 @@ func (rdb *RuleDB) addNewRule(rule *Rule, save bool) error {
 	if err := rdb.addRuleToRulesList(rule); err != nil {
 		return err
 	}
-	conflictErr := rdb.addRuleToTree(rule)
+	conflictErr := rdb.addRuleToTree(rule, currSession)
 	if conflictErr != nil {
 		// remove just-added rule from rules list and IDs
 		rdb.rules = rdb.rules[:len(rdb.rules)-1]
@@ -561,11 +582,11 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 // checked.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError {
+func (rdb *RuleDB) addRuleToTree(rule *Rule, currSession prompting.IDType) *prompting_errors.RuleConflictError {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 	var conflicts []prompting_errors.RuleConflict
 	for permission, entry := range rule.Constraints.Permissions {
-		permConflicts := rdb.addRulePermissionToTree(rule, permission, entry)
+		permConflicts := rdb.addRulePermissionToTree(rule, permission, entry, currSession)
 		if len(permConflicts) > 0 {
 			conflicts = append(conflicts, permConflicts...)
 			continue
@@ -605,17 +626,17 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError
 // call are removed from the variant map, leaving it unchanged, and the list of
 // conflicts is returned. If there are no conflicts, returns nil.
 //
-// Rules which are expired according to the timestamp of the rule being added,
-// whether their outcome conflicts with the new rule or not, are ignored and
-// never treated as conflicts. If there are no conflicts with non-expired
-// rules, then all expired rules are removed from the tree entry (though not
-// removed from the rule DB as a whole, nor is a notice recorded). If there is
-// a conflict with a non-expired rule, then nothing about the rule DB state is
-// changed, including expired rules.
+// Rules which are expired according to the timestamp of the rule being added
+// or the current user session ID, whether their outcome conflicts with the new
+// rule or not, are ignored and never treated as conflicts. If there are no
+// conflicts with non-expired rules, then all expired rules are removed from
+// the tree entry (though not removed from the rule DB as a whole, nor is a
+// notice recorded). If there is a conflict with a non-expired rule, then
+// nothing about the rule DB state is changed, including expired rules.
 //
 // The caller must ensure that the database lock is held for writing, and that
 // the given entry is not expired.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permissionEntry *prompting.RulePermissionEntry) []prompting_errors.RuleConflict {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permissionEntry *prompting.RulePermissionEntry, currSession prompting.IDType) []prompting_errors.RuleConflict {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
@@ -641,7 +662,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		newVariantEntry.RuleEntries[rule.ID] = permissionEntry
 		newVariantEntries[variantStr] = newVariantEntry
 		for id, entry := range existingEntry.RuleEntries {
-			if entry.Expired(rule.Timestamp) {
+			if entry.Expired(rule.Timestamp, currSession) {
 				// Don't preserve expired rules, and don't care if they conflict
 				partiallyExpiredRules[id] = true
 				continue
@@ -674,7 +695,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			// Error shouldn't occur. If it does, the rule was already removed
 			continue
 		}
-		if !maybeExpired.expired(rule.Timestamp) {
+		if !maybeExpired.expired(rule.Timestamp, currSession) {
 			// Previously removed the rule's permission entry from the tree for
 			// this permission, now let's remove it from the rule as well.
 			delete(maybeExpired.Constraints.Permissions, permission)
@@ -870,6 +891,78 @@ func (rdb *RuleDB) Close() error {
 	return rdb.save()
 }
 
+func userSessionPath(user uint32) string {
+	userIDStr := strconv.FormatUint(uint64(user), 10)
+	return filepath.Join(dirs.XdgRuntimeDirBase, userIDStr)
+}
+
+func newUserSessionID() prompting.IDType {
+	id := randutil.Uint64()
+	return prompting.IDType(id)
+}
+
+// Allow readOrAssignUserSessionID to be mocked in tests.
+var readOrAssignUserSessionID = (*RuleDB).readOrAssignUserSessionID
+
+// readOrAssignUserSessionID returns the existing user session ID for the given
+// user, if an ID exists, otherwise generates a new ID and writes it as an
+// xattr on the root directory of the user session tmpfs, /run/user/$UID.
+//
+// Snapd defines a unique ID for the user session and stores it as an xattr on
+// /run/user/$UID in order to identify when the user session has ended or been
+// restarted. When the user session ends, systemd removes the tmpfs at
+// /run/user/$UID. Therefore, if that directory is missing, or it does not have
+// the xattr set, snapd knows the session has ended or restarted, and by
+// associating the current session ID with rules which have lifespan "session",
+// it can later tell whether those rules should be discarded.
+//
+// Returns the existing or newly-assigned ID, or an error if it occurs. If the
+// user session does not exist for the given user, returns an error which wraps
+// errNoUserSession.
+func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
+	rdb.userSessionIDMu.Lock()
+	defer rdb.userSessionIDMu.Unlock()
+
+	path := userSessionPath(user)
+
+	// It's important to check for an existing session ID xattr before trying
+	// to write a new session ID, as the /run/user/$UID tmpfs may be removed,
+	// but snapd is the only process which should ever write a session ID xattr.
+
+	userSessionIDXattrLen := 16 // 64-bit number as hex string
+	sessionIDBuf := make([]byte, userSessionIDXattrLen)
+	_, err = unix.Getxattr(path, userSessionIDXattr, sessionIDBuf)
+	if err == nil {
+		if e := userSessionID.UnmarshalText(sessionIDBuf); e == nil {
+			return userSessionID, nil
+		}
+		// Xattr present, but couldn't parse it, so ignore and overwrite it
+	} else if errors.Is(err, unix.ENOENT) {
+		// User session tmpfs does not exist
+		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
+	} else if !errors.Is(err, unix.ENODATA) {
+		return 0, err
+		// Something else went wrong
+	}
+
+	// No existing ID
+
+	newID := newUserSessionID()
+	data, _ := newID.MarshalText() // error is always nil
+	err = unix.Setxattr(path, userSessionIDXattr, data, 0)
+	if errors.Is(err, unix.ENOENT) {
+		// User session tmpfs does not exist (but it existed above). This is
+		// highly unlikely, and should only occur if the directory existed but
+		// had no session ID xattr, then between the Getxattr call and this
+		// Setxattr call, the user session was removed. But no problem, we can
+		// still correctly return an error wrapping errNoUserSession.
+		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
+	} else if err != nil {
+		return 0, err
+	}
+	return newID, err
+}
+
 // Creates a rule with the given information and adds it to the rule database.
 // If any of the given parameters are invalid, returns an error. Otherwise,
 // returns the newly-added rule, and saves the database to disk.
@@ -881,12 +974,17 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, prompting_errors.ErrRulesClosed
 	}
 
-	newRule, err := rdb.makeNewRule(user, snap, iface, constraints)
+	currSession, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return nil, err
+	}
+
+	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, currSession)
 	if err != nil {
 		return nil, err
 	}
 	const save = true
-	newRule, _, err = rdb.addOrMergeRule(newRule, save)
+	newRule, _, err = rdb.addOrMergeRule(newRule, currSession, save)
 	if err != nil {
 		// If an error occurred, all changes were rolled back.
 		return nil, fmt.Errorf("cannot add rule: %w", err)
@@ -900,12 +998,20 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 // the rule an ID, in case it can be merged with an existing rule.
 //
 // Constructs a new rule with the given parameters as values. The given
-// constraints are converted to rule constraints, using the timestamp of the
-// new rule as the baseline with which to compute an expiration from any given
-// duration. If any of the given parameters are invalid, returns an error.
-func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints) (*Rule, error) {
+// constraints are converted to rule constraints.
+//
+// If any permission entries have a lifespan of LifespanTimespan, then their
+// expiration times are computed according to the corresponding duration
+// relative to the current time.
+//
+// If any permission entries have a lifespan of LifespanSession, then the given
+// current user session ID is associated with the corresponding newly-created
+// rule permission entries.
+//
+// If any of the given parameters are invalid, returns an error.
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, currSession prompting.IDType) (*Rule, error) {
 	currTime := time.Now()
-	ruleConstraints, err := constraints.ToRuleConstraints(iface, currTime)
+	ruleConstraints, err := constraints.ToRuleConstraints(iface, currTime, currSession)
 	if err != nil {
 		return nil, err
 	}
@@ -931,9 +1037,14 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
 	allowedPerms = make([]string, 0, len(permissions))
 	outstandingPerms = make([]string, 0, len(permissions))
+	currTime := time.Now()
+	currSession, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return nil, false, nil, err
+	}
 	var errs []error
 	for _, perm := range permissions {
-		allowed, err := isPathPermAllowedByRuleDB(rdb, user, snap, iface, path, perm)
+		allowed, err := isPathPermAllowed(rdb, user, snap, iface, path, perm, currTime, currSession)
 		switch {
 		case err == nil:
 			if allowed {
@@ -950,14 +1061,13 @@ func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path
 	return allowedPerms, anyDenied, outstandingPerms, strutil.JoinErrors(errs...)
 }
 
-var isPathPermAllowedByRuleDB = func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error) {
-	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
-}
+// Allow isPathPermAllowed to be mocked in tests.
+var isPathPermAllowed = (*RuleDB).isPathPermAllowed
 
 // isPathPermAllowed checks whether the given path with the given permission is
 // allowed or denied by existing rules for the given user, snap, and interface.
 // If no rule applies, returns prompting_errors.ErrNoMatchingRule.
-func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
+func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string, currTime time.Time, currSession prompting.IDType) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	permissionMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
@@ -966,13 +1076,10 @@ func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, pat
 	}
 	variantMap := permissionMap.VariantEntries
 	var matchingVariants []patterns.PatternVariant
-	// Make sure all rules use the same expiration timestamp, so a rule with
-	// an earlier expiration cannot outlive another rule with a later one.
-	currTime := time.Now()
 	for variantStr, variantEntry := range variantMap {
 		nonExpired := false
 		for _, rulePermissionEntry := range variantEntry.RuleEntries {
-			if !rulePermissionEntry.Expired(currTime) {
+			if !rulePermissionEntry.Expired(currTime, currSession) {
 				nonExpired = true
 				break
 			}
@@ -1035,8 +1142,15 @@ func (rdb *RuleDB) Rules(user uint32) []*Rule {
 func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 	rules := make([]*Rule, 0)
 	currTime := time.Now()
+	sessionIDCache := make(userSessionIDCache)
 	for _, rule := range rdb.rules {
-		if rule.expired(currTime) {
+		currSession, err := sessionIDCache.getUserSessionID(rdb, rule.User)
+		if err != nil {
+			// Something unexpected went wrong reading the user session ID.
+			// Treat the session ID as 0, and proceed.
+			currSession = 0
+		}
+		if rule.expired(currTime, currSession) {
 			// XXX: it would be nice if we pruned expired permissions from a
 			// rule before including it in the rules list, if it's not expired.
 			// Since we don't hold the write lock, we don't want to
@@ -1231,18 +1345,15 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 // to nil.
 //
 // Permission entries must be provided as complete units, containing both
-// outcome and lifespan (and duration, if lifespan is timespan). Since neither
-// outcome nor lifespan are omitempty, the unmarshaller enforces this for us.
+// outcome and lifespan (and duration or session ID, if lifespan is timespan or
+// session, respectively). Since neither outcome nor lifespan are omitempty,
+// the unmarshaller enforces this for us.
 //
 // Even if the given patch contents exactly match the existing rule contents,
 // the timestamp of the rule is updated to the current time. If there is any
 // error while modifying the rule, the rule is rolled back to its previous
 // unmodified state, leaving the database unchanged. If the database is changed,
 // it is saved to disk.
-//
-// XXX: Is there a client use-case for this API method?
-// Clients can always delete a rule and re-add it later, which is basically what
-// this method already does.
 func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (r *Rule, err error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
@@ -1263,11 +1374,15 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	// in the output of Rules(), should the same be done here?
 
 	currTime := time.Now()
+	currSession, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return nil, err
+	}
 
 	if constraintsPatch == nil {
 		constraintsPatch = &prompting.RuleConstraintsPatch{}
 	}
-	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, origRule.Interface, currTime)
+	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, origRule.Interface, currTime, currSession)
 	if err != nil {
 		return nil, err
 	}
@@ -1286,14 +1401,14 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	rdb.removeRuleByID(origRule.ID)
 
 	const save = true
-	newRule, _, addErr := rdb.addOrMergeRule(newRule, save)
+	newRule, _, addErr := rdb.addOrMergeRule(newRule, currSession, save)
 	if addErr != nil {
 		err := fmt.Errorf("cannot patch rule: %w", addErr)
 		// Re-add the original rule so all is unchanged, which should
 		// succeed since we're simply reversing what we just completed.
 		// Don't save, since nothing should have changed after the rollback
 		// is complete.
-		if origErr := rdb.addNewRule(origRule, false); origErr != nil {
+		if origErr := rdb.addNewRule(origRule, currSession, false); origErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
 		}
@@ -1302,4 +1417,25 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
+}
+
+// userSessionIDCache provides an ergonomic wrapper for getting and caching
+// user session IDs for many rules.
+//
+// A cache should not be used beyond the scope of a single method call due to
+// an API request. In particular, it should not be persisted as part of a rule
+// database.
+type userSessionIDCache map[uint32]prompting.IDType
+
+func (cache userSessionIDCache) getUserSessionID(rdb *RuleDB, user uint32) (prompting.IDType, error) {
+	sessionID, ok := cache[user]
+	if ok {
+		return sessionID, nil
+	}
+	sessionID, err := readOrAssignUserSessionID(rdb, user)
+	if err != nil && !errors.Is(err, errNoUserSession) {
+		return 0, err
+	}
+	cache[user] = sessionID
+	return sessionID, nil
 }
