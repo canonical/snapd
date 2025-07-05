@@ -28,6 +28,7 @@ type (
 	MonitoredSnapInfo    = monitoredSnapInfo
 	RefreshCandidateInfo = refreshCandidateInfo
 	RefreshCandidate     = refreshCandidate
+	FeatureResponse      = featureResponse
 )
 
 var (
