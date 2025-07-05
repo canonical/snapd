@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"math"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -65,7 +67,56 @@ func (s *CompatSuite) TestValidCompatFields(c *C) {
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
-		cfield, err := builtin.DecodeCompatField(tc.compat)
+		cfield, err := builtin.DecodeCompatField(tc.compat, nil)
+		c.Assert(err, IsNil)
+		c.Check(cfield, DeepEquals, tc.cfield)
+	}
+}
+
+func (s *CompatSuite) TestValidCompatFieldsWithSpec(c *C) {
+	for i, tc := range []struct {
+		compat string
+		cfield *builtin.CompatField
+		spec   *builtin.CompatSpec
+	}{
+		{"foo",
+			&builtin.CompatField{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{0, 0}}}}},
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{0, math.MaxUint}}}}},
+		},
+		{"foo-2",
+			&builtin.CompatField{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{2, 2}}}}},
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{0, 3}}}}},
+		},
+		{"foo-(2..6)",
+			&builtin.CompatField{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{2, 6}}}}},
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{2, 6}}}}},
+		},
+		{"foo-(2..6)",
+			&builtin.CompatField{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{2, 6}}}}},
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
+		},
+		{"foo-(2..6)-bar-7",
+			&builtin.CompatField{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{2, 6}}},
+				{Tag: "bar", Values: []builtin.CompatRange{{7, 7}}},
+			}},
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}},
+				{Tag: "bar", Values: []builtin.CompatRange{{7, 10}}},
+			}},
+		},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+
+		cfield, err := builtin.DecodeCompatField(tc.compat, nil)
 		c.Assert(err, IsNil)
 		c.Check(cfield, DeepEquals, tc.cfield)
 	}
@@ -101,7 +152,51 @@ func (s *CompatSuite) TestInvalidCompatFields(c *C) {
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
-		cfield, err := builtin.DecodeCompatField(tc.compat)
+		cfield, err := builtin.DecodeCompatField(tc.compat, nil)
+		c.Check(cfield, IsNil)
+		c.Assert(err, NotNil)
+		c.Check(err.Error(), Equals, tc.err)
+	}
+}
+
+func (s *CompatSuite) TestInvalidCompatFieldsWithSpec(c *C) {
+	for i, tc := range []struct {
+		compat string
+		spec   *builtin.CompatSpec
+		err    string
+	}{
+		{"foo",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "bar", Values: []builtin.CompatRange{{1, 10}}}}},
+			`tag does not match compatibility spec (foo != bar)`},
+		{"foo-3-bar",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
+			`only 1 dimensions allowed in compatibility field: "foo-3-bar"`},
+		{"foo-3-8",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
+			`only 1 integer/integer ranges allowed per dimension in compatibility field`},
+		{"foo-(0..3)",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 5}}}}},
+			`range (0..3) is not included in valid range (1..5)`},
+		{"foo-(3..6)",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 5}}}}},
+			`range (3..6) is not included in valid range (1..5)`},
+		{"foo-(3..6)",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{0, 2}}}}},
+			`range (3..6) is not included in valid range (0..2)`},
+		{"foo-(3..6)",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{7, 10}}}}},
+			`range (3..6) is not included in valid range (7..10)`},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+
+		cfield, err := builtin.DecodeCompatField(tc.compat, tc.spec)
 		c.Check(cfield, IsNil)
 		c.Assert(err, NotNil)
 		c.Check(err.Error(), Equals, tc.err)
@@ -141,9 +236,9 @@ func (s *CompatSuite) TestCompatibility(c *C) {
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
-		field1, err := builtin.DecodeCompatField(tc.compat1)
+		field1, err := builtin.DecodeCompatField(tc.compat1, nil)
 		c.Assert(err, IsNil)
-		field2, err := builtin.DecodeCompatField(tc.compat2)
+		field2, err := builtin.DecodeCompatField(tc.compat2, nil)
 		c.Assert(err, IsNil)
 		c.Check(builtin.CheckCompatibility(*field1, *field2), Equals, tc.result)
 		// Must be symmetric
