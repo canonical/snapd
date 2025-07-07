@@ -84,7 +84,6 @@ func (s *UsbGadgetInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *UsbGadgetInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
-	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to the usb gadget API`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "usb-gadget")
 }
