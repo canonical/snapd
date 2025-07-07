@@ -1,7 +1,6 @@
 package bitset
 
 import (
-	"cmp"
 	"math/bits"
 )
 
@@ -134,7 +133,7 @@ func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
 	return true
 }
 
-func max[T cmp.Ordered](x, y T) T {
+func max(x, y int) int {
 	if x > y {
 		return x
 	}

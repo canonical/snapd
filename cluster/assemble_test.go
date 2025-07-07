@@ -3,7 +3,6 @@ package cluster_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/snapcore/snapd/cluster"
 	"github.com/snapcore/snapd/cluster/assemblestate"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -39,26 +39,6 @@ func TestAssemble(t *testing.T) {
 		return peers, nil
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey && len(groups) == 0 {
-				return slog.Attr{}
-			}
-			return a
-		},
-	}))
-
-	debug := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey && len(groups) == 0 {
-				return slog.Attr{}
-			}
-			return a
-		},
-	}))
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
@@ -71,9 +51,11 @@ func TestAssemble(t *testing.T) {
 		i := i
 		wg.Add(1)
 
-		l := logger
+		l := logger.Logger(logger.NullLogger)
 		if i == 0 {
-			l = debug
+			l = logger.New(os.Stdout, logger.DefaultFlags, &logger.LoggerOptions{
+				ForceDebug: true,
+			})
 		}
 
 		go func() {

@@ -1,7 +1,6 @@
 package assemblestate
 
 import (
-	"cmp"
 	"errors"
 	"sort"
 	"time"
@@ -373,7 +372,7 @@ func keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-func min[T cmp.Ordered](x T, y T) T {
+func min(x int, y int) int {
 	if x < y {
 		return x
 	}
