@@ -38,7 +38,7 @@ func (s *selector) AddAuthoritativeRoute(r DeviceToken, via string) {
 	s.AddAuthoritativeRouteFunc(r, via)
 }
 
-func (s *selector) AddRoutes(r DeviceToken, ro Routes, id func(DeviceToken) bool) (int, int, error) {
+func (s *selector) RecordRoutes(r DeviceToken, ro Routes, id func(DeviceToken) bool) (int, int, error) {
 	if s.AddRoutesFunc == nil {
 		panic("unexpected call")
 	}

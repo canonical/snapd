@@ -51,7 +51,7 @@ func (s *SelectorSuite) TestAddRoutesValidation(c *check.C) {
 		Routes:    []int{0, 1},
 	}
 
-	_, _, err := selector.AddRoutes("peer", invalid, identified)
+	_, _, err := selector.RecordRoutes("peer", invalid, identified)
 	c.Assert(err, check.ErrorMatches, "length of routes list must be a multiple of three")
 
 	negative := assemblestate.Routes{
@@ -60,7 +60,7 @@ func (s *SelectorSuite) TestAddRoutesValidation(c *check.C) {
 		Routes:    []int{0, -1, 0},
 	}
 
-	_, _, err = selector.AddRoutes("peer", negative, identified)
+	_, _, err = selector.RecordRoutes("peer", negative, identified)
 	c.Assert(err, check.ErrorMatches, "invalid index in routes")
 
 	oob := assemblestate.Routes{
@@ -69,7 +69,7 @@ func (s *SelectorSuite) TestAddRoutesValidation(c *check.C) {
 		Routes:    []int{10, 1, 0},
 	}
 
-	_, _, err = selector.AddRoutes("peer", oob, identified)
+	_, _, err = selector.RecordRoutes("peer", oob, identified)
 	c.Assert(err, check.ErrorMatches, "invalid index in routes")
 }
 
@@ -85,13 +85,13 @@ func (s *SelectorSuite) TestAddRoutesCounts(c *check.C) {
 		Routes:    []int{0, 1, 0},
 	}
 
-	added, total, err := sel.AddRoutes("peer", r, identified)
+	added, total, err := sel.RecordRoutes("peer", r, identified)
 	c.Assert(err, check.IsNil)
 	c.Assert(added, check.Equals, 1)
 	c.Assert(total, check.Equals, 1)
 
 	// adding same route again should not increase our total count
-	added, total, err = sel.AddRoutes("peer", r, identified)
+	added, total, err = sel.RecordRoutes("peer", r, identified)
 	c.Assert(err, check.IsNil)
 	c.Assert(added, check.Equals, 0)
 	c.Assert(total, check.Equals, 1)
@@ -114,7 +114,7 @@ func (s *SelectorSuite) TestVerifyRoutes(c *check.C) {
 	}
 
 	// identified returns false, so nothing should become verified
-	_, _, err := sel.AddRoutes("peer", r, func(_ assemblestate.DeviceToken) bool { return false })
+	_, _, err := sel.RecordRoutes("peer", r, func(_ assemblestate.DeviceToken) bool { return false })
 	c.Assert(err, check.IsNil)
 
 	routes := sel.Routes()
@@ -149,7 +149,7 @@ func (s *SelectorSuite) TestAddAuthoritativeRouteAndPublish(c *check.C) {
 		Addresses: []string{"ip-2"},
 		Routes:    []int{0, 1, 0},
 	}
-	_, _, err := sel.AddRoutes(two, r, func(_ assemblestate.DeviceToken) bool { return true })
+	_, _, err := sel.RecordRoutes(two, r, func(_ assemblestate.DeviceToken) bool { return true })
 	c.Assert(err, check.IsNil)
 
 	routes, ack, ok := sel.Select(one, 100)
@@ -177,7 +177,7 @@ func (s *SelectorSuite) TestPublishSelectsLowSourceRoutes(c *check.C) {
 	sel := assemblestate.NewPrioritySelector(self, source)
 
 	// add peer first so it gets a lower peerID than the ephemeral sources
-	_, _, err := sel.AddRoutes(peer, assemblestate.Routes{
+	_, _, err := sel.RecordRoutes(peer, assemblestate.Routes{
 		Devices:   []assemblestate.DeviceToken{peer, self},
 		Addresses: []string{"peer-addr"},
 		Routes:    []int{0, 1, 0},
@@ -196,7 +196,7 @@ func (s *SelectorSuite) TestPublishSelectsLowSourceRoutes(c *check.C) {
 			// we use a different origin each time, so that it looks like
 			// multiple of our peers have sent us this route
 			src := assemblestate.DeviceToken(fmt.Sprintf("src-%d-%s", i, addr))
-			_, _, err := sel.AddRoutes(src, r, func(assemblestate.DeviceToken) bool { return true })
+			_, _, err := sel.RecordRoutes(src, r, func(assemblestate.DeviceToken) bool { return true })
 			c.Assert(err, check.IsNil)
 		}
 	}
@@ -244,7 +244,7 @@ func (s *SelectorSuite) TestRoutes(c *check.C) {
 		},
 	}
 
-	_, _, err := sel.AddRoutes("peer", in, func(assemblestate.DeviceToken) bool { return true })
+	_, _, err := sel.RecordRoutes("peer", in, func(assemblestate.DeviceToken) bool { return true })
 	c.Assert(err, check.IsNil)
 
 	got := sel.Routes()
@@ -278,7 +278,7 @@ func (s *SelectorSuite) TestRoutesOnlyIdentified(c *check.C) {
 	// identified returns false for "unknown" only
 	identified := func(r assemblestate.DeviceToken) bool { return r != "unknown" }
 
-	_, _, err := sel.AddRoutes("peer", in, identified)
+	_, _, err := sel.RecordRoutes("peer", in, identified)
 	c.Assert(err, check.IsNil)
 
 	got := sel.Routes()
@@ -323,7 +323,7 @@ func (s *SelectorSuite) TestPublishRouteSelectionDeterministic(c *check.C) {
 	source := newMockSource(0)
 	sel := assemblestate.NewPrioritySelector(self, source)
 
-	_, _, err := sel.AddRoutes(peer, assemblestate.Routes{
+	_, _, err := sel.RecordRoutes(peer, assemblestate.Routes{
 		Devices:   []assemblestate.DeviceToken{peer, self},
 		Addresses: []string{"peer-addr"},
 		Routes:    []int{0, 1, 0},
@@ -339,7 +339,7 @@ func (s *SelectorSuite) TestPublishRouteSelectionDeterministic(c *check.C) {
 
 		for i := 0; i < bumps; i++ {
 			src := assemblestate.DeviceToken(fmt.Sprintf("src-%d-%s", i, addr))
-			_, _, err := sel.AddRoutes(src, r, func(assemblestate.DeviceToken) bool { return true })
+			_, _, err := sel.RecordRoutes(src, r, func(assemblestate.DeviceToken) bool { return true })
 			c.Assert(err, check.IsNil)
 		}
 	}
