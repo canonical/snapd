@@ -24,35 +24,35 @@ type ClusterSuite struct{}
 var _ = check.Suite(&ClusterSuite{})
 
 type selector struct {
-	AddAuthoritativeRouteFunc func(r RDT, via string)
-	AddRoutesFunc             func(r RDT, ro Routes, id func(RDT) bool) (int, int, error)
-	VerifyRoutesFunc          func(func(RDT) bool)
-	SelectFunc                func(to RDT, count int) (routes Routes, ack func(), ok bool)
+	AddAuthoritativeRouteFunc func(r DeviceToken, via string)
+	AddRoutesFunc             func(r DeviceToken, ro Routes, id func(DeviceToken) bool) (int, int, error)
+	VerifyRoutesFunc          func(func(DeviceToken) bool)
+	SelectFunc                func(to DeviceToken, count int) (routes Routes, ack func(), ok bool)
 	RoutesFunc                func() Routes
 }
 
-func (s *selector) AddAuthoritativeRoute(r RDT, via string) {
+func (s *selector) AddAuthoritativeRoute(r DeviceToken, via string) {
 	if s.AddAuthoritativeRouteFunc == nil {
 		panic("unexpected call")
 	}
 	s.AddAuthoritativeRouteFunc(r, via)
 }
 
-func (s *selector) AddRoutes(r RDT, ro Routes, id func(RDT) bool) (int, int, error) {
+func (s *selector) AddRoutes(r DeviceToken, ro Routes, id func(DeviceToken) bool) (int, int, error) {
 	if s.AddRoutesFunc == nil {
 		panic("unexpected call")
 	}
 	return s.AddRoutesFunc(r, ro, id)
 }
 
-func (s *selector) VerifyRoutes(fn func(RDT) bool) {
+func (s *selector) VerifyRoutes(fn func(DeviceToken) bool) {
 	if s.VerifyRoutesFunc == nil {
 		panic("unexpected call")
 	}
 	s.VerifyRoutesFunc(fn)
 }
 
-func (s *selector) Select(to RDT, count int) (Routes, func(), bool) {
+func (s *selector) Select(to DeviceToken, count int) (Routes, func(), bool) {
 	if s.SelectFunc == nil {
 		panic("unexpected call")
 	}
@@ -137,7 +137,7 @@ func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg A
 	st.Unlock()
 
 	commit := func(AssembleSession) {}
-	as, err := NewAssembleState(cfg, AssembleSession{}, func(RDT) (RouteSelector, error) {
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken) (RouteSelector, error) {
 		return sel, nil
 	}, nil, commit)
 	c.Assert(err, check.IsNil)
@@ -150,12 +150,12 @@ func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg A
 
 func statelessSelector() *selector {
 	return &selector{
-		AddAuthoritativeRouteFunc: func(r RDT, via string) {},
-		AddRoutesFunc: func(r RDT, ro Routes, id func(RDT) bool) (int, int, error) {
+		AddAuthoritativeRouteFunc: func(r DeviceToken, via string) {},
+		AddRoutesFunc: func(r DeviceToken, ro Routes, id func(DeviceToken) bool) (int, int, error) {
 			return 0, 0, nil
 		},
-		VerifyRoutesFunc: func(f func(RDT) bool) {},
-		SelectFunc: func(to RDT, count int) (Routes, func(), bool) {
+		VerifyRoutesFunc: func(f func(DeviceToken) bool) {},
+		SelectFunc: func(to DeviceToken, count int) (Routes, func(), bool) {
 			return Routes{}, nil, false
 		},
 		RoutesFunc: func() Routes { return Routes{} },
@@ -182,7 +182,7 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 
 			expectedHMAC := CalculateHMAC("rdt", CalculateFP(tlsCert.Certificate[0]), "secret")
 			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
-			c.Assert(auth.RDT, check.Equals, RDT("rdt"))
+			c.Assert(auth.RDT, check.Equals, DeviceToken("rdt"))
 
 			return []byte("peer-certificate"), nil
 		},
@@ -211,7 +211,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 
 	peerCert := []byte("peer-certificate")
 	peerFP := CalculateFP(peerCert)
-	peerRDT := RDT("peer-rdt")
+	peerRDT := DeviceToken("peer-rdt")
 
 	// wrong RDT in HMAC
 	auth := Auth{
@@ -273,7 +273,7 @@ func (s *ClusterSuite) TestTrusted(c *check.C) {
 
 	peerCert := []byte("peer-certificate")
 	peerFP := CalculateFP(peerCert)
-	peerRDT := RDT("peer-rdt")
+	peerRDT := DeviceToken("peer-rdt")
 
 	err := as.Authenticate(Auth{
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
@@ -287,7 +287,7 @@ func (s *ClusterSuite) TestTrusted(c *check.C) {
 	c.Assert(handle.RDT(), check.Equals, peerRDT)
 }
 
-func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt RDT) (h *PeerHandle, address string, cert []byte) {
+func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, address string, cert []byte) {
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
 	peerFP := CalculateFP(peerCert)
 
@@ -317,7 +317,7 @@ func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt RDT) (h *PeerHa
 	return handle, peerAddr, peerCert
 }
 
-func trustedPeer(c *check.C, as *AssembleState, rdt RDT) (h *PeerHandle, cert []byte) {
+func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, cert []byte) {
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
 	peerFP := CalculateFP(peerCert)
 
@@ -343,12 +343,12 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 		Port:   8001,
 	})
 
-	peerRDT := RDT("peer")
+	peerRDT := DeviceToken("peer")
 	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, peerRDT)
 
 	// this tells us that this peer has knowledge of one and two.
 	err := peer.AddRoutes(Routes{
-		Devices: []RDT{"one", "two"},
+		Devices: []DeviceToken{"one", "two"},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -359,7 +359,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 			c.Assert(kind, check.Equals, "unknown")
 
 			unknown := message.(UnknownDevices)
-			c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []RDT{"one", "two"})
+			c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []DeviceToken{"one", "two"})
 			return nil
 		},
 	}
@@ -380,7 +380,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 		c.Assert(kind, check.Equals, "unknown")
 
 		unknown := message.(UnknownDevices)
-		c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []RDT{"two"})
+		c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []DeviceToken{"two"})
 		return nil
 	}
 	as.publishDeviceQueries(context.Background(), &client)
@@ -394,7 +394,7 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 		Port:   8001,
 	})
 
-	oneRDT := RDT("one")
+	oneRDT := DeviceToken("one")
 	one, _, _ := trustedAndDiscoveredPeer(c, as, oneRDT)
 
 	// inform us of devices one and two
@@ -410,7 +410,7 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	threeRDT := RDT("three")
+	threeRDT := DeviceToken("three")
 	three, threeAddr, threeCert := trustedAndDiscoveredPeer(c, as, threeRDT)
 
 	// nothing should be published, since we don't have anything that someone
@@ -419,7 +419,7 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 
 	// three asks us for information on two
 	three.AddQueries(UnknownDevices{
-		Devices: []RDT{"two"},
+		Devices: []DeviceToken{"two"},
 	})
 
 	var called int
@@ -454,20 +454,20 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 		Port:   8001,
 	})
 
-	oneRDT := RDT("one")
+	oneRDT := DeviceToken("one")
 	_, oneAddr, oneCert := trustedAndDiscoveredPeer(c, as, oneRDT)
 
-	twoRDT := RDT("two")
+	twoRDT := DeviceToken("two")
 	_, twoAddr, twoCert := trustedAndDiscoveredPeer(c, as, twoRDT)
 
-	threeRDT := RDT("three")
+	threeRDT := DeviceToken("three")
 	trustedPeer(c, as, threeRDT)
 
 	var msg testClient
 	var called int
-	acked := make(map[RDT]int)
+	acked := make(map[DeviceToken]int)
 
-	selector.SelectFunc = func(to RDT, count int) (Routes, func(), bool) {
+	selector.SelectFunc = func(to DeviceToken, count int) (Routes, func(), bool) {
 		called++
 		return Routes{}, func() {
 			acked[to]++
@@ -493,7 +493,7 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 
 	// since peer three isn't discovered, we should have only acked our
 	// publications to peer one and two (each called once)
-	c.Assert(acked, check.DeepEquals, map[RDT]int{
+	c.Assert(acked, check.DeepEquals, map[DeviceToken]int{
 		oneRDT: 1,
 		twoRDT: 1,
 	})
