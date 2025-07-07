@@ -28,9 +28,13 @@ type KeyslotRefsNotFoundError struct {
 }
 
 func (e *KeyslotRefsNotFoundError) Error() string {
-	if len(e.KeyslotRefs) == 1 {
+	switch len(e.KeyslotRefs) {
+	case 0:
+		// references not specified, keep error message generic
+		return "key slot reference not found"
+	case 1:
 		return fmt.Sprintf("key slot reference %s not found", e.KeyslotRefs[0].String())
-	} else {
+	default:
 		var concatRefs strings.Builder
 		concatRefs.WriteString(e.KeyslotRefs[0].String())
 		for _, ref := range e.KeyslotRefs[1:] {

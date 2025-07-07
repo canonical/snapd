@@ -30,8 +30,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -645,4 +647,202 @@ func (s *fdeMgrSuite) TestDoRenameKeysRenameAlreadyExists(c *C) {
 
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
 - test \(key slot \(container-role: "system-data", name: "default-fallback"\) already exists\)`)
+}
+
+func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default-recovery"}}, nil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	type testcase struct {
+		keyslots        []fdestate.KeyslotRef
+		authMode        device.AuthMode
+		noOpt           bool
+		errOn           []string
+		expectedChanges []string
+		expectedUndos   []string
+		expectedErr     string
+	}
+
+	// Note: key slots are evaluated in the following order:
+	//   1. container-role: "system-data", name: "default",
+	//   2. container-role: "system-data", name: "default-fallback",
+	//   3. container-role: "system-save", name: "default-fallback",
+	//
+	// This matters when determining which key slots are relevant for undo
+	tcs := []testcase{
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default"},
+				{ContainerRole: "system-data", Name: "default-fallback"},
+				{ContainerRole: "system-save", Name: "default-fallback"},
+			},
+			expectedChanges: []string{
+				"/dev/disk/by-uuid/data:default",
+				"/dev/disk/by-uuid/data:default-fallback",
+				"/dev/disk/by-uuid/save:default-fallback",
+			},
+			authMode: device.AuthModePassphrase,
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			noOpt:       true,
+			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "not-found"}},
+			expectedErr: `key slot reference \(container-role: "system-data", name: "not-found"\) not found`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default"},
+				{ContainerRole: "system-data", Name: "default-fallback"},
+				{ContainerRole: "system-save", Name: "default-fallback"},
+			},
+			authMode:      device.AuthModePassphrase,
+			errOn:         []string{"read:/dev/disk/by-uuid/data:default-fallback"},
+			expectedUndos: []string{"/dev/disk/by-uuid/data:default"}, // based on operations order explained above
+			expectedErr:   `cannot read key data for \(container-role: "system-data", name: "default-fallback"\): cannot read key data for "default-fallback" from "/dev/disk/by-uuid/data": read error on /dev/disk/by-uuid/data:default-fallback`,
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePassphrase,
+			errOn:       []string{"change:/dev/disk/by-uuid/data:default"},
+			expectedErr: `cannot change passphrase for \(container-role: "system-data", name: "default"\): change error on /dev/disk/by-uuid/data:default`,
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePassphrase,
+			errOn:       []string{"write:/dev/disk/by-uuid/data:default"},
+			expectedErr: `cannot write key data for \(container-role: "system-data", name: "default"\): write error on /dev/disk/by-uuid/data:default`,
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePIN,
+			expectedErr: "internal error: changing PINs is not implemented",
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModeNone,
+			expectedErr: `internal error: unexpected auth-mode "none"`,
+		},
+	}
+	for idx, tc := range tcs {
+		task := s.st.NewTask("fde-change-auth", "test")
+		task.Set("keyslots", tc.keyslots)
+		task.Set("auth-mode", tc.authMode)
+
+		if !tc.noOpt {
+			s.st.Unlock()
+			defer fdestate.MockChangeAuthOptionsInCache(s.st, "old", "new")()
+			s.st.Lock()
+		}
+
+		changeCalls := make(map[string]int, 0)
+
+		defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+			entry := fmt.Sprintf("%s:%s", devicePath, slotName)
+			if strutil.ListContains(tc.errOn, fmt.Sprintf("read:%s:%s", devicePath, slotName)) {
+				return nil, fmt.Errorf("read error on %s", entry)
+			}
+			return &mockKeyData{
+				changePassphrase: func(oldPassphrase, newPassphrase string) error {
+					switch changeCalls[entry] {
+					case 0:
+						c.Check(oldPassphrase, Equals, "old")
+						c.Check(newPassphrase, Equals, "new")
+					case 1:
+						c.Check(oldPassphrase, Equals, "new")
+						c.Check(newPassphrase, Equals, "old")
+					default:
+						panic("unexpected number of change calls")
+					}
+					if strutil.ListContains(tc.errOn, fmt.Sprintf("change:%s", entry)) {
+						return fmt.Errorf("change error on %s", entry)
+					}
+					return nil
+				},
+				writeTokenAtomic: func(devicePath, slotName string) error {
+					if strutil.ListContains(tc.errOn, fmt.Sprintf("write:%s", entry)) {
+						return fmt.Errorf("write error on %s", entry)
+					}
+					changeCalls[entry]++
+					return nil
+				},
+			}, nil
+		})()
+
+		chg := s.st.NewChange("sample", "...")
+		chg.AddTask(task)
+
+		s.settle(c)
+
+		for _, entry := range tc.expectedChanges {
+			c.Check(changeCalls[entry], Equals, 1)
+		}
+
+		for _, entry := range tc.expectedUndos {
+			c.Check(changeCalls[entry], Equals, 2)
+		}
+
+		// check that no entry in changeCalls is not already covered to
+		// catch development errors
+		for entry, cnt := range changeCalls {
+			switch cnt {
+			case 1:
+				c.Assert(strutil.ListContains(tc.expectedChanges, entry), Equals, true, Commentf("tcs[%d]", idx))
+			case 2:
+				c.Assert(strutil.ListContains(tc.expectedUndos, entry), Equals, true, Commentf("tcs[%d]", idx))
+			default:
+				panic("unexpected number of change calls")
+			}
+		}
+
+		if tc.expectedErr == "" {
+			c.Check(chg.Status(), Equals, state.DoneStatus)
+			if !tc.noOpt {
+				// Auth options are removed on completion
+				c.Assert(fdestate.GetChangeAuthOptionsFromCache(s.st), IsNil)
+			}
+		} else {
+			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
+- test \(%s\)`, tc.expectedErr))
+			if !tc.noOpt {
+				// Auth options are kept to account for re-runs
+				opts := fdestate.GetChangeAuthOptionsFromCache(s.st)
+				c.Assert(opts.New(), Equals, "new")
+				c.Assert(opts.Old(), Equals, "old")
+			}
+		}
+	}
+}
+
+func (s *fdeMgrSuite) TestDoChangeAuthKeysNoop(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		panic("unexpected")
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	task := s.st.NewTask("fde-change-auth", "test")
+	task.Set("keyslots", []fdestate.KeyslotRef{})
+	task.Set("auth-mode", device.AuthModePassphrase)
+
+	s.st.Unlock()
+	defer fdestate.MockChangeAuthOptionsInCache(s.st, "old", "old")()
+	s.st.Lock()
+
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }

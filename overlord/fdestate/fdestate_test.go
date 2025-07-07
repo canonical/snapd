@@ -30,10 +30,13 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -264,4 +267,180 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("fdemgr.go", c, false)
+}
+
+func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning, defaultKeyslots bool) {
+	keyslots := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+	}
+	if defaultKeyslots {
+		keyslots = append(keyslots,
+			fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
+			fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"},
+		)
+	}
+
+	s.mockCurrentKeys(c, nil, keyslots)
+
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		switch fmt.Sprintf("%s:%s", devicePath, slotName) {
+		case "/dev/disk/by-uuid/data:default",
+			"/dev/disk/by-uuid/data:default-fallback",
+			"/dev/disk/by-uuid/save:default-fallback":
+			return &mockKeyData{authMode: device.AuthModePassphrase}, nil
+		default:
+			panic("unexpected container")
+		}
+	})()
+
+	// initialize fde manager
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+	if withWarning {
+		s.st.Unlock()
+		defer fdestate.MockChangeAuthOptionsInCache(s.st, "old-stale", "new-stale")()
+		s.st.Lock()
+	}
+
+	var ts *state.TaskSet
+	var err error
+	if defaultKeyslots {
+		ts, err = fdestate.ChangeAuth(s.st, authMode, "old", "new", nil)
+	} else {
+		ts, err = fdestate.ChangeAuth(s.st, authMode, "old", "new", keyslots)
+	}
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+	tsks := ts.Tasks()
+	c.Check(tsks, HasLen, 1)
+
+	c.Check(tsks[0].Kind(), Equals, "fde-change-auth")
+	switch authMode {
+	case device.AuthModePassphrase:
+		c.Check(tsks[0].Summary(), Matches, "Change passphrase protected key slots")
+	case device.AuthModePIN:
+		c.Check(tsks[0].Summary(), Matches, "Change PIN protected key slots")
+	default:
+		c.Errorf("unexpected authMode %q", authMode)
+	}
+	// check target key slots are passed to task
+	var tskKeyslots []fdestate.KeyslotRef
+	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, keyslots)
+	var tskAuthMode device.AuthMode
+	c.Assert(tsks[0].Get("auth-mode", &tskAuthMode), IsNil)
+	c.Check(tskAuthMode, Equals, authMode)
+
+	authOptions := fdestate.GetChangeAuthOptionsFromCache(s.st)
+	c.Check(authOptions.Old(), Equals, "old")
+	c.Check(authOptions.New(), Equals, "new")
+
+	if withWarning {
+		c.Check(logBuf.String(), Matches, ".*WARNING: authentication change options already exists in memory\n")
+	} else {
+		c.Check(logBuf.Len(), Equals, 0)
+	}
+}
+
+func (s *fdeMgrSuite) TestChangeAuthModePassphrase(c *C) {
+	const authMode = device.AuthModePassphrase
+	const withWarning = false
+	const defaultKeyslots = false
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthWithCachedAuthOptionsWarning(c *C) {
+	const authMode = device.AuthModePassphrase
+	const withWarning = true
+	const defaultKeyslots = false
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthModePassphraseDefaultKeyslots(c *C) {
+	const authMode = device.AuthModePassphrase
+	const withWarning = false
+	const defaultKeyslots = true
+	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthModePIN(c *C) {
+	// this should break when changing PIN support lands
+	_, err := fdestate.ChangeAuth(s.st, device.AuthModePIN, "old", "new", []fdestate.KeyslotRef{})
+	c.Assert(err, ErrorMatches, `internal error: unexpected authentication mode "pin"`)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		switch fmt.Sprintf("%s:%s", devicePath, slotName) {
+		case "/dev/disk/by-uuid/data:default":
+			return &mockKeyData{authMode: device.AuthModeNone}, nil
+		case "/dev/disk/by-uuid/data:default-fallback":
+			return nil, fmt.Errorf("boom!")
+		default:
+			panic("unexpected container")
+		}
+	})()
+
+	s.mockCurrentKeys(c, nil, []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+		{ContainerRole: "system-data", Name: "default-fallback"},
+	})
+
+	// initialize fde manager
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// unsupported auth mode
+	_, err := fdestate.ChangeAuth(s.st, device.AuthModeNone, "old", "new", []fdestate.KeyslotRef{})
+	c.Assert(err, ErrorMatches, `internal error: unexpected authentication mode "none"`)
+
+	// invalid keyslot reference
+	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
+
+	// invalid keyslot reference
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported name, expected "default" or "default-fallback"`)
+
+	// missing keyslot
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-fallback"\) not found`)
+
+	// bad keyslot auth mode
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported authentication mode "none", expected "passphrase"`)
+
+	// keyslot key data loading error
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `cannot read key data for \(container-role: "system-data", name: "default-fallback"\): cannot read key data for "default-fallback" from "/dev/disk/by-uuid/data": boom!`)
+
+	// bad keyslot type (recovery instead of platform)
+	s.st.Unlock()
+	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}}, nil)
+	s.st.Lock()
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported type "recovery", expected "platform"`)
+
+	// change conflict
+	chg := s.st.NewChange("fde-efi-secureboot-db-update", "")
+	task := s.st.NewTask("some-fde-task", "")
+	chg.AddTask(task)
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{})
+	c.Assert(err, ErrorMatches, `external EFI DBX update in progress, no other FDE changes allowed until this is done`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 }

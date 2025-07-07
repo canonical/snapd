@@ -48,6 +48,7 @@ var systemVolumesCmd = &Command{
 }
 
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
+var fdeChangePassphraseChangeKind = swfeats.RegisterChangeKind("fde-change-passphrase")
 
 var (
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
@@ -305,8 +306,7 @@ func postSystemVolumesActionChangePassphrase(c *Command, req *systemVolumesActio
 		return errToResponse(err, nil, BadRequest, "cannot change passphrase: %v")
 	}
 
-	chg := st.NewChange("fde-change-passphrase", "Change passphrase")
-	chg.AddAll(ts)
+	chg := newChange(st, fdeChangePassphraseChangeKind, "Change passphrase", []*state.TaskSet{ts}, nil)
 
 	st.EnsureBefore(0)
 
