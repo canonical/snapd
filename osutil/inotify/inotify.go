@@ -37,7 +37,7 @@ type watch struct {
 type Watcher struct {
 	mu         sync.Mutex
 	fd         int               // File descriptor (as returned by the inotify_init() syscall)
-	notifyFile os.File           // An os.File object mapped onto the inotify file descriptor
+	notifyFile *os.File          // An os.File object mapped onto the inotify file descriptor
 	watches    map[string]*watch // Map of inotify watches (key: path)
 	paths      map[int]string    // Map of watched paths (key: watch descriptor)
 	Error      chan error        // Errors are sent on this channel

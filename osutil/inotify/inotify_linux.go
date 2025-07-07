@@ -45,7 +45,7 @@ func NewWatcher() (*Watcher, error) {
 	}
 	w := &Watcher{
 		fd:         fd,
-		notifyFile: *os.NewFile(uintptr(fd), ""),
+		notifyFile: os.NewFile(uintptr(fd), ""),
 		watches:    make(map[string]*watch),
 		paths:      make(map[int]string),
 		Event:      make(chan *Event),
