@@ -29,15 +29,13 @@ type RouteSelector interface {
 	// considered.
 	VerifyRoutes(identified func(RDT) bool)
 
-	// Select picks one random peer that routes should be published to and
-	// selects a subset of routes that they need to receive.
+	// Select selects a subset of routes that the specified peer needs to receive.
 	//
-	// Returns the peer to send to, the routes to send, an acknowledgment
-	// function that should be called after successful transmission, and whether
-	// a peer was selected. The ack function must be called once the selected
-	// routes are published so that they will not be selected for publication
-	// again.
-	Select(count int) (to RDT, routes Routes, ack func(), ok bool)
+	// Returns the routes to send, an acknowledgment function that should be
+	// called after successful transmission, and whether routes were selected.
+	// The ack function must be called once the selected routes are published
+	// so that they will not be selected for publication again.
+	Select(to RDT, count int) (routes Routes, ack func(), ok bool)
 
 	// Routes returns all routes that are currently valid for publication.
 	Routes() Routes
@@ -220,30 +218,19 @@ func (p *PrioritySelector) VerifyRoutes(identified func(RDT) bool) {
 	}
 }
 
-// Select selects one random peer and routes that should be published to that
-// peer.
+// Select selects routes that should be published to the specified peer.
 //
-// This implementation randomly selects one peer for route publication.
-// Additionally, we prioritize routes that this local node has witnessed and
-// published fewer times.
-func (p *PrioritySelector) Select(count int) (to RDT, routes Routes, ack func(), ok bool) {
-	var peers []peerID
-	for pid := range p.known {
-		if p.rdts.Value(pid) == p.self {
-			continue
-		}
-
-		peers = append(peers, pid)
+// We prioritize routes that this local node has witnessed and published fewer
+// times.
+func (p *PrioritySelector) Select(to RDT, count int) (routes Routes, ack func(), ok bool) {
+	selected, exists := p.rdts.IndexOf(to)
+	if !exists {
+		return Routes{}, nil, false
 	}
 
-	if len(peers) == 0 {
-		return "", Routes{}, nil, false
+	if to == p.self {
+		return Routes{}, nil, false
 	}
-
-	// sort peers to make random selection only depend on p.rng, rather than the
-	// random iteration order of the map.
-	sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
-	selected := peers[p.rng.Intn(len(peers))]
 
 	peerKnown := p.known[selected]
 	unknown := p.verified.Diff(peerKnown)
@@ -265,13 +252,12 @@ func (p *PrioritySelector) Select(count int) (to RDT, routes Routes, ack func(),
 	sending = sending[:min(len(sending), count)]
 
 	// if we have an authoritative route for this peer, make sure to include it
-	peerRDT := p.rdts.Value(selected)
-	if eid, ok := p.authoritative[peerRDT]; ok && !peerKnown.Has(eid) {
+	if eid, ok := p.authoritative[to]; ok && !peerKnown.Has(eid) {
 		sending = append(sending, eid)
 	}
 
 	if len(sending) == 0 {
-		return "", Routes{}, nil, false
+		return Routes{}, nil, false
 	}
 
 	routes = p.edgesToRoutes(sending)
@@ -289,7 +275,7 @@ func (p *PrioritySelector) Select(count int) (to RDT, routes Routes, ack func(),
 		}
 	}
 
-	return peerRDT, routes, ack, true
+	return routes, ack, true
 }
 
 // Routes returns routes that we've seen for which both peers in the route

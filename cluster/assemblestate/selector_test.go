@@ -152,9 +152,8 @@ func (s *SelectorSuite) TestAddAuthoritativeRouteAndPublish(c *check.C) {
 	_, _, err := sel.AddRoutes(two, r, func(_ assemblestate.RDT) bool { return true })
 	c.Assert(err, check.IsNil)
 
-	to, routes, ack, ok := sel.Select(100)
+	routes, ack, ok := sel.Select(one, 100)
 	c.Assert(ok, check.Equals, true)
-	c.Assert(to, check.Equals, one)
 	ack()
 
 	expected := assemblestate.Routes{
@@ -211,9 +210,8 @@ func (s *SelectorSuite) TestPublishSelectsLowSourceRoutes(c *check.C) {
 	add("ip-4", 3)
 	add("ip-5", 4)
 
-	to, routes, ack, ok := sel.Select(5)
+	routes, ack, ok := sel.Select(peer, 5)
 	c.Assert(ok, check.Equals, true)
-	c.Assert(to, check.Equals, peer)
 	ack()
 
 	// should send the 5 routes with lowest source counts: ip-0, ip-1, ip-2, ip-3, ip-4
@@ -313,7 +311,7 @@ func (s *SelectorSuite) TestPublishWithNoPeers(c *check.C) {
 	self := assemblestate.RDT("self")
 	sel := assemblestate.NewPrioritySelector(self, nil)
 
-	_, _, _, ok := sel.Select(100)
+	_, _, ok := sel.Select(assemblestate.RDT("nonexistent"), 100)
 	c.Assert(ok, check.Equals, false)
 }
 
@@ -349,9 +347,8 @@ func (s *SelectorSuite) TestPublishRouteSelectionDeterministic(c *check.C) {
 	add("low-freq", 1)  // should be included
 	add("high-freq", 5) // should be excluded
 
-	to, routes, ack, ok := sel.Select(1) // limit to 1 route to test prioritization
+	routes, ack, ok := sel.Select(peer, 1) // limit to 1 route to test prioritization
 	c.Assert(ok, check.Equals, true)
-	c.Assert(to, check.Equals, peer)
 	ack()
 
 	expected := assemblestate.Routes{
