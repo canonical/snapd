@@ -15,7 +15,6 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -137,10 +136,10 @@ func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg A
 	st.Set("assemble-config", cfg)
 	st.Unlock()
 
-	logger := logger.NullLogger
-	as, err := NewAssembleState(st, func(RDT) (RouteSelector, error) {
+	commit := func(AssembleSession) {}
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(RDT) (RouteSelector, error) {
 		return sel, nil
-	}, logger)
+	}, nil, commit)
 	c.Assert(err, check.IsNil)
 
 	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))

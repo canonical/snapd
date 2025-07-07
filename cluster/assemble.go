@@ -63,13 +63,19 @@ func Assemble(st *state.State, ctx context.Context, discover assemblestate.Disco
 		TLSKey:  key,
 	}
 
-	st.Lock()
-	st.Set("assemble-config", config)
-	st.Unlock()
+	commit := func(s assemblestate.AssembleSession) {
+		st.Lock()
+		defer st.Unlock()
+		st.Set("assemble-session", s)
+	}
 
-	as, err := assemblestate.NewAssembleState(st, func(self assemblestate.RDT) (assemblestate.RouteSelector, error) {
+	// TODO: once this is incorporated into a change, this will be how we resume
+	// an assemble session
+	session := assemblestate.AssembleSession{}
+
+	as, err := assemblestate.NewAssembleState(config, session, func(self assemblestate.RDT) (assemblestate.RouteSelector, error) {
 		return assemblestate.NewPrioritySelector(self, nil), nil
-	}, log)
+	}, log, commit)
 	if err != nil {
 		return assemblestate.Routes{}, err
 	}
