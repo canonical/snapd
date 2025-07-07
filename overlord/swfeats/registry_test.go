@@ -121,7 +121,17 @@ func (s *swfeatsSuite) TestDuplicateAdd(c *C) {
 }
 
 func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
-	goFiles, err := getGoFiles("../../", "/snapstatetest/", "../../.git/", "../../vendor/", "../../tests/")
+	exclusions := []string{
+		"/snapstatetest/",
+		"../../.git/",
+		"../../vendor/", // vendored dependencies
+		"../../tests/",
+		"../../packaging", "../../debian", // distro packaging
+		"../../data",          // static data
+		"../../release-tools", // release scripts
+		"../../po",            // translations
+	}
+	goFiles, err := getGoFiles("../../", exclusions...)
 	if err != nil {
 		c.Error("Could not find any go files in snapd directory")
 	}
