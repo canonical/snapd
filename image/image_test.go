@@ -5644,3 +5644,91 @@ func (s *imageSuite) TestPrepareExtraAssertionsForbiddenType(c *C) {
 	c.Assert(err.Error(), testutil.Contains, "assertion type model is not allowed for extra assertions")
 
 }
+
+func WriteSystemUserAssertion(c *C, brands *assertstest.SigningAccounts, user map[string]any, filename string, perm os.FileMode) {
+	systemUsers := []map[string]any{user}
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, perm)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc, NotNil)
+
+	for _, suMap := range systemUsers {
+		systemUser, err := brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, IsNil)
+		systemUser = systemUser.(*asserts.SystemUser)
+		err = enc.Encode(systemUser)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, passwordUser bool) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	s.setupSnaps(c, map[string]string{
+		"pc-kernel": "canonical",
+		"pc":        "canonical",
+	}, "")
+
+	preparedir := c.MkDir()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my display name",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+	})
+
+	modelFn := filepath.Join(preparedir, "model.assertion")
+	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	user := map[string]any{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"series":       []any{"16", "18"},
+		"models":       []any{"my-model", "other-model"},
+		"name":         "Boring Guy",
+		"username":     "guy",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}
+
+	if passwordUser {
+		user["password"] = "$6$salt$hash"
+	} else {
+		user["ssh-key"] = []any{"ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoTTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBPwPDyLV/40kHdKQb4xq8EyfEaEUiXFui1bs4omabB0cwfVSYPZql+qJG22aBZjsEv4ESkc5u9lgaNbzsRDRUTYtJWzUJYIaObihMgi7U48kkBsf7TBxGOOy+t9pFatmEQ=="}
+	}
+
+	systemUserAssert := filepath.Join(preparedir, "systemUser.assertion")
+	WriteSystemUserAssertion(c, s.Brands, user, systemUserAssert, 0644)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:  modelFn,
+		PrepareDir: preparedir,
+		// Pass model assertion as extra assertion
+		ExtraAssertionsFiles: []string{systemUserAssert},
+	})
+	if passwordUser {
+		c.Assert(err.Error(), testutil.Contains, "system-user assertions must not contain a password for security reasons, please use public key authentication instead")
+	} else {
+		c.Assert(s.stderr.String(), testutil.Contains, `INFO: the provided system-user assertion for user guy will be imported on first boot`+"\n")
+	}
+}
+
+func (s *imageSuite) TestPrepareExtraAssertionsSystemUserPassword(c *C) {
+	const passwordUser = true
+	s.testPrepareExtraAssertionsSystemUser(c, passwordUser)
+}
+
+func (s *imageSuite) TestPrepareExtraAssertionsSystemUserKey(c *C) {
+	const passwordUser = false
+	s.testPrepareExtraAssertionsSystemUser(c, passwordUser)
+}

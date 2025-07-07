@@ -316,6 +316,8 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 
 	modelOnly := func(aRef *asserts.Ref) bool { return aRef.Type == asserts.ModelType }
 	excludeModel := func(aRef *asserts.Ref) bool { return aRef.Type != asserts.ModelType }
+	isSystemUser := func(aRef *asserts.Ref) bool { return aRef.Type == asserts.SystemUserType }
+	excludeSystemUser := func(aRef *asserts.Ref) bool { return aRef.Type != asserts.SystemUserType }
 
 	refsGen := func(writeRefs []*asserts.Ref, include func(*asserts.Ref) bool) func(stop <-chan struct{}) <-chan *asserts.Ref {
 		return func(stop <-chan struct{}) <-chan *asserts.Ref {
@@ -343,8 +345,27 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	}
 
 	if len(extraRefs) != 0 {
-		if err := writeByRefs("extra-assertions", refsGen(extraRefs, excludeModel)); err != nil {
-			return err
+		// system-user assertions must be placed in a file called auto-import.assert to be auto loaded
+		var (
+			foundSystemUserAssert bool
+			foundExtraAssert      bool
+		)
+		for _, aRef := range extraRefs {
+			if isSystemUser(aRef) {
+				foundSystemUserAssert = true
+			} else {
+				foundExtraAssert = true
+			}
+		}
+		if foundExtraAssert {
+			if err := writeByRefs("extra-assertions", refsGen(extraRefs, excludeSystemUser)); err != nil {
+				return err
+			}
+		}
+		if foundSystemUserAssert {
+			if err := writeByRefs("../auto-import.assert", refsGen(extraRefs, isSystemUser)); err != nil {
+				return err
+			}
 		}
 	}
 

@@ -5386,7 +5386,7 @@ func (s *writerSuite) TestSeedWriterExtraAssertionsCore18ReverseOrder(c *C) {
 	s.testSeedWriterExtraAssertionsCore18(c, reverseOrder)
 }
 
-func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder bool) {
+func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, addProxyStore, reverseOrder, fileExistError bool, numberSystemUsers int) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -5437,10 +5437,48 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder boo
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	if reverseOrder {
-		s.opts.ExtraAssertions = []asserts.Assertion{proxyStoreAssertion, accountAssertion}
-	} else {
-		s.opts.ExtraAssertions = []asserts.Assertion{accountAssertion, proxyStoreAssertion}
+	systemUserGuyAssertion, err := s.Brands.Signing("my-brand").Sign(asserts.SystemUserType, map[string]any{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"series":       []any{"16", "18"},
+		"models":       []any{"my-model"},
+		"name":         "Boring Guy",
+		"username":     "guy",
+		"ssh-key":      []any{"ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBPwPDyLV/40kHdKQb4xq8EyfEaEUiXFui1bs4omabB0cwfVSYPZql+qJG22aBZjsEv4ESkc5u9lgaNbzsRDRUTYtJWzUJYIaObihMgi7U48kkBsf7TBxGOOy+t9pFatmEQ=="},
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	systemUserBillAssertion, err := s.Brands.Signing("my-brand").Sign(asserts.SystemUserType, map[string]any{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@baz.com",
+		"series":       []any{"16", "18"},
+		"models":       []any{"my-model"},
+		"name":         "Expensive Bill",
+		"username":     "bill",
+		"ssh-key":      []any{"ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoTTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBPwPDyLV/40kHdKQb4xq8EyfEaEUiXFui1bs4omabB0cwfVSYPZql+qJG22aBZjsEv4ESkc5u9lgaNbzsRDRUTYtJWzUJYIaObihMgi7U48kkBsf7TBxGOOy+t9pFatmEQ=="},
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.opts.ExtraAssertions = []asserts.Assertion{}
+	if addProxyStore {
+		if reverseOrder {
+			s.opts.ExtraAssertions = append(s.opts.ExtraAssertions, proxyStoreAssertion, accountAssertion)
+		} else {
+			s.opts.ExtraAssertions = append(s.opts.ExtraAssertions, accountAssertion, proxyStoreAssertion)
+		}
+	}
+
+	switch numberSystemUsers {
+	case 1:
+		s.opts.ExtraAssertions = append(s.opts.ExtraAssertions, systemUserGuyAssertion)
+	case 2:
+		s.opts.ExtraAssertions = append(s.opts.ExtraAssertions, systemUserGuyAssertion, systemUserBillAssertion)
 	}
 
 	s.opts.Label = "20250326"
@@ -5465,16 +5503,34 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder boo
 	err = w.SeedSnaps(nil)
 	c.Assert(err, IsNil)
 
-	err = w.WriteMeta()
-	c.Assert(err, IsNil)
-
 	// check seed
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	assertsDir := filepath.Join(systemDir, "assertions")
+	// Trigger some errors by writing files prior to seeding
+	if addProxyStore && fileExistError {
+		err := os.MkdirAll(assertsDir, 0755)
+		c.Assert(err, IsNil)
+		f, err := os.OpenFile(filepath.Join(assertsDir, "extra-assertions"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		c.Assert(err, IsNil)
+		defer f.Close()
+	}
+	if numberSystemUsers > 0 && fileExistError {
+		f, err := os.OpenFile(filepath.Join(systemDir, "auto-import.assert"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		c.Assert(err, IsNil)
+		defer f.Close()
+	}
+
+	err = w.WriteMeta()
+	if fileExistError {
+		c.Assert(errors.Is(err, os.ErrExist), Equals, true)
+		return
+	} else {
+		c.Assert(err, IsNil)
+	}
 
 	// check assertions
 	c.Check(filepath.Join(systemDir, "model"), testutil.FileEquals, asserts.Encode(model))
 
-	assertsDir := filepath.Join(systemDir, "assertions")
 	modelEtc := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "model-etc"))
 	c.Check(modelEtc, HasLen, 3)
 
@@ -5496,30 +5552,105 @@ func (s *writerSuite) testSeedWriterExtraAssertionsCore20(c *C, reverseOrder boo
 		s.Brands.AccountKey("my-brand").PublicKeyID():    true,
 	})
 
-	// check extra assertions
-	extraAssertions := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "extra-assertions"))
-	c.Check(extraAssertions, HasLen, 2)
+	// check extra assertions if any (not type System User)
+	if addProxyStore {
+		extraAssertions := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "extra-assertions"))
+		c.Check(extraAssertions, HasLen, 2)
 
-	for _, a := range extraAssertions {
-		switch a.Type() {
-		case asserts.AccountType:
-			c.Check(a.HeaderString("account-id"), Equals, "other-brand")
-		case asserts.StoreType:
-			c.Check(a.HeaderString("store"), Equals, "my-proxy-store")
-		default:
-			c.Fatalf("unexpected assertion %s", a.Type().Name)
+		for _, a := range extraAssertions {
+			switch a.Type() {
+			case asserts.AccountType:
+				c.Check(a.HeaderString("account-id"), Equals, "other-brand")
+			case asserts.StoreType:
+				c.Check(a.HeaderString("store"), Equals, "my-proxy-store")
+			default:
+				c.Fatalf("unexpected assertion %s", a.Type().Name)
+			}
 		}
+	} else {
+		c.Assert(filepath.Join(assertsDir, "extra-assertions"), testutil.FileAbsent)
+	}
+
+	// system user extra assertions
+	if numberSystemUsers > 0 {
+		extraAssertions := seedtest.ReadAssertions(c, filepath.Join(systemDir, "auto-import.assert"))
+		c.Check(extraAssertions, HasLen, numberSystemUsers)
+
+		for _, a := range extraAssertions {
+			switch a.Type() {
+			case asserts.SystemUserType:
+				switch a.HeaderString("username") {
+				case "guy":
+				case "bill":
+					if numberSystemUsers != 2 {
+						c.Fatalf("unexpected user")
+					}
+				default:
+					c.Fatalf("unexpected user %s", a.HeaderString("username"))
+				}
+			default:
+				c.Fatalf("unexpected assertion %s", a.Type().Name)
+			}
+		}
+	} else {
+		c.Assert(filepath.Join(systemDir, "auto-import.assert"), testutil.FileAbsent)
 	}
 }
 
 func (s *writerSuite) TestSeedWriterExtraAssertionsCore20(c *C) {
+	const addProxyStore = true
 	const reverseOrder = false
-	s.testSeedWriterExtraAssertionsCore20(c, reverseOrder)
+	const fileExistError = false
+	const numberSystemUsers = 0
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
 }
 
 func (s *writerSuite) TestSeedWriterExtraAssertionsCore20ReverseOrder(c *C) {
+	const addProxyStore = true
 	const reverseOrder = true
-	s.testSeedWriterExtraAssertionsCore20(c, reverseOrder)
+	const fileExistError = false
+	const numberSystemUsers = 0
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20SingleSystemUser(c *C) {
+	const addProxyStore = false
+	const reverseOrder = false
+	const fileExistError = false
+	const numberSystemUsers = 1
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20MultipleSystemUsers(c *C) {
+	const addProxyStore = false
+	const reverseOrder = false
+	const fileExistError = false
+	const numberSystemUsers = 2
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20ProxyStoreAndMultipleSystemUsers(c *C) {
+	const addProxyStore = true
+	const reverseOrder = false
+	const fileExistError = false
+	const numberSystemUsers = 2
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20StoreFileError(c *C) {
+	const addProxyStore = true
+	const reverseOrder = false
+	const fileExistError = true
+	const numberSystemUsers = 0
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
+}
+
+func (s *writerSuite) TestSeedWriterExtraAssertionsCore20SingleSystemUserFileError(c *C) {
+	const addProxyStore = false
+	const reverseOrder = false
+	const fileExistError = true
+	const numberSystemUsers = 1
+	s.testSeedWriterExtraAssertionsCore20(c, addProxyStore, reverseOrder, fileExistError, numberSystemUsers)
 }
 
 func (s *writerSuite) TestSeedWriterExtraAssertionsErrorPrerequisites(c *C) {
