@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 )
 
@@ -49,9 +48,9 @@ type Discoverer = func(context.Context) ([]string, error)
 // AssembleState contains this device's knowledge of the state of an assembly
 // session.
 type AssembleState struct {
-	st     *state.State
 	config AssembleConfig
 	logger logger.Logger
+	commit func(AssembleSession)
 
 	cert tls.Certificate
 
@@ -117,57 +116,27 @@ func (as *AssembleState) export() AssembleSession {
 	}
 }
 
-func (as *AssembleState) commit() {
-	exported := as.export()
-
-	as.st.Lock()
-	defer as.st.Unlock()
-	as.st.Set("assemble-session", exported)
-}
-
 type peer struct {
 	RDT  RDT    `json:"rdt"`
 	Cert []byte `json:"cert"`
 }
 
-// NewAssembleState create a new [AssembleState]. This currently pulls data from
-// the given [state.State] and will resume an existing assemble session. This
-// might go away, and we'd take in a more conventional configuration struct.
+// NewAssembleState create a new [AssembleState] from the given configuration
+// and session data.
 func NewAssembleState(
-	st *state.State,
+	config AssembleConfig,
+	session AssembleSession,
 	selector func(self RDT) (RouteSelector, error),
 	log logger.Logger,
+	commit func(AssembleSession),
 ) (*AssembleState, error) {
-	st.Lock()
-	defer st.Unlock()
-
 	if log == nil {
 		log = logger.NullLogger
-	}
-
-	// these probably will end up going on a task, maybe?
-	var config AssembleConfig
-	if err := st.Get("assemble-config", &config); err != nil {
-		return nil, err
 	}
 
 	cert, err := tls.X509KeyPair([]byte(config.TLSCert), []byte(config.TLSKey))
 	if err != nil {
 		return nil, err
-	}
-
-	var session AssembleSession
-	if err := st.Get("assemble-session", &session); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, err
-		}
-
-		session = AssembleSession{
-			Trusted:      make(map[string]peer),
-			Fingerprints: make(map[RDT]FP),
-			Addresses:    make(map[string]string),
-			Discovered:   make(map[string]bool),
-		}
 	}
 
 	trusted := make(map[FP]peer, len(session.Trusted))
@@ -232,15 +201,25 @@ func NewAssembleState(
 		sel.AddAuthoritativeRoute(peer.RDT, addr)
 	}
 
+	fingerprints := session.Fingerprints
+	if fingerprints == nil {
+		fingerprints = make(map[RDT]FP)
+	}
+
+	discovered := session.Discovered
+	if discovered == nil {
+		discovered = make(map[string]bool)
+	}
+
 	as := AssembleState{
-		st:           st,
 		config:       config,
 		logger:       log,
+		commit:       commit,
 		cert:         cert,
 		trusted:      trusted,
-		fingerprints: session.Fingerprints,
+		fingerprints: fingerprints,
 		addresses:    addresses,
-		discovered:   session.Discovered,
+		discovered:   discovered,
 		devices:      devices,
 		selector:     sel,
 	}
@@ -303,7 +282,7 @@ func (as *AssembleState) publishAuth(ctx context.Context, addresses []string, cl
 		}
 	}
 
-	as.commit()
+	as.commit(as.export())
 
 	return nil
 }
@@ -390,7 +369,7 @@ func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 	// committing here prevents us from responding to requests more than once
 	// after something like a reboot. not really a big real to remove this if we
 	// need to reduce writes.
-	as.commit()
+	as.commit(as.export())
 }
 
 // publishRoutes publishes routes that we know about to our trusted peers. See
@@ -494,7 +473,7 @@ func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
 		as.selector.AddAuthoritativeRoute(auth.RDT, addr)
 	}
 
-	as.commit()
+	as.commit(as.export())
 
 	as.logger.Debug("got valid auth message from " + string(auth.RDT))
 
@@ -669,7 +648,7 @@ func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
 
 	h.as.devices.Query(h.peer, unknown.Devices)
 
-	h.as.commit()
+	h.as.commit(h.as.export())
 	h.as.logger.Debug("got device queries from " + string(h.peer))
 
 	return nil
@@ -689,7 +668,7 @@ func (h *PeerHandle) AddRoutes(routes Routes) error {
 		return err
 	}
 
-	h.as.commit()
+	h.as.commit(h.as.export())
 
 	received := len(routes.Routes) / 3
 	h.as.debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
@@ -720,7 +699,7 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 	// valid to send to our peers
 	h.as.selector.VerifyRoutes(h.as.devices.Identified)
 
-	h.as.commit()
+	h.as.commit(h.as.export())
 
 	h.as.debugf("got unknown device information from %s, count: %d", h.peer, len(devices.Devices))
 
