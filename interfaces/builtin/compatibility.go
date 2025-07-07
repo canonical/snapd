@@ -133,12 +133,11 @@ func parseIntegerRange(token, compat string) (rg *CompatRange, err error) {
 // dimensions separated by dashes. Each dimension consist of an alphanumerical
 // descriptor followed by a dash-separated series of integer or integer ranges.
 // An optional spec can be provided to restrict the valid compatibility fields.
+// This spec must strictly follow the convention that there must be at least an
+// integer field per string (that is, "foo" must be specified as "foo-0").
 func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 	maxNumDim := absoluteMaxDimensions
 	maxNumInt := absoluteMaxIntegers
-	if spec != nil {
-		maxNumDim = len(spec.Dimensions)
-	}
 	tokens := strings.Split(compat, "-")
 	dimensions := []CompatDimension{}
 	var currentDimension *CompatDimension
@@ -152,14 +151,6 @@ func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 			if dimIdx == maxNumDim {
 				return nil, fmt.Errorf("only %d dimensions allowed in compatibility field: %q",
 					maxNumDim, compat)
-			}
-			if spec != nil {
-				if spec.Dimensions[dimIdx].Tag != t {
-					return nil, fmt.Errorf("tag does not match compatibility spec (%s != %s)",
-						t, spec.Dimensions[dimIdx].Tag)
-				}
-				// Maximum integers/ranges allowed for this dimension
-				maxNumInt = len(spec.Dimensions[dimIdx].Values)
 			}
 			dimensions, err = appendDimension(dimensions, currentDimension)
 			if err != nil {
@@ -181,13 +172,6 @@ func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 		if currNumVal == maxNumInt {
 			return nil, fmt.Errorf("only %d integer/integer ranges allowed per dimension in compatibility field", maxNumInt)
 		}
-		if spec != nil {
-			rgSpec := spec.Dimensions[len(dimensions)].Values[currNumVal]
-			if rg.Min < rgSpec.Min || rg.Max > rgSpec.Max {
-				return nil, fmt.Errorf("range (%d..%d) is not included in valid range (%d..%d)",
-					rg.Min, rg.Max, rgSpec.Min, rgSpec.Max)
-			}
-		}
 		currentDimension.Values, err = appendRange(currentDimension.Values, *rg)
 		if err != nil {
 			return nil, err
@@ -197,10 +181,44 @@ func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 	// Add last dimension found
 	dimensions, err = appendDimension(dimensions, currentDimension)
 	if err != nil {
+		return nil, fmt.Errorf("%q: %w", compat, err)
+	}
+	compatField := &CompatField{Dimensions: dimensions}
+	if err := checkCompatAgainstSpec(compatField, spec); err != nil {
 		return nil, err
 	}
 
-	return &CompatField{Dimensions: dimensions}, nil
+	return compatField, nil
+}
+
+func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
+	if spec == nil {
+		return nil
+	}
+	if len(compatField.Dimensions) != len(spec.Dimensions) {
+		return fmt.Errorf("unexpected dimensions in compatibility field (should be %d)",
+			len(spec.Dimensions))
+	}
+	for i, d := range compatField.Dimensions {
+		specDim := spec.Dimensions[i]
+		if d.Tag != specDim.Tag {
+			return fmt.Errorf("tag does not match compatibility spec (%s != %s)",
+				d.Tag, specDim.Tag)
+		}
+		specNumVals := len(specDim.Values)
+		if len(d.Values) != len(specDim.Values) {
+			return fmt.Errorf("unexpected integers in compatibility field (should be %d for %q)",
+				specNumVals, specDim.Tag)
+		}
+		for j, v := range d.Values {
+			rgSpec := specDim.Values[j]
+			if v.Min < rgSpec.Min || v.Max > rgSpec.Max {
+				return fmt.Errorf("range (%d..%d) is not included in valid range (%d..%d)",
+					v.Min, v.Max, rgSpec.Min, rgSpec.Max)
+			}
+		}
+	}
+	return nil
 }
 
 // checkCompatibility checks if two compatibility fields are compatible by

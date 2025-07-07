@@ -131,7 +131,7 @@ func (s *CompatSuite) TestInvalidCompatFields(c *C) {
 		{"3foo", `bad dimension descriptor "3foo" in compatibility field "3foo"`},
 		{"-foo", `bad dimension descriptor "" in compatibility field "-foo"`},
 		{"foo-", `invalid tag "" in compatibility field "foo-"`},
-		{"foo-2-foo-5", `dimension "foo" appears more than once`},
+		{"foo-2-foo-5", `"foo-2-foo-5": dimension "foo" appears more than once`},
 		{"foo-(0..0)-foo-5-other", `dimension "foo" appears more than once`},
 		{"foo-01", `invalid tag "01" in compatibility field "foo-01"`},
 		{"foo-(01..5)", `invalid tag "(01..5)" in compatibility field "foo-(01..5)"`},
@@ -172,11 +172,11 @@ func (s *CompatSuite) TestInvalidCompatFieldsWithSpec(c *C) {
 		{"foo-3-bar",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
-			`only 1 dimensions allowed in compatibility field: "foo-3-bar"`},
+			`unexpected dimensions in compatibility field (should be 1)`},
 		{"foo-3-8",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
-			`only 1 integer/integer ranges allowed per dimension in compatibility field`},
+			`unexpected integers in compatibility field (should be 1 for "foo")`},
 		{"foo-(0..3)",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 5}}}}},
@@ -193,6 +193,10 @@ func (s *CompatSuite) TestInvalidCompatFieldsWithSpec(c *C) {
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{7, 10}}}}},
 			`range (3..6) is not included in valid range (7..10)`},
+		{"foo",
+			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
+				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
+			`range (0..0) is not included in valid range (1..10)`},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
