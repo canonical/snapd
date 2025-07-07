@@ -34,25 +34,9 @@ func (a Authentication) ToStrings() []string {
 	return a.toStrings()
 }
 
-// TODO: remove this once we remove the temporary test TestRequestMatch
-func (v *View) MatchGetRequest(request string) (matches []requestMatch, err error) {
-	opts := validationOptions{pathType: userPath}
-	accessors, err := parsePathIntoAccessors(request, opts)
-	if err != nil {
-		return nil, err
-	}
-	return v.matchGetRequest(accessors)
-}
-
 func ParsePathIntoAccessors(path string) ([]accessor, error) {
-	opts := validationOptions{pathType: viewPath}
+	opts := parseOpts{pathType: viewPath}
 	return parsePathIntoAccessors(path, opts)
-}
-
-type RequestMatch = requestMatch
-
-func (m RequestMatch) StoragePath() string {
-	return m.storagePath
 }
 
 func MockMaxValueDepth(newDepth int) (restore func()) {

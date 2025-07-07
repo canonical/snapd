@@ -1616,16 +1616,53 @@ func (s *viewSuite) TestSetValidateError(c *C) {
 }
 
 func (s *viewSuite) TestSetOverwriteValueWithNewLevel(c *C) {
-	databag := confdb.NewJSONDatabag()
-	err := databag.Set("foo", "bar")
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a", "storage": "a"},
+				map[string]any{"request": "c", "storage": "c"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	view := schema.View("foo")
+
+	// Note: this shouldn't be possible if the rules haven't changed but let's be
+	// robust in case a confdb-schema is evolved to add nested values to previous paths
+	bag := confdb.NewJSONDatabag()
+	err = view.Set(bag, "a", "foo")
 	c.Assert(err, IsNil)
 
-	err = databag.Set("foo.bar", "baz")
+	err = view.Set(bag, "c", []any{"bar"})
 	c.Assert(err, IsNil)
 
-	data, err := databag.Get("foo")
+	// we publish a new schema adding some nesting to our rules
+	schema, err = confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a.b", "storage": "a.b"},
+				map[string]any{"request": "c[0][0]", "storage": "c[0][0]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, map[string]any{"bar": "baz"})
+	view = schema.View("foo")
+
+	// we can overwrite existing scalar values with nested maps and lists
+	err = view.Set(bag, "a.b", "foo")
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "c[0][0]", "bar")
+	c.Assert(err, IsNil)
+
+	data, err := view.Get(bag, "")
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, map[string]any{
+		"a": map[string]any{
+			"b": "foo",
+		},
+		"c": []any{[]any{"bar"}},
+	})
 }
 
 func (s *viewSuite) TestSetValidatesDataWithSchemaPass(c *C) {
@@ -2185,7 +2222,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 			value: map[string]any{
 				"b": map[string]any{"d": "value", "u": 1},
 			},
-			err: `cannot set "a" through confdb view acc/confdb/foo: value contains unused data under "b.u"`,
+			err: `cannot set "a" through confdb view acc/confdb/foo: value contains unused data: map[b:map[u:1]]`,
 		},
 		{
 			request: "a",
@@ -2193,7 +2230,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 				"b": map[string]any{"d": "value", "u": 1},
 				"c": map[string]any{"d": "value"},
 			},
-			err: `cannot set "a" through confdb view acc/confdb/foo: value contains unused data under "b.u"`,
+			err: `cannot set "a" through confdb view acc/confdb/foo: value contains unused data: map[b:map[u:1]]`,
 		},
 		{
 			request: "b",
@@ -2201,7 +2238,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 				"e": []any{"a"},
 				"f": 1,
 			},
-			err: `cannot set "b" through confdb view acc/confdb/foo: value contains unused data under "e"`,
+			err: `cannot set "b" through confdb view acc/confdb/foo: value contains unused data: map[e:[a]]`,
 		},
 		{
 			request: "c",
@@ -2213,7 +2250,12 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 					"f": 1,
 				},
 			},
-			err: `cannot set "c" through confdb view acc/confdb/foo: value contains unused data under "d.f"`,
+			err: `cannot set "c" through confdb view acc/confdb/foo: value contains unused data: map[d:map[f:1]]`,
+		},
+		{
+			request: "d",
+			value:   []any{"foo", "bar"},
+			err:     `cannot set "d" through confdb view acc/confdb/foo: value contains unused data: [0:foo]`,
 		},
 	}
 
@@ -2226,6 +2268,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 					map[string]any{"request": "a.{x}.d", "storage": "a.{x}"},
 					map[string]any{"request": "c.d.e.f", "storage": "d"},
 					map[string]any{"request": "b.f", "storage": "b.f"},
+					map[string]any{"request": "d[1]", "storage": "d[1]"},
 				},
 			},
 		}, confdb.NewJSONSchema())
@@ -2236,7 +2279,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 
 		err = view.Set(databag, tc.request, tc.value)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err, cmt)
+			c.Check(err.Error(), Equals, tc.err, cmt)
 		} else {
 			c.Check(err, IsNil, cmt)
 		}
@@ -2985,49 +3028,6 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 	}
 }
 
-// TODO: temporary test, can be removed once we add the traversal logic since
-// we'll test the matching implicitly
-func (*viewSuite) TestRequestMatch(c *C) {
-	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "a[1].bar", "storage": "b[1].bar"},
-				map[string]any{"request": "c", "storage": "d", "content": []any{map[string]any{"storage": "[0].bar"}}},
-				map[string]any{"request": "a[{n}].baz", "storage": "b[{n}].baz"},
-			},
-		},
-	}, confdb.NewJSONSchema())
-	c.Assert(err, IsNil)
-
-	view := schema.View("foo")
-	matches, err := view.MatchGetRequest("a[1].bar")
-	c.Assert(err, IsNil)
-	match := confdb.RequestMatch(matches[0])
-	c.Assert(match.StoragePath(), Equals, "b[1].bar")
-
-	matches, err = view.MatchGetRequest("a[1].baz")
-	c.Assert(err, IsNil)
-	match = confdb.RequestMatch(matches[0])
-	c.Assert(match.StoragePath(), Equals, "b[1].baz")
-
-	matches, err = view.MatchGetRequest("c[0].bar")
-	c.Assert(err, IsNil)
-	match = confdb.RequestMatch(matches[0])
-	c.Assert(match.StoragePath(), Equals, "d[0].bar")
-
-	// prefix match
-	matches, err = view.MatchGetRequest("a")
-	c.Assert(err, IsNil)
-	c.Assert(matches, HasLen, 2)
-
-	// check we skip over both rules
-	_, err = view.MatchGetRequest("a.b")
-	c.Assert(err, ErrorMatches, `cannot get "a.b" through acc/confdb/foo: no matching rule`)
-
-	_, err = view.MatchGetRequest("a.b123.bar")
-	c.Assert(err, ErrorMatches, `cannot get "a.b123.bar" through acc/confdb/foo: no matching rule`)
-}
-
 func (*viewSuite) TestGetListLiteral(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
@@ -3172,7 +3172,12 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	err = view.Set(bag, "a.b", "bar")
 	c.Assert(err, IsNil)
 
+	// check that both Get and Set handle a path/container mismatch gracefully if
+	// the container is a map
 	_, err = view.Get(bag, "a[0]")
+	c.Assert(err, ErrorMatches, `key "\[0\]" cannot be used to access map at path "a\[0\]"`)
+
+	err = view.Set(bag, "a[0]", "foo")
 	c.Assert(err, ErrorMatches, `key "\[0\]" cannot be used to access map at path "a\[0\]"`)
 
 	err = view.Unset(bag, "a")
@@ -3181,6 +3186,192 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	err = bag.Set("a", []any{"foo", "bar"})
 	c.Assert(err, IsNil)
 
+	// check that both Get and Set handle a path/container mismatch gracefully if
+	// the container is a list
 	_, err = view.Get(bag, "a.b")
 	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
+
+	err = view.Set(bag, "a.b", "foo")
+	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
+}
+
+func (*viewSuite) TestSetList(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[0]", "storage": "a[0]"},
+				map[string]any{"request": "a[1]", "storage": "a[1]"},
+				map[string]any{"request": "a[9]", "storage": "a[9]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+	err = view.Set(bag, "a[0]", "foo")
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "a[0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "foo")
+
+	// can overwrite
+	err = view.Set(bag, "a[0]", "bar")
+	c.Assert(err, IsNil)
+	val, err = view.Get(bag, "a[0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "bar")
+
+	// can append
+	err = view.Set(bag, "a[1]", "baz")
+	c.Assert(err, IsNil)
+	val, err = view.Get(bag, "a[1]")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "baz")
+
+	// cannot append if index is not next one
+	err = view.Set(bag, "a[9]", "foo")
+	c.Assert(err, testutil.ErrorIs, confdb.PathError(""))
+	c.Assert(err.Error(), Equals, `cannot index list at "a[9]": list has length 2`)
+}
+
+func (*viewSuite) TestSetListNested(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[0]", "storage": "a[0]"},
+				map[string]any{"request": "a[0][0]", "storage": "a[0][0]"},
+				map[string]any{"request": "a[0][1]", "storage": "a[0][1]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	// set nested list
+	err = view.Set(bag, "a[0][0]", "foo")
+	c.Assert(err, IsNil)
+
+	// append in nested list
+	err = view.Set(bag, "a[0][1]", "bar")
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{[]any{"foo", "bar"}})
+}
+
+func (*viewSuite) TestListMergeResults(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[0]", "storage": "b[0]"},
+				map[string]any{"request": "a[1]", "storage": "c[0]"},
+				map[string]any{"request": "a[2]", "storage": "d[0]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "a[0]", "foo")
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "a[1]", "bar")
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "a", []any{"foo", "bar", "baz"})
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{"foo", "bar", "baz"})
+}
+
+func (*viewSuite) TestSetListPlaceholder(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	// can set entire list
+	err = view.Set(bag, "a", []any{"foo"})
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "a[0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "foo")
+
+	err = view.Set(bag, "a[0]", "bar")
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "a[0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "bar")
+
+	// reset databag and set value that makes placeholder be extended into several values
+	err = bag.Unset("a")
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "a", []any{"foo", "bar"})
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{"foo", "bar"})
+
+	// can overwrite list element with nested value
+	err = view.Set(bag, "a[0]", map[string]any{"a": "b"})
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "a[0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]any{"a": "b"})
+
+	err = view.Set(bag, "a[1]", map[string]any{"c": "d"})
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		map[string]any{"a": "b"},
+		map[string]any{"c": "d"},
+	})
+}
+
+func (*viewSuite) TestListMerge(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a", "storage": "a"},
+				map[string]any{"request": "a[{n}]", "storage": "b[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "a", []any{"foo", "bar"})
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "a[2]", "baz")
+	c.Assert(err, IsNil)
+
+	res, err := view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(res, DeepEquals, []any{"foo", "bar", "baz"})
 }
