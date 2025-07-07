@@ -304,17 +304,23 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 	}
 
 	var conf map[string]any
-	err = chg.Get("confdb-data", &conf)
+	err = chg.Get("values", &conf)
 	if err != nil {
-		if errors.Is(err, client.ErrNoData) {
-			var errMsg string
-			if err := chg.Get("confdb-error", &errMsg); err != nil {
-				return nil, fmt.Errorf(`cannot read "confdb-error" in change %s`, chg.ID)
-			}
-
-			return nil, errors.New(errMsg)
+		if !errors.Is(err, client.ErrNoData) {
+			return nil, err
 		}
-		return nil, err
+
+		var errData map[string]any
+		if err := chg.Get("error", &errData); err != nil {
+			return nil, err
+		}
+
+		errMsg, ok := errData["message"]
+		if !ok {
+			return nil, fmt.Errorf(`internal error: expected "message" field under "error" in change result`)
+		}
+
+		return nil, errors.New(errMsg.(string))
 	}
 
 	return conf, nil

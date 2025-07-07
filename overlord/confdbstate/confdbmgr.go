@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -159,15 +160,26 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 
 	result, err := GetViaView(tx, view, requests)
 	if err != nil {
-		if errors.Is(err, &confdb.NoDataError{}) || errors.Is(err, &confdb.NoMatchError{}) {
-			apiData["confdb-error"] = err.Error()
-			chg.Set("api-data", apiData)
-			return nil
+		if !errors.Is(err, &confdb.NoDataError{}) && !errors.Is(err, &confdb.NoMatchError{}) {
+			return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
 		}
-		return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
+
+		var kind client.ErrorKind
+		if errors.Is(err, &confdb.NoDataError{}) {
+			kind = client.ErrorKindConfigNoSuchOption
+		} else {
+			kind = client.ErrorKindConfdbNoMatchingRule
+		}
+
+		apiData["error"] = map[string]any{
+			"message": err.Error(),
+			"kind":    kind,
+		}
+		chg.Set("api-data", apiData)
+		return nil
 	}
 
-	apiData["confdb-data"] = result
+	apiData["values"] = result
 	chg.Set("api-data", apiData)
 	return nil
 }
