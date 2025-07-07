@@ -121,7 +121,7 @@ func (s *swfeatsSuite) TestDuplicateAdd(c *C) {
 }
 
 func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
-	goFiles, err := getGoFiles("../../", "/snapstatetest/")
+	goFiles, err := getGoFiles("../../", "/snapstatetest/", "../../.git/", "../../vendor/", "../../tests/")
 	if err != nil {
 		c.Error("Could not find any go files in snapd directory")
 	}
