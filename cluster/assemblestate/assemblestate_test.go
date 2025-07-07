@@ -28,7 +28,7 @@ type selector struct {
 	AddAuthoritativeRouteFunc func(r RDT, via string)
 	AddRoutesFunc             func(r RDT, ro Routes, id func(RDT) bool) (int, int, error)
 	VerifyRoutesFunc          func(func(RDT) bool)
-	SelectFunc                func(count int) (to RDT, routes Routes, ack func(), ok bool)
+	SelectFunc                func(to RDT, count int) (routes Routes, ack func(), ok bool)
 	RoutesFunc                func() Routes
 }
 
@@ -53,11 +53,11 @@ func (s *selector) VerifyRoutes(fn func(RDT) bool) {
 	s.VerifyRoutesFunc(fn)
 }
 
-func (s *selector) Select(count int) (RDT, Routes, func(), bool) {
+func (s *selector) Select(to RDT, count int) (Routes, func(), bool) {
 	if s.SelectFunc == nil {
 		panic("unexpected call")
 	}
-	return s.SelectFunc(count)
+	return s.SelectFunc(to, count)
 }
 
 func (s *selector) Routes() Routes {
@@ -156,8 +156,8 @@ func statelessSelector() *selector {
 			return 0, 0, nil
 		},
 		VerifyRoutesFunc: func(f func(RDT) bool) {},
-		SelectFunc: func(_ int) (RDT, Routes, func(), bool) {
-			return "", Routes{}, nil, false
+		SelectFunc: func(to RDT, count int) (Routes, func(), bool) {
+			return Routes{}, nil, false
 		},
 		RoutesFunc: func() Routes { return Routes{} },
 	}
@@ -466,14 +466,12 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 
 	var msg testClient
 	var called int
-	peers := []RDT{oneRDT, twoRDT, threeRDT, "four", oneRDT} // 5 calls to publish as expected
 	acked := make(map[RDT]int)
 
-	selector.SelectFunc = func(count int) (RDT, Routes, func(), bool) {
-		peer := peers[called]
+	selector.SelectFunc = func(to RDT, count int) (Routes, func(), bool) {
 		called++
-		return peer, Routes{}, func() {
-			acked[peer]++
+		return Routes{}, func() {
+			acked[to]++
 		}, true
 	}
 
@@ -492,12 +490,12 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 	}
 
 	as.publishRoutes(context.Background(), &msg, 5, 100)
-	c.Assert(called, check.Equals, 5)
+	c.Assert(called, check.Equals, 2)
 
-	// since peer four isn't known and peer three isn't discovered, we should
-	// have only acked our publications to peer one and two
+	// since peer three isn't discovered, we should have only acked our
+	// publications to peer one and two (each called once)
 	c.Assert(acked, check.DeepEquals, map[RDT]int{
-		oneRDT: 2,
+		oneRDT: 1,
 		twoRDT: 1,
 	})
 }

@@ -392,24 +392,34 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, peers
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
-	// call select multiple times to select different random peers
-	for i := 0; i < peers; i++ {
-		// ack must be called to tell the selector that we've sent our peer that
-		// data. we use a closure here so we don't have to convert from the
-		// selector's internal data representation to the message type and back.
-		to, routes, ack, ok := as.selector.Select(maxRoutes)
+	// collect all trusted peers that have also addresses
+	var available []peer
+	for fp, p := range as.trusted {
+		if _, ok := as.addresses[fp]; ok {
+			available = append(available, p)
+		}
+	}
+
+	if len(available) == 0 {
+		return
+	}
+
+	// shuffle available peers to enable random selection
+	for i := len(available) - 1; i > 0; i-- {
+		j := randutil.Intn(i + 1)
+		available[i], available[j] = available[j], available[i]
+	}
+
+	selected := available[:min(peers, len(available))]
+
+	// for each randomly selected peer, get routes and send them
+	for _, p := range selected {
+		routes, ack, ok := as.selector.Select(p.RDT, maxRoutes)
 		if !ok {
-			continue // nothing to publish
+			continue // nothing to publish to this peer
 		}
 
-		fp, ok := as.fingerprints[to]
-		if !ok {
-			continue // skip publishing to an untrusted peer
-		}
-
-		// this entry should always be present. as.trusted and as.fingerprints
-		// are only written to within the same critical section.
-		p, ok := as.trusted[fp]
+		fp, ok := as.fingerprints[p.RDT]
 		if !ok {
 			continue // skip publishing to an untrusted peer
 		}
