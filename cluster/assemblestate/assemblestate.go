@@ -192,7 +192,7 @@ func NewAssembleState(
 	// their provenance is this local node, since we don't persist which routes
 	// came from which peer. this will lead to our local node doing some wasted
 	// publications, but that is okay.
-	if _, _, err := sel.AddRoutes(config.RDT, session.Routes, devices.Identified); err != nil {
+	if _, _, err := sel.RecordRoutes(config.RDT, session.Routes, devices.Identified); err != nil {
 		return nil, err
 	}
 
@@ -678,7 +678,7 @@ func (h *PeerHandle) AddRoutes(routes Routes) error {
 	// know that they must have identifying information for those devices.
 	h.as.devices.UpdateSource(h.peer, routes.Devices)
 
-	added, total, err := h.as.selector.AddRoutes(h.peer, routes, h.as.devices.Identified)
+	added, total, err := h.as.selector.RecordRoutes(h.peer, routes, h.as.devices.Identified)
 	if err != nil {
 		return err
 	}

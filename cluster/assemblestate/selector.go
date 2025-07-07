@@ -18,10 +18,10 @@ type RouteSelector interface {
 	// knowledge of that peer's identity.
 	AddAuthoritativeRoute(from DeviceToken, via string)
 
-	// AddRoutes records a set of routes from the given [RDT]. The given
+	// RecordRoutes records a set of routes from the given [RDT]. The given
 	// function identified is used to determine which new routes can be
 	// considered for publication.
-	AddRoutes(from DeviceToken, r Routes, identified func(DeviceToken) bool) (int, int, error)
+	RecordRoutes(from DeviceToken, r Routes, identified func(DeviceToken) bool) (int, int, error)
 
 	// VerifyRoutes re-calculates which routes are available for publication.
 	// The given function identified is used to determine which routes should be
@@ -155,10 +155,10 @@ func (m *PrioritySelector) AddAuthoritativeRoute(to DeviceToken, via string) {
 	m.authoritative[to] = eid
 }
 
-// AddRoutes records all give routes and marks them as known to the given [DeviceToken].
+// RecordRoutes records all give routes and marks them as known to the given [DeviceToken].
 // The provided identified function is used to verify routes and mark them as
 // safe to publish if all we know all devices involved in a route.
-func (m *PrioritySelector) AddRoutes(source DeviceToken, r Routes, identified func(DeviceToken) bool) (added int, total int, err error) {
+func (m *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified func(DeviceToken) bool) (added int, total int, err error) {
 	pid := m.peerID(source)
 
 	if len(r.Routes)%3 != 0 {
