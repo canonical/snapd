@@ -141,6 +141,15 @@ StartLimitBurst=${burst}
 StartLimitIntervalSec=10s
 EOF
 
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+# The default limit is usually 5, which can be easily hit in
+# a fast system with few systemd units
+StartLimitBurst=${burst}
+StartLimitIntervalSec=10s
+EOF
+
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
