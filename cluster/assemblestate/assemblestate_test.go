@@ -85,16 +85,39 @@ func (m *testClient) Untrusted(ctx context.Context, addr, kind string, msg any) 
 	return m.UntrustedFunc(ctx, addr, kind, msg)
 }
 
-func createTestCertAndKey(ip net.IP) (certPEM []byte, keyPEM []byte, err error) {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, nil, err
+type testTransport struct {
+	ServeFunc     func(context.Context, string, tls.Certificate, *AssembleState) error
+	NewClientFunc func(tls.Certificate) Client
+	StatsFunc     func() (int64, int64)
+}
+
+func (t *testTransport) Serve(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+	if t.ServeFunc == nil {
+		panic("unexpected call")
 	}
+	return t.ServeFunc(ctx, addr, cert, as)
+}
+
+func (t *testTransport) NewClient(cert tls.Certificate) Client {
+	if t.NewClientFunc == nil {
+		panic("unexpected call")
+	}
+	return t.NewClientFunc(cert)
+}
+
+func (t *testTransport) Stats() (int64, int64) {
+	if t.StatsFunc == nil {
+		return 0, 0
+	}
+	return t.StatsFunc()
+}
+
+func createTestCertAndKey(c *check.C, ip net.IP) (certPEM []byte, keyPEM []byte) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	c.Assert(err, check.IsNil)
 
 	serial, err := rand.Int(rand.Reader, big.NewInt(1<<62))
-	if err != nil {
-		return nil, nil, err
-	}
+	c.Assert(err, check.IsNil)
 
 	// TODO: rotation, renewal? don't worry about it? for now make it last until
 	// the next century, when i'll be gone
@@ -110,24 +133,19 @@ func createTestCertAndKey(ip net.IP) (certPEM []byte, keyPEM []byte, err error) 
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, &template, &template, pub, priv)
-	if err != nil {
-		return nil, nil, err
-	}
+	c.Assert(err, check.IsNil)
 
 	der, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		return nil, nil, err
-	}
+	c.Assert(err, check.IsNil)
 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 
-	return certPEM, keyPEM, nil
+	return certPEM, keyPEM
 }
 
 func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg AssembleConfig) (*AssembleState, tls.Certificate) {
-	certPEM, keyPEM, err := createTestCertAndKey(cfg.IP)
-	c.Assert(err, check.IsNil)
+	certPEM, keyPEM := createTestCertAndKey(c, cfg.IP)
 
 	cfg.TLSCert = certPEM
 	cfg.TLSKey = keyPEM
@@ -497,4 +515,82 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 		oneRDT: 1,
 		twoRDT: 1,
 	})
+}
+
+func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     "rdt",
+		IP:      ip,
+		Port:    8001,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+	}
+
+	commit := func(AssembleSession) {}
+	_, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	recent := AssembleSession{
+		Initiated: time.Now().Add(-30 * time.Minute),
+	}
+	_, err = NewAssembleState(cfg, recent, func(DeviceToken) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	expired := AssembleSession{
+		Initiated: time.Now().Add(-2 * time.Hour),
+	}
+	_, err = NewAssembleState(cfg, expired, func(DeviceToken) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
+}
+
+func (s *ClusterSuite) TestRunTimeout(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     "rdt",
+		IP:      ip,
+		Port:    8001,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+	}
+
+	commit := func(AssembleSession) {}
+
+	transport := &testTransport{
+		ServeFunc: func(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		NewClientFunc: func(cert tls.Certificate) Client {
+			return &testClient{}
+		},
+	}
+
+	discover := func(ctx context.Context) ([]string, error) {
+		return []string{}, nil
+	}
+
+	expired := AssembleSession{
+		Initiated: time.Now().Add(-time.Hour + time.Second),
+	}
+	as, err := NewAssembleState(cfg, expired, func(DeviceToken) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	time.Sleep(time.Second * 2)
+
+	_, err = as.Run(context.Background(), transport, discover)
+	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
 }

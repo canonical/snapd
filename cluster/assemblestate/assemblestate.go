@@ -48,9 +48,10 @@ type Discoverer = func(context.Context) ([]string, error)
 // AssembleState contains this device's knowledge of the state of an assembly
 // session.
 type AssembleState struct {
-	config AssembleConfig
-	logger logger.Logger
-	commit func(AssembleSession)
+	config    AssembleConfig
+	logger    logger.Logger
+	commit    func(AssembleSession)
+	initiated time.Time
 
 	cert tls.Certificate
 
@@ -87,6 +88,7 @@ type AssembleState struct {
 // AssembleSession provides a method for serializing our current state of
 // assembly to JSON.
 type AssembleSession struct {
+	Initiated    time.Time                   `json:"initiated"`
 	Trusted      map[string]peer             `json:"trusted"`
 	Fingerprints map[DeviceToken]Fingerprint `json:"fingerprints"`
 	Addresses    map[string]string           `json:"addresses"`
@@ -107,6 +109,7 @@ func (as *AssembleState) export() AssembleSession {
 	}
 
 	return AssembleSession{
+		Initiated:    as.initiated,
 		Trusted:      trusted,
 		Fingerprints: as.fingerprints,
 		Addresses:    addresses,
@@ -130,6 +133,10 @@ func NewAssembleState(
 	log logger.Logger,
 	commit func(AssembleSession),
 ) (*AssembleState, error) {
+	if !session.Initiated.IsZero() && time.Since(session.Initiated) > time.Hour {
+		return nil, errors.New("cannot resume an assembly session that began more than an hour ago")
+	}
+
 	if log == nil {
 		log = logger.NullLogger
 	}
@@ -212,6 +219,7 @@ func NewAssembleState(
 	}
 
 	as := AssembleState{
+		initiated:    session.Initiated,
 		config:       config,
 		logger:       log,
 		commit:       commit,
@@ -508,6 +516,14 @@ func (as *AssembleState) Run(
 	transport Transport,
 	discover Discoverer,
 ) (Routes, error) {
+	if as.initiated.IsZero() {
+		as.initiated = time.Now()
+	}
+
+	if time.Since(as.initiated) > time.Hour {
+		return Routes{}, errors.New("cannot resume an assembly session that began more than an hour ago")
+	}
+
 	addr := fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
 	client := transport.NewClient(as.cert)
 
