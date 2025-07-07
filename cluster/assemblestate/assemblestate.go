@@ -8,11 +8,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -51,7 +51,7 @@ type Discoverer = func(context.Context) ([]string, error)
 type AssembleState struct {
 	st     *state.State
 	config AssembleConfig
-	logger *slog.Logger
+	logger logger.Logger
 
 	cert tls.Certificate
 
@@ -78,7 +78,7 @@ type AssembleState struct {
 	// devices keeps track of device identities. Additionally, it helps manage
 	// the events that trigger responses to device queries and the events that
 	// result in us sending our own queries.
-	devices DeviceTracker
+	devices DeviceQueryTracker
 
 	// selector keeps track of our routes and decides the strategy for
 	// publishing routes to our peers.
@@ -88,12 +88,12 @@ type AssembleState struct {
 // AssembleSession provides a method for serializing our current state of
 // assembly to JSON.
 type AssembleSession struct {
-	Trusted      map[string]peer   `json:"trusted"`
-	Fingerprints map[RDT]FP        `json:"fingerprints"`
-	Addresses    map[string]string `json:"addresses"`
-	Discovered   map[string]bool   `json:"discovered"`
-	Routes       Routes            `json:"routes"`
-	Devices      DeviceTrackerData `json:"devices"`
+	Trusted      map[string]peer        `json:"trusted"`
+	Fingerprints map[RDT]FP             `json:"fingerprints"`
+	Addresses    map[string]string      `json:"addresses"`
+	Discovered   map[string]bool        `json:"discovered"`
+	Routes       Routes                 `json:"routes"`
+	Devices      DeviceQueryTrackerData `json:"devices"`
 }
 
 func (as *AssembleState) export() AssembleSession {
@@ -133,9 +133,17 @@ type peer struct {
 // NewAssembleState create a new [AssembleState]. This currently pulls data from
 // the given [state.State] and will resume an existing assemble session. This
 // might go away, and we'd take in a more conventional configuration struct.
-func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, error), logger *slog.Logger) (*AssembleState, error) {
+func NewAssembleState(
+	st *state.State,
+	selector func(self RDT) (RouteSelector, error),
+	log logger.Logger,
+) (*AssembleState, error) {
 	st.Lock()
 	defer st.Unlock()
+
+	if log == nil {
+		log = logger.NullLogger
+	}
 
 	// these probably will end up going on a task, maybe?
 	var config AssembleConfig
@@ -194,7 +202,7 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 		addresses[fp] = addr
 	}
 
-	devices := NewDeviceTracker(Identity{
+	devices := NewDeviceQueryTracker(Identity{
 		RDT: config.RDT,
 		FP:  CalculateFP(config.TLSCert),
 	}, time.Minute*5, session.Devices)
@@ -227,7 +235,7 @@ func NewAssembleState(st *state.State, selector func(self RDT) (RouteSelector, e
 	as := AssembleState{
 		st:           st,
 		config:       config,
-		logger:       logger,
+		logger:       log,
 		cert:         cert,
 		trusted:      trusted,
 		fingerprints: session.Fingerprints,
@@ -278,7 +286,7 @@ func (as *AssembleState) publishAuth(ctx context.Context, addresses []string, cl
 			continue
 		}
 
-		as.logger.Debug("sent auth message", "peer-address", addr)
+		as.logger.Debug("sent auth message to " + addr)
 
 		fp := CalculateFP(cert)
 
@@ -331,7 +339,7 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 		}
 
 		ack()
-		as.logger.Debug("sent device queries", "peer-rdt", p.RDT, "peer-address", addr, "queries-count", len(queries))
+		as.debugf("sent device queries to %s at %s, count: %d", p.RDT, addr, len(queries))
 	}
 
 	// if anything failed, we need to schedule a retry
@@ -371,7 +379,7 @@ func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 		}
 
 		ack()
-		as.logger.Debug("sent device information", "peer-rdt", p.RDT, "peer-address", addr, "devices-count", len(ids))
+		as.debugf("sent device information to %s at %s, count: %d", p.RDT, addr, len(ids))
 	}
 
 	// if anything failed, we need to schedule a retry
@@ -441,7 +449,7 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, peers
 		}
 
 		ack()
-		as.logger.Debug("sent routes", "peer-rdt", p.RDT, "peer-address", addr, "routes-count", len(routes.Routes)/3)
+		as.debugf("sent routes to %s at %s, count: %d", p.RDT, addr, len(routes.Routes)/3)
 	}
 
 	// we don't commit on route publishes, since we don't keep track of which
@@ -488,7 +496,7 @@ func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
 
 	as.commit()
 
-	as.logger.Debug("got valid auth message", "peer-rdt", auth.RDT)
+	as.logger.Debug("got valid auth message from " + string(auth.RDT))
 
 	return nil
 }
@@ -532,7 +540,7 @@ func (as *AssembleState) Run(
 	go func() {
 		defer wg.Done()
 		if err := transport.Serve(ctx, addr, as.cert, as); err != nil {
-			as.logger.Error(err.Error())
+			as.logger.Debug("error: " + err.Error())
 		}
 	}()
 
@@ -543,7 +551,7 @@ func (as *AssembleState) Run(
 		periodic(ctx, time.Second*5, time.Second*1, func(ctx context.Context) {
 			discoveries, err := discover(ctx)
 			if err != nil {
-				as.logger.Error(err.Error())
+				as.logger.Debug("error: " + err.Error())
 				return
 			}
 
@@ -557,7 +565,7 @@ func (as *AssembleState) Run(
 			}
 
 			if err := as.publishAuth(ctx, addrs, client); err != nil {
-				as.logger.Error(err.Error())
+				as.logger.Debug("error: " + err.Error())
 				return
 			}
 		})
@@ -599,12 +607,13 @@ func (as *AssembleState) Run(
 	wg.Wait()
 
 	sent, received := transport.Stats()
-	as.logger.Info("assemble stopped",
-		"sent-bytes", sent,
-		"received-bytes", received,
-	)
+	as.debugf("assemble stopped, sent: %d bytes, received: %d bytes", sent, received)
 
 	return as.selector.Routes(), nil
+}
+
+func (as *AssembleState) debugf(format string, a ...any) {
+	as.logger.Debug(fmt.Sprintf(format, a...))
 }
 
 func periodic(
@@ -661,7 +670,7 @@ func (h *PeerHandle) AddQueries(unknown UnknownDevices) error {
 	h.as.devices.Query(h.peer, unknown.Devices)
 
 	h.as.commit()
-	h.as.logger.Debug("got device queries", "peer-rdt", h.peer)
+	h.as.logger.Debug("got device queries from " + string(h.peer))
 
 	return nil
 }
@@ -683,12 +692,7 @@ func (h *PeerHandle) AddRoutes(routes Routes) error {
 	h.as.commit()
 
 	received := len(routes.Routes) / 3
-	h.as.logger.Debug("got routes update",
-		"peer-rdt", h.peer,
-		"received-routes", received,
-		"wasted-routes", received-added,
-		"total-routes", total,
-	)
+	h.as.debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
 
 	return nil
 }
@@ -718,7 +722,7 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 
 	h.as.commit()
 
-	h.as.logger.Debug("got unknown device information", "peer-rdt", h.peer, "devices-count", len(devices.Devices))
+	h.as.debugf("got unknown device information from %s, count: %d", h.peer, len(devices.Devices))
 
 	return nil
 }

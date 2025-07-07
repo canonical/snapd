@@ -1,8 +1,6 @@
 module github.com/snapcore/snapd
 
-go 1.23.0
-
-toolchain go1.24.4
+go 1.18
 
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
@@ -38,10 +36,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require (
-	go.etcd.io/bbolt v1.3.9
-	golang.org/x/time v0.12.0
-)
+require go.etcd.io/bbolt v1.3.9
 
 require (
 	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect
@@ -53,5 +48,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
 	golang.org/x/term v0.20.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )

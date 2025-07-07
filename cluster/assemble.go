@@ -8,12 +8,12 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
-	"log/slog"
 	"math/big"
 	"net"
 	"time"
 
 	"github.com/snapcore/snapd/cluster/assemblestate"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -21,7 +21,7 @@ import (
 type AssembleOpts struct {
 	ListenIP    net.IP
 	ListenPort  int
-	Logger      *slog.Logger
+	Logger      logger.Logger
 	Secret      string
 	RDTOverride string
 }
@@ -44,11 +44,10 @@ func Assemble(st *state.State, ctx context.Context, discover assemblestate.Disco
 		return assemblestate.Routes{}, errors.New("rdt must be provided")
 	}
 
-	logger := opts.Logger
-	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
+	log := opts.Logger
+	if log == nil {
+		log = logger.NullLogger
 	}
-	logger = logger.With("local-rdt", rdt)
 
 	cert, key, err := createCertAndKey(opts.ListenIP)
 	if err != nil {
@@ -70,12 +69,12 @@ func Assemble(st *state.State, ctx context.Context, discover assemblestate.Disco
 
 	as, err := assemblestate.NewAssembleState(st, func(self assemblestate.RDT) (assemblestate.RouteSelector, error) {
 		return assemblestate.NewPrioritySelector(self, nil), nil
-	}, logger)
+	}, log)
 	if err != nil {
 		return assemblestate.Routes{}, err
 	}
 
-	transport := assemblestate.NewHTTPTransport(logger)
+	transport := assemblestate.NewHTTPTransport(log)
 	return as.Run(ctx, transport, discover)
 }
 
