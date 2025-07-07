@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/snapdenv"
 )
