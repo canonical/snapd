@@ -121,6 +121,13 @@ setup_system_proxy() {
 }
 
 setup_systemd_snapd_overrides() {
+    local burst
+    burst=10
+    if [ "$SPREAD_BACKEND" = "garden" ]; then
+        # the tests execute much faster and the repeated stop/start of snapd in
+        # prepare may eventually go over the start limit
+        burst=30
+    fi
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Service]
@@ -130,7 +137,7 @@ ExecStartPre=/bin/touch /dev/iio:device0
 [Unit]
 # The default limit is usually 5, which can be easily hit in 
 # a fast system with few systemd units
-StartLimitBurst=10
+StartLimitBurst=${burst}
 StartLimitIntervalSec=10s
 EOF
 
