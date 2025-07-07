@@ -47,7 +47,6 @@ func init() {
 		name:                  "usb-gadget",
 		summary:               usbgadgetSummary,
 		implicitOnCore:        true,
-		implicitOnClassic:     true,
 		baseDeclarationSlots:  usbgadgetBaseDeclarationSlots,
 		connectedPlugAppArmor: usbgadgetConnectedPlugAppArmor,
 	})
