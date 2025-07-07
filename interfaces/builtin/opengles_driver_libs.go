@@ -64,6 +64,8 @@ func (iface *openglesDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.S
 }
 
 func (iface *openglesDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 

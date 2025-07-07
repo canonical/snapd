@@ -129,6 +129,8 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 }
 
 func (iface *gbmDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 

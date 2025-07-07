@@ -64,6 +64,8 @@ func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Spe
 }
 
 func (iface *openglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 

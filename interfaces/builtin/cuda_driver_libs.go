@@ -78,6 +78,8 @@ func (iface *cudaDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Speci
 }
 
 func (iface *cudaDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 
