@@ -16,17 +16,17 @@ type RouteSelector interface {
 	// AddAuthoritativeRoute records a route from this local node to the given
 	// [RDT]. This route will be published to the given peer, regardless of our
 	// knowledge of that peer's identity.
-	AddAuthoritativeRoute(from RDT, via string)
+	AddAuthoritativeRoute(from DeviceToken, via string)
 
 	// AddRoutes records a set of routes from the given [RDT]. The given
 	// function identified is used to determine which new routes can be
 	// considered for publication.
-	AddRoutes(from RDT, r Routes, identified func(RDT) bool) (int, int, error)
+	AddRoutes(from DeviceToken, r Routes, identified func(DeviceToken) bool) (int, int, error)
 
 	// VerifyRoutes re-calculates which routes are available for publication.
 	// The given function identified is used to determine which routes should be
 	// considered.
-	VerifyRoutes(identified func(RDT) bool)
+	VerifyRoutes(identified func(DeviceToken) bool)
 
 	// Select selects a subset of routes that the specified peer needs to receive.
 	//
@@ -34,7 +34,7 @@ type RouteSelector interface {
 	// called after successful transmission, and whether routes were selected.
 	// The ack function must be called once the selected routes are published
 	// so that they will not be selected for publication again.
-	Select(to RDT, count int) (routes Routes, ack func(), ok bool)
+	Select(to DeviceToken, count int) (routes Routes, ack func(), ok bool)
 
 	// Routes returns all routes that are currently valid for publication.
 	Routes() Routes
@@ -47,13 +47,13 @@ type RouteSelector interface {
 // published the smallest number of times.
 type PrioritySelector struct {
 	// self is this node's RDT.
-	self RDT
+	self DeviceToken
 
 	// rng is the random number generator that is used for peer selection.
 	rng *randutil.Rand
 
 	// rdts keeps track of all RDTs that we've seen and maps them to a [peerID].
-	rdts *bimap.Bimap[RDT, peerID]
+	rdts *bimap.Bimap[DeviceToken, peerID]
 
 	// edges keeps track of all edges we've seen and maps them to an [edgeID].
 	edges *bimap.Bimap[edge, edgeID]
@@ -80,10 +80,10 @@ type PrioritySelector struct {
 	// authoritative keeps track of the set of edges from this local node to
 	// each other peer. Each of these can be safely sent to the destination node
 	// in the edge.
-	authoritative map[RDT]edgeID
+	authoritative map[DeviceToken]edgeID
 }
 
-func NewPrioritySelector(self RDT, source randutil.Source) *PrioritySelector {
+func NewPrioritySelector(self DeviceToken, source randutil.Source) *PrioritySelector {
 	if source == nil {
 		source = randutil.NewSource(time.Now().UnixNano())
 	}
@@ -91,13 +91,13 @@ func NewPrioritySelector(self RDT, source randutil.Source) *PrioritySelector {
 	return &PrioritySelector{
 		self:          self,
 		rng:           randutil.New(source),
-		rdts:          bimap.New[RDT, peerID](),
+		rdts:          bimap.New[DeviceToken, peerID](),
 		edges:         bimap.New[edge, edgeID](),
 		addresses:     bimap.New[string, addrID](),
 		verified:      &bitset.Bitset[edgeID]{},
 		known:         make(map[peerID]*bitset.Bitset[edgeID]),
 		sources:       make(map[edgeID]int),
-		authoritative: make(map[RDT]edgeID),
+		authoritative: make(map[DeviceToken]edgeID),
 	}
 }
 
@@ -118,7 +118,7 @@ type edge struct {
 	via      addrID
 }
 
-func (m *PrioritySelector) peerID(rdt RDT) peerID {
+func (m *PrioritySelector) peerID(rdt DeviceToken) peerID {
 	if pid, ok := m.rdts.IndexOf(rdt); ok {
 		return pid
 	}
@@ -146,7 +146,7 @@ func (m *PrioritySelector) edgeID(e edge) (edgeID, bool) {
 // AddAuthoritativeRoute informs the selector of an authoritative route from
 // this local node to the given peer. This route can safely be published to the
 // given peer, regardless of our knowledge of that peer's identity.
-func (m *PrioritySelector) AddAuthoritativeRoute(to RDT, via string) {
+func (m *PrioritySelector) AddAuthoritativeRoute(to DeviceToken, via string) {
 	eid, _ := m.edgeID(edge{
 		from: m.peerID(m.self),
 		to:   m.peerID(to),
@@ -155,10 +155,10 @@ func (m *PrioritySelector) AddAuthoritativeRoute(to RDT, via string) {
 	m.authoritative[to] = eid
 }
 
-// AddRoutes records all give routes and marks them as known to the given [RDT].
+// AddRoutes records all give routes and marks them as known to the given [DeviceToken].
 // The provided identified function is used to verify routes and mark them as
 // safe to publish if all we know all devices involved in a route.
-func (m *PrioritySelector) AddRoutes(source RDT, r Routes, identified func(RDT) bool) (added int, total int, err error) {
+func (m *PrioritySelector) AddRoutes(source DeviceToken, r Routes, identified func(DeviceToken) bool) (added int, total int, err error) {
 	pid := m.peerID(source)
 
 	if len(r.Routes)%3 != 0 {
@@ -206,7 +206,7 @@ func (m *PrioritySelector) AddRoutes(source RDT, r Routes, identified func(RDT) 
 
 // VerifyRoutes uses the given identified function to mark any routes that
 // involve devices that we know as safe to publish.
-func (p *PrioritySelector) VerifyRoutes(identified func(RDT) bool) {
+func (p *PrioritySelector) VerifyRoutes(identified func(DeviceToken) bool) {
 	for eid, edge := range p.edges.Values() {
 		fromRDT := p.rdts.Value(edge.from)
 		toRDT := p.rdts.Value(edge.to)
@@ -221,7 +221,7 @@ func (p *PrioritySelector) VerifyRoutes(identified func(RDT) bool) {
 //
 // We prioritize routes that this local node has witnessed and published fewer
 // times.
-func (p *PrioritySelector) Select(to RDT, count int) (routes Routes, ack func(), ok bool) {
+func (p *PrioritySelector) Select(to DeviceToken, count int) (routes Routes, ack func(), ok bool) {
 	selected, exists := p.rdts.IndexOf(to)
 	if !exists {
 		return Routes{}, nil, false
@@ -326,9 +326,9 @@ func (p *PrioritySelector) Routes() Routes {
 		)
 	}
 
-	converted := make([]RDT, 0, len(devices))
+	converted := make([]DeviceToken, 0, len(devices))
 	for _, d := range devices {
-		converted = append(converted, RDT(d))
+		converted = append(converted, DeviceToken(d))
 	}
 
 	return Routes{
@@ -339,7 +339,7 @@ func (p *PrioritySelector) Routes() Routes {
 }
 
 func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {
-	rdts := bimap.New[RDT, int]()
+	rdts := bimap.New[DeviceToken, int]()
 	addrs := bimap.New[string, int]()
 
 	routes := make([]int, 0, len(edges)*3)

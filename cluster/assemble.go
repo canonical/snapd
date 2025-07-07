@@ -39,7 +39,7 @@ type AssembleOpts struct {
 // TODO: get rid of this entrypoint
 func Assemble(st *state.State, ctx context.Context, discover assemblestate.Discoverer, opts AssembleOpts) (assemblestate.Routes, error) {
 	// TODO: pick how we're going to generate RDTs
-	rdt := assemblestate.RDT(opts.RDTOverride)
+	rdt := assemblestate.DeviceToken(opts.RDTOverride)
 	if rdt == "" {
 		return assemblestate.Routes{}, errors.New("rdt must be provided")
 	}
@@ -73,7 +73,7 @@ func Assemble(st *state.State, ctx context.Context, discover assemblestate.Disco
 	// an assemble session
 	session := assemblestate.AssembleSession{}
 
-	as, err := assemblestate.NewAssembleState(config, session, func(self assemblestate.RDT) (assemblestate.RouteSelector, error) {
+	as, err := assemblestate.NewAssembleState(config, session, func(self assemblestate.DeviceToken) (assemblestate.RouteSelector, error) {
 		return assemblestate.NewPrioritySelector(self, nil), nil
 	}, log, commit)
 	if err != nil {

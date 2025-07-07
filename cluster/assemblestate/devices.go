@@ -18,21 +18,21 @@ type DeviceQueryTracker struct {
 	// inflight keeps track of queries for device information that we have
 	// in-flight. We keep track of a mapping of device RDT to time at which the
 	// query was sent.
-	inflight map[RDT]time.Time
+	inflight map[DeviceToken]time.Time
 
 	// timeout is the amount of time we will wait before sending a query for
 	// device information again.
 	timeout time.Duration
 
 	// unknowns keeps track of which devices each peer has queried us for.
-	unknowns map[RDT]map[RDT]struct{}
+	unknowns map[DeviceToken]map[DeviceToken]struct{}
 
 	// sources keeps track of which devices we know each peer knows about.
-	sources map[RDT]map[RDT]struct{}
+	sources map[DeviceToken]map[DeviceToken]struct{}
 
 	// ids is our collection of device identities that we've heard from other
 	// peers.
-	ids map[RDT]Identity
+	ids map[DeviceToken]Identity
 }
 
 // NewDeviceQueryTracker creates a new DeviceQueryTracker with the given
@@ -42,10 +42,10 @@ func NewDeviceQueryTracker(self Identity, timeout time.Duration, data DeviceQuer
 		timeout:   timeout,
 		responses: make(chan struct{}, 1),
 		queries:   make(chan struct{}, 1),
-		unknowns:  make(map[RDT]map[RDT]struct{}),
-		sources:   make(map[RDT]map[RDT]struct{}),
-		inflight:  make(map[RDT]time.Time),
-		ids: map[RDT]Identity{
+		unknowns:  make(map[DeviceToken]map[DeviceToken]struct{}),
+		sources:   make(map[DeviceToken]map[DeviceToken]struct{}),
+		inflight:  make(map[DeviceToken]time.Time),
+		ids: map[DeviceToken]Identity{
 			self.RDT: self,
 		},
 	}
@@ -56,14 +56,14 @@ func NewDeviceQueryTracker(self Identity, timeout time.Duration, data DeviceQuer
 	}
 
 	for peer, devices := range data.Unknowns {
-		dt.unknowns[peer] = make(map[RDT]struct{}, len(devices))
+		dt.unknowns[peer] = make(map[DeviceToken]struct{}, len(devices))
 		for _, device := range devices {
 			dt.unknowns[peer][device] = struct{}{}
 		}
 	}
 
 	for peer, devices := range data.Sources {
-		dt.sources[peer] = make(map[RDT]struct{}, len(devices))
+		dt.sources[peer] = make(map[DeviceToken]struct{}, len(devices))
 		for _, device := range devices {
 			dt.sources[peer][device] = struct{}{}
 		}
@@ -104,9 +104,9 @@ func (d *DeviceQueryTracker) RetryQueries() {
 
 // Query records a query from a peer for unknown device identities. If we have
 // identity information for the requested devices, a response will be queued.
-func (d *DeviceQueryTracker) Query(from RDT, unknowns []RDT) {
+func (d *DeviceQueryTracker) Query(from DeviceToken, unknowns []DeviceToken) {
 	if d.unknowns[from] == nil {
-		d.unknowns[from] = make(map[RDT]struct{})
+		d.unknowns[from] = make(map[DeviceToken]struct{})
 	}
 
 	changes := false
@@ -133,7 +133,7 @@ func (d *DeviceQueryTracker) Query(from RDT, unknowns []RDT) {
 // QueryResponses returns the device identities that should be sent to the
 // specified peer, along with an acknowledgment function that must be called
 // after successful transmission.
-func (d *DeviceQueryTracker) QueryResponses(from RDT) (ids []Identity, ack func()) {
+func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, ack func()) {
 	ids = make([]Identity, 0, len(d.unknowns[from]))
 	for rdt := range d.unknowns[from] {
 		id, ok := d.ids[rdt]
@@ -155,7 +155,7 @@ func (d *DeviceQueryTracker) QueryResponses(from RDT) (ids []Identity, ack func(
 // QueryableFrom returns unknown device RDTs that should be queried from the
 // specified source peer, along with an acknowledgment function that must be
 // called after successful transmission to track inflight queries.
-func (d *DeviceQueryTracker) QueryableFrom(source RDT) (unknown []RDT, ack func()) {
+func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []DeviceToken, ack func()) {
 	for rdt := range d.sources[source] {
 		if _, ok := d.ids[rdt]; ok {
 			continue
@@ -182,9 +182,9 @@ func (d *DeviceQueryTracker) QueryableFrom(source RDT) (unknown []RDT, ack func(
 
 // UpdateSource records that a source peer has knowledge of the specified device
 // RDTs. If any of these devices are unknown to us, a query will be queued.
-func (d *DeviceQueryTracker) UpdateSource(source RDT, rdts []RDT) {
+func (d *DeviceQueryTracker) UpdateSource(source DeviceToken, rdts []DeviceToken) {
 	if d.sources[source] == nil {
-		d.sources[source] = make(map[RDT]struct{})
+		d.sources[source] = make(map[DeviceToken]struct{})
 	}
 
 	missing := false
@@ -207,14 +207,14 @@ func (d *DeviceQueryTracker) UpdateSource(source RDT, rdts []RDT) {
 
 // Identified returns whether we have identity information for the specified
 // device RDT.
-func (d *DeviceQueryTracker) Identified(rdt RDT) bool {
+func (d *DeviceQueryTracker) Identified(rdt DeviceToken) bool {
 	_, ok := d.ids[rdt]
 	return ok
 }
 
 // Lookup returns the identity information for the specified device RDT, or
 // false if the device is unknown.
-func (d *DeviceQueryTracker) Lookup(rdt RDT) (Identity, bool) {
+func (d *DeviceQueryTracker) Lookup(rdt DeviceToken) (Identity, bool) {
 	id, ok := d.ids[rdt]
 	return id, ok
 }
@@ -227,16 +227,16 @@ func (d *DeviceQueryTracker) Identify(id Identity) {
 // DeviceQueryTrackerData represents the serializable state of
 // DeviceQueryTracker.
 type DeviceQueryTrackerData struct {
-	Unknowns map[RDT][]RDT    `json:"unknowns"`
-	Sources  map[RDT][]RDT    `json:"sources"`
-	IDs      map[RDT]Identity `json:"ids"`
+	Unknowns map[DeviceToken][]DeviceToken `json:"unknowns"`
+	Sources  map[DeviceToken][]DeviceToken `json:"sources"`
+	IDs      map[DeviceToken]Identity      `json:"ids"`
 }
 
 // Export returns the serializable state of the DeviceQueryTracker.
 func (d *DeviceQueryTracker) Export() DeviceQueryTrackerData {
 	data := DeviceQueryTrackerData{
-		Unknowns: make(map[RDT][]RDT),
-		Sources:  make(map[RDT][]RDT),
+		Unknowns: make(map[DeviceToken][]DeviceToken),
+		Sources:  make(map[DeviceToken][]DeviceToken),
 		IDs:      d.ids,
 	}
 

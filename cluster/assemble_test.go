@@ -101,9 +101,9 @@ func connectedGraph(total int) assemblestate.Routes {
 	}
 	sort.Strings(devs)
 
-	devices := make([]assemblestate.RDT, 0, total)
+	devices := make([]assemblestate.DeviceToken, 0, total)
 	for _, s := range devs {
-		devices = append(devices, assemblestate.RDT(s))
+		devices = append(devices, assemblestate.DeviceToken(s))
 	}
 
 	addrs := make([]string, 0, total)

@@ -59,16 +59,16 @@ type AssembleState struct {
 	lock sync.Mutex
 
 	// trusted keeps track of all trusted peers.
-	trusted map[FP]peer
+	trusted map[Fingerprint]peer
 
 	// fingerprints keeps track of the TLS certificate fingerprints we know and
 	// the RDTs that they are is associated with.
-	fingerprints map[RDT]FP
+	fingerprints map[DeviceToken]Fingerprint
 
 	// addresses keeps track of which address we can reach each device at.
 	// Presence in this map does not imply trust. Additionally, a device can be
 	// trusted before we have an address.
-	addresses map[FP]string
+	addresses map[Fingerprint]string
 
 	// discovered keeps track of which addresses we've already discovered. We
 	// won't re-send auth messages to these addresses.
@@ -87,12 +87,12 @@ type AssembleState struct {
 // AssembleSession provides a method for serializing our current state of
 // assembly to JSON.
 type AssembleSession struct {
-	Trusted      map[string]peer        `json:"trusted"`
-	Fingerprints map[RDT]FP             `json:"fingerprints"`
-	Addresses    map[string]string      `json:"addresses"`
-	Discovered   map[string]bool        `json:"discovered"`
-	Routes       Routes                 `json:"routes"`
-	Devices      DeviceQueryTrackerData `json:"devices"`
+	Trusted      map[string]peer             `json:"trusted"`
+	Fingerprints map[DeviceToken]Fingerprint `json:"fingerprints"`
+	Addresses    map[string]string           `json:"addresses"`
+	Discovered   map[string]bool             `json:"discovered"`
+	Routes       Routes                      `json:"routes"`
+	Devices      DeviceQueryTrackerData      `json:"devices"`
 }
 
 func (as *AssembleState) export() AssembleSession {
@@ -117,8 +117,8 @@ func (as *AssembleState) export() AssembleSession {
 }
 
 type peer struct {
-	RDT  RDT    `json:"rdt"`
-	Cert []byte `json:"cert"`
+	RDT  DeviceToken `json:"rdt"`
+	Cert []byte      `json:"cert"`
 }
 
 // NewAssembleState create a new [AssembleState] from the given configuration
@@ -126,7 +126,7 @@ type peer struct {
 func NewAssembleState(
 	config AssembleConfig,
 	session AssembleSession,
-	selector func(self RDT) (RouteSelector, error),
+	selector func(self DeviceToken) (RouteSelector, error),
 	log logger.Logger,
 	commit func(AssembleSession),
 ) (*AssembleState, error) {
@@ -139,7 +139,7 @@ func NewAssembleState(
 		return nil, err
 	}
 
-	trusted := make(map[FP]peer, len(session.Trusted))
+	trusted := make(map[Fingerprint]peer, len(session.Trusted))
 	for strFP, peer := range session.Trusted {
 		rawFP, err := base64.StdEncoding.DecodeString(strFP)
 		if err != nil {
@@ -150,12 +150,12 @@ func NewAssembleState(
 			return nil, errors.New("certificate fingerprint expected to be 64 bytes")
 		}
 
-		var fp FP
+		var fp Fingerprint
 		copy(fp[:], rawFP)
 		trusted[fp] = peer
 	}
 
-	addresses := make(map[FP]string, len(session.Addresses))
+	addresses := make(map[Fingerprint]string, len(session.Addresses))
 	for strFP, addr := range session.Addresses {
 		rawFP, err := base64.StdEncoding.DecodeString(strFP)
 		if err != nil {
@@ -166,7 +166,7 @@ func NewAssembleState(
 			return nil, errors.New("certificate fingerprint expected to be 64 bytes")
 		}
 
-		var fp FP
+		var fp Fingerprint
 		copy(fp[:], rawFP)
 		addresses[fp] = addr
 	}
@@ -203,7 +203,7 @@ func NewAssembleState(
 
 	fingerprints := session.Fingerprints
 	if fingerprints == nil {
-		fingerprints = make(map[RDT]FP)
+		fingerprints = make(map[DeviceToken]Fingerprint)
 	}
 
 	discovered := session.Discovered
@@ -228,12 +228,12 @@ func NewAssembleState(
 }
 
 type AssembleConfig struct {
-	Secret  string `json:"secret"`
-	RDT     RDT    `json:"rdt"`
-	IP      net.IP `json:"ip"`
-	Port    int    `json:"port"`
-	TLSCert []byte `json:"cert"`
-	TLSKey  []byte `json:"key"`
+	Secret  string      `json:"secret"`
+	RDT     DeviceToken `json:"rdt"`
+	IP      net.IP      `json:"ip"`
+	Port    int         `json:"port"`
+	TLSCert []byte      `json:"cert"`
+	TLSKey  []byte      `json:"key"`
 }
 
 // publishAuth calls send for each given address. If send succeeds, then the
@@ -403,18 +403,17 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, peers
 	for _, p := range selected {
 		routes, ack, ok := as.selector.Select(p.RDT, maxRoutes)
 		if !ok {
-			continue // nothing to publish to this peer
+			continue
 		}
 
 		fp, ok := as.fingerprints[p.RDT]
 		if !ok {
-			continue // skip publishing to an untrusted peer
+			continue
 		}
 
-		// we might trust a peer that we don't know the address of yet.
 		addr, ok := as.addresses[fp]
 		if !ok {
-			continue // skip publishing to an undiscovered peer
+			continue
 		}
 
 		// unlock for the duration of the send. this is safe, since all of the
@@ -630,11 +629,11 @@ func periodic(
 
 type PeerHandle struct {
 	as   *AssembleState
-	peer RDT
+	peer DeviceToken
 }
 
 // RDT returns the RDT of the device that this [PeerHandle] represents.
-func (h *PeerHandle) RDT() RDT {
+func (h *PeerHandle) RDT() DeviceToken {
 	return h.peer
 }
 
@@ -706,13 +705,13 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 	return nil
 }
 
-func CalculateHMAC(rdt RDT, fp FP, secret string) []byte {
+func CalculateHMAC(rdt DeviceToken, fp Fingerprint, secret string) []byte {
 	mac := hmac.New(sha512.New, []byte(secret))
 	mac.Write(fp[:])
 	mac.Write([]byte(rdt))
 	return mac.Sum(nil)
 }
 
-func CalculateFP(cert []byte) FP {
+func CalculateFP(cert []byte) Fingerprint {
 	return sha512.Sum512(cert)
 }
