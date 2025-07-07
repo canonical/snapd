@@ -50,7 +50,7 @@ const cudaDriverLibsConsumerYaml = `name: snapd
 version: 0
 plugs:
   cuda:
-    compatibility: cuda-(9..12)
+    compatibility: cuda-(9..12)-ubuntu-2404
     interface: cuda-driver-libs
 apps:
   app:
@@ -61,7 +61,7 @@ const cudaDriverLibsProvider = `name: cuda-provider
 version: 0
 slots:
   cuda-driver-libs:
-    compatibility: cuda-(9..12)
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -90,7 +90,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
-    compatibility: cuda-(9..12)
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - /snap/cuda-provider/current/lib1
 `, nil, "cuda")
@@ -102,7 +102,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
-    compatibility: cuda-(9..12)
+    compatibility: cuda-(9..12)-ubuntu-2404
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "cuda-provider" does not have attribute "source" for interface "cuda-driver-libs"`)
@@ -112,7 +112,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
-    compatibility: cuda-(9..12)
+    compatibility: cuda-(9..12)-ubuntu-2404
     source: $SNAP/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -135,11 +135,11 @@ func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
 		versRange string
 		err       string
 	}{
-		{"cuda-9", ""},
-		{"cuda-(9..12)", ""},
-		{"cuda-9-arch-32", `only 1 dimensions allowed in compatibility field: "cuda-9-arch-32"`},
-		{"other-9", `tag does not match compatibility spec \(other != cuda\)`},
-		{"cuda-10-2", `only 1 integer/integer ranges allowed per dimension in compatibility field`},
+		{"cuda-9-ubuntu-2404", ""},
+		{"cuda-(9..12)-ubuntu-2510", ""},
+		{"cuda-9", `unexpected dimensions in compatibility field \(should be 2\)`},
+		{"other-9", `unexpected dimensions in compatibility field \(should be 2\)`},
+		{"cuda-10-2-ubuntu-2510", `unexpected integers in compatibility field \(should be 1 for "cuda"\)`},
 		{"cuda 5", `bad dimension descriptor "cuda 5" in compatibility field "cuda 5"`},
 	} {
 		slot := MockSlot(c, fmt.Sprintf(`name: cuda-provider

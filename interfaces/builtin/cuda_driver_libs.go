@@ -64,6 +64,7 @@ func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) err
 	// anything else with it until we start to support regular snaps.
 	_, err := decodeCompatField(compatField, &CompatSpec{[]CompatDimension{
 		{Tag: "cuda", Values: []CompatRange{{0, math.MaxUint}}},
+		{Tag: "ubuntu", Values: []CompatRange{{2404, math.MaxUint}}},
 	}})
 	if err != nil {
 		return err
