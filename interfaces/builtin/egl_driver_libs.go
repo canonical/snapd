@@ -22,6 +22,7 @@ package builtin
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,19 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	// We want a file name in client-driver, without directories
 	if strings.ContainsRune(clientDriver, os.PathSeparator) {
 		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
+	}
+	var compatField string
+	if err := slot.Attr("compatibility", &compatField); err != nil {
+		return err
+	}
+	// Validate format of compatibility field - we don't actually need to
+	// do anything else with it until we start to support regular snaps.
+	_, err := decodeCompatField(compatField, &CompatSpec{[]CompatDimension{
+		{Tag: "egl", Values: []CompatRange{{0, math.MaxUint}}},
+		{Tag: "ubuntu", Values: []CompatRange{{0, math.MaxUint}}},
+	}})
+	if err != nil {
+		return err
 	}
 	// Validate directories
 	return validateLdconfigLibDirs(slot)
