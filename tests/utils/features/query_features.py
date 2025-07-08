@@ -19,6 +19,9 @@ from features import SystemFeatures
 KNOWN_FEATURES = ['cmds', 'endpoints',
                   'ensures', 'tasks', 'changes', 'interfaces']
 
+# file name for the complete list of all features
+ALL_FEATURES_FILE = 'all-features.json'
+
 
 class TaskId:
     suite: str
@@ -198,7 +201,7 @@ class DirRetriever(Retriever):
             if not os.path.isdir(timestamp_path):
                 continue
             for filename in os.listdir(timestamp_path):
-                if filename.endswith('.json') and not filename == 'all-features.json':
+                if filename.endswith('.json') and not filename == ALL_FEATURES_FILE:
                     system = self.__get_filename_without_last_ext(filename)
                     dictionary[timestamp].append(system)
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
@@ -209,7 +212,7 @@ class DirRetriever(Retriever):
             raise RuntimeError(
                 f'timestamp {timestamp} not present in dir {self.dir}')
         for filename in os.listdir(timestamp_dir):
-            if filename == 'all-features.json':
+            if filename == ALL_FEATURES_FILE:
                 continue
             if filename.endswith('.json') and (not systems or self.__get_filename_without_last_ext(filename) in systems):
                 with open(os.path.join(timestamp_dir, filename), 'r', encoding='utf-8') as f:
@@ -223,9 +226,9 @@ class DirRetriever(Retriever):
             return json.load(f)
         
     def get_all_features(self, timestamp) -> dict[str, list[Any]]:
-        sys_path = os.path.join(self.dir, timestamp, 'all-features.json')
+        sys_path = os.path.join(self.dir, timestamp, ALL_FEATURES_FILE)
         if not os.path.exists(sys_path):
-            raise RuntimeError(f'all-features.json not found')
+            raise RuntimeError(f'{ALL_FEATURES_FILE} not found')
         with open(sys_path, 'r', encoding='utf-8') as f:
             all = json.load(f)
             if 'timestamp' in all:
@@ -441,7 +444,7 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
                 json.dump(system_json, f, cls=DateTimeEncoder)
         try:
             all_features = retriever.get_all_features(timestamp)
-            with open(os.path.join(output, timestamp, 'all-features.json'), 'w', encoding='utf-8') as f:
+            with open(os.path.join(output, timestamp, ALL_FEATURES_FILE), 'w', encoding='utf-8') as f:
                 json.dump(all_features, f, cls=DateTimeEncoder)
         except Exception as e:
             print(f'could not find all features at timestamp {timestamp}', file=sys.stderr)
