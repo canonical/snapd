@@ -50,6 +50,10 @@ var _ = encryptedDevice(&encryptedDeviceLUKS{})
 // newEncryptedDeviceLUKS creates an encrypted device in the existing
 // partition using the specified key with the LUKS backend.
 func newEncryptedDeviceLUKS(devNode string, encType device.EncryptionType, key secboot.DiskUnlockKey, label, name string) (encryptedDevice, error) {
+	// on top of us expecting encrypted partitions to have -enc suffix, the
+	// label, specifically the one for "ubuntu-data", is important for fwupd
+	// auto detection of FDE, see
+	// https://github.com/fwupd/fwupd/blob/f958d13ab6a8d638a8f5693a34f69d1e2580798c/libfwupdplugin/fu-context.c#L1084
 	encLabel := label + "-enc"
 	if err := secbootFormatEncryptedDevice(key, encType, encLabel, devNode); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
