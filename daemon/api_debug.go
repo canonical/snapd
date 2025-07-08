@@ -357,9 +357,9 @@ func getFeatures(c *Command) Response {
 	tasks := runner.KnownTaskKinds()
 
 	ifaces := c.d.overlord.InterfaceManager().Repository().AllInterfaces()
-	inames := make([]string, len(ifaces))
-	for i, iface := range ifaces {
-		inames[i] = iface.Name()
+	inames := make([]string, 0, len(ifaces))
+	for _, iface := range ifaces {
+		inames = append(inames, iface.Name())
 	}
 	changes := swfeats.KnownChangeKinds()
 

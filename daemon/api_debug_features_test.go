@@ -52,7 +52,7 @@ func (s *featuresDebugSuite) getFeaturesDebug(c *C) any {
 	return rsp.Result
 }
 
-func (s *featuresDebugSuite) TestNoData(c *C) {
+func (s *featuresDebugSuite) TestFeaturesHaveData(c *C) {
 	data := s.getFeaturesDebug(c)
 	c.Check(data, NotNil)
 	resp, ok := data.(daemon.FeatureResponse)

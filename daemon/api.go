@@ -104,6 +104,9 @@ type featureEndpoint struct {
 var featureList []featureEndpoint
 
 func init() {
+	// Create a complete list of all endpoints, which constitute
+	// the complete set of endpoint feature tags. It is created
+	// here instead of in api_debug to avoid circular dependencies.
 	featureList = []featureEndpoint{}
 	for _, cmd := range api {
 		var path string

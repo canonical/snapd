@@ -35,8 +35,11 @@ type cmdDebugFeatures struct {
 func init() {
 	addDebugCommand("features",
 		"Obtain the complete list of feature tags",
-		`Display json output that contains the complete list 
-		of feature tags present in snapd and snap`,
+		`Display json output that contains the complete list of
+		feature tags present in snapd and snap. Feature tags are
+		a collection of data that describe significant code paths
+		within snapd including tasks, changes, interfaces, 
+		endpoints, snap commands, and ensure helper functions.`,
 		func() flags.Commander { return &cmdDebugFeatures{} },
 		nil,
 		nil,
