@@ -160,26 +160,18 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 
 	result, err := GetViaView(tx, view, requests)
 	if err != nil {
-		if !errors.Is(err, &confdb.NoDataError{}) && !errors.Is(err, &confdb.NoMatchError{}) {
+		if !errors.Is(err, &confdb.NoDataError{}) {
 			return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
-		}
-
-		var kind client.ErrorKind
-		if errors.Is(err, &confdb.NoDataError{}) {
-			kind = client.ErrorKindConfigNoSuchOption
-		} else {
-			kind = client.ErrorKindConfdbNoMatchingRule
 		}
 
 		apiData["error"] = map[string]any{
 			"message": err.Error(),
-			"kind":    kind,
+			"kind":    client.ErrorKindConfigNoSuchOption,
 		}
-		chg.Set("api-data", apiData)
-		return nil
+	} else {
+		apiData["values"] = result
 	}
 
-	apiData["values"] = result
 	chg.Set("api-data", apiData)
 	return nil
 }

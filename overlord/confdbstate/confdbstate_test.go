@@ -1783,7 +1783,6 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	errKind := errData["kind"].(string)
 	c.Assert(errStr, Equals, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
 	c.Assert(errKind, Equals, "option-not-found")
-
 }
 
 func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
