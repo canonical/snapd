@@ -67,7 +67,7 @@ slots:
   gbm-driver-libs:
     kernel-driver: nvidia-drm
     client-driver: libnvidia-allocator.so.1
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510
     source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -105,7 +105,7 @@ slots:
     kernel-driver: graphics-module
     interface: gbm-driver-libs
     client-driver: libnvidia-allocator.so.1
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     source:
       - /snap/gbm-provider/current/lib1
 `, nil, "gbm")
@@ -118,7 +118,7 @@ slots:
   gbm:
     kernel-driver: graphics-module
     client-driver: libnvidia-allocator.so.1
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     interface: gbm-driver-libs
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -130,7 +130,7 @@ slots:
   gbm:
     client-driver: libnvidia-allocator.so.1
     interface: gbm-driver-libs
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     source:
       - /snap/gbm-provider/current/lib1
 `, nil, "gbm")
@@ -144,7 +144,7 @@ slots:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
     client-driver: libnvidia-allocator.so.1
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     source: $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -155,8 +155,10 @@ version: 0
 slots:
   gbm:
     kernel-driver: graphics-module
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64
     interface: gbm-driver-libs
+    source:
+      - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`invalid client-driver: snap "gbm-provider" does not have attribute "client-driver" for interface "gbm-driver-libs"`)
@@ -168,7 +170,9 @@ slots:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
     client-driver: /abs/path/libnvidia-allocator.so.1
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
+    source:
+      - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`client-driver value "/abs/path/libnvidia-allocator.so.1" should be a file`)
@@ -179,9 +183,11 @@ slots:
   gbm:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     client-driver:
       - libnvidia-allocator.so.1
+    source:
+      - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`invalid client-driver: snap "gbm-provider" has interface "gbm-driver-libs" with invalid value type \[\]interface {} for "client-driver" attribute: \*string`)
@@ -193,6 +199,8 @@ slots:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
     client-driver: libnvidia-allocator.so.1
+    source:
+      - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "gbm-provider" does not have attribute "compatibility" for interface "gbm-driver-libs"`)
@@ -203,11 +211,13 @@ slots:
   gbm:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
-    compatibility: foo-(0..2)-arch-64
+    compatibility: foo-(0..2)-arch64-ubuntu-2404
     client-driver: libnvidia-allocator.so.1
+    source:
+      - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`compatibility label "foo-\(0..2\)-arch-64": string does not match interface spec \(foo != gbmbackend\)`)
+		`compatibility label "foo-\(0..2\)-arch64-ubuntu-2404": string does not match interface spec \(foo != gbmbackend\)`)
 
 	slot = MockSlot(c, `name: gbm-provider
 version: 0
@@ -215,11 +225,13 @@ slots:
   gbm:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
-    compatibility: gbmbackend-(0..2)-arch-32
+    compatibility: gbmbackend-(0..2)-arch64-1-ubuntu-2404
     client-driver: libnvidia-allocator.so.1
+    source:
+      - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`compatibility label "gbmbackend-\(0..2\)-arch-32": range \(32..32\) is not included in valid range \(64..64\)`)
+		`compatibility label "gbmbackend-\(0..2\)-arch64-1-ubuntu-2404": range \(1..1\) is not included in valid range \(0..0\)`)
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {

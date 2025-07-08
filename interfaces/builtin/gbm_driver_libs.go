@@ -81,7 +81,8 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	// /usr/lib/i386-linux-gnu/gbm/).
 	_, err := decodeCompatField(compatField, &CompatSpec{[]CompatDimension{
 		{Tag: "gbmbackend", Values: []CompatRange{{0, math.MaxUint}}},
-		{Tag: "arch", Values: []CompatRange{{64, 64}}},
+		{Tag: "arch64", Values: []CompatRange{{0, 0}}},
+		{Tag: "ubuntu", Values: []CompatRange{{0, math.MaxUint}}},
 	}})
 	if err != nil {
 		return err
