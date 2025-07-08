@@ -90,12 +90,12 @@ func appendDimension(dimensions []CompatDimension, dimension *CompatDimension) (
 func appendRange(ranges []CompatRange, rg CompatRange) ([]CompatRange, error) {
 	numVal := len(ranges)
 	if numVal > 0 && isRealCompatRange(ranges[numVal-1]) {
-		return nil, fmt.Errorf("ranges only allowed at the end of compatibility field")
+		return nil, fmt.Errorf("ranges only allowed at the end of the label")
 	}
 	return append(ranges, rg), nil
 }
 
-func parseIntegerRange(token, compat string) (rg *CompatRange, err error) {
+func parseIntegerRange(token string) (rg *CompatRange, err error) {
 	if intRegexp.MatchString(token) {
 		// 8 decimals fit 32 bits
 		min, err := strconv.ParseUint(token, 10, 32)
@@ -108,8 +108,7 @@ func parseIntegerRange(token, compat string) (rg *CompatRange, err error) {
 		matches := intRangeRegexp.FindStringSubmatch(token)
 		// Not a tag, integer or integer range
 		if len(matches) == 0 {
-			return nil, fmt.Errorf("invalid tag %q in compatibility field %q",
-				token, compat)
+			return nil, fmt.Errorf("%q is not a valid string", token)
 		}
 		// 8 decimals fit 32 bits
 		min, err := strconv.ParseUint(matches[1], 10, 32)
@@ -121,8 +120,7 @@ func parseIntegerRange(token, compat string) (rg *CompatRange, err error) {
 			return nil, err
 		}
 		if min > max {
-			return nil, fmt.Errorf("invalid range %q in compatibility field %q",
-				token, compat)
+			return nil, fmt.Errorf("invalid range %q", token)
 		}
 		rg = &CompatRange{uint(min), uint(max)}
 	}
@@ -140,6 +138,7 @@ func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 	maxNumInt := absoluteMaxIntegers
 	tokens := strings.Split(compat, "-")
 	dimensions := []CompatDimension{}
+	compatError := func(msg string) error { return fmt.Errorf("compatibility label %q: %s", compat, msg) }
 	var currentDimension *CompatDimension
 	var err error
 	for _, t := range tokens {
@@ -149,43 +148,43 @@ func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 				dimIdx = 0
 			}
 			if dimIdx == maxNumDim {
-				return nil, fmt.Errorf("only %d dimensions allowed in compatibility field: %q",
-					maxNumDim, compat)
+				return nil, compatError(fmt.Sprintf("only %d strings allowed",
+					maxNumDim))
 			}
 			dimensions, err = appendDimension(dimensions, currentDimension)
 			if err != nil {
-				return nil, err
+				return nil, compatError(err.Error())
 			}
 			currentDimension = &CompatDimension{Tag: t}
 			continue
 		}
 		if currentDimension == nil {
-			return nil, fmt.Errorf("bad dimension descriptor %q in compatibility field %q",
-				t, compat)
+			return nil, compatError(fmt.Sprintf("bad string %q", t))
 		}
 
-		rg, err := parseIntegerRange(t, compat)
+		rg, err := parseIntegerRange(t)
 		if err != nil {
-			return nil, err
+			return nil, compatError(err.Error())
 		}
 		currNumVal := len(currentDimension.Values)
 		if currNumVal == maxNumInt {
-			return nil, fmt.Errorf("only %d integer/integer ranges allowed per dimension in compatibility field", maxNumInt)
+			return nil, compatError(fmt.Sprintf(
+				"only %d integer/integer ranges allowed per string", maxNumInt))
 		}
 		currentDimension.Values, err = appendRange(currentDimension.Values, *rg)
 		if err != nil {
-			return nil, err
+			return nil, compatError(err.Error())
 		}
 	}
 
 	// Add last dimension found
 	dimensions, err = appendDimension(dimensions, currentDimension)
 	if err != nil {
-		return nil, fmt.Errorf("%q: %w", compat, err)
+		return nil, compatError(err.Error())
 	}
 	compatField := &CompatField{Dimensions: dimensions}
 	if err := checkCompatAgainstSpec(compatField, spec); err != nil {
-		return nil, err
+		return nil, compatError(err.Error())
 	}
 
 	return compatField, nil
@@ -196,18 +195,18 @@ func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
 		return nil
 	}
 	if len(compatField.Dimensions) != len(spec.Dimensions) {
-		return fmt.Errorf("unexpected dimensions in compatibility field (should be %d)",
+		return fmt.Errorf("unexpected number of strings (should be %d)",
 			len(spec.Dimensions))
 	}
 	for i, d := range compatField.Dimensions {
 		specDim := spec.Dimensions[i]
 		if d.Tag != specDim.Tag {
-			return fmt.Errorf("tag does not match compatibility spec (%s != %s)",
+			return fmt.Errorf("string does not match interface spec (%s != %s)",
 				d.Tag, specDim.Tag)
 		}
 		specNumVals := len(specDim.Values)
 		if len(d.Values) != len(specDim.Values) {
-			return fmt.Errorf("unexpected integers in compatibility field (should be %d for %q)",
+			return fmt.Errorf("unexpected number of integers (should be %d for %q)",
 				specNumVals, specDim.Tag)
 		}
 		for j, v := range d.Values {

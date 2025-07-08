@@ -127,28 +127,28 @@ func (s *CompatSuite) TestInvalidCompatFields(c *C) {
 		compat string
 		err    string
 	}{
-		{"", `bad dimension descriptor "" in compatibility field ""`},
-		{"3foo", `bad dimension descriptor "3foo" in compatibility field "3foo"`},
-		{"-foo", `bad dimension descriptor "" in compatibility field "-foo"`},
-		{"foo-", `invalid tag "" in compatibility field "foo-"`},
-		{"foo-2-foo-5", `"foo-2-foo-5": dimension "foo" appears more than once`},
-		{"foo-(0..0)-foo-5-other", `dimension "foo" appears more than once`},
-		{"foo-01", `invalid tag "01" in compatibility field "foo-01"`},
-		{"foo-(01..5)", `invalid tag "(01..5)" in compatibility field "foo-(01..5)"`},
-		{"foo-(1..05)", `invalid tag "(1..05)" in compatibility field "foo-(1..05)"`},
-		{"foo-bar-", `invalid tag "" in compatibility field "foo-bar-"`},
+		{"", `compatibility label "": bad string ""`},
+		{"3foo", `compatibility label "3foo": bad string "3foo"`},
+		{"-foo", `compatibility label "-foo": bad string ""`},
+		{"foo-", `compatibility label "foo-": "" is not a valid string`},
+		{"foo-2-foo-5", `compatibility label "foo-2-foo-5": dimension "foo" appears more than once`},
+		{"foo-(0..0)-foo-5-other", `compatibility label "foo-(0..0)-foo-5-other": dimension "foo" appears more than once`},
+		{"foo-01", `compatibility label "foo-01": "01" is not a valid string`},
+		{"foo-(01..5)", `compatibility label "foo-(01..5)": "(01..5)" is not a valid string`},
+		{"foo-(1..05)", `compatibility label "foo-(1..05)": "(1..05)" is not a valid string`},
+		{"foo-bar-", `compatibility label "foo-bar-": "" is not a valid string`},
 		// More than 32 characters in tag
-		{"a12345678901234567890123456789012", `bad dimension descriptor "a12345678901234567890123456789012" in compatibility field "a12345678901234567890123456789012"`},
-		{"fooBar", `bad dimension descriptor "fooBar" in compatibility field "fooBar"`},
+		{"a12345678901234567890123456789012", `compatibility label "a12345678901234567890123456789012": bad string "a12345678901234567890123456789012"`},
+		{"fooBar", `compatibility label "fooBar": bad string "fooBar"`},
 		// More than 8 digits
-		{"foo-012345678", `invalid tag "012345678" in compatibility field "foo-012345678"`},
-		{"foo-(10..012345678)", `invalid tag "(10..012345678)" in compatibility field "foo-(10..012345678)"`},
-		{"foo-bar-baz-other", `only 3 dimensions allowed in compatibility field: "foo-bar-baz-other"`},
-		{"bar-(2..5)-3", `ranges only allowed at the end of compatibility field`},
-		{"foo-5-1-bar-(2..5)-3", `ranges only allowed at the end of compatibility field`},
-		{"foo-1-2-3-4", `only 3 integer/integer ranges allowed per dimension in compatibility field`},
-		{"bar-3-(2..1)", `invalid range "(2..1)" in compatibility field "bar-3-(2..1)"`},
-		{"bar-3-(2 ..99)", `invalid tag "(2 ..99)" in compatibility field "bar-3-(2 ..99)"`},
+		{"foo-012345678", `compatibility label "foo-012345678": "012345678" is not a valid string`},
+		{"foo-(10..012345678)", `compatibility label "foo-(10..012345678)": "(10..012345678)" is not a valid string`},
+		{"foo-bar-baz-other", `compatibility label "foo-bar-baz-other": only 3 strings allowed`},
+		{"bar-(2..5)-3", `compatibility label "bar-(2..5)-3": ranges only allowed at the end of the label`},
+		{"foo-5-1-bar-(2..5)-3", `compatibility label "foo-5-1-bar-(2..5)-3": ranges only allowed at the end of the label`},
+		{"foo-1-2-3-4", `compatibility label "foo-1-2-3-4": only 3 integer/integer ranges allowed per string`},
+		{"bar-3-(2..1)", `compatibility label "bar-3-(2..1)": invalid range "(2..1)"`},
+		{"bar-3-(2 ..99)", `compatibility label "bar-3-(2 ..99)": "(2 ..99)" is not a valid string`},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
@@ -168,35 +168,35 @@ func (s *CompatSuite) TestInvalidCompatFieldsWithSpec(c *C) {
 		{"foo",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "bar", Values: []builtin.CompatRange{{1, 10}}}}},
-			`tag does not match compatibility spec (foo != bar)`},
+			`compatibility label "foo": string does not match interface spec (foo != bar)`},
 		{"foo-3-bar",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
-			`unexpected dimensions in compatibility field (should be 1)`},
+			`compatibility label "foo-3-bar": unexpected number of strings (should be 1)`},
 		{"foo-3-8",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
-			`unexpected integers in compatibility field (should be 1 for "foo")`},
+			`compatibility label "foo-3-8": unexpected number of integers (should be 1 for "foo")`},
 		{"foo-(0..3)",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 5}}}}},
-			`range (0..3) is not included in valid range (1..5)`},
+			`compatibility label "foo-(0..3)": range (0..3) is not included in valid range (1..5)`},
 		{"foo-(3..6)",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 5}}}}},
-			`range (3..6) is not included in valid range (1..5)`},
+			`compatibility label "foo-(3..6)": range (3..6) is not included in valid range (1..5)`},
 		{"foo-(3..6)",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{0, 2}}}}},
-			`range (3..6) is not included in valid range (0..2)`},
+			`compatibility label "foo-(3..6)": range (3..6) is not included in valid range (0..2)`},
 		{"foo-(3..6)",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{7, 10}}}}},
-			`range (3..6) is not included in valid range (7..10)`},
+			`compatibility label "foo-(3..6)": range (3..6) is not included in valid range (7..10)`},
 		{"foo",
 			&builtin.CompatSpec{Dimensions: []builtin.CompatDimension{
 				{Tag: "foo", Values: []builtin.CompatRange{{1, 10}}}}},
-			`range (0..0) is not included in valid range (1..10)`},
+			`compatibility label "foo": range (0..0) is not included in valid range (1..10)`},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 

@@ -207,7 +207,7 @@ slots:
     client-driver: libnvidia-allocator.so.1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`tag does not match compatibility spec \(foo != gbmbackend\)`)
+		`compatibility label "foo-\(0..2\)-arch-64": string does not match interface spec \(foo != gbmbackend\)`)
 
 	slot = MockSlot(c, `name: gbm-provider
 version: 0
@@ -219,7 +219,7 @@ slots:
     client-driver: libnvidia-allocator.so.1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`range \(32..32\) is not included in valid range \(64..64\)`)
+		`compatibility label "gbmbackend-\(0..2\)-arch-32": range \(32..32\) is not included in valid range \(64..64\)`)
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
