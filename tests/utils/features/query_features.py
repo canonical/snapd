@@ -98,7 +98,7 @@ class Retriever(ABC):
         '''
 
     @abstractmethod
-    def get_all_features(self, timestamp: str) -> dict:
+    def get_all_features(self, timestamp: str) -> dict[str, list[Any]]:
         '''
         Retrives a dictionary of all feature data at the given timestmap.
         It contains only feature keys (e.g. cmds, endpoints) and the list
@@ -156,7 +156,7 @@ class MongoRetriever(Retriever):
             raise RuntimeError(f'{len(json_result)} entries of system {system} found in collection {timestamp}')
         return json_result[0]
     
-    def get_all_features(self, timestamp):
+    def get_all_features(self, timestamp) -> dict[str, list[Any]]:
         json_result = self.collection.find(
             {'timestamp': datetime.datetime.fromisoformat(timestamp), 'all_features': True}).to_list()
         if len(json_result) != 1:
@@ -222,7 +222,7 @@ class DirRetriever(Retriever):
         with open(sys_path, 'r', encoding='utf-8') as f:
             return json.load(f)
         
-    def get_all_features(self, timestamp):
+    def get_all_features(self, timestamp) -> dict[str, list[Any]]:
         sys_path = os.path.join(self.dir, timestamp, 'all-features.json')
         if not os.path.exists(sys_path):
             raise RuntimeError(f'all-features.json not found')
@@ -357,7 +357,7 @@ def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: b
         system_json, include_tasks=include_tasks)
 
 
-def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, TaskIdVariant]:
+def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, list[TaskIdVariant]]:
     '''
     Given a timestamp, a feature, and optionally a system, finds
     all tests that contain the indicated feature. If no system
@@ -447,12 +447,12 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
             print(f'could not find all features at timestamp {timestamp}', file=sys.stderr)
 
 
-def add_data_source_args(parser: argparse.ArgumentParser):
+def add_data_source_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
     parser.add_argument('-d', '--dir', help='folder containing feature data', type=str)
 
 
-def add_diff_parser(subparsers: argparse._SubParsersAction):
+def add_diff_parser(subparsers: argparse._SubParsersAction) -> str:
     diff_description = '''
         Calculates feature diff between two systems: set(features_1) - set(features_2).
         You can specify either a json file with credentials for mongodb or a directory with features output.
@@ -478,7 +478,7 @@ def add_diff_parser(subparsers: argparse._SubParsersAction):
     return cmd
 
 
-def add_diff_parsers(subparsers: argparse._SubParsersAction):
+def add_diff_parsers(subparsers: argparse._SubParsersAction) -> tuple[str, str, str]:
 
     sys_description = '''
         Calculates feature diff between two systems: set(features_1) - set(features_2).
@@ -528,7 +528,7 @@ def add_diff_parsers(subparsers: argparse._SubParsersAction):
     return cmd, cmd_sys, cmd_all
 
 
-def add_dup_parser(subparsers: argparse._SubParsersAction):
+def add_dup_parser(subparsers: argparse._SubParsersAction) -> str:
     dup_description = '''
         For each task present in the indicated system under the indicated timestamp,
         calculates the difference between that task's features and the system's 
@@ -550,7 +550,7 @@ def add_dup_parser(subparsers: argparse._SubParsersAction):
     return cmd
 
 
-def add_export_parser(subparsers: argparse._SubParsersAction):
+def add_export_parser(subparsers: argparse._SubParsersAction) -> str:
     cmd = 'export'
     export: argparse.ArgumentParser = subparsers.add_parser(cmd, help='export data to output local directory',
                                    description='Grabs system json files by timestamps and systems and saves them to the folder indicated in the output arguement.')
@@ -561,7 +561,7 @@ def add_export_parser(subparsers: argparse._SubParsersAction):
     return cmd
 
 
-def add_list_parser(subparsers: argparse._SubParsersAction):
+def add_list_parser(subparsers: argparse._SubParsersAction) -> str:
     cmd = 'list'
     lst: argparse.ArgumentParser = subparsers.add_parser(cmd, help='lists all timestamps with systems present in data source',
                                 description='Lists all timestamps with systems present in data source.')
@@ -569,7 +569,7 @@ def add_list_parser(subparsers: argparse._SubParsersAction):
     return cmd
 
 
-def add_all_features_parser(subparsers: argparse._SubParsersAction):
+def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str, str, str, str]:
     cmd = 'feat'
     cmd_all = 'all'
     cmd_sys = 'sys'
