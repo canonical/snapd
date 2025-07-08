@@ -860,7 +860,7 @@ type diskUnlockState struct {
 	// partition.
 	UbuntuSave partitionState
 
-	hasWarnings bool
+	isDegraded bool
 }
 
 func (r *diskUnlockState) serializeTo(name string) error {
@@ -871,6 +871,12 @@ func (r *diskUnlockState) serializeTo(name string) error {
 	}
 
 	return exportState.WriteTo(name)
+}
+
+func (r *diskUnlockState) LogErrorf(format string, v ...any) {
+	msg := fmt.Sprintf(format, v...)
+	r.isDegraded = true
+	logger.Notice(msg)
 }
 
 func (r *diskUnlockState) partition(part string) *partitionState {
@@ -962,7 +968,7 @@ func (m *recoverModeStateMachine) degraded() bool {
 	// TODO: should we also check MountLocation too?
 
 	// we should have nothing in the error log
-	return r.hasWarnings
+	return r.isDegraded
 }
 
 func (m *recoverModeStateMachine) diskOpts() *disks.Options {
@@ -993,16 +999,14 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 			// explicit error that the device was not found
 			part.findState = partitionNotFound
 			if !optionalPartition {
-				logger.Noticef("WARNING: cannot find %v partition on disk %s", partName, m.disk.Dev())
-				m.degradedState.hasWarnings = true
+				// partition is not optional, thus the error is relevant
+				m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
 			}
 			return nil
 		}
 		// the error is not "not-found", so we have a real error
 		part.findState = partitionErrFinding
-		logger.Noticef("WARNING: error finding %v partition on disk %s: %v", partName, m.disk.Dev(), err)
-		m.degradedState.hasWarnings = true
-
+		m.degradedState.LogErrorf("error finding %v partition on disk %s: %v", partName, m.disk.Dev(), err)
 		return nil
 	}
 
@@ -1016,8 +1020,7 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 
 func (m *recoverModeStateMachine) setMountState(part, where string, err error) error {
 	if err != nil {
-		m.degradedState.hasWarnings = true
-		logger.Noticef("WARNING: cannot mount %v: %v", part, err)
+		m.degradedState.LogErrorf("cannot mount %v: %v", part, err)
 		m.degradedState.partition(part).MountState = boot.PartitionErrMounting
 		return nil
 	}
@@ -1026,8 +1029,7 @@ func (m *recoverModeStateMachine) setMountState(part, where string, err error) e
 	m.degradedState.partition(part).MountLocation = where
 
 	if err := m.verifyMountPoint(where, part); err != nil {
-		m.degradedState.hasWarnings = true
-		logger.Noticef("WARNING: cannot verify %s mount point at %v: %v", part, where, err)
+		m.degradedState.LogErrorf("cannot verify %s mount point at %v: %v", part, where, err)
 		return err
 	}
 	return nil
@@ -1056,13 +1058,11 @@ func (d *diskUnlockState) setUnlockStateWithRunKey(partName string, unlockRes se
 		if unlockRes.IsEncrypted {
 			// if we know the device is decrypted we must also always know at
 			// least the partDevice (which is the encrypted block device)
-			d.hasWarnings = true
-			logger.Noticef("WARNING: cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
+			d.LogErrorf("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
 			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// TODO: we don't know if this is a plain not found or  a different error
-			d.hasWarnings = true
-			logger.Noticef("WARNING: cannot locate %s partition for mounting host data: %v", partName, err)
+			d.LogErrorf("cannot locate %s partition for mounting host data: %v", partName, err)
 		}
 
 		return
@@ -1148,16 +1148,14 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	if err != nil {
 		// create different error message for encrypted vs unencrypted
 		if m.isEncryptedDev {
-			m.degradedState.hasWarnings = true
-			logger.Noticef("WARNING: cannot unlock encrypted %s partition with sealed fallback key: %v", partName, err)
+			m.degradedState.LogErrorf("cannot unlock encrypted %s partition with sealed fallback key: %v", partName, err)
 			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// if we don't have an encrypted device and err != nil, then the
 			// device must be not-found, see above checks
 
 			// log an error the partition is mandatory
-			m.degradedState.hasWarnings = true
-			logger.Noticef("WARNING: cannot locate %s partition: %v", partName, err)
+			m.degradedState.LogErrorf("cannot locate %s partition: %v", partName, err)
 		}
 
 		return nil
@@ -1232,8 +1230,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir(m.model))
 		if !trustData {
 			part.MountState = boot.PartitionMountedUntrusted
-			m.degradedState.hasWarnings = true
-			logger.Noticef("WARNING: cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
+			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
 		}
 	}
 
@@ -1398,8 +1395,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	key, err := os.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
-		m.degradedState.hasWarnings = true
-		logger.Noticef("WARNING: cannot access run ubuntu-save key: %v", err)
+		m.degradedState.LogErrorf("cannot access run ubuntu-save key: %v", err)
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
 
