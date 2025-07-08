@@ -55,6 +55,7 @@ version: 0
 plugs:
   opengles:
     interface: opengles-driver-libs
+    compatibility: opengles-ubuntu-2510
 apps:
   app:
     plugs: [opengles]
@@ -64,6 +65,7 @@ const openglesDriverLibsProvider = `name: opengles-provider
 version: 0
 slots:
   opengles-driver-libs:
+    compatibility: opengles-ubuntu-2510
     source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -99,6 +101,7 @@ version: 0
 slots:
   opengles:
     interface: opengles-driver-libs
+    compatibility: opengles-ubuntu-2510
     source:
       - /snap/opengles-provider/current/lib1
 `, nil, "opengles")
@@ -110,6 +113,7 @@ version: 0
 slots:
   opengles:
     interface: opengles-driver-libs
+    compatibility: opengles-ubuntu-2510
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "opengles-provider" does not have attribute "source" for interface "opengles-driver-libs"`)
@@ -119,10 +123,34 @@ version: 0
 slots:
   opengles:
     interface: opengles-driver-libs
+    compatibility: opengles-ubuntu-2510
     source: $SNAP/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "opengles-provider" has interface "opengles-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+
+	slot = MockSlot(c, `name: opengles-provider
+version: 0
+slots:
+  opengles:
+    interface: opengles-driver-libs
+    source:
+      - $SNAP/lib1
+`, nil, "opengles")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`snap "opengles-provider" does not have attribute "compatibility" for interface "opengles-driver-libs"`)
+
+	slot = MockSlot(c, `name: opengles-provider
+version: 0
+slots:
+  opengles:
+    interface: opengles-driver-libs
+    compatibility: opengles-other-2510
+    source:
+      - $SNAP/lib1
+`, nil, "opengles")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`compatibility label "opengles-other-2510": string does not match interface spec \(other != ubuntu\)`)
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {

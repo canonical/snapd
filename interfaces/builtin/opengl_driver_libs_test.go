@@ -64,6 +64,7 @@ const openglDriverLibsProvider = `name: opengl-provider
 version: 0
 slots:
   opengl-driver-libs:
+    compatibility: opengl-ubuntu-2510
     source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -98,6 +99,7 @@ func (s *OpenglDriverLibsInterfaceSuite) TestSanitizeSlotError(c *C) {
 version: 0
 slots:
   opengl:
+    compatibility: opengl-ubuntu-2510
     interface: opengl-driver-libs
     source:
       - /snap/opengl-provider/current/lib1
@@ -110,6 +112,7 @@ version: 0
 slots:
   opengl:
     interface: opengl-driver-libs
+    compatibility: opengl-ubuntu-2510
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "opengl-provider" does not have attribute "source" for interface "opengl-driver-libs"`)
@@ -119,6 +122,7 @@ version: 0
 slots:
   opengl:
     interface: opengl-driver-libs
+    compatibility: opengl-ubuntu-2510
     source: $SNAP/lib1
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,

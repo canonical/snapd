@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"math"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/snap"
@@ -54,6 +56,19 @@ type openglDriverLibsInterface struct {
 }
 
 func (iface *openglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	var compatField string
+	if err := slot.Attr("compatibility", &compatField); err != nil {
+		return err
+	}
+	// Validate format of compatibility field - we don't actually need to
+	// do anything else with it until we start to support regular snaps.
+	_, err := decodeCompatField(compatField, &CompatSpec{[]CompatDimension{
+		{Tag: "opengl", Values: []CompatRange{{0, math.MaxUint}}},
+		{Tag: "ubuntu", Values: []CompatRange{{0, math.MaxUint}}},
+	}})
+	if err != nil {
+		return err
+	}
 	// Validate directories
 	return validateLdconfigLibDirs(slot)
 }
