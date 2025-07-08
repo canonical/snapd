@@ -21,12 +21,12 @@ slots:
   # TODO sharing of i386 libs
   cuda:
     interface: cuda-driver-libs
-    compatibility: cuda-(9..12)
+    compatibility: cuda-(9..12)-ubuntu-2510
     source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
   gbm:
     interface: gbm-driver-libs
-    compatibility: gbmbackend-(0..2)-arch-64
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510
     kernel-driver: nvidia-drm
     client-driver: libnvidia-allocator.so.1
     source:
@@ -34,17 +34,20 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 10
+    compatibility: egl-ubuntu-2510
     client-driver: libEGL_nvidia.so.0
     source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/i386-linux-gnu
   opengl-dl:
     interface: opengl-driver-libs
+    compatibility: opengl-ubuntu-2510
     source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/i386-linux-gnu
   opengles-dl:
     interface: opengles-driver-libs
+    compatibility: opengles-ubuntu-2510
     source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/i386-linux-gnu
