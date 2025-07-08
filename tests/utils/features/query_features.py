@@ -19,6 +19,9 @@ from features import SystemFeatures
 KNOWN_FEATURES = ['cmds', 'endpoints',
                   'ensures', 'tasks', 'changes', 'interfaces']
 
+# file name for the complete list of all features
+ALL_FEATURES_FILE = 'all-features.json'
+
 
 class TaskId:
     suite: str
@@ -59,7 +62,9 @@ class TaskIdVariant(TaskId):
         return hash((self.suite, self.task_name, self.variant))
 
     def __str__(self) -> str:
-        return self.suite + ":" + self.task_name + ":" + self.variant
+        if self.variant:
+            return self.suite + ":" + self.task_name + ":" + self.variant
+        return self.suite + ":" + self.task_name
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -96,6 +101,14 @@ class Retriever(ABC):
         '''
 
     @abstractmethod
+    def get_all_features(self, timestamp: str) -> dict[str, list[Any]]:
+        '''
+        Retrives a dictionary of all feature data at the given timestmap.
+        It contains only feature keys (e.g. cmds, endpoints) and the list
+        of all possible feature data at the indicated moment in time.
+        '''
+
+    @abstractmethod
     def close(self) -> None:
         pass
 
@@ -121,6 +134,8 @@ class MongoRetriever(Retriever):
         results = self.collection.find()
         dictionary = defaultdict(list)
         for result in results:
+            if 'all_features' in result and result['all_features'] == True:
+                continue
             dictionary[result['timestamp'].isoformat()].append(
                 result['system'])
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
@@ -134,7 +149,8 @@ class MongoRetriever(Retriever):
                     yield system_json
         else:
             for result in self.collection.find({'timestamp': datetime.datetime.fromisoformat(timestamp)}):
-                yield result
+                if 'all_features' not in result or not result['all_features']:
+                    yield result
 
     def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         json_result = self.collection.find(
@@ -142,6 +158,16 @@ class MongoRetriever(Retriever):
         if len(json_result) != 1:
             raise RuntimeError(f'{len(json_result)} entries of system {system} found in collection {timestamp}')
         return json_result[0]
+    
+    def get_all_features(self, timestamp) -> dict[str, list[Any]]:
+        json_result = self.collection.find(
+            {'timestamp': datetime.datetime.fromisoformat(timestamp), 'all_features': True}).to_list()
+        if len(json_result) != 1:
+            raise RuntimeError(f'{len(json_result)} entries of feature coverage information found in collection {timestamp}')
+        res = json_result[0]
+        del res['timestamp']
+        del res['all_features']
+        return res
 
 
 class DirRetriever(Retriever):
@@ -175,7 +201,7 @@ class DirRetriever(Retriever):
             if not os.path.isdir(timestamp_path):
                 continue
             for filename in os.listdir(timestamp_path):
-                if filename.endswith('.json'):
+                if filename.endswith('.json') and not filename == ALL_FEATURES_FILE:
                     system = self.__get_filename_without_last_ext(filename)
                     dictionary[timestamp].append(system)
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
@@ -186,6 +212,8 @@ class DirRetriever(Retriever):
             raise RuntimeError(
                 f'timestamp {timestamp} not present in dir {self.dir}')
         for filename in os.listdir(timestamp_dir):
+            if filename == ALL_FEATURES_FILE:
+                continue
             if filename.endswith('.json') and (not systems or self.__get_filename_without_last_ext(filename) in systems):
                 with open(os.path.join(timestamp_dir, filename), 'r', encoding='utf-8') as f:
                     yield json.load(f)
@@ -196,6 +224,18 @@ class DirRetriever(Retriever):
             raise RuntimeError(f'system file not found {sys_path}')
         with open(sys_path, 'r', encoding='utf-8') as f:
             return json.load(f)
+        
+    def get_all_features(self, timestamp) -> dict[str, list[Any]]:
+        sys_path = os.path.join(self.dir, timestamp, ALL_FEATURES_FILE)
+        if not os.path.exists(sys_path):
+            raise RuntimeError(f'{ALL_FEATURES_FILE} not found')
+        with open(sys_path, 'r', encoding='utf-8') as f:
+            all = json.load(f)
+            if 'timestamp' in all:
+                del all['timestamp']
+            if 'all_features' in all:
+                del all['all_features']
+            return all
 
 
 def consolidate_system_features(system_json: SystemFeatures, include_tasks: Iterable[TaskId] = None, exclude_tasks: Iterable[TaskId] = None) -> dict[str, list[dict[str, Any]]]:
@@ -287,6 +327,70 @@ def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, s
     return mns
 
 
+def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
+    '''
+    Calculates set(coverage_features) - set(system_features), at the indicated timestamp. 
+
+    :param remove_failed: if true, will remove all instances of tests where success == False
+    '''
+    sys_features = feat_sys(retriever, timestamp, system, remove_failed)
+    mns = minus(retriever.get_all_features(timestamp), sys_features)
+    return mns
+
+
+def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: bool, suite: str = None, task: str = None, variant: str = None) -> dict:
+    '''
+    Calculates set(system_features), at the indicated timestamp. 
+
+    :param remove_failed: if true, will remove all instances of tests where success == False
+    '''
+    system_json = retriever.get_single_json(timestamp, system)
+
+    if suite or task or variant:
+        system_json['tests'] = [test for test in system_json['tests'] 
+                                if (not suite or test['suite'] == suite) and 
+                                (not task or test['task_name'] == task) and 
+                                (not variant or test['variant'] == variant)]
+
+    include_tasks = None
+    if remove_failed:
+        include_tasks = list_tasks(system_json, remove_failed)
+
+    return consolidate_system_features(
+        system_json, include_tasks=include_tasks)
+
+
+def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, list[TaskIdVariant]]:
+    '''
+    Given a timestamp, a feature, and optionally a system, finds
+    all tests that contain the indicated feature. If no system
+    is specified, then returns all systems that contain the 
+    feature combined with tests.
+
+    :param remove_failed: if true, will remove all instances of tests where success == False
+    :returns: dictionary where each key is a system and each value is a list of tests that contain the feature
+    '''
+
+    def feat_in_test(test: dict) -> bool:
+        for known_feature in KNOWN_FEATURES:
+            if known_feature in test and feat in test[known_feature]:
+                return True
+        return False
+
+    system_list = None
+    if system:
+        system_list = [system]
+    system_jsons = retriever.get_systems(timestamp, systems=system_list)
+
+    ret = {}
+    for system_json in system_jsons:
+        tests = [TaskIdVariant(suite=test['suite'], task_name=test['task_name'], variant=test['variant']) 
+                    for test in system_json['tests'] if feat_in_test(test) and (not remove_failed or test['success'])]
+        if tests:
+            ret[system_json['system']] = tests
+    return ret
+
+
 def check_duplicate(args):
     task, system_json = args
     # Exclude all variants of the task from consolidation so that
@@ -338,9 +442,20 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
         for system_json in retriever.get_systems(timestamp, systems):
             with open(os.path.join(output, timestamp, system_json['system'] + ".json"), 'w', encoding='utf-8') as f:
                 json.dump(system_json, f, cls=DateTimeEncoder)
+        try:
+            all_features = retriever.get_all_features(timestamp)
+            with open(os.path.join(output, timestamp, ALL_FEATURES_FILE), 'w', encoding='utf-8') as f:
+                json.dump(all_features, f, cls=DateTimeEncoder)
+        except Exception as e:
+            print(f'could not find all features at timestamp {timestamp}', file=sys.stderr)
 
 
-def add_diff_parser(subparsers: argparse._SubParsersAction):
+def add_data_source_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
+    parser.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+
+
+def add_diff_parser(subparsers: argparse._SubParsersAction) -> str:
     diff_description = '''
         Calculates feature diff between two systems: set(features_1) - set(features_2).
         You can specify either a json file with credentials for mongodb or a directory with features output.
@@ -356,8 +471,7 @@ def add_diff_parser(subparsers: argparse._SubParsersAction):
     cmd = 'diff'
     diff: argparse.ArgumentParser = subparsers.add_parser(cmd, help='calculate diff between system features',
                                  description=diff_description, formatter_class=argparse.RawDescriptionHelpFormatter)
-    diff.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    diff.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(diff)
     diff.add_argument('-t1', '--timestamp1', help='timestamp of first execution', type=str, required=True)
     diff.add_argument('-s1', '--system1', help='system of first execution', type=str, required=True)
     diff.add_argument('-t2', '--timestamp2', help='timestamp of second execution', type=str, required=True)
@@ -367,7 +481,57 @@ def add_diff_parser(subparsers: argparse._SubParsersAction):
     return cmd
 
 
-def add_dup_parser(subparsers: argparse._SubParsersAction):
+def add_diff_parsers(subparsers: argparse._SubParsersAction) -> tuple[str, str, str]:
+
+    sys_description = '''
+        Calculates feature diff between two systems: set(features_1) - set(features_2).
+        You can specify either a json file with credentials for mongodb or a directory with features output.
+        If using a directory, the directory format must be <dir>/<timestamp1>/<system1>.json and 
+        <dir>/<timestamp2>/<system2>.json.
+
+        By default, it will compare all features across both systems. If you wish to restrict the comparison
+        to only tasks that were successful, use the --remove-failed flag. If you wish to restrict the
+        comparison to only tasks that executed on both systems, use the --only-same flag.
+
+        If you wish to create a directory from mongo data, use the export command instead of diff first.
+    '''
+    all_description = '''
+        Calculates feature diff between all possible features a system's: set(all_features) - set(system_features).
+        You can specify either a json file with credentials for mongodb or a directory with features output.
+        If using a directory, the directory format must be <dir>/<timestamp1>/<system1>.json and 
+        <dir>/<timestamp1>/all-feat.json.
+
+        By default, it will compare all features . If you wish to restrict the comparison
+        to only tasks that were successful, use the --remove-failed flag.
+
+        If you wish to create a directory from mongo data, use the export command instead of diff first.
+    '''
+    cmd = 'diff'
+    cmd_sys = 'systems'
+    cmd_all = 'all-features'
+    diff: argparse.ArgumentParser = subparsers.add_parser(cmd, help='calculate diff between features',
+                                 description='Calculates feature diff either between two systems or between a system and all possible features.')
+    diff_subparsers = diff.add_subparsers(dest='diff_cmd')
+    sys = diff_subparsers.add_parser(cmd_sys, help='calculate diff between two systems\' features',
+                               description=sys_description, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_data_source_args(sys)
+    sys.add_argument('-t1', '--timestamp1', help='timestamp of first execution', type=str, required=True)
+    sys.add_argument('-s1', '--system1', help='system of first execution', type=str, required=True)
+    sys.add_argument('-t2', '--timestamp2', help='timestamp of second execution', type=str, required=True)
+    sys.add_argument('-s2', '--system2', help='system of second execution', type=str, required=True)
+    sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    sys.add_argument('--only-same', help='only compare tasks that were executed on both systems', action='store_true')
+
+    all = diff_subparsers.add_parser(cmd_all, help='calculate diff between system features and all features',
+                                     description=all_description, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_data_source_args(all)
+    all.add_argument('-t', '--timestamp', help='timestamp of instance to search', required=True, type=str)
+    all.add_argument('-s', '--system', help='system whose features should be searched', required=True, type=str)
+    all.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    return cmd, cmd_sys, cmd_all
+
+
+def add_dup_parser(subparsers: argparse._SubParsersAction) -> str:
     dup_description = '''
         For each task present in the indicated system under the indicated timestamp,
         calculates the difference between that task's features and the system's 
@@ -382,33 +546,63 @@ def add_dup_parser(subparsers: argparse._SubParsersAction):
                                       help='show tasks whose features are completely covered by the rest',
                                       description=dup_description,
                                       formatter_class=argparse.RawDescriptionHelpFormatter)
-    duplicate.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    duplicate.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(duplicate)
     duplicate.add_argument('-t', '--timestamp', help='timestamp of instance to search', required=True, type=str)
     duplicate.add_argument('-s', '--system', help='system whose features should be searched', required=True, type=str)
     duplicate.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     return cmd
 
 
-def add_export_parser(subparsers: argparse._SubParsersAction):
+def add_export_parser(subparsers: argparse._SubParsersAction) -> str:
     cmd = 'export'
     export: argparse.ArgumentParser = subparsers.add_parser(cmd, help='export data to output local directory',
                                    description='Grabs system json files by timestamps and systems and saves them to the folder indicated in the output arguement.')
-    export.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    export.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(export)
     export.add_argument('-t', '--timestamps', help='space-separated list of identifying timestamps', required=True, nargs='+')
     export.add_argument('-s', '--systems', help='space-separated list of systems', nargs='*')
     export.add_argument('-o', '--output', help='folder to save feature data', required=True, type=str)
     return cmd
 
 
-def add_list_parser(subparsers: argparse._SubParsersAction):
+def add_list_parser(subparsers: argparse._SubParsersAction) -> str:
     cmd = 'list'
     lst: argparse.ArgumentParser = subparsers.add_parser(cmd, help='lists all timestamps with systems present in data source',
                                 description='Lists all timestamps with systems present in data source.')
-    lst.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
-    lst.add_argument('-d', '--dir', help='folder containing feature data', type=str)
+    add_data_source_args(lst)
     return cmd
+
+
+def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str, str, str, str]:
+    cmd = 'feat'
+    cmd_all = 'all'
+    cmd_sys = 'sys'
+    cmd_find = 'find'
+    feat: argparse.ArgumentParser = subparsers.add_parser(cmd, help='', description='')
+    feat_subparsers = feat.add_subparsers(dest='features_cmd')
+    all = feat_subparsers.add_parser(cmd_all, help='lists all features at a given timestamp',
+                                     description='Lists all features for a given timestamp present in data source.')
+    add_data_source_args(all)
+    all.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+
+    sys = feat_subparsers.add_parser(cmd_sys, help='lists all features for a given system and timestamp',
+                                     description='Lists all features for a given system and timestamp present in data source.')
+    add_data_source_args(sys)
+    sys.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+    sys.add_argument('-s', '--system', help='system for feature data', required=True, type=str)
+    sys.add_argument('--suite', help='if provided, only grab features from this suite', default=None, type=str)
+    sys.add_argument('--task', help='if provided, only grab features of this task', default=None, type=str)
+    sys.add_argument('--variant', help='if provided, only grab features with this variant', default=None, type=str)
+    sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+
+
+    find = feat_subparsers.add_parser(cmd_find, help='given a feature, finds which tests contain it',
+                                     description='Lists tests that contain the feature')
+    add_data_source_args(find)
+    find.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+    find.add_argument('-s', '--system', help='(optional) system to search for feature in', default=None, type=str)
+    find.add_argument('--feat', help='feature to search for (json format)', required=True, type=str)
+    find.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    return cmd, cmd_all, cmd_sys, cmd_find
 
 
 def main():
@@ -416,10 +610,11 @@ def main():
         description='cli to query data source containing feature data')
     subparsers = parser.add_subparsers(dest='command')
     subparsers.required = True
-    diff_cmd = add_diff_parser(subparsers)
+    diff_cmd, diff_sys_cmd, diff_all_cmd = add_diff_parsers(subparsers)
     dup_cmd = add_dup_parser(subparsers)
     export_cmd = add_export_parser(subparsers)
     list_cmd = add_list_parser(subparsers)
+    feat_cmd, feat_all_cmd, feat_sys_cmd, feat_find_cmd = add_all_features_parser(subparsers)
 
     args = parser.parse_args()
 
@@ -434,8 +629,13 @@ def main():
 
     with closing(retriever_creator()) as retriever:
         if args.command == diff_cmd:
-            result = diff(retriever, args.timestamp1, args.system1,
-                          args.timestamp2, args.system2, args.remove_failed, args.only_same)
+            if args.diff_cmd == diff_sys_cmd:
+                result = diff(retriever, args.timestamp1, args.system1,
+                            args.timestamp2, args.system2, args.remove_failed, args.only_same)
+            elif args.diff_cmd == diff_all_cmd:
+                result = diff_all_features(retriever, args.timestamp, args.system, args.remove_failed)
+            else:
+                raise RuntimeError(f'diff command not recognized: {args.diff_cmd}')
             json.dump(result, sys.stdout, cls=DateTimeEncoder)
             print()
         elif args.command == dup_cmd:
@@ -449,6 +649,23 @@ def main():
         elif args.command == list_cmd:
             result = retriever.get_sorted_timestamps_and_systems()
             json.dump(result, sys.stdout, cls=DateTimeEncoder)
+            print()
+        elif args.command == feat_cmd:
+            if args.features_cmd == feat_all_cmd:
+                result = retriever.get_all_features(args.timestamp)
+                json.dump(result, sys.stdout, cls=DateTimeEncoder)
+            elif args.features_cmd == feat_sys_cmd:
+                result = feat_sys(retriever, args.timestamp, args.system, args.remove_failed, args.suite, args.task, args.variant)
+                json.dump(result, sys.stdout, cls=DateTimeEncoder)
+            elif args.features_cmd == feat_find_cmd:
+                try:
+                    feat = json.loads(args.feat)
+                    result = find_feat(retriever, args.timestamp, feat, args.remove_failed, args.system)
+                    json.dump(result, sys.stdout, default=lambda x: str(x))
+                except Exception as e:
+                    raise RuntimeError(f'Error parsing feature {args.feat}: {e}')
+            else:
+                raise RuntimeError(f'unrecognized feature command {args.features_cmd}')
             print()
         else:
             raise RuntimeError(f'command not recognized: {args.command}')
