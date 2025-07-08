@@ -209,7 +209,7 @@ func (s *viewSuite) TestMissingRequestDefaultsToStorage(c *C) {
 	})
 }
 
-func (s *viewSuite) TestBundleWithSample(c *C) {
+func (s *viewSuite) TestConfdbSchemaWithSample(c *C) {
 	views := map[string]any{
 		"wifi-setup": map[string]any{
 			"rules": []any{
@@ -391,6 +391,35 @@ func (s *viewSuite) TestConfdbNotFoundErrors(c *C) {
 	_, err = view.Get(databag, "other-nested")
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(err, ErrorMatches, `cannot get "other-nested" through acc/foo/bar: no data`)
+}
+
+func (s *viewSuite) TestConfdbNoMatchAllSubkeyTypes(c *C) {
+	databag := confdb.NewJSONDatabag()
+	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
+		"bar": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a.{b}[1][{n}]", "storage": "a.{b}[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("bar")
+
+	err = view.Set(databag, "a.b[1][0]", "foo")
+	c.Assert(err, IsNil)
+
+	// check each sub-key in the rule path rejects an unmatchable request
+	for _, request := range []string{"b", "a[1]", "a.b[0]", "a.b[1].d"} {
+		_, err = view.Get(databag, request)
+		c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot get %q through acc/foo/bar: no matching rule`, request))
+	}
+
+	// but they accept the right request
+	val, err := view.Get(databag, "a.b[1][0]")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "foo")
 }
 
 func (s *viewSuite) TestViewBadRead(c *C) {
@@ -1351,7 +1380,7 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 		},
 		{
 			request: "a.{b}",
-			errMsg:  `invalid subkey "{b}"`,
+			errMsg:  `invalid subkey "{b}": path only supports literal keys and indexes`,
 		},
 		{
 			request: "a.-b",
@@ -1385,7 +1414,7 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 	cmt := Commentf("last test case failed")
 	err = view.Set(databag, "", "value")
 	c.Assert(err, NotNil, cmt)
-	c.Assert(err.Error(), Equals, `cannot set empty path through confdb view acc/confdb/foo: cannot have empty subkeys`, cmt)
+	c.Assert(err.Error(), Equals, `cannot set empty path through confdb view acc/confdb/foo`, cmt)
 	c.Assert(err, testutil.ErrorIs, &confdb.BadRequestError{}, cmt)
 }
 
@@ -2067,7 +2096,7 @@ func (s *viewSuite) TestIndexPlaceholders(c *C) {
 func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 	type testcase struct {
 		path     string
-		suffix   []string
+		suffix   string
 		value    any
 		expected map[string]any
 		err      string
@@ -2076,19 +2105,18 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 	tcs := []testcase{
 		{
 			path:     "foo.bar",
-			suffix:   nil,
 			value:    "value",
 			expected: map[string]any{"foo.bar": "value"},
 		},
 		{
 			path:     "foo.{bar}",
-			suffix:   []string{"{bar}"},
+			suffix:   "{bar}",
 			value:    map[string]any{"a": "value", "b": "other"},
 			expected: map[string]any{"foo.a": "value", "foo.b": "other"},
 		},
 		{
 			path:   "foo.{bar}.baz",
-			suffix: []string{"{bar}", "baz"},
+			suffix: "{bar}.baz",
 			value: map[string]any{
 				"a": map[string]any{"baz": "value"},
 				"b": map[string]any{"baz": "other"},
@@ -2097,7 +2125,7 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 		},
 		{
 			path:   "foo.{bar}.{baz}.last",
-			suffix: []string{"{bar}", "{baz}"},
+			suffix: "{bar}.{baz}",
 			value: map[string]any{
 				"a": map[string]any{"b": "value"},
 				"c": map[string]any{"d": "other"},
@@ -2107,7 +2135,7 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 
 		{
 			path:   "foo.{bar}",
-			suffix: []string{"{bar}", "baz"},
+			suffix: "{bar}.baz",
 			value: map[string]any{
 				"a": map[string]any{"baz": "value", "ignore": 1},
 				"b": map[string]any{"baz": "other", "ignore": 1},
@@ -2116,13 +2144,13 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 		},
 		{
 			path:   "foo.{bar}",
-			suffix: []string{"{bar}"},
+			suffix: "{bar}",
 			value:  "a",
 			err:    "expected map for unmatched request parts but got string",
 		},
 		{
 			path:   "foo.{bar}",
-			suffix: []string{"{bar}", "baz"},
+			suffix: "{bar}.baz",
 			value: map[string]any{
 				"a": map[string]any{"notbaz": 1},
 				"b": map[string]any{"notbaz": 1},
@@ -2133,7 +2161,10 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("failed test number %d", i+1)
-		pathsToValues, err := confdb.GetValuesThroughPaths(tc.path, tc.suffix, tc.value)
+		accessors, err := confdb.ParsePathIntoAccessors(tc.suffix)
+		c.Assert(err, IsNil, cmt)
+
+		pathsToValues, err := confdb.GetValuesThroughPaths(tc.path, accessors, tc.value)
 
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, cmt)
@@ -2860,8 +2891,8 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 			err:      `cannot get "non.existent" through acc/foo/my-view: no matching rule`,
 		},
 		{
-			requests: []string{"12", "mk"},
-			err:      `cannot get "12", "mk" through acc/foo/my-view: no matching rule`,
+			requests: []string{"abc[12]", "mk"},
+			err:      `cannot get "abc[12]", "mk" through acc/foo/my-view: no matching rule`,
 		},
 	}
 
@@ -2870,7 +2901,8 @@ func (*viewSuite) TestCheckReadEphemeralAccess(c *C) {
 		cmt := Commentf("failed test number %d", i+1)
 		if tc.err != "" {
 			_, err := v.ReadAffectsEphemeral(tc.requests)
-			c.Assert(err, ErrorMatches, tc.err, cmt)
+			c.Assert(err, NotNil)
+			c.Assert(err.Error(), Equals, tc.err, cmt)
 		} else {
 			eph, err := v.ReadAffectsEphemeral(tc.requests)
 			c.Assert(err, IsNil, cmt)
