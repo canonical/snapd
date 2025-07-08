@@ -24,13 +24,12 @@ import (
 	"strings"
 
 	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/snapdenv"
 )
 
 type cmdDebugFeatures struct {
 	clientMixin
+
+	p *flags.Parser
 }
 
 func init() {
@@ -44,6 +43,10 @@ func init() {
 	)
 }
 
+func (x *cmdDebugFeatures) setParser(p *flags.Parser) {
+	x.p = p
+}
+
 func (x *cmdDebugFeatures) Execute(args []string) error {
 	x.setClient(mkClient())
 	var err error
@@ -52,7 +55,7 @@ func (x *cmdDebugFeatures) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	rsp["commands"] = getCommandNames()
+	rsp["commands"] = getCommandNames(x.p)
 	enc := json.NewEncoder(Stdout)
 	if err := enc.Encode(rsp); err != nil {
 		return err
@@ -60,14 +63,7 @@ func (x *cmdDebugFeatures) Execute(args []string) error {
 	return nil
 }
 
-func getCommandNames() []string {
-	cfg := &ClientConfig
-	// Set client user-agent when talking to the snapd daemon to the
-	// same value as when talking to the store.
-	cfg.UserAgent = snapdenv.UserAgent()
-
-	cli := client.New(cfg)
-	parser := Parser(cli)
+func getCommandNames(parser *flags.Parser) []string {
 	commands := parser.Command.Commands()
 	names := []string{}
 	for _, cmd := range commands {
