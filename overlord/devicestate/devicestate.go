@@ -535,15 +535,12 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		return remodelInstallAction, []*state.TaskSet{ts}, nil
 	}
 
-	// on UC20+ models, we look at the currently tracked channel to determine if
-	// we are switching the channel. on UC18 models, we compare the pinned track
-	// on the new model snap with the pinned track on the old model snap. note
-	// that only the kernel and gadget snaps can have a pinned track on UC18
-	// models.
-	var currentChannelOrTrack string
-	if uc20Model(r.newModel) {
-		currentChannelOrTrack = snapst.TrackingChannel
-	} else if canHaveUC18PinnedTrack(rt.oldModelSnap) {
+	// in the default case, we compare the target channel against the tracked
+	// channel in the state. as an exception, on UC18 systems, when we are
+	// dealing with either a gadget or kernel snap,  we compare the target
+	// channel to the pinned track from the model.
+	currentChannelOrTrack := snapst.TrackingChannel
+	if !uc20Model(r.newModel) && canHaveUC18PinnedTrack(rt.oldModelSnap) {
 		currentChannelOrTrack = rt.oldModelSnap.PinnedTrack
 	}
 	needsChannelChange := rt.channel != "" && rt.channel != currentChannelOrTrack && !snapst.Current.Local()
