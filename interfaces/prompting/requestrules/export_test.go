@@ -20,8 +20,6 @@
 package requestrules
 
 import (
-	"time"
-
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -42,18 +40,18 @@ func MockUserSessionIDXattr() (xattr string, restore func()) {
 	return testXattr, restore
 }
 
-func (rule *Rule) Validate(currTime time.Time) (expired bool, err error) {
-	return rule.validate(currTime)
+func (rule *Rule) Validate(current prompting.At) (expired bool, err error) {
+	return rule.validate(current)
 }
 
-func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
-	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
+func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string, current prompting.At) (bool, error) {
+	return rdb.isPathPermAllowed(user, snap, iface, path, permission, current)
 }
 
 func (rdb *RuleDB) ReadOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
 	return rdb.readOrAssignUserSessionID(user)
 }
 
-func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error)) func() {
-	return testutil.Mock(&isPathPermAllowedByRuleDB, f)
+func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string, current prompting.At) (bool, error)) func() {
+	return testutil.Mock(&isPathPermAllowed, f)
 }
