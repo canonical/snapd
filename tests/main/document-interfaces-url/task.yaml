@@ -43,13 +43,11 @@ execute: |
     # documentation. Each key is the name of the interface, while its    
     # value is the date by which it should have a working URL.           
     # The expiry date is <expiration year>/<expiration month>      
-    
+
     declare -A exclusion_map
-    # gpio-chardev is still in the experimental phase so its page is not exposed yet
-    exclusion_map["gpio-chardev"]="2025/06"
-    # need to add https://snapcraft.io/docs/checkbox-support-interface
-    # as well as a link to it on https://snapcraft.io/docs/supported-interfaces
-    exclusion_map["checkbox-support"]="2025/06"
+    # TODO: add documentation page for firmware-updater-support and snap-fde-control
+    exclusion_map["firmware-updater-support"]="2025/08"
+    exclusion_map["snap-fde-control"]="2025/08"
 
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
