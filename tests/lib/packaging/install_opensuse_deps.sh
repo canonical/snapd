@@ -41,6 +41,12 @@ zsh
 libcap-progs
 "
 
+pkgs="
+rpm-build
+rpmdevtools
+awk
+"
+
 zypper --gpg-auto-import-keys refresh
 zypper install -y --allow-downgrade --force-resolution --no-recommends $pkgs
 
@@ -54,7 +60,6 @@ cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 pack_args=-s
 ./packaging/pack-source -v "$version" -o "$rpm_dir/SOURCES" $pack_args
 rm -rf "$rpm_dir"/BUILD/*
-zypper install -y --allow-downgrade --force-resolution --no-recommends rpmdevtools
 zypper install -y --allow-downgrade --force-resolution --no-recommends $(rpmspec -q --buildrequires "$packaging_path/snapd.spec")
 go mod vendor
 rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
