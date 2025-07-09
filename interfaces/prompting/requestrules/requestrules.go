@@ -425,7 +425,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		// outcome, so preserve whichever entry has the greater lifespan.
 		// Since newPermissions[perm] already has the existing entry, only
 		// override it if the new rule has a greater lifespan.
-		if prompting.FirstLifespanGreater(entry.Lifespan, entry.Expiration, existingEntry.Lifespan, existingEntry.Expiration) {
+		if entry.Supersedes(existingEntry) {
 			newPermissions[perm] = entry
 		}
 	}
