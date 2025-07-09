@@ -2910,7 +2910,7 @@ func (s *snapsSuite) TestSwitchInstruction(c *check.C) {
 	var cohort, channel string
 	var leave *bool
 
-	defer daemon.MockSnapstateSwitch(func(s *state.State, name string, opts *snapstate.RevisionOptions) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateSwitch(func(s *state.State, name string, opts *snapstate.RevisionOptions, _ snapstate.PrereqTracker) (*state.TaskSet, error) {
 		cohort = opts.CohortKey
 		leave = &opts.LeaveCohort
 		channel = opts.Channel

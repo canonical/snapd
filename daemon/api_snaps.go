@@ -700,7 +700,7 @@ func snapSwitch(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 	if !inst.Revision.Unset() {
 		return nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstateSwitch(st, inst.Snaps[0], inst.revnoOpts())
+	ts, err := snapstateSwitch(st, inst.Snaps[0], inst.revnoOpts(), nil)
 	if err != nil {
 		return nil, err
 	}

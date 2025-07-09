@@ -6,7 +6,14 @@ details: |
 
 prepare: |
     # Install a snap declaring a plug on timezone-control
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
+    if systemctl is-enabled systemd-timesyncd.service ; then
+        # Install the base core24 variant with timedatectl that supports systemd-timesyncd commands.
+        "$TESTSTOOLS"/snaps-state install-local-variant test-snapd-timedate-control-consumer-core24 \
+            test-snapd-timedate-control-consumer
+    else
+        # Install the default version.
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
+    fi
 
 restore: |
     # Restore the initial timezone
@@ -25,9 +32,16 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timezone-control
 
-    # Read timezones information should be allowed
-    timezone1=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 1p)
-    timezone2=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 2p)
+    # Read timezones information should be allowed (unless running with old
+    # systemd where timesyncd had no org.freedesktop.timedate1.ListTimezones
+    # method yet)
+    if not os.query is-ubuntu || os.query is-ubuntu-ge 20.04; then
+        timezone1=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 1p)
+        timezone2=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 2p)
+    else
+        timezone1=$(timedatectl list-timezones | sed -n 1p)
+        timezone2=$(timedatectl list-timezones | sed -n 2p)
+    fi
 
     # Save the default timezone to be restored at the end
     "${TESTSLIB}"/get-timezone.sh >timezone.txt

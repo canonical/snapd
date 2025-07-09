@@ -66,6 +66,24 @@ dbus (send)
     path=/org/freedesktop/login1
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect,
+
+# systemctl needs to be able to query scheduled shutdowns
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
+
+# systemctl needs to bind the client side of the socket.
+# Because systemctl has multiple symlinks, its comm can be
+# multiple names.
+unix (bind) type=stream addr="@*/bus/*/system",
+`
+
+const shutdownConnectedPlugSecComp = `
+# systemctl needs to bind the client side of the socket
+bind
 `
 
 func init() {
@@ -77,5 +95,6 @@ func init() {
 		baseDeclarationPlugs:  shutdownBaseDeclarationPlugs,
 		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
+		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
 	})
 }
