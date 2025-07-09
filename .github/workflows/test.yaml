@@ -1,7 +1,7 @@
 name: Tests
 on:
   pull_request:
-    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**" ]
+    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**", "hotfix/**" ]
   push:
     branches: [ "release/**", "core-snap-security-release/**", "security-release/**" ]
 
