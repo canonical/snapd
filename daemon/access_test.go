@@ -893,7 +893,6 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 
 	var ac daemon.AccessChecker = daemon.ByActionAccess{
 		ByAction: byAction,
-		Default:  daemon.RootAccess{},
 	}
 
 	type testcase struct {
@@ -912,14 +911,14 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 				"action-1": errForbidden,
 				"action-2": errForbidden,
 				"action-3": errForbidden,
-				"default":  errForbidden,
+				"unknown":  daemon.BadRequest(`unsupported action "unknown"`),
 			},
 		},
 		{
 			ucred: daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
 			expectedErr: map[string]*daemon.APIError{
 				"action-1": errForbidden,
-				"default":  errForbidden,
+				"unknown":  daemon.BadRequest(`unsupported action "unknown"`),
 			},
 		},
 		{
@@ -928,7 +927,7 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			expectedErr: map[string]*daemon.APIError{
 				"action-1": errForbidden,
 				"action-2": errUnauthorized,
-				"default":  errForbidden,
+				"unknown":  daemon.BadRequest(`unsupported action "unknown"`),
 			},
 		},
 		{
@@ -938,7 +937,7 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 				"action-1": daemon.BadRequest(`unexpected content type: ""`),
 				"action-2": daemon.BadRequest(`unexpected content type: ""`),
 				"action-3": daemon.BadRequest(`unexpected content type: ""`),
-				"default":  daemon.BadRequest(`unexpected content type: ""`),
+				"unknown":  daemon.BadRequest(`unexpected content type: ""`),
 			},
 		},
 		{
@@ -949,12 +948,15 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 				"action-1": daemon.BadRequest("invalid character '}' looking for beginning of value"),
 				"action-2": daemon.BadRequest("invalid character '}' looking for beginning of value"),
 				"action-3": daemon.BadRequest("invalid character '}' looking for beginning of value"),
-				"default":  daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"unknown":  daemon.BadRequest("invalid character '}' looking for beginning of value"),
 			},
 		},
 		{
 			ucred:  daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
 			noAuth: true,
+			expectedErr: map[string]*daemon.APIError{
+				"unknown": daemon.BadRequest(`unsupported action "unknown"`),
+			},
 		},
 		{
 			ucred:   daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
@@ -964,7 +966,7 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 				"action-1": daemon.BadRequest(`unexpected content type: ""`),
 				"action-2": daemon.BadRequest(`unexpected content type: ""`),
 				"action-3": daemon.BadRequest(`unexpected content type: ""`),
-				"default":  daemon.BadRequest(`unexpected content type: ""`),
+				"unknown":  daemon.BadRequest(`unexpected content type: ""`),
 			},
 		},
 		{
@@ -976,7 +978,7 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 				"action-1": daemon.BadRequest("invalid character '}' looking for beginning of value"),
 				"action-2": daemon.BadRequest("invalid character '}' looking for beginning of value"),
 				"action-3": daemon.BadRequest("invalid character '}' looking for beginning of value"),
-				"default":  daemon.BadRequest("invalid character '}' looking for beginning of value"),
+				"unknown":  daemon.BadRequest("invalid character '}' looking for beginning of value"),
 			},
 		},
 	}
@@ -997,12 +999,12 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			}
 		}
 
-		cmt := Commentf("sub-test tcs[%d] failed for default action", idx)
-		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), &tc.ucred, user)
-		if expectedErr := tc.expectedErr["default"]; err != nil {
-			c.Check(err, DeepEquals, expectedErr, cmt)
+		cmt := Commentf("sub-test tcs[%d] failed for unknown action", idx)
+		err := ac.CheckAccess(nil, reqWithAction(c, "unknown", !tc.notJSON, tc.malformed), &tc.ucred, user)
+		if expectedErr := tc.expectedErr["unknown"]; err != nil {
+			c.Assert(err, DeepEquals, expectedErr, cmt)
 		} else {
-			c.Check(err, IsNil, cmt)
+			c.Assert(err, IsNil, cmt)
 		}
 	}
 }
