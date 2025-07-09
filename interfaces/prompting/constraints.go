@@ -445,10 +445,7 @@ func (e *RulePermissionEntry) validate() error {
 		// We don't allow rules with lifespan "single"
 		return prompting_errors.NewRuleLifespanSingleError(SupportedRuleLifespans)
 	}
-	expiration := At{
-		Time: e.Expiration,
-	}
-	if err := e.Lifespan.ValidateExpiration(expiration); err != nil {
+	if err := e.Lifespan.ValidateExpiration(e.Expiration); err != nil {
 		// Should never error due to an API request, since rules are always
 		// added via the API using duration, rather than expiration.
 		// Error may occur when validating a rule loaded from disk.

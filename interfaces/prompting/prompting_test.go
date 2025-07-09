@@ -182,6 +182,7 @@ func (s *promptingSuite) TestUnmarshalLifespanUnhappy(c *C) {
 }
 
 func (s *promptingSuite) TestValidateExpiration(c *C) {
+	var unsetExpiration time.Time
 	currTime := time.Now()
 	negativeExpiration := currTime.Add(-5 * time.Second)
 	validExpiration := currTime.Add(10 * time.Minute)
@@ -190,18 +191,18 @@ func (s *promptingSuite) TestValidateExpiration(c *C) {
 		prompting.LifespanForever,
 		prompting.LifespanSingle,
 	} {
-		err := lifespan.ValidateExpiration(prompting.At{})
+		err := lifespan.ValidateExpiration(unsetExpiration)
 		c.Check(err, IsNil)
 		for _, exp := range []time.Time{negativeExpiration, validExpiration} {
-			err = lifespan.ValidateExpiration(prompting.At{Time: exp})
+			err = lifespan.ValidateExpiration(exp)
 			c.Check(err, ErrorMatches, `invalid expiration: cannot have specified expiration when lifespan is.*`)
 		}
 	}
 
-	err := prompting.LifespanTimespan.ValidateExpiration(prompting.At{})
+	err := prompting.LifespanTimespan.ValidateExpiration(unsetExpiration)
 	c.Check(err, ErrorMatches, `invalid expiration: cannot have unspecified expiration when lifespan is.*`)
 
-	err = prompting.LifespanTimespan.ValidateExpiration(prompting.At{Time: validExpiration})
+	err = prompting.LifespanTimespan.ValidateExpiration(validExpiration)
 	c.Check(err, IsNil)
 }
 
