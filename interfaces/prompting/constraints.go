@@ -454,6 +454,36 @@ func (e *RulePermissionEntry) validate() error {
 	return nil
 }
 
+// Supersedes returns true if the receiver has a lifespan which supersedes that
+// of given other entry.
+//
+// LifespanForever supersedes all other lifespans. LifespanTimespan supersedes
+// LifespanSingle. If the entries are both LifespanTimespan, then whichever
+// entry has a later expiration timestamp supersedes the other entry.
+func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry) bool {
+	// Nothing supersedes LifespanForever
+	if other.Lifespan == LifespanForever {
+		return false
+	}
+	// LifespanForever supersedes everything else
+	if e.Lifespan == LifespanForever {
+		return true
+	}
+	// Neither lifespan is LifespanForever
+	if other.Lifespan == LifespanTimespan {
+		if e.Lifespan == LifespanSingle {
+			return false
+		}
+		// e has LifespanTimespan
+		return e.Expiration.After(other.Expiration)
+	}
+	// Other lifespan is LifespanSingle
+	if e.Lifespan == LifespanTimespan {
+		return true
+	}
+	return false
+}
+
 var (
 	// List of permissions available for each interface. This also defines the
 	// order in which the permissions should be presented.
@@ -564,34 +594,4 @@ func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string
 		filePerms |= notify.AA_MAY_OPEN
 	}
 	return filePerms, nil
-}
-
-// Supersedes returns true if the receiver has a lifespan which supersedes that
-// of given other entry.
-//
-// LifespanForever supersedes all other lifespans. LifespanTimespan supersedes
-// LifespanSingle. If the entries have the same lifespan type, then whichever
-// entry has a later expiration timestamp supersedes the other entry.
-func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry) bool {
-	// Nothing supersedes LifespanForever
-	if other.Lifespan == LifespanForever {
-		return false
-	}
-	// LifespanForever supersedes everything else
-	if e.Lifespan == LifespanForever {
-		return true
-	}
-	// Neither lifespan is LifespanForever
-	if other.Lifespan == LifespanTimespan {
-		if e.Lifespan == LifespanSingle {
-			return false
-		}
-		// e has LifespanTimespan
-		return e.Expiration.After(other.Expiration)
-	}
-	// Other lifespan is LifespanSingle
-	if e.Lifespan == LifespanTimespan {
-		return true
-	}
-	return false
 }
