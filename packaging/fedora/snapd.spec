@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.68.5.1
+Version:        2.68.5.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1002,6 +1002,28 @@ fi
 
 
 %changelog
+* Tue Jul 08 2025 Nick Dyer <nick.dyer@canonical.com>
+- New upstream release 2.68.5.2
+ - LP: #2112309 add snap to prereq tracker when we switch channels
+   without refresh during an offline remodel
+ - Interfaces: shutdown | allow client to bind on its side of dbus
+   socket
+ - Interfaces: timeserver-control | future proof timeserver-control
+   timedatectl bind
+ - Interfaces: timezone-control | allowing binding to client side of
+   the socket
+
+* Tue Jul 08 2025 Nick Dyer <nick.dyer@canonical.com>
+- New upstream release 2.68.5.2
+ - LP: #2112309 add snap to prereq tracker when we switch channels
+   without refresh during an offline remodel
+ - Interfaces: shutdown | allow client to bind on its side of dbus
+   socket
+ - Interfaces: timeserver-control | future proof timeserver-control
+   timedatectl bind
+ - Interfaces: timezone-control | allowing binding to client side of
+   the socket
+
 * Wed Jun 11 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.68.5.1
  - LP: #2104254 fix a regression during seeding when using early-
