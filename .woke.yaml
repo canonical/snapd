@@ -12,6 +12,11 @@ ignore_files:
   - osutil/mount/libmount/libmount_linux.go
   - osutil/mount/libmount/libmount_linux_test.go
   - osutil/vfs/tests/bind-shadow-propagate/task.yaml
+  - osutil/vfs/tests/mount-in-slave/expected.txt
+  - osutil/vfs/tests/mount-in-slave/task.yaml
+  - osutil/vfs/tests/rewrite-peer-groups.awk
+  - osutil/vfs/tests/slave-bind/task.yaml
+  - osutil/vfs/tests/slave-mount/task.yaml
   - packaging/debian-sid/changelog
   - packaging/fedora/snapd.spec
   - packaging/ubuntu-14.04/changelog
