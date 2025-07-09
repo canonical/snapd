@@ -385,7 +385,9 @@ jobs:
           if [ -n "${{ github.event.pull_request.number }}" ]; then
             labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
             if grep -q '^Run only one system$' <<<$labels; then
-              echo "fundamental-systems=$(jq -c ".include |= map(select(.systems == \"ubuntu-24.04-64\"))" .github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
+              # filter out all other systems but this one single system
+              single_system=ubuntu-24.04-64
+              echo "fundamental-systems=$(jq -c ".include |= map(select(.systems == \"$single_system\"))" .github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
               echo "non-fundamental-systems=" >> $GITHUB_OUTPUT
               if ! grep -q '^Run nested$' <<<$labels; then
                 echo "nested-systems=" >> $GITHUB_OUTPUT
