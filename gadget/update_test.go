@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 
@@ -5669,7 +5670,16 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20MultiVolumeNonMo
 	c.Assert(mockLogBuf.String(), testutil.Contains, "structure 2 on volume foo (/dev/vdb2) is not mounted read/write anywhere to be able to update it")
 }
 
+func (s *updateTestSuite) mockEMMCDeviceNodes(c *C) {
+	c.Assert(os.Mkdir(path.Join(dirs.GlobalRootDir, "dev"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot0"), []byte(``), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot1"), []byte(``), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0rpmb"), []byte(``), 0755), IsNil)
+}
+
 func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
+	s.mockEMMCDeviceNodes(c)
+
 	traits := map[string]gadget.DiskVolumeDeviceTraits{
 		"pc":      gadgettest.VMSystemVolumeDeviceTraits,
 		"my-emmc": gadgettest.VMEmmcVolumeDeviceTraits,
@@ -5727,6 +5737,8 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
 }
 
 func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedName(c *C) {
+	s.mockEMMCDeviceNodes(c)
+
 	traits := map[string]gadget.DiskVolumeDeviceTraits{
 		"my-emmc": {
 			OriginalKernelPath: "/dev/mmcblk0",
