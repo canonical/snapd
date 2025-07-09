@@ -49,7 +49,13 @@ save_snapd_state() {
         for unit in $units; do
             systemctl stop "$unit"
         done
-        snapd_env="/etc/environment"
+        snapd_env=
+        for e in /etc/environment /etc/default/snapd; do
+            if [ -f "$e" ] ; then
+                snapd_env="$e"
+                break
+            fi
+        done
         snapd_service_env=$(ls -d /etc/systemd/system/snapd.*.d || true)
         snap_confine_profiles="$(ls /etc/apparmor.d/snap.snapd.* || true)"
 
