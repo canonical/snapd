@@ -1,0 +1,21 @@
+summary: construct a private mount, then mount a new filesystem under it
+details: |
+    A file system is mounted under a file system that has private mount event
+    propagation configured. Here the test focuses on the behavior of a/1 mount.
+
+    What kind of event propagation applies to the new mount point?
+    Which, if any, peer groups is the new mount a member of?
+prepare: |
+    mkdir a
+    mount -t tmpfs tmpfs-a a
+    mount --make-private a
+    mkdir a/1
+    mount -t tmpfs tmpfs-a-1 a/1
+restore: |
+    umount -l a
+    rmdir a
+debug: |
+    tail -n 2 /proc/self/mountinfo
+execute: |
+    tail -n 2 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+    diff -u actual.txt expected.txt
