@@ -47,6 +47,20 @@ var (
 	errUnauthorized = daemon.Unauthorized("access denied")
 )
 
+func (s *accessSuite) TestAccessOptionsValidation(c *C) {
+	opts := daemon.AccessOptions{}
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `unexpected access level "" \(api 500\)`)
+
+	opts = daemon.AccessOptions{AccessLevel: "some-level"}
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `unexpected access level "some-level" \(api 500\)`)
+
+	opts = daemon.AccessOptions{AccessLevel: "root"}
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `no sockets specified \(api 500\)`)
+
+	opts = daemon.AccessOptions{AccessLevel: "root", Sockets: []string{"some-socket"}}
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `unexpected socket "some-socket" \(api 500\)`)
+}
+
 func (s *accessSuite) TestOpenAccess(c *C) {
 	var ac daemon.AccessChecker = daemon.OpenAccess{}
 
@@ -921,10 +935,10 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			ucred:   daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
 			notJSON: true,
 			expectedErr: map[string]*daemon.APIError{
-				"action-1": errForbidden,
-				"action-2": errForbidden,
-				"action-3": errForbidden,
-				"default":  errForbidden,
+				"action-1": daemon.BadRequest(`unexpected content type: ""`),
+				"action-2": daemon.BadRequest(`unexpected content type: ""`),
+				"action-3": daemon.BadRequest(`unexpected content type: ""`),
+				"default":  daemon.BadRequest(`unexpected content type: ""`),
 			},
 		},
 		{
@@ -946,6 +960,12 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			ucred:   daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},
 			notJSON: true,
 			noAuth:  true,
+			expectedErr: map[string]*daemon.APIError{
+				"action-1": daemon.BadRequest(`unexpected content type: ""`),
+				"action-2": daemon.BadRequest(`unexpected content type: ""`),
+				"action-3": daemon.BadRequest(`unexpected content type: ""`),
+				"default":  daemon.BadRequest(`unexpected content type: ""`),
+			},
 		},
 		{
 			ucred:  daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket},

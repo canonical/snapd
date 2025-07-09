@@ -28,6 +28,8 @@ import (
 type (
 	AccessChecker = accessChecker
 
+	AccessOptions = accessOptions
+
 	OpenAccess                   = openAccess
 	AuthenticatedAccess          = authenticatedAccess
 	RootAccess                   = rootAccess
@@ -41,7 +43,11 @@ type (
 	InterfaceAccessReqs = interfaceAccessReqs
 )
 
-var CheckPolkitActionImpl = checkPolkitActionImpl
+var (
+	CheckAccess                   = checkAccess
+	CheckPolkitActionImpl         = checkPolkitActionImpl
+	RequireInterfaceApiAccessImpl = requireInterfaceApiAccessImpl
+)
 
 func MockCheckPolkitAction(new func(r *http.Request, ucred *Ucrednet, action string) *APIError) (restore func()) {
 	old := checkPolkitAction
@@ -66,8 +72,6 @@ func MockCgroupSnapNameFromPid(new func(pid int) (string, error)) (restore func(
 		cgroupSnapNameFromPid = old
 	}
 }
-
-var RequireInterfaceApiAccessImpl = requireInterfaceApiAccessImpl
 
 func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs) *apiError) (restore func()) {
 	old := requireInterfaceApiAccess
