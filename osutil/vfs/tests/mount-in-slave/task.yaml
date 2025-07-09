@@ -1,0 +1,30 @@
+summary: construct a slave mount, then mount a new filesystem under it
+details: |
+    A file system is mounted under a file system that has slave mount event
+    propagation configured.
+
+    Additional work is necessary to maintain such propagation, as slave exists
+    for as long as a shared master still exists elsewhere. Here the test
+    focuses on the behavior of b/1 mount.
+
+    What kind of event propagation applies to the new mount point?
+    Which, if any, peer groups is the new mount a member of?
+prepare: |
+    mkdir a
+    mount -t tmpfs tmpfs-a a
+    mount --make-shared a
+    mkdir b
+    mount --bind a b
+    mount --make-slave b
+    mkdir b/1
+    mount -t tmpfs tmpfs-b-1 b/1
+restore: |
+    umount -l a
+    rmdir a
+    umount -l b
+    rmdir b
+debug: |
+    tail -n 3 /proc/self/mountinfo
+execute: |
+    tail -n 3 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+    diff -u actual.txt expected.txt
