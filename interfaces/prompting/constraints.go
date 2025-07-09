@@ -587,10 +587,7 @@ func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry) bool {
 			return false
 		}
 		// e has LifespanTimespan
-		if e.Expiration.After(other.Expiration) {
-			return true
-		}
-		return false
+		return e.Expiration.After(other.Expiration)
 	}
 	// Other lifespan is LifespanSingle
 	if e.Lifespan == LifespanTimespan {
