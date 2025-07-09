@@ -161,7 +161,7 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 	result, err := GetViaView(tx, view, requests)
 	if err != nil {
 		if !errors.Is(err, &confdb.NoDataError{}) {
-			return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
+			return fmt.Errorf("internal error: cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
 		}
 
 		apiData["error"] = map[string]any{
