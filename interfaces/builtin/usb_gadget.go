@@ -19,9 +19,9 @@
 
 package builtin
 
-const usbgadgetSummary = `allows access to the usb gadget API`
+const usbGadgetSummary = `allows access to the usb gadget API`
 
-const usbgadgetBaseDeclarationSlots = `
+const usbGadgetBaseDeclarationSlots = `
   usb-gadget:
     allow-installation:
       slot-snap-type:
@@ -29,7 +29,7 @@ const usbgadgetBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const usbgadgetConnectedPlugAppArmor = `
+const usbGadgetConnectedPlugAppArmor = `
 # https://www.kernel.org/doc/Documentation/usb/gadget_configfs.txt
 # Allow creating new gadgets under usb_gadget, which is creating
 # new directories
@@ -45,9 +45,9 @@ const usbgadgetConnectedPlugAppArmor = `
 func init() {
 	registerIface(&commonInterface{
 		name:                  "usb-gadget",
-		summary:               usbgadgetSummary,
+		summary:               usbGadgetSummary,
 		implicitOnCore:        true,
-		baseDeclarationSlots:  usbgadgetBaseDeclarationSlots,
-		connectedPlugAppArmor: usbgadgetConnectedPlugAppArmor,
+		baseDeclarationSlots:  usbGadgetBaseDeclarationSlots,
+		connectedPlugAppArmor: usbGadgetConnectedPlugAppArmor,
 	})
 }
