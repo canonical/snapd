@@ -553,7 +553,7 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	return nil
 }
 
-func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string, volumesAuth volumeAuthOptions) error {
+func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyOut string, volumesAuth volumeAuthOptions) error {
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -585,6 +585,17 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath string, volum
 		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs, volumesAuth)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
+		}
+
+		if recoveryKeyOut != "" {
+			rkey, err := cli.GeneratePreInstallRecoveryKey(seedLabel)
+			if err != nil {
+				return fmt.Errorf("cannot generate recovery key: %v", err)
+			}
+			logger.Debugf("writing  generated recovery key at %q", recoveryKeyOut)
+			if err := os.WriteFile(recoveryKeyOut, []byte(rkey), 0644); err != nil {
+				return fmt.Errorf("cannot write generated recovery key at %q: %v", recoveryKeyOut, err)
+			}
 		}
 	}
 	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes, encryptedDevices)
@@ -636,6 +647,7 @@ func main() {
 	passphrase := flag.String("passphrase", "", "encryption passphrase (optional). If specified and encryption is suppported, passphrase authentication will be enabled")
 	kdfType := flag.String("kdf-type", "", "KDF type for passphrase [\"argon2id\", \"argon2i\" or \"pbkdf2\"] (optional)")
 	kdfTime := flag.Duration("kdf-time", 0, "length of time to run the KDF (optional)")
+	recoveryKeyOut := flag.String("recovery-key-out", "", "indicate that a recovery key should be created and stored at given path (optional)")
 
 	flag.Parse()
 
@@ -656,7 +668,7 @@ func main() {
 		kdfTime:    *kdfTime,
 	}
 
-	if err := run(*seedLabel, *bootDevice, *rootfsCreator, *optionalInstallPath, volumesAuth); err != nil {
+	if err := run(*seedLabel, *bootDevice, *rootfsCreator, *optionalInstallPath, *recoveryKeyOut, volumesAuth); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
