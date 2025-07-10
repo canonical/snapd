@@ -42,18 +42,18 @@ jobs:
         with:
           script: |
             let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: context.payload.workflow_run.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
             });
             let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
               return artifact.name == "pr_number"
             })[0];
             let download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
-               archive_format: 'zip',
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: matchArtifact.id,
+              archive_format: 'zip',
             });
             let fs = require('fs');
             fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
@@ -94,9 +94,16 @@ jobs:
         run: |
           failed_fund=$(gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.name | test("\\(fundamental\\)")) | select(.conclusion == "failure") | .databaseId')
           for failed in $failed_fund; do
+
+            # The number of failed tasks are reported in the logs as a line with 
+            # a date and timestamp, followed by "Failed tasks: " and the number
+            # ex: 2025-07-03 08:31:46 Failed tasks: 2
+            # That line will appear multiple times in the logs since the spread
+            # analyzer will echo out that same line, so grab the first occurrence.
             num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1)
-            if [ -n "$num_failed" ] && [ $num_failed -gt 19 ]; then 
-              echo "Setting rerun to false because there were more 20 or more failures on a fundamental system"
+            
+            if [ -n "$num_failed" ] && [ $num_failed -ge 20 ]; then 
+              echo "Setting rerun to false because there were 20 or more failures on a fundamental system"
               echo "AUTO_RERUN=false" >> $GITHUB_ENV
             fi
           done
