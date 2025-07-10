@@ -47,9 +47,13 @@
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 #define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
 
+#define SC_SNAPD_EXPORT "/var/lib/snapd/export"
+#define SC_LIBSNAP_DIR SC_EXTRA_LIB_DIR "/snap"
+
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
     "icd.d/*nvidia*.json",
+    "icd.d/snap_*_*.json",
 };
 
 static const size_t vulkan_globs_len = SC_ARRAY_SIZE(vulkan_globs);
@@ -57,6 +61,7 @@ static const size_t vulkan_globs_len = SC_ARRAY_SIZE(vulkan_globs);
 // Location of EGL vendor files
 static const char *egl_vendor_globs[] = {
     "egl_vendor.d/*nvidia*.json",
+    "egl_vendor.d/*_snap_*_*.json",
 };
 
 static const size_t egl_vendor_globs_len = SC_ARRAY_SIZE(egl_vendor_globs);
@@ -271,6 +276,24 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir, const 
     }
 }
 
+static void sc_mkdir_and_mount_tpmfs(const char *dir) {
+    if (sc_ensure_mkdir(dir, 0755, 0, 0) != 0) {
+        die("cannot create tmpfs target %s", dir);
+    }
+
+    debug("mounting tmpfs at %s", dir);
+    if (mount("none", dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
+        die("cannot mount tmpfs at %s", dir);
+    };
+}
+
+static void sc_remount_ro(const char *dir) {
+    debug("remounting as read-only %s", dir);
+    if (mount(NULL, dir, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
+        die("cannot remount %s as read-only", dir);
+    }
+}
+
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char *source_dir[], size_t source_dir_len,
                                               const char *tgt_dir, const char *glob_list[], size_t glob_list_len) {
     // Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
@@ -278,24 +301,15 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char
     sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
     const char *libgl_dir = buf;
 
-    if (sc_ensure_mkdir(libgl_dir, 0755, 0, 0) != 0) {
-        die("cannot create tmpfs target %s", libgl_dir);
-    }
-
-    debug("mounting tmpfs at %s", libgl_dir);
-    if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
-        die("cannot mount tmpfs at %s", libgl_dir);
-    };
+    sc_mkdir_and_mount_tpmfs(libgl_dir);
 
     for (size_t i = 0; i < source_dir_len; i++) {
         // Populate libgl_dir with symlinks to libraries from hostfs
         sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i], glob_list, glob_list_len);
     }
+
     // Remount $tgt_dir (i.e. .../lib/gl) read only
-    debug("remounting tmpfs as read-only %s", libgl_dir);
-    if (mount(NULL, buf, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
-        die("cannot remount %s as read-only", buf);
-    }
+    sc_remount_ro(libgl_dir);
 }
 
 #ifdef NVIDIA_BIARCH
@@ -477,6 +491,68 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
     }
 }
 
+static int sc_mount_exported_paths(const char *rootfs_dir) {
+    static const char *export_glob = {SC_SNAPD_EXPORT "/*.source"};
+
+    glob_t glob_res SC_CLEANUP(globfree) = {.gl_pathv = NULL};
+    int err = glob(export_glob, 0, NULL, &glob_res);
+    if (err == GLOB_NOMATCH) {
+        debug("no sources in export folder");
+        return 0;
+    }
+    if (err != 0) {
+        die("cannot search using glob pattern %s: %d", export_glob, err);
+    }
+    debug("sources in export folder, nvidia libraries from snaps");
+
+    // Create tmpfs
+    char tmpfs_path[PATH_MAX] = {0};
+    sc_must_snprintf(tmpfs_path, sizeof tmpfs_path, "%s%s", rootfs_dir, SC_LIBSNAP_DIR);
+    sc_mkdir_and_mount_tpmfs(tmpfs_path);
+
+    // Libs exported by snaps, bind mount them
+    char path[PATH_MAX] = {0};
+    char dest_path[PATH_MAX] = {0};
+    for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+        debug("reading sources from %s", glob_res.gl_pathv[i]);
+        FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
+        file = fopen(glob_res.gl_pathv[i], "r");
+        if (file == NULL) {
+            die("cannot open file %s", glob_res.gl_pathv[i]);
+        }
+
+        while (fgets(path, sizeof path, file) != NULL) {
+            size_t len_p = strlen(path);
+            if (path[len_p - 1] == '\n') {
+                path[len_p - 1] = '\0';
+            }
+            // TODO check that the path has not been already mounted
+            size_t path_start = 0;
+            const char snap_d[] = "/snap";
+            if (strncmp(path, snap_d, sizeof snap_d - 1) == 0) {
+                path_start = sizeof snap_d - 1;
+            } else {
+                debug("WARNING: unexpectedly %s does not start with %s, not mounting", path, snap_d);
+                continue;
+            }
+            sc_must_snprintf(dest_path, sizeof dest_path, "%s" SC_LIBSNAP_DIR "%s", rootfs_dir, &path[path_start]);
+
+            debug("mounting %s at %s", path, dest_path);
+            if (sc_nonfatal_mkpath(dest_path, 0755, 0, 0) != 0) {
+                die("failed to create mount path: %s", dest_path);
+            }
+            if (mount(path, dest_path, NULL, MS_BIND | MS_RDONLY, NULL) != 0) {
+                die("cannot bind mount %s at %s", path, dest_path);
+            }
+        }
+    }
+
+    // Make the tmpfs read-only
+    sc_remount_ro(tmpfs_path);
+
+    return 1;
+}
+
 #endif  // ifdef NVIDIA_MULTIARCH
 
 static void sc_mount_vulkan(const char *rootfs_dir) {
@@ -533,7 +609,11 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) 
 #endif
 
 #ifdef NVIDIA_MULTIARCH
-    sc_mount_nvidia_driver_multiarch(rootfs_dir, globs, globs_len);
+    // For hybrid we might have exported paths from snaps, otherwise do the
+    // regular multiarch.
+    if (sc_mount_exported_paths(rootfs_dir) == 0) {
+        sc_mount_nvidia_driver_multiarch(rootfs_dir, globs, globs_len);
+    }
 #endif  // ifdef NVIDIA_MULTIARCH
 #ifdef NVIDIA_BIARCH
     sc_mount_nvidia_driver_biarch(rootfs_dir, globs, globs_len);
