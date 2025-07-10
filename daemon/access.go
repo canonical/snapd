@@ -440,7 +440,7 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	// action access checker.
 	case rootAccess, interfaceRootAccess, interfaceProviderRootAccess:
 	default:
-		return InternalError("default access checker must have root-level access: got %T", ac.Default)
+		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default)
 	}
 
 	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {

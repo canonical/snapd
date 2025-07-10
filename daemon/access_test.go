@@ -1039,7 +1039,7 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 		if tc.canBeDefault {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, DeepEquals, daemon.InternalError("default access checker must have root-level access: got %T", tc.ac))
+			c.Assert(err, DeepEquals, daemon.InternalError("internal error: default access checker must have root-level access: got %T", tc.ac))
 		}
 	}
 
