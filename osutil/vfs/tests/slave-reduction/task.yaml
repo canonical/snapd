@@ -1,0 +1,24 @@
+summary: construct a slave mount, then make the master private
+details: |
+    A file system that was a slave of another shared mount observes the master
+    changing its propagation to private.
+
+    What happens to the former slave?
+prepare: |
+    mkdir a
+    mount -t tmpfs tmpfs-a a
+    mount --make-shared a
+    mkdir b
+    mount --bind a b
+    mount --make-slave b
+    mount --make-private a
+restore: |
+    umount -l a
+    rmdir a
+    umount -l b
+    rmdir b
+debug: |
+    tail -n 2 /proc/self/mountinfo
+execute: |
+    tail -n 2 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+    diff -u actual.txt expected.txt
