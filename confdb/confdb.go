@@ -1197,8 +1197,7 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 
 	// check if the part is an unmatched placeholder which should have been filled
 	// by the databag with all possible values
-	part := unmatchedSuffix[0]
-	switch part.keyType() {
+	switch part := unmatchedSuffix[0]; part.keyType() {
 	case keyPlaceholderType:
 		values, ok := res.(map[string]any)
 		if !ok {
