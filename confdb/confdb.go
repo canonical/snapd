@@ -1198,10 +1198,11 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 	// check if the part is an unmatched placeholder which should have been filled
 	// by the databag with all possible values
 	part := unmatchedSuffix[0]
-	if part.keyType() == keyPlaceholderType {
+	switch part.keyType() {
+	case keyPlaceholderType:
 		values, ok := res.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("internal error: expected storage to return map for unmatched placeholder")
+			return nil, errors.New("internal error: expected storage to return map for unmatched key placeholder")
 		}
 
 		level := make(map[string]any, len(values))
@@ -1215,10 +1216,11 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 		}
 
 		return level, nil
-	} else if part.keyType() == indexPlaceholderType {
+
+	case indexPlaceholderType:
 		values, ok := res.([]any)
 		if !ok {
-			return nil, fmt.Errorf("internal error: expected storage to return map for unmatched placeholder")
+			return nil, errors.New("internal error: expected storage to return list for unmatched index placeholder")
 		}
 
 		list := make([]any, 0, len(values))
@@ -1232,14 +1234,15 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 		}
 
 		return list, nil
-	}
 
-	nested, err := namespaceResult(res, unmatchedSuffix[1:])
-	if err != nil {
-		return nil, err
-	}
+	default:
+		nested, err := namespaceResult(res, unmatchedSuffix[1:])
+		if err != nil {
+			return nil, err
+		}
 
-	return map[string]any{part.name(): nested}, nil
+		return map[string]any{part.name(): nested}, nil
+	}
 }
 
 // Get returns the view value identified by the request. Returns a NoMatchError
@@ -1803,15 +1806,16 @@ func get(subKeys []accessor, index int, node any, result *any) error {
 		node = map[string]json.RawMessage(bag)
 	}
 
-	if obj, ok := node.(map[string]json.RawMessage); ok {
-		return getMap(subKeys, index, obj, result)
-	} else if list, ok := node.([]json.RawMessage); ok {
-		return getList(subKeys, index, list, result)
+	switch node := node.(type) {
+	case map[string]json.RawMessage:
+		return getMap(subKeys, index, node, result)
+	case []json.RawMessage:
+		return getList(subKeys, index, node, result)
+	default:
+		// should be impossible since we handle terminal cases in the type specific functions
+		path := joinAccessors(subKeys[:index+1])
+		return pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
 	}
-
-	// should be impossible since we handle terminal cases in the type specific functions
-	path := joinAccessors(subKeys[:index+1])
-	return pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
 // getMap traverses node (a decoded JSON object) and, depending on the path being
@@ -1925,7 +1929,7 @@ func getList(subKeys []accessor, keyIndex int, list []json.RawMessage, result *a
 	} else if key.keyType() == indexPlaceholderType {
 		matchAll = true
 	} else {
-		return fmt.Errorf("key %q cannot be used to index list at path %q", key, pathPrefix)
+		return fmt.Errorf("key %q cannot be used to index list at path %q", key.access(), pathPrefix)
 	}
 
 	if listIndex >= len(list) {
