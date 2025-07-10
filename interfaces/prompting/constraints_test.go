@@ -162,7 +162,7 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 }
 
 func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
-	current := prompting.At{
+	at := prompting.At{
 		Time: time.Now(),
 	}
 	iface := "home"
@@ -198,27 +198,27 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			"write": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeDeny,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(10 * time.Second),
+				Expiration: at.Time.Add(10 * time.Second),
 			},
 			"execute": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(time.Nanosecond),
+				Expiration: at.Time.Add(time.Nanosecond),
 			},
 		},
 	}
 
-	result, err := constraints.ToRuleConstraints(iface, current)
+	result, err := constraints.ToRuleConstraints(iface, at)
 	c.Assert(err, IsNil)
 	c.Assert(result, DeepEquals, expectedRuleConstraints)
 }
 
 func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
-	current := prompting.At{
+	at := prompting.At{
 		Time: time.Now(),
 	}
 	badConstraints := &prompting.Constraints{}
-	result, err := badConstraints.ToRuleConstraints("home", current)
+	result, err := badConstraints.ToRuleConstraints("home", at)
 	c.Check(result, IsNil)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern.*`)
 
@@ -231,7 +231,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 			},
 		},
 	}
-	result, err = constraints.ToRuleConstraints("foo", current)
+	result, err = constraints.ToRuleConstraints("foo", at)
 	c.Check(result, IsNil)
 	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
 
@@ -279,7 +279,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 			PathPattern: mustParsePathPattern(c, "/path/to/foo"),
 			Permissions: testCase.perms,
 		}
-		result, err = constraints.ToRuleConstraints("home", current)
+		result, err = constraints.ToRuleConstraints("home", at)
 		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 	}
@@ -291,7 +291,7 @@ func joinErrorsUnordered(err1, err2 string) string {
 
 func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 	validPathPattern := mustParsePathPattern(c, "/path/to/foo")
-	current := prompting.At{
+	at := prompting.At{
 		Time: time.Now(),
 	}
 
@@ -306,11 +306,11 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			"write": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeDeny,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(time.Second),
+				Expiration: at.Time.Add(time.Second),
 			},
 		},
 	}
-	expired, err := constraints.ValidateForInterface("home", current)
+	expired, err := constraints.ValidateForInterface("home", at)
 	c.Check(err, IsNil)
 	c.Check(expired, Equals, false)
 
@@ -372,7 +372,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeType("bar"),
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(-time.Second),
+					Expiration: at.Time.Add(-time.Second),
 				},
 			},
 			`invalid outcome: "bar"`,
@@ -383,7 +383,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			PathPattern: validPathPattern,
 			Permissions: testCase.perms,
 		}
-		expired, err = constraints.ValidateForInterface(testCase.iface, current)
+		expired, err = constraints.ValidateForInterface(testCase.iface, at)
 		c.Check(err, ErrorMatches, testCase.errStr)
 		c.Check(expired, Equals, false)
 	}
@@ -397,13 +397,13 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	_, err = constraints.ValidateForInterface("home", current)
+	_, err = constraints.ValidateForInterface("home", at)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 }
 
 func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *C) {
 	pathPattern := mustParsePathPattern(c, "/path/to/foo")
-	current := prompting.At{
+	at := prompting.At{
 		Time: time.Now(),
 	}
 
@@ -432,7 +432,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time,
+					Expiration: at.Time,
 				},
 			},
 			true,
@@ -443,17 +443,17 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(-time.Minute),
+					Expiration: at.Time.Add(-time.Minute),
 				},
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 				"execute": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time,
+					Expiration: at.Time,
 				},
 			},
 			false,
@@ -461,7 +461,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 			},
 		},
@@ -470,17 +470,17 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(-time.Minute),
+					Expiration: at.Time.Add(-time.Minute),
 				},
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time,
+					Expiration: at.Time,
 				},
 				"execute": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time,
+					Expiration: at.Time,
 				},
 			},
 			true,
@@ -491,12 +491,12 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(-time.Minute),
+					Expiration: at.Time.Add(-time.Minute),
 				},
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 				"execute": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeDeny,
@@ -508,7 +508,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: current.Time.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 				"execute": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeDeny,
@@ -525,7 +525,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 			PathPattern: pathPattern,
 			Permissions: copiedPerms,
 		}
-		expired, err := constraints.ValidateForInterface("home", current)
+		expired, err := constraints.ValidateForInterface("home", at)
 		c.Check(err, IsNil)
 		c.Check(expired, Equals, testCase.expired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 		c.Check(constraints.Permissions, DeepEquals, testCase.expected, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
@@ -926,7 +926,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 }
 
 func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
-	current := prompting.At{
+	at := prompting.At{
 		Time: time.Now(),
 	}
 	for _, pm := range []prompting.RulePermissionMap{
@@ -935,23 +935,23 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time,
+				Expiration: at.Time,
 			},
 		},
 		{
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(-time.Second),
+				Expiration: at.Time.Add(-time.Second),
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeDeny,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time,
+				Expiration: at.Time,
 			},
 		},
 	} {
-		c.Check(pm.Expired(current), Equals, true, Commentf("%+v", pm))
+		c.Check(pm.Expired(at), Equals, true, Commentf("%+v", pm))
 	}
 
 	for _, pm := range []prompting.RulePermissionMap{
@@ -959,7 +959,7 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(-time.Second),
+				Expiration: at.Time.Add(-time.Second),
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -970,7 +970,7 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(-time.Second),
+				Expiration: at.Time.Add(-time.Second),
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -981,11 +981,11 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: current.Time.Add(time.Second),
+				Expiration: at.Time.Add(time.Second),
 			},
 		},
 	} {
-		c.Check(pm.Expired(current), Equals, false, Commentf("%+v", pm))
+		c.Check(pm.Expired(at), Equals, false, Commentf("%+v", pm))
 	}
 }
 

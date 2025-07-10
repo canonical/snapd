@@ -74,11 +74,11 @@ func (c *Constraints) ContainPermissions(permissions []string) bool {
 // ToRuleConstraints validates the receiving Constraints and converts it to
 // RuleConstraints. If the constraints are not valid with respect to the given
 // interface, returns an error.
-func (c *Constraints) ToRuleConstraints(iface string, current At) (*RuleConstraints, error) {
+func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, error) {
 	if c.PathPattern == nil {
 		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
-	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, current)
+	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, at)
 	if err != nil {
 		return nil, err
 	}
@@ -100,15 +100,15 @@ type RuleConstraints struct {
 	Permissions RulePermissionMap     `json:"permissions"`
 }
 
-// ValidateForInterface checks that the rule constraints are valid for the given
-// interface. Any permissions which have expired relative to the given current
-// information are pruned. If all permissions have expired, then returns true.
-// If the rule is invalid, returns an error.
-func (c *RuleConstraints) ValidateForInterface(iface string, current At) (expired bool, err error) {
+// ValidateForInterface checks that the rule constraints are valid for the
+// given interface. Any permissions which have expired at the given point in
+// time are pruned. If all permissions have expired, then returns true. If the
+// rule is If the rule is invalid, returns an error.
+func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
 	if c.PathPattern == nil {
 		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
-	return c.Permissions.validateForInterface(iface, current)
+	return c.Permissions.validateForInterface(iface, at)
 }
 
 // Match returns true if the constraints match the given path, otherwise false.
@@ -202,8 +202,11 @@ type RuleConstraintsPatch struct {
 // existing permission from the rule, the permission should map to null in the
 // permission map of the patch.
 //
+// The the given at information is used to prune any existing expired
+// permissions and compute any expirations for new permissions.
+//
 // The existing rule constraints are not mutated.
-func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, current At) (*RuleConstraints, error) {
+func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, at At) (*RuleConstraints, error) {
 	ruleConstraints := &RuleConstraints{
 		PathPattern: c.PathPattern,
 	}
@@ -218,7 +221,7 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 	newPermissions := make(RulePermissionMap, len(c.Permissions)+len(existing.Permissions))
 	// Pre-populate newPermissions with all the non-expired existing permissions
 	for perm, entry := range existing.Permissions {
-		if !entry.Expired(current) {
+		if !entry.Expired(at) {
 			newPermissions[perm] = entry
 		}
 	}
@@ -241,7 +244,7 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 			delete(newPermissions, perm)
 			continue
 		}
-		ruleEntry, err := entry.toRulePermissionEntry(current)
+		ruleEntry, err := entry.toRulePermissionEntry(at)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -267,10 +270,10 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 type PermissionMap map[string]*PermissionEntry
 
 // toRulePermissionMap validates the receiving PermissionMap and converts it
-// to a RulePermissionMap, using the given current information to convert each
+// to a RulePermissionMap, using the given at information to convert each
 // PermissionEntry to a RulePermissionEntry. If the permission map is not valid
 // with respect to the given interface, returns an error.
-func (pm PermissionMap) toRulePermissionMap(iface string, current At) (RulePermissionMap, error) {
+func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermissionMap, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
@@ -286,7 +289,7 @@ func (pm PermissionMap) toRulePermissionMap(iface string, current At) (RulePermi
 			invalidPerms = append(invalidPerms, perm)
 			continue
 		}
-		rulePermissionEntry, err := entry.toRulePermissionEntry(current)
+		rulePermissionEntry, err := entry.toRulePermissionEntry(at)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -308,10 +311,10 @@ func (pm PermissionMap) toRulePermissionMap(iface string, current At) (RulePermi
 type RulePermissionMap map[string]*RulePermissionEntry
 
 // validateForInterface checks that the rule permission map is valid for the
-// given interface. Any permissions which have expired relative to the given
-// current information are pruned. If all permissions have expired, then
-// returns true. If the permission map is invalid, returns an error.
-func (pm RulePermissionMap) validateForInterface(iface string, current At) (expired bool, err error) {
+// given interface. Any permissions which have expired at the given point in
+// time are pruned. If all permissions have expired, then returns true. If the
+// permission map is invalid, returns an error.
+func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired bool, err error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return false, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
@@ -331,7 +334,7 @@ func (pm RulePermissionMap) validateForInterface(iface string, current At) (expi
 			errs = append(errs, err)
 			continue
 		}
-		if entry.Expired(current) {
+		if entry.Expired(at) {
 			expiredPerms = append(expiredPerms, perm)
 			continue
 		}
@@ -352,10 +355,11 @@ func (pm RulePermissionMap) validateForInterface(iface string, current At) (expi
 	return false, nil
 }
 
-// Expired returns true if all permissions in the map have expired.
-func (pm RulePermissionMap) Expired(current At) bool {
+// Expired returns true if all permissions in the map have expired at the given
+// point in time.
+func (pm RulePermissionMap) Expired(at At) bool {
 	for _, entry := range pm {
-		if !entry.Expired(current) {
+		if !entry.Expired(at) {
 			return false
 		}
 	}
@@ -379,8 +383,8 @@ type PermissionEntry struct {
 // Checks that the entry has a valid outcome, and that its lifespan is valid
 // for a rule (i.e. not LifespanSingle), and that it has an appropriate
 // duration for that lifespan. If the lifespan is LifespanTimespan, then the
-// expiration is computed as the entry's duration after the given current time.
-func (e *PermissionEntry) toRulePermissionEntry(current At) (*RulePermissionEntry, error) {
+// expiration is computed as the entry's duration after the given point in time.
+func (e *PermissionEntry) toRulePermissionEntry(at At) (*RulePermissionEntry, error) {
 	if _, err := e.Outcome.AsBool(); err != nil {
 		return nil, err
 	}
@@ -388,7 +392,7 @@ func (e *PermissionEntry) toRulePermissionEntry(current At) (*RulePermissionEntr
 		// We don't allow rules with lifespan "single"
 		return nil, prompting_errors.NewRuleLifespanSingleError(SupportedRuleLifespans)
 	}
-	expiration, err := e.Lifespan.ParseDuration(e.Duration, current.Time)
+	expiration, err := e.Lifespan.ParseDuration(e.Duration, at.Time)
 	if err != nil {
 		return nil, err
 	}
@@ -420,11 +424,11 @@ type RulePermissionEntry struct {
 // should no longer be considered when matching requests.
 //
 // This is the case if the permission has a lifespan of timespan and the
-// current time is after its expiration time.
-func (e *RulePermissionEntry) Expired(current At) bool {
+// expiration time has passed at the given point in time.
+func (e *RulePermissionEntry) Expired(at At) bool {
 	switch e.Lifespan {
 	case LifespanTimespan:
-		if !current.Time.Before(e.Expiration) {
+		if !at.Time.Before(e.Expiration) {
 			return true
 		}
 		// TODO: add lifespan session
