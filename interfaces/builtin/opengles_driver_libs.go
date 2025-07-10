@@ -21,10 +21,15 @@ package builtin
 
 import (
 	"math"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+
 	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -79,6 +84,28 @@ func (iface *openglesDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo)
 func (iface *openglesDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+const openglesDriverLibs = "opengles-driver-libs"
+
+func (t *openglesDriverLibsInterface) PathPatterns() []string {
+	// We need to add the interface name as a suffix in the files written
+	// in the export dir as other interfaces also write there and we need
+	// to differentiate the files maintained by each interface.
+	return []string{filepath.Join(dirs.SnapExportDirUnder("/"), "*_*_"+openglesDriverLibs+".source")}
+}
+
+func (iface *openglesDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// The plug can only be the system plug for the time being
+
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesSourcePaths(openglesDriverLibs, spec, slot); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (iface *openglesDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {

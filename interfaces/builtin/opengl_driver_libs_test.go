@@ -28,7 +28,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -63,7 +65,8 @@ apps:
 const openglDriverLibsProvider = `name: opengl-provider
 version: 0
 slots:
-  opengl-driver-libs:
+  opengl-slot:
+    interface: opengl-driver-libs
     compatibility: opengl-4-6-ubuntu-2510
     library-source:
       - $SNAP/lib1
@@ -80,7 +83,7 @@ func (s *OpenglDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, openglDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "opengl")
 	s.slot, s.slotInfo = MockConnectedSlot(c, openglDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "opengl-driver-libs")
+		&snap.SideInfo{Revision: snap.R(5)}, "opengl-slot")
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestName(c *C) {
@@ -161,9 +164,21 @@ func (s *OpenglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "opengl-provider", SlotName: "opengl-driver-libs"}: {
+		{SnapName: "opengl-provider", SlotName: "opengl-slot"}: {
 			filepath.Join(dirs.GlobalRootDir, "snap/opengl-provider/5/lib1"),
 			filepath.Join(dirs.GlobalRootDir, "snap/opengl-provider/5/lib2")}})
+}
+
+func (s *OpenglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/var/lib/snapd/export/opengl-provider_opengl-slot_opengl-driver-libs.source": &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.GlobalRootDir, "/snap/opengl-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.GlobalRootDir, "/snap/opengl-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
