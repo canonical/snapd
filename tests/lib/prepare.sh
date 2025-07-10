@@ -621,7 +621,7 @@ build_snapd_snap() {
         if ! [ -f "${snap}" ]; then
             if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
                 if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
-                    wget -q "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
+                    curl -q "$USE_SNAPD_SNAP_URL" -o "${snapd_snap_cache}/snapd_from_ci.snap"
                 else
                     cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
                 fi
@@ -669,7 +669,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
         if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
-            wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
+            curl -q "$USE_SNAPD_SNAP_URL" -o /tmp/snapd_from_snapcraft.snap
         else
             cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
         fi

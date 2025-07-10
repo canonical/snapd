@@ -1,8 +1,11 @@
-FROM fedora:41
+FROM fedora:42
 
 RUN dnf makecache && \
-    dnf -y --refresh install --setopt=install_weak_deps=False rpm-build rpmdevtools
+    dnf -y --refresh install --setopt=install_weak_deps=False rpm-build rpmdevtools mock
 
-COPY packaging/fedora-42/snapd.spec snapd.spec
+RUN useradd mockbuilder && usermod -a -G mock mockbuilder
 
-RUN dnf -y --refresh install --setopt=install_weak_deps=False $(rpmspec -q --buildrequires snapd.spec)
+# ARG SYSTEM
+# COPY packaging/${SYSTEM}/snapd.spec snapd.spec
+
+# RUN dnf -y --refresh install --setopt=install_weak_deps=False $(rpmspec -q --buildrequires snapd.spec)

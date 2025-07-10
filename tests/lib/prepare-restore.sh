@@ -559,6 +559,8 @@ prepare_project() {
     # as they exist in the archive for further use.
     if tests.info is-snapd-from-archive; then
         ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+    elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then
+        find "$PROJECT_PATH/built-pkgs/$SPREAD_SYSTEM" -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
     else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
