@@ -20,9 +20,11 @@
 package snapenv
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
@@ -120,7 +122,7 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		"SNAP_VERSION":       info.Version,
 		"SNAP_REVISION":      info.Revision.String(),
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
-		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+		"SNAP_LIBRARY_PATH":  buildLibPath(),
 		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 		// these two environment variables match what BASH does, but with SNAP prefix.
 		"SNAP_UID":  fmt.Sprint(sys.Getuid()),
@@ -136,6 +138,54 @@ func basicEnv(info *snap.Info) osutil.Environment {
 			info.InstanceName(), err)
 	}
 	return env
+}
+
+func buildLibPath() string {
+	// SNAP_LIBRARY_PATH points to graphics libraries that are in the
+	// system and are exposed to snaps. This happens only in classic
+	// systems. Currently only snaps connected to the opengl interface can
+	// use these libraries (the interface provides the necessary apparmor
+	// permissions).
+	sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*.library-source")
+	// Only possible error is a malformed pattern
+	sourceFiles, _ := filepath.Glob(sourcesGlob)
+	libPaths := []string{}
+	snapDirs := make(map[string]bool)
+	for _, path := range sourceFiles {
+		logger.Debugf("opening source file %q", path)
+		file, err := os.Open(path)
+		if err != nil {
+			logger.Noticef("while opening %q: %v", path, err)
+			continue
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			snapDir := scanner.Text()
+			snapDir = strings.TrimPrefix(snapDir, "/snap")
+			// Avoid duplicates
+			if _, ok := snapDirs[snapDir]; ok {
+				continue
+			}
+			snapDirs[snapDir] = true
+			// Exported paths are bind mounted to the export libs directory.
+			libPaths = append(libPaths, filepath.Join(
+				dirs.SnapExportLibDirUnder(dirs.GlobalRootDir), "system/gpu", snapDir))
+		}
+
+		if err := scanner.Err(); err != nil {
+			logger.Noticef("while reading %q: %v", path, err)
+		}
+	}
+	snapLibPath := "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32"
+	// If we have libPaths, Nvidia libraries are provided by snaps and we
+	// do not use the gl/gl32 folders used if libs are provided by debian
+	// packages.
+	if len(libPaths) > 0 {
+		snapLibPath = strings.Join(libPaths, ":")
+	}
+	return snapLibPath
 }
 
 // userEnv returns the user-level environment variables for a snap.
