@@ -23,10 +23,9 @@ restore: |
   umount -l b
   rmdir b
 debug: |
-  cat mountinfo
+  cat /proc/self/mountinfo
 execute: |
-  cat /proc/self/mountinfo >mountinfo
   # Second-to-last field is the source device.
   # This shows our custom names for each tmpfs mounted above.
-  tail -n 4 mountinfo | awk '{ print $(NF-1) }' >actual.txt
+  tail -n 4 /proc/self/mountinfo | awk '{ print $(NF-1) }' >actual.txt
   diff -u actual.txt expected.txt
