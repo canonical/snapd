@@ -96,9 +96,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:         snapdenv.Preseeding(),
 	}
 
-	taskKinds := map[string]bool{}
+	exclusiveTaskKinds := map[string]bool{}
 	addHandler := func(kind string, do, undo state.HandlerFunc) {
-		taskKinds[kind] = true
+		exclusiveTaskKinds[kind] = true
 		runner.AddHandler(kind, do, undo)
 	}
 
@@ -115,6 +115,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("hotplug-remove-slot", m.doHotplugRemoveSlot, nil)
 	addHandler("hotplug-disconnect", m.doHotplugDisconnect, nil)
 	addHandler("regenerate-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
+	// Explicitly add "mark-preseeded" as a task which cannot run in parallel
+	// with other ifacestate tasks, as they and mark-preeseded may touch or
+	// modify system-key
+	exclusiveTaskKinds["mark-preseeded"] = true
 
 	// don't block on hotplug-seq-wait task
 	runner.AddHandler("hotplug-seq-wait", m.doHotplugSeqWait, nil)
@@ -124,12 +128,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
-		if !taskKinds[t.Kind()] {
+		if !exclusiveTaskKinds[t.Kind()] {
 			return false
 		}
 
 		for _, t := range running {
-			if taskKinds[t.Kind()] {
+			if exclusiveTaskKinds[t.Kind()] {
 				return true
 			}
 		}
