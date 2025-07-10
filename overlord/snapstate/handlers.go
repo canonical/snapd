@@ -2713,6 +2713,9 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 		}
 		// also remove system-key to ensure the AppArmor profiles get
 		// regenerated when the new snapd starts up
+		//
+		// TODO:system-key: this should not be running in a task handler that
+		// runs in parallel to regenerate-system-profiles or mark-preseeded
 		if err = interfaces.RemoveSystemKey(); err != nil {
 			logger.Noticef("WARNING: failed to remove system-key")
 		}
