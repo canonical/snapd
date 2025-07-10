@@ -1,0 +1,24 @@
+project: build-snapd
+
+backends:
+    testflinger:
+        environment:
+            TRUST_TEST_KEYS: "false"
+        halt-timeout: 3h
+        wait-timeout: 2h
+        systems:
+            - ubuntu-22.04-armhf-rpi3:
+                  queue: rpi3b
+                  image: https://old-releases.ubuntu.com/releases/jammy/ubuntu-22.04-beta-preinstalled-server-armhf+raspi.img.xz
+                  workers: 1
+                  username: ubuntu
+                  password: ubuntu
+
+path: /root/spread
+
+kill-timeout: 60m
+
+suites:
+    tests/:
+        summary: Test building snapd in different architectures
+
