@@ -1703,7 +1703,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
-	val := apiData["confdb-data"]
+	val := apiData["values"]
 	c.Assert(val, DeepEquals, map[string]any{
 		"ssid":  "foo",
 		"ssids": []any{"abc", "xyz"},
@@ -1744,7 +1744,7 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
-	val := apiData["confdb-data"]
+	val := apiData["values"]
 	c.Assert(val, DeepEquals, map[string]any{
 		"ssid":  "foo",
 		"ssids": []any{"abc", "xyz"},
@@ -1776,8 +1776,13 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooksError(c *C) {
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil)
-	errStr := apiData["confdb-error"].(string)
+	errData, ok := apiData["error"].(map[string]any)
+	c.Assert(ok, Equals, true, Commentf(`expected "error" in apiData to be map[string]any`))
+
+	errStr := errData["message"].(string)
+	errKind := errData["kind"].(string)
 	c.Assert(errStr, Equals, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
+	c.Assert(errKind, Equals, "option-not-found")
 }
 
 func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
@@ -1805,8 +1810,13 @@ func (s *confdbTestSuite) TestGetTransactionForAPIError(c *C) {
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, IsNil, Commentf("%+v", chg))
-	errStr := apiData["confdb-error"].(string)
+	errData, ok := apiData["error"].(map[string]any)
+	c.Assert(ok, Equals, true, Commentf(`expected "error" in apiData to be map[string]any`))
+
+	errStr := errData["message"].(string)
+	errKind := errData["kind"].(string)
 	c.Assert(errStr, Equals, fmt.Sprintf(`cannot get "ssid" through %s/network/setup-wifi: no data`, s.devAccID))
+	c.Assert(errKind, Equals, "option-not-found")
 }
 
 func (s *confdbTestSuite) TestConcurrentAccessWithOngoingWrite(c *C) {

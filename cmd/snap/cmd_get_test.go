@@ -254,7 +254,7 @@ func (s *confdbSuite) TestConfdbGet(c *C) {
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": "cba"}}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": "cba"}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -299,7 +299,7 @@ func (s *confdbSuite) TestConfdbGetAsDocument(c *C) {
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": "cba"}}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": "cba"}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -348,7 +348,7 @@ func (s *confdbSuite) TestConfdbGetMany(c *C) {
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": 1, "xyz": false}}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": 1, "xyz": false}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -397,7 +397,7 @@ func (s *confdbSuite) TestConfdbGetManyAsDocument(c *C) {
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": 1, "xyz": false}}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": 1, "xyz": false}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -471,7 +471,7 @@ func (s *confdbSuite) TestConfdbGetNoFields(c *check.C) {
 		case 2:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-data": {"abc": 1, "xyz": false}}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"values": {"abc": 1, "xyz": false}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -522,7 +522,7 @@ func (s *confdbSuite) TestConfdbGetNoDataError(c *check.C) {
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"confdb-error": "some error, no data"}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"error": {"message": "some error, no data", "kind": "option-not-found"}}}}`)
 		default:
 			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
 			w.WriteHeader(500)
@@ -535,4 +535,40 @@ func (s *confdbSuite) TestConfdbGetNoDataError(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "foo"})
 	c.Assert(err, ErrorMatches, "some error, no data")
+}
+
+func (s *confdbSuite) TestConfdbGetInternalError(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"foo"})
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			w.WriteHeader(500)
+			fmt.Fprintln(w, `{"type": "error", "result": {"message": "internal error: something went wrong"}}`)
+		default:
+			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "foo"})
+	c.Assert(err, ErrorMatches, "internal error: something went wrong")
 }

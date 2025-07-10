@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -159,15 +160,18 @@ func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, r
 
 	result, err := GetViaView(tx, view, requests)
 	if err != nil {
-		if errors.Is(err, &confdb.NoDataError{}) || errors.Is(err, &confdb.NoMatchError{}) {
-			apiData["confdb-error"] = err.Error()
-			chg.Set("api-data", apiData)
-			return nil
+		if !errors.Is(err, &confdb.NoDataError{}) {
+			return fmt.Errorf("internal error: cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
 		}
-		return fmt.Errorf("cannot read confdb %s/%s: %w", tx.ConfdbAccount, tx.ConfdbName, err)
+
+		apiData["error"] = map[string]any{
+			"message": err.Error(),
+			"kind":    client.ErrorKindConfigNoSuchOption,
+		}
+	} else {
+		apiData["values"] = result
 	}
 
-	apiData["confdb-data"] = result
 	chg.Set("api-data", apiData)
 	return nil
 }
