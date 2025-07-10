@@ -27,9 +27,8 @@ restore: |
   umount -l b
   rmdir b
 debug: |
-  cat mountinfo
+  cat /proc/self/mountinfo
 execute: |
-  cat /proc/self/mountinfo >mountinfo
   # Field 5 is the mount point path.
-  tail -n 12 mountinfo | cut -d ' ' -f 5 | cut -c "$(pwd | wc -c)"- >actual.txt
+  tail -n 12 /proc/self/mountinfo | awk '{ print substr($5, length(ENVIRON["PWD"]) + 1) }' >actual.txt
   diff -u actual.txt expected.txt

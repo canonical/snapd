@@ -28,9 +28,8 @@ restore: |
   umount -l b
   rmdir b
 debug: |
-  cat mountinfo
+  cat /proc/self/mountinfo
 execute: |
-  cat /proc/self/mountinfo >mountinfo
   # Print the fifth (mount point) and second-to-last field (file system source).
-  tail -n 7 mountinfo | awk '{ print substr($5, '"$(pwd | wc -c)"') " " $(NF-1) }' >actual.txt
+  tail -n 7 /proc/self/mountinfo | awk '{ print substr($5, length(ENVIRON["PWD"]) + 1) " " $(NF-1) }' >actual.txt
   diff -u actual.txt expected.txt
