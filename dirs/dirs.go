@@ -464,6 +464,12 @@ func SnapExportDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "export")
 }
 
+// SnapExportLibDirUnder returns the path to the directory under which
+// libraries from snaps are going to be exported.
+func SnapExportLibDirUnder(rootdir string) string {
+	return filepath.Join(SnapdStateDir(rootdir), "lib")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
