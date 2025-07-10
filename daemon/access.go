@@ -421,20 +421,28 @@ type actionRequest struct {
 type byActionAccess struct {
 	// ByAction maps from detected request action to access checker.
 	ByAction map[string]accessChecker
-	// Default is the fallback access checker if no action was matched
-	// which could happen if:
-	//   - Content type is not "application/json"
-	//   - JSON body is malformed
-	//   - No action is passed
-	//   - Action is not found under ByAction
+	// Default is the fallback access checker if no action was matched.
 	//
-	// This should be as strict as possible, e.g. rootAccess.
+	// This can only be one of:
+	//   - rootAccess
+	//   - interfaceRootAccess
+	//   - interfaceProviderRootAccess
 	Default accessChecker
 }
 
 const maxBodySize = 4 * 1024 * 1024 // 4MB
 
 func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	switch ac.Default.(type) {
+	// TODO: If less strict interfaces are needed as defaults then
+	// we might need to introduce access checker sorting so that the
+	// default access checker is at least as strict as the strictest
+	// action access checker.
+	case rootAccess, interfaceRootAccess, interfaceProviderRootAccess:
+	default:
+		return InternalError("default access checker must have root-level access: got %T", ac.Default)
+	}
+
 	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
 		return BadRequest("unexpected content type: %q", contentType)
 	}

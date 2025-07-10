@@ -1007,13 +1007,51 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 	}
 }
 
+func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
+	type testcase struct {
+		ac           daemon.AccessChecker
+		canBeDefault bool
+	}
+
+	tcs := []testcase{
+		{ac: daemon.RootAccess{}, canBeDefault: true},
+		{ac: daemon.InterfaceRootAccess{Interfaces: []string{"iface"}}, canBeDefault: true},
+		{ac: daemon.InterfaceProviderRootAccess{Interfaces: []string{"iface"}}, canBeDefault: true},
+
+		{ac: daemon.OpenAccess{}, canBeDefault: false},
+		{ac: daemon.AuthenticatedAccess{}, canBeDefault: false},
+		{ac: daemon.SnapAccess{}, canBeDefault: false},
+		{ac: daemon.InterfaceOpenAccess{Interfaces: []string{"iface"}}, canBeDefault: false},
+		{ac: daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"iface"}}, canBeDefault: false},
+		{ac: daemon.ByActionAccess{Default: daemon.RootAccess{}}, canBeDefault: false},
+	}
+
+	for _, tc := range tcs {
+		body := strings.NewReader(`{"action": "unknown"}`)
+		req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+		c.Assert(err, IsNil)
+		req.Header.Add("Content-Type", "application/json")
+
+		ac := daemon.ByActionAccess{Default: tc.ac}
+
+		ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+		err = ac.CheckAccess(nil, req, &ucred, nil)
+		if tc.canBeDefault {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, DeepEquals, daemon.InternalError("default access checker must have root-level access: got %T", tc.ac))
+		}
+	}
+
+}
+
 func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
 	body := strings.NewReader(fmt.Sprintf(`{"action": "%s"}`, strings.Repeat("a", 4*1024*1024)))
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	ac := daemon.ByActionAccess{}
+	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
 
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	err = ac.CheckAccess(nil, req, &ucred, nil)
@@ -1026,7 +1064,7 @@ func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
-	ac := daemon.ByActionAccess{}
+	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
 
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	err = ac.CheckAccess(nil, req, &ucred, nil)
