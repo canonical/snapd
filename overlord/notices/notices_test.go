@@ -55,8 +55,10 @@ type testNoticeBackend struct {
 	noticeChan chan *state.Notice
 	// Send something over waitNoticesChan to make BackendWaitNotices() return it.
 	waitNoticesChan chan []*state.Notice
-	// Store the NoticeFilters passed into BackendNotices or BackendWaitNotices.
-	filterChan chan *state.NoticeFilter
+	// Store the NoticeFilters passed into BackendNotices.
+	noticesFilterChan chan *state.NoticeFilter
+	// Store the NoticeFilters passed into BackendWaitNotices.
+	waitNoticesFilterChan chan *state.NoticeFilter
 }
 
 func newTestNoticeBackend() *testNoticeBackend {
@@ -64,14 +66,16 @@ func newTestNoticeBackend() *testNoticeBackend {
 		noticesChan:     make(chan []*state.Notice, 1),
 		noticeChan:      make(chan *state.Notice, 1),
 		waitNoticesChan: make(chan []*state.Notice, 1),
-		// Give filterChan capacity 3 so WaitNotices can call BackendNotices,
-		// BackendWaitNotices, and then BackendNotices again.
-		filterChan: make(chan *state.NoticeFilter, 3),
+		// Give noticesFilterChan capacity 2 so WaitNotices can call
+		// BackendNotices twice, before and after calling BakendWaitNotices,
+		// without blocking.
+		noticesFilterChan:     make(chan *state.NoticeFilter, 2),
+		waitNoticesFilterChan: make(chan *state.NoticeFilter, 1),
 	}
 }
 
 func (b *testNoticeBackend) BackendNotices(filter *state.NoticeFilter) []*state.Notice {
-	b.filterChan <- filter
+	b.noticesFilterChan <- filter
 	return <-b.noticesChan
 }
 
@@ -80,7 +84,7 @@ func (b *testNoticeBackend) BackendNotice(id string) *state.Notice {
 }
 
 func (b *testNoticeBackend) BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
-	b.filterChan <- filter
+	b.waitNoticesFilterChan <- filter
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -164,7 +168,7 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 	bknd.noticesChan <- nil
 	validateNotice1, err := nm.RegisterBackend(bknd, typ1, namespace1)
 	c.Assert(err, IsNil)
-	filter := <-bknd.filterChan
+	filter := <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
 	})
@@ -181,7 +185,7 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 	bknd.noticesChan <- nil
 	validateNotice2, err := nm.RegisterBackend(bknd, typ2, namespace2)
 	c.Assert(err, IsNil)
-	filter = <-bknd.filterChan
+	filter = <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
 	})
@@ -199,7 +203,7 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 	namespace3 := "baz"
 	validateNotice3, err := nm.RegisterBackend(bknd2, typ2, namespace3)
 	c.Assert(err, IsNil)
-	filter = <-bknd2.filterChan
+	filter = <-bknd2.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
 	})
@@ -260,7 +264,7 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 
 	_, err := nm.RegisterBackend(bknd1, typ, ns1)
 	c.Check(err, IsNil)
-	filter := <-bknd1.filterChan
+	filter := <-bknd1.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
 	})
@@ -270,7 +274,7 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 
 	_, err = nm.RegisterBackend(bknd2, typ, ns2)
 	c.Check(err, IsNil)
-	filter = <-bknd2.filterChan
+	filter = <-bknd2.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
 	})
@@ -282,7 +286,7 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 
 	_, err = nm.RegisterBackend(bknd3, typ, ns3)
 	c.Check(err, IsNil)
-	filter = <-bknd3.filterChan
+	filter = <-bknd3.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
 	})
@@ -294,7 +298,7 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 
 	_, err = nm.RegisterBackend(bknd4, typ, ns4)
 	c.Check(err, IsNil)
-	filter = <-bknd4.filterChan
+	filter = <-bknd4.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
 	})
@@ -322,7 +326,7 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: cannot register notice backend with empty namespace")
 	c.Assert(validate, IsNil)
 	select {
-	case filter := <-bknd1.filterChan:
+	case filter := <-bknd1.noticesFilterChan:
 		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
 	default:
 		// all good
@@ -331,7 +335,7 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	validate, err = nm.RegisterBackend(bknd1, typ1, namespace1)
 	c.Assert(err, IsNil)
 	c.Assert(validate, NotNil)
-	filter := <-bknd1.filterChan
+	filter := <-bknd1.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
 	})
@@ -340,7 +344,7 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: cannot register notice backend with namespace which is already registered to a different backend: .*")
 	c.Assert(validate, IsNil)
 	select {
-	case filter := <-bknd2.filterChan:
+	case filter := <-bknd2.noticesFilterChan:
 		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
 	default:
 		// all good
@@ -350,7 +354,7 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: cannot register namespace .* with backend and notice type which are already registered with a different namespace: .*")
 	c.Assert(validate, IsNil)
 	select {
-	case filter := <-bknd1.filterChan:
+	case filter := <-bknd1.noticesFilterChan:
 		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
 	default:
 		// all good
@@ -373,7 +377,7 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	bknd.noticesChan <- nil
 	validateNotice1, err := nm.RegisterBackend(bknd, typ1, namespace1)
 	c.Assert(err, IsNil)
-	filter := <-bknd.filterChan
+	filter := <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
 	})
@@ -385,7 +389,7 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	bknd.noticesChan <- nil
 	validateNotice2, err := nm.RegisterBackend(bknd, typ2, namespace2)
 	c.Assert(err, IsNil)
-	filter = <-bknd.filterChan
+	filter = <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
 	})
@@ -448,15 +452,15 @@ func (s *noticesSuite) TestRelevantBackendsForFilter(c *C) {
 	_, err = nm.RegisterBackend(bknd3, typ3, "3")
 	c.Assert(err, IsNil)
 
-	filter := <-bknd1.filterChan
+	filter := <-bknd1.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
 	})
-	filter = <-bknd2.filterChan
+	filter = <-bknd2.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
 	})
-	filter = <-bknd3.filterChan
+	filter = <-bknd3.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ3},
 	})
@@ -584,7 +588,7 @@ func testDoNoticesFilter(c *C, backends []*testNoticeBackend, givenFilter, expec
 	// Check that each backend received the expected filter
 	for _, bknd := range backends {
 		select {
-		case received := <-bknd.filterChan:
+		case received := <-bknd.noticesFilterChan:
 			c.Check(received, DeepEquals, expectedFilter)
 		default:
 			c.Fatalf("failed to receive filter from backend")
@@ -648,20 +652,20 @@ func (s *noticesSuite) TestNotices(c *C) {
 	bknd1.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd1, state.WarningNotice, "foo")
 	c.Assert(err, IsNil)
-	<-bknd1.filterChan
+	<-bknd1.noticesFilterChan
 	// Register bknd2 for two notice types
 	bknd2.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar")
 	c.Assert(err, IsNil)
-	<-bknd2.filterChan
+	<-bknd2.noticesFilterChan
 	bknd2.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd2, state.ChangeUpdateNotice, "baz")
 	c.Assert(err, IsNil)
-	<-bknd2.filterChan
+	<-bknd2.noticesFilterChan
 	bknd3.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "qux")
 	c.Assert(err, IsNil)
-	<-bknd3.filterChan
+	<-bknd3.noticesFilterChan
 
 	// Build some notices which can later be returned arbitrary by backends.
 	// Ignore their ID and type, since we can feed them arbitrarily to the test
@@ -683,9 +687,9 @@ func (s *noticesSuite) TestNotices(c *C) {
 	// remaining 4 are as expected and in order.
 	c.Check(result[2:], DeepEquals, []*state.Notice{n1, n2, n3, n4})
 	// Clear filterChans for each test backend
-	<-bknd1.filterChan
-	<-bknd2.filterChan
-	<-bknd3.filterChan
+	<-bknd1.noticesFilterChan
+	<-bknd2.noticesFilterChan
+	<-bknd3.noticesFilterChan
 
 	// Prepare to query only bknd2 by filtering for ChangeUpdateNotices
 	bknd2.noticesChan <- []*state.Notice{n1, n4}
@@ -695,7 +699,7 @@ func (s *noticesSuite) TestNotices(c *C) {
 	filter := &state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}}
 	result = nm.Notices(filter)
 	c.Check(result, DeepEquals, []*state.Notice{n1, n4})
-	<-bknd2.filterChan
+	<-bknd2.noticesFilterChan
 
 	// Prepare to query bknd1 and bknd2
 	bknd1.noticesChan <- []*state.Notice{n3, n1}
@@ -711,8 +715,8 @@ func (s *noticesSuite) TestNotices(c *C) {
 	// remaining 3 are as expected and in order.
 	c.Check(result[1:], DeepEquals, []*state.Notice{n1, n2, n3})
 	// Clear filterChans for each test backend
-	<-bknd1.filterChan
-	<-bknd2.filterChan
+	<-bknd1.noticesFilterChan
+	<-bknd2.noticesFilterChan
 
 	// When we provide a filter for a type for which no backend is registered, we only query state
 	filter = &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice}}
@@ -796,20 +800,20 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	bknd1.noticesChan <- nil
 	_, err := nm.RegisterBackend(bknd1, state.WarningNotice, "foo")
 	c.Assert(err, IsNil)
-	<-bknd1.filterChan
+	<-bknd1.noticesFilterChan
 	// Register bknd2 for two notice types
 	bknd2.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar")
 	c.Assert(err, IsNil)
-	<-bknd2.filterChan
+	<-bknd2.noticesFilterChan
 	bknd2.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd2, state.ChangeUpdateNotice, "baz")
 	c.Assert(err, IsNil)
-	<-bknd2.filterChan
+	<-bknd2.noticesFilterChan
 	bknd3.noticesChan <- nil
 	_, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "qux")
 	c.Assert(err, IsNil)
-	<-bknd3.filterChan
+	<-bknd3.noticesFilterChan
 
 	// Build some notices which can later be returned arbitrary by backends.
 	// Ignore their ID and type, since we can feed them arbitrarily to the test
@@ -826,7 +830,7 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	result, err := nm.WaitNotices(context.Background(), filter)
 	c.Assert(err, IsNil)
 	c.Check(result, DeepEquals, []*state.Notice{n2, n3})
-	receivedFilter := <-bknd2.filterChan
+	receivedFilter := <-bknd2.waitNoticesFilterChan
 	c.Check(receivedFilter, DeepEquals, &state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
 
 	// If filter matches multiple backends, then each should queried for
@@ -851,7 +855,7 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	c.Check(result, DeepEquals, []*state.Notice{n1, n2, n3})
 	// Check that the backends received a filter with BeforeOrAt set to the current time when called.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(receivedFilter.Types, DeepEquals, []state.NoticeType{state.WarningNotice})
 		c.Check(beforeTime.Before(receivedFilter.BeforeOrAt), Equals, true)
 		c.Check(receivedFilter.BeforeOrAt.Before(afterTime), Equals, true)
@@ -882,7 +886,7 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	c.Check(result, HasLen, 0)
 	// Check that the backends received a filter with BeforeOrAt unchanged from the original filter.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter)
 	}
 	// Check that the original filter was not overwritten
@@ -907,14 +911,14 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	// Check that the backends received a filter to BackendNotices with
 	// BeforeOrAt set to the current time when called.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(beforeTime.Before(receivedFilter.BeforeOrAt), Equals, true)
 		c.Check(receivedFilter.BeforeOrAt.Before(afterTime), Equals, true)
 	}
 	// Check that the backends received a filter to BackendWaitNotices with
 	// BeforeOrAt unset.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.waitNoticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter)
 	}
 	// Check that the original filter was not overwritten
@@ -933,13 +937,13 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	// Check that the backends received a filter to BackendNotices with
 	// BeforeOrAt set to the current time when called.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(receivedFilter.BeforeOrAt.IsZero(), Equals, false)
 	}
 	// Check that the backends received a filter to BackendWaitNotices with
 	// BeforeOrAt unset.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.waitNoticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter)
 	}
 	// Check that the original filter was not overwritten
@@ -974,22 +978,22 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	// Check that the backends first received a filter to BackendNotices
 	// with BeforeOrAt set to the current time when called.
 	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
+		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(beforeTime.Before(receivedFilter.BeforeOrAt), Equals, true)
 		c.Check(receivedFilter.BeforeOrAt.Before(afterTime), Equals, true)
 	}
 	// Check that the backends then received a filter to BackendWaitNotices
 	// with BeforeOrAt unset.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
-		c.Check(receivedFilter, DeepEquals, filter)
+	for i, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+		receivedFilter := <-bknd.waitNoticesFilterChan
+		c.Check(receivedFilter, DeepEquals, filter, Commentf("Backend %d", i+1))
 	}
 	// Check that the backends lastly receive a filter to BackendNotices
 	// with BeforeOrAt set to the lastRepeated timestamp of the final notice
 	// returned by the calls to BackendWaitNotices.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
-		receivedFilter := <-bknd.filterChan
-		c.Check(receivedFilter.BeforeOrAt.Equal(n4.LastRepeated()), Equals, true)
+	for i, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+		receivedFilter := <-bknd.noticesFilterChan
+		c.Check(receivedFilter.BeforeOrAt.Equal(n4.LastRepeated()), Equals, true, Commentf("Backend %d receivedFilter.BeforeOrAt: %v", i+1, receivedFilter.BeforeOrAt))
 	}
 	// Check that the original filter was not overwritten
 	c.Check(filter.BeforeOrAt.IsZero(), Equals, true)
