@@ -21,12 +21,16 @@ package builtin_test
 
 import (
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -60,7 +64,8 @@ apps:
 const cudaDriverLibsProvider = `name: cuda-provider
 version: 0
 slots:
-  cuda-driver-libs:
+  cuda-slot:
+    interface: cuda-driver-libs
     compatibility: cuda-(9..12)-ubuntu-2404
     library-source:
       - $SNAP/lib1
@@ -73,7 +78,7 @@ func (s *CudaDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, cudaDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "cuda")
 	s.slot, s.slotInfo = MockConnectedSlot(c, cudaDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "cuda-driver-libs")
+		&snap.SideInfo{Revision: snap.R(5)}, "cuda-slot")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestName(c *C) {
@@ -169,8 +174,20 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "cuda-provider", SlotName: "cuda-driver-libs"}: {"/snap/cuda-provider/5/lib1",
+		{SnapName: "cuda-provider", SlotName: "cuda-slot"}: {"/snap/cuda-provider/5/lib1",
 			"/snap/cuda-provider/5/lib2"}})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/var/lib/snapd/export/cuda-provider_cuda-slot_cuda-driver-libs.source": &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.GlobalRootDir, "/snap/cuda-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.GlobalRootDir, "/snap/cuda-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
