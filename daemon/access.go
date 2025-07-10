@@ -421,6 +421,15 @@ type actionRequest struct {
 type byActionAccess struct {
 	// ByAction maps from detected request action to access checker.
 	ByAction map[string]accessChecker
+	// Default is the fallback access checker if no action was matched
+	// which could happen if:
+	//   - Content type is not "application/json"
+	//   - JSON body is malformed
+	//   - No action is passed
+	//   - Action is not found under ByAction
+	//
+	// This should be as strict as possible, e.g. rootAccess.
+	Default accessChecker
 }
 
 const maxBodySize = 4 * 1024 * 1024 // 4MB
@@ -458,7 +467,7 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 
 	checker := ac.ByAction[req.Action]
 	if checker == nil {
-		return BadRequest("unsupported action %q", req.Action)
+		return ac.Default.CheckAccess(d, r, ucred, user)
 	}
 
 	return checker.CheckAccess(d, r, ucred, user)
