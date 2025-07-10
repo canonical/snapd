@@ -12,7 +12,6 @@ BEGIN {
     prefix1_len = length("shared:")
     # The second prefix is for the less commonly seen "propagate_from" field.
     prefix2_len = length("propagate_from:")
-    seen["0"]=0
 }
 
 {
