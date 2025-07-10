@@ -40,18 +40,18 @@ func MockUserSessionIDXattr() (xattr string, restore func()) {
 	return testXattr, restore
 }
 
-func (rule *Rule) Validate(current prompting.At) (expired bool, err error) {
-	return rule.validate(current)
+func (rule *Rule) Validate(at prompting.At) (expired bool, err error) {
+	return rule.validate(at)
 }
 
-func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string, current prompting.At) (bool, error) {
-	return rdb.isPathPermAllowed(user, snap, iface, path, permission, current)
+func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string, at prompting.At) (bool, error) {
+	return rdb.isPathPermAllowed(user, snap, iface, path, permission, at)
 }
 
 func (rdb *RuleDB) ReadOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
 	return rdb.readOrAssignUserSessionID(user)
 }
 
-func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string, current prompting.At) (bool, error)) func() {
+func MockIsPathPermAllowed(f func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string, at prompting.At) (bool, error)) func() {
 	return testutil.Mock(&isPathPermAllowed, f)
 }
