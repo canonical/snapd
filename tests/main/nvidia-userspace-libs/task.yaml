@@ -12,6 +12,11 @@ prepare: |
   # TODO: install snap from the store once it is uploaded
   wget -q "$NVIDIA_SNAP_URL"
   snap install --dangerous test-nvidia-interfaces_1.0_amd64.snap
+  snap pack test-nvidia-libs
+
+restore: |
+  rm -f "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
+  rm -f test-nvidia-libs_*.snap
 
 execute: |
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
@@ -25,6 +30,17 @@ execute: |
   ARCH_TRIPLET=$(gcc -dumpmachine)
   GBM_LIB_P=$(realpath /usr/lib/"$ARCH_TRIPLET"/gbm/nvidia-drm_gbm.so)
   [[ "$GBM_LIB_P" = /snap/"$NVIDIA_TEST_SNAP"/x1/usr/lib/"$ARCH_TRIPLET"/libnvidia-allocator.* ]]
+
+  # Check libraries are accessible
+  snap_lib_dir=/snap/test-nvidia-interfaces/x1/usr/lib
+  snap_x86_dir="$snap_lib_dir"/x86_64-linux-gnu
+  ldd "$snap_x86_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_x86_dir/libnvidia-glsi.so.*"
+
+  # Check that snaps connected to the opengl interface can use the libraries
+  snap install --dangerous test-nvidia-libs_*.snap
+  NVIDIA_FILE=$PWD/nvidia
+  printf "570.133.07\n" > "$NVIDIA_FILE"
+  SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test
 
   snap remove --purge "$NVIDIA_TEST_SNAP"
   not test -f "$SNAP_LDCONF_P"
