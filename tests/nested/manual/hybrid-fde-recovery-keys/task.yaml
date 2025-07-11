@@ -71,14 +71,20 @@ prepare: |
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
 
-  # fetch upstream models
-  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"$MODEL_VERSION"-amd64-dangerous.json > classic.json
-  # but only keep relevant snaps
-  gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
-  mv classic-tmp.json classic.json
-  # and replace authority-id and brand-id
-  gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
-  mv classic-tmp.json classic.json
+  if [ "$MODEL_VERSION" = "2504" ]; then
+    # 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
+    # https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json
+    cp "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json classic.json
+  else
+    # fetch upstream models
+    curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"$MODEL_VERSION"-amd64-dangerous.json > classic.json
+    # but only keep relevant snaps
+    gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
+    mv classic-tmp.json classic.json
+    # and replace authority-id and brand-id
+    gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
+    mv classic-tmp.json classic.json
+  fi
 
   gendeveloper1 sign-model < classic.json > classic.model
 
@@ -94,13 +100,43 @@ prepare: |
      --kernel-assertion pc-kernel-from-store.assert \
      --recovery-key-out "$(pwd)"/rkey-pre-install.out
 
+  echo "Check recovery key is generated and stored"
+  MATCH '[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < rkey-pre-install.out
+
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 execute: |
-  echo "Check recovery key is generated and stored"
-  MATCH '[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < rkey-pre-install.out
+  # Check encryption
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
 
+  # system-boot is not encrypted
+  gojq '.result."by-container-role"."system-boot"' < containers.out > container.out
+  test $(gojq '.encrypted' < container.out) = false
+  test $(gojq '.keyslots | length' < container.out) -eq 0
+
+  # system-seed is also not encrypted
+  gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
+  test $(gojq '.encrypted' < container.out) = false
+  test $(gojq '.keyslots | length' < container.out) -eq 0
+
+  # system-data is encrypted and has a recovery key
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  test $(gojq '.encrypted' < container.out) = true
+  test $(gojq '.keyslots | length' < container.out) -eq 3
+  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  test $(gojq '.encrypted' < container.out) = true
+  test $(gojq '.keyslots | length' < container.out) -eq 3
+  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+
+  # Check we can boot with recovery key
   tests.nested vm set-recovery-key "$(cat rkey-pre-install.out)"
 
   echo "Clear TPM and reboot to force recovery key request"
@@ -130,7 +166,7 @@ execute: |
 
   remote_action_request "{\"action\": \"replace-recovery-key\", \"key-id\": \"$(cat rkey-id.out)\"}"
   change_id="$(gojq --raw-output .change < resp)"
-  retry -n 20 --wait 2 sh -c "remote.exec snap changes | MATCH \"${change_id}.*Done\""
+  remote.exec sudo snap watch "$change_id"
 
   # Runtime recovery check works with the new key
   remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
@@ -155,3 +191,22 @@ execute: |
   remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-pre-install.out)\"}"
   MATCH '"status": "Bad Request"' < resp
   MATCH "invalid recovery key" < resp
+
+  # Check keyslots again for good measure
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
+
+  # system-data is encrypted and has a recovery key
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  test $(gojq '.encrypted' < container.out) = true
+  test $(gojq '.keyslots | length' < container.out) -eq 3
+  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  test $(gojq '.encrypted' < container.out) = true
+  test $(gojq '.keyslots | length' < container.out) -eq 3
+  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
+  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
