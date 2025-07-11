@@ -4,27 +4,36 @@ details: |
   This test installs an encrypted hybrid Ubuntu system using muinstaller
   which is protected by passphrase authentication.
 
+# TODO: switch to system-based matching when interim releases are
+# supported for nested systems.
 systems: [ubuntu-24.04-64]
 
 environment:
-  NESTED_ENABLE_TPM: true
-  NESTED_ENABLE_SECURE_BOOT: true
+  # Defaults
+  MODEL_VERSION: "2404"
+  GADGET_VERSION: classic-24.04
+  KERNEL_VERSION: "24"
+  KDF_TYPE: default
 
-  GADGET_CHANNEL: classic-25.04/edge
-  KERNEL_CHANNEL: 25.04/edge
+  MODEL_VERSION/2504: "2504"
+  GADGET_VERSION/2504: "classic-25.04"
+  KERNEL_VERSION/2504: "25.04"
 
-  # Check if passphrase with space is handled properly
-  NESTED_PASSPHRASE: "ubuntu test"
+  MODEL_VERSION/2510: "2510"
+  GADGET_VERSION/2510: "classic-25.10"
+  KERNEL_VERSION/2510: "25.10"
 
-  KDF_TYPE/default: default
   KDF_TYPE/pbkdf2: pbkdf2
   KDF_TYPE/argon2i: argon2i
   KDF_TYPE/argon2id: argon2id
 
-  # Ensure we use our latest code.
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: true
   NESTED_ENABLE_OVMF: true
+  NESTED_KEEP_FIRMWARE_STATE: true
+
   # Store related setup.
   STORE_ADDR: localhost:11028
   STORE_DIR: $(pwd)/fake-store-blobdir
@@ -35,18 +44,13 @@ prepare: |
       exit
   fi
 
-  # Fakestore is needed for "snap prepare-image".
-  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
-
-restore: |
-  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
-
-execute: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
+
+  # Fakestore is needed for "snap prepare-image".
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
   # Expose the needed assertions through the fakestore.
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
@@ -54,45 +58,33 @@ execute: |
   cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
-  # Retrieve the gadget.
-  snap download --basename=pc --channel="$GADGET_CHANNEL" pc
-
-  # Modify gadget and resign with snakeoil keys.
-  unsquashfs -d pc-gadget pc.snap
-  echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
-  echo "Sign the shim binary"
-  KEY_NAME=$(tests.nested download snakeoil-key)
-  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack --filename=pc.snap pc-gadget/
+  # Retrieve the gadget
+  snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
 
   # Retrieve kernel.
-  snap download --basename=pc-kernel --channel="$KERNEL_CHANNEL" pc-kernel
-
-  # THIS IS A HACK
-  # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+
-  # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
-  unsquashfs -d tmp-pc-kernel pc-kernel.snap
-  cat <<EOF > tmp-pc-kernel/snapd-info
-  VERSION=2.68
-  SNAPD_APPARMOR_REEXEC=1
-  SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
-  EOF
-  rm pc-kernel.snap
-  snap pack tmp-pc-kernel
-  mv pc-kernel_*.snap pc-kernel.snap
-  # HACK ENDS
-
+  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
-  # Create new disk for the installer to work on and attach to VM.
-  truncate --size=10G disk.img
+  if [ "$MODEL_VERSION" = "2504" ]; then
+    # 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
+    # https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json
+    cp "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json classic.json
+  else
+    # fetch upstream models
+    curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"$MODEL_VERSION"-amd64-dangerous.json > classic.json
+    # but only keep relevant snaps
+    gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
+    mv classic-tmp.json classic.json
+    # and replace authority-id and brand-id
+    gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
+    mv classic-tmp.json classic.json
+  fi
+
+  gendeveloper1 sign-model < classic.json > classic.model
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid system.
-  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json > classic.model
   if [[ "$KDF_TYPE" == "default" ]]; then
     "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
       --model classic.model \
@@ -101,8 +93,7 @@ execute: |
       --gadget-assertion pc.assert \
       --kernel pc-kernel.snap \
       --kernel-assertion pc-kernel.assert \
-      --passphrase "${NESTED_PASSPHRASE}" \
-      --disk disk.img
+      --passphrase "ubuntu test"
   else
     "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
       --model classic.model \
@@ -111,33 +102,46 @@ execute: |
       --gadget-assertion pc.assert \
       --kernel pc-kernel.snap \
       --kernel-assertion pc-kernel.assert \
-      --passphrase "${NESTED_PASSPHRASE}" \
-      --extra-muinstaller-arg "-kdf-type $KDF_TYPE" \
-      --disk disk.img
+      --passphrase "ubuntu test" \
+      --extra-muinstaller-arg "-kdf-type $KDF_TYPE"
   fi
 
-  # Basic things look fine.
-  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
-  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
-  remote.exec "snap list" | MATCH pc-kernel
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
-  # Check encryption.
-  remote.exec "sudo test -d /var/lib/snapd/device/fde"
-  remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
-  remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
-  remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
+execute: |
+  # Check encryption
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
 
-  # Check disk mappings.
-  # TODO: no ubuntu-save right now because:
-  #       "ERROR cannot store device key pair: internal error: cannot access device keypair manager if ubuntu-save is unavailable"
-  #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
-  #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
-  DISK_MAPPINGS=(/run/mnt/data/var/lib/snapd/device/disk-mapping.json)
-  for DM in "${DISK_MAPPINGS[@]}"; do
-      remote.exec "sudo cat $DM" > mapping.json
-      gojq -r '.pc."structure-encryption"."ubuntu-save".method' < mapping.json | MATCH LUKS 
-      gojq -r '.pc."structure-encryption"."ubuntu-data".method' < mapping.json | MATCH LUKS
-  done
+  # system-boot is not encrypted
+  gojq '.result."by-container-role"."system-boot"' < containers.out > container.out
+  test "$(gojq '.encrypted' < container.out)" = false
+  test "$(gojq '.keyslots | length' < container.out)" -eq 0
+
+  # system-seed is also not encrypted
+  gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
+  test "$(gojq '.encrypted' < container.out)" = false
+  test "$(gojq '.keyslots | length' < container.out)" -eq 0
+
+  # system-data is encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 2
+  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = passphrase
+  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 2
+  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
 
   # refresh rebooting snap
   # $1: path to snap file
@@ -158,10 +162,7 @@ execute: |
       remote.exec test -f /run/reboot-required
       remote.exec cat /run/reboot-required.pkgs | MATCH "snap:${snap_name}"
 
-      # Clear old log file to avoid matching passphrase prompt from previous boot.
-      echo "" > "$NESTED_LOGS_DIR"/serial.log
       remote.exec sudo reboot || true
-
       remote.wait-for reboot --wait 1 -n 100 "$boot_id"
       remote.exec sudo snap watch --last=install
   }
@@ -174,7 +175,11 @@ execute: |
   # 1. Test gadget refresh causing reseal.
 
   # Changing cmdline should force a reseal.
+  unsquashfs -d pc-gadget pc.snap
   echo 'console=ttyS0 systemd.journald.forward_to_console=1 loglevel=4' > pc-gadget/cmdline.extra
+  KEY_NAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc-new.snap pc-gadget/
   refresh_rebooting_snap pc-new.snap pc
@@ -195,7 +200,54 @@ execute: |
   not diff pcr_profile pcr_profile_current
   mv pcr_profile_current pcr_profile
 
-  # TODO: 3. Try refreshing to an unsupported kernel when snapd-info files
+  remote_action_request()
+  {
+    local json_req="$1"
+    echo "echo '$json_req' | sudo snap debug api -H \"Content-Type: application/json\" -X POST /v2/system-volumes" > action_request
+    remote.exec "$(cat action_request)" > resp
+  }
+
+  reboot_with_passphrase()
+  {
+    tests.nested vm set-passphrase "$1"
+    tests.nested vm stop
+    tests.nested vm start
+  }
+
+  # 3. Test changing passphrases.
+  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu test", "new-passphrase": "ubuntu-1"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-1"
+
+  # Let's change the passphrase one more time for good measure
+  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu-1", "new-passphrase": "ubuntu-2"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-2"
+
+  # Check encryption again for good measure
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
+
+  # system-data is encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 2
+  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = passphrase
+  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 2
+  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+
+  # TODO: 4. Test resetting passphrases.
+
+  # TODO: 5. Try refreshing to an unsupported kernel when snapd-info files
   # are available.
 
-  # TODO: 4. Remodelling?
+  # TODO: 6. Remodelling?
