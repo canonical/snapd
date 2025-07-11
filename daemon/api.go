@@ -96,9 +96,9 @@ var api = []*Command{
 }
 
 type featureEndpoint struct {
-	Path    string
-	Method  string
-	Actions []string
+	Path    string   `json:"path"`
+	Method  string   `json:"method"`
+	Actions []string `json:"actions"`
 }
 
 var featureList []featureEndpoint
