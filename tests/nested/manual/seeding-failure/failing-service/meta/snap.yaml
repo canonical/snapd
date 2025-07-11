@@ -21,4 +21,4 @@ plugs:
   fail-service-plug:
     interface: system-files
     write:
-      - /tmp
+      - /run/mnt/ubuntu-seed

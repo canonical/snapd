@@ -1,9 +1,8 @@
 #!/bin/bash
 
-path="/tmp/service-ran"
+path="/run/mnt/ubuntu-seed/pass"
 if [[ -f "${path}" ]]; then
   exit 0
 fi
 
-touch "${path}"
 exit 1

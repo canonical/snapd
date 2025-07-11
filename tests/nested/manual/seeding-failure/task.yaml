@@ -69,7 +69,6 @@ prepare: |
     systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
     tests.nested build-image core
-    tests.nested create-vm core
 
 restore: |
     tests.exec is-skipped && exit 0
@@ -79,16 +78,31 @@ restore: |
 execute: |
   tests.exec is-skipped && exit 0
 
+  # this setup is required since "create-vm core"
+  export NESTED_EXPECT_SHUTDOWN=1
+  image_dir=$(tests.nested get images-path)
+  image_name=$(tests.nested get image-name core)
+  touch "${image_dir}/${image_name}.configured"
+
+  tests.nested create-vm core
+  remote.wait-for ssh
+
+  # wait for the first seeding attempt to fail
+  remote.retry --wait 5 -n 20 "snap changes | awk '\$1 == 1' | grep Error"
+
+  # force a reboot
+  tests.nested vm unclean-reboot
+  remote.wait-for ssh
+
+  remote.exec "sudo touch /run/mnt/ubuntu-seed/pass"
+
+  # next attempt at seeding should work
   remote.wait-for device-initialized
 
   remote.exec "snap list failing-service"
 
   # first attempt at seeding should have failed
   remote.exec "snap changes" | awk '$1 == 1 { print $2 } ' | MATCH Error
-
-  # second attempt at seeding should have worked
-  remote.exec "snap changes" | awk '$1 == 2 { print $2 } ' | MATCH Done
-
   remote.exec "snap tasks 1" | awk '$1 == "Undone"' > tasks
 
   # make sure that the only undone tasks are ones related to our failing-service
