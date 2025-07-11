@@ -526,7 +526,6 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
             if (path[len_p - 1] == '\n') {
                 path[len_p - 1] = '\0';
             }
-            // TODO check that the path has not been already mounted
             size_t path_start = 0;
             const char snap_d[] = "/snap";
             if (strncmp(path, snap_d, sizeof snap_d - 1) == 0) {
@@ -536,6 +535,15 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
                 continue;
             }
             sc_must_snprintf(dest_path, sizeof dest_path, "%s" SC_LIBSNAP_DIR "%s", rootfs_dir, &path[path_start]);
+
+            // If the path exists that implies that it has been mounted already
+            // and that this is a repeated entry.
+            struct stat stat_buf;
+            int res = stat(dest_path, &stat_buf);
+            if (res == 0) {
+                debug("%s is already mounted, skipping", dest_path);
+                continue;
+            }
 
             debug("mounting %s at %s", path, dest_path);
             if (sc_nonfatal_mkpath(dest_path, 0755, 0, 0) != 0) {
