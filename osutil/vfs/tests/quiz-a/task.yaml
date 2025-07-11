@@ -1,0 +1,30 @@
+summary: shared subtrees quiz A 
+details: |
+    What is the result of the following command sequence?
+
+    mount --bind /mnt /mnt
+    mount --make-shared /mnt
+    mount --bind /mnt /tmp
+    mount --move /tmp /mnt/1
+
+    What the contents of /mnt /mnt/1 /mnt/1/1 should be? Should they all be
+    identical, or rather should /mnt and /mnt/1 be identical only?
+prepare: |
+    mkdir mnt
+    mkdir mnt/1
+    mount --bind mnt mnt
+    mount --make-shared mnt
+    mkdir tmp 
+    mount --bind mnt tmp
+    mount --move tmp mnt/1
+restore: |
+    umount -l mnt/1
+    umount -l mnt 
+    rmdir mnt/1
+    rmdir mnt
+    rmdir tmp
+debug: |
+    tail -n 2 /proc/self/mountinfo
+execute: |
+    tail -n 2 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+    diff -u actual.txt expected.txt
