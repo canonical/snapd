@@ -355,15 +355,15 @@ type featureResponse struct {
 
 type taskResponse struct {
 	Kind    string `json:"kind"`
-	HasUndo bool   `json:"has-undo"`
+	HasUndo bool   `json:"has-undo,omitempty"`
 }
 
 func getFeatures(c *Command) Response {
 	runner := c.d.overlord.TaskRunner()
-	tasks := runner.KnownTaskKinds()
+	taskKinds := runner.KnownTaskKinds()
 	undos := runner.KnownTaskKindsWithUndo()
-	taskResponses := make([]taskResponse, 0, len(tasks))
-	for _, task := range tasks {
+	taskResponses := make([]taskResponse, 0, len(taskKinds))
+	for _, task := range taskKinds {
 		t := taskResponse{
 			Kind:    task,
 			HasUndo: strutil.ListContains(undos, task),
