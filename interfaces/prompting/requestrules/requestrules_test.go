@@ -1796,12 +1796,17 @@ func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
 			errStr:           "foo\nqux",
 		},
 	} {
+		before := time.Now()
+
 		restore := requestrules.MockIsPathPermAllowed(func(r *requestrules.RuleDB, u uint32, s string, i string, p string, perm string, at prompting.At) (bool, error) {
 			c.Assert(r, Equals, rdb)
 			c.Assert(u, Equals, user)
 			c.Assert(s, Equals, snap)
 			c.Assert(i, Equals, iface)
 			c.Assert(p, Equals, path)
+			c.Assert(at.Time.IsZero(), Equals, false)
+			c.Assert(at.Time.After(before), Equals, true)
+			c.Assert(at.Time.Before(time.Now()), Equals, true)
 			result := testCase.permReturns[perm]
 			return result.allowed, result.err
 		})
