@@ -124,8 +124,8 @@ func (ts *HTestSuite) TestBasicWithSources(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	// Write some sources files
-	eglDirs := []string{"/snap/kernel/33/egllibs1", "/snap/kernel/33/egllibs2"}
-	vulkanDirs := []string{"/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2"}
+	eglDirs := []string{"/snap/kernel/33/egllibs1", "/snap/kernel/33/egllibs2", "/snap/kernel/33/duplicate"}
+	vulkanDirs := []string{"/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2", "/snap/kernel/33/duplicate"}
 	exportDir := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/export")
 	c.Assert(os.MkdirAll(exportDir, os.ModePerm), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_eglslot_egl-driver-libs.source"),
@@ -133,7 +133,8 @@ func (ts *HTestSuite) TestBasicWithSources(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_vulkanslot_vulkan-driver-libs.source"),
 		[]byte(strings.Join(vulkanDirs, "\n")+"\n"), 0644), Equals, nil)
 	var exportedPaths []string
-	for _, d := range append(eglDirs, vulkanDirs...) {
+	for _, d := range []string{"/snap/kernel/33/egllibs1", "/snap/kernel/33/egllibs2",
+		"/snap/kernel/33/duplicate", "/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2"} {
 		exportedPaths = append(exportedPaths, filepath.Join(
 			dirs.GlobalRootDir, "var/lib/snapd/lib", d))
 	}

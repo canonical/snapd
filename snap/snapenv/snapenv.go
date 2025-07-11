@@ -110,7 +110,8 @@ func basicEnv(info *snap.Info) osutil.Environment {
 	sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*.source")
 	// Only possible error is a malformed pattern
 	sourceFiles, _ := filepath.Glob(sourcesGlob)
-	sources := []string{}
+	libPaths := []string{}
+	snapDirs := make(map[string]bool)
 	for _, path := range sourceFiles {
 		logger.Debugf("opening source file %q", path)
 		file, err := os.Open(path)
@@ -122,9 +123,15 @@ func basicEnv(info *snap.Info) osutil.Environment {
 
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
+			snapDir := scanner.Text()
+			// Avoid duplicates
+			if _, ok := snapDirs[snapDir]; ok {
+				continue
+			}
+			snapDirs[snapDir] = true
 			// Exported paths are bind mounted to the export libs directory.
-			sources = append(sources, filepath.Join(
-				dirs.SnapExportLibDirUnder(dirs.GlobalRootDir), scanner.Text()))
+			libPaths = append(libPaths, filepath.Join(
+				dirs.SnapExportLibDirUnder(dirs.GlobalRootDir), snapDir))
 		}
 
 		if err := scanner.Err(); err != nil {
@@ -132,8 +139,8 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		}
 	}
 	snapLibPath := "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32"
-	if len(sources) > 0 {
-		snapLibPath = strings.Join(sources, ":")
+	if len(libPaths) > 0 {
+		snapLibPath = strings.Join(libPaths, ":")
 	}
 
 	env := osutil.Environment{
