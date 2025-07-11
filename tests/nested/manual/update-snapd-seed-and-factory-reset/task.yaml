@@ -32,6 +32,11 @@ environment:
   NESTED_CORE_CHANNEL: ""
 
 prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/prepare.sh
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/nested.sh
+
     # Install what is needed before using the fake store
     snap install test-snapd-swtpm --edge
 
