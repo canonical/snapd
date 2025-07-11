@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -345,16 +346,30 @@ func createRecovery(st *state.State, label string) Response {
 }
 
 type featureResponse struct {
-	Tasks      []string              `json:"tasks"`
+	Tasks      []taskResponse        `json:"tasks"`
 	Interfaces []string              `json:"interfaces"`
 	Endpoints  []featureEndpoint     `json:"endpoints"`
 	Changes    []string              `json:"changes"`
 	Ensures    []swfeats.EnsureEntry `json:"ensures"`
 }
 
+type taskResponse struct {
+	Kind    string `json:"kind"`
+	HasUndo bool   `json:"has-undo"`
+}
+
 func getFeatures(c *Command) Response {
 	runner := c.d.overlord.TaskRunner()
 	tasks := runner.KnownTaskKinds()
+	undos := runner.KnownTaskKindsWithUndo()
+	taskResponses := make([]taskResponse, 0, len(tasks))
+	for _, task := range tasks {
+		t := taskResponse{
+			Kind:    task,
+			HasUndo: strutil.ListContains(undos, task),
+		}
+		taskResponses = append(taskResponses, t)
+	}
 
 	ifaces := c.d.overlord.InterfaceManager().Repository().AllInterfaces()
 	inames := make([]string, 0, len(ifaces))
@@ -365,7 +380,7 @@ func getFeatures(c *Command) Response {
 
 	ensures := swfeats.KnownEnsures()
 
-	resp := featureResponse{Tasks: tasks, Interfaces: inames, Endpoints: featureList, Changes: changes, Ensures: ensures}
+	resp := featureResponse{Tasks: taskResponses, Interfaces: inames, Endpoints: featureList, Changes: changes, Ensures: ensures}
 	return SyncResponse(resp)
 }
 
