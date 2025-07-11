@@ -146,6 +146,7 @@ func (r *TaskRunner) KnownTaskKinds() []string {
 	return kinds
 }
 
+// KnownTaskKindsWithUndo returns all task kinds with an undo handler that are handled by this runner.
 func (r *TaskRunner) KnownTaskKindsWithUndo() []string {
 	kinds := make([]string, 0, len(r.handlers))
 	for h := range r.handlers {
