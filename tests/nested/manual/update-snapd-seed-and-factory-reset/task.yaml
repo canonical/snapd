@@ -153,7 +153,7 @@ prepare: |
     rm initrd.img-"$kernelver"
     cp snap-bootstrap initrd/main/usr/lib/snapd/
     pushd initrd/main
-    sh -c "find . | cpio --create --quiet --format='newc' --owner=0:0 | lz4 -9 -l > ../../initrd.img-$kernelver"
+    sh -c "find . | cpio --create --quiet --format='newc' --owner=0:0 | zstd -1 -T0 > ../../initrd.img-$kernelver"
     popd
     # This will also sign the kernel with snakeoil keys
     ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
