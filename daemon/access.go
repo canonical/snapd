@@ -20,7 +20,11 @@
 package daemon
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -77,43 +81,79 @@ type accessChecker interface {
 	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
 }
 
-// requireSnapdSocket ensures the request was received via snapd.socket.
-func requireSnapdSocket(ucred *ucrednet) *apiError {
+// requireSockets ensures the request was received via one of the specified sockets.
+func requireSockets(ucred *ucrednet, sockets []string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
 
-	if ucred.Socket != dirs.SnapdSocket {
+	if !strutil.ListContains(sockets, ucred.Socket) {
 		return Forbidden("access denied")
 	}
 
 	return nil
 }
 
-// openAccess allows requests without authentication, provided they
-// have peer credentials and were not received on snapd-snap.socket
-type openAccess struct{}
+type accessLevel string
 
-func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireSnapdSocket(ucred)
+const (
+	accessLevelRoot          accessLevel = "root"
+	accessLevelAuthenticated accessLevel = "authenticated"
+	accessLevelOpen          accessLevel = "open"
+)
+
+type accessOptions struct {
+	AccessLevel     accessLevel
+	Sockets         []string
+	InterfaceAccess *interfaceAccessReqs
+	PolkitAction    string
 }
 
-// authenticatedAccess allows requests from authenticated users,
-// provided they were not received on snapd-snap.socket
-//
-// A user is considered authenticated if they provide a macaroon, are
-// the root user according to peer credentials, or granted access by
-// Polkit.
-type authenticatedAccess struct {
-	Polkit string
+func (o accessOptions) validate() error {
+	switch o.AccessLevel {
+	case accessLevelRoot, accessLevelAuthenticated, accessLevelOpen:
+	default:
+		return fmt.Errorf("unexpected access level %q", o.AccessLevel)
+	}
+
+	if len(o.Sockets) == 0 {
+		return errors.New("no sockets specified")
+	}
+	for _, socket := range o.Sockets {
+		switch socket {
+		case dirs.SnapdSocket, dirs.SnapSocket:
+		default:
+			return fmt.Errorf("unexpected socket %q", socket)
+		}
+	}
+
+	return nil
 }
 
-func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if rspe := requireSnapdSocket(ucred); rspe != nil {
+func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions) *apiError {
+	if err := opts.validate(); err != nil {
+		return InternalError(err.Error())
+	}
+
+	if rspe := requireSockets(ucred, opts.Sockets); rspe != nil {
 		return rspe
 	}
 
-	if user != nil {
+	if opts.InterfaceAccess != nil {
+		// No interface checks are made if request is coming from snapd.socket
+		// to account for the snapd-control interface.
+		rspe := requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess)
+		if rspe != nil {
+			return rspe
+		}
+	}
+
+	if opts.AccessLevel == accessLevelOpen {
+		return nil
+	}
+
+	if opts.AccessLevel == accessLevelAuthenticated && user != nil {
+		// user != nil means we have an authenticated user
 		return nil
 	}
 
@@ -124,11 +164,51 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 	// We check polkit last because it may result in the user
 	// being prompted for authorisation. This should be avoided if
 	// access is otherwise granted.
-	if ac.Polkit != "" {
-		return checkPolkitAction(r, ucred, ac.Polkit)
+	if opts.PolkitAction != "" {
+		return checkPolkitAction(r, ucred, opts.PolkitAction)
 	}
 
-	return Unauthorized("access denied")
+	// XXX: when to 403 vs 401?
+	if opts.AccessLevel == accessLevelAuthenticated || opts.InterfaceAccess != nil {
+		return Unauthorized("access denied")
+	}
+	return Forbidden("access denied")
+}
+
+// openAccess allows requests without authentication, provided they
+// have peer credentials and were not received on snapd-snap.socket
+type openAccess struct{}
+
+func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	opts := accessOptions{
+		AccessLevel: accessLevelOpen,
+		Sockets:     []string{dirs.SnapdSocket},
+	}
+	return checkAccess(d, r, ucred, user, opts)
+}
+
+// authenticatedAccess allows requests from authenticated users,
+// provided they were not received on snapd-snap.socket
+//
+// A user is considered authenticated if they provide a macaroon, are
+// the root user according to peer credentials, or granted access by
+// Polkit.
+type authenticatedAccess struct {
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root or does not provide a macaroon.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
+	Polkit string
+}
+
+func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	opts := accessOptions{
+		AccessLevel:  accessLevelAuthenticated,
+		Sockets:      []string{dirs.SnapdSocket},
+		PolkitAction: ac.Polkit,
+	}
+	return checkAccess(d, r, ucred, user, opts)
 }
 
 // rootAccess allows requests from the root uid, provided they
@@ -136,29 +216,22 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 type rootAccess struct{}
 
 func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if rspe := requireSnapdSocket(ucred); rspe != nil {
-		return rspe
+	opts := accessOptions{
+		AccessLevel: accessLevelRoot,
+		Sockets:     []string{dirs.SnapdSocket},
 	}
-
-	if ucred.Uid == 0 {
-		return nil
-	}
-	return Forbidden("access denied")
+	return checkAccess(d, r, ucred, user, opts)
 }
 
-// snapAccess allows requests from the snapd-snap.socket
+// snapAccess allows requests from the snapd-snap.socket only.
 type snapAccess struct{}
 
 func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if ucred == nil {
-		return Forbidden("access denied")
+	opts := accessOptions{
+		AccessLevel: accessLevelOpen,
+		Sockets:     []string{dirs.SnapSocket},
 	}
-
-	if ucred.Socket == dirs.SnapSocket {
-		return nil
-	}
-	// FIXME: should snapctl access be allowed on the main socket?
-	return Forbidden("access denied")
+	return checkAccess(d, r, ucred, user, opts)
 }
 
 var (
@@ -251,47 +324,41 @@ type interfaceOpenAccess struct {
 }
 
 func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireInterfaceApiAccess(d, r, ucred, interfaceAccessReqs{
-		Interfaces: ac.Interfaces,
-		Plug:       true,
-	})
+	opts := accessOptions{
+		AccessLevel: accessLevelOpen,
+		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
+		InterfaceAccess: &interfaceAccessReqs{
+			Interfaces: ac.Interfaces,
+			Plug:       true,
+		},
+	}
+	return checkAccess(d, r, ucred, user, opts)
 }
 
-// interfaceAuthenticatedAccess behaves like authenticatedAccess, but
+// interfaceAuthenticatedAccess behaves like authenticatedAccess, but also
 // allows requests from snapd-snap.socket that plug one of the provided
 // interfaces.
 type interfaceAuthenticatedAccess struct {
 	Interfaces []string
-	Polkit     string
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root or does not provide a macaroon.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
+	Polkit string
 }
 
 func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	rspe := requireInterfaceApiAccess(d, r, ucred, interfaceAccessReqs{
-		Interfaces: ac.Interfaces,
-		Plug:       true,
-	})
-	if rspe != nil {
-		return rspe
+	opts := accessOptions{
+		AccessLevel: accessLevelAuthenticated,
+		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
+		InterfaceAccess: &interfaceAccessReqs{
+			Interfaces: ac.Interfaces,
+			Plug:       true,
+		},
+		PolkitAction: ac.Polkit,
 	}
-
-	// check as well that we have admin permission to proceed with
-	// the operation
-	if user != nil {
-		return nil
-	}
-
-	if ucred.Uid == 0 {
-		return nil
-	}
-
-	// We check polkit last because it may result in the user
-	// being prompted for authorisation. This should be avoided if
-	// access is otherwise granted.
-	if ac.Polkit != "" {
-		return checkPolkitAction(r, ucred, ac.Polkit)
-	}
-
-	return Unauthorized("access denied")
+	return checkAccess(d, r, ucred, user, opts)
 }
 
 // interfaceProviderRootAccess behaves like rootAccess, but also allows requests
@@ -302,19 +369,116 @@ type interfaceProviderRootAccess struct {
 }
 
 func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	rsperr := requireInterfaceApiAccess(d, r, ucred, interfaceAccessReqs{
-		Interfaces: ac.Interfaces,
-		Slot:       true,
-	})
-	if rsperr != nil {
-		return rsperr
+	opts := accessOptions{
+		AccessLevel: accessLevelRoot,
+		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
+		InterfaceAccess: &interfaceAccessReqs{
+			Interfaces: ac.Interfaces,
+			Slot:       true,
+		},
+	}
+	return checkAccess(d, r, ucred, user, opts)
+}
+
+// interfaceRootAccess behaves like rootAccess, but also allows requests
+// over snapd-snap.socket for snaps that have a connection of specific interface
+// and are present on the plug side of that connection.
+//
+// A user is considered authenticated if they are the root user according to
+// peer credentials, or granted access by Polkit.
+type interfaceRootAccess struct {
+	Interfaces []string
+	// Polkit is an optional polkit action to check as fallback
+	// if the user is not root.
+	// In most cases it is preferred to set Polkit since snaps
+	// are not usually running as root.
+	//
+	// Note: The specified polkit action must require auth_admin
+	// to avoid compromising security.
+	Polkit string
+}
+
+func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	opts := accessOptions{
+		AccessLevel: accessLevelRoot,
+		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
+		InterfaceAccess: &interfaceAccessReqs{
+			Interfaces: ac.Interfaces,
+			Plug:       true,
+		},
+		PolkitAction: ac.Polkit,
+	}
+	return checkAccess(d, r, ucred, user, opts)
+}
+
+type actionRequest struct {
+	Action string `json:"action"`
+}
+
+// byActionAccess is an access checker multiplexer. The correct
+// access checker is chosen based on the "action" field in the
+// incoming request.
+type byActionAccess struct {
+	// ByAction maps from detected request action to access checker.
+	ByAction map[string]accessChecker
+	// Default is the fallback access checker if no action was matched.
+	//
+	// This can only be one of:
+	//   - rootAccess
+	//   - interfaceRootAccess
+	//   - interfaceProviderRootAccess
+	Default accessChecker
+}
+
+const maxBodySize = 4 * 1024 * 1024 // 4MB
+
+func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	switch ac.Default.(type) {
+	// TODO: If less strict interfaces are needed as defaults then
+	// we might need to introduce access checker sorting so that the
+	// default access checker is at least as strict as the strictest
+	// action access checker.
+	case rootAccess, interfaceRootAccess, interfaceProviderRootAccess:
+	default:
+		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default)
 	}
 
-	if ucred.Uid == 0 {
-		return nil
+	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+		return BadRequest("unexpected content type: %q", contentType)
 	}
 
-	return Unauthorized("access denied")
+	req := actionRequest{}
+
+	bufSize := r.ContentLength
+	// The value -1 indicates that the length is unknown.
+	if bufSize > maxBodySize || bufSize == -1 {
+		bufSize = maxBodySize
+	}
+	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+	tr := io.TeeReader(r.Body, buf)
+	lr := io.LimitedReader{R: tr, N: maxBodySize}
+	decoder := json.NewDecoder(&lr)
+	err := decoder.Decode(&req)
+	if err != nil {
+		if (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) && lr.N <= 0 {
+			return BadRequest("body size limit exceeded")
+		}
+		// Content type is JSON, but it's invalid
+		return BadRequest(err.Error())
+	}
+	if decoder.More() {
+		return BadRequest("unexpected data after request body")
+	}
+
+	r.Body.Close()
+	r.Body = io.NopCloser(buf)
+
+	checker := ac.ByAction[req.Action]
+	if checker == nil {
+		return ac.Default.CheckAccess(d, r, ucred, user)
+	}
+
+	return checker.CheckAccess(d, r, ucred, user)
 }
 
 // isRequestFromSnapCmd checks that the request is coming from snap command.
