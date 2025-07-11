@@ -129,6 +129,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
 	runner.AddHandler("fde-change-auth", m.doChangeAuth, nil)
+	runner.AddHandler("fde-add-protected-keys", m.doAddProtectedKeys, nil)
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 		if isFDETask(t) {
 			for _, tRunning := range running {
@@ -465,6 +466,38 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 	}
 
 	return s.getParameters(role, containerRole)
+}
+
+func (m *FDEManager) loadParameters(method device.SealingMethod) error {
+	wrapped := &unlockedStateManager{
+		FDEManager: m,
+		unlocker:   m.state.Unlocker(),
+	}
+	opts := backend.RecalculateParamatersOptions{
+		EnsureParametersLoaded: true,
+	}
+	return boot.WithBootChains(func(bc boot.BootChains) error {
+		backend.RecalculateParamaters(wrapped, method, dirs.GlobalRootDir, bc, nil, opts)
+		return nil
+	}, method)
+}
+
+func (m *FDEManager) EnsureParametersLoaded(role, containerRole string) error {
+	hasParameters, _, _, _, err := m.GetParameters(role, containerRole)
+	if err != nil {
+		return err
+	}
+	if hasParameters {
+		// nothing to do
+		return nil
+	}
+
+	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil {
+		return err
+	}
+
+	return m.loadParameters(method)
 }
 
 const recoveryKeyExpireAfter = 5 * time.Minute

@@ -565,7 +565,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
 		}
-		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		// TODO:FDEM: accept custom key slot names when a naming convension is defined
 		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
@@ -620,6 +620,132 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	changeAuth.Set("keyslots", keyslotRefs)
 	changeAuth.Set("auth-mode", authMode)
 	ts.AddTask(changeAuth)
+
+	return ts, nil
+}
+
+type keyslotAuthOptionsKey struct{}
+
+// ResetAuth creates a taskset that resets the PIN or
+// passphrase for the specified target key slots to a
+// new value.
+//
+// If keyslotRefs is empty, the following key slots are targets:
+//   - container-role: system-data, name: default
+//   - container-role: system-data, name: default-fallback
+//   - container-role: system-save, name: default-fallback
+func ResetAuth(st *state.State, authMode device.AuthMode, new string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	switch authMode {
+	// TODO:FDEM: relax for PINs
+	case device.AuthModePassphrase:
+	default:
+		return nil, fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
+	if new == "" {
+		return nil, errors.New("new value cannot be empty")
+	}
+
+	if len(keyslotRefs) == 0 {
+		// by default, target keys that would have been PIN/passphrase protected during installation.
+		keyslotRefs = append(keyslotRefs,
+			KeyslotRef{ContainerRole: "system-data", Name: "default"},
+			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"},
+		)
+	}
+
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
+		}
+		// TODO:FDEM: accept custom key slot names when a naming convension is defined
+		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
+		}
+
+		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
+	}
+
+	// Note: checking that there are no ongoing conflicting changes and that the
+	// targeted key slots exist while state is locked ensures that we don't suffer
+	// from TOCTOU.
+
+	if err := checkFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	mgr := fdeMgr(st)
+
+	keyslots, missing, err := mgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(missing) != 0 {
+		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+
+	tmpKeyslotRoles := make(map[string][]string, len(keyslots))
+	tmpKeyslotAuthOpts := make(map[string]*device.VolumesAuthOptions, len(keyslots))
+	for _, keyslot := range keyslots {
+		if keyslot.Type != KeyslotTypePlatform {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypePlatform)
+		}
+		kd, err := keyslot.KeyData()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+		if kd.AuthMode() != authMode {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), authMode)
+		}
+
+		tmpKeyslotRef := tmpKeyslotRef(keyslot.Ref())
+		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()
+
+		opts := &device.VolumesAuthOptions{Mode: authMode}
+		switch authMode {
+		case device.AuthModePassphrase:
+			// TODO:FDEM: obtain KDF options from key data when secboot exports it.
+			opts.Passphrase = new
+		}
+		tmpKeyslotAuthOpts[tmpKeyslotRef.String()] = opts
+
+		for _, role := range kd.Roles() {
+			if err := mgr.EnsureParametersLoaded(role, keyslot.ContainerRole); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Auth data must be in memory to avoid leaking credentials.
+	if st.Cached(keyslotAuthOptionsKey{}) != nil {
+		logger.Noticef("WARNING: authentication options already exists in memory")
+	}
+	st.Cache(keyslotAuthOptionsKey{}, tmpKeyslotAuthOpts)
+
+	ts := state.NewTaskSet()
+
+	addTemporaryAuthKeys := st.NewTask("fde-add-protected-keys", fmt.Sprintf("Add temporary %s key slots", authMode))
+	addTemporaryAuthKeys.Set("keyslots", tmpKeyslotRefs)
+	addTemporaryAuthKeys.Set("auth-mode", authMode)
+	addTemporaryAuthKeys.Set("roles", tmpKeyslotRoles)
+	ts.AddTask(addTemporaryAuthKeys)
+
+	removeOldAuthKeys := st.NewTask("fde-remove-keys", fmt.Sprintf("Remove old %s key slots", authMode))
+	removeOldAuthKeys.Set("keyslots", keyslotRefs)
+	removeOldAuthKeys.WaitFor(addTemporaryAuthKeys)
+	ts.AddTask(removeOldAuthKeys)
+
+	renameTemporaryAuthKeys := st.NewTask("fde-rename-keys", fmt.Sprintf("Rename temporary %s key slots", authMode))
+	renameTemporaryAuthKeys.Set("keyslots", tmpKeyslotRefs)
+	renameTemporaryAuthKeys.Set("renames", tmpKeyslotRenames)
+	renameTemporaryAuthKeys.WaitFor(removeOldAuthKeys)
+	ts.AddTask(renameTemporaryAuthKeys)
 
 	return ts, nil
 }

@@ -285,10 +285,9 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 	}
 }
 
-func recalculateParamatersFDEHook(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
-	params := inputs.bootChains
-	runModels := getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
-	recoveryModels := getUniqueModels(params.RecoveryBootChains)
+func recalculateParamatersFDEHook(manager FDEStateManager, method device.SealingMethod, rootdir string, bootChains boot.BootChains, signatureDBUpdate []byte, opts RecalculateParamatersOptions) error {
+	runModels := getUniqueModels(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))
+	recoveryModels := getUniqueModels(bootChains.RecoveryBootChains)
 
 	runParams := &SealingParameters{
 		BootModes: []string{"run", "recover"},
@@ -317,22 +316,20 @@ func recalculateParamatersFDEHook(manager FDEStateManager, method device.Sealing
 	return nil
 }
 
-func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
-	params := inputs.bootChains
+func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMethod, rootdir string, bootChains boot.BootChains, signatureDBUpdate []byte, opts RecalculateParamatersOptions) error {
 	// reseal the run object
-	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
+	pbc := boot.ToPredictableBootChains(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))
+	runOnlyPbc := boot.ToPredictableBootChains(bootChains.RunModeBootChains)
 
 	needed, nextCount, err := bootIsResealNeeded(pbc, BootChainsFileUnder(rootdir), opts.ExpectReseal)
 	if err != nil {
 		return err
 	}
 	if needed || opts.Force {
-		runOnlyPbc := boot.ToPredictableBootChains(params.RunModeBootChains)
-
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		err := updateRunProtectionProfile(manager, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateRunProtectionProfile(manager, runOnlyPbc, pbc, signatureDBUpdate, bootChains.RoleToBlName)
 		if err != nil {
 			return err
 		}
@@ -343,12 +340,17 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 		if err := boot.WriteBootChains(pbc, bootChainsPath, nextCount); err != nil {
 			return err
 		}
+	} else if opts.EnsureParametersLoaded {
+		err := updateRunProtectionProfile(manager, runOnlyPbc, pbc, signatureDBUpdate, bootChains.RoleToBlName)
+		if err != nil {
+			return err
+		}
 	} else {
 		logger.Debugf("reseal not necessary")
 	}
 
 	// reseal the fallback object
-	rpbc := boot.ToPredictableBootChains(params.RecoveryBootChains)
+	rpbc := boot.ToPredictableBootChains(bootChains.RecoveryBootChains)
 
 	var nextFallbackCount int
 	needed, nextFallbackCount, err = bootIsResealNeeded(rpbc, RecoveryBootChainsFileUnder(rootdir), opts.ExpectReseal)
@@ -359,7 +361,7 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		err := updateFallbackProtectionProfile(manager, rpbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateFallbackProtectionProfile(manager, rpbc, signatureDBUpdate, bootChains.RoleToBlName)
 		if err != nil {
 			return err
 		}
@@ -369,8 +371,55 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 		if err := boot.WriteBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
 			return err
 		}
+	} else if opts.EnsureParametersLoaded {
+		err := updateFallbackProtectionProfile(manager, rpbc, signatureDBUpdate, bootChains.RoleToBlName)
+		if err != nil {
+			return err
+		}
 	} else {
 		logger.Debugf("fallback reseal not necessary")
+	}
+
+	return nil
+}
+
+type RecalculateParamatersOptions struct {
+	ExpectReseal           bool
+	Force                  bool
+	EnsureParametersLoaded bool
+	EnsureProvisioned      bool
+	Revoke                 bool
+	IgnoreFDEHooks         bool
+}
+
+func RecalculateParamaters(
+	manager FDEStateManager, method device.SealingMethod, rootdir string,
+	bootChains boot.BootChains, signatureDBUpdate []byte,
+	opts RecalculateParamatersOptions,
+) error {
+	switch method {
+	case device.SealingMethodFDESetupHook:
+		if opts.IgnoreFDEHooks {
+			return nil
+		}
+
+		if err := recalculateParamatersFDEHook(manager, method, rootdir, bootChains, signatureDBUpdate, opts); err != nil {
+			return err
+		}
+	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		if opts.EnsureProvisioned {
+			lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
+			if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
+				return err
+			}
+		}
+
+		if err := recalculateParamatersTPM(manager, method, rootdir, bootChains, signatureDBUpdate, opts); err != nil {
+			// TODO:FDEM:FIX: remove the save boot chains.
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 
 	return nil
@@ -540,11 +589,8 @@ func updateFallbackProtectionProfile(
 
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
 func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
-	return resealKeys(manager, method, rootdir,
-		resealInputs{
-			bootChains: params.BootChains,
-		},
-		resealOptions{
+	return resealKeys(manager, method, rootdir, params.BootChains, nil,
+		RecalculateParamatersOptions{
 			ExpectReseal:      opts.ExpectReseal,
 			Force:             opts.Force,
 			EnsureProvisioned: opts.EnsureProvisioned,
@@ -559,12 +605,8 @@ func ResealKeysForSignaturesDBUpdate(
 	manager FDEStateManager, method device.SealingMethod, rootdir string,
 	params *boot.ResealKeyForBootChainsParams, dbUpdate []byte,
 ) error {
-	return resealKeys(manager, method, rootdir,
-		resealInputs{
-			bootChains:        params.BootChains,
-			signatureDBUpdate: dbUpdate,
-		},
-		resealOptions{
+	return resealKeys(manager, method, rootdir, params.BootChains, dbUpdate,
+		RecalculateParamatersOptions{
 			ExpectReseal: true,
 			// the boot chains are unchanged, which normally would result in
 			// no-reseal being done, but the content of DBX is being changed,
@@ -577,47 +619,13 @@ func ResealKeysForSignaturesDBUpdate(
 		})
 }
 
-type resealInputs struct {
-	bootChains        boot.BootChains
-	signatureDBUpdate []byte
-}
-
-type resealOptions struct {
-	ExpectReseal      bool
-	Force             bool
-	EnsureProvisioned bool
-	Revoke            bool
-	IgnoreFDEHooks    bool
-}
-
 func resealKeys(
 	manager FDEStateManager, method device.SealingMethod, rootdir string,
-	inputs resealInputs,
-	opts resealOptions,
+	bootChains boot.BootChains, signatureDBUpdate []byte,
+	opts RecalculateParamatersOptions,
 ) error {
-	switch method {
-	case device.SealingMethodFDESetupHook:
-		if opts.IgnoreFDEHooks {
-			return nil
-		}
-
-		if err := recalculateParamatersFDEHook(manager, method, rootdir, inputs, opts); err != nil {
-			return err
-		}
-	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-		if opts.EnsureProvisioned {
-			lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
-			if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
-				return err
-			}
-		}
-
-		if err := recalculateParamatersTPM(manager, method, rootdir, inputs, opts); err != nil {
-			// TODO:FDEM:FIX: remove the save boot chains.
-			return err
-		}
-	default:
-		return fmt.Errorf("unknown key sealing method: %q", method)
+	if err := RecalculateParamaters(manager, method, rootdir, bootChains, signatureDBUpdate, opts); err != nil {
+		return err
 	}
 
 	return doReseal(manager, method, rootdir, opts.Revoke)
