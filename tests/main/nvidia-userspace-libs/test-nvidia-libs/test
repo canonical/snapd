@@ -16,7 +16,7 @@ ldd "$snap_x86_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_x86_dir
 ldd "$snap_i386_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_i386_dir/libnvidia-glsi.so.*"
 
 # We can access EGL configuration
-egl_file=10_snap_test-nvidia-interfaces_egl.json
+egl_file=10_snap_test-nvidia-interfaces_egl-dl.json
 egl_cfg_path=/var/lib/snapd/lib/glvnd/egl_vendor.d/"$egl_file"
 readlink "$egl_cfg_path" | grep /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/"$egl_file"
 grep '"library_path" *: *"libEGL_nvidia.so.0"' "$egl_cfg_path"
