@@ -1,0 +1,17 @@
+name: test-nvidia-libs
+version: '1.0'
+summary: Test nvidia libs coming from snap
+description: |
+  Test nvidia libs coming from snap
+architectures:
+- all
+base: core24
+confinement: strict
+grade: stable
+apps:
+  test:
+    command: test
+    plugs:
+    - opengl
+environment:
+  LD_LIBRARY_PATH: ${SNAP_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
