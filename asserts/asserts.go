@@ -150,6 +150,7 @@ var (
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
 	ConfdbSchemaType         = &AssertionType{"confdb-schema", []string{"account-id", "name"}, nil, assembleConfdbSchema, jsonBody}
 	ClusterType              = &AssertionType{"cluster", []string{"cluster-id", "sequence"}, nil, assembleCluster, sequenceForming}
+	RequestMessageType       = &AssertionType{"request-message", []string{"account-id", "message-id"}, nil, assembleRequestMessage, 0}
 
 	// ...
 )
@@ -182,6 +183,8 @@ var typeRegistry = map[string]*AssertionType{
 	SnapResourcePairType.Name:     SnapResourcePairType,
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
 	ClusterType.Name:              ClusterType,
+	RequestMessageType.Name:       RequestMessageType,
+
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
