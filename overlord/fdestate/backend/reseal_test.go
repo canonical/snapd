@@ -477,8 +477,8 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 		return nil
 	})()
 
-	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true}
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, RevokeOldKeys: revokeOldKeys}, opts)
+	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true, RevokeOldKeys: revokeOldKeys}
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, Options: opts})
 	c.Assert(err, IsNil)
 
 	c.Assert(bootIsResealNeededCalls, Equals, 2)
@@ -1133,8 +1133,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			return []byte{1, 2, 3, 4}, nil
 		})()
 
-		opts := boot.ResealKeyToModeenvOptions{}
-		err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+		err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -1457,8 +1456,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
-	opts := boot.ResealKeyToModeenvOptions{}
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1795,8 +1793,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
-	opts := boot.ResealKeyToModeenvOptions{}
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -1996,8 +1993,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
-	opts := boot.ResealKeyToModeenvOptions{}
-	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	err = backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 3)
 
@@ -2130,8 +2126,7 @@ func (s *resealTestSuite) TestHooksResealHappy(c *C) {
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
-	opts := boot.ResealKeyToModeenvOptions{}
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains})
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)
@@ -2210,7 +2205,7 @@ func (s *resealTestSuite) TestHooksResealIgnoreFDEHooks(c *C) {
 	})()
 
 	opts := boot.ResealKeyToModeenvOptions{IgnoreFDEHooks: true}
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodFDESetupHook, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, Options: opts})
 	c.Assert(err, IsNil)
 }
 
@@ -2548,7 +2543,7 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 	})()
 
 	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true, EnsureProvisioned: true}
-	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains}, opts)
+	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, Options: opts})
 	c.Assert(err, IsNil)
 
 	c.Check(resealCalls, Equals, 3)

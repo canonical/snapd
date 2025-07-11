@@ -530,11 +530,11 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 		// set mock key resealing
 		resealKeysCalls := 0
-		restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+		restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams) error {
 			resealKeysCalls++
 
 			c.Check(method, Equals, device.SealingMethodTPM)
-			c.Check(opts.ExpectReseal, Equals, false)
+			c.Check(params.Options.ExpectReseal, Equals, false)
 			c.Check(rootdirArg, Equals, rootdir)
 
 			c.Check(params.RunModeBootChains, DeepEquals, expectedRunBootChains)
@@ -624,11 +624,11 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams) error {
 		resealKeysCalls++
 
 		c.Check(method, Equals, device.SealingMethodTPM)
-		c.Check(opts.ExpectReseal, Equals, false)
+		c.Check(params.Options.ExpectReseal, Equals, false)
 		c.Check(rootdirArg, Equals, rootdir)
 
 		c.Assert(resealKeysCalls, Equals, 1)
@@ -839,10 +839,10 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams) error {
 		c.Check(rootdirArg, Equals, rootdir)
 		c.Check(method, Equals, device.SealingMethodTPM)
-		c.Check(opts.ExpectReseal, Equals, false)
+		c.Check(params.Options.ExpectReseal, Equals, false)
 
 		resealKeysCalls++
 		c.Logf("reseal: %+v", params)
@@ -1684,10 +1684,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	defer dirs.SetRootDir("")
 
 	mockResealKeyForBootChainsCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams) error {
 		c.Check(rootdirArg, Equals, rootdir)
 		c.Check(method, Equals, device.SealingMethodFDESetupHook)
-		c.Check(opts.ExpectReseal, Equals, false)
+		c.Check(params.Options.ExpectReseal, Equals, false)
 
 		mockResealKeyForBootChainsCalls++
 		return nil
@@ -1730,10 +1730,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	defer dirs.SetRootDir("")
 
 	mockResealKeyForBootChainsCalls := 0
-	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+	restore := boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams) error {
 		c.Check(rootdirArg, Equals, rootdir)
 		c.Check(method, Equals, device.SealingMethodFDESetupHook)
-		c.Check(opts.ExpectReseal, Equals, false)
+		c.Check(params.Options.ExpectReseal, Equals, false)
 		mockResealKeyForBootChainsCalls++
 		return fmt.Errorf("fde setup hook failed")
 	})
@@ -1842,10 +1842,10 @@ func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId stri
 
 	// set mock key resealing
 	resealKeysCalls := 0
-	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+	restore = boot.MockResealKeyForBootChains(func(unlocker boot.Unlocker, method device.SealingMethod, rootdirArg string, params *boot.ResealKeyForBootChainsParams) error {
 		c.Check(rootdirArg, Equals, rootdir)
 		c.Check(method, Equals, device.SealingMethodTPM)
-		c.Check(opts.ExpectReseal, Equals, false)
+		c.Check(params.Options.ExpectReseal, Equals, false)
 		resealKeysCalls++
 
 		kernelOldRecovery := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
