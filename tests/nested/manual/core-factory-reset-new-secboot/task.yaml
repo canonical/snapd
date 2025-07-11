@@ -106,7 +106,6 @@ execute: |
     remote.exec "cat /proc/cmdline" | MATCH "forceresealing"
 
     boot_id="$(tests.nested boot-id)"
-    exit 1
     remote.exec "sudo snap reboot --factory-reset" || true
     remote.wait-for reboot "${boot_id}"
 
