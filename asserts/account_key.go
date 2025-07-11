@@ -62,6 +62,24 @@ func checkSinceUntilWhat(m map[string]any, what string) (*sinceUntil, error) {
 	}, nil
 }
 
+func checkValidSinceUntilWhat(m map[string]any, what string) (*sinceUntil, error) {
+	since, err := checkRFC3339DateWhat(m, "valid-since", what)
+	if err != nil {
+		return nil, err
+	}
+
+	until, err := checkRFC3339DateWhat(m, "valid-until", what)
+	if err != nil {
+		return nil, err
+	}
+
+	if until.Before(since) {
+		return nil, fmt.Errorf("'valid-until' time cannot be before 'valid-since' time")
+	}
+
+	return &sinceUntil{since: since, until: until}, nil
+}
+
 // AccountID returns the account-id of this account-key.
 func (ak *AccountKey) AccountID() string {
 	return ak.HeaderString("account-id")
