@@ -112,29 +112,29 @@ execute: |
 
   # system-boot is not encrypted
   gojq '.result."by-container-role"."system-boot"' < containers.out > container.out
-  test $(gojq '.encrypted' < container.out) = false
-  test $(gojq '.keyslots | length' < container.out) -eq 0
+  test "$(gojq '.encrypted' < container.out)" = false
+  test "$(gojq '.keyslots | length' < container.out)" -eq 0
 
   # system-seed is also not encrypted
   gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
-  test $(gojq '.encrypted' < container.out) = false
-  test $(gojq '.keyslots | length' < container.out) -eq 0
+  test "$(gojq '.encrypted' < container.out)" = false
+  test "$(gojq '.keyslots | length' < container.out)" -eq 0
 
   # system-data is encrypted and has a recovery key
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
-  test $(gojq '.encrypted' < container.out) = true
-  test $(gojq '.keyslots | length' < container.out) -eq 3
-  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 3
+  test "$(gojq --raw-output '.keyslots.default.\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-fallback\".\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-recovery\".type' < container.out)" = recovery
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
-  test $(gojq '.encrypted' < container.out) = true
-  test $(gojq '.keyslots | length' < container.out) -eq 3
-  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 3
+  test "$(gojq --raw-output '.keyslots.default.\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-fallback\".\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-recovery\".type' < container.out)" = recovery
 
   # Check we can boot with recovery key
   tests.nested vm set-recovery-key "$(cat rkey-pre-install.out)"
@@ -197,16 +197,16 @@ execute: |
 
   # system-data is encrypted and has a recovery key
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
-  test $(gojq '.encrypted' < container.out) = true
-  test $(gojq '.keyslots | length' < container.out) -eq 3
-  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 3
+  test "$(gojq --raw-output '.keyslots.default.\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-fallback\".\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-recovery\".type' < container.out)" = recovery
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
-  test $(gojq '.encrypted' < container.out) = true
-  test $(gojq '.keyslots | length' < container.out) -eq 3
-  test $(gojq --raw-output '.keyslots.default."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out) = none
-  test $(gojq --raw-output '.keyslots."default-recovery".type' < container.out) = recovery
+  test "$(gojq '.encrypted' < container.out)" = true
+  test "$(gojq '.keyslots | length' < container.out)" -eq 3
+  test "$(gojq --raw-output '.keyslots.default.\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-fallback\".\"auth-mode\"' < container.out)" = none
+  test "$(gojq --raw-output '.keyslots.\"default-recovery\".type' < container.out)" = recovery
