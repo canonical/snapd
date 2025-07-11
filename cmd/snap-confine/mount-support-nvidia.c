@@ -38,8 +38,6 @@
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support.h"
 
-#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
-
 #define SC_LIBGL_DIR SC_EXTRA_LIB_DIR "/gl"
 #define SC_LIBGL32_DIR SC_EXTRA_LIB_DIR "/gl32"
 #define SC_VULKAN_DIR SC_EXTRA_LIB_DIR "/vulkan"
@@ -67,6 +65,14 @@ static const char *egl_vendor_globs[] = {
 };
 
 static const size_t egl_vendor_globs_len = SC_ARRAY_SIZE(egl_vendor_globs);
+
+static const char *nvidia_driver_version_file(void) {
+    const char *path = getenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
+    if (path != NULL) {
+        return path;
+    }
+    return "/sys/module/nvidia/version";
+}
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -371,7 +377,7 @@ static void sc_probe_nvidia_driver(sc_nv_version *version) {
 
     FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
     debug("opening file describing nvidia driver version");
-    file = fopen(SC_NVIDIA_DRIVER_VERSION_FILE, "rt");
+    file = fopen(nvidia_driver_version_file(), "rt");
     if (file == NULL) {
         if (errno == ENOENT) {
             debug("nvidia driver version file doesn't exist");
@@ -575,7 +581,7 @@ static void sc_mount_egl(const char *rootfs_dir) {
 
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) {
     /* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
-    if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
+    if (access(nvidia_driver_version_file(), F_OK) != 0) {
         return;
     }
 
