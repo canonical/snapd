@@ -972,6 +972,128 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 	}
 }
 
+func (s *constraintsSuite) TestRulePermissionEntrySupersedes(c *C) {
+	currTime := time.Now()
+	for _, testCase := range []struct {
+		entry    *prompting.RulePermissionEntry
+		other    *prompting.RulePermissionEntry
+		expected bool
+	}{
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			// Later expiration supersedes earlier, regardless of whether either is expired
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(-time.Second),
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: false,
+		},
+	} {
+		c.Check(testCase.entry.Supersedes(testCase.other), Equals, testCase.expected, Commentf("testCase:\n\tentry: %+v\n\tother: %+v\n\texpected: %v", testCase.entry, testCase.other, testCase.expected))
+	}
+}
+
 func constructPermissionsMaps() []map[string]map[string]notify.AppArmorPermission {
 	var permissionsMaps []map[string]map[string]notify.AppArmorPermission
 	// interfaceFilePermissionsMaps
