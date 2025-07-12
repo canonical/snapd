@@ -146,6 +146,17 @@ func (r *TaskRunner) KnownTaskKinds() []string {
 	return kinds
 }
 
+// KnownTaskKindsWithUndo returns all task kinds with an undo handler that are handled by this runner.
+func (r *TaskRunner) KnownTaskKindsWithUndo() []string {
+	kinds := make([]string, 0, len(r.handlers))
+	for h := range r.handlers {
+		if r.handlers[h].undo != nil {
+			kinds = append(kinds, h)
+		}
+	}
+	return kinds
+}
+
 // AddCleanup registers a function to be called after the change completes,
 // for cleaning up data left behind by tasks of the specified kind.
 // The provided function will be called no matter what the final status of the
