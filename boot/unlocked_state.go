@@ -10,10 +10,6 @@ import (
 
 // states for partition state
 const (
-	// states for LocateState
-	PartitionFound      = "found"
-	PartitionNotFound   = "not-found"
-	PartitionErrFinding = "error-finding"
 	// states for MountState
 	PartitionMounted          = "mounted"
 	PartitionErrMounting      = "error-mounting"
@@ -31,8 +27,6 @@ const (
 	UnlockedStateFileName = "unlocked.json"
 	// Legacy name for the unlock state file for degraded cases
 	DegradedStateFileName = "degraded.json"
-	// Legacy name for the unlock state file for factory reset case
-	FactoryResetStateFileName = "factory-reset-bootstrap.json"
 )
 
 // PartitionState is the state of a partition after recover mode has completed
@@ -44,14 +38,6 @@ type PartitionState struct {
 	// MountLocation is where the partition was mounted.
 	// This state is not provided in run mode.
 	MountLocation string `json:"mount-location,omitempty"`
-	// Device is what device the partition corresponds to. It can be the
-	// physical block device if the partition is unencrypted or if it was not
-	// successfully unlocked, or it can be a decrypted mapper device if the
-	// partition was encrypted and successfully decrypted, or it can be the
-	// empty string (or missing) if the partition was not found at all.
-	Device string `json:"device,omitempty"`
-	// FindState indicates whether the partition was found on the disk or not.
-	FindState string `json:"find-state,omitempty"`
 	// UnlockState is whether the partition was unlocked successfully or not.
 	UnlockState string `json:"unlock-state,omitempty"`
 	// UnlockKey is what key the partition was unlocked with, either "run",
@@ -70,9 +56,6 @@ type DiskUnlockState struct {
 	// UbuntuSave is the state of the ubuntu-save (or ubuntu-save-enc)
 	// partition.
 	UbuntuSave PartitionState `json:"ubuntu-save,omitempty"`
-	// ErrorLog is the log of error messages encountered during recover mode
-	// setting up degraded mode.
-	ErrorLog []string `json:"error-log"`
 }
 
 // WriteTo writes the DiskUnlockState into a json file for given name
