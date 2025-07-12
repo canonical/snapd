@@ -22,6 +22,7 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"sort"
@@ -313,6 +314,25 @@ func ensureVolumeEMMCCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolum
 		if _, err := os.Stat(path.Join(dirs.GlobalRootDir, emmcNode)); err != nil {
 			return nil, fmt.Errorf("emmc disk partition %s is specified, but no such disk: %s",
 				gs.Name, path.Join(dirs.GlobalRootDir, emmcNode))
+		}
+
+		// The eMMC special partition volumes have their own sizes, and we should check
+		// the size declared in the gadget structure is atleast equal to or less than this
+		mmcPart, err := disks.DiskFromDeviceName(emmcNode)
+		if err != nil {
+			log.Printf("cannot get disk for device %s: %v", emmcNode, err)
+			return nil, fmt.Errorf("cannot get disk for device %s: %v", emmcNode, err)
+		}
+
+		sz, err := mmcPart.SizeInBytes()
+		if err != nil {
+			log.Printf("cannot get size of device %s: %v", emmcNode, err)
+			return nil, fmt.Errorf("cannot get size of device %s: %v", emmcNode, err)
+		}
+
+		if sz < uint64(gs.Size) {
+			log.Printf("declared size of volume structure %s is too large to fit onto %s", gs.Name, emmcNode)
+			return nil, fmt.Errorf("declared size of volume structure %s is too large to fit onto %s", gs.Name, emmcNode)
 		}
 
 		ds := &OnDiskStructure{
