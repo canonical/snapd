@@ -25,7 +25,8 @@ environment:
 
   # 2.63
   OLD_SNAPD_REVISION: 21759
-  OLD_SNAPD_COMMIT: 40efd81c2f35213eabf2df83fb9efabe88fa124e
+  # matches core-initrd from kernel rev 2247
+  OLD_SNAPD_COMMIT: 98d9ab686560565b4c943723d1df1ba35f6436b1
 
   NESTED_KERNEL_REMOVE_COMPONENTS: true
 
