@@ -406,9 +406,6 @@ func (s *viewSuite) TestConfdbNoMatchAllSubkeyTypes(c *C) {
 
 	view := schema.View("bar")
 
-	err = view.Set(databag, "a.b[1][0]", "foo")
-	c.Assert(err, IsNil)
-
 	// check each sub-key in the rule path rejects an unmatchable request
 	for _, request := range []string{"b", "a[1]", "a.b[0]", "a.b[1].d"} {
 		_, err = view.Get(databag, request)
@@ -417,9 +414,8 @@ func (s *viewSuite) TestConfdbNoMatchAllSubkeyTypes(c *C) {
 	}
 
 	// but they accept the right request
-	val, err := view.Get(databag, "a.b[1][0]")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
+	_, err = view.Get(databag, "a.b[1][0]")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *viewSuite) TestViewBadRead(c *C) {
@@ -439,7 +435,7 @@ func (s *viewSuite) TestViewBadRead(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = view.Get(databag, "onetwo")
-	c.Assert(err, ErrorMatches, `cannot read path prefix "one": prefix maps to string`)
+	c.Assert(err, ErrorMatches, `cannot decode databag at path "one": expected container type but got string`)
 }
 
 func (s *viewSuite) TestViewAccessControl(c *C) {
@@ -3030,4 +3026,161 @@ func (*viewSuite) TestRequestMatch(c *C) {
 
 	_, err = view.MatchGetRequest("a.b123.bar")
 	c.Assert(err, ErrorMatches, `cannot get "a.b123.bar" through acc/confdb/foo: no matching rule`)
+}
+
+func (*viewSuite) TestGetListLiteral(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[0].bar", "storage": "a[0].bar"},
+				map[string]any{"request": "a[1].baz", "storage": "a[1][0].baz"},
+				map[string]any{"request": "top", "storage": "a"},
+				map[string]any{"request": "nested", "storage": "a[1]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set("a", []any{
+		map[string]any{"bar": 1337},
+		[]any{map[string]any{"baz": 999}},
+	})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(bag, "a[0].bar")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, float64(1337))
+
+	val, err = view.Get(bag, "a[1].baz")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, float64(999))
+
+	val, err = view.Get(bag, "top")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		map[string]any{"bar": float64(1337)},
+		[]any{map[string]any{"baz": float64(999)}},
+	})
+
+	// path with literal index ending at list
+	val, err = view.Get(bag, "nested")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{map[string]any{"baz": float64(999)}})
+}
+
+func (*viewSuite) TestGetListPlaceholder(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[{n}].bar", "storage": "a[{n}].bar"},
+				map[string]any{"request": "b[{n}][{m}].baz", "storage": "b[{n}][{m}].baz"},
+				map[string]any{"request": "nested[{n}]", "storage": "b[{n}]"},
+				map[string]any{"request": "c[{n}].baz", "storage": "c[{n}].baz"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set("a", []any{map[string]any{"bar": 1337}})
+	c.Assert(err, IsNil)
+
+	err = bag.Set("b", []any{[]any{map[string]any{"baz": 1}}, []any{map[string]any{"baz": 999}}})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(bag, "a[0].bar")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, float64(1337))
+
+	val, err = view.Get(bag, "b[1][0].baz")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, float64(999))
+
+	val, err = view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{map[string]any{"bar": float64(1337)}})
+
+	val, err = view.Get(bag, "b")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		[]any{map[string]any{"baz": float64(1)}},
+		[]any{map[string]any{"baz": float64(999)}},
+	})
+
+	// path with placeholder ending at list
+	val, err = view.Get(bag, "nested")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		[]any{map[string]any{"baz": float64(1)}},
+		[]any{map[string]any{"baz": float64(999)}},
+	})
+
+	// read ending at path with two values (one container and one non-container)
+	// to test merging of final results
+	err = bag.Set("c", []any{map[string]any{"baz": 1}, 999})
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "c")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{map[string]any{"baz": float64(1)}})
+}
+
+func (*viewSuite) TestGetListPlaceholderValueNotFound(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "c[{n}].baz", "storage": "c[{n}].baz"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+
+	// value doesn't include path ending in ".baz"
+	err = bag.Set("c", []any{map[string]any{"bar": 1}, 999})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	_, err = view.Get(bag, "c")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+
+	// path goes beyond stored list
+	_, err = view.Get(bag, "c[2]")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				// we shouldn't allow contradictory schemas like this but for now ensure
+				// we handle this gracefully
+				map[string]any{"request": "a.b", "storage": "a.b"},
+				map[string]any{"request": "a[0]", "storage": "a[0]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "a.b", "bar")
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(bag, "a[0]")
+	c.Assert(err, ErrorMatches, `key "\[0\]" cannot be used to access map at path "a\[0\]"`)
+
+	err = view.Unset(bag, "a")
+	c.Assert(err, IsNil)
+
+	err = bag.Set("a", []any{"foo", "bar"})
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(bag, "a.b")
+	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
 }
