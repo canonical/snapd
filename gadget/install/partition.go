@@ -149,6 +149,11 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 	}
 	sectorSize := uint64(dl.SectorSize)
 
+	// For eMMC volumes, do not build any partitions
+	if vol.Schema == "emmc" {
+		return nil, nil, nil
+	}
+
 	// The partition / disk index - we find the current max number
 	// currently on the disk and we start from there for the partitions we
 	// create. This is necessary as some partitions might not be defined by
