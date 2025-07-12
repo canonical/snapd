@@ -638,6 +638,18 @@ func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo,
 // change for regenerating security profiles, thus returning a change, or do
 // nothing, in which case no change is returned.
 func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	if !seeded {
+		// System not ready yet for checking system-key, bubble up the error to
+		// clients. They can either wait or proceed at their own peril.
+		return nil, errors.New("system not yet seeded")
+	}
+
 	action, err := interfaces.SystemKeyMismatchAdvice(systemKey)
 	if err != nil {
 		return nil, err
