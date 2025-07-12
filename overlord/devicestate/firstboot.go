@@ -336,7 +336,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	chainSorted(infos, infoToTs)
 
 	// chain together configuring core, kernel, and gadget after
-	// installing them so that defaults are availabble from gadget
+	// installing them so that defaults are available from gadget
 	if len(configTss) > 0 {
 		if preseed {
 			configTss[0].WaitFor(preseedDoneTask)
@@ -376,7 +376,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return nil, errs[0]
 	}
 	// XXX do better, use the warnings to setup checks at end of the seeding
-	// and log onlys plug not connected or explicitly disconnected there
+	// and log only plug not connected or explicitly disconnected there
 	for _, w := range warns {
 		logger.Noticef("seed prerequisites: %v", w)
 	}
@@ -428,7 +428,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 func (m *DeviceManager) importAssertionsFromSeed(mode string, isCoreBoot bool) (seed.Seed, error) {
 	st := m.state
 
-	// TODO: use some kind of context fo Device/SetDevice?
+	// TODO: use some kind of context for Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
