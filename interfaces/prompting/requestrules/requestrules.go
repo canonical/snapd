@@ -65,14 +65,16 @@ type Rule struct {
 
 // Validate verifies internal correctness of the rule's constraints and
 // permissions and prunes any expired permissions. If all permissions are
-// expired, then returns true. If the rule is invalid, returns an error.
-func (rule *Rule) validate(currTime time.Time) (expired bool, err error) {
-	return rule.Constraints.ValidateForInterface(rule.Interface, currTime)
+// expired at the given point in time, then returns true. If the rule is
+// invalid, returns an error.
+func (rule *Rule) validate(at prompting.At) (expired bool, err error) {
+	return rule.Constraints.ValidateForInterface(rule.Interface, at)
 }
 
-// expired returns true if all permissions for the receiving rule have expired.
-func (rule *Rule) expired(currTime time.Time) bool {
-	return rule.Constraints.Permissions.Expired(currTime)
+// expired returns true if all permissions for the receiving rule have expired
+// at the given point in time.
+func (rule *Rule) expired(at prompting.At) bool {
+	return rule.Constraints.Permissions.Expired(at)
 }
 
 // variantEntry stores the actual pattern variant struct which can be used to
@@ -88,6 +90,17 @@ type variantEntry struct {
 	Variant     patterns.PatternVariant
 	Outcome     prompting.OutcomeType
 	RuleEntries map[prompting.IDType]*prompting.RulePermissionEntry
+}
+
+// expired returns true if every rule permission entry in this variant entry
+// has expired at the given point in time.
+func (e *variantEntry) expired(at prompting.At) bool {
+	for _, rulePermissionEntry := range e.RuleEntries {
+		if !rulePermissionEntry.Expired(at) {
+			return false
+		}
+	}
+	return true
 }
 
 // permissionDB stores a map from path pattern variant to the ID of the rule
@@ -228,11 +241,14 @@ func (rdb *RuleDB) load() (retErr error) {
 		return strutil.JoinErrors(loadErr, rdb.save())
 	}
 
-	currTime := time.Now()
+	// Use the same point in time for every rule
+	at := prompting.At{
+		Time: time.Now(),
+	}
 
 	var errInvalid error
 	for _, rule := range wrapped.Rules {
-		expired, err := rule.validate(currTime)
+		expired, err := rule.validate(at)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
 			errInvalid = fmt.Errorf("internal error: %w", err)
@@ -244,7 +260,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		}
 
 		const save = false
-		mergedRule, merged, conflictErr := rdb.addOrMergeRule(rule, save)
+		mergedRule, merged, conflictErr := rdb.addOrMergeRule(rule, at, save)
 		if conflictErr != nil {
 			// Duplicate rules on disk or conflicting rule, should not occur
 			errInvalid = fmt.Errorf("cannot add rule: %w", conflictErr)
@@ -375,11 +391,14 @@ func (rdb *RuleDB) addRuleToRulesList(rule *Rule) error {
 // If the rule is not merged with an existing rule, then the given rule is
 // returned, and merged is returned as false.
 //
+// If the rule is merged with an existing rule, then any expired permissions
+// from the existing rule are pruned.
+//
 // If there is a conflicting rule, or if there is an error while saving the DB,
 // returns an error, and the rule DB is left unchanged.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rule, merged bool, err error) {
+func (rdb *RuleDB) addOrMergeRule(rule *Rule, at prompting.At, save bool) (addedOrMergedRule *Rule, merged bool, err error) {
 	// Check if rule with identical path pattern exists.
 	existingRule, exists, err := rdb.lookupRuleByPathPattern(rule.User, rule.Snap, rule.Interface, rule.Constraints)
 	if err != nil {
@@ -387,7 +406,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		return nil, false, err
 	}
 	if !exists {
-		if err := rdb.addNewRule(rule, save); err != nil {
+		if err := rdb.addNewRule(rule, at, save); err != nil {
 			return nil, false, err
 		}
 		return rule, false, nil
@@ -398,7 +417,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 	// be overridden by a permission entry in the new rule, if the latter has a
 	// broader lifespan (and doesn't otherwise conflict).
 	for existingPerm, existingEntry := range existingRule.Constraints.Permissions {
-		if existingEntry.Expired(rule.Timestamp) {
+		if existingEntry.Expired(at) {
 			continue
 		}
 		newPermissions[existingPerm] = existingEntry
@@ -453,7 +472,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 	// we just looked up the rule and know it exists.
 	rdb.removeRuleByID(existingRule.ID)
 
-	if err := rdb.addNewRule(&newRule, save); err != nil {
+	if err := rdb.addNewRule(&newRule, at, save); err != nil {
 		// Error while adding the new merged rule, likely due to a conflict
 		// caused by the new permissions in the rule to be added.
 
@@ -462,7 +481,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 		// we're now simply re-adding the existing rule which we just removed.
 		// Don't save, since nothing should have changed after the rollback is
 		// complete.
-		if restoreErr := rdb.addNewRule(existingRule, false); restoreErr != nil {
+		if restoreErr := rdb.addNewRule(existingRule, at, false); restoreErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add existing rule: %w", restoreErr))
 		}
@@ -482,7 +501,7 @@ func (rdb *RuleDB) addOrMergeRule(rule *Rule, save bool) (addedOrMergedRule *Rul
 // Returns an error if the rule conflicts with an existing rule.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addNewRule(rule *Rule, save bool) error {
+func (rdb *RuleDB) addNewRule(rule *Rule, at prompting.At, save bool) error {
 	// If the rule has no ID, assign a new one.
 	if rule.ID == 0 {
 		id, _ := rdb.maxIDMmap.NextID()
@@ -491,7 +510,7 @@ func (rdb *RuleDB) addNewRule(rule *Rule, save bool) error {
 	if err := rdb.addRuleToRulesList(rule); err != nil {
 		return err
 	}
-	conflictErr := rdb.addRuleToTree(rule)
+	conflictErr := rdb.addRuleToTree(rule, at)
 	if conflictErr != nil {
 		// remove just-added rule from rules list and IDs
 		rdb.rules = rdb.rules[:len(rdb.rules)-1]
@@ -570,18 +589,19 @@ func (rdb *RuleDB) removeRuleByID(id prompting.IDType) (*Rule, error) {
 // addRuleToTree adds the given rule to the rule tree.
 //
 // If there are other rules which have a conflicting path pattern and
-// permission, returns an error with information about the conflicting rules.
+// permission which is not expired at the given point in time, returns an
+// error with information about the conflicting rules.
 //
 // Assumes that the rule has already been internally validated. No additional
-// validation is done in this function, nor is the expiration of the permissions
-// checked.
+// validation is done in this function, nor is it checked whether it has
+// expired.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError {
+func (rdb *RuleDB) addRuleToTree(rule *Rule, at prompting.At) *prompting_errors.RuleConflictError {
 	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 	var conflicts []prompting_errors.RuleConflict
 	for permission, entry := range rule.Constraints.Permissions {
-		permConflicts := rdb.addRulePermissionToTree(rule, permission, entry)
+		permConflicts := rdb.addRulePermissionToTree(rule, permission, entry, at)
 		if len(permConflicts) > 0 {
 			conflicts = append(conflicts, permConflicts...)
 			continue
@@ -621,17 +641,17 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) *prompting_errors.RuleConflictError
 // call are removed from the variant map, leaving it unchanged, and the list of
 // conflicts is returned. If there are no conflicts, returns nil.
 //
-// Rules which are expired according to the timestamp of the rule being added,
-// whether their outcome conflicts with the new rule or not, are ignored and
-// never treated as conflicts. If there are no conflicts with non-expired
-// rules, then all expired rules are removed from the tree entry (though not
-// removed from the rule DB as a whole, nor is a notice recorded). If there is
-// a conflict with a non-expired rule, then nothing about the rule DB state is
-// changed, including expired rules.
+// Rules which are expired at the given point in time, whether their outcome
+// conflicts with the new rule or not, are ignored and never treated as
+// conflicts. If there are no conflicts with non-expired rules, then all
+// expired rules are removed from the tree entry (though not removed from the
+// rule DB as a whole, nor is a notice recorded). If there is a conflict with a
+// non-expired rule, then nothing about the rule DB state is changed, including
+// expired rules.
 //
 // The caller must ensure that the database lock is held for writing, and that
 // the given entry is not expired.
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permissionEntry *prompting.RulePermissionEntry) []prompting_errors.RuleConflict {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permissionEntry *prompting.RulePermissionEntry, at prompting.At) []prompting_errors.RuleConflict {
 	permVariants := rdb.ensurePermissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 
 	newVariantEntries := make(map[string]variantEntry, rule.Constraints.PathPattern.NumVariants())
@@ -657,7 +677,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		newVariantEntry.RuleEntries[rule.ID] = permissionEntry
 		newVariantEntries[variantStr] = newVariantEntry
 		for id, entry := range existingEntry.RuleEntries {
-			if entry.Expired(rule.Timestamp) {
+			if entry.Expired(at) {
 				// Don't preserve expired rules, and don't care if they conflict
 				partiallyExpiredRules[id] = true
 				continue
@@ -690,7 +710,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			// Error shouldn't occur. If it does, the rule was already removed
 			continue
 		}
-		if !maybeExpired.expired(rule.Timestamp) {
+		if !maybeExpired.expired(at) {
 			// Previously removed the rule's permission entry from the tree for
 			// this permission, now let's remove it from the rule as well.
 			delete(maybeExpired.Constraints.Permissions, permission)
@@ -966,12 +986,16 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, prompting_errors.ErrRulesClosed
 	}
 
-	newRule, err := rdb.makeNewRule(user, snap, iface, constraints)
+	at := prompting.At{
+		Time: time.Now(),
+	}
+
+	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, at)
 	if err != nil {
 		return nil, err
 	}
 	const save = true
-	newRule, _, err = rdb.addOrMergeRule(newRule, save)
+	newRule, _, err = rdb.addOrMergeRule(newRule, at, save)
 	if err != nil {
 		// If an error occurred, all changes were rolled back.
 		return nil, fmt.Errorf("cannot add rule: %w", err)
@@ -985,18 +1009,17 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 // the rule an ID, in case it can be merged with an existing rule.
 //
 // Constructs a new rule with the given parameters as values. The given
-// constraints are converted to rule constraints, using the timestamp of the
-// new rule as the baseline with which to compute an expiration from any given
-// duration. If any of the given parameters are invalid, returns an error.
-func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints) (*Rule, error) {
-	currTime := time.Now()
-	ruleConstraints, err := constraints.ToRuleConstraints(iface, currTime)
+// constraints are converted to rule constraints at the given point in time.
+//
+// If any of the given parameters are invalid, returns an error.
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, at prompting.At) (*Rule, error) {
+	ruleConstraints, err := constraints.ToRuleConstraints(iface, at)
 	if err != nil {
 		return nil, err
 	}
 
 	newRule := Rule{
-		Timestamp:   currTime,
+		Timestamp:   at.Time,
 		User:        user,
 		Snap:        snap,
 		Interface:   iface,
@@ -1016,9 +1039,12 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
 	allowedPerms = make([]string, 0, len(permissions))
 	outstandingPerms = make([]string, 0, len(permissions))
+	at := prompting.At{
+		Time: time.Now(),
+	}
 	var errs []error
 	for _, perm := range permissions {
-		allowed, err := isPathPermAllowedByRuleDB(rdb, user, snap, iface, path, perm)
+		allowed, err := isPathPermAllowed(rdb, user, snap, iface, path, perm, at)
 		switch {
 		case err == nil:
 			if allowed {
@@ -1035,14 +1061,14 @@ func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path
 	return allowedPerms, anyDenied, outstandingPerms, strutil.JoinErrors(errs...)
 }
 
-var isPathPermAllowedByRuleDB = func(rdb *RuleDB, user uint32, snap string, iface string, path string, permission string) (bool, error) {
-	return rdb.isPathPermAllowed(user, snap, iface, path, permission)
-}
+var isPathPermAllowed = (*RuleDB).isPathPermAllowed
 
 // isPathPermAllowed checks whether the given path with the given permission is
-// allowed or denied by existing rules for the given user, snap, and interface.
+// allowed or denied by existing rules for the given user, snap, and interface,
+// at the given point in time.
+//
 // If no rule applies, returns prompting_errors.ErrNoMatchingRule.
-func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
+func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string, at prompting.At) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	permissionMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
@@ -1051,18 +1077,8 @@ func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, pat
 	}
 	variantMap := permissionMap.VariantEntries
 	var matchingVariants []patterns.PatternVariant
-	// Make sure all rules use the same expiration timestamp, so a rule with
-	// an earlier expiration cannot outlive another rule with a later one.
-	currTime := time.Now()
 	for variantStr, variantEntry := range variantMap {
-		nonExpired := false
-		for _, rulePermissionEntry := range variantEntry.RuleEntries {
-			if !rulePermissionEntry.Expired(currTime) {
-				nonExpired = true
-				break
-			}
-		}
-		if !nonExpired {
+		if variantEntry.expired(at) {
 			continue
 		}
 
@@ -1119,9 +1135,11 @@ func (rdb *RuleDB) Rules(user uint32) []*Rule {
 // interface, but may apply to multiple permissions.
 func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 	rules := make([]*Rule, 0)
-	currTime := time.Now()
+	at := prompting.At{
+		Time: time.Now(),
+	}
 	for _, rule := range rdb.rules {
-		if rule.expired(currTime) {
+		if rule.expired(at) {
 			// XXX: it would be nice if we pruned expired permissions from a
 			// rule before including it in the rules list, if it's not expired.
 			// Since we don't hold the write lock, we don't want to
@@ -1324,10 +1342,6 @@ func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface s
 // error while modifying the rule, the rule is rolled back to its previous
 // unmodified state, leaving the database unchanged. If the database is changed,
 // it is saved to disk.
-//
-// XXX: Is there a client use-case for this API method?
-// Clients can always delete a rule and re-add it later, which is basically what
-// this method already does.
 func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (r *Rule, err error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
@@ -1347,19 +1361,21 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	// support patching it? Currently, we don't include fully expired rules
 	// in the output of Rules(), should the same be done here?
 
-	currTime := time.Now()
+	at := prompting.At{
+		Time: time.Now(),
+	}
 
 	if constraintsPatch == nil {
 		constraintsPatch = &prompting.RuleConstraintsPatch{}
 	}
-	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, origRule.Interface, currTime)
+	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, origRule.Interface, at)
 	if err != nil {
 		return nil, err
 	}
 
 	newRule := &Rule{
 		ID:          origRule.ID,
-		Timestamp:   currTime,
+		Timestamp:   at.Time,
 		User:        origRule.User,
 		Snap:        origRule.Snap,
 		Interface:   origRule.Interface,
@@ -1371,14 +1387,14 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	rdb.removeRuleByID(origRule.ID)
 
 	const save = true
-	newRule, _, addErr := rdb.addOrMergeRule(newRule, save)
+	newRule, _, addErr := rdb.addOrMergeRule(newRule, at, save)
 	if addErr != nil {
 		err := fmt.Errorf("cannot patch rule: %w", addErr)
 		// Re-add the original rule so all is unchanged, which should
 		// succeed since we're simply reversing what we just completed.
 		// Don't save, since nothing should have changed after the rollback
 		// is complete.
-		if origErr := rdb.addNewRule(origRule, false); origErr != nil {
+		if origErr := rdb.addNewRule(origRule, at, false); origErr != nil {
 			// Error should not occur, but if it does, wrap it in the other error
 			err = strutil.JoinErrors(err, fmt.Errorf("cannot re-add original rule: %w", origErr))
 		}

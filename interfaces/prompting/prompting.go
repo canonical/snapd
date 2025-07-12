@@ -122,6 +122,12 @@ func (outcome OutcomeType) AsBool() (bool, error) {
 	}
 }
 
+// At holds information about a particular point in time so it can be used to
+// check whether rules or permission entries have expired.
+type At struct {
+	Time time.Time
+}
+
 // LifespanType describes the temporal scope for which a reply or rule applies.
 type LifespanType string
 
