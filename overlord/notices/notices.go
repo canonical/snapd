@@ -56,10 +56,10 @@ type NoticeManager struct {
 	// notice types which have no backends registered for them.
 	state stateBackend
 
-	// lock guards against new backends being registered. It must be held for
+	// rwMu guards against new backends being registered. It must be held for
 	// writing when adding a new backend, and held for reading when using any
 	// of the other methods which touch the backends.
-	lock sync.RWMutex
+	rwMu sync.RWMutex
 	// backends is the list of all notice backends which are registered as
 	// providers for at least one notice type.
 	backends []NoticeBackend
@@ -141,8 +141,8 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 	if namespace == "" {
 		return nil, fmt.Errorf("internal error: cannot register notice backend with empty namespace")
 	}
-	nm.lock.Lock()
-	defer nm.lock.Unlock()
+	nm.rwMu.Lock()
+	defer nm.rwMu.Unlock()
 	// Check that this namespace is not already registered to another backend
 	if existingBknd, ok := nm.idNamespaceToBackend[namespace]; ok && existingBknd != bknd {
 		return nil, fmt.Errorf("internal error: cannot register notice backend with namespace which is already registered to a different backend: %q", namespace)
@@ -253,15 +253,15 @@ func (nm *NoticeManager) ReportLastNoticeTimestamp(t time.Time) {
 // The caller must not hold state lock, as the manager may need to take it to
 // check notices from state.
 func (nm *NoticeManager) Notices(filter *state.NoticeFilter) []*state.Notice {
-	nm.lock.RLock()
-	defer nm.lock.RUnlock()
+	nm.rwMu.RLock()
+	defer nm.rwMu.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
 	switch len(backendsToCheck) {
 	case 0:
 		// This should be impossible, since state is always an implicit backend
 		// if no other backend is registered for a given type.
-		return []*state.Notice{}
+		return nil
 	case 1:
 		return backendsToCheck[0].BackendNotices(filter)
 	}
@@ -274,7 +274,7 @@ func (nm *NoticeManager) Notices(filter *state.NoticeFilter) []*state.Notice {
 // providers of any of the types included in the given filter. If the filter
 // specifies no types, then all backends are returned.
 //
-// The caller must ensure that the notice manager lock is held for reading.
+// The caller must ensure that the notice manager rwMu is held for reading.
 func (nm *NoticeManager) relevantBackendsForFilter(filter *state.NoticeFilter) []NoticeBackend {
 	if filter == nil || len(filter.Types) == 0 {
 		// No types specified, so assume all backends are relevant
@@ -344,8 +344,8 @@ func doNotices(backendsToCheck []NoticeBackend, filter *state.NoticeFilter, now 
 // The caller must not hold state lock, as the manager may need to take it to
 // check notices from state.
 func (nm *NoticeManager) Notice(id string) *state.Notice {
-	nm.lock.RLock()
-	defer nm.lock.RUnlock()
+	nm.rwMu.RLock()
+	defer nm.rwMu.RUnlock()
 
 	prefix, ok := prefixFromID(id)
 	if !ok {
@@ -381,8 +381,8 @@ func (nm *NoticeManager) Notice(id string) *state.Notice {
 // The caller must not hold state lock, as the manager may need to take it to
 // check notices from state.
 func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
-	nm.lock.RLock()
-	defer nm.lock.RUnlock()
+	nm.rwMu.RLock()
+	defer nm.rwMu.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
 	switch len(backendsToCheck) {

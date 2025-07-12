@@ -150,7 +150,7 @@ func (n *Notice) Type() NoticeType {
 	return n.noticeType
 }
 
-// LastRepeated returns the last repeated timestamp for the receiving notice.
+// LastRepeated returns the last repeated timestamp for this notice.
 func (n *Notice) LastRepeated() time.Time {
 	return n.lastRepeated
 }
