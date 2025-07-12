@@ -12,6 +12,7 @@ environment:
     # 2.63 release
     OLD_SNAPD_REVISION: "21759"
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
+    NESTED_REPACK_KERNEL_SNAP: false
     NESTED_FORCE_SNAKEOIL_KEYS: true
 
     # hook
@@ -27,6 +28,9 @@ environment:
     NESTED_KERNEL_REMOVE_COMPONENTS: true
 
 prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB"/nested.sh
+
     if [ "${ENCRYPTION}" = hook ]; then
        mkdir -p ./extra-initrd/usr/bin/
        go build -o ./extra-initrd/usr/bin/fde-reveal-key "$TESTSLIB"/fde-setup-hook/fde-setup.go
@@ -34,13 +38,27 @@ prepare: |
        go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
     fi
 
+    version="$(nested_get_version)"
+    # Use also old kernel
+    if [ "$version" -eq 20 ]; then
+        kernel_rev=2332
+    elif [ "$version" -eq 22 ]; then
+        kernel_rev=2423
+    else
+        # This one does not install by default from the initramfs, which is
+        # relevant when doing the factory reset.
+        kernel_rev=2247
+    fi
     snap download snapd --revision="${OLD_SNAPD_REVISION}" --basename=snapd_old
+    snap download pc-kernel --revision="${kernel_rev}" --basename=pc-kernel_old
 
-    unsquashfs -d snapd_old snapd_old.snap
-    rm -f snapd_old.snap
-    touch snapd_old/force_modfication
-    snap pack snapd_old --filename="$(tests.nested get extra-snaps-path)/snapd_old.snap"
-    rm -rf snapd_old
+    for name in snapd_old pc-kernel_old; do
+        unsquashfs -d "$name" "$name".snap
+        rm -f "$name".snap
+        touch "$name"/force_modfication
+        snap pack "$name" --filename="$(tests.nested get extra-snaps-path)/"$name".snap"
+        rm -rf "$name"
+    done
 
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -61,7 +79,7 @@ prepare: |
     tests.nested create-vm core
 
 restore: |
-    rm -f snapd_old.snap snapd.snap
+    rm -f pc-kernel_old.* snapd_old.* snapd.snap
     rm -rf snapd_old snap-output
 
 execute: |
