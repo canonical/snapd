@@ -21,12 +21,16 @@ package builtin_test
 
 import (
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -50,6 +54,7 @@ const cudaDriverLibsConsumerYaml = `name: snapd
 version: 0
 plugs:
   cuda:
+    compatibility: cuda-(9..12)-ubuntu-2404
     interface: cuda-driver-libs
 apps:
   app:
@@ -59,8 +64,9 @@ apps:
 const cudaDriverLibsProvider = `name: cuda-provider
 version: 0
 slots:
-  cuda-driver-libs:
-    api-version: 9 .. 12.4
+  cuda-slot:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -72,7 +78,7 @@ func (s *CudaDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, cudaDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "cuda")
 	s.slot, s.slotInfo = MockConnectedSlot(c, cudaDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "cuda-driver-libs")
+		&snap.SideInfo{Revision: snap.R(5)}, "cuda-slot")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestName(c *C) {
@@ -89,6 +95,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - /snap/cuda-provider/current/lib1
 `, nil, "cuda")
@@ -100,6 +107,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "cuda-provider" does not have attribute "source" for interface "cuda-driver-libs"`)
@@ -109,10 +117,22 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
     source: $SNAP/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "cuda-provider" has interface "cuda-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    source:
+      - $SNAP/lib1
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`snap "cuda-provider" does not have attribute "compatibility" for interface "cuda-driver-libs"`)
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
@@ -120,23 +140,19 @@ func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
 		versRange string
 		err       string
 	}{
-		{"9.2.3", ""},
-		{"9.2.3 .. 12", ""},
-		{"9.2 .. 9.2.1", ""},
-		{"9.2ubuntu", `invalid CUDA version: "9.2ubuntu"`},
-		{".3", `invalid CUDA version: ".3"`},
-		{"3.", `invalid CUDA version: "3."`},
-		{"1.. 4.1", `wrong format for api-version: "1.. 4.1"`},
-		{"1 ..4.1", `wrong format for api-version: "1 ..4.1"`},
-		{"1 ... 4.1", `invalid separator in api-version: "..."`},
-		{"4.1.1 .. 4.1", `"4.1.1" should not be bigger than "4.1"`},
+		{"cuda-9-ubuntu-2404", ""},
+		{"cuda-(9..12)-ubuntu-2510", ""},
+		{"cuda-9", `compatibility label "cuda-9": unexpected number of strings \(should be 2\)`},
+		{"other-9", `compatibility label "other-9": unexpected number of strings \(should be 2\)`},
+		{"cuda-10-2-ubuntu-2510", `compatibility label "cuda-10-2-ubuntu-2510": unexpected number of integers \(should be 1 for "cuda"\)`},
+		{"cuda 5", `compatibility label "cuda 5": bad string "cuda 5"`},
 	} {
 		slot := MockSlot(c, fmt.Sprintf(`name: cuda-provider
 version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
-    api-version: '%s'
+    compatibility: '%s'
     source:
       - $SNAP/lib1
 `, tt.versRange), nil, "cuda")
@@ -158,8 +174,20 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "cuda-provider", SlotName: "cuda-driver-libs"}: {"/snap/cuda-provider/5/lib1",
+		{SnapName: "cuda-provider", SlotName: "cuda-slot"}: {"/snap/cuda-provider/5/lib1",
 			"/snap/cuda-provider/5/lib2"}})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/var/lib/snapd/export/cuda-provider_cuda-slot_cuda-driver-libs.source": &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.GlobalRootDir, "/snap/cuda-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.GlobalRootDir, "/snap/cuda-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
