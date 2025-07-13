@@ -133,6 +133,7 @@ const (
 	polkitActionManage              = "io.snapcraft.snapd.manage"
 	polkitActionManageInterfaces    = "io.snapcraft.snapd.manage-interfaces"
 	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
+	polkitActionManageFDE           = "io.snapcraft.snapd.manage-fde"
 )
 
 // userFromRequest extracts user information from request and return the

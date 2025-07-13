@@ -47,4 +47,14 @@
     </defaults>
   </action>
 
+  <action id="io.snapcraft.snapd.manage-fde">
+    <description gettext-domain="snappy">Manage FDE setup</description>
+    <message gettext-domain="snappy">Authentication is required to manage FDE setup</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
 </policyconfig>

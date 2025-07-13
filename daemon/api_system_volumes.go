@@ -43,8 +43,34 @@ var systemVolumesCmd = &Command{
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
 		"check-passphrase", "check-pin", "change-passphrase"},
-	ReadAccess:  rootAccess{},
-	WriteAccess: rootAccess{},
+	// anyone can enumerate key slots.
+	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+	WriteAccess: byActionAccess{
+		// only actions that need more relaxed access checks are listed here,
+		// otherwise the default access checker is used.
+		ByAction: map[string]accessChecker{
+			// anyone check passphrase/pin quality
+			"check-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-pin":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			// anyone can change passphrase given they know the old passphrase
+			// TODO:FDEM: rate limiting is needed to avoid DA lockout.
+			"change-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			// only root and admins (authenticated via Polkit) can check if
+			// a recovery key is valid.
+			"check-recovery-key": interfaceRootAccess{
+				// firmware-updater-support is allowed so that a user can verify
+				// their recovery key is valid before doing the firmware update
+				// which might require entering their recovery key on next boot.
+				Interfaces: []string{"snap-fde-control", "firmware-updater-support"},
+				Polkit:     polkitActionManageFDE,
+			},
+		},
+		// by default, all actions are only allowed for root and admins (authenticated via Polkit).
+		Default: interfaceRootAccess{
+			Interfaces: []string{"snap-fde-control"},
+			Polkit:     polkitActionManageFDE,
+		},
+	},
 }
 
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
