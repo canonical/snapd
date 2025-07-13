@@ -19,6 +19,7 @@ environment:
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   REMOTE_SAS_URL: http://10.0.2.2:11028
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
   # We will sign manually because we need to move files around
   NESTED_SIGN_SNAPS_FAKESTORE: false
@@ -145,6 +146,8 @@ prepare: |
     rm -rf snapd_old
 
     # Insert rebuilt snap-bootstrap in old kernel, so it supports testrootorg
+    # TODO cleanups missing in uc24_build_initramfs_kernel_snap
+    rm -rf pc-kernel initrd
     unsquashfs -d pc-kernel pc-kernel_old.snap
     rm pc-kernel_old.snap
     kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
