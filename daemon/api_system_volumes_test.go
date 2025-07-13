@@ -49,7 +49,22 @@ var _ = Suite(&systemVolumesSuite{})
 func (s *systemVolumesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectRootAccess()
+	s.expectedReadAccess = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}}
+	s.expectedWriteAccess = daemon.ByActionAccess{
+		ByAction: map[string]daemon.AccessChecker{
+			"check-passphrase":  daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-pin":         daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"change-passphrase": daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-recovery-key": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control", "firmware-updater-support"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+		},
+		Default: daemon.InterfaceRootAccess{
+			Interfaces: []string{"snap-fde-control"},
+			Polkit:     "io.snapcraft.snapd.manage-fde",
+		},
+	}
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesBadContentType(c *C) {
@@ -719,7 +734,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 	}
 }
 
-func (s *systemsSuite) TestSystemVolumesActionCheckPIN(c *C) {
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	s.daemon(c)
 
 	// just mock values for output matching
@@ -758,7 +773,7 @@ func (s *systemsSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestSystemVolumesActionCheckPINError(c *C) {
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 	s.daemon(c)
 
 	// just mock values for output matching
