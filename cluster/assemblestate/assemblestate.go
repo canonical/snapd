@@ -480,6 +480,11 @@ func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
 
 	as.fingerprints[auth.RDT] = fp
 
+	// check fingerprint consistency if we already have an identity for this peer
+	if id, ok := as.devices.Lookup(auth.RDT); ok && id.FP != fp {
+		return fmt.Errorf("fingerprint mismatch for device %s", auth.RDT)
+	}
+
 	// if we have discovered the route to this peer, we should record an
 	// authoritative route to it. this ensures that we send the route from our
 	// local node to this peer when we publish
@@ -647,6 +652,16 @@ func (as *AssembleState) Run(
 	// wait for context cancellation
 	wg.Wait()
 
+	// perform final fingerprint consistency check
+	devices := as.devices.Export()
+	for rdt, identity := range devices.IDs {
+		if fp, ok := as.fingerprints[rdt]; ok {
+			if fp != identity.FP {
+				return Routes{}, fmt.Errorf("consistency check failed: fingerprint mismatch for device %s", rdt)
+			}
+		}
+	}
+
 	sent, received, tx, rx := transport.Stats()
 	as.debugf(
 		"assemble stopped after %d rounds, sent: %d messages (%d bytes), received: %d messages (%d bytes)",
@@ -753,6 +768,11 @@ func (h *PeerHandle) AddDevices(devices Devices) error {
 			if current != id {
 				return errors.New("got inconsistent device identity")
 			}
+		}
+
+		// check fingerprint consistency if we know this peer's fingerprint
+		if fp, ok := h.as.fingerprints[id.RDT]; ok && fp != id.FP {
+			return fmt.Errorf("fingerprint mismatch for device %s", id.RDT)
 		}
 	}
 

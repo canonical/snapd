@@ -281,6 +281,37 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 
 }
 
+func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerRDT := DeviceToken("peer-rdt")
+
+	// first, add a device identity with a specific fingerprint
+	correctCert := []byte("correct-certificate")
+	correctFP := CalculateFP(correctCert)
+	as.devices.Identify(Identity{
+		RDT: peerRDT,
+		FP:  correctFP,
+	})
+
+	// now try to authenticate with the same RDT but different certificate
+	wrongCert := []byte("wrong-certificate")
+	wrongFP := CalculateFP(wrongCert)
+
+	auth := Auth{
+		HMAC: CalculateHMAC(peerRDT, wrongFP, "secret"),
+		RDT:  peerRDT,
+	}
+
+	err := as.Authenticate(auth, wrongCert)
+	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
+}
+
 func (s *ClusterSuite) TestTrusted(c *check.C) {
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
@@ -387,6 +418,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 	err = peer.AddDevices(Devices{
 		Devices: []Identity{{
 			RDT: "one",
+			FP:  CalculateFP([]byte("one-certificate")),
 		}},
 	})
 	c.Assert(err, check.IsNil)
@@ -420,9 +452,11 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 		Devices: []Identity{
 			{
 				RDT: "one",
+				FP:  CalculateFP([]byte("one-certificate")),
 			},
 			{
 				RDT: "two",
+				FP:  CalculateFP([]byte("two-certificate")),
 			},
 		},
 	})
@@ -451,6 +485,7 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 			devices := message.(Devices)
 			c.Assert(devices.Devices, testutil.DeepUnsortedMatches, []Identity{{
 				RDT: "two",
+				FP:  CalculateFP([]byte("two-certificate")),
 			}})
 			return nil
 		},
@@ -461,6 +496,30 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 	// since we successfully published the response to the query, we don't send
 	// anything
 	as.publishDevices(context.Background(), &testClient{})
+}
+
+func (s *ClusterSuite) TestAddDevicesFingerprintMismatch(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerRDT := DeviceToken("peer-rdt")
+	peer, _, _ := trustedAndDiscoveredPeer(c, as, peerRDT)
+
+	// try to add a device identity with the peer's RDT but wrong fingerprint
+	wrongFP := CalculateFP([]byte("wrong-certificate"))
+
+	err := peer.AddDevices(Devices{
+		Devices: []Identity{{
+			RDT: peerRDT,
+			FP:  wrongFP,
+		}},
+	})
+
+	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 }
 
 func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
