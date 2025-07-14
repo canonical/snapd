@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -65,10 +66,15 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		expSealCalls      int
 		disableTokens     bool
 		withVolumesAuth   bool
+		onCore            bool
 	}{
 		{
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2,
+		},
+		{
+			sealErr: nil, expErr: "",
+			expProvisionCalls: 1, expSealCalls: 2, onCore: true,
 		}, {
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true,
@@ -123,7 +129,15 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			runGrubId = "grubx64.efi"
 		}
 
-		model := boottest.MakeMockUC20Model()
+		var model *asserts.Model
+		var modelName string
+		if tc.onCore {
+			model = boottest.MakeMockUC20Model()
+			modelName = "my-model-uc20"
+		} else {
+			model = boottest.MakeMockClassicWithModesModel()
+			modelName = "my-model-classic-modes"
+		}
 
 		// mock asset cache
 		mockAssetsCache(c, rootdir, "grub", []string{
@@ -162,6 +176,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		// set mock key sealing
 		sealKeysCalls := 0
 		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
+			c.Check(params.AllowInsufficientDmaProtection, Equals, tc.onCore)
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			c.Check(params.PCRPolicyCounterHandle, Equals, uint32(42))
 			sealKeysCalls++
@@ -237,7 +252,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
-			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, modelName)
 
 			return nil, tc.sealErr
 		})
@@ -351,7 +366,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
 				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
+				Model:          modelName,
+				Classic:        !tc.onCore,
 				Grade:          "dangerous",
 				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 				AssetChain: []boot.BootAsset{
@@ -375,7 +391,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			},
 			boot.BootChain{
 				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
+				Model:          modelName,
+				Classic:        !tc.onCore,
 				Grade:          "dangerous",
 				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 				AssetChain: []boot.BootAsset{
@@ -410,7 +427,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
 				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
+				Model:          modelName,
+				Classic:        !tc.onCore,
 				Grade:          "dangerous",
 				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 				AssetChain: []boot.BootAsset{
