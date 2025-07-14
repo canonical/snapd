@@ -81,6 +81,8 @@ var (
 
 	sbUpdateKeyDataPCRProtectionPolicy = sb_tpm2.UpdateKeyDataPCRProtectionPolicy
 
+	sbPCRPolicyCounterHandle = (*sb_tpm2.SealedKeyData).PCRPolicyCounterHandle
+
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
@@ -652,6 +654,23 @@ func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return nil
 }
 
+// PCRPolicyCounterHandles returns the set of handles used by keys
+// in the UpdatedKeys. Handles will appear only once, even if
+// multiple keys use the same one.
+func (uk *UpdatedKeys) PCRPolicyCounterHandles() []uint32 {
+	ret := make(map[uint32]bool)
+	for _, key := range *uk {
+		ret[uint32(sbPCRPolicyCounterHandle(key.Unwrap()))] = true
+	}
+
+	var rawRet []uint32
+	for c := range ret {
+		rawRet = append(rawRet, c)
+	}
+
+	return rawRet
+}
+
 func sbNewSealedKeyDataImpl(k *sb.KeyData) (MaybeSealedKeyData, error) {
 	kd, err := sb_tpm2.NewSealedKeyData(k)
 	return &actualSealedKeyData{kd}, err
@@ -754,16 +773,14 @@ func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion 
 			}
 		}
 
-		if newPCRPolicyVersion {
-			for i, keyData := range keyDatas {
-				skd, err := sbNewSealedKeyData(keyData)
-				if err != nil {
-					key := params.Keys[i]
-					return nil, fmt.Errorf("cannot get sealed key data for keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
-				}
-
-				updatedKeys = append(updatedKeys, skd)
+		for i, keyData := range keyDatas {
+			skd, err := sbNewSealedKeyData(keyData)
+			if err != nil {
+				key := params.Keys[i]
+				return nil, fmt.Errorf("cannot get sealed key data for keyfile %s:%s: %w", key.DevicePath, key.SlotName, err)
 			}
+
+			updatedKeys = append(updatedKeys, skd)
 		}
 	}
 

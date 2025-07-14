@@ -53,6 +53,7 @@ var (
 
 	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
+
 )
 
 type ExternalOperation = externalOperation
