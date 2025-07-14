@@ -838,7 +838,39 @@ backends:
             - ubuntu-22.04-arm64:
                   username: ubuntu
                   password: ubuntu
-            # Debian
+            # Debian Forky
+            - debian-14-amd64:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-14-armhf:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-14-ppc64el:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-14-s390x:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-14-arm64:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            # Debian Trixie
+            - debian-13-amd64:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-13-armhf:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-13-ppc64el:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-13-s390x:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            - debian-13-arm64:
+                  username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+                  password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
+            # Debian Sid
             - debian-sid-amd64:
                   username: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
                   password: '$(HOST: echo "$AUTOPKGTEST_NORMAL_USER")'
