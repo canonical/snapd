@@ -403,8 +403,9 @@ type NoticeFilter struct {
 	// After, if set, includes only notices that were last repeated after this time.
 	After time.Time
 
-	// Before, if set, includes only notices that were last repeated before this time.
-	Before time.Time
+	// BeforeOrAt, if set, includes only notices that were last repeated before
+	// or at this time.
+	BeforeOrAt time.Time
 }
 
 // matches reports whether the notice n matches this filter
@@ -425,13 +426,13 @@ func (f *NoticeFilter) matches(n *Notice) bool {
 	if !f.After.IsZero() && !n.lastRepeated.After(f.After) {
 		return false
 	}
-	if !f.Before.IsZero() && !n.lastRepeated.Before(f.Before) {
+	if !f.BeforeOrAt.IsZero() && f.BeforeOrAt.Before(n.lastRepeated) {
 		// XXX: there's a chance for a notice which would otherwise be included
-		// to be omitted here, if it is repeated after the Before timestamp.
+		// to be omitted here, if it is repeated after the BeforeOrAt timestamp.
 		// For example, if a notice is first recorded between the After and
-		// Before timestamps, then we want it to be included, since it's a new
-		// notice within the requested timeframe, but if that notice is
-		// repeated after the Before timestamp, it will be omitted for being
+		// BeforeOrAt timestamps, then we want it to be included, since it's a
+		// new notice within the requested timeframe, but if that notice is
+		// repeated after the BeforeOrAt timestamp, it will be omitted for being
 		// too new. We consider this to be acceptable: the newer notice can be
 		// retrieved by a future request, and potentially has more up-to-date
 		// data, so it supercedes the occurrence of the notice which is being
@@ -457,10 +458,10 @@ func (f *NoticeFilter) futureNoticesPossible(now time.Time) bool {
 	if f == nil {
 		return true
 	}
-	if f.Before.IsZero() {
+	if f.BeforeOrAt.IsZero() {
 		return true
 	}
-	if f.Before.After(now) {
+	if !f.BeforeOrAt.Before(now) {
 		return true
 	}
 	return false
@@ -551,9 +552,9 @@ func (s *State) unflattenNotices(flat []*Notice) {
 // returning the list of matching notices ordered by the last-repeated time.
 //
 // It waits till there is at least one matching notice, the context is
-// cancelled, or the timestamp of the before filter has passed (and is nonzero).
-// If there are existing notices that match the filter, WaitNotices will return
-// them immediately.
+// cancelled, or the timestamp of the BeforeOrAt filter has passed (if it is
+// nonzero). If there are existing notices that match the filter, WaitNotices
+// will return them immediately.
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
 	s.reading()
 
@@ -585,8 +586,8 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// Since the state lock is held for the duration of AddNotice, there
 		// can be no notices currently in-flight which have timestamps before
 		// now but have not yet been added to the notices map. Therefore, if
-		// the current time is after the Before filter, we know there can be no
-		// new notices which match the filter.
+		// the current time is after the BeforeOrAt filter, we know there can
+		// be no new notices which match the filter.
 		now := time.Now()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
