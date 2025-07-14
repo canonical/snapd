@@ -72,6 +72,18 @@ func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFiles []string
 	}
 }
 
+func secbootPCRPolicyCounterHandlesImpl(uk secboot.UpdatedKeys) []uint32 {
+	return uk.PCRPolicyCounterHandles()
+}
+
+var secbootPCRPolicyCounterHandles = secbootPCRPolicyCounterHandlesImpl
+
+// RoleInfo is an extract of fdestate.KeyslotRoleInfo
+type RoleInfo struct {
+	PrimaryKeyID                   int
+	TPM2PCRPolicyRevocationCounter uint32
+}
+
 // SealingParameters contains the parameters that may be used for
 // sealing.  It should be the same as
 // fdestate.KeyslotRoleParameters. However we cannot import it. See
@@ -151,12 +163,17 @@ type EncryptedContainer interface {
 type FDEStateManager interface {
 	// Update will update the sealing parameters for a give role.
 	Update(role string, containerRole string, parameters *SealingParameters) error
-	// Get returns the current parameters for a given role. If parameters exist for that role, it will return nil without error.
+	// Get returns the current parameters for a given role as well as policy counter and primary key id. If role exists but there is no parameters, it will return nil parameters without error.
 	Get(role string, containerRole string) (parameters *SealingParameters, err error)
+	// RoleInfo
+	RoleInfo(role string) (info *RoleInfo, err error)
 	// Unlock notifies the manager that the state can be unlocked and returns a function to relock it.
 	Unlock() (relock func())
 	// GetEncryptedContainers returns the list of encrypted disks for the device
 	GetEncryptedContainers() ([]EncryptedContainer, error)
+	// VerifyPrimaryKeyAgainstState verifies that a raw primary key matches
+	// the digest of primary key indexed by its state ID.
+	VerifyPrimaryKeyAgainstState(primaryKeyID int, primaryKey []byte) bool
 }
 
 // comparableModel is just a representation of secboot.ModelForSealing
@@ -258,11 +275,17 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 		return nil
 	}
 
-	var allResealedKeys secboot.UpdatedKeys
+	foundPrimaryKeys := make(map[int][]byte)
+
+	allResealedKeys := make(map[int]secboot.UpdatedKeys)
 	resealKey := func(key secboot.KeyDataLocation, role string, containerRole string) error {
 		parameters := newParameters.find(role, containerRole, "all")
 		if parameters == nil {
 			return fmt.Errorf("internal error: not container role for %s/%s", role, containerRole)
+		}
+		roleInfo, err := manager.RoleInfo(role)
+		if err != nil {
+			return err
 		}
 
 		getTpmPCRProfile := func() ([]byte, error) {
@@ -275,6 +298,14 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 			return parameters.TpmPCRProfile, nil
 		}
 
+		verifyPrimaryKey := func(primaryKey []byte) {
+			if !manager.VerifyPrimaryKeyAgainstState(roleInfo.PrimaryKeyID, primaryKey) {
+				logger.Noticef("WARNING: primary key is not matching the FDE state")
+			} else {
+				foundPrimaryKeys[roleInfo.PrimaryKeyID] = primaryKey
+			}
+		}
+
 		rkp := &secboot.ResealKeyParams{
 			// Because the save disk might be opened with
 			// an old plainkey, there might not be any
@@ -283,6 +314,7 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 			// devices.
 			PrimaryKeyDevices:       devices,
 			FallbackPrimaryKeyFiles: fallbackPrimaryKeyFiles,
+			VerifyPrimaryKey:        verifyPrimaryKey,
 			BootModes:               parameters.BootModes,
 			Models:                  parameters.Models,
 			GetTpmPCRProfile:        getTpmPCRProfile,
@@ -294,9 +326,14 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 			revokeOldKeys = false
 			return err
 		}
-		if revokeOldKeys {
-			allResealedKeys = append(allResealedKeys, resealedKeys...)
+
+		for _, policyCounter := range secbootPCRPolicyCounterHandles(resealedKeys) {
+			if policyCounter != roleInfo.TPM2PCRPolicyRevocationCounter {
+				logger.Noticef("WARNING: policy counter handle %v is not matching the FDE state", policyCounter)
+			}
 		}
+
+		allResealedKeys[roleInfo.PrimaryKeyID] = append(allResealedKeys[roleInfo.PrimaryKeyID], resealedKeys...)
 
 		return nil
 	}
@@ -307,7 +344,6 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 		switch container.ContainerRole() {
 		case "system-data":
 			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
-
 			runKey := secboot.KeyDataLocation{
 				DevicePath: container.DevPath(),
 				SlotName:   "default",
@@ -356,12 +392,14 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 	}
 
 	if revokeOldKeys {
-		primaryKey, err := secbootGetPrimaryKey(devices, fallbackPrimaryKeyFiles)
-		if err != nil {
-			return err
-		}
-		if err := secbootRevokeOldKeys(&allResealedKeys, primaryKey); err != nil {
-			return fmt.Errorf("cannot revoke older keys: %v", err)
+		for primaryKeyID, oldKeys := range allResealedKeys {
+			primaryKey, hasPrimaryKey := foundPrimaryKeys[primaryKeyID]
+			if !hasPrimaryKey {
+				return fmt.Errorf("Missing primary key")
+			}
+			if err := secbootRevokeOldKeys(&oldKeys, primaryKey); err != nil {
+				return fmt.Errorf("cannot revoke older keys: %v", err)
+			}
 		}
 	}
 
