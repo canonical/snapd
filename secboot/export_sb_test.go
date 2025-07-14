@@ -557,7 +557,7 @@ func NewKeyData(kd *sb.KeyData) KeyData {
 	return &keyData{kd: kd}
 }
 
-func MockResealKeysWithFDESetupHook(f func(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, models []ModelForSealing, bootModes []string) error) (restore func()) {
+func MockResealKeysWithFDESetupHook(f func(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []ModelForSealing, bootModes []string) error) (restore func()) {
 	return testutil.Mock(&resealKeysWithFDESetupHook, f)
 }
 
@@ -567,4 +567,8 @@ func MockResealKeysWithTPM(f func(params *resealKeysWithTPMParams, newPCRPolicyV
 
 func MockSbKeyDataPlatformName(f func(d *sb.KeyData) string) (restore func()) {
 	return testutil.Mock(&sbKeyDataPlatformName, f)
+}
+
+func MockSbPCRPolicyCounterHandle(f func(skd *sb_tpm2.SealedKeyData) tpm2.Handle) (restore func()) {
+	return testutil.Mock(&sbPCRPolicyCounterHandle, f)
 }
