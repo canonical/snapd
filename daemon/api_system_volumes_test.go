@@ -59,11 +59,16 @@ func (s *systemVolumesSuite) SetUpTest(c *C) {
 				Interfaces: []string{"snap-fde-control", "firmware-updater-support"},
 				Polkit:     "io.snapcraft.snapd.manage-fde",
 			},
+			"generate-recovery-key": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+			"replace-recovery-key": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
 		},
-		Default: daemon.InterfaceRootAccess{
-			Interfaces: []string{"snap-fde-control"},
-			Polkit:     "io.snapcraft.snapd.manage-fde",
-		},
+		Default: daemon.RootAccess{},
 	}
 }
 
