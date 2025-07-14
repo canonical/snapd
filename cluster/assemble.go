@@ -19,11 +19,12 @@ import (
 
 // AssembleOpts carries all of the options the caller can provide to [Assemble].
 type AssembleOpts struct {
-	ListenIP    net.IP
-	ListenPort  int
-	Logger      logger.Logger
-	Secret      string
-	RDTOverride string
+	ListenIP     net.IP
+	ListenPort   int
+	Logger       logger.Logger
+	Secret       string
+	RDTOverride  string
+	ExpectedSize int
 }
 
 // Assemble starts an assembly session. Without a known number of expected
@@ -55,18 +56,19 @@ func Assemble(st *state.State, ctx context.Context, discover assemblestate.Disco
 	}
 
 	config := assemblestate.AssembleConfig{
-		Secret:  opts.Secret,
-		RDT:     rdt,
-		IP:      opts.ListenIP,
-		Port:    opts.ListenPort,
-		TLSCert: cert,
-		TLSKey:  key,
+		Secret:       opts.Secret,
+		RDT:          rdt,
+		IP:           opts.ListenIP,
+		Port:         opts.ListenPort,
+		TLSCert:      cert,
+		TLSKey:       key,
+		ExpectedSize: opts.ExpectedSize,
 	}
 
 	commit := func(s assemblestate.AssembleSession) {
-		st.Lock()
-		defer st.Unlock()
-		st.Set("assemble-session", s)
+		// st.Lock()
+		// defer st.Unlock()
+		// st.Set("assemble-session", s)
 	}
 
 	// TODO: once this is incorporated into a change, this will be how we resume

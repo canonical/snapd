@@ -359,3 +359,80 @@ func (s *SelectorSuite) TestPublishRouteSelectionDeterministic(c *check.C) {
 
 	c.Assert(&routes, check.DeepEquals, &expected)
 }
+
+func (s *SelectorSuite) TestRoutesNoDuplicates(c *check.C) {
+	sel := assemblestate.NewPrioritySelector("self", nil)
+
+	// identified function that always returns true (all devices are known)
+	identified := func(r assemblestate.DeviceToken) bool { return true }
+
+	// add the same route from different peers to test deduplication
+	sameRoute := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"device1", "device2"},
+		Addresses: []string{"192.168.1.1:8080"},
+		Routes:    []int{0, 1, 0}, // device1 -> device2 via 192.168.1.1:8080
+	}
+
+	// add the same route from peer1
+	added, total, err := sel.RecordRoutes("peer1", sameRoute, identified)
+	c.Assert(err, check.IsNil)
+	c.Assert(added, check.Equals, 1)
+	c.Assert(total, check.Equals, 1)
+
+	// add the same route from peer2 - should be deduplicated
+	added, total, err = sel.RecordRoutes("peer2", sameRoute, identified)
+	c.Assert(err, check.IsNil)
+	c.Assert(added, check.Equals, 0) // no new routes added
+	c.Assert(total, check.Equals, 1) // total still 1
+
+	// add the same route from peer3 - should be deduplicated
+	added, total, err = sel.RecordRoutes("peer3", sameRoute, identified)
+	c.Assert(err, check.IsNil)
+	c.Assert(added, check.Equals, 0) // no new routes added
+	c.Assert(total, check.Equals, 1) // total still 1
+
+	// add different route combinations with same devices but different addresses
+	differentVia := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"device1", "device2"},
+		Addresses: []string{"192.168.1.2:8080"},
+		Routes:    []int{0, 1, 0}, // device1 -> device2 via 192.168.1.2:8080
+	}
+
+	added, total, err = sel.RecordRoutes("peer1", differentVia, identified)
+	c.Assert(err, check.IsNil)
+	c.Assert(added, check.Equals, 1) // new route added
+	c.Assert(total, check.Equals, 2) // total now 2
+
+	// add routes with different device combinations
+	differentDevices := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"device1", "device3"},
+		Addresses: []string{"192.168.1.1:8080"},
+		Routes:    []int{0, 1, 0}, // device1 -> device3 via 192.168.1.1:8080
+	}
+
+	added, total, err = sel.RecordRoutes("peer2", differentDevices, identified)
+	c.Assert(err, check.IsNil)
+	c.Assert(added, check.Equals, 1) // new route added
+	c.Assert(total, check.Equals, 3) // total now 3
+
+	// verify that Routes() returns exactly the expected unique routes
+	routes := sel.Routes()
+	c.Assert(len(routes.Devices), check.Equals, 3)   // device1, device2, device3
+	c.Assert(len(routes.Addresses), check.Equals, 2) // 192.168.1.1:8080, 192.168.1.2:8080
+	c.Assert(len(routes.Routes), check.Equals, 9)    // 3 routes * 3 ints each
+
+	// verify devices are sorted
+	c.Assert(routes.Devices, check.DeepEquals, []assemblestate.DeviceToken{"device1", "device2", "device3"})
+
+	// verify addresses are sorted
+	c.Assert(routes.Addresses, check.DeepEquals, []string{"192.168.1.1:8080", "192.168.1.2:8080"})
+
+	// verify routes contain exactly the expected unique combinations
+	// routes should be sorted by (from, to, via) lexicographically
+	expected := []int{
+		0, 1, 0, // device1 -> device2 via 192.168.1.1:8080
+		0, 1, 1, // device1 -> device2 via 192.168.1.2:8080
+		0, 2, 0, // device1 -> device3 via 192.168.1.1:8080
+	}
+	c.Assert(routes.Routes, check.DeepEquals, expected)
+}

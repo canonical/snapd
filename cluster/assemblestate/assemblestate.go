@@ -29,7 +29,7 @@ type Transport interface {
 
 	// Stats returns the sent and received byte counts for this assembly
 	// session.
-	Stats() (tx, rx int64)
+	Stats() (sent, received, tx, rx int64)
 }
 
 // Client is used to communicate with our peers.
@@ -83,6 +83,8 @@ type AssembleState struct {
 	// selector keeps track of our routes and decides the strategy for
 	// publishing routes to our peers.
 	selector RouteSelector
+
+	cache Routes
 }
 
 // AssembleSession provides a method for serializing our current state of
@@ -108,13 +110,17 @@ func (as *AssembleState) export() AssembleSession {
 		addresses[base64.StdEncoding.EncodeToString(fp[:])] = addr
 	}
 
+	if as.config.ExpectedSize != 0 {
+		as.cache = as.selector.Routes()
+	}
+
 	return AssembleSession{
 		Initiated:    as.initiated,
 		Trusted:      trusted,
 		Fingerprints: as.fingerprints,
 		Addresses:    addresses,
 		Discovered:   as.discovered,
-		Routes:       as.selector.Routes(),
+		Routes:       Routes{},
 		Devices:      as.devices.Export(),
 	}
 }
@@ -236,12 +242,13 @@ func NewAssembleState(
 }
 
 type AssembleConfig struct {
-	Secret  string      `json:"secret"`
-	RDT     DeviceToken `json:"rdt"`
-	IP      net.IP      `json:"ip"`
-	Port    int         `json:"port"`
-	TLSCert []byte      `json:"cert"`
-	TLSKey  []byte      `json:"key"`
+	Secret       string      `json:"secret"`
+	RDT          DeviceToken `json:"rdt"`
+	IP           net.IP      `json:"ip"`
+	Port         int         `json:"port"`
+	TLSCert      []byte      `json:"cert"`
+	TLSKey       []byte      `json:"key"`
+	ExpectedSize int         `json:"expected_size"`
 }
 
 // publishAuth calls send for each given address. If send succeeds, then the
@@ -509,6 +516,31 @@ func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
 	}, nil
 }
 
+// complete checks if assembly should terminate based on expected size
+// configuration. Returns true if max size is configured and we have discovered
+// exactly that many devices with full connectivity between them.
+func (as *AssembleState) complete() bool {
+	if as.config.ExpectedSize <= 0 {
+		return false
+	}
+
+	as.lock.Lock()
+	defer as.lock.Unlock()
+
+	if len(as.cache.Devices) != as.config.ExpectedSize {
+		return false
+	}
+
+	n := len(as.cache.Devices)
+	if n <= 1 {
+		return true
+	}
+
+	expected := n * (n - 1)
+	current := len(as.cache.Routes) / 3
+	return current == expected
+}
+
 // Run starts the assembly process, managing both the server and periodic client operations.
 // It returns when the context is cancelled, returning the final routes discovered.
 func (as *AssembleState) Run(
@@ -526,6 +558,10 @@ func (as *AssembleState) Run(
 
 	addr := fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
 	client := transport.NewClient(as.cert)
+
+	// enable cancellation in the case that we detect that the graph is complete
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var wg sync.WaitGroup
 
@@ -565,6 +601,8 @@ func (as *AssembleState) Run(
 		})
 	}()
 
+	var rounds int
+
 	// start up the periodic publication of routes
 	wg.Add(1)
 	go func() {
@@ -577,6 +615,15 @@ func (as *AssembleState) Run(
 		)
 		periodic(ctx, period, jitter, func(ctx context.Context) {
 			as.publishRoutes(ctx, client, peers, routes)
+			rounds++
+
+			// check if assembly is complete based on expected size
+			// configuration
+			if as.complete() {
+				as.logger.Debug("assembly complete: discovered all devices with full connectivity")
+				cancel()
+				return
+			}
 		})
 	}()
 
@@ -600,8 +647,11 @@ func (as *AssembleState) Run(
 	// wait for context cancellation
 	wg.Wait()
 
-	sent, received := transport.Stats()
-	as.debugf("assemble stopped, sent: %d bytes, received: %d bytes", sent, received)
+	sent, received, tx, rx := transport.Stats()
+	as.debugf(
+		"assemble stopped after %d rounds, sent: %d messages (%d bytes), received: %d messages (%d bytes)",
+		rounds, sent, tx, received, rx,
+	)
 
 	return as.selector.Routes(), nil
 }

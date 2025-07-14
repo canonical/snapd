@@ -22,6 +22,7 @@ import (
 // HTTPTransport implements the Transport interface using HTTPS.
 type HTTPTransport struct {
 	received int64
+	rx       int64
 	logger   logger.Logger
 	client   *HTTPClient
 }
@@ -142,7 +143,8 @@ func (h *HTTPTransport) handleAuth(w http.ResponseWriter, r *http.Request, as *A
 		return
 	}
 
-	atomic.AddInt64(&h.received, counter.count)
+	atomic.AddInt64(&h.received, 1)
+	atomic.AddInt64(&h.rx, counter.count)
 }
 
 func (h *HTTPTransport) handleRoutes(w http.ResponseWriter, r *http.Request, peer *PeerHandle) {
@@ -165,7 +167,8 @@ func (h *HTTPTransport) handleRoutes(w http.ResponseWriter, r *http.Request, pee
 		return
 	}
 
-	atomic.AddInt64(&h.received, counter.count)
+	atomic.AddInt64(&h.received, 1)
+	atomic.AddInt64(&h.rx, counter.count)
 }
 
 func (h *HTTPTransport) handleUnknown(w http.ResponseWriter, r *http.Request, peer *PeerHandle) {
@@ -188,7 +191,8 @@ func (h *HTTPTransport) handleUnknown(w http.ResponseWriter, r *http.Request, pe
 		return
 	}
 
-	atomic.AddInt64(&h.received, counter.count)
+	atomic.AddInt64(&h.received, 1)
+	atomic.AddInt64(&h.rx, counter.count)
 }
 
 func (h *HTTPTransport) handleDevices(w http.ResponseWriter, r *http.Request, peer *PeerHandle) {
@@ -210,7 +214,8 @@ func (h *HTTPTransport) handleDevices(w http.ResponseWriter, r *http.Request, pe
 		return
 	}
 
-	atomic.AddInt64(&h.received, counter.count)
+	atomic.AddInt64(&h.received, 1)
+	atomic.AddInt64(&h.rx, counter.count)
 }
 
 // NewClient creates a [Client] for sending outbound messages using this
@@ -223,19 +228,23 @@ func (h *HTTPTransport) NewClient(cert tls.Certificate) Client {
 	return h.client
 }
 
-func (h *HTTPTransport) Stats() (tx, rx int64) {
-	rx = atomic.LoadInt64(&h.received)
+func (h *HTTPTransport) Stats() (sent, received, tx, rx int64) {
+	received = atomic.LoadInt64(&h.received)
+	rx = atomic.LoadInt64(&h.rx)
 	if h.client != nil {
-		tx = atomic.LoadInt64(&h.client.sent)
+		sent = atomic.LoadInt64(&h.client.sent)
+		tx = atomic.LoadInt64(&h.client.tx)
 	}
-	return tx, rx
+	return sent, received, tx, rx
 }
 
 type HTTPClient struct {
 	// cert is the TLS certificate that we should use when sending messages.
 	cert tls.Certificate
-	// sent keeps track of how many bytes we've sent.
+	// sent keeps track of how many messages we've sent.
 	sent int64
+	// tx keeps track of how many bytes we've sent.
+	tx int64
 	// limiter helps us rate limit how many outbound messages we send per
 	// second.
 	limiter *rate.Limiter
@@ -282,12 +291,13 @@ func (m *HTTPClient) trusted(ctx context.Context, cert []byte, addr string, kind
 		return err
 	}
 
-	sent, err := send(ctx, &client, addr, kind, data)
+	tx, err := send(ctx, &client, addr, kind, data)
 	if err != nil {
 		return err
 	}
 
-	atomic.AddInt64(&m.sent, sent)
+	atomic.AddInt64(&m.sent, 1)
+	atomic.AddInt64(&m.tx, tx)
 
 	return nil
 }
@@ -311,13 +321,14 @@ func (m *HTTPClient) untrusted(ctx context.Context, addr string, kind string, da
 		return nil, err
 	}
 
-	res, sent, err := sendWithResponse(ctx, &client, addr, kind, data)
+	res, tx, err := sendWithResponse(ctx, &client, addr, kind, data)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 
-	atomic.AddInt64(&m.sent, sent)
+	atomic.AddInt64(&m.sent, 1)
+	atomic.AddInt64(&m.tx, tx)
 
 	if res.StatusCode != 200 {
 		return nil, fmt.Errorf("got non-200 status code in response to auth message: %d", res.StatusCode)
