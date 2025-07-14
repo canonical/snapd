@@ -590,7 +590,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	err = manager.UpdateParameters("run", "something", []string{"run"}, models, secboot.SerializedPCRProfile(`serialized-profile-run`))
 	c.Assert(err, IsNil)
 
-	hasParameters, foundRunModes, foundModels, foundPCRProfile, err := manager.GetParameters("recover", "something")
+	hasParameters, foundRunModes, foundModels, foundPCRProfile, _, _, err := manager.GetParameters("recover", "something")
 	c.Assert(err, IsNil)
 	c.Check(hasParameters, Equals, true)
 	c.Check(foundRunModes, DeepEquals, []string{"recover"})
@@ -599,7 +599,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	c.Check(foundModels[1].Model(), Equals, "other")
 	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover`))
 
-	hasParameters, foundRunModes, foundModels, foundPCRProfile, err = manager.GetParameters("recover", "something-that-is-not-specific")
+	hasParameters, foundRunModes, foundModels, foundPCRProfile, _, _, err = manager.GetParameters("recover", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
 	c.Check(hasParameters, Equals, true)
 	c.Check(foundRunModes, DeepEquals, []string{"recover-all"})
@@ -608,7 +608,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	c.Check(foundModels[1].Model(), Equals, "other")
 	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover-all`))
 
-	hasParameters, foundRunModes, foundModels, foundPCRProfile, err = manager.GetParameters("run", "something")
+	hasParameters, foundRunModes, foundModels, foundPCRProfile, _, _, err = manager.GetParameters("run", "something")
 	c.Assert(err, IsNil)
 	c.Check(hasParameters, Equals, true)
 	c.Check(foundRunModes, DeepEquals, []string{"run"})
@@ -617,7 +617,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	c.Check(foundModels[1].Model(), Equals, "other")
 	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-run`))
 
-	hasParameters, _, _, _, err = manager.GetParameters("run", "something-that-is-not-specific")
+	hasParameters, _, _, _, _, _, err = manager.GetParameters("run", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
 	c.Check(hasParameters, Equals, false)
 }
