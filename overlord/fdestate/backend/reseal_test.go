@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -128,6 +129,7 @@ func (s *resealTestSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	s.AddCleanup(release.MockOnClassic(true))
 }
 
 type fakeState struct {
@@ -178,10 +180,12 @@ type fakeSealedKey struct {
 	num int
 }
 
-func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRunParams bool, missingRecoverParams bool) {
+func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRunParams bool, missingRecoverParams bool, onClassic bool) {
 	bl := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
+
+	defer release.MockOnClassic(onClassic)()
 
 	bl.TrustedAssetsMap = map[string]string{
 		"asset": "asset",
@@ -350,8 +354,10 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	}
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
+
+		c.Check(allowInsufficientDmaProtection, Equals, !onClassic)
 
 		c.Assert(modelParams, HasLen, 1)
 		mp := modelParams[0]
@@ -511,35 +517,48 @@ func (s *resealTestSuite) TestTPMResealHappy(c *C) {
 	const revokeOldKeys = false
 	const missingRunParams = false
 	const missingRecoverParams = false
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams)
+	const onClassic = true
+	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyCore(c *C) {
+	const revokeOldKeys = false
+	const missingRunParams = false
+	const missingRecoverParams = false
+	const onClassic = false
+	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevoke(c *C) {
 	const revokeOldKeys = true
 	const missingRunParams = false
 	const missingRecoverParams = false
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams)
+	const onClassic = true
+	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevokeMissingRunParams(c *C) {
 	const revokeOldKeys = true
 	const missingRunParams = true
 	const missingRecoverParams = false
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams)
+	const onClassic = true
+	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevokeMissingRecoverParams(c *C) {
 	const revokeOldKeys = true
 	const missingRunParams = false
 	const missingRecoverParams = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams)
+	const onClassic = true
+	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
 }
 
 func (s *resealTestSuite) TestTPMResealHappyRevokeMissingParams(c *C) {
 	const revokeOldKeys = true
 	const missingRunParams = true
 	const missingRecoverParams = true
-	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams)
+	const onClassic = true
+	s.testTPMResealHappy(c, revokeOldKeys, missingRunParams, missingRecoverParams, onClassic)
 }
 
 func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
@@ -647,8 +666,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		mockAssetsCache(c, rootdir, "grub", expectedCache)
 
 		buildProfileCalls := 0
-		restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 			buildProfileCalls++
+
+			c.Check(allowInsufficientDmaProtection, Equals, false)
 
 			c.Assert(modelParams, HasLen, 1)
 			// shared parameters
@@ -1182,8 +1203,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	})
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
+
+		c.Check(allowInsufficientDmaProtection, Equals, false)
 
 		// shared parameters
 		c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
@@ -1483,8 +1506,10 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	})
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
+
+		c.Check(allowInsufficientDmaProtection, Equals, false)
 
 		switch buildProfileCalls {
 		case 1: // run key
@@ -1849,8 +1874,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	defer bootloader.Force(nil)
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
+
+		c.Check(allowInsufficientDmaProtection, Equals, false)
 
 		c.Assert(modelParams, HasLen, 1)
 
@@ -2323,8 +2350,10 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	}
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
+
+		c.Check(allowInsufficientDmaProtection, Equals, false)
 
 		c.Assert(modelParams, HasLen, 1)
 		// same DBX update paylad is included for both run and recovery keys
@@ -2506,7 +2535,7 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 		},
 	}
 
-	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		return []byte(`"serialized-pcr-profile"`), nil
 	})()
 

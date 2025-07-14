@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -54,7 +55,7 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams, newPCRPolicy
 	}
 }
 
-func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error)) (restore func()) {
+func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootBuildPCRProtectionProfile only can be mocked in tests")
 	old := secbootBuildPCRProtectionProfile
 	secbootBuildPCRProtectionProfile = f
@@ -412,12 +413,12 @@ func updateRunProtectionProfile(
 
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !release.OnClassic)
 		if err != nil {
 			return err
 		}
 
-		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly)
+		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, !release.OnClassic)
 		if err != nil {
 			return err
 		}
@@ -496,7 +497,7 @@ func updateFallbackProtectionProfile(
 
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !release.OnClassic)
 		if err != nil {
 			return err
 		}

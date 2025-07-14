@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -50,6 +51,7 @@ func (s *sealSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	s.AddCleanup(release.MockOnClassic(true))
 }
 
 func (s *sealSuite) TestSealKeyForBootChains(c *C) {
@@ -65,10 +67,15 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		expSealCalls      int
 		disableTokens     bool
 		withVolumesAuth   bool
+		onCore            bool
 	}{
 		{
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2,
+		},
+		{
+			sealErr: nil, expErr: "",
+			expProvisionCalls: 1, expSealCalls: 2, onCore: true,
 		}, {
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true,
@@ -109,6 +116,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		rootdir := c.MkDir()
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir(s.rootdir)
+		defer release.MockOnClassic(!tc.onCore)()
 
 		shimId := tc.shimId
 		if shimId == "" {
@@ -162,6 +170,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		// set mock key sealing
 		sealKeysCalls := 0
 		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
+			c.Check(params.AllowInsufficientDmaProtection, Equals, tc.onCore)
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			c.Check(params.PCRPolicyCounterHandle, Equals, uint32(42))
 			sealKeysCalls++

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -103,11 +104,12 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
-		ModelParams:            modelParams,
-		PrimaryKey:             maybePrimaryKey,
-		VolumesAuth:            volumesAuth,
-		PCRPolicyCounterHandle: pcrHandle,
-		KeyRole:                keyRole,
+		ModelParams:                    modelParams,
+		PrimaryKey:                     maybePrimaryKey,
+		VolumesAuth:                    volumesAuth,
+		PCRPolicyCounterHandle:         pcrHandle,
+		KeyRole:                        keyRole,
+		AllowInsufficientDmaProtection: !release.OnClassic,
 	}
 
 	if !useTokens {
@@ -135,11 +137,12 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 		return fmt.Errorf("cannot prepare for fallback key sealing: %v", err)
 	}
 	sealKeyParams := &secboot.SealKeysParams{
-		ModelParams:            modelParams,
-		PrimaryKey:             primaryKey,
-		VolumesAuth:            volumesAuth,
-		PCRPolicyCounterHandle: pcrHandle,
-		KeyRole:                keyRole,
+		ModelParams:                    modelParams,
+		PrimaryKey:                     primaryKey,
+		VolumesAuth:                    volumesAuth,
+		PCRPolicyCounterHandle:         pcrHandle,
+		KeyRole:                        keyRole,
+		AllowInsufficientDmaProtection: !release.OnClassic,
 	}
 	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The

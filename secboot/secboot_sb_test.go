@@ -1349,7 +1349,8 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams)
+		const allowInsufficientDmaProtection = false
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, allowInsufficientDmaProtection)
 		if len(tc.buildProfileErr) > 0 {
 			c.Assert(err, ErrorMatches, tc.buildProfileErr)
 			continue
