@@ -76,6 +76,10 @@ func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return errBuildWithoutSecboot
 }
 
+func (uk *UpdatedKeys) PCRPolicyCounterHandles() []uint32 {
+	return nil
+}
+
 type placeholderKeyProtector struct{}
 
 func (d *placeholderKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {

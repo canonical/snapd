@@ -1541,12 +1541,12 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 				c.Check(keyFile, Not(testutil.FilePresent))
 				c.Check(keyFile2, Not(testutil.FilePresent))
 			}
-			if !tc.revoke {
+			if tc.oldKeyFiles {
 				c.Check(sealedKeysRequested, Equals, 0)
 				c.Check(updatedKeys, IsNil)
 			} else {
 				c.Check(sealedKeysRequested, Equals, 2)
-				c.Assert(updatedKeys, HasLen, 2)
+				c.Check(updatedKeys, HasLen, 2)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
@@ -3403,7 +3403,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		return nil, fmt.Errorf("unexpected call")
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -3446,7 +3446,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		return auxKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -3537,7 +3537,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -3613,7 +3613,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -4804,8 +4804,11 @@ func (s *secbootSuite) TestResealKeyTPM(c *C) {
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
+	var primaryKeyVerified [][]byte
+
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices: []string{"/dev/foo"},
+		VerifyPrimaryKey:  func(pk []byte) { primaryKeyVerified = append(primaryKeyVerified, pk) },
 		GetTpmPCRProfile:  func() ([]byte, error) { return []byte(`some bytes`), nil },
 	}
 
@@ -4819,6 +4822,8 @@ func (s *secbootSuite) TestResealKeyTPM(c *C) {
 	c.Check(platformNameCalled, Equals, 1)
 	c.Check(resealKeysWithTPMCalled, Equals, 1)
 	c.Check(getPrimaryKeyCalled, Equals, 1)
+	c.Assert(primaryKeyVerified, HasLen, 1)
+	c.Check(primaryKeyVerified[0], DeepEquals, []byte{1, 2, 3, 4})
 }
 
 func (s *secbootSuite) TestResealKeyTPMKeyFile(c *C) {
@@ -4870,8 +4875,11 @@ func (s *secbootSuite) TestResealKeyTPMKeyFile(c *C) {
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
+	var primaryKeyVerified [][]byte
+
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices: []string{"/dev/foo"},
+		VerifyPrimaryKey:  func(pk []byte) { primaryKeyVerified = append(primaryKeyVerified, pk) },
 		GetTpmPCRProfile:  func() ([]byte, error) { return []byte(`some bytes`), nil },
 	}
 
@@ -4885,6 +4893,8 @@ func (s *secbootSuite) TestResealKeyTPMKeyFile(c *C) {
 	c.Check(platformNameCalled, Equals, 1)
 	c.Check(resealKeysWithTPMCalled, Equals, 1)
 	c.Check(getPrimaryKeyCalled, Equals, 1)
+	c.Assert(primaryKeyVerified, HasLen, 1)
+	c.Check(primaryKeyVerified[0], DeepEquals, []byte{1, 2, 3, 4})
 }
 
 func (s *secbootSuite) TestResealKeyTPMKeyFileLegacy(c *C) {
@@ -4939,8 +4949,11 @@ func (s *secbootSuite) TestResealKeyTPMKeyFileLegacy(c *C) {
 		return []byte{1, 2, 3, 4}, nil
 	})()
 
+	var primaryKeyVerified [][]byte
+
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices: []string{"/dev/foo"},
+		VerifyPrimaryKey:  func(pk []byte) { primaryKeyVerified = append(primaryKeyVerified, pk) },
 		GetTpmPCRProfile:  func() ([]byte, error) { return []byte(`some bytes`), nil },
 	}
 
@@ -4953,6 +4966,8 @@ func (s *secbootSuite) TestResealKeyTPMKeyFileLegacy(c *C) {
 	c.Check(readKeyTokenCalls, Equals, 1)
 	c.Check(resealKeysWithTPMCalled, Equals, 1)
 	c.Check(getPrimaryKeyCalled, Equals, 1)
+	c.Assert(primaryKeyVerified, HasLen, 1)
+	c.Check(primaryKeyVerified[0], DeepEquals, []byte{1, 2, 3, 4})
 }
 
 func (s *secbootSuite) TestResealKeyHook(c *C) {
@@ -4974,7 +4989,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -4997,8 +5012,11 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 		name: "mytest",
 	}
 
+	var primaryKeyVerified [][]byte
+
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices:       []string{"/dev/foo", "/dev/bar"},
+		VerifyPrimaryKey:        func(pk []byte) { primaryKeyVerified = append(primaryKeyVerified, pk) },
 		FallbackPrimaryKeyFiles: []string{"/some/file", "/some/other/key"},
 		BootModes:               []string{"foo", "bar"},
 		Models:                  []secboot.ModelForSealing{m},
@@ -5013,6 +5031,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 	c.Check(readKeyTokenCalls, Equals, 1)
 	c.Check(platformNameCalled, Equals, 1)
 	c.Check(resealKeysWithTPMCalled, Equals, 1)
+	c.Check(primaryKeyVerified, HasLen, 0)
 }
 
 func (s *secbootSuite) TestResealKeyHookV2(c *C) {
@@ -5034,10 +5053,11 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
+		verifyPrimaryKey([]byte{1, 2, 3, 4})
 		c.Assert(keys, HasLen, 1)
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
@@ -5057,9 +5077,11 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 		name: "mytest",
 	}
 
+	var primaryKeyVerified [][]byte
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices:       []string{"/dev/foo", "/dev/bar"},
 		FallbackPrimaryKeyFiles: []string{"/some/file", "/some/other/key"},
+		VerifyPrimaryKey:        func(pk []byte) { primaryKeyVerified = append(primaryKeyVerified, pk) },
 		BootModes:               []string{"foo", "bar"},
 		Models:                  []secboot.ModelForSealing{m},
 		HintExpectFDEHook:       true,
@@ -5073,6 +5095,8 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 	c.Check(readKeyTokenCalls, Equals, 1)
 	c.Check(platformNameCalled, Equals, 1)
 	c.Check(resealKeysWithTPMCalled, Equals, 1)
+	c.Assert(primaryKeyVerified, HasLen, 1)
+	c.Check(primaryKeyVerified[0], DeepEquals, []byte{1, 2, 3, 4})
 }
 
 func (s *secbootSuite) TestResealKeyHookV1(c *C) {
@@ -5176,4 +5200,36 @@ func (s *secbootSuite) TestResealKeyAllOtherPlatforms(c *C) {
 		}
 
 	}
+}
+
+type fakeUnwrappableWrappedSealedKeyData struct {
+	unique int
+}
+
+func (f *fakeUnwrappableWrappedSealedKeyData) Unwrap() *sb_tpm2.SealedKeyData {
+	return nil
+}
+
+func (s *secbootSuite) TestUpdatedKeysPCRPolicyCounterHandles(c *C) {
+	calls := 0
+	callReturns := []uint32{42, 51, 42}
+	defer secboot.MockSbPCRPolicyCounterHandle(func(skd *sb_tpm2.SealedKeyData) tpm2.Handle {
+		calls += 1
+		return tpm2.Handle(callReturns[calls-1])
+	})()
+
+	key1 := &fakeUnwrappableWrappedSealedKeyData{1}
+	key2 := &fakeUnwrappableWrappedSealedKeyData{2}
+	key3 := &fakeUnwrappableWrappedSealedKeyData{3}
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{key1, key2, key3})
+
+	handles := keys.PCRPolicyCounterHandles()
+	c.Assert(handles, HasLen, 2)
+	switch handles[0] {
+	case 42:
+		c.Check(handles[1], Equals, uint32(51))
+	case 51:
+		c.Check(handles[1], Equals, uint32(42))
+	}
+	c.Check(calls, Equals, 3)
 }

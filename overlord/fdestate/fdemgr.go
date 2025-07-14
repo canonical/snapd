@@ -22,6 +22,8 @@
 package fdestate
 
 import (
+	"crypto"
+	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
 	"errors"
@@ -207,16 +209,30 @@ func (m *unlockedStateManager) Update(role string, containerRole string, paramet
 }
 
 func (m *unlockedStateManager) Get(role string, containerRole string) (parameters *backend.SealingParameters, err error) {
-	hasParamters, bootModes, models, tpmPCRProfile, err := m.GetParameters(role, containerRole)
-	if err != nil || !hasParamters {
-		return nil, err
+	return m.GetParameters(role, containerRole)
+}
+
+func (m *unlockedStateManager) RoleInfo(role string) (roleInfo *backend.RoleInfo, err error) {
+	return m.GetRoleInfo(role)
+}
+
+// VerifyPrimaryKeyAgainstState takes a primary key ID and verifies the
+// digest associated to that primary key ID in the state matches the
+// given primary key
+func (m *FDEManager) VerifyPrimaryKeyAgainstState(primaryKeyID int, primaryKey []byte) bool {
+	var s FdeState
+	if err := m.state.Get(fdeStateKey, &s); err != nil {
+		return false
 	}
 
-	return &backend.SealingParameters{
-		BootModes:     bootModes,
-		Models:        models,
-		TpmPCRProfile: tpmPCRProfile,
-	}, nil
+	primaryKeyInfo, hasID := s.PrimaryKeys[primaryKeyID]
+	if !hasID {
+		return false
+	}
+
+	h := hmac.New(crypto.Hash(primaryKeyInfo.Digest.Algorithm).New, primaryKeyInfo.Digest.Salt[:])
+	h.Write(primaryKey)
+	return hmac.Equal(h.Sum(nil), primaryKeyInfo.Digest.Digest)
 }
 
 func (m *unlockedStateManager) Unlock() (relock func()) {
@@ -478,14 +494,24 @@ func (m *FDEManager) UpdateParameters(role string, containerRole string, bootMod
 	return updateParameters(m.state, role, containerRole, bootModes, models, tpmPCRProfile)
 }
 
-func (m *FDEManager) GetParameters(role string, containerRole string) (hasParameters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, err error) {
+func (m *FDEManager) GetParameters(role string, containerRole string) (roleParams *backend.SealingParameters, err error) {
 	var s FdeState
 	err = m.state.Get(fdeStateKey, &s)
 	if err != nil {
-		return false, nil, nil, nil, err
+		return nil, err
 	}
 
 	return s.getParameters(role, containerRole)
+}
+
+func (m *FDEManager) GetRoleInfo(role string) (roleInfo *backend.RoleInfo, err error) {
+	var s FdeState
+	err = m.state.Get(fdeStateKey, &s)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.getRoleInfo(role)
 }
 
 // ensureParametersLoadedWithMaybeReseal will force a reseal if the
@@ -500,11 +526,11 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 //
 // Note: The state will be unlocked/relocked if a reseal is attempted.
 func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole string) error {
-	hasParameters, _, _, _, err := m.GetParameters(role, containerRole)
+	roleParams, err := m.GetParameters(role, containerRole)
 	if err != nil {
 		return err
 	}
-	if hasParameters {
+	if roleParams != nil {
 		// nothing to do
 		return nil
 	}
