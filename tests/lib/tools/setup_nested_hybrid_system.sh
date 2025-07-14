@@ -22,7 +22,7 @@ run_muinstaller() {
     local kern_mods_comp="${9}"
     local passphrase="${10}"
     local recovery_key_out="${11}"
-    shift 10
+    shift 11
     local extra_muinstaller_args=("${@}")
 
     # ack the needed assertions

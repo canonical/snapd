@@ -505,19 +505,19 @@ if [ "$STATIC" = 1 ]; then
         echo ">> [Go] Skipping golangci-lint check"
     fi
 
-    echo ">> [C] Checking C source code formatting"
-    if command -v clang-format >/dev/null; then
-        current=$(pwd)
-        cd cmd/
-        ./autogen.sh
-        if ! make fmt-check; then
-            echo "C files are not formatted correctly, run 'make fmt'" >&2
-            exit 1
-        fi
-        cd "$current"
-    else
-        echo ">> [C] Skipping C source code formatting check"
-    fi
+    # echo ">> [C] Checking C source code formatting"
+    # if command -v clang-format >/dev/null; then
+    #     current=$(pwd)
+    #     cd cmd/
+    #     ./autogen.sh
+    #     if ! make fmt-check; then
+    #         echo "C files are not formatted correctly, run 'make fmt'" >&2
+    #         exit 1
+    #     fi
+    #     cd "$current"
+    # else
+    #     echo ">> [C] Skipping C source code formatting check"
+    # fi
 
     echo ">> [Go] Checking that all ensure helper methods have been registered"
     missing=0

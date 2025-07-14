@@ -8,9 +8,7 @@ details: |
       part of the firmware update flow)
     - Users can replace their recovery key at runtime
 
-# TODO: switch to system-based matching when interim releases are
-# supported for nested systems.
-systems: [ubuntu-24.04-64]
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
   # Only 25.10+ systems (including core) should be able to
@@ -210,3 +208,6 @@ execute: |
   test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
   test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = none
   test "$(gojq --raw-output '.keyslots."default-recovery".type' < container.out)" = recovery
+
+  # TODO:FDEM: Grow test to check that we can reprovision and reseal
+  # then reboot without recovery keys
