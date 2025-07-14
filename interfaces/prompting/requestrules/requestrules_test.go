@@ -1485,7 +1485,10 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 				PathPattern: pathPattern,
 				Permissions: perms,
 			}
-			ruleConstraints, err := constraints.ToRuleConstraints(iface, rule.Timestamp)
+			at := prompting.At{
+				Time: rule.Timestamp,
+			}
+			ruleConstraints, err := constraints.ToRuleConstraints(iface, at)
 			c.Assert(err, IsNil)
 			expectedPerms := ruleConstraints.Permissions
 			// Check that the permissions match what is expected.
@@ -1793,12 +1796,17 @@ func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
 			errStr:           "foo\nqux",
 		},
 	} {
-		restore := requestrules.MockIsPathPermAllowed(func(r *requestrules.RuleDB, u uint32, s string, i string, p string, perm string) (bool, error) {
+		before := time.Now()
+
+		restore := requestrules.MockIsPathPermAllowed(func(r *requestrules.RuleDB, u uint32, s string, i string, p string, perm string, at prompting.At) (bool, error) {
 			c.Assert(r, Equals, rdb)
 			c.Assert(u, Equals, user)
 			c.Assert(s, Equals, snap)
 			c.Assert(i, Equals, iface)
 			c.Assert(p, Equals, path)
+			c.Assert(at.Time.IsZero(), Equals, false)
+			c.Assert(at.Time.After(before), Equals, true)
+			c.Assert(at.Time.Before(time.Now()), Equals, true)
 			result := testCase.permReturns[perm]
 			return result.allowed, result.err
 		})
@@ -1899,7 +1907,10 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 			s.checkNewNoticesSimple(c, nil)
 		}
 
-		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission)
+		at := prompting.At{
+			Time: time.Now(),
+		}
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
 		c.Check(err, Equals, testCase.err)
 		c.Check(allowed, Equals, testCase.allowed)
 		// Check that no notices were recorded when checking
@@ -1970,7 +1981,11 @@ func (s *requestrulesSuite) TestIsPathPermAllowedPrecedence(c *C) {
 		mostRecentOutcome, err := ruleContents.Outcome.AsBool()
 		c.Check(err, IsNil)
 
-		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission)
+		at := prompting.At{
+			Time: time.Now(),
+		}
+
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
 		c.Check(err, IsNil)
 		c.Check(allowed, Equals, mostRecentOutcome, Commentf("most recent: %+v", ruleContents))
 	}
@@ -2005,21 +2020,24 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 	// Then, from last to first, mark the rule as expired by setting the
 	// expiration timestamp to the past, and then test that the
 	// always match the most recent rule contents.
-	for i, ruleContents := range []*addRuleContents{
-		{Duration: "1h", PathPattern: "/home/test/**"},
-		{Duration: "1h", PathPattern: "/home/test/Doc*/**"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/**"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/ba?/*.txt"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/ba?/file.txt"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/bar/**"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/bar/baz/**"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/bar/baz/*"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/bar/baz/*.txt"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/**/bar/{somewhere/else,baz}/file.txt"},
-		{Duration: "1h", PathPattern: "/home/test/Documents/foo/*/baz/file.{txt,md,pdf}"},
-		{Duration: "1h", PathPattern: "/home/test/{Documents,Pictures}/foo/bar/baz/file.{txt,md,pdf,png,jpg,svg}"},
-	} {
+	toAdd := []*addRuleContents{
+		{PathPattern: "/home/test/**"},
+		{PathPattern: "/home/test/Doc*/**"},
+		{PathPattern: "/home/test/Documents/**"},
+		{PathPattern: "/home/test/Documents/foo/**"},
+		{PathPattern: "/home/test/Documents/foo/**/ba?/*.txt"},
+		{PathPattern: "/home/test/Documents/foo/**/ba?/file.txt"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/**"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/baz/**"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/baz/*"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/baz/*.txt"},
+		{PathPattern: "/home/test/Documents/foo/**/bar/{somewhere/else,baz}/file.txt"},
+		{PathPattern: "/home/test/Documents/foo/*/baz/file.{txt,md,pdf}"},
+		{PathPattern: "/home/test/{Documents,Pictures}/foo/bar/baz/file.{txt,md,pdf,png,jpg,svg}"},
+	}
+	for i, ruleContents := range toAdd {
+		// Set duration to 1h for last rule, 2h for second to last rule, etc.
+		ruleContents.Duration = fmt.Sprintf("%dh", len(toAdd)-i)
 		if i%2 == 0 {
 			ruleContents.Outcome = prompting.OutcomeAllow
 		} else {
@@ -2033,21 +2051,27 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
+	// The point in time is set after all rules have been added but before any
+	// have expired.
+	at := prompting.At{
+		Time: time.Now(),
+	}
+
 	for i := len(addedRules) - 1; i >= 0; i-- {
 		rule := addedRules[i]
 		expectedOutcome, err := rule.Constraints.Permissions["read"].Outcome.AsBool()
 		c.Check(err, IsNil)
 
 		// Check that the outcome of the most specific unexpired rule has precedence
-		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission)
+		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
 		c.Check(err, IsNil)
 		c.Check(allowed, Equals, expectedOutcome, Commentf("last unexpired: %+v", rule))
 
 		// Check that no new notices are recorded from lookup or expiration
 		s.checkNewNoticesSimple(c, nil)
 
-		// Expire the highest precedence rule
-		rule.Constraints.Permissions["read"].Expiration = time.Now()
+		// Advance the point in time to cause highest precedence rule to expire.
+		at.Time = at.Time.Add(time.Hour)
 	}
 }
 
