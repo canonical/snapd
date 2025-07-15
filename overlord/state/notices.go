@@ -426,7 +426,7 @@ func (f *NoticeFilter) matches(n *Notice) bool {
 	if !f.After.IsZero() && !n.lastRepeated.After(f.After) {
 		return false
 	}
-	if !f.BeforeOrAt.IsZero() && f.BeforeOrAt.Before(n.lastRepeated) {
+	if !f.BeforeOrAt.IsZero() && n.lastRepeated.After(f.BeforeOrAt) {
 		// XXX: there's a chance for a notice which would otherwise be included
 		// to be omitted here, if it is repeated after the BeforeOrAt timestamp.
 		// For example, if a notice is first recorded between the After and
