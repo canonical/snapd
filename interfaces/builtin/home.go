@@ -46,6 +46,8 @@ const homeBaseDeclarationSlots = `
           read: all
 `
 
+var homeTags = []apparmor.MetadataTag{apparmor.RegisterMetadataTagWithInterface("home", "home")}
+
 const homeConnectedPlugAppArmor = `
 # Description: Can access non-hidden files in user's $HOME. This is restricted
 # because it gives file access to all of the user's $HOME.
@@ -118,13 +120,14 @@ func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 func (iface *homeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var read string
 	_ = plug.Attr("read", &read)
+
 	// 'owner' is the standard policy
-	spec.AddSnippet(homeConnectedPlugAppArmor)
+	spec.AddSnippet(apparmor.MetadataTagSnippet(homeConnectedPlugAppArmor, homeTags))
 
 	// 'all' grants standard policy plus read access to home without owner
 	// match
 	if read == "all" {
-		spec.AddSnippet(homeConnectedPlugAppArmorWithAllRead)
+		spec.AddSnippet(apparmor.MetadataTagSnippet(homeConnectedPlugAppArmorWithAllRead, homeTags))
 	}
 	return nil
 }
