@@ -27,11 +27,8 @@ prepare: |
         touch agent-was-enabled
     fi
 
-    # ensure curl is available (needed for e.g. core18)
-    if ! command -v curl; then
-        snap install --devmode --edge test-snapd-curl
-        snap alias test-snapd-curl.curl curl
-    fi
+    snap install --devmode --edge test-snapd-curl
+    snap alias test-snapd-curl.curl curl
 
     tests.session -u test prepare
 
