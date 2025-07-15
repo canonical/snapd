@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -34,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -129,7 +129,6 @@ func (s *resealTestSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
-	s.AddCleanup(release.MockOnClassic(true))
 }
 
 type fakeState struct {
@@ -185,8 +184,6 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 
-	defer release.MockOnClassic(onClassic)()
-
 	bl.TrustedAssetsMap = map[string]string{
 		"asset": "asset",
 		"shim":  "shim",
@@ -236,7 +233,13 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 		return boot.IsResealNeeded(pbc, bootChainsFile, expectReseal)
 	})()
 
-	model := boottest.MakeMockUC20Model()
+	var model *asserts.Model
+	if onClassic {
+		model = boottest.MakeMockClassicWithModesModel()
+	} else {
+		model = boottest.MakeMockUC20Model()
+	}
+
 	bootChains := boot.BootChains{
 		RunModeBootChains: []boot.BootChain{
 			{
@@ -669,7 +672,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 			buildProfileCalls++
 
-			c.Check(allowInsufficientDmaProtection, Equals, false)
+			c.Check(allowInsufficientDmaProtection, Equals, true)
 
 			c.Assert(modelParams, HasLen, 1)
 			// shared parameters
@@ -1206,7 +1209,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, false)
+		c.Check(allowInsufficientDmaProtection, Equals, true)
 
 		// shared parameters
 		c.Assert(modelParams[0].Model.Model(), Equals, "my-model-uc20")
@@ -1509,7 +1512,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, false)
+		c.Check(allowInsufficientDmaProtection, Equals, true)
 
 		switch buildProfileCalls {
 		case 1: // run key
@@ -1877,7 +1880,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, false)
+		c.Check(allowInsufficientDmaProtection, Equals, true)
 
 		c.Assert(modelParams, HasLen, 1)
 
@@ -2353,7 +2356,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, false)
+		c.Check(allowInsufficientDmaProtection, Equals, true)
 
 		c.Assert(modelParams, HasLen, 1)
 		// same DBX update paylad is included for both run and recovery keys

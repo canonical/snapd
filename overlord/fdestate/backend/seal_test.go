@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -34,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -51,7 +51,6 @@ func (s *sealSuite) SetUpTest(c *C) {
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
-	s.AddCleanup(release.MockOnClassic(true))
 }
 
 func (s *sealSuite) TestSealKeyForBootChains(c *C) {
@@ -116,7 +115,6 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		rootdir := c.MkDir()
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir(s.rootdir)
-		defer release.MockOnClassic(!tc.onCore)()
 
 		shimId := tc.shimId
 		if shimId == "" {
@@ -131,7 +129,15 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			runGrubId = "grubx64.efi"
 		}
 
-		model := boottest.MakeMockUC20Model()
+		var model *asserts.Model
+		var modelName string
+		if tc.onCore {
+			model = boottest.MakeMockUC20Model()
+			modelName = "my-model-uc20"
+		} else {
+			model = boottest.MakeMockClassicWithModesModel()
+			modelName = "my-model-classic-modes"
+		}
 
 		// mock asset cache
 		mockAssetsCache(c, rootdir, "grub", []string{
@@ -246,7 +252,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
-			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, modelName)
 
 			return nil, tc.sealErr
 		})
@@ -360,7 +366,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
 				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
+				Model:          modelName,
+				Classic:        !tc.onCore,
 				Grade:          "dangerous",
 				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 				AssetChain: []boot.BootAsset{
@@ -384,7 +391,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			},
 			boot.BootChain{
 				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
+				Model:          modelName,
+				Classic:        !tc.onCore,
 				Grade:          "dangerous",
 				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 				AssetChain: []boot.BootAsset{
@@ -419,7 +427,8 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
 			boot.BootChain{
 				BrandID:        "my-brand",
-				Model:          "my-model-uc20",
+				Model:          modelName,
+				Classic:        !tc.onCore,
 				Grade:          "dangerous",
 				ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 				AssetChain: []boot.BootAsset{

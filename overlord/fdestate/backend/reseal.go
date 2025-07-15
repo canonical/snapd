@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -394,6 +393,23 @@ func updateRunProtectionProfile(
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
 
+	hasClassicModel := false
+	for _, m := range modelParams {
+		if m.Model.Classic() {
+			hasClassicModel = true
+			break
+		}
+	}
+
+	if !hasClassicModel {
+		for _, m := range modelParamsRunOnly {
+			if m.Model.Classic() {
+				hasClassicModel = true
+				break
+			}
+		}
+	}
+
 	if len(modelParams) < 1 || len(modelParamsRunOnly) < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
@@ -413,12 +429,12 @@ func updateRunProtectionProfile(
 
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !release.OnClassic)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
 		if err != nil {
 			return err
 		}
 
-		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, !release.OnClassic)
+		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, !hasClassicModel)
 		if err != nil {
 			return err
 		}
@@ -490,6 +506,14 @@ func updateFallbackProtectionProfile(
 		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
 	}
 
+	hasClassicModel := false
+	for _, m := range modelParams {
+		if m.Model.Classic() {
+			hasClassicModel = true
+			break
+		}
+	}
+
 	var pcrProfile []byte
 	err = func() error {
 		relock := manager.Unlock()
@@ -497,7 +521,7 @@ func updateFallbackProtectionProfile(
 
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !release.OnClassic)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
 		if err != nil {
 			return err
 		}
