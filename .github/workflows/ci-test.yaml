@@ -74,6 +74,13 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    - name: Run mock inside container
+      run: |
+        docker run --privileged --rm \
+          --mount type=bind,src=/tmp/mock,dst=/var/lib/mock \
+          mock-base:latest \
+          mock -r /etc/mock/fedora-41-x86_64.cfg --install git
+
   # cache-build-deps:
   #   runs-on: ubuntu-latest
   #   steps:
