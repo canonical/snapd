@@ -364,7 +364,7 @@ func getFeatures(c *Command) Response {
 	for _, taskKind := range taskKinds {
 		t := taskResponse{
 			Kind:    taskKind,
-			HasUndo: c.d.overlord.TaskRunner().TaskKindHasUndo(taskKind),
+			HasUndo: runner.TaskKindHasUndo(taskKind),
 		}
 		taskResponses = append(taskResponses, t)
 	}

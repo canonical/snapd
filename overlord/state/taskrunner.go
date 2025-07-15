@@ -148,10 +148,8 @@ func (r *TaskRunner) KnownTaskKinds() []string {
 
 // TaskKindHasUndo returns true if the indicated kind has an undo handler.
 func (r *TaskRunner) TaskKindHasUndo(k string) bool {
-	for kind, h := range r.handlers {
-		if kind == k {
-			return h.undo != nil
-		}
+	if h, ok := r.handlers[k]; ok {
+		return h.undo != nil
 	}
 	return false
 }
