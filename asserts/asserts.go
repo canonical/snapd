@@ -161,6 +161,7 @@ var (
 	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
 	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
 	ConfdbControlType        = &AssertionType{"confdb-control", []string{"brand-id", "model", "serial"}, nil, assembleConfdbControl, noAuthority}
+	ResponseMessageType      = &AssertionType{"response-message", []string{"account-id", "message-id", "device"}, nil, assembleResponseMessage, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -190,6 +191,7 @@ var typeRegistry = map[string]*AssertionType{
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
 	ConfdbControlType.Name:        ConfdbControlType,
+	ResponseMessageType.Name:      ResponseMessageType,
 }
 
 // Type returns the AssertionType with name or nil

@@ -155,3 +155,100 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 		c.Assert(err, ErrorMatches, errPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
 	}
 }
+
+type responseMessageSuite struct {
+}
+
+var _ = Suite(&responseMessageSuite{})
+
+const (
+	responseMessageExample = `type: response-message
+account-id: account-id-1
+message-id: someId
+device: generic.generic-classic.03961d5d-26e5
+status: success
+timestamp: 2025-01-08T13:31:20+00:00
+sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
+body-length: 96
+
+%s
+
+AXNpZw==`
+
+	respBodyExample = `{
+  "values": {
+    "https": "proxy.example.com:8080",
+    "ftp": "proxy.example.com:8080"
+  }
+}`
+)
+
+func (s *responseMessageSuite) TestDecodeOK(c *C) {
+	encoded := fmt.Sprintf(responseMessageExample, respBodyExample)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.ResponseMessageType)
+
+	resp := a.(*asserts.ResponseMessage)
+	c.Check(resp.AccountID(), Equals, "account-id-1")
+	c.Check(resp.ID(), Equals, "someId")
+	c.Check(resp.SeqNum(), IsNil)
+	c.Check(resp.Status(), Equals, asserts.MessageStatus("success"))
+
+	expectedDevice := asserts.DeviceID{
+		BrandID: "generic",
+		Model:   "generic-classic",
+		Serial:  "03961d5d-26e5",
+	}
+	c.Check(resp.Device(), DeepEquals, expectedDevice)
+
+	c.Check(string(resp.Body()), Equals, respBodyExample)
+}
+
+func (s *responseMessageSuite) TestDecodeSequencedOK(c *C) {
+	encoded := fmt.Sprintf(responseMessageExample, respBodyExample)
+	encoded = strings.Replace(encoded, "message-id: someId", "message-id: someId-4", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	resp := a.(*asserts.ResponseMessage)
+	c.Check(resp.ID(), Equals, "someId")
+	c.Check(*resp.SeqNum(), Equals, 4)
+}
+
+func (s *responseMessageSuite) TestDecodeInvalid(c *C) {
+	encoded := fmt.Sprintf(responseMessageExample, respBodyExample)
+
+	const errPrefix = "assertion response-message: "
+	device := "device: generic.generic-classic.03961d5d-26e5\n"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"account-id: account-id-1\n", "", `"account-id" header is mandatory`},
+		{"account-id: account-id-1\n", "account-id: \n", `"account-id" header should not be empty`},
+		{"account-id: account-id-1\n", "account-id: @9\n", `invalid account id: @9`},
+		{"message-id: someId\n", "", `"message-id" header is mandatory`},
+		{"message-id: someId\n", "message-id: \n", `"message-id" header should not be empty`},
+		{"message-id: someId\n", "message-id: s#ome&Id\n", `"message-id" header contains invalid characters: "s#ome&Id"`},
+		{"message-id: someId\n", "message-id: someId-\n", `"message-id" header contains invalid characters: "someId-"`},
+		{"message-id: someId\n", "message-id: someId-abc\n", `"message-id" header contains invalid characters: "someId-abc"`},
+		{device, "", `"device" header is mandatory`},
+		{device, "device: \n", `"device" header should not be empty`},
+		{device, "device: ab\n", `invalid device id: ab`},
+		{device, "device: a.b.c.d\n", `invalid device id: a.b.c.d`},
+		{device, "device: a#3.b.c\n", `invalid brand-id in device id: a#3`},
+		{device, "device: abc.x3#4.y\n", `invalid model in device id: x3#4`},
+		{"status: success\n", "", `expected "status" to be one of \[success, error, unauthorized, rejected\] but was ""`},
+		{"status: success\n", "status: \n", `expected "status" to be one of \[success, error, unauthorized, rejected\] but was ""`},
+		{"status: success\n", "status: invalid\n", `expected "status" to be one of \[success, error, unauthorized, rejected\] but was "invalid"`},
+		{"timestamp: 2025-01-08T13:31:20+00:00\n", "", `"timestamp" header is mandatory`},
+	}
+
+	for i, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Assert(err, ErrorMatches, errPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
+	}
+}
