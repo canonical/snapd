@@ -1209,7 +1209,7 @@ func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {
 	c.Assert(kinds, DeepEquals, []string{"task-kind-1", "task-kind-2"})
 }
 
-func (ts *taskRunnerSuite) TestKnownTaskKindsWithUndo(c *C) {
+func (ts *taskRunnerSuite) TestTaskKindsHasUndo(c *C) {
 	st := state.New(nil)
 	r := state.NewTaskRunner(st)
 	r.AddHandler("task-kind-1", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
@@ -1217,9 +1217,9 @@ func (ts *taskRunnerSuite) TestKnownTaskKindsWithUndo(c *C) {
 		func(t *state.Task, tb *tomb.Tomb) error { return nil },
 		func(t *state.Task, tb *tomb.Tomb) error { return nil })
 
-	kinds := r.KnownTaskKindsWithUndo()
-	sort.Strings(kinds)
-	c.Assert(kinds, DeepEquals, []string{"task-kind-2"})
+	c.Assert(false, Equals, r.TaskKindHasUndo("task-kind-1"))
+	c.Assert(true, Equals, r.TaskKindHasUndo("task-kind-2"))
+	c.Assert(false, Equals, r.TaskKindHasUndo("unknown-task-kind"))
 }
 
 func (ts *taskRunnerSuite) TestCleanup(c *C) {

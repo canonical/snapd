@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -361,12 +360,11 @@ type taskResponse struct {
 func getFeatures(c *Command) Response {
 	runner := c.d.overlord.TaskRunner()
 	taskKinds := runner.KnownTaskKinds()
-	undos := runner.KnownTaskKindsWithUndo()
 	taskResponses := make([]taskResponse, 0, len(taskKinds))
-	for _, task := range taskKinds {
+	for _, taskKind := range taskKinds {
 		t := taskResponse{
-			Kind:    task,
-			HasUndo: strutil.ListContains(undos, task),
+			Kind:    taskKind,
+			HasUndo: c.d.overlord.TaskRunner().TaskKindHasUndo(taskKind),
 		}
 		taskResponses = append(taskResponses, t)
 	}
