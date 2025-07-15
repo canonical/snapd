@@ -55,6 +55,25 @@ jobs:
           - runs-on: '["ubuntu-22.04-arm"]'
             variant: pristine
 
+  package-snapd-rpm:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        file: tests/lib/packaging/fedora.dockerfile
+        tags: mock-base:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
   cache-build-deps:
     runs-on: ubuntu-latest
     steps:
