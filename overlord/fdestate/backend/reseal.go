@@ -376,6 +376,15 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 	return nil
 }
 
+func anyClassicModel(params... *secboot.SealKeyModelParams) bool {
+	for _, m := range params {
+		if m.Model.Classic() {
+			return true
+		}
+	}
+	return false
+}
+
 func updateRunProtectionProfile(
 	manager FDEStateManager,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
@@ -393,22 +402,7 @@ func updateRunProtectionProfile(
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
 
-	hasClassicModel := false
-	for _, m := range modelParams {
-		if m.Model.Classic() {
-			hasClassicModel = true
-			break
-		}
-	}
-
-	if !hasClassicModel {
-		for _, m := range modelParamsRunOnly {
-			if m.Model.Classic() {
-				hasClassicModel = true
-				break
-			}
-		}
-	}
+	hasClassicModel := anyClassicModel(append(modelParams, modelParamsRunOnly...)...)
 
 	if len(modelParams) < 1 || len(modelParamsRunOnly) < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -506,13 +500,7 @@ func updateFallbackProtectionProfile(
 		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
 	}
 
-	hasClassicModel := false
-	for _, m := range modelParams {
-		if m.Model.Classic() {
-			hasClassicModel = true
-			break
-		}
-	}
+	hasClassicModel := anyClassicModel(modelParams...)
 
 	var pcrProfile []byte
 	err = func() error {
