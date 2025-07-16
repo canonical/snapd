@@ -1345,7 +1345,7 @@ func (s *constraintsSuite) TestRulePermissionEntrySupersedes(c *C) {
 			expected: false,
 		},
 		{
-			// LifespanSingle does not supersede LifespanSession even with expired session
+			// LifespanSingle supersedes LifespanSession with expired session
 			entry: &prompting.RulePermissionEntry{
 				Lifespan: prompting.LifespanSingle,
 			},
@@ -1353,7 +1353,7 @@ func (s *constraintsSuite) TestRulePermissionEntrySupersedes(c *C) {
 				Lifespan:  prompting.LifespanSession,
 				SessionID: currSession + 1,
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			entry: &prompting.RulePermissionEntry{
@@ -1376,6 +1376,41 @@ func (s *constraintsSuite) TestRulePermissionEntrySupersedes(c *C) {
 		},
 	} {
 		c.Check(testCase.entry.Supersedes(testCase.other, currSession), Equals, testCase.expected, Commentf("testCase:\n\tentry: %+v\n\tother: %+v\n\texpected: %v", testCase.entry, testCase.other, testCase.expected))
+	}
+
+	// Check that LifespanSession when current session ID is 0 supersedes
+	// nothing and is superseded by everything.
+	expiredSession := currSession
+	currSession = 0
+	for _, lifespan := range []prompting.LifespanType{
+		prompting.LifespanSingle,
+		prompting.LifespanTimespan,
+		prompting.LifespanSession,
+		prompting.LifespanForever,
+	} {
+		entry := &prompting.RulePermissionEntry{
+			Lifespan:  prompting.LifespanSession,
+			SessionID: expiredSession,
+		}
+		other := &prompting.RulePermissionEntry{
+			Lifespan: lifespan,
+		}
+		c.Check(entry.Supersedes(other, currSession), Equals, false, Commentf("LifespanSession with expired session incorrectly superseded entry with lifespan %s", lifespan))
+	}
+	for _, lifespan := range []prompting.LifespanType{
+		prompting.LifespanSingle,
+		prompting.LifespanTimespan,
+		// there can't be an entry with LifespanSession and SessionID = 0
+		prompting.LifespanForever,
+	} {
+		entry := &prompting.RulePermissionEntry{
+			Lifespan: lifespan,
+		}
+		other := &prompting.RulePermissionEntry{
+			Lifespan:  prompting.LifespanSession,
+			SessionID: expiredSession,
+		}
+		c.Check(entry.Supersedes(other, currSession), Equals, true, Commentf("LifespanSession with expired session was incorrectly not superseded by entry with lifespan %s", lifespan))
 	}
 }
 

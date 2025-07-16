@@ -1385,7 +1385,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
-	// XXX: we don't currently check whether the rule is expired or not.
+	// XXX: we don't currently check whether the rule is fully expired or not.
 	// Do we want to support patching a rule for which all the permissions
 	// have already expired? Or say if a rule has already expired, we don't
 	// support patching it? Currently, we don't include fully expired rules
@@ -1395,6 +1395,14 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	if err != nil && !errors.Is(err, errNoUserSession) {
 		return nil, err
 	}
+	// At is used to check whether existing permission entries are expired,
+	// and to compute expiration/session ID for new permission entries.
+	// If a new entry's lifespan is "timespan", the expiration timestamp
+	// will be computed as the entry's duration after the given time. If a
+	// new entry's lifespan is "session", the current session will be stored
+	// as the session ID associated with the entry. Any existing non-expired
+	// entries with lifespan "session" must already have a session ID matching
+	// the given session ID, otherwise they would be treated as expired.
 	at := prompting.At{
 		Time:      time.Now(),
 		SessionID: currSession,

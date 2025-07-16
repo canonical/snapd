@@ -483,9 +483,10 @@ func (e *RulePermissionEntry) validate() error {
 //
 // LifespanForever supersedes other lifespans. LifespanSession, if the entry's
 // session ID is equal to the given session ID, supersedes lifespans other
-// than LifespanForever. LifespanTimespan supersedes LifespanSingle. If the
-// entries are both LifespanTimespan, then whichever entry has a later
-// expiration timestamp supersedes the other entry.
+// than LifespanForever; LifespanSession with an expired session ID supersedes
+// nothing and is superseded by everything else. LifespanTimespan supersedes
+// LifespanSingle. If the entries are both LifespanTimespan, then whichever
+// entry has a later expiration timestamp supersedes the other entry.
 func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry, currSession IDType) bool {
 	if other.Lifespan == LifespanForever {
 		// Nothing supersedes LifespanForever
@@ -496,6 +497,11 @@ func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry, currSession
 		return true
 	}
 	if other.Lifespan == LifespanSession && other.SessionID == currSession {
+		// Validation ensures that there can be no entry with LifespanSession
+		// which has a SessionID of 0. Thus, if currSession is 0 (meaning
+		// there is no active user session), we'll never have other.SessionID
+		// equal to currSession.
+
 		// Nothing except LifespanForever supersedes LifespanSession with active session
 		return false
 	}
@@ -505,6 +511,11 @@ func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry, currSession
 			return false
 		}
 		// LifespanSession with active session supersedes everything remaining
+		return true
+	}
+	if other.Lifespan == LifespanSession && other.SessionID != currSession {
+		// Everything except LifespanSession with expired session supersedes
+		// LifespanSession with expired session
 		return true
 	}
 	// Neither lifespan is LifespanForever or LifespanSession

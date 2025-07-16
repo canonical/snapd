@@ -1571,8 +1571,6 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{good})
 	s.checkNewNoticesSimple(c, nil, good)
 
-	// TODO: ADD test which tests behavior of rules which partially expire
-
 	// First add deny rule with lifespan "session"
 	currSession = prompting.IDType(0x12345)
 	initialSessionDeny, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
@@ -1611,9 +1609,9 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
-	// Change user session again so future timespan rule will conflict and
-	// expire this rule.
-	currSession = prompting.IDType(0xf00)
+	// Change user session to 0 (as if session ended) so future timespan rule
+	// will conflict and expire this rule.
+	currSession = prompting.IDType(0)
 
 	// Add initial LifespanTimespan rule which will conflict with
 	// initialSessionAllow and then expire quickly
@@ -2414,6 +2412,11 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 	// Expired rules are excluded from the Rules*() functions
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, []*requestrules.Rule{rules[1], rules[3]})
 
+	// If we set the current session to 0, all LifespanSession rules should be
+	// treated as expired.
+	currSession = 0
+	c.Check(rdb.Rules(s.defaultUser), DeepEquals, []*requestrules.Rule{rules[3]})
+
 	// Getting rules should cause no notices
 	s.checkNewNoticesSimple(c, nil)
 }
@@ -3133,6 +3136,29 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 			},
 		},
 	}
+	c.Check(patched, DeepEquals, rule)
+
+	// If the user session ends, any entries with LifespanSession expire
+	currSession = 0
+	constraintsPatch = &prompting.RuleConstraintsPatch{
+		Permissions: prompting.PermissionMap{
+			"execute": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+	}
+	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
+	c.Assert(err, IsNil)
+	s.checkWrittenRuleDB(c, []*requestrules.Rule{patched})
+	s.checkNewNoticesSimple(c, nil, patched)
+	// Check that timestamp has changed
+	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
+	// Update the timestamp and check that the patched rule no longer has the
+	// permission entry for "read", which was LifespanSession for expired session
+	patched.Timestamp = rule.Timestamp
+	rule.Constraints.Permissions["execute"].Outcome = prompting.OutcomeAllow
+	delete(rule.Constraints.Permissions, "read")
 	c.Check(patched, DeepEquals, rule)
 }
 
