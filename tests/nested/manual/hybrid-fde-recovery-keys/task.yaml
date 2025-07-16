@@ -38,8 +38,7 @@ environment:
 
 prepare: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
+      tests.exec skip-test "This test needs test keys to be trusted" && exit 0
   fi
 
   # TODO: this setup for hybrid tests is repeated in other tests
@@ -70,7 +69,7 @@ prepare: |
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
 
   if [ "$MODEL_VERSION" = "2504" ]; then
-    # 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
+    # TODO: 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
     # https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json
     cp "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json classic.json
   else
@@ -110,29 +109,29 @@ execute: |
 
   # system-boot is not encrypted
   gojq '.result."by-container-role"."system-boot"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = false
-  test "$(gojq '.keyslots | length' < container.out)" -eq 0
+  gojq '.encrypted' < container.out | MATCH "^false$"
+  gojq '.keyslots | length' < container.out | MATCH "^0$"
 
   # system-seed is also not encrypted
   gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = false
-  test "$(gojq '.keyslots | length' < container.out)" -eq 0
+  gojq '.encrypted' < container.out | MATCH "^false$"
+  gojq '.keyslots | length' < container.out | MATCH "^0$"
 
   # system-data is encrypted and has a recovery key
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 3
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-recovery".type' < container.out)" = recovery
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 3
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-recovery".type' < container.out)" = recovery
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # Check we can boot with recovery key
   tests.nested vm set-recovery-key "$(cat rkey-pre-install.out)"
@@ -195,19 +194,19 @@ execute: |
 
   # system-data is encrypted and has a recovery key
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 3
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-recovery".type' < container.out)" = recovery
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 3
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-recovery".type' < container.out)" = recovery
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # TODO:FDEM: Grow test to check that we can reprovision and reseal
   # then reboot without recovery keys
