@@ -317,7 +317,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 }
 
 func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) (string, []secboot.PreinstallErrorDetails, error) {
-	supported, err := preinstallCheckSupported(model)
+	supported, err := PreinstallCheckSupported(model)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
 	}
@@ -356,7 +356,7 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 	return "", nil, nil
 }
 
-var preinstallCheckSupported = func(model *asserts.Model) (bool, error) {
+func PreinstallCheckSupported(model *asserts.Model) (bool, error) {
 	//TODO:FDEM: This temporary fallback must be removed before release of snapd 2.71
 	if osutil.GetenvBool("SNAPD_DISABLE_PREINSTALL_CHECK") {
 		logger.Noticef(`preinstall check disabled by environment variable "SNAPD_DISABLE_PREINSTALL_CHECK"`)
