@@ -14,6 +14,8 @@ github.com/canonical/go-tpm2 v1.13.0 h1:Ka9VmUVwoz9pJef5JXP6Gd4CIhxFE70X26K8x3Le
 github.com/canonical/go-tpm2 v1.13.0/go.mod h1:P50xMwC7y5/uxPikzWdK4d9pW9orKi8+ZL5sBifxoBQ=
 github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981 h1:vrUzSfbhl8mzdXPzjxq4jXZPCCNLv18jy6S7aVTS2tI=
 github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981/go.mod h1:ywdPBqUGkuuiitPpVWCfilf2/gq+frhq4CNiNs9KyHU=
+github.com/chrisccoulson/secboot v0.0.0-20250715200320-d3d72382cde1 h1:jE1CnxQDKbD1h+/urpHxD2IQyxb9JIeqbFFKglDBHJY=
+github.com/chrisccoulson/secboot v0.0.0-20250715200320-d3d72382cde1/go.mod h1:YOJQnKKG5YXotxAebtzIJrnDiDAMirAbVTRj7IkGa7U=
 github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf h1:iW4rZ826su+pqaw19uhpSCzhj44qo35pNgKFGqzDKkU=
 github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
@@ -55,8 +57,6 @@ github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraK
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0EmriMOiI4YgtQNOo+6fNxzLCYioo3Q3BCVLdMCE=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
-github.com/snapcore/secboot v0.0.0-20250711210843-36be1c6cc72a h1:EJy6Kng/xPTIcKr3psxha9G3XCvBRfVpI+5Y/avzKAM=
-github.com/snapcore/secboot v0.0.0-20250711210843-36be1c6cc72a/go.mod h1:YOJQnKKG5YXotxAebtzIJrnDiDAMirAbVTRj7IkGa7U=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 go.etcd.io/bbolt v1.3.9 h1:8x7aARPEXiXbHmtUwAIv7eV2fQFHrLLavdiJ3uzJXoI=
 go.etcd.io/bbolt v1.3.9/go.mod h1:zaO32+Ti0PK1ivdPtgMESzuzL2VPoIG1PCQNvOdo/dE=
