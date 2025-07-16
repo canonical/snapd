@@ -1915,9 +1915,9 @@ func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) 
 
 	ctx.Lock()
 	view := s.dbSchema.View("setup-wifi")
-	// can't write an ephemeral path w/o a save-view hook
+	// can't read an ephemeral path w/o a load-view hook
 	_, err = confdbstate.GetTransactionForSnapctlGet(ctx, view, []string{"eph"})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a save-view hook", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// so we don't block on the read
 	restore := confdbstate.MockTransactionTimeout(0)
@@ -1930,9 +1930,9 @@ func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) 
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	// can't write an ephemeral path w/o a save-view hook
+	// can't read an ephemeral path w/o a load-view hook
 	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"eph"})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a save-view hook", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// but reading a non-ephemeral path succeeds
 	_, err = confdbstate.LoadConfdbAsync(s.state, view, []string{"ssid"})
