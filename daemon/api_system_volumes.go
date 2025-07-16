@@ -132,6 +132,15 @@ func structureInfoFromVolumeStructure(structure *devicestate.VolumeStructureWith
 }
 
 func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Response {
+	supported, err := newRecoveryKeyAPISupportedLocking(c.d.overlord.State())
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	if !supported {
+		return BadRequest("this action is not supported on this system")
+	}
+
 	opts, err := parseSystemVolumesOptionsFromURL(r.URL.Query())
 	if err != nil {
 		return BadRequest(err.Error())
@@ -201,8 +210,16 @@ type systemVolumesActionRequest struct {
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
-	contentType := r.Header.Get("Content-Type")
+	supported, err := newRecoveryKeyAPISupportedLocking(c.d.overlord.State())
+	if err != nil {
+		return InternalError(err.Error())
+	}
 
+	if !supported {
+		return BadRequest("this action is not supported on this system")
+	}
+
+	contentType := r.Header.Get("Content-Type")
 	switch contentType {
 	case "application/json":
 		return postSystemVolumesActionJSON(c, r)
