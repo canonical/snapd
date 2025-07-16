@@ -27,13 +27,17 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 var _ = Suite(&recoveryKeysSuite{})
@@ -164,4 +168,84 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemoveError(c *C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe, DeepEquals, daemon.InternalError("boom"))
 	c.Check(called, Equals, 1)
+}
+
+func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysFailsOnHybrid(c *C) {
+	s.daemon(c)
+	mockSystemRecoveryKeys(c)
+
+	restore := release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "25.10",
+	})
+	defer restore()
+
+	// create a hybrid classic model that results in this API being disabled
+	model := s.Brands.Model("can0nical", "pc-new", map[string]any{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   snaptest.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   snaptest.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+	restore = snapstatetest.MockDeviceModel(model)
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, "this action is not supported on this system")
+}
+
+func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysFailsOnHybrid(c *C) {
+	s.daemon(c)
+	mockSystemRecoveryKeys(c)
+
+	restore := release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "25.10",
+	})
+	defer restore()
+
+	// create a hybrid classic model that results in this API being disabled
+	model := s.Brands.Model("can0nical", "pc-new", map[string]any{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   snaptest.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   snaptest.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+	restore = snapstatetest.MockDeviceModel(model)
+	defer restore()
+
+	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", strings.NewReader(`{"action": "remove"}`))
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, "this action is not supported on this system")
 }
