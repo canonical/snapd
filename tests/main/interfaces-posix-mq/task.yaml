@@ -8,6 +8,8 @@ details: |
 systems:
     # no AppArmor, no mediation
     - -amazon-linux-*
+    - -centos-9-64
+    - -fedora-*
     # Too old to support this feature entirely.
     - -ubuntu-14.04-64
     - -debian-11-64
