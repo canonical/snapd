@@ -4,9 +4,7 @@ details: |
   This test installs an encrypted hybrid Ubuntu system using muinstaller
   which is protected by passphrase authentication.
 
-# TODO: switch to system-based matching when interim releases are
-# supported for nested systems.
-systems: [ubuntu-24.04-64]
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
   # Defaults
@@ -116,27 +114,27 @@ execute: |
 
   # system-boot is not encrypted
   gojq '.result."by-container-role"."system-boot"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = false
-  test "$(gojq '.keyslots | length' < container.out)" -eq 0
+  gojq '.encrypted' < container.out | MATCH "^false$"
+  gojq '.keyslots | length' < container.out | MATCH "^0$"
 
   # system-seed is also not encrypted
   gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = false
-  test "$(gojq '.keyslots | length' < container.out)" -eq 0
+  gojq '.encrypted' < container.out | MATCH "^false$"
+  gojq '.keyslots | length' < container.out | MATCH "^0$"
 
   # system-data is encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 2
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = passphrase
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^passphrase$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 2
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
@@ -233,17 +231,17 @@ execute: |
 
   # system-data is encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 2
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = passphrase
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^passphrase$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
-  test "$(gojq '.encrypted' < container.out)" = true
-  test "$(gojq '.keyslots | length' < container.out)" -eq 2
-  test "$(gojq --raw-output '.keyslots.default."auth-mode"' < container.out)" = none
-  test "$(gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out)" = passphrase
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
 
   # TODO: 4. Test resetting passphrases.
 
