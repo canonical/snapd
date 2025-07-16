@@ -73,6 +73,35 @@ type systemsSuite struct {
 	seedModelForLabel20191119 *asserts.Model
 }
 
+func (s *systemsSuite) mockHybridSystem() {
+	restore := release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "25.10",
+	})
+	s.AddCleanup(restore)
+
+	model := s.Brands.Model("can0nical", "pc-new", map[string]any{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   snaptest.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   snaptest.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+	restore = snapstatetest.MockDeviceModel(model)
+	s.AddCleanup(restore)
+}
+
 func (s *systemsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
@@ -1353,6 +1382,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 	}
 
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
 		c.Check(label, check.Equals, "20250529")
@@ -1380,6 +1410,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 
 func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
 		c.Check(label, check.Equals, "20250529")
@@ -1399,6 +1430,17 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Message, check.Equals, `cannot generate recovery key for "20250529": boom!`)
+}
+
+func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyErrorUnsupportedSystem(c *check.C) {
+	s.daemon(c)
+
+	req, err := http.NewRequest("POST", "/v2/systems/20250529", strings.NewReader(`{"action": "install", "step": "generate-recovery-key"}`))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `this action is not supported on this system`)
 }
 
 func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
@@ -1493,6 +1535,7 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1553,6 +1596,7 @@ func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 	d := s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1647,6 +1691,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1690,6 +1735,7 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	d := s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1786,12 +1832,26 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	}
 }
 
+func (s *systemsSuite) TestSystemActionsUnsupportedOnNonHybrid(c *check.C) {
+	s.daemon(c)
+	for _, action := range []string{"check-pin", "check-passphrase"} {
+		body := fmt.Sprintf(`{"action": "%s"}`, action)
+		req, err := http.NewRequest("POST", "/v2/systems/20250122", strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+
+		rsp := s.errorReq(c, req, nil, actionIsExpected)
+		c.Assert(rsp.Status, check.Equals, 400)
+		c.Assert(rsp.Message, check.Equals, "this action is not supported on this system")
+	}
+}
+
 func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c *check.C) {
 	if !secboot.WithSecbootSupport {
 		c.Skip("secboot is not available")
 	}
 
 	d := s.daemon(c)
+	s.mockHybridSystem()
 
 	called := 0
 	restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {

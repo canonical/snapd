@@ -36,8 +36,11 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type systemVolumesSuite struct {
@@ -72,8 +75,38 @@ func (s *systemVolumesSuite) SetUpTest(c *C) {
 	}
 }
 
+func (s *systemVolumesSuite) mockHybridSystem() {
+	restore := release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "25.10",
+	})
+	s.AddCleanup(restore)
+
+	model := s.Brands.Model("can0nical", "pc-new", map[string]any{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"architecture": "amd64",
+		"base":         "core24",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   snaptest.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   snaptest.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+	restore = snapstatetest.MockDeviceModel(model)
+	s.AddCleanup(restore)
+}
+
 func (s *systemVolumesSuite) TestSystemVolumesBadContentType(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "blah"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -86,6 +119,7 @@ func (s *systemVolumesSuite) TestSystemVolumesBadContentType(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesBogusAction(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "blah"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -104,6 +138,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 	}
 
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdeMgrGenerateRecoveryKey(func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error) {
@@ -134,6 +169,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKey(c *C) {
 	}
 
 	d := s.daemon(c)
+	s.mockHybridSystem()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdeMgrCheckRecoveryKey(func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
@@ -168,6 +204,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyMissingKey(c
 	}
 
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "check-recovery-key"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -185,6 +222,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyBadRecoveryK
 	}
 
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdeMgrCheckRecoveryKey(func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
@@ -211,6 +249,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	}
 
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdeMgrCheckRecoveryKey(func(fdemgr *fdestate.FDEManager, rkey keys.RecoveryKey, containerRoles []string) (err error) {
@@ -233,6 +272,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	d := s.daemon(c)
+	s.mockHybridSystem()
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
@@ -279,6 +319,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	var mockErr error
 	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
@@ -313,6 +354,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "replace-recovery-key"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -326,6 +368,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKey
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
 	d := s.daemon(c)
+	s.mockHybridSystem()
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
@@ -369,6 +412,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPassphrase(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "change-passphrase", "new-passphrase": "new"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -385,6 +429,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPa
 // This test should intentionally fail when resetting passphrase as root is implemented.
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPassphraseAsRoot(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "change-passphrase", "new-passphrase": "new"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -400,6 +445,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingOldPa
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingNewPassphrase(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	body := strings.NewReader(`{"action": "change-passphrase", "old-passphrase": "old"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -413,6 +459,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseMissingNewPa
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	var mockErr error
 	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
@@ -482,6 +529,7 @@ func (k *mockKeyData) WriteTokenAtomic(devicePath, slotName string) error {
 
 func (s *systemVolumesSuite) testSystemVolumesGet(c *C, query string, expectedResult any) {
 	d := s.daemon(c)
+	s.mockHybridSystem()
 
 	s.AddCleanup(daemon.MockDevicestateGetVolumeStructuresWithKeyslots(func(st *state.State) ([]devicestate.VolumeStructureWithKeyslots, error) {
 		// check state is locked
@@ -601,6 +649,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetContainerRole(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesGetQueryConflictError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	req, err := http.NewRequest("GET", "/v2/system-volumes?by-container-role=true&container-role=mbr", nil)
 	c.Assert(err, IsNil)
@@ -612,6 +661,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetQueryConflictError(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesGetQueryByContainerRoleError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	req, err := http.NewRequest("GET", "/v2/system-volumes?by-container-role=ok", nil)
 	c.Assert(err, IsNil)
@@ -623,6 +673,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetQueryByContainerRoleError(c *C)
 
 func (s *systemVolumesSuite) TestSystemVolumesGetGadgetError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	s.AddCleanup(daemon.MockDevicestateGetVolumeStructuresWithKeyslots(func(st *state.State) ([]devicestate.VolumeStructureWithKeyslots, error) {
 		return nil, errors.New("boom!")
@@ -638,6 +689,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetGadgetError(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -677,6 +729,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -741,6 +794,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -780,6 +834,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 
 func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 	s.daemon(c)
+	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -840,4 +895,29 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 		c.Check(rspe.Message, Matches, tc.expectedErrMsg)
 		c.Check(rspe.Value, DeepEquals, tc.expectedErrValue)
 	}
+}
+
+func (s *systemVolumesSuite) TestPostSystemVolumesUnsupportedSystem(c *C) {
+	s.daemon(c)
+
+	body := strings.NewReader(`{"action": "generate-recovery-key"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "this action is not supported on this system")
+}
+
+func (s *systemVolumesSuite) TestGetSystemVolumesUnsupportedSystem(c *C) {
+	s.daemon(c)
+
+	req, err := http.NewRequest("POST", "/v2/system-volumes", nil)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "this action is not supported on this system")
 }
