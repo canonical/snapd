@@ -28,7 +28,6 @@ import (
 
 var (
 	EncryptionAvailabilityCheck    = encryptionAvailabilityCheck
-	PreinstallCheckSupported       = preinstallCheckSupported
 	OrderedCurrentBootImages       = orderedCurrentBootImages
 	OrderedCurrentBootImagesHybrid = orderedCurrentBootImagesHybrid
 	CheckFDEFeatures               = checkFDEFeatures
