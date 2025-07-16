@@ -1235,9 +1235,12 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		buildProfileErr        string
 		dbxUpdate              []byte
 		revoke                 bool
+		noDmaProtection        bool
 	}{
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
+		// happy case with AllowInsufficientDmaProtection
+		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true},
 		// happy case with key files
 		{tpmEnabled: true, keyDataInFile: true, usePrimaryKeyFile: true, resealCalls: 1},
 		// happy case with DBX update
@@ -1312,14 +1315,19 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			addPCRProfileCalls++
 			c.Assert(pcrAlg, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(loadSequences, DeepEquals, sequences)
-			c.Assert(options, HasLen, 3)
+			if tc.noDmaProtection {
+				c.Assert(options, HasLen, 4)
+				c.Check(options[3], DeepEquals, sb_efi.WithAllowInsufficientDmaProtection())
+			} else {
+				c.Assert(options, HasLen, 3)
+			}
 			// TODO:FDEM: test other options
 
 			// options are passed as an interface, and the underlying types are
 			// not exported by secboot, so we simply assume that specific options
 			// appear at certain indices, in this case, DBX is added as a last
 			// option
-			c.Assert(options[len(options)-1], DeepEquals, dbUpdateOption)
+			c.Assert(options[2], DeepEquals, dbUpdateOption)
 
 			return tc.addPCRProfileErr
 		})
@@ -1349,8 +1357,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		})
 		defer restore()
 
-		const allowInsufficientDmaProtection = false
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, allowInsufficientDmaProtection)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, tc.noDmaProtection)
 		if len(tc.buildProfileErr) > 0 {
 			c.Assert(err, ErrorMatches, tc.buildProfileErr)
 			continue
