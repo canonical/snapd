@@ -623,3 +623,14 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 
 	return ts, nil
 }
+
+// SystemEncryptedFromState reports whether FDE is enabled on the system.
+// It returns true if FDE is enabled, or false otherwise.
+func SystemEncryptedFromState(st *state.State) (bool, error) {
+	mgr := fdeMgr(st)
+	encrypted, err := mgr.systemEncrypted()
+	if err != nil {
+		return false, fmt.Errorf("cannot determine if system is encrypted: %v", err)
+	}
+	return encrypted, nil
+}
