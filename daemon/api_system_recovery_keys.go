@@ -80,7 +80,7 @@ func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Re
 
 	// systems that support the new APIs should use those
 	if supported {
-		return BadRequest("this action is not supported on this system")
+		return BadRequest("this action is not supported on 25.10+ classic systems")
 	}
 
 	keys, err := c.d.overlord.DeviceManager().EnsureRecoveryKeys()
@@ -127,7 +127,7 @@ func postSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) R
 
 	// systems that support the new APIs should use those
 	if supported {
-		return BadRequest("this action is not supported on this system")
+		return BadRequest("this action is not supported on 25.10+ classic systems")
 	}
 
 	err = deviceManagerRemoveRecoveryKeys(c.d.overlord.DeviceManager())
