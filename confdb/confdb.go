@@ -1143,7 +1143,33 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 		return nil
 	}
 
-	return fmt.Errorf("value contains unused data: %v", copyValue)
+	// lists aren't pruned before to avoid impacting subsequent paths (unless they
+	// can be entirely removed) so now we prune them for nicer printing
+	var pruneLists func(v any) any
+	pruneLists = func(v any) any {
+		switch typed := v.(type) {
+		case map[string]any:
+			for k, v := range typed {
+				typed[k] = pruneLists(v)
+			}
+		case []any:
+			var i int
+			for _, v := range typed {
+				if v != nil {
+					typed[i] = pruneLists(v)
+					i++
+				}
+			}
+
+			// remove the excess, otherwise format will print all of it
+			pruned := make([]any, i)
+			copy(pruned, typed[:i])
+			v = pruned
+		}
+		return v
+	}
+
+	return fmt.Errorf("value contains unused data: %v", pruneLists(copyValue))
 }
 
 // deepCopy returns a deep copy of the value. Only supports the types that the

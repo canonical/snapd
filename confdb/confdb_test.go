@@ -2255,7 +2255,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 		{
 			request: "d",
 			value:   []any{"foo", "bar", map[string]any{"baz": 1}},
-			err:     `cannot set "d" through confdb view acc/confdb/foo: value contains unused data: [<nil> bar map[baz:1]]`,
+			err:     `cannot set "d" through confdb view acc/confdb/foo: value contains unused data: [bar map[baz:1]]`,
 		},
 	}
 
