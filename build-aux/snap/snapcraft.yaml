@@ -397,23 +397,16 @@ parts:
         # triggers testing specific build tags which produce binaries that are
         # insecure for use in production systems
         case "${cmd}" in
+          lib/snapd/snapctl)
+            # snapctl pulls in secboot, which pulls in the optee package. we don't
+            # need that CGO code there.
+            TAGS+=(nooptee)
+            ;;
           bin/snap)
-            TAGS+=(nomanagers)
+            TAGS+=(nomanagers nooptee)
             ;;
           lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
-            case "${CRAFT_ARCH_BUILD_FOR}" in
-              arm64|armhf)
-                TAGS+=(withoptee)
-                ;;
-            esac
-            ;;
-          lib/snapd/snapd)
-            case "${CRAFT_ARCH_BUILD_FOR}" in
-              arm64|armhf)
-                TAGS+=(withoptee)
-                ;;
-            esac
             ;;
         esac
 

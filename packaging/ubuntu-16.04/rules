@@ -113,8 +113,8 @@ endif
 # fails due to missing build time dependency optee-client-dev.
 # TODO: The intention is to split control files for different releases, after
 # which point this build dependency can be enabled where its available.
-_TAGS := $(_TAGS),nooptee
-_SNAP_TAGS := $(_SNAP_TAGS),nooptee
+_TAGS := $(_TAGS)
+_SNAP_TAGS := $(_SNAP_TAGS)
 
 ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
@@ -240,7 +240,7 @@ endif
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor -tags nooptee $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
