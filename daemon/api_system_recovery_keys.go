@@ -54,7 +54,7 @@ func newRecoveryKeyAPISupported(st *state.State) (bool, error) {
 		return true, nil
 	}
 
-	supported, err := install.PreinstallCheckSupported(deviceCtx.Model())
+	supported, err := install.CheckHybridPluckyRelease(deviceCtx.Model())
 	if err != nil {
 		return false, err
 	}

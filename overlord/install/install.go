@@ -317,7 +317,7 @@ func GetEncryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvision
 }
 
 func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvisionMode) (string, []secboot.PreinstallErrorDetails, error) {
-	supported, err := PreinstallCheckSupported(model)
+	supported, err := preinstallCheckSupportedWithEnvFallback(model)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
 	}
@@ -356,13 +356,20 @@ func encryptionAvailabilityCheck(model *asserts.Model, tpmMode secboot.TPMProvis
 	return "", nil, nil
 }
 
-func PreinstallCheckSupported(model *asserts.Model) (bool, error) {
+func preinstallCheckSupportedWithEnvFallback(model *asserts.Model) (bool, error) {
 	//TODO:FDEM: This temporary fallback must be removed before release of snapd 2.71
 	if osutil.GetenvBool("SNAPD_DISABLE_PREINSTALL_CHECK") {
 		logger.Noticef(`preinstall check disabled by environment variable "SNAPD_DISABLE_PREINSTALL_CHECK"`)
 		return false, nil
 	}
 
+	return CheckHybridPluckyRelease(model)
+}
+
+// CheckHybridPluckyRelease returns true if the given model and runtime release
+// information indicates that this is a hybrid Ubuntu system with a version of
+// 25.10 or higher.
+func CheckHybridPluckyRelease(model *asserts.Model) (bool, error) {
 	if !model.HybridClassic() {
 		return false, nil
 	}
