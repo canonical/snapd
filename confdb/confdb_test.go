@@ -3327,7 +3327,10 @@ func (*viewSuite) TestSetListPlaceholder(c *C) {
 
 	err = view.Set(bag, "a", []any{"foo", "bar"})
 	c.Assert(err, IsNil)
-	view.Get(bag, "")
+
+	val, err = view.Get(bag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{"foo", "bar"})
 
 	// can overwrite list element with nested value
 	err = view.Set(bag, "a[0]", map[string]any{"a": "b"})

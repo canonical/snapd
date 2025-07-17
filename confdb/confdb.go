@@ -825,6 +825,12 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
+	// sort again since we may have unpacked a list into many expanded matches.
+	// Since list Set()s depend on the length of the existing list, the order matters
+	sort.Slice(expandedMatches, func(x, y int) bool {
+		return expandedMatches[x].storagePath < expandedMatches[y].storagePath
+	})
+
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
