@@ -207,7 +207,7 @@ func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysFailsOnHybrid(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, "this action is not supported on this system")
+	c.Check(rspe.Message, Equals, "this action is not supported on 25.10+ classic systems")
 }
 
 func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysFailsOnHybrid(c *C) {
@@ -247,5 +247,5 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysFailsOnHybrid(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, "this action is not supported on this system")
+	c.Check(rspe.Message, Equals, "this action is not supported on 25.10+ classic systems")
 }
