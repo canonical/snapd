@@ -548,7 +548,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.AllowInsufficientDmaProtection)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +761,7 @@ func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys
 	return updatedKeys, nil
 }
 
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
@@ -782,13 +782,20 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 
+		var options []sb_efi.PCRProfileOption
+		options = append(options,
+			sb_efi.WithSecureBootPolicyProfile(),
+			sb_efi.WithBootManagerCodeProfile(),
+			sb_efi.WithSignatureDBUpdates(updateDB...),
+		)
+		if allowInsufficientDmaProtection {
+			options = append(options, sb_efi.WithAllowInsufficientDmaProtection())
+		}
 		if err := sbefiAddPCRProfile(
 			tpm2.HashAlgorithmSHA256,
 			modelProfile.RootBranch(),
 			loadSequences,
-			sb_efi.WithSecureBootPolicyProfile(),
-			sb_efi.WithBootManagerCodeProfile(),
-			sb_efi.WithSignatureDBUpdates(updateDB...),
+			options...,
 		); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 		}
@@ -829,8 +836,8 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 
 // BuildPCRProtectionProfile builds and serializes a PCR profile from
 // a list of SealKeyModelParams.
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams) (SerializedPCRProfile, error) {
-	pcrProfile, err := buildPCRProtectionProfile(modelParams)
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams, allowInsufficientDmaProtection)
 	if err != nil {
 		return nil, err
 	}

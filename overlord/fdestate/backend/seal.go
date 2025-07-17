@@ -102,12 +102,21 @@ func sealRunObjectKeys(key secboot.BootstrappedContainer, pbc boot.PredictableBo
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
+	hasClassicModel := false
+	for _, m := range modelParams {
+		if m.Model.Classic() {
+			hasClassicModel = true
+			break
+		}
+	}
+
 	sealKeyParams := &secboot.SealKeysParams{
-		ModelParams:            modelParams,
-		PrimaryKey:             maybePrimaryKey,
-		VolumesAuth:            volumesAuth,
-		PCRPolicyCounterHandle: pcrHandle,
-		KeyRole:                keyRole,
+		ModelParams:                    modelParams,
+		PrimaryKey:                     maybePrimaryKey,
+		VolumesAuth:                    volumesAuth,
+		PCRPolicyCounterHandle:         pcrHandle,
+		KeyRole:                        keyRole,
+		AllowInsufficientDmaProtection: !hasClassicModel,
 	}
 
 	if !useTokens {
@@ -134,12 +143,22 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	if err != nil {
 		return fmt.Errorf("cannot prepare for fallback key sealing: %v", err)
 	}
+
+	hasClassicModel := false
+	for _, m := range modelParams {
+		if m.Model.Classic() {
+			hasClassicModel = true
+			break
+		}
+	}
+
 	sealKeyParams := &secboot.SealKeysParams{
-		ModelParams:            modelParams,
-		PrimaryKey:             primaryKey,
-		VolumesAuth:            volumesAuth,
-		PCRPolicyCounterHandle: pcrHandle,
-		KeyRole:                keyRole,
+		ModelParams:                    modelParams,
+		PrimaryKey:                     primaryKey,
+		VolumesAuth:                    volumesAuth,
+		PCRPolicyCounterHandle:         pcrHandle,
+		KeyRole:                        keyRole,
+		AllowInsufficientDmaProtection: !hasClassicModel,
 	}
 	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The

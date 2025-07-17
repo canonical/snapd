@@ -147,6 +147,8 @@ type SealKeysParams struct {
 	VolumesAuth *device.VolumesAuthOptions
 	// The key role (run, run+recover, recover)
 	KeyRole string
+	// Whether to allow disabled DMA protection
+	AllowInsufficientDmaProtection bool
 }
 
 type SealKeysWithFDESetupHookParams struct {

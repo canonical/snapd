@@ -69,6 +69,14 @@ func (n *fakeDevicePathNode) Write(w io.Writer) error {
 	return err
 }
 
+func (n *fakeDevicePathNode) AsGenericDevicePathNode() (*efi.GenericDevicePathNode, error) {
+	return nil, nil
+}
+
+func (n *fakeDevicePathNode) CompoundType() efi.DevicePathNodeCompoundType{
+	return 0
+}
+
 func stringToNode(path string) efi.DevicePathNode {
 	return efi.DevicePathNode(&fakeDevicePathNode{
 		buf: []byte(path),
