@@ -1004,8 +1004,8 @@ func schemaTypesStr(types []SchemaType) string {
 var getValuesThroughPaths = getValuesThroughPathsImpl
 
 func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, val any) (map[string]any, error) {
-	for i, part := range unmatchedSuffix {
-		switch part.keyType() {
+	for unmatchedIndex, unmatchedPart := range unmatchedSuffix {
+		switch unmatchedPart.keyType() {
 		case keyPlaceholderType:
 			mapVal, ok := val.(map[string]any)
 			if !ok {
@@ -1016,12 +1016,12 @@ func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, v
 			// suffix has an unmatched placeholder, try all possible values to fill it and
 			// find the corresponding nested value.
 			for cand, candVal := range mapVal {
-				newStoragePath, err := replaceIn(storagePath, unmatchedSuffix[i].access(), cand)
+				newStoragePath, err := replaceIn(storagePath, unmatchedPart.access(), cand)
 				if err != nil {
 					return nil, err
 				}
 
-				pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[i+1:], candVal)
+				pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], candVal)
 				if err != nil {
 					return nil, err
 				}
@@ -1039,9 +1039,9 @@ func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, v
 				return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
 			}
 
-			val, ok = mapVal[part.name()]
+			val, ok = mapVal[unmatchedPart.name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, part, mapVal)
+				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart, mapVal)
 			}
 
 		case indexPlaceholderType:
@@ -1054,12 +1054,12 @@ func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, v
 			// match-aware instead of using these values to expand the matches?
 			storagePathsToValues := make(map[string]any)
 			for i, el := range list {
-				newStoragePath, err := replaceIn(storagePath, unmatchedSuffix[i].access(), "["+strconv.Itoa(i)+"]")
+				newStoragePath, err := replaceIn(storagePath, unmatchedPart.access(), "["+strconv.Itoa(i)+"]")
 				if err != nil {
 					return nil, err
 				}
 
-				pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[i+1:], el)
+				pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], el)
 				if err != nil {
 					return nil, err
 				}
@@ -1078,9 +1078,9 @@ func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, v
 				return nil, fmt.Errorf(`expected list for unmatched request parts but got %T`, val)
 			}
 
-			index, _ := strconv.Atoi(part.name())
+			index, _ := strconv.Atoi(unmatchedPart.name())
 			if index >= len(list) {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, part.access(), list)
+				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.access(), list)
 			}
 
 			val = list[index]

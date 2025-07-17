@@ -3321,6 +3321,14 @@ func (*viewSuite) TestSetListPlaceholder(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "bar")
 
+	// reset databag and set value that makes placeholder be extended into several values
+	err = bag.Unset("a")
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "a", []any{"foo", "bar"})
+	c.Assert(err, IsNil)
+	view.Get(bag, "")
+
 	// can overwrite list element with nested value
 	err = view.Set(bag, "a[0]", map[string]any{"a": "b"})
 	c.Assert(err, IsNil)
