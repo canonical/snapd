@@ -148,10 +148,7 @@ func (r *TaskRunner) KnownTaskKinds() []string {
 
 // TaskKindHasUndo returns true if the indicated kind has an undo handler.
 func (r *TaskRunner) TaskKindHasUndo(k string) bool {
-	if h, ok := r.handlers[k]; ok {
-		return h.undo != nil
-	}
-	return false
+	return r.handlers[k].undo != nil
 }
 
 // AddCleanup registers a function to be called after the change completes,
