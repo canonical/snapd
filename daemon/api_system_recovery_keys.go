@@ -43,7 +43,7 @@ var systemRecoveryKeysCmd = &Command{
 // FDE/recovery key APIs.
 //
 // TODO: usage of this function and the routes we support should be reviewed for
-// core26
+// UC 26
 func newRecoveryKeyAPISupported(st *state.State) (bool, error) {
 	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
 
