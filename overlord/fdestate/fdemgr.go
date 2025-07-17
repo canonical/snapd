@@ -599,6 +599,22 @@ func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []st
 	return nil
 }
 
+// systemEncrypted reports whether FDE is enabled on the system.
+// It returns true if FDE is enabled, or false otherwise.
+func (m *FDEManager) systemEncrypted() (bool, error) {
+	var s FdeState
+	err := m.state.Get(fdeStateKey, &s)
+	if err != nil {
+		return false, err
+	}
+
+	// Systems with FDE enabled will have a primary key with the exception
+	// of a limited legacy cases. See comment on type FdeState field
+	// PrimaryKeys for details.
+	_, hasPrimaryKey := s.PrimaryKeys[0]
+	return hasPrimaryKey, nil
+}
+
 func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error)) (restore func()) {
 	osutil.MustBeTestBinary("mocking disks.DMCryptUUIDFromMountPoint can be done only from tests")
 

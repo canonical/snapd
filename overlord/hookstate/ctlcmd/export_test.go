@@ -94,6 +94,12 @@ func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.S
 	return func() { devicestateSystemModeInfoFromState = old }
 }
 
+func MockFdestateSystemEncryptedFromState(f func(*state.State) (bool, error)) (restore func()) {
+	old := fdestateSystemEncryptedFromState
+	fdestateSystemEncryptedFromState = f
+	return func() { fdestateSystemEncryptedFromState = old }
+}
+
 func AddMockCommand(name string) *MockCommand {
 	return addMockCmd(name, false)
 }
