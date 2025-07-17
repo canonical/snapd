@@ -272,11 +272,6 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return BadRequest("extra content found in request body")
 	}
 
-	supported, err := newRecoveryKeyAPISupportedLocking(c.d.overlord.State())
-	if err != nil {
-		return InternalError(err.Error())
-	}
-
 	switch req.Action {
 	case "do":
 		return postSystemActionDo(c, systemLabel, &req)
@@ -292,14 +287,8 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 	case "remove":
 		return postSystemActionRemove(c, systemLabel)
 	case "check-passphrase":
-		if !supported {
-			return BadRequest("this action is not supported on this system")
-		}
 		return postSystemActionCheckPassphrase(c, systemLabel, &req)
 	case "check-pin":
-		if !supported {
-			return BadRequest("this action is not supported on this system")
-		}
 		return postSystemActionCheckPIN(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)

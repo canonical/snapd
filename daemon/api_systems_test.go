@@ -1832,19 +1832,6 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	}
 }
 
-func (s *systemsSuite) TestSystemActionsUnsupportedOnNonHybrid(c *check.C) {
-	s.daemon(c)
-	for _, action := range []string{"check-pin", "check-passphrase"} {
-		body := fmt.Sprintf(`{"action": "%s"}`, action)
-		req, err := http.NewRequest("POST", "/v2/systems/20250122", strings.NewReader(body))
-		c.Assert(err, check.IsNil)
-
-		rsp := s.errorReq(c, req, nil, actionIsExpected)
-		c.Assert(rsp.Status, check.Equals, 400)
-		c.Assert(rsp.Message, check.Equals, "this action is not supported on this system")
-	}
-}
-
 func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c *check.C) {
 	if !secboot.WithSecbootSupport {
 		c.Skip("secboot is not available")
