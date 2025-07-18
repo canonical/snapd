@@ -62,7 +62,7 @@ type systemModeResult struct {
 	SystemMode string `yaml:"system-mode,omitempty"`
 	Seeded     bool   `yaml:"seed-loaded"`
 	Factory    bool   `yaml:"factory,omitempty"`
-	Encrypted  bool   `yaml:"encrypted"`
+	Encrypted  bool   `yaml:"encrypted,omitempty"`
 }
 
 func (c *systemModeCommand) Execute(args []string) error {
