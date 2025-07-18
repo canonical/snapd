@@ -456,12 +456,13 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 // If the validation succeeds, it returns lists of typed representations of each
 // path.
 func validateRequestStoragePair(request, storage string) (reqAccessors []accessor, storageAccessors []accessor, err error) {
-	opts := parseOpts{pathType: viewPath}
+	opts := parseOpts{pathType: viewPath, forbidIndexes: true}
 	reqAccessors, err = parsePathIntoAccessors(request, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
+	opts.forbidIndexes = false
 	storageAccessors, err = parsePathIntoAccessors(storage, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
@@ -548,6 +549,7 @@ const (
 
 type parseOpts struct {
 	pathType         pathType
+	forbidIndexes    bool
 	allowPartialPath bool
 }
 
@@ -583,6 +585,9 @@ func parsePathIntoAccessors(path string, opts parseOpts) ([]accessor, error) {
 		case isKey:
 			accessors = append(accessors, key(subkey))
 		case isIndex:
+			if opts.forbidIndexes {
+				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
+			}
 			accessors = append(accessors, index(subkey[1:len(subkey)-1]))
 
 		case opts.pathType == userPath:
@@ -1081,17 +1086,9 @@ func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, v
 			return storagePathsToValues, nil
 
 		case listIndexType:
-			list, ok := val.([]any)
-			if !ok {
-				return nil, fmt.Errorf(`expected list for unmatched request parts but got %T`, val)
-			}
-
-			index, _ := strconv.Atoi(unmatchedPart.name())
-			if index >= len(list) {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.access(), list)
-			}
-
-			val = list[index]
+			// we don't allow literal indexes in request paths and check this early
+			// so shouldn't be possible to hit this
+			return nil, fmt.Errorf("internal error: unexpected index %q in unmatched suffix", unmatchedPart)
 		}
 	}
 
@@ -1154,29 +1151,6 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 	return fmt.Errorf("value contains unused data: %v", copyValue)
 }
 
-type formattedSlice []any
-
-func (s formattedSlice) String() string {
-	var sb strings.Builder
-	sb.WriteRune('[')
-
-	firstWrite := true
-	for i, e := range s {
-		if e == nil {
-			continue
-		}
-
-		if !firstWrite {
-			sb.WriteRune(' ')
-		}
-		sb.WriteString(fmt.Sprintf("%d:%v", i, e))
-		firstWrite = false
-	}
-	sb.WriteRune(']')
-
-	return sb.String()
-}
-
 // deepCopy returns a deep copy of the value. Only supports the types that the
 // API can take (so maps, slices and primitive types).
 func deepCopy(value any) any {
@@ -1236,11 +1210,8 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 	case indexPlaceholderType:
 		list, ok := val.([]any)
 		if !ok {
-			list, ok = val.(formattedSlice)
-			if !ok {
-				// shouldn't happen since we already checked this
-				return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
-			}
+			// shouldn't happen since we already checked this
+			return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
 		}
 
 		nested := make([]any, 0, len(list))
@@ -1259,7 +1230,7 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 			return nil, nil
 		}
 
-		return formattedSlice(nested), nil
+		return nested, nil
 
 	case mapKeyType:
 		mapVal, ok := val.(map[string]any)
@@ -1291,45 +1262,9 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 		return mapVal, nil
 
 	case listIndexType:
-		list, ok := val.([]any)
-		if !ok {
-			list, ok = val.(formattedSlice)
-			if !ok {
-				// shouldn't happen since we already checked this
-				return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
-			}
-		}
-
-		index, _ := strconv.Atoi(parts[0].name())
-		if index >= len(list) {
-			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q to index %v`, parts[0], list)
-		}
-
-		newValue, err := prunePathInValue(parts[1:], list[index])
-		if err != nil {
-			return nil, err
-		}
-
-		// we mark pruned paths as nil instead of removing them entirely as that
-		// would affect the list length and break subsequent paths with indexes
-		list[index] = newValue
-		pruned := true
-		for _, v := range list {
-			if v != nil {
-				pruned = false
-				break
-			}
-		}
-
-		if pruned {
-			// only prune the list when all elements are nil (pruned) otherwise the next
-			// paths would
-			return nil, nil
-		}
-		// we may have pruned some elements, omit them and tag remaining ones with
-		// indexes when printing to make it clear if there are gaps
-		return formattedSlice(list), nil
+		// we don't allow literal indexes in request paths and check this early
+		// so shouldn't be possible to hit this
+		return nil, fmt.Errorf("internal error: unexpected index %q in request path", parts[0])
 
 	default:
 		return nil, fmt.Errorf("internal error: unknown key type %d", parts[0].keyType())
@@ -1392,22 +1327,9 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 		return map[string]any{part.name(): nested}, nil
 
 	case listIndexType:
-		nested, err := namespaceResult(res, unmatchedSuffix[1:])
-		if err != nil {
-			return nil, err
-		}
-
-		index, err := strconv.Atoi(unmatchedSuffix[0].name())
-		if err != nil {
-			return nil, err
-		}
-
-		// this is a bit inefficient but we need to know how to merge results so we
-		// need some way of preserving their intended position (TODO: optimise this
-		// with a sorted map so we can stored and merged them efficiently into a list)
-		list := make([]any, index+1)
-		list[index] = nested
-		return list, nil
+		// we don't allow literal indexes in request paths and check this early
+		// so shouldn't be possible to hit this
+		return nil, fmt.Errorf("internal error: unexpected index %q in unmatched suffix", part)
 
 	default:
 		return nil, fmt.Errorf("internal error: unknown key type %d", part.keyType())
@@ -1957,11 +1879,6 @@ func (k key) name() string     { return string(k) }
 func (k key) keyType() keyType { return mapKeyType }
 
 type index string
-
-// match returns true if the subkey is equal to the literal index.
-func (i index) match(subkey accessor, _ *matchedPlaceholders) bool {
-	return subkey.keyType() == listIndexType && string(i) == subkey.name()
-}
 
 // write writes the literal subkey into the strings.Builder.
 func (i index) write(sb *strings.Builder, _ *matchedPlaceholders, _ writeOpts) {

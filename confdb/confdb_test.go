@@ -398,7 +398,7 @@ func (s *viewSuite) TestConfdbNoMatchAllSubkeyTypes(c *C) {
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"bar": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "a.{b}[1][{n}]", "storage": "a.{b}[{n}]"},
+				map[string]any{"request": "a.{b}[{m}][{n}]", "storage": "a.{b}[{m}][{n}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -407,7 +407,7 @@ func (s *viewSuite) TestConfdbNoMatchAllSubkeyTypes(c *C) {
 	view := schema.View("bar")
 
 	// check each sub-key in the rule path rejects an unmatchable request
-	for _, request := range []string{"b", "a[1]", "a.b[0]", "a.b[1].d"} {
+	for _, request := range []string{"b", "a[1]", "a.b.c", "a.b[1].d"} {
 		_, err = view.Get(databag, request)
 		c.Assert(err, testutil.ErrorIs, &confdb.NoMatchError{})
 		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot get %q through acc/foo/bar: no matching rule`, request))
@@ -1545,6 +1545,7 @@ func (s *viewSuite) TestSetValueMissingNestedLevels(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a.b", "storage": "a.b"},
+				map[string]any{"request": "b[{n}]", "storage": "b[{n}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -1557,6 +1558,9 @@ func (s *viewSuite) TestSetValueMissingNestedLevels(c *C) {
 
 	err = view.Set(databag, "a", map[string]any{"c": "foo"})
 	c.Assert(err, ErrorMatches, `cannot set "a" through confdb view acc/confdb/foo: cannot use unmatched part "b" as key in map\[c:foo\]`)
+
+	err = view.Set(databag, "b", "foo")
+	c.Assert(err, ErrorMatches, `cannot set "b" through confdb view acc/confdb/foo: expected list for unmatched request parts but got string`)
 }
 
 func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
@@ -1641,7 +1645,7 @@ func (s *viewSuite) TestSetOverwriteValueWithNewLevel(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a.b", "storage": "a.b"},
-				map[string]any{"request": "c[0][0]", "storage": "c[0][0]"},
+				map[string]any{"request": "c[{n}][{m}]", "storage": "c[{n}][{m}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -1909,34 +1913,6 @@ func (*viewSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 	c.Assert(view, NotNil)
 
 	err = view.Set(databag, "foo", true)
-	c.Assert(err, IsNil)
-}
-
-func (*viewSuite) TestSchemaMismatchArrayHappy(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": {
-			"type": "array",
-			"values": {
-				"schema": {
-					"bar": "string",
-					"baz": "string"
-				}
-			}
-		}
-	}
-}`)
-	schema, err := confdb.ParseStorageSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	_, err = confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "foo[1].bar", "storage": "foo[1].bar"},
-				map[string]any{"request": "foo[{n}].baz", "storage": "foo[{n}].baz"},
-			},
-		},
-	}, schema)
 	c.Assert(err, IsNil)
 }
 
@@ -2252,11 +2228,6 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 			},
 			err: `cannot set "c" through confdb view acc/confdb/foo: value contains unused data: map[d:map[f:1]]`,
 		},
-		{
-			request: "d",
-			value:   []any{"foo", "bar"},
-			err:     `cannot set "d" through confdb view acc/confdb/foo: value contains unused data: [0:foo]`,
-		},
 	}
 
 	for i, tc := range tcs {
@@ -2268,7 +2239,6 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 					map[string]any{"request": "a.{x}.d", "storage": "a.{x}"},
 					map[string]any{"request": "c.d.e.f", "storage": "d"},
 					map[string]any{"request": "b.f", "storage": "b.f"},
-					map[string]any{"request": "d[1]", "storage": "d[1]"},
 				},
 			},
 		}, confdb.NewJSONSchema())
@@ -3028,12 +2998,36 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 	}
 }
 
+func (*viewSuite) TestViewRequestPathCannotHaveIndexLiteral(c *C) {
+	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[0]", "storage": "a[0]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "cannot define view \"foo\": invalid request \"a[0]\": invalid subkey \"[0]\": view paths cannot have literal indexes (only index placeholders)")
+
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+				map[string]any{"request": "b", "storage": "a[0]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Assert(schema, NotNil)
+
+}
+
 func (*viewSuite) TestGetListLiteral(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "a[0].bar", "storage": "a[0].bar"},
-				map[string]any{"request": "a[1].baz", "storage": "a[1][0].baz"},
+				map[string]any{"request": "a[{n}].bar", "storage": "a[{n}].bar"},
+				map[string]any{"request": "a[{n}].baz", "storage": "a[{n}][0].baz"},
 				map[string]any{"request": "top", "storage": "a"},
 				map[string]any{"request": "nested", "storage": "a[1]"},
 			},
@@ -3160,7 +3154,7 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 				// we shouldn't allow contradictory schemas like this but for now ensure
 				// we handle this gracefully
 				map[string]any{"request": "a.b", "storage": "a.b"},
-				map[string]any{"request": "a[0]", "storage": "a[0]"},
+				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3195,13 +3189,11 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
 }
 
-func (*viewSuite) TestSetList(c *C) {
+func (*viewSuite) TestSetListSetsOrAppends(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "a[0]", "storage": "a[0]"},
-				map[string]any{"request": "a[1]", "storage": "a[1]"},
-				map[string]any{"request": "a[9]", "storage": "a[9]"},
+				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3240,9 +3232,8 @@ func (*viewSuite) TestSetListNested(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "a[0]", "storage": "a[0]"},
-				map[string]any{"request": "a[0][0]", "storage": "a[0][0]"},
-				map[string]any{"request": "a[0][1]", "storage": "a[0][1]"},
+				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+				map[string]any{"request": "a[{n}][{m}]", "storage": "a[{n}][{m}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3262,35 +3253,6 @@ func (*viewSuite) TestSetListNested(c *C) {
 	val, err := view.Get(bag, "a")
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{[]any{"foo", "bar"}})
-}
-
-func (*viewSuite) TestListMergeResults(c *C) {
-	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "a[0]", "storage": "b[0]"},
-				map[string]any{"request": "a[1]", "storage": "c[0]"},
-				map[string]any{"request": "a[2]", "storage": "d[0]"},
-			},
-		},
-	}, confdb.NewJSONSchema())
-	c.Assert(err, IsNil)
-
-	bag := confdb.NewJSONDatabag()
-	view := schema.View("foo")
-
-	err = view.Set(bag, "a[0]", "foo")
-	c.Assert(err, IsNil)
-
-	err = view.Set(bag, "a[1]", "bar")
-	c.Assert(err, IsNil)
-
-	err = view.Set(bag, "a", []any{"foo", "bar", "baz"})
-	c.Assert(err, IsNil)
-
-	val, err := view.Get(bag, "a")
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, []any{"foo", "bar", "baz"})
 }
 
 func (*viewSuite) TestSetListPlaceholder(c *C) {
