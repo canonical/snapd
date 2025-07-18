@@ -345,16 +345,29 @@ func createRecovery(st *state.State, label string) Response {
 }
 
 type featureResponse struct {
-	Tasks      []string              `json:"tasks"`
+	Tasks      []taskResponse        `json:"tasks"`
 	Interfaces []string              `json:"interfaces"`
 	Endpoints  []featureEndpoint     `json:"endpoints"`
 	Changes    []string              `json:"changes"`
 	Ensures    []swfeats.EnsureEntry `json:"ensures"`
 }
 
+type taskResponse struct {
+	Kind    string `json:"kind"`
+	HasUndo bool   `json:"has-undo,omitempty"`
+}
+
 func getFeatures(c *Command) Response {
 	runner := c.d.overlord.TaskRunner()
-	tasks := runner.KnownTaskKinds()
+	taskKinds := runner.KnownTaskKinds()
+	taskResponses := make([]taskResponse, 0, len(taskKinds))
+	for _, taskKind := range taskKinds {
+		t := taskResponse{
+			Kind:    taskKind,
+			HasUndo: runner.TaskKindHasUndo(taskKind),
+		}
+		taskResponses = append(taskResponses, t)
+	}
 
 	ifaces := c.d.overlord.InterfaceManager().Repository().AllInterfaces()
 	inames := make([]string, 0, len(ifaces))
@@ -365,7 +378,7 @@ func getFeatures(c *Command) Response {
 
 	ensures := swfeats.KnownEnsures()
 
-	resp := featureResponse{Tasks: tasks, Interfaces: inames, Endpoints: featureList, Changes: changes, Ensures: ensures}
+	resp := featureResponse{Tasks: taskResponses, Interfaces: inames, Endpoints: featureList, Changes: changes, Ensures: ensures}
 	return SyncResponse(resp)
 }
 
