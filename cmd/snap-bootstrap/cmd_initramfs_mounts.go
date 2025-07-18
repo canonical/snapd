@@ -118,7 +118,7 @@ var (
 	}
 
 	gadgetInstallRun                 = gadgetInstall.Run
-	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
+	bootMakeRunnableSystemFromInitrd = boot.MakeRunnableSystemFromInitrd
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
@@ -355,7 +355,13 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err != nil {
 		return err
 	}
-	encryptionSupport, err := install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+
+	encryptionSupport, err := install.CheckEncryptionSupport(install.EncryptionConstraints{
+		Model:   model,
+		Kernel:  kernelSnap,
+		Gadget:  gadgetInfo,
+		TPMMode: secboot.TPMProvisionFull,
+	}, runFDESetupHook)
 	if err != nil {
 		return err
 	}
@@ -494,7 +500,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
-	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnableSystemFromInitrd(model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
 
