@@ -91,8 +91,8 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 			smiErr: fmt.Errorf("too early"),
 			err:    "too early",
 		}, {
-			systemEncryptedErr: fmt.Errorf("too early"),
-			err:                "too early",
+			systemEncryptedErr: fmt.Errorf("cannot get fde state"),
+			err:                "cannot get fde state",
 		}, {
 			smi: devicestate.SystemModeInfo{
 				Mode:   "run",
@@ -108,14 +108,14 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 				BootFlags:  []string{"factory"},
 			},
 			systemEncrypted: false,
-			stdout:          "system-mode: install\nseed-loaded: true\nfactory: true\nencrypted: false\n",
+			stdout:          "system-mode: install\nseed-loaded: true\nfactory: true\n",
 		}, {
 			smi: devicestate.SystemModeInfo{
 				Mode:       "run",
 				HasModeenv: true,
 				Seeded:     false,
 			},
-			stdout: "system-mode: run\nseed-loaded: false\nencrypted: false\n",
+			stdout: "system-mode: run\nseed-loaded: false\n",
 		},
 	}
 
