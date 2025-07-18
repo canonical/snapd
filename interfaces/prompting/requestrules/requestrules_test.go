@@ -2257,6 +2257,9 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 		s.checkNewNoticesSimple(c, nil, rule)
 	}
 
+	// Rules were added from lowest to highest precedence, so iterate backwards
+	// to check that the last rule has precedence, then expire it, then check
+	// that the second to last rule has precedence, etc.
 	for i := len(addedRules) - 1; i >= 0; i-- {
 		rule := addedRules[i]
 		expectedOutcome, err := rule.Constraints.Permissions["read"].Outcome.AsBool()

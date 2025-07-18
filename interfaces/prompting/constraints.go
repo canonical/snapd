@@ -401,7 +401,7 @@ func (e *PermissionEntry) toRulePermissionEntry(at At) (*RulePermissionEntry, er
 	var sessionIDToUse IDType
 	if e.Lifespan == LifespanSession {
 		// SessionID should be 0 unless the lifespan is LifespanSession
-		if at.SessionID == IDType(0) {
+		if at.SessionID == 0 {
 			return nil, prompting_errors.ErrNewSessionRuleNoSession
 		}
 		sessionIDToUse = at.SessionID
