@@ -43,6 +43,9 @@ prepare: |
         iptables -I OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
         iptables -I OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
         iptables -I OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
+        ip6tables -I OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
+        ip6tables -I OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+        ip6tables -I OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
     fi
     systemctl start snapd.socket snapd.service
 
@@ -52,6 +55,9 @@ restore: |
         iptables -D OUTPUT -m owner --uid-owner "$(id -u test)" -j ACCEPT -p tcp
         iptables -D OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
         iptables -D OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+        ip6tables -D OUTPUT -j REJECT -p tcp --dport http --reject-with tcp-reset
+        ip6tables -D OUTPUT -j REJECT -p tcp --dport https --reject-with tcp-reset
+        ip6tables -D OUTPUT -j ACCEPT -p tcp -m owner --uid-owner "$(id -u test)"
     fi
     snap set core proxy.https=
     systemctl stop tinyproxy || true

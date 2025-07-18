@@ -13,6 +13,8 @@ restore: |
         echo "Restoring iptables rules"
         iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
         iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+        ip6tables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
+        ip6tables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
     fi
 
 debug: |
@@ -31,6 +33,8 @@ execute: |
         # DNS queries generally use port 53 through UDP protocol, but TCP could be used as well
         iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
         iptables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+        ip6tables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+        ip6tables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable
     else
         # The proxy is unset to produce a network error when snapd tries to contact the store
         mv /etc/systemd/system/snapd.service.d/proxy.conf proxy.conf
