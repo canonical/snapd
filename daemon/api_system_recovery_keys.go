@@ -45,7 +45,7 @@ var systemRecoveryKeysCmd = &Command{
 //
 // TODO: usage of this function and the routes we support should be reviewed for
 // UC 26
-func newRecoveryKeyAPISupported(st *state.State) (bool, Response) {
+func newRecoveryKeyAPISupported(st *state.State) (bool, *apiError) {
 	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
 
 	// TODO: if we don't yet have a model, assume that it should be supported?
