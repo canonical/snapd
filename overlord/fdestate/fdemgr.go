@@ -604,12 +604,12 @@ func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []st
 func (m *FDEManager) systemEncrypted() (bool, error) {
 	var s FdeState
 	err := m.state.Get(fdeStateKey, &s)
-	if err != nil {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 
 	// Systems with FDE enabled will have a primary key with the exception
-	// of a limited legacy cases. See comment on type FdeState field
+	// of two legacy scenarios. See comment on type FdeState field
 	// PrimaryKeys for details.
 	_, hasPrimaryKey := s.PrimaryKeys[0]
 	return hasPrimaryKey, nil
