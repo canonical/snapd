@@ -339,13 +339,12 @@ def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_
     sys_features = feat_sys(retriever, timestamp, system, remove_failed)
     all_features = retriever.get_all_features(timestamp)
     diff = minus({'cmds': all_features['cmds'], 'ensures': all_features['ensures'], 'endpoints': all_features['endpoints']}, sys_features)
-    tasks = [t for t in all_features['tasks'] 
-             if not any(st for st in sys_features['tasks'] 
-                        if t['kind'] == st['kind'] and t['last_status'] == st['last_status'])]
-    changes = [c for c in all_features['changes'] 
-               if not any(sc for sc in sys_features['changes'] if c['kind'] == sc['kind'])]
-    interfaces = [i for i in all_features['interfaces'] 
-                  if not any(si for si in sys_features['interfaces'] if i['name'] == si['name'])]
+    tasks = [af for af in all_features['tasks'] 
+             if not any(af['kind'] == sf['kind'] and af['last_status'] == sf['last_status'] for sf in sys_features['tasks'])]
+    changes = [af for af in all_features['changes'] 
+               if not any(af['kind'] == sf['kind'] for sf in sys_features['changes'])]
+    interfaces = [af for af in all_features['interfaces'] 
+                  if not any(af['name'] == sf['name'] for sf in sys_features['interfaces'])]
     if tasks:
         diff['tasks'] = tasks
     if changes:
