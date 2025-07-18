@@ -1,0 +1,212 @@
+summary: End-to-end test for FDE recovery key APIs on hybrid systems
+
+details: |
+  This test installs an encrypted hybrid Ubuntu system using muinstaller
+  and checks that the following recovery key operations work as expected:
+    - Installer can set a recovery key during installtion
+    - Users can check their recovery key is valid at runtime (need as a
+      part of the firmware update flow)
+    - Users can replace their recovery key at runtime
+
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+
+environment:
+  # Only 25.10+ systems (including core) should be able to
+  # use the new TPM FDE recovery key APIs, so keep those systems
+  # so it fails hard when those checks are added to force
+  # chaning the test accordingly.
+  MODEL_VERSION/2404: "2404"
+  GADGET_VERSION/2404: classic-24.04
+  KERNEL_VERSION/2404: "24"
+
+  MODEL_VERSION/2504: "2504"
+  GADGET_VERSION/2504: "classic-25.04"
+  KERNEL_VERSION/2504: "25.04"
+
+  MODEL_VERSION/2510: "2510"
+  GADGET_VERSION/2510: "classic-25.10"
+  KERNEL_VERSION/2510: "25.10"
+
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_ENABLE_OVMF: true
+  # store related setup
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      tests.exec skip-test "This test needs test keys to be trusted" && exit 0
+  fi
+
+  # TODO: this setup for hybrid tests is repeated in other tests
+  # check if it can be made into helper or extend setup_nested_hybrid_system.sh
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+  echo "Expose the needed assertions through the fakestore"
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  # Retrieve the gadget
+  snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
+
+  # Retrieve kernel
+  snap download --basename=pc-kernel-from-store --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
+  # the fakestore needs this assertion
+  snap ack pc-kernel-from-store.assert
+  # Build kernel with initramfs with the compiled snap-bootstrap
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+
+  if [ "$MODEL_VERSION" = "2504" ]; then
+    # TODO: 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
+    # https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json
+    cp "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json classic.json
+  else
+    # fetch upstream models
+    curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"$MODEL_VERSION"-amd64-dangerous.json > classic.json
+    # but only keep relevant snaps
+    gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
+    mv classic-tmp.json classic.json
+    # and replace authority-id and brand-id
+    gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
+    mv classic-tmp.json classic.json
+  fi
+
+  gendeveloper1 sign-model < classic.json > classic.model
+
+  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
+  # system
+  # shellcheck disable=SC2086
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+     --model classic.model \
+     --store-dir "${STORE_DIR}" \
+     --gadget pc.snap \
+     --gadget-assertion pc.assert \
+     --kernel pc-kernel-repacked.snap \
+     --kernel-assertion pc-kernel-from-store.assert \
+     --recovery-key-out "$(pwd)"/rkey-pre-install.out
+
+  echo "Check recovery key is generated and stored"
+  MATCH '[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < rkey-pre-install.out
+
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+
+execute: |
+  # Check encryption
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
+
+  # system-boot is not encrypted
+  gojq '.result."by-container-role"."system-boot"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^false$"
+  gojq '.keyslots | length' < container.out | MATCH "^0$"
+
+  # system-seed is also not encrypted
+  gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^false$"
+  gojq '.keyslots | length' < container.out | MATCH "^0$"
+
+  # system-data is encrypted and has a recovery key
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+
+  # Check we can boot with recovery key
+  tests.nested vm set-recovery-key "$(cat rkey-pre-install.out)"
+
+  echo "Clear TPM and reboot to force recovery key request"
+  tests.nested vm stop
+  tests.nested vm clear-tpm
+  tests.nested vm start
+
+  remote_action_request()
+  {
+    local json_req="$1"
+    echo "echo '$json_req' | sudo snap debug api -H \"Content-Type: application/json\" -X POST /v2/system-volumes" > action_request
+    remote.exec "$(cat action_request)" > resp
+  }
+
+  # Checking recovery key during runtime works
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-pre-install.out)\"}"
+  MATCH '"status": "OK"' < resp
+
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"25606-44385-33636-39319-37657-55378-59317-07706\"}"
+  MATCH '"status": "Bad Request"' < resp
+  MATCH "invalid recovery key" < resp
+
+  # Replace recovery key
+  remote_action_request '{"action": "generate-recovery-key"}'
+  gojq --raw-output '.result."key-id"' < resp > rkey-id.out
+  gojq --raw-output '.result."recovery-key"' < resp > rkey-post-install.out
+
+  remote_action_request "{\"action\": \"replace-recovery-key\", \"key-id\": \"$(cat rkey-id.out)\"}"
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  # Runtime recovery check works with the new key
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
+  MATCH '"status": "OK"' < resp
+
+  # but now old recovery key is no longer valid
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-pre-install.out)\"}"
+  MATCH '"status": "Bad Request"' < resp
+  MATCH "invalid recovery key" < resp
+
+  tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
+
+  # We can boot with new recovery key
+  tests.nested vm stop
+  tests.nested vm clear-tpm
+  tests.nested vm start
+
+  # Check new/old recovery keys after reboot for good measure
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-post-install.out)\"}"
+  MATCH '"status": "OK"' < resp
+
+  remote_action_request "{\"action\": \"check-recovery-key\", \"recovery-key\": \"$(cat rkey-pre-install.out)\"}"
+  MATCH '"status": "Bad Request"' < resp
+  MATCH "invalid recovery key" < resp
+
+  # Check keyslots again for good measure
+  remote.exec sudo snap debug api /v2/system-volumes > containers.out
+
+  # system-data is encrypted and has a recovery key
+  gojq '.result."by-container-role"."system-data"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+
+  # system-save is also encrypted and protected by a passphrase
+  gojq '.result."by-container-role"."system-save"' < containers.out > container.out
+  gojq '.encrypted' < container.out | MATCH "^true$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
+  gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
+
+  # TODO:FDEM: Grow test to check that we can reprovision and reseal
+  # then reboot without recovery keys

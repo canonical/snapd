@@ -21,7 +21,8 @@ run_muinstaller() {
     local disk="${8}"
     local kern_mods_comp="${9}"
     local passphrase="${10}"
-    shift 10
+    local recovery_key_out="${11}"
+    shift 11
     local extra_muinstaller_args=("${@}")
 
     # ack the needed assertions
@@ -173,8 +174,15 @@ EOF
     if [ -n "$passphrase" ]; then
         muinstaller_args+=("-passphrase" "\"$passphrase\"")
     fi
+    if [ -n "$recovery_key_out" ]; then
+        muinstaller_args+=("-recovery-key-out" "/tmp/rkey.out")
+    fi
     muinstaller_args+=("${extra_muinstaller_args[@]}")
     remote.exec sudo muinstaller "${muinstaller_args[@]}"
+
+    if [ -n "$recovery_key_out" ]; then
+        remote.pull "/tmp/rkey.out" "$recovery_key_out"
+    fi
 
     remote.exec "sudo sync"
 
@@ -221,6 +229,7 @@ main() {
     local disk=""
     local kern_mods_comp=""
     local passphrase=""
+    local recovery_key_out=""
     local extra_muinstaller_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -263,6 +272,10 @@ main() {
                 ;;
             --passphrase)
                 passphrase="${2}"
+                shift 2
+                ;;
+            --recovery-key-out)
+                recovery_key_out="${2}"
                 shift 2
                 ;;
             --extra-muinstaller-arg)
@@ -359,7 +372,8 @@ main() {
 
         run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
                         "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
-                        "${disk}" "${kern_mods_comp}" "${passphrase}" "${extra_muinstaller_args[@]}"
+                        "${disk}" "${kern_mods_comp}" "${passphrase}" "${recovery_key_out}" \
+                        "${extra_muinstaller_args[@]}"
     )
 }
 
