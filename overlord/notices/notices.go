@@ -131,8 +131,9 @@ func NewNoticeManager(st *state.State) *NoticeManager {
 // namespace.
 //
 // The state's last notice timestamp is updated according to the timestamp of
-// the most recent notice from this backend which matches the given type, if
-// any such notices exist.
+// the most recent notice from this backend which matches the given type
+// (retrieved by invoking BackendNotices on this backend), if any such notices
+// exist.
 //
 // Returns a closure which can be used by the backend to validate new notices
 // added by that backend. The backend is responsible for ensuring that the
@@ -297,18 +298,18 @@ func (nm *NoticeManager) relevantBackendsForFilter(filter *state.NoticeFilter) [
 
 // doNotices checks the given backends for notices matching the given filter
 // which occurred before or at the given timestamp.
-func doNotices(backendsToCheck []NoticeBackend, filter *state.NoticeFilter, now time.Time) []*state.Notice {
+func doNotices(backendsToCheck []NoticeBackend, filter *state.NoticeFilter, beforeOrAt time.Time) []*state.Notice {
 	// Ensure all backends have the same BeforeOrAt time so there is no race
 	// between one backend returning its existing notices and then another
-	// backend recording a new notice. As such, if the filter has BeforeOrAt
-	// set in the future, replace it with the current timestamp.
-	if filter == nil || filter.BeforeOrAt.IsZero() || filter.BeforeOrAt.After(now) {
+	// backend recording a new notice. As such, if the filter has no BeforeOrAt
+	// or has it set in the future, replace it with the given timestamp.
+	if filter == nil || filter.BeforeOrAt.IsZero() || filter.BeforeOrAt.After(beforeOrAt) {
 		// Don't mutate any existing filter, so make a copy
 		var newFilter state.NoticeFilter
 		if filter != nil {
 			newFilter = *filter
 		}
-		newFilter.BeforeOrAt = now
+		newFilter.BeforeOrAt = beforeOrAt
 		filter = &newFilter
 	}
 
