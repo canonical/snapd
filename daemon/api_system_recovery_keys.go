@@ -66,7 +66,7 @@ func newRecoveryKeyAPISupported(st *state.State) (bool, *apiError) {
 	return supported, nil
 }
 
-func newRecoveryKeyAPISupportedLocking(st *state.State) (bool, Response) {
+func newRecoveryKeyAPISupportedLocking(st *state.State) (bool, *apiError) {
 	st.Lock()
 	defer st.Unlock()
 	return newRecoveryKeyAPISupported(st)
