@@ -181,7 +181,7 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 	notices := bknd.BackendNotices(filter)
 	if len(notices) > 0 {
 		lastNoticeTimestamp := notices[len(notices)-1].LastRepeated()
-		nm.ReportLastNoticeTimestamp(lastNoticeTimestamp)
+		nm.state.HandleReportedLastNoticeTimestamp(lastNoticeTimestamp)
 	}
 
 	// XXX: at time of writing, validateNotice is never actually used by any
@@ -231,17 +231,6 @@ func prefixFromID(id string) (prefix string, ok bool) {
 // state.
 func (nm *NoticeManager) NextNoticeTimestamp() time.Time {
 	return nm.state.NextNoticeTimestamp()
-}
-
-// ReportLastNoticeTimestamp should be called by each notice backend during
-// startup so that the manager can ensure that the last notice timestamp in the
-// state is equal to the last notice timestamp of all notices across all
-// backends.
-//
-// XXX: since we call this automatically on each backend when it is registered,
-// this could proably be unexported.
-func (nm *NoticeManager) ReportLastNoticeTimestamp(t time.Time) {
-	nm.state.HandleReportedLastNoticeTimestamp(t)
 }
 
 // Notices returns the list of notices that match the filter (if any),
