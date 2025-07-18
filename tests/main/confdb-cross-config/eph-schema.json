@@ -1,5 +1,11 @@
 {
 	"storage": {
+		"aliases": {
+			"status-str": {
+				"type": "string",
+				"choices": ["on", "off"]
+			}
+		},
 		"schema": {
 			"wifi": {
 				"schema": {
@@ -13,10 +19,7 @@
 						"type": "string",
 						"ephemeral": true
 					},
-					"status": {
-						"type": "string",
-						"choices": ["on", "off"]
-					}
+					"status": "${status-str}"
 				}
 			}
 		}
