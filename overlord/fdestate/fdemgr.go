@@ -608,10 +608,10 @@ func (m *FDEManager) systemEncrypted() (bool, error) {
 		return false, err
 	}
 
-	// Systems with FDE enabled will have a snapd managed primary key (ID 0)
+	// Systems with FDE enabled will have a snapd managed primary key
 	// with the exception of two legacy scenarios. See comment on type
 	// FdeState field PrimaryKeys for details.
-	_, hasPrimaryKey := s.PrimaryKeys[0]
+	hasPrimaryKey := len(s.PrimaryKeys) > 0
 	return hasPrimaryKey, nil
 }
 
