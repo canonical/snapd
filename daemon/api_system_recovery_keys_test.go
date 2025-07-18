@@ -249,3 +249,25 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysFailsOnHybrid(c *C) {
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, "this action is not supported on 25.10+ classic systems")
 }
+
+func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysFailsWithoutModel(c *C) {
+	s.daemon(c)
+	mockSystemRecoveryKeys(c)
+
+	restore := release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "25.10",
+	})
+	defer restore()
+
+	// unset our model, the route should detect this and fail
+	restore = snapstatetest.MockDeviceModel(nil)
+	defer restore()
+
+	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", strings.NewReader(`{"action": "remove"}`))
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, "cannot use this API prior to device having a model")
+}

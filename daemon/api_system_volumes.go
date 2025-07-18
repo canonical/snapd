@@ -132,9 +132,9 @@ func structureInfoFromVolumeStructure(structure *devicestate.VolumeStructureWith
 }
 
 func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Response {
-	supported, err := newRecoveryKeyAPISupportedLocking(c.d.overlord.State())
-	if err != nil {
-		return InternalError(err.Error())
+	supported, respErr := systemVolumesAPISupportedLocking(c.d.overlord.State())
+	if respErr != nil {
+		return respErr
 	}
 
 	if !supported {
@@ -210,9 +210,9 @@ type systemVolumesActionRequest struct {
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
-	supported, err := newRecoveryKeyAPISupportedLocking(c.d.overlord.State())
-	if err != nil {
-		return InternalError(err.Error())
+	supported, respErr := systemVolumesAPISupportedLocking(c.d.overlord.State())
+	if respErr != nil {
+		return respErr
 	}
 
 	if !supported {
