@@ -352,15 +352,6 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	case client.InstallStepGenerateRecoveryKey:
-		supported, err := newRecoveryKeyAPISupported(st)
-		if err != nil {
-			return InternalError(err.Error())
-		}
-
-		if !supported {
-			return BadRequest("this action is not supported on this system")
-		}
-
 		rkey, err := devicestateGeneratePreInstallRecoveryKey(st, systemLabel)
 		if err != nil {
 			return BadRequest("cannot generate recovery key for %q: %v", systemLabel, err)

@@ -1432,17 +1432,6 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.
 	c.Check(rsp.Message, check.Equals, `cannot generate recovery key for "20250529": boom!`)
 }
 
-func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyErrorUnsupportedSystem(c *check.C) {
-	s.daemon(c)
-
-	req, err := http.NewRequest("POST", "/v2/systems/20250529", strings.NewReader(`{"action": "install", "step": "generate-recovery-key"}`))
-	c.Assert(err, check.IsNil)
-
-	rsp := s.errorReq(c, req, nil, actionIsExpected)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Message, check.Equals, `this action is not supported on this system`)
-}
-
 func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
