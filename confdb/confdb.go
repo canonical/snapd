@@ -633,7 +633,9 @@ func splitViewPath(path string, opts parseOpts) ([]string, error) {
 
 	finishSubkey := func() error {
 		if sb.Len() == 0 {
-			if opts.allowPartialPath {
+			if len(subkeys) == 0 && opts.allowPartialPath {
+				// we may be parsing a suffix of a path 'foo[2].bar' so allow a path to
+				// start with a separator '[2].bar'
 				return nil
 			}
 			return errors.New("cannot have empty subkeys")
