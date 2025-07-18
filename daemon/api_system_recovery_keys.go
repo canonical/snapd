@@ -21,10 +21,14 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/install"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var systemRecoveryKeysCmd = &Command{
@@ -36,10 +40,52 @@ var systemRecoveryKeysCmd = &Command{
 	WriteAccess: rootAccess{},
 }
 
+// newRecoveryKeyAPISupported returns true if this system should use the new
+// FDE/recovery key APIs.
+//
+// TODO: usage of this function and the routes we support should be reviewed for
+// UC 26
+func newRecoveryKeyAPISupported(st *state.State) (bool, *apiError) {
+	deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
+
+	// TODO: if we don't yet have a model, assume that it should be supported?
+	// is that the right thing to do? unsure if this is a realistic scenario,
+	// but it does happen in tests
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return false, BadRequest("cannot use this API prior to device having a model")
+		}
+		return false, InternalError(err.Error())
+	}
+
+	supported, err := install.CheckHybridPluckyRelease(deviceCtx.Model())
+	if err != nil {
+		return false, InternalError(err.Error())
+	}
+
+	return supported, nil
+}
+
+func newRecoveryKeyAPISupportedLocking(st *state.State) (bool, *apiError) {
+	st.Lock()
+	defer st.Unlock()
+	return newRecoveryKeyAPISupported(st)
+}
+
 func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+
+	supported, respErr := newRecoveryKeyAPISupported(st)
+	if respErr != nil {
+		return respErr
+	}
+
+	// systems that support the new APIs should use those
+	if supported {
+		return BadRequest("this action is not supported on 25.10+ classic systems")
+	}
 
 	keys, err := c.d.overlord.DeviceManager().EnsureRecoveryKeys()
 	if err != nil {
@@ -77,6 +123,16 @@ func postSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) R
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+
+	supported, respErr := newRecoveryKeyAPISupported(st)
+	if respErr != nil {
+		return respErr
+	}
+
+	// systems that support the new APIs should use those
+	if supported {
+		return BadRequest("this action is not supported on 25.10+ classic systems")
+	}
 
 	err := deviceManagerRemoveRecoveryKeys(c.d.overlord.DeviceManager())
 	if err != nil {
