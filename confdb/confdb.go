@@ -1149,33 +1149,30 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 		return nil
 	}
 
-	// lists aren't pruned before to avoid impacting subsequent paths (unless they
-	// can be entirely removed) so now we prune them for nicer printing
-	var pruneLists func(v any) any
-	pruneLists = func(v any) any {
-		switch typed := v.(type) {
-		case map[string]any:
-			for k, v := range typed {
-				typed[k] = pruneLists(v)
-			}
-		case []any:
-			var i int
-			for _, v := range typed {
-				if v != nil {
-					typed[i] = pruneLists(v)
-					i++
-				}
-			}
+	return fmt.Errorf("value contains unused data: %v", copyValue)
+}
 
-			// remove the excess, otherwise format will print all of it
-			pruned := make([]any, i)
-			copy(pruned, typed[:i])
-			v = pruned
+type formattedSlice []any
+
+func (s formattedSlice) String() string {
+	var sb strings.Builder
+	sb.WriteRune('[')
+
+	firstWrite := true
+	for i, e := range s {
+		if e == nil {
+			continue
 		}
-		return v
-	}
 
-	return fmt.Errorf("value contains unused data: %v", pruneLists(copyValue))
+		if !firstWrite {
+			sb.WriteRune(' ')
+		}
+		sb.WriteString(fmt.Sprintf("%d:%v", i, e))
+		firstWrite = false
+	}
+	sb.WriteRune(']')
+
+	return sb.String()
 }
 
 // deepCopy returns a deep copy of the value. Only supports the types that the
@@ -1237,8 +1234,11 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 	case indexPlaceholderType:
 		list, ok := val.([]any)
 		if !ok {
-			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
+			list, ok = val.(formattedSlice)
+			if !ok {
+				// shouldn't happen since we already checked this
+				return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
+			}
 		}
 
 		nested := make([]any, 0, len(list))
@@ -1257,7 +1257,7 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 			return nil, nil
 		}
 
-		return nested, nil
+		return formattedSlice(nested), nil
 
 	case mapKeyType:
 		mapVal, ok := val.(map[string]any)
@@ -1291,8 +1291,11 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 	case listIndexType:
 		list, ok := val.([]any)
 		if !ok {
-			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
+			list, ok = val.(formattedSlice)
+			if !ok {
+				// shouldn't happen since we already checked this
+				return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
+			}
 		}
 
 		index, _ := strconv.Atoi(parts[0].name())
@@ -1306,7 +1309,7 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 			return nil, err
 		}
 
-		// we marked pruned paths as nil instead of removing them entirely as that
+		// we mark pruned paths as nil instead of removing them entirely as that
 		// would affect the list length and break subsequent paths with indexes
 		list[index] = newValue
 		pruned := true
@@ -1322,7 +1325,9 @@ func prunePathInValue(parts []accessor, val any) (any, error) {
 			// paths would
 			return nil, nil
 		}
-		return list, nil
+		// we may have pruned some elements, omit them and tag remaining ones with
+		// indexes when printing to make it clear if there are gaps
+		return formattedSlice(list), nil
 
 	default:
 		return nil, fmt.Errorf("internal error: unknown key type %d", parts[0].keyType())

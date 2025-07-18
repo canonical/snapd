@@ -2255,7 +2255,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 		{
 			request: "d",
 			value:   []any{"foo", "bar", map[string]any{"baz": 1}},
-			err:     `cannot set "d" through confdb view acc/confdb/foo: value contains unused data: [bar map[baz:1]]`,
+			err:     `cannot set "d" through confdb view acc/confdb/foo: value contains unused data: [0:foo 2:map[baz:1]]`,
 		},
 	}
 
@@ -2268,7 +2268,7 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 					map[string]any{"request": "a.{x}.d", "storage": "a.{x}"},
 					map[string]any{"request": "c.d.e.f", "storage": "d"},
 					map[string]any{"request": "b.f", "storage": "b.f"},
-					map[string]any{"request": "d[0]", "storage": "d[0]"},
+					map[string]any{"request": "d[1]", "storage": "d[1]"},
 				},
 			},
 		}, confdb.NewJSONSchema())
