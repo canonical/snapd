@@ -81,6 +81,7 @@ prepare: |
     skip["ubuntu-22.04-64/515-server"]="transitional-driver"
     skip["ubuntu-22.04-64/525"]="transitional-driver"
     skip["ubuntu-22.04-64/530"]="transitional-driver"
+    skip["ubuntu-22.04-64/550-server"]="transitional-driver"
     skip["ubuntu-22.04-64/560"]="no-driver"
 
     skip["ubuntu-24.04-64/390"]="no-driver"
@@ -93,6 +94,7 @@ prepare: |
     skip["ubuntu-24.04-64/515-server"]="transitional-driver"
     skip["ubuntu-24.04-64/525"]="transitional-driver"
     skip["ubuntu-24.04-64/530"]="transitional-driver"
+    skip["ubuntu-24.04-64/550-server"]="transitional-driver"
     skip["ubuntu-24.04-64/560"]="no-driver"
 
     skip["ubuntu-24.10-64/390"]="no-driver"
@@ -109,8 +111,8 @@ prepare: |
     skip["ubuntu-24.10-64/550"]="transitional-driver"
     skip["ubuntu-24.10-64/560"]="transitional-driver"
 
-    driver_suffix=$PACKAGE_VERSION${PACKAGE_SUFFIX:-}
-    combi_key=$SPREAD_SYSTEM/$driver_suffix
+    driver_suffix="$PACKAGE_VERSION${PACKAGE_SUFFIX:-}"
+    combi_key="$SPREAD_SYSTEM/$driver_suffix"
 
     # First, we list all the driver versions in task.yaml, even though many of them
     # are just non-existent on a given system - this is a limitation of the spread
