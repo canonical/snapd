@@ -10,6 +10,7 @@ systems:
     - -centos-*       # No AppArmor support
     - -fedora-*       # No AppArmor support
     - -amazon-linux-* # No AppArmor support
+    - -opensuse-*-selinux-* # No AppArmor support
 
 environment:
     USERNAME: home-sweet-home

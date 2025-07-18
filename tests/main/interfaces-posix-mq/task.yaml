@@ -25,7 +25,7 @@ systems:
     - -debian-13-64
     - -debian-sid-64
     - -arch-linux-64
-    - -opensuse-tumbleweed-64
+    - -opensuse-*
 
 prepare: |
     # Source code is at https://github.com/canonical/test-snapd-posix-mq
