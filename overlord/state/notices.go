@@ -150,6 +150,11 @@ func (n *Notice) Type() NoticeType {
 	return n.noticeType
 }
 
+// LastRepeated returns the last repeated timestamp for this notice.
+func (n *Notice) LastRepeated() time.Time {
+	return n.lastRepeated
+}
+
 func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
 	if userID == nil {
 		return 0, false
@@ -488,10 +493,16 @@ func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	for _, k := range toRemove {
 		delete(s.notices, k)
 	}
+	SortNotices(notices)
+	return notices
+}
+
+// SortNotices sorts the given slice of notices according to the lastRepeated
+// timestamp.
+func SortNotices(notices []*Notice) {
 	sort.Slice(notices, func(i, j int) bool {
 		return notices[i].lastRepeated.Before(notices[j].lastRepeated)
 	})
-	return notices
 }
 
 // Notices returns the list of notices that match the filter (if any),
@@ -500,9 +511,7 @@ func (s *State) Notices(filter *NoticeFilter) []*Notice {
 	s.reading()
 
 	notices := s.flattenNotices(filter)
-	sort.Slice(notices, func(i, j int) bool {
-		return notices[i].lastRepeated.Before(notices[j].lastRepeated)
-	})
+	SortNotices(notices)
 	return notices
 }
 
