@@ -61,6 +61,12 @@ func init() {
 	}
 }
 
+// finalSeedTask is the last task that should run during seeding. This is used
+// in the special handling of the "seed" change, which requires that we
+// introspect the change for this specific task. Finding this task allows us to
+// properly organize the hook tasks in the chain of tasks in the change.
+const finalSeedTask = "mark-seeded"
+
 func currentSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
@@ -140,20 +146,38 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 		return err
 	}
 
-	// Note: Multiple snaps could be installed in single transaction mode
-	// where all snap tasksets are in a single lane.
-	// This is non-issue for configure hook since the command tasks are
-	// queued at the very end of the change unlike the default-configure
-	// hook.
-	for _, ts := range tts {
-		for _, t := range tasks {
-			if finalTasks[t.Kind()] {
-				t.WaitAll(ts)
-			} else {
-				ts.WaitFor(t)
+	if change.Kind() != "seed" {
+		// Note: Multiple snaps could be installed in single transaction mode
+		// where all snap tasksets are in a single lane.
+		// This is non-issue for configure hook since the command tasks are
+		// queued at the very end of the change unlike the default-configure
+		// hook.
+		for _, ts := range tts {
+			for _, t := range tasks {
+				if finalTasks[t.Kind()] {
+					t.WaitAll(ts)
+				} else {
+					ts.WaitFor(t)
+				}
 			}
+			change.AddAll(ts)
 		}
-		change.AddAll(ts)
+	} else {
+		// as a special case, we handle the seeding change slightly differently.
+		// we must look at all tasks for the "mark-seeded" task, without
+		// considering lanes. this is because seeding uses lanes to put
+		// essential snaps and non-essential snaps in separate lanes, but the
+		// mark-seeded task isn't in a lane with them.
+		for _, ts := range tts {
+			for _, t := range change.Tasks() {
+				if t.Kind() == finalSeedTask {
+					t.WaitAll(ts)
+				} else {
+					ts.WaitFor(t)
+				}
+			}
+			change.AddAll(ts)
+		}
 	}
 
 	// As this can be run from what was originally the last task of a change,

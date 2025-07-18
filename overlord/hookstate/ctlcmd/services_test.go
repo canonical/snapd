@@ -700,10 +700,10 @@ func (s *servicectlSuite) TestQueuedCommandsOrderingConfigureHook(c *C) {
 // 	s.testQueuedCommandsOrdering(c, hook, singleTransaction)
 // }
 
-func (s *servicectlSuite) testQueueCommandsConfigureHookFinalTask(c *C, finalTaskKind string) {
+func (s *servicectlSuite) testQueueCommandsConfigureHookFinalTask(c *C, changeKind, finalTaskKind string) {
 	s.st.Lock()
 
-	chg := s.st.NewChange("seeding change", "seeding change")
+	chg := s.st.NewChange(changeKind, "seeding change")
 	finalTask := s.st.NewTask(finalTaskKind, "")
 	chg.AddTask(finalTask)
 	configure := s.st.NewTask("run-hook", "")
@@ -783,11 +783,11 @@ func (s *servicectlSuite) testQueueCommandsConfigureHookFinalTask(c *C, finalTas
 }
 
 func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
-	s.testQueueCommandsConfigureHookFinalTask(c, "mark-seeded")
+	s.testQueueCommandsConfigureHookFinalTask(c, "seed", "mark-seeded")
 }
 
 func (s *servicectlSuite) TestQueuedCommandsRunBeforeSetModel(c *C) {
-	s.testQueueCommandsConfigureHookFinalTask(c, "set-model")
+	s.testQueueCommandsConfigureHookFinalTask(c, "remodel", "set-model")
 }
 
 func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
