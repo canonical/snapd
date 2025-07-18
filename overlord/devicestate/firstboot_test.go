@@ -2515,15 +2515,6 @@ func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingUnmetC
 
 	st := s.overlord.State()
 
-	func() {
-		st.Lock()
-		defer st.Unlock()
-		// at this point another restart is required, but it's snapd restarting
-		// because it's undoing
-		c.Assert(chg.Status(), Equals, state.UndoingStatus)
-		restart.MockPending(st, restart.RestartUnset)
-	}()
-
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	defer st.Unlock()

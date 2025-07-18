@@ -1,0 +1,111 @@
+summary: test seeding where a non-essential snap fails to be installed
+
+details: |
+  This test ensures that seeding will gracefully handle the failed installation
+  of a non-essential snap. Specifically, we undo tasks that install the
+  non-essential snaps, but we leave the essential snaps installed. Seeding is
+  retried until we are successful.
+
+  This test orchestrates this by creating an application snap with a oneshot
+  service. This service fails the first time it runs, but succeeds the second
+  time. This is achieved using the system-files interface.
+
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+
+environment:
+  MODEL_JSON: $TESTSLIB/assertions/test-snapd-failed-seeding-pc-24.json
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_GADGET_SNAP: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_BASE_SNAP: true
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+prepare: |
+    if [ "${TRUST_TEST_KEYS}" = "false" ]; then
+        tests.exec skip-test "This test needs test keys to be trusted"
+        exit
+    fi
+
+    # although nested_start_core_vm_unit usually installs this, the fake store
+    # will already have been set up, so we need to install it here
+    snap install test-snapd-swtpm --edge
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+    gendeveloper1 sign-model < "${MODEL_JSON}" > model.assert
+
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    tests.nested prepare-essential-snaps
+
+    # the snap used here has a oneshot service that is written so that it fails
+    # the first time it is started, but succeeds the second time it is started.
+    # it uses the system-files interface to achieve this.
+    snap pack --filename=failing-service.snap ./failing-service
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack \
+        --extra-decl-json ./failing-service-decl-extras.json \
+        --revision 1 \
+        "${NESTED_FAKESTORE_BLOB_DIR}" \
+        "failing-service.snap" \
+        "3RW78vIax8JW5S8HkYsa8lNbv68uPaYX"
+
+    export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+    ubuntu-image snap --image-size 10G ./model.assert
+
+    image_dir=$(tests.nested get images-path)
+    image_name=$(tests.nested get image-name core)
+    cp ./pc.img "${image_dir}/${image_name}"
+    tests.nested configure-default-user
+
+    # run the fake device service too, so that the device can be initialised
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+    tests.nested build-image core
+
+restore: |
+    tests.exec is-skipped && exit 0
+    systemctl stop fakedevicesvc
+    "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+execute: |
+  tests.exec is-skipped && exit 0
+
+  # this setup is required since "create-vm core" can't fully complete, due to
+  # seeding failing on the first try
+  export NESTED_EXPECT_SHUTDOWN=1
+  image_dir=$(tests.nested get images-path)
+  image_name=$(tests.nested get image-name core)
+  touch "${image_dir}/${image_name}.configured"
+
+  tests.nested create-vm core
+  remote.wait-for ssh
+
+  # wait for the first seeding attempt to fail
+  remote.retry --wait 5 -n 20 "snap changes | awk '\$1 == 1' | grep Error"
+
+  # force a reboot
+  tests.nested vm unclean-reboot
+  remote.wait-for ssh
+
+  remote.exec "sudo touch /run/mnt/ubuntu-seed/pass"
+
+  # this waits for the next attempt at seeding to work
+  remote.wait-for device-initialized
+
+  remote.exec "snap list failing-service"
+
+  # first attempt at seeding should have failed
+  remote.exec "snap changes" | awk '$1 == 1 { print $2 } ' | MATCH Error
+  remote.exec "snap tasks 1" | awk '$1 == "Undone"' > tasks
+
+  # make sure that the only undone tasks are ones related to our failing-service
+  # snap
+  test "$(grep failing-service -c < tasks)" -eq "$(wc -l < tasks)"

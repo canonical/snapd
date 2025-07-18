@@ -322,6 +322,50 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 	c.Check(matched, Equals, len(snapsWithDevModeFlag))
 }
 
+func checkSeedSnapLanes(c *C, model *asserts.Model, tss []*state.TaskSet) {
+	isEssential := func(name string) bool {
+		for _, sn := range model.EssentialSnaps() {
+			if sn.SnapName() == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	var essentialLane, nonEssentialLane int
+	for _, ts := range tss {
+		t := ts.Tasks()[0]
+		if t.Kind() != "prerequisites" {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+
+		lanes := t.Lanes()
+		c.Assert(lanes, HasLen, 1)
+		c.Check(lanes[0], Not(Equals), 0)
+
+		if isEssential(snapsup.SideInfo.RealName) {
+			// make sure all essential snaps are in the same lane
+			if essentialLane != 0 {
+				c.Check(essentialLane, Equals, lanes[0])
+			}
+
+			essentialLane = lanes[0]
+		} else {
+			// make sure all non-essential snaps are in the same lane
+			if nonEssentialLane != 0 {
+				c.Check(nonEssentialLane, Equals, lanes[0])
+			}
+
+			nonEssentialLane = lanes[0]
+		}
+	}
+
+	c.Assert(essentialLane, Not(Equals), nonEssentialLane)
+}
+
 func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraGadgetYaml string, opts populateFromSeedCore20Opts) (model *asserts.Model, bloader *bootloadertest.MockExtractedRunKernelImageBootloader) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
@@ -398,6 +442,9 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	if modelGrade == asserts.ModelDangerous {
 		checkSnapstateDevModeFlags(c, tsAll, allDevModeSnaps...)
 	}
+
+	// verify that essential and non-essential snaps do not share a lane
+	checkSeedSnapLanes(c, model, tsAll)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1510,15 +1557,6 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsU
 	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "run", []string{"canonical/base-set/2"})
 
 	st := s.overlord.State()
-
-	func() {
-		st.Lock()
-		defer st.Unlock()
-		// at this point another restart is required, but it's snapd restarting
-		// because it's undoing
-		c.Assert(chg.Status(), Equals, state.UndoingStatus)
-		restart.MockPending(st, restart.RestartUnset)
-	}()
 
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()

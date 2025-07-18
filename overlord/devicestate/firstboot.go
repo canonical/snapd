@@ -27,6 +27,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -306,6 +307,8 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	modelIsDangerous := model.Grade() == asserts.ModelDangerous
+
+	essentialLane := st.NewLane()
 	for _, seedSnap := range essentialSeedSnaps {
 		flags := snapstate.Flags{
 			SkipConfigure: true,
@@ -317,6 +320,8 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			// non-dangerous models, we can do that here since that information will
 			// probably be in the model assertion which we have here
 			ApplySnapDevMode: modelIsDangerous,
+			Lane:             essentialLane,
+			Transaction:      client.TransactionAllSnaps,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
@@ -345,9 +350,19 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		tsAll = append(tsAll, configTss...)
 	}
 
+	// all of the configure tasks are related to essential snaps, so they should
+	// also be in the essential snap lane
+	for _, ts := range configTss {
+		ts.JoinLane(essentialLane)
+	}
+
 	// ensure we install in the right order
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
+	// note, we use separate lanes for essential and non-essential snaps so that
+	// failures installing non-essential snaps do not cause essential snap
+	// installations to be undone.
+	nonEssentialLane := st.NewLane()
 	for _, seedSnap := range seedSnaps {
 		flags := snapstate.Flags{
 			// for dangerous models, allow all devmode snaps
@@ -357,7 +372,9 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			ApplySnapDevMode: modelIsDangerous,
 			// for non-dangerous models snaps need to opt-in explicitly
 			// Classic is simply ignored for non-classic snaps, so we do not need to check further
-			Classic: release.OnClassic && modelIsDangerous,
+			Classic:     release.OnClassic && modelIsDangerous,
+			Lane:        nonEssentialLane,
+			Transaction: client.TransactionAllSnaps,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
@@ -399,6 +416,14 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		return nil, err
 	} else if trackVss != nil {
 		trackVss.WaitAll(ts)
+
+		// if this validation fails, we want to undo the tasks in the
+		// non-essential lane.
+		//
+		// TODO: currently, undoing seeding the essential set of snaps does not
+		// work properly. that's why we only add this to the non-essential lane.
+		trackVss.JoinLane(nonEssentialLane)
+
 		endTs.AddTask(trackVss)
 	}
 
