@@ -125,7 +125,8 @@ func (outcome OutcomeType) AsBool() (bool, error) {
 // At holds information about a particular point in time so it can be used to
 // check whether rules or permission entries have expired.
 type At struct {
-	Time time.Time
+	Time      time.Time
+	SessionID IDType
 }
 
 // LifespanType describes the temporal scope for which a reply or rule applies.
@@ -143,15 +144,17 @@ const (
 	// LifespanTimespan indicates that a reply/rule should apply for a given
 	// duration or until a given expiration timestamp.
 	LifespanTimespan LifespanType = "timespan"
-	// TODO: add LifespanSession which expires after the user logs out
-	// LifespanSession  LifespanType = "session"
+	// LifespanSession indicates that a reply/rule should apply until the user
+	// logs out.
+	LifespanSession LifespanType = "session"
 )
 
 var (
-	supportedLifespans = []string{string(LifespanForever), string(LifespanSingle), string(LifespanTimespan)}
-	// SupportedRuleLifespans is exported so interfaces/promptin/requestrules
-	// can use it when constructing a ErrRuleLifespanSingle
-	SupportedRuleLifespans = []string{string(LifespanForever), string(LifespanTimespan)}
+	supportedLifespans = []string{string(LifespanForever), string(LifespanSession), string(LifespanSingle), string(LifespanTimespan)}
+	// SupportedRuleLifespans defines the lifespans which are allowed for rules.
+	// It is exported so it can be used outside this package when constructing
+	// invalid lifespan errors.
+	SupportedRuleLifespans = []string{string(LifespanForever), string(LifespanSession), string(LifespanTimespan)}
 )
 
 func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
@@ -161,7 +164,7 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	}
 	value := LifespanType(lifespanStr)
 	switch value {
-	case LifespanForever, LifespanSingle, LifespanTimespan:
+	case LifespanForever, LifespanSession, LifespanSingle, LifespanTimespan:
 		*lifespan = value
 	default:
 		return prompting_errors.NewInvalidLifespanError(lifespanStr, supportedLifespans)
@@ -169,20 +172,38 @@ func (lifespan *LifespanType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ValidateExpiration checks that the given expiration is valid for the
-// receiver lifespan.
+// ValidateExpiration checks that the given expiration and session ID are valid
+// for the receiver lifespan.
 //
 // If the lifespan is LifespanTimespan, then expiration must be non-zero.
-// Otherwise, it must be zero. Returns an error if any of the above are invalid.
-func (lifespan LifespanType) ValidateExpiration(expiration time.Time) error {
+// Otherwise, it must be zero.
+//
+// If the lifespan is LifespanSession, then sessionID must be non-zero.
+// Otherwise, it must be zero.
+//
+// Returns an error if any of the above are invalid.
+func (lifespan LifespanType) ValidateExpiration(expiration time.Time, sessionID IDType) error {
 	switch lifespan {
 	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
 			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have specified expiration when lifespan is %q", lifespan))
 		}
+		if sessionID != 0 {
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have specified session ID when lifespan is %q", lifespan))
+		}
+	case LifespanSession:
+		if !expiration.IsZero() {
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have specified expiration when lifespan is %q", lifespan))
+		}
+		if sessionID == 0 {
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have unspecified session ID when lifespan is %q", lifespan))
+		}
 	case LifespanTimespan:
 		if expiration.IsZero() {
 			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have unspecified expiration when lifespan is %q", lifespan))
+		}
+		if sessionID != 0 {
+			return prompting_errors.NewInvalidExpirationError(expiration, fmt.Sprintf("cannot have specified session ID when lifespan is %q", lifespan))
 		}
 	default:
 		// Should not occur, since lifespan is validated when unmarshalled
@@ -202,7 +223,7 @@ func (lifespan LifespanType) ValidateExpiration(expiration time.Time) error {
 func (lifespan LifespanType) ParseDuration(duration string, currTime time.Time) (time.Time, error) {
 	var expiration time.Time
 	switch lifespan {
-	case LifespanForever, LifespanSingle:
+	case LifespanForever, LifespanSession, LifespanSingle:
 		if duration != "" {
 			return expiration, prompting_errors.NewInvalidDurationError(duration, fmt.Sprintf("cannot have specified duration when lifespan is %q", lifespan))
 		}

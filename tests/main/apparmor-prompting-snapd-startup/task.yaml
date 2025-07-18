@@ -23,6 +23,8 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
+    apt install attr
+
 restore: |
     tests.exec is-skipped && exit 0
     snap remove --purge test-snapd-prompt-handler || true
@@ -46,6 +48,12 @@ execute: |
     tests.exec is-skipped && exit 0
 
     RULES_PATH="/var/lib/snapd/interfaces-requests/request-rules.json"
+
+    echo "Since there is no user 1000 active on the system, write a user session ID"
+    echo "xattr to /run/user/1000/"
+    USER_SESSION_PATH="/run/user/1000"
+    mkdir -p "$USER_SESSION_PATH"
+    setfattr -n trusted.snapd_user_session_id -v "0123456789ABCDEF" "$USER_SESSION_PATH"
 
     echo "Write three rules to disk, one of which is partially expired,"
     echo "another is fully expired, and the last is not expired whatsoever"
@@ -90,12 +98,17 @@ execute: |
               "read": {
                 "outcome": "deny",
                 "lifespan": "timespan",
-                "expiration":"2005-04-08T00:00:00Z"
+                "expiration": "2005-04-08T00:00:00Z"
               },
               "write": {
                 "outcome": "allow",
                 "lifespan": "timespan",
                 "expiration": "2005-04-08T00:00:00Z"
+              },
+              "execute": {
+                "outcome": "deny",
+                "lifespan": "session",
+                "session-id": "F00BA4F00BA40000"
               }
             }
           }
@@ -117,6 +130,11 @@ execute: |
                 "outcome": "allow",
                 "lifespan": "timespan",
                 "expiration": "9999-01-01T00:00:00Z"
+              },
+              "execute": {
+                "outcome": "deny",
+                "lifespan": "session",
+                "session-id": "0123456789ABCDEF"
               }
             }
           }
@@ -157,12 +175,14 @@ execute: |
               "read": {
                 "outcome": "allow",
                 "lifespan": "forever",
-                "expiration": "0001-01-01T00:00:00Z"
+                "expiration": "0001-01-01T00:00:00Z",
+                "session-id": "0000000000000000"
               },
               "execute": {
                 "outcome": "deny",
                 "lifespan": "timespan",
-                "expiration": "9999-01-01T00:00:00Z"
+                "expiration": "9999-01-01T00:00:00Z",
+                "session-id": "0000000000000000"
               }
             }
           }
@@ -179,12 +199,20 @@ execute: |
               "read": {
                 "outcome": "allow",
                 "lifespan": "forever",
-                "expiration": "0001-01-01T00:00:00Z"
+                "expiration": "0001-01-01T00:00:00Z",
+                "session-id": "0000000000000000"
               },
               "write": {
                 "outcome": "allow",
                 "lifespan": "timespan",
-                "expiration": "9999-01-01T00:00:00Z"
+                "expiration": "9999-01-01T00:00:00Z",
+                "session-id": "0000000000000000"
+              },
+              "execute": {
+                "outcome": "deny",
+                "lifespan": "session",
+                "expiration": "0001-01-01T00:00:00Z",
+                "session-id": "0123456789ABCDEF"
               }
             }
           }

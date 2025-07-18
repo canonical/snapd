@@ -32,6 +32,12 @@ var (
 
 type RulesDBJSON rulesDBJSON
 
+type UserSessionIDCache = userSessionIDCache
+
+func (cache *UserSessionIDCache) GetUserSessionID(rdb *RuleDB, user uint32) (prompting.IDType, error) {
+	return cache.getUserSessionID(rdb, user)
+}
+
 func MockUserSessionIDXattr() (xattr string, restore func()) {
 	// Test code doesn't have CAP_SYS_ADMIN, so replace the "trusted" namespace
 	// with "user" for the sake of testing.
@@ -46,6 +52,10 @@ func (rule *Rule) Validate(at prompting.At) (expired bool, err error) {
 
 func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string, at prompting.At) (bool, error) {
 	return rdb.isPathPermAllowed(user, snap, iface, path, permission, at)
+}
+
+func MockReadOrAssignUserSessionID(f func(rdb *RuleDB, user uint32) (prompting.IDType, error)) (restore func()) {
+	return testutil.Mock(&readOrAssignUserSessionID, f)
 }
 
 func (rdb *RuleDB) ReadOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {
