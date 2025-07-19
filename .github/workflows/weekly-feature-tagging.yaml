@@ -151,8 +151,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run rerun.yaml -F run_id=${{ github.run_id }}
 
+  get-all-features:
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Get all snapd features
+        run: |
+          wget https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+          sudo snap install snapd_master_amd64.snap --dangerous
+          snap debug features > all-features.json
+
+      - name: Upload snapd feature data
+        uses: actions/upload-artifact@v4
+        with:
+          name: "all-features"
+          path: "all-features.json"
+
   create-reports:
-    needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
+    needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested, get-all-features]
     runs-on: ["self-hosted", "spread-enabled"]
     if: |
       (always() && (needs.tag-features-fundamental.result == 'success' || needs.tag-features-fundamental.result == 'skipped')
@@ -169,6 +185,11 @@ jobs:
           path: feature-tags-artifacts
           pattern: spread-artifacts-*
           merge-multiple: true
+
+      - name: Get all features
+        uses: actions/download-artifact@v4
+        with:
+          name: all-features
 
       - name: Create feature tags
         run: |
@@ -209,7 +230,9 @@ jobs:
             --dir "$composedir" \
             --output "final-feature-tags" \
             --replace-old-runs
-          
+
+          ./tests/utils/features/feattranslator.py -f all-features.json -o final-feature-tags/all-features.json
+
           tar -czf "final-feature-tags.tar.gz" "final-feature-tags"
 
       - name: Upload results to mongo
