@@ -1530,12 +1530,12 @@ func (s *secbootSuite) TestResealKey(c *C) {
 				c.Check(keyFile, Not(testutil.FilePresent))
 				c.Check(keyFile2, Not(testutil.FilePresent))
 			}
-			if !tc.revoke {
+			if tc.oldKeyFiles {
 				c.Check(sealedKeysRequested, Equals, 0)
 				c.Check(updatedKeys, IsNil)
 			} else {
 				c.Check(sealedKeysRequested, Equals, 2)
-				c.Assert(updatedKeys, HasLen, 2)
+				c.Check(updatedKeys, HasLen, 2)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
