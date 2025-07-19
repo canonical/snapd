@@ -3,10 +3,12 @@ version: 1.0
 base: core24
 slots:
   cuda-driver-libs:
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - $SNAP/libs
   egl-driver-libs:
     priority: 15
+    compatibility: egl-ubuntu-2404
     client-driver: libsquare.so
     source:
       - $SNAP/libs
