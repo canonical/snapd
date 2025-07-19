@@ -14,6 +14,8 @@ execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     distro_purge_package snapd
+    # On Tumbleweed, removing the package doesn't stop the snapd units so stop them here
+    systemctl stop snapd.socket snapd.service || true
     distro_install_build_snapd
     snap wait system seed.loaded
 
