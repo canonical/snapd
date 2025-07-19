@@ -13,7 +13,7 @@ import pymongo.collection
 import sys
 from typing import Any, Iterable
 
-from features import SystemFeatures
+from features import SystemFeatures, Cmd, Endpoint, Status, Task, Change, Interface
 
 
 KNOWN_FEATURES = ['cmds', 'endpoints',
@@ -329,13 +329,29 @@ def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, s
 
 def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
     '''
-    Calculates set(coverage_features) - set(system_features), at the indicated timestamp. 
+    Calculates set(coverage_features) - set(system_features), at the indicated timestamp. The difference
+    in features for cmds, ensures, and endpoints is calculated on the complete feature. The difference
+    for tasks is computed on kind and last_status. The difference for changes are computed on kind.
+    The difference for interfaces is computed on name.
 
     :param remove_failed: if true, will remove all instances of tests where success == False
     '''
     sys_features = feat_sys(retriever, timestamp, system, remove_failed)
-    mns = minus(retriever.get_all_features(timestamp), sys_features)
-    return mns
+    all_features = retriever.get_all_features(timestamp)
+    diff = minus({'cmds': all_features['cmds'], 'ensures': all_features['ensures'], 'endpoints': all_features['endpoints']}, sys_features)
+    tasks = [af for af in all_features['tasks'] 
+             if not any(af['kind'] == sf['kind'] and af['last_status'] == sf['last_status'] for sf in sys_features['tasks'])]
+    changes = [af for af in all_features['changes'] 
+               if not any(af['kind'] == sf['kind'] for sf in sys_features['changes'])]
+    interfaces = [af for af in all_features['interfaces'] 
+                  if not any(af['name'] == sf['name'] for sf in sys_features['interfaces'])]
+    if tasks:
+        diff['tasks'] = tasks
+    if changes:
+        diff['changes'] = changes
+    if interfaces:
+        diff['interfaces'] = interfaces
+    return diff
 
 
 def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: bool, suite: str = None, task: str = None, variant: str = None) -> dict:
@@ -360,22 +376,56 @@ def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: b
         system_json, include_tasks=include_tasks)
 
 
-def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, list[TaskIdVariant]]:
+def get_feature_name_from_feature(feat: dict) -> str:
+    if 'cmd' in feat and len(feat) == 1:
+        return 'cmds'
+    elif 'method' in feat and 'path' in feat and (len(feat) == 2 or len(feat) == 3):
+        return 'endpoints'
+    elif 'manager' in feat and 'function' in feat and len(feat) == 2:
+        return 'ensures'
+    elif 'kind' in feat and 'last_status' in feat:
+        return 'tasks'
+    elif 'name' in feat:
+        return 'interfaces'
+    elif 'kind' in feat:
+        return 'changes'
+    return ''
+
+
+def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, TaskIdVariant]:
     '''
     Given a timestamp, a feature, and optionally a system, finds
     all tests that contain the indicated feature. If no system
     is specified, then returns all systems that contain the 
     feature combined with tests.
 
+    A feature match happens for cmds, endpoints, and ensures
+    when all of their fields match exactly.
+
+    A feature match happens for tasks when the kind and last_status
+    are identical.
+
+    A feature match happens for changes when the kinds match.
+
+    A feature match happens for interfaces when the names match.
+
     :param remove_failed: if true, will remove all instances of tests where success == False
     :returns: dictionary where each key is a system and each value is a list of tests that contain the feature
     '''
 
-    def feat_in_test(test: dict) -> bool:
-        for known_feature in KNOWN_FEATURES:
-            if known_feature in test and feat in test[known_feature]:
-                return True
-        return False
+    feat_name = get_feature_name_from_feature(feat)
+    if not feat_name:
+        raise RuntimeError(f'feature {feat} not a recognized feature')
+
+    feat_in_test=lambda _: False
+    if feat_name == 'cmds' or feat_name == 'ensures' or feat_name == 'endpoints':
+        feat_in_test = lambda test: feat_name in test and feat in test[feat_name]
+    elif feat_name == 'tasks':
+        feat_in_test = lambda test: feat_name in test and any(t['kind'] == feat['kind'] and t['last_status'] == feat['last_status'] for t in test['tasks'])
+    elif feat_name == 'changes':
+        feat_in_test = lambda test: feat_name in test and any(c['kind'] == feat['kind'] for c in test['changes'])
+    elif feat_name == 'interfaces':
+        feat_in_test = lambda test: feat_name in test and any(i['name'] == feat['name'] for i in test['interfaces'])
 
     system_list = None
     if system:
@@ -448,6 +498,21 @@ def export(retriever: Retriever, output: str, timestamps: list[str], systems: li
                 json.dump(all_features, f, cls=DateTimeEncoder)
         except Exception as e:
             print(f'could not find all features at timestamp {timestamp}', file=sys.stderr)
+
+
+def task_list(retriever: Retriever, timestamp: str) -> set[TaskIdVariant]:
+    '''
+    Given a timestamp, gets the complete set of tasks (suite, task, and variant names)
+    '''
+    all_data = retriever.get_systems(timestamp)
+    tasks = set()
+    for data in all_data:
+        if 'tests' not in data:
+            continue
+        tasks.update(
+            {TaskIdVariant(suite=d['suite'], task_name=d['task_name'], variant=d['variant']) for d in data['tests']}
+        )
+    return tasks
 
 
 def add_data_source_args(parser: argparse.ArgumentParser) -> None:
