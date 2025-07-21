@@ -40,6 +40,8 @@ def upload_documents(folder, verbose):
                 with open(os.path.join(folder, file), 'r', encoding='utf-8') as f:
                     j = json.load(f)
                     j['timestamp'] = timestamp
+                    if file == 'all-features.json':
+                        j['all_features'] = True
                     requesting.append(InsertOne(j))
 
         result = collection.bulk_write(requesting)
