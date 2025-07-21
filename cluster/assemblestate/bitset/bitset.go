@@ -124,6 +124,9 @@ func (b *Bitset[T]) Count() int {
 
 // Equals returns true if this bitset and the given bitset are identical.
 func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
+	if b == other {
+		return true
+	}
 	for i := 0; i < max(len(b.words), len(other.words)); i++ {
 		var word uint64
 		if i < len(b.words) {
