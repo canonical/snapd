@@ -271,6 +271,7 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
+
 	switch req.Action {
 	case "do":
 		return postSystemActionDo(c, systemLabel, &req)
