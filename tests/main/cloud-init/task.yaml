@@ -75,6 +75,9 @@ execute: |
         NOMATCH "manual_cache_clean: true" < /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
     fi
 
+    # force us to talk to the store so we can inspect the journal for logs
+    snap info snapd
+
     if [[ "$SPREAD_BACKEND" =~ google ]]; then
         # GCE sets the following in Ubuntu images:
         # {
