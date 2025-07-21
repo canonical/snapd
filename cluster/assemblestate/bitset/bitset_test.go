@@ -115,6 +115,25 @@ func (s *BitsetSuite) TestEquals(c *check.C) {
 
 	y.Set(1)
 	c.Assert(x.Equals(&y), check.Equals, false)
+
+	// check that self-equality works, should use a pointer comparison
+	c.Assert(x.Equals(&x), check.Equals, true)
+}
+
+func (s *BitsetSuite) TestEqualsSizeDiff(c *check.C) {
+	x := bitset.Bitset[int]{}
+	y := bitset.Bitset[int]{}
+
+	x.Set(100)
+	x.Clear(100)
+
+	c.Assert(x.Equals(&y), check.Equals, true)
+	c.Assert(y.Equals(&x), check.Equals, true)
+
+	y.Set(100)
+
+	c.Assert(x.Equals(&y), check.Equals, false)
+	c.Assert(y.Equals(&x), check.Equals, false)
 }
 
 func (s *BitsetSuite) TestCount(c *check.C) {
