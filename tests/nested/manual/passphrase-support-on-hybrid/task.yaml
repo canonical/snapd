@@ -8,16 +8,16 @@ systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
   # Defaults
-  MODEL_VERSION: "2510"
+  MODEL_VERSION: "25.10"
   GADGET_VERSION: "classic-25.10"
   KERNEL_VERSION: "25.10"
   KDF_TYPE: default
 
-  MODEL_VERSION/2404: "2404"
+  MODEL_VERSION/2404: "24.04"
   GADGET_VERSION/2404: classic-24.04
   KERNEL_VERSION/2404: "24"
 
-  MODEL_VERSION/2504: "2504"
+  MODEL_VERSION/2504: "25.04"
   GADGET_VERSION/2504: "classic-25.04"
   KERNEL_VERSION/2504: "25.04"
 
@@ -65,13 +65,14 @@ prepare: |
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
-  if [ "$MODEL_VERSION" = "2504" ]; then
+  if [ "$MODEL_VERSION" = "25.04" ]; then
     # 25.04 dangerous model is missing core24 (which is a dependency of pc gadget), let's use local one for now
     # https://github.com/canonical/models/blob/master/ubuntu-classic-2504-amd64-dangerous.json
     cp "$TESTSLIB"/assertions/developer1-2504-classic-dangerous.json classic.json
   else
     # fetch upstream models
-    curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"$MODEL_VERSION"-amd64-dangerous.json > classic.json
+    model_version_string="${MODEL_VERSION//\./}"
+    curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
     # but only keep relevant snaps
     gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
     mv classic-tmp.json classic.json
@@ -81,6 +82,14 @@ prepare: |
   fi
 
   gendeveloper1 sign-model < classic.json > classic.model
+
+  cat << EOF > ./prepare-rootfs.sh
+  rootfs="\$1"
+  echo ID=ubuntu > \${rootfs}/etc/os-release
+  echo VERSION_ID="${MODEL_VERSION}" >> \${rootfs}/etc/os-release
+  EOF
+
+  export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid system.
   if [[ "$KDF_TYPE" == "default" ]]; then
@@ -110,7 +119,7 @@ restore: |
 
 execute: |
   # the APIs tested here shouldn't be available on anything before 25.10
-  if [ "${MODEL_VERSION}" != "2510" ]; then
+  if [ "${MODEL_VERSION}" != "25.10" ]; then
     remote.exec sudo snap debug api /v2/system-volumes | gojq .result.message | MATCH "this action is not supported on this system"
     exit 0
   fi
