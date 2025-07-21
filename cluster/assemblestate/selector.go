@@ -26,15 +26,16 @@ type RouteSelector interface {
 	AddAuthoritativeRoute(to DeviceToken, via string)
 
 	// RecordRoutes records a set of routes from the given [RDT]. If a route's
-	// origin and destination both are reported as known by the given identified
-	// function, then those routes can be considered for publication.
-	RecordRoutes(from DeviceToken, r Routes, identified func(DeviceToken) bool) (int, int, error)
+	// origin and destination both are reported as known by the selector's
+	// knowledge of device identity, then those routes can be considered for
+	// publication.
+	RecordRoutes(from DeviceToken, r Routes) (int, int, error)
 
 	// VerifyRoutes re-calculates which routes are available for publication.
 	// For all routes that are already known, they will be marked as available
-	// for publication if the given identified function reports that both the
-	// origin and destination of the route are known.
-	VerifyRoutes(identified func(DeviceToken) bool)
+	// for publication if the selector knows the identity of the route's origin
+	// and destination devices.
+	VerifyRoutes()
 
 	// Select selects a subset of routes that the specified peer needs to receive.
 	//
@@ -59,6 +60,11 @@ type PrioritySelector struct {
 
 	// rng is the random number generator that is used for peer selection.
 	rng *randutil.Rand
+
+	// identified is a function that determines whether a device is
+	// known/identified. This is provided by the caller, and the underlying data
+	// isn't managed by us.
+	identified func(DeviceToken) bool
 
 	// rdts keeps track of all RDTs that we've seen and maps them to a [peerID].
 	rdts *bimap.Bimap[DeviceToken, peerID]
@@ -91,7 +97,11 @@ type PrioritySelector struct {
 	authoritative map[DeviceToken]edgeID
 }
 
-func NewPrioritySelector(self DeviceToken, source randutil.Source) *PrioritySelector {
+func NewPrioritySelector(
+	self DeviceToken,
+	source randutil.Source,
+	identified func(DeviceToken) bool,
+) *PrioritySelector {
 	if source == nil {
 		source = randutil.NewSource(time.Now().UnixNano())
 	}
@@ -99,6 +109,7 @@ func NewPrioritySelector(self DeviceToken, source randutil.Source) *PrioritySele
 	return &PrioritySelector{
 		self:          self,
 		rng:           randutil.New(source),
+		identified:    identified,
 		rdts:          bimap.New[DeviceToken, peerID](),
 		edges:         bimap.New[edge, edgeID](),
 		addresses:     bimap.New[string, addrID](),
@@ -161,10 +172,11 @@ func (p *PrioritySelector) AddAuthoritativeRoute(to DeviceToken, via string) {
 	p.authoritative[to] = eid
 }
 
-// RecordRoutes records all give routes and marks them as known to the given [DeviceToken].
-// The provided identified function is used to verify routes and mark them as
-// safe to publish if all we know all devices involved in a route.
-func (p *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified func(DeviceToken) bool) (added int, total int, err error) {
+// RecordRoutes records all give routes and marks them as known to the given
+// [DeviceToken]. The selector's identified function is used to verify routes
+// and mark them as safe to publish if all we know all devices involved in a
+// route.
+func (p *PrioritySelector) RecordRoutes(source DeviceToken, r Routes) (added int, total int, err error) {
 	pid := p.peerID(source)
 
 	if len(r.Routes)%3 != 0 {
@@ -218,7 +230,7 @@ func (p *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified
 		// if we have the identities of both the from and to devices, then we
 		// know can verify this route. verified routes can published to our
 		// peers.
-		if identified(fromRDT) && identified(toRDT) {
+		if p.identified(fromRDT) && p.identified(toRDT) {
 			p.verifiedEdges.Set(eid)
 		}
 	}
@@ -226,14 +238,14 @@ func (p *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified
 	return added, len(p.edges.Values()), nil
 }
 
-// VerifyRoutes uses the given identified function to mark any routes that
+// VerifyRoutes uses the selector's identified function to mark any routes that
 // involve devices that we know as safe to publish.
-func (p *PrioritySelector) VerifyRoutes(identified func(DeviceToken) bool) {
+func (p *PrioritySelector) VerifyRoutes() {
 	for eid, edge := range p.edges.Values() {
 		fromRDT := p.rdts.Value(edge.from)
 		toRDT := p.rdts.Value(edge.to)
 
-		if identified(fromRDT) && identified(toRDT) {
+		if p.identified(fromRDT) && p.identified(toRDT) {
 			p.verifiedEdges.Set(edgeID(eid))
 		}
 	}
