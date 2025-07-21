@@ -1,0 +1,24 @@
+name: failing-service
+version: '0.1'
+summary: A test snap
+description: |
+  This snap has a one-shot service that fails the first time it runs.
+architectures:
+- amd64
+base: core24
+apps:
+  fail-service:
+    command: bin/fail.sh
+    daemon: oneshot
+    restart-condition: always
+    plugs: [fail-service-plug]
+confinement: strict
+grade: devel
+environment:
+  LD_LIBRARY_PATH: ${SNAP_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+  PATH: $SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH
+plugs:
+  fail-service-plug:
+    interface: system-files
+    write:
+      - /run/mnt/ubuntu-seed
