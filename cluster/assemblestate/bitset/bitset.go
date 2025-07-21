@@ -127,6 +127,11 @@ func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
 	if b == other {
 		return true
 	}
+
+	// here we cannot determine that the sets are inequal just because the
+	// length of words is not the same. one of the sets might have a value in
+	// words that once contained something but has been cleared. this could
+	// result in an empty word, which is the same as a non-existent word.
 	for i := 0; i < max(len(b.words), len(other.words)); i++ {
 		var word uint64
 		if i < len(b.words) {
