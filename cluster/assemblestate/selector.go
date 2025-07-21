@@ -14,18 +14,26 @@ import (
 // peers to publish routes to.
 type RouteSelector interface {
 	// AddAuthoritativeRoute records a route from this local node to the given
-	// [RDT]. This route will be published to the given peer, regardless of our
-	// knowledge of that peer's identity.
-	AddAuthoritativeRoute(from DeviceToken, via string)
+	// [DeviceToken]. This route will be published to the given peer, regardless
+	// of our knowledge of that peer's identity.
+	//
+	// We treat these routes slightly differently because of how the protocol
+	// defines what peers should do upon receipt of routes. If we send a route
+	// to our peer that includes devices that they do not yet know, it is
+	// expected that they can request identifying information for those devices
+	// from us. Since a peer always knows about itself, it is safe for us to
+	// publish an authoritative route to the peer at the route's destination.
+	AddAuthoritativeRoute(to DeviceToken, via string)
 
-	// RecordRoutes records a set of routes from the given [RDT]. The given
-	// function identified is used to determine which new routes can be
-	// considered for publication.
+	// RecordRoutes records a set of routes from the given [RDT]. If a route's
+	// origin and destination both are reported as known by the given identified
+	// function, then those routes can be considered for publication.
 	RecordRoutes(from DeviceToken, r Routes, identified func(DeviceToken) bool) (int, int, error)
 
 	// VerifyRoutes re-calculates which routes are available for publication.
-	// The given function identified is used to determine which routes should be
-	// considered.
+	// For all routes that are already known, they will be marked as available
+	// for publication if the given identified function reports that both the
+	// origin and destination of the route are known.
 	VerifyRoutes(identified func(DeviceToken) bool)
 
 	// Select selects a subset of routes that the specified peer needs to receive.
@@ -62,20 +70,20 @@ type PrioritySelector struct {
 	// [addrID].
 	addresses *bimap.Bimap[string, addrID]
 
-	// peers keeps track which routes each peer knows about. A route is
+	// knownByPeers keeps track which routes each peer knows about. A route is
 	// considered known by a peer if either they have sent it to us, or we've
 	// sent it to them.
-	known map[peerID]*bitset.Bitset[edgeID]
+	knownByPeers map[peerID]*bitset.Bitset[edgeID]
 
-	// sources keeps track of how many unqiue peers we've seen an edge from and
-	// sent an edge to. This helps us prioritize which routes to send to our
+	// edgeSources keeps track of how many unique peers we've seen an edge from
+	// and sent an edge to. This helps us prioritize which routes to send to our
 	// peers.
-	sources map[edgeID]int
+	edgeSources map[edgeID]int
 
-	// verified keeps track of which edges are safe to publish. These routes
+	// verifiedEdges keeps track of which edges are safe to publish. These routes
 	// only include RDTs for devices that are reported as identified by our
 	// caller.
-	verified *bitset.Bitset[edgeID]
+	verifiedEdges *bitset.Bitset[edgeID]
 
 	// authoritative keeps track of the set of edges from this local node to
 	// each other peer. Each of these can be safely sent to the destination node
@@ -94,9 +102,9 @@ func NewPrioritySelector(self DeviceToken, source randutil.Source) *PrioritySele
 		rdts:          bimap.New[DeviceToken, peerID](),
 		edges:         bimap.New[edge, edgeID](),
 		addresses:     bimap.New[string, addrID](),
-		verified:      &bitset.Bitset[edgeID]{},
-		known:         make(map[peerID]*bitset.Bitset[edgeID]),
-		sources:       make(map[edgeID]int),
+		verifiedEdges: &bitset.Bitset[edgeID]{},
+		knownByPeers:  make(map[peerID]*bitset.Bitset[edgeID]),
+		edgeSources:   make(map[edgeID]int),
 		authoritative: make(map[DeviceToken]edgeID),
 	}
 }
@@ -118,70 +126,77 @@ type edge struct {
 	via      addrID
 }
 
-func (m *PrioritySelector) peerID(rdt DeviceToken) peerID {
-	if pid, ok := m.rdts.IndexOf(rdt); ok {
+func (p *PrioritySelector) peerID(rdt DeviceToken) peerID {
+	if pid, ok := p.rdts.IndexOf(rdt); ok {
 		return pid
 	}
 
-	pid := m.rdts.Add(rdt)
-	m.known[pid] = &bitset.Bitset[edgeID]{}
+	pid := p.rdts.Add(rdt)
+	p.knownByPeers[pid] = &bitset.Bitset[edgeID]{}
 
 	return pid
 }
 
-func (m *PrioritySelector) addrID(a string) addrID {
-	return m.addresses.Add(a)
+func (p *PrioritySelector) addrID(a string) addrID {
+	return p.addresses.Add(a)
 }
 
-func (m *PrioritySelector) edgeID(e edge) (edgeID, bool) {
-	if eid, ok := m.edges.IndexOf(e); ok {
+func (p *PrioritySelector) edgeID(e edge) (id edgeID, existed bool) {
+	if eid, ok := p.edges.IndexOf(e); ok {
 		return eid, true
 	}
 
-	eid := m.edges.Add(e)
-
-	return eid, false
+	return p.edges.Add(e), false
 }
 
 // AddAuthoritativeRoute informs the selector of an authoritative route from
 // this local node to the given peer. This route can safely be published to the
 // given peer, regardless of our knowledge of that peer's identity.
-func (m *PrioritySelector) AddAuthoritativeRoute(to DeviceToken, via string) {
-	eid, _ := m.edgeID(edge{
-		from: m.peerID(m.self),
-		to:   m.peerID(to),
-		via:  m.addrID(via),
+func (p *PrioritySelector) AddAuthoritativeRoute(to DeviceToken, via string) {
+	eid, _ := p.edgeID(edge{
+		from: p.peerID(p.self),
+		to:   p.peerID(to),
+		via:  p.addrID(via),
 	})
-	m.authoritative[to] = eid
+	p.authoritative[to] = eid
 }
 
 // RecordRoutes records all give routes and marks them as known to the given [DeviceToken].
 // The provided identified function is used to verify routes and mark them as
 // safe to publish if all we know all devices involved in a route.
-func (m *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified func(DeviceToken) bool) (added int, total int, err error) {
-	pid := m.peerID(source)
+func (p *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified func(DeviceToken) bool) (added int, total int, err error) {
+	pid := p.peerID(source)
 
 	if len(r.Routes)%3 != 0 {
 		return 0, 0, errors.New("length of routes list must be a multiple of three")
 	}
 
+	// r.Routes is a slice triplets, where each triplet represents a route
+	// between two devices in our cluster. the values in triplet are indexes
+	// into the other slices in the [Routes] message.
+	//   - r.Routes[n] is an index into r.Devices, representing the origin of the
+	//     route
+	//   - r.Routes[n+1] is an index into r.Devices, representing the
+	//     destination of the route
+	//   - r.Routes[n+1] is an index into r.Addresses, representing the address
+	//     that r.Routes[n] used to reach r.Routes[n+1]
 	for i := 0; i+2 < len(r.Routes); i += 3 {
 		if r.Routes[i] < 0 || r.Routes[i+1] < 0 || r.Routes[i+2] < 0 {
-			return 0, 0, errors.New("invalid index in routes")
+			return 0, 0, errors.New("route contains negative index")
 		}
 
 		if r.Routes[i] >= len(r.Devices) || r.Routes[i+1] >= len(r.Devices) || r.Routes[i+2] >= len(r.Addresses) {
-			return 0, 0, errors.New("invalid index in routes")
+			return 0, 0, errors.New("route index exceeds available devices or addresses")
 		}
 
 		fromRDT := r.Devices[r.Routes[i]]
 		toRDT := r.Devices[r.Routes[i+1]]
 
-		fromID := m.peerID(fromRDT)
-		toID := m.peerID(toRDT)
-		viaID := m.addrID(r.Addresses[r.Routes[i+2]])
+		fromID := p.peerID(fromRDT)
+		toID := p.peerID(toRDT)
+		viaID := p.addrID(r.Addresses[r.Routes[i+2]])
 
-		eid, existed := m.edgeID(edge{
+		eid, existed := p.edgeID(edge{
 			from: fromID,
 			to:   toID,
 			via:  viaID,
@@ -190,18 +205,25 @@ func (m *PrioritySelector) RecordRoutes(source DeviceToken, r Routes, identified
 			added++
 		}
 
-		if !m.known[pid].Has(eid) {
-			m.sources[eid]++
+		// if we aren't aware that this peer knows about this route already,
+		// increment our counter of sources for that edge
+		if !p.knownByPeers[pid].Has(eid) {
+			p.edgeSources[eid]++
 		}
 
-		m.known[pid].Set(eid)
+		// record that the peer who sent this Routes message knows about this
+		// edge
+		p.knownByPeers[pid].Set(eid)
 
+		// if we have the identities of both the from and to devices, then we
+		// know can verify this route. verified routes can published to our
+		// peers.
 		if identified(fromRDT) && identified(toRDT) {
-			m.verified.Set(eid)
+			p.verifiedEdges.Set(eid)
 		}
 	}
 
-	return added, len(m.edges.Values()), nil
+	return added, len(p.edges.Values()), nil
 }
 
 // VerifyRoutes uses the given identified function to mark any routes that
@@ -212,16 +234,16 @@ func (p *PrioritySelector) VerifyRoutes(identified func(DeviceToken) bool) {
 		toRDT := p.rdts.Value(edge.to)
 
 		if identified(fromRDT) && identified(toRDT) {
-			p.verified.Set(edgeID(eid))
+			p.verifiedEdges.Set(edgeID(eid))
 		}
 	}
 }
 
-// Select selects routes that should be published to the specified peer.
+// Select n selects routes that should be published to the specified peer.
 //
 // We prioritize routes that this local node has witnessed and published fewer
 // times.
-func (p *PrioritySelector) Select(to DeviceToken, count int) (routes Routes, ack func(), ok bool) {
+func (p *PrioritySelector) Select(to DeviceToken, n int) (routes Routes, ack func(), ok bool) {
 	selected, exists := p.rdts.IndexOf(to)
 	if !exists {
 		return Routes{}, nil, false
@@ -231,45 +253,48 @@ func (p *PrioritySelector) Select(to DeviceToken, count int) (routes Routes, ack
 		return Routes{}, nil, false
 	}
 
-	peerKnown := p.known[selected]
-	unknown := p.verified.Diff(peerKnown)
+	peerKnown := p.knownByPeers[selected]
+	unknown := p.verifiedEdges.Diff(peerKnown)
 
 	// max possible needed size is all unknown routes + the route from this
 	// local node to the destination peer
-	sending := make([]edgeID, 0, unknown.Count()+1)
+	edgesToSend := make([]edgeID, 0, unknown.Count()+1)
 
 	// only consider routes that we don't think that this peer knows about
 	unknown.Range(func(eid edgeID) bool {
-		sending = append(sending, eid)
+		edgesToSend = append(edgesToSend, eid)
 		return true
 	})
 
 	// prioritize routes that we think fewer peers know about. this takes into
 	// account copies of routes we've seen from our peers and copies that we've
 	// sent to our peers
-	sort.Slice(sending, func(i, j int) bool { return p.sources[sending[i]] < p.sources[sending[j]] })
-	sending = sending[:min(len(sending), count)]
+	sort.Slice(edgesToSend, func(i, j int) bool { return p.edgeSources[edgesToSend[i]] < p.edgeSources[edgesToSend[j]] })
+
+	// discard any edges causing us to exceed the given threshold. thus, we pick
+	// the n least frequently seen routes.
+	edgesToSend = edgesToSend[:min(len(edgesToSend), n)]
 
 	// if we have an authoritative route for this peer, make sure to include it
 	if eid, ok := p.authoritative[to]; ok && !peerKnown.Has(eid) {
-		sending = append(sending, eid)
+		edgesToSend = append(edgesToSend, eid)
 	}
 
-	if len(sending) == 0 {
+	if len(edgesToSend) == 0 {
 		return Routes{}, nil, false
 	}
 
-	routes = p.edgesToRoutes(sending)
+	routes = p.edgesToRoutes(edgesToSend)
 
 	// create ack function that updates source counts when called
 	ack = func() {
-		for _, eid := range sending {
+		for _, eid := range edgesToSend {
 			// the peer might know about the route already since selection time.
 			// if that has happened, then we don't want to double count that
 			// peer as a source.
 			if !peerKnown.Has(eid) {
 				peerKnown.Set(eid)
-				p.sources[eid]++
+				p.edgeSources[eid]++
 			}
 		}
 	}
@@ -280,16 +305,16 @@ func (p *PrioritySelector) Select(to DeviceToken, count int) (routes Routes, ack
 // Routes returns routes that we've seen for which both peers in the route
 // identified.
 func (p *PrioritySelector) Routes() Routes {
-	eids := p.verified.All()
+	eids := p.verifiedEdges.All()
 
-	devs := make(map[string]struct{})
-	addrs := make(map[string]struct{})
+	devs := make(map[string]bool)
+	addrs := make(map[string]bool)
 
 	for _, eid := range eids {
 		edge := p.edges.Value(eid)
-		devs[string(p.rdts.Value(edge.from))] = struct{}{}
-		devs[string(p.rdts.Value(edge.to))] = struct{}{}
-		addrs[p.addresses.Value(edge.via)] = struct{}{}
+		devs[string(p.rdts.Value(edge.from))] = true
+		devs[string(p.rdts.Value(edge.to))] = true
+		addrs[p.addresses.Value(edge.via)] = true
 	}
 
 	devices := keys(devs)

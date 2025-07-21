@@ -61,7 +61,7 @@ func (s *SelectorSuite) TestAddRoutesValidation(c *check.C) {
 	}
 
 	_, _, err = selector.RecordRoutes("peer", negative, identified)
-	c.Assert(err, check.ErrorMatches, "invalid index in routes")
+	c.Assert(err, check.ErrorMatches, "route contains negative index")
 
 	oob := assemblestate.Routes{
 		Devices:   []assemblestate.DeviceToken{"a", "b"},
@@ -70,7 +70,7 @@ func (s *SelectorSuite) TestAddRoutesValidation(c *check.C) {
 	}
 
 	_, _, err = selector.RecordRoutes("peer", oob, identified)
-	c.Assert(err, check.ErrorMatches, "invalid index in routes")
+	c.Assert(err, check.ErrorMatches, "route index exceeds available devices or addresses")
 }
 
 func (s *SelectorSuite) TestAddRoutesCounts(c *check.C) {
