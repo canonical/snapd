@@ -111,9 +111,6 @@ default_image() {
 write_default_proxy_config() {
     local proxy_file="${1:-lxd_default_proxy.yaml}"
     local snapd_https_proxy snapd_http_proxy snapd_no_proxy
-    snapd_https_proxy="$https_proxy"
-    snapd_http_proxy="$http_proxy"
-    snapd_no_proxy="$no_proxy"
 
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
        snapd_https_proxy="$https_proxy"

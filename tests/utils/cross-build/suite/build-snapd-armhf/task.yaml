@@ -1,0 +1,117 @@
+summary: Build snap in armhf architecture
+
+details: |
+  Verifies that snapd can be built in armhf architecture. First it creates a vm
+  using the desired image, kernel and initrd, and then run the build-spread task
+  which builds snapd snap on the target system.
+
+kill-timeout: 120m
+
+environment:
+  VERSION/noble: 24.04
+  IMAGE_URL/noble: https://cloud-images.ubuntu.com/releases/$VERSION/release/ubuntu-$VERSION-server-cloudimg-armhf.img  
+  KERNEL_URL/noble: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-vmlinuz-generic
+  INITRD_URL/noble: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-initrd-generic
+
+  VERSION/jammy: 22.04
+  IMAGE_URL/jammy: https://cloud-images.ubuntu.com/releases/$VERSION/release/ubuntu-$VERSION-server-cloudimg-armhf.img  
+  KERNEL_URL/jammy: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-vmlinuz-lpae
+  INITRD_URL/jammy: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-initrd-generic-lpae
+
+  VERSION/focal: 20.04
+  IMAGE_URL/focal: https://cloud-images.ubuntu.com/releases/$VERSION/release/ubuntu-$VERSION-server-cloudimg-armhf.img  
+  KERNEL_URL/focal: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-vmlinuz-lpae
+  INITRD_URL/focal: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-initrd-generic-lpae
+
+  REMOTE_CFG_FILE: $PWD/remote.setup.cfg
+  SERVICE_NAME: nested-vm
+  USER: root
+  PASSWORD: ubuntu
+  PORT: 2222
+
+prepare: |
+  # Install dependencies
+  apt update
+  apt install -y qemu-kvm cloud-image-utils sshpass
+
+  tmpdir=$(mktemp -d)
+
+  # Get the image
+  wget -q -P "$tmpdir" "$IMAGE_URL"
+  IMAGE_FILE="$tmpdir/$(basename "$IMAGE_URL")"
+  IMAGE_FILE_RAW="${IMAGE_FILE}.raw"
+
+  # Get the kernel (we need it to be able to append the cmdline)
+  wget -q -P "$tmpdir" "$KERNEL_URL"
+  KERNEL_FILE="$tmpdir/$(basename "$KERNEL_URL")"
+  
+  # Get the initrd
+  wget -q -P "$tmpdir" "$INITRD_URL"
+  INITRD_FILE="$tmpdir/$(basename "$INITRD_URL")"
+
+  # Prepare the raw image
+  qemu-img convert -f qcow2 -O raw "$IMAGE_FILE" "$IMAGE_FILE_RAW"
+  qemu-img resize "$IMAGE_FILE_RAW" +6G
+  rm -f ${IMAGE_FILE}
+
+  # Generate the cloud init seed
+  CLOUD_INIT_ISO="$tmpdir/seed.img"
+  sed -i \
+  -e "s|<http_proxy>|$HTTP_PROXY|g" \
+  -e "s|<https_proxy>|$HTTPS_PROXY|g" \
+  -e "s|<no_proxy>|$NO_PROXY|g" \
+  user-data
+  cloud-localds "$CLOUD_INIT_ISO" user-data meta-data
+
+  # Calculate the amount of memory and cpus to use
+  processors="$(echo $(( $(grep -c ^processor /proc/cpuinfo) / 2 )))"
+  memory="$(echo $(( $(free -m | awk '/^Mem:/ { print $2 }') / 2 )))"
+
+  # Create the nested vm service
+  tests.systemd create-and-start-unit "$SERVICE_NAME" "qemu-system-arm \
+    -M virt \
+    -cpu cortex-a15 \
+    -smp $processors \
+    -m $memory \
+    -nographic \
+    -snapshot \
+    -kernel $KERNEL_FILE \
+    -initrd $INITRD_FILE \
+    -append 'root=/dev/vda1 console=ttyAMA0 modprobe.blacklist=*' \
+    -drive file=$IMAGE_FILE_RAW,format=raw,if=none,id=hd0 \
+    -device virtio-blk-device,drive=hd0 \
+    -drive file=$CLOUD_INIT_ISO,format=raw,if=virtio \
+    -netdev user,id=net0,hostfwd=tcp::$PORT-:22 \
+    -device virtio-net-device,netdev=net0"
+
+  remote.setup config --host localhost --port "$PORT" --user "$USER" --pass "$PASSWORD"
+
+  # Wait until the nested vm service is active
+  tests.systemd wait-for-service -n 15 --wait 2 --state active "$SERVICE_NAME"
+
+    # Wait until the nested vm is accessible through ssh (30 retries with 10 sec wait)
+  tests.nested wait-for ssh 50 10
+
+restore: |
+  systemctl stop "$SERVICE_NAME" || true
+
+execute: |
+  # Download spread and run the build-snapd test
+  SPREAD="$(tests.nested download spread)"
+
+  set +x
+  export SPREAD_EXTERNAL_ADDRESS=localhost:"$PORT"
+  RUN_TESTS="external:ubuntu-"$VERSION"-armhf:tests/utils/cross-build/suite/build-snapd"
+
+  export SPREAD_HTTP_PROXY="$HTTP_PROXY"
+  export SPREAD_HTTPS_PROXY="$HTTPS_PROXY"
+  export SPREAD_NO_PROXY="$NO_PROXY"
+  export SPREAD_SNAPD_USE_PROXY="$SNAPD_USE_PROXY"
+
+  echo "Running $SPREAD $RUN_TESTS"
+  (
+      set -o pipefail
+      # shellcheck disable=SC2086
+      cd "$PROJECT_PATH"
+      "$SPREAD" $RUN_TESTS | tee spread.log
+  )

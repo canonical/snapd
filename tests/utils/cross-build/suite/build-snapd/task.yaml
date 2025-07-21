@@ -1,0 +1,18 @@
+summary: Build snap on a specific architecture
+
+details: |
+   Verifies that snapd can be built on a specific architecture.
+
+systems: [ubuntu-*]
+
+kill-timeout: 90m
+
+prepare: |
+    # make sure snapd snap is refreshed
+    snap refresh
+    snap install --channel="${SNAPCRAFT_SNAP_CHANNEL}" snapcraft --classic
+
+execute: |  
+    cd "$PROJECT_PATH"
+    snapcraft --verbose --destructive-mode | tee snapcraft.log
+    MATCH "Created snap package snapd_*" < snapcraft.log

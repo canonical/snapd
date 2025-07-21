@@ -1,0 +1,12 @@
+    #this backend is used for classic validation
+    testflinger:
+        environment:
+            TRUST_TEST_KEYS: "false"
+        halt-timeout: 3h
+        wait-timeout: 2h
+        systems:
+            - ubuntu-22.04-armhf-rpi3:
+                  queue: rpi3b
+                  image: https://old-releases.ubuntu.com/releases/jammy/ubuntu-22.04-beta-preinstalled-server-armhf+raspi.img.xz
+                  username: ubuntu
+                  password: ubuntu

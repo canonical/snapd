@@ -259,7 +259,7 @@ prepare_project() {
         exit 0
     fi
 
-    if [ "$SPREAD_BACKEND" = "testflinger" ]; then
+    if [ "$SPREAD_BACKEND" = "testflinger" ] && os.query is-core; then
         if os.query is-core-ge 24; then
             useradd --uid 12345 --create-home --extrausers test
         else
