@@ -4,8 +4,8 @@ import (
 	"math/bits"
 )
 
-// Bitset represents a set of integer values. The zero value is ready for use
-// and represents an empty set.
+// Bitset represents a set of non-negative integer values. The zero value is
+// ready for use and represents an empty set.
 type Bitset[T ~int] struct {
 	words []uint64
 }
@@ -14,10 +14,13 @@ type Bitset[T ~int] struct {
 // for the provided value. These indexes are used to lookup our value in the
 // bitset.
 func wordAndBit[T ~int](value T) (word T, bit T) {
+	if value < 0 {
+		panic("bitset: negative values not supported")
+	}
 	return value / 64, value % 64
 }
 
-// Set adds value to the bitset.
+// Set adds value to the bitset. Set will panic if the value is negative.
 func (b *Bitset[T]) Set(value T) {
 	word, bit := wordAndBit(value)
 
@@ -33,8 +36,11 @@ func (b *Bitset[T]) Set(value T) {
 
 // Has reports whether value is present in the bitset.
 func (bs *Bitset[T]) Has(value T) bool {
-	word, bit := wordAndBit(value)
+	if value < 0 {
+		return false
+	}
 
+	word, bit := wordAndBit(value)
 	if int(word) >= len(bs.words) {
 		return false
 	}
@@ -44,8 +50,11 @@ func (bs *Bitset[T]) Has(value T) bool {
 
 // Clear removes value from the bitset.
 func (b *Bitset[T]) Clear(value T) {
-	word, bit := wordAndBit(value)
+	if value < 0 {
+		return
+	}
 
+	word, bit := wordAndBit(value)
 	if int(word) < len(b.words) {
 		b.words[word] &^= 1 << bit
 	}
