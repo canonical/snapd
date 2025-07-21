@@ -94,6 +94,8 @@ func (b *Bitset[T]) Diff(other *Bitset[T]) *Bitset[T] {
 
 // Range calls fn for every value present in the bitset. If fn returns false,
 // iteration stops early.
+//
+// TODO: consider using the new range functionality from go 1.23 once possible
 func (b *Bitset[T]) Range(fn func(value T) bool) {
 	for wi, word := range b.words {
 		for word != 0 {
@@ -150,6 +152,9 @@ func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
 	return true
 }
 
+// max returns the larger of the two given values.
+//
+// TOD0: remove once we are on go>=1.21
 func max(x, y int) int {
 	if x > y {
 		return x

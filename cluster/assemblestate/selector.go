@@ -364,6 +364,9 @@ func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {
 	}
 }
 
+// keys returns a slice of the keys in the given map.
+//
+// TODO: remove once we are on go>=1.21
 func keys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
@@ -372,6 +375,9 @@ func keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
+// min returns the smaller of the two given values.
+//
+// TODO: remove once we are on go>=1.21
 func min(x int, y int) int {
 	if x < y {
 		return x
