@@ -10,7 +10,6 @@ type Bimap[V comparable, I ~int] struct {
 // New returns an empty Bimap.
 func New[V comparable, I ~int]() *Bimap[V, I] {
 	return &Bimap[V, I]{
-		values:  make([]V, 0),
 		indexes: make(map[V]I),
 	}
 }
