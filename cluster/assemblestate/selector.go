@@ -319,21 +319,60 @@ func (p *PrioritySelector) Select(to DeviceToken, n int) (routes Routes, ack fun
 func (p *PrioritySelector) Routes() Routes {
 	eids := p.verifiedEdges.All()
 
-	devs := make(map[string]bool)
-	addrs := make(map[string]bool)
+	devs := make([]string, 0, len(p.rdts.Values()))
+	devIndexes := make(map[string]int, cap(devs))
 
+	addrs := make([]string, 0, len(p.addresses.Values()))
+	addrIndexes := make(map[string]int, cap(addrs))
+
+	// here we build a slice of devices and address that are used in the routes.
+	// we want the slices to be sorted for output consistency, so we also build
+	// a mapping of values to indexes in these slices. this first pass just
+	// fills the maps with placeholders (-1) until we can actually assign those
+	// values after sorting.
 	for _, eid := range eids {
 		edge := p.edges.Value(eid)
-		devs[string(p.rdts.Value(edge.from))] = true
-		devs[string(p.rdts.Value(edge.to))] = true
-		addrs[p.addresses.Value(edge.via)] = true
+
+		to := string(p.rdts.Value(edge.to))
+		if _, ok := devIndexes[to]; !ok {
+			devs = append(devs, to)
+
+			devIndexes[to] = -1
+		}
+
+		from := string(p.rdts.Value(edge.from))
+		if _, ok := devIndexes[from]; !ok {
+			devs = append(devs, from)
+
+			devIndexes[from] = -1
+		}
+
+		via := p.addresses.Value(edge.via)
+		if _, ok := addrIndexes[via]; !ok {
+			addrs = append(addrs, via)
+
+			addrIndexes[via] = -1
+		}
 	}
 
-	devices := keys(devs)
-	sort.Strings(devices)
+	// these checks should be impossible
+	if len(devs) != len(devIndexes) {
+		panic("internal error: invalid device count when exporting routes")
+	}
 
-	addresses := keys(addrs)
-	sort.Strings(addresses)
+	if len(addrs) != len(addrIndexes) {
+		panic("internal error: invalid address count when exporting routes")
+	}
+
+	sort.Strings(devs)
+	for i, d := range devs {
+		devIndexes[d] = i
+	}
+
+	sort.Strings(addrs)
+	for i, a := range addrs {
+		addrIndexes[a] = i
+	}
 
 	sort.Slice(eids, func(i, j int) bool {
 		a, b := p.edges.Value(eids[i]), p.edges.Value(eids[j])
@@ -352,9 +391,9 @@ func (p *PrioritySelector) Routes() Routes {
 	routes := make([]int, 0, len(eids)*3)
 	for _, eid := range eids {
 		edge := p.edges.Value(eid)
-		from := sort.SearchStrings(devices, string(p.rdts.Value(edge.from)))
-		to := sort.SearchStrings(devices, string(p.rdts.Value(edge.to)))
-		via := sort.SearchStrings(addresses, p.addresses.Value(edge.via))
+		from := devIndexes[string(p.rdts.Value(edge.from))]
+		to := devIndexes[string(p.rdts.Value(edge.to))]
+		via := addrIndexes[string(p.addresses.Value(edge.via))]
 
 		routes = append(routes,
 			from,
@@ -363,14 +402,14 @@ func (p *PrioritySelector) Routes() Routes {
 		)
 	}
 
-	converted := make([]DeviceToken, 0, len(devices))
-	for _, d := range devices {
+	converted := make([]DeviceToken, 0, len(devs))
+	for _, d := range devs {
 		converted = append(converted, DeviceToken(d))
 	}
 
 	return Routes{
 		Devices:   converted,
-		Addresses: addresses,
+		Addresses: addrs,
 		Routes:    routes,
 	}
 }
