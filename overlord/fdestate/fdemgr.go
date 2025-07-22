@@ -203,8 +203,8 @@ func (m *unlockedStateManager) Update(role string, containerRole string, paramet
 }
 
 func (m *unlockedStateManager) Get(role string, containerRole string) (parameters *backend.SealingParameters, primaryKeyID int, policyCounterHandle uint32, err error) {
-	hasParamters, bootModes, models, tpmPCRProfile, primaryKeyID, policyCounterHandle, err := m.GetParameters(role, containerRole)
-	if err != nil || !hasParamters {
+	hasParameters, bootModes, models, tpmPCRProfile, primaryKeyID, policyCounterHandle, err := m.GetParameters(role, containerRole)
+	if err != nil || !hasParameters {
 		return nil, 0, 0, err
 	}
 

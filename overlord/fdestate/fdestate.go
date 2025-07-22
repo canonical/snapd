@@ -321,7 +321,7 @@ func updateParameters(st *state.State, role string, containerRole string, bootMo
 	return nil
 }
 
-func (s *FdeState) getParameters(role string, containerRole string) (hasParamters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, primaryKeyID int, policyCounterHandle uint32, err error) {
+func (s *FdeState) getParameters(role string, containerRole string) (hasParameters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, primaryKeyID int, policyCounterHandle uint32, err error) {
 	roleInfo, hasRole := s.KeyslotRoles[role]
 	if !hasRole {
 		return false, nil, nil, nil, 0, 0, fmt.Errorf("cannot find keyslot role %s", role)
