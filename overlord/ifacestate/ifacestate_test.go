@@ -11512,9 +11512,21 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesErrorsSetup(c *C
 	})
 }
 
+func (s *interfaceManagerSuite) TestSystemKeyMismatchNotSeeded(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", nil)
+
+	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, "")
+	c.Check(err, ErrorMatches, "system not yet seeded")
+	c.Check(chg, IsNil)
+}
+
 func (s *interfaceManagerSuite) TestSystemKeyMismatchTrivial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
 	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, "")
 	c.Assert(err, ErrorMatches, "internal error: string is not a system key")
 	c.Check(chg, IsNil)
@@ -11554,6 +11566,7 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatch(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 
 	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
 	c.Assert(err, IsNil)
@@ -11593,6 +11606,7 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 
 	chg, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, sk)
 	c.Assert(err, ErrorMatches, "system-key version higher than supported")

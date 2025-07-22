@@ -259,6 +259,9 @@ func maybeCheckSystemKeyMismatch(cli *client.Client) (changeID string, err error
 		} else if errors.As(err, &rspError) {
 			// actual response error
 			if !restarting || rspError.Kind != client.ErrorKindSystemKeyVersionUnsupported {
+				// we may reach here if snapd is still seeding, in which case we
+				// let the app execution continue, but the app may not function
+				// properly if the sandbox hasn't been set up completely
 				logger.Debugf("ignoring system-key mismatch error: %v", err)
 				return "", nil
 			}

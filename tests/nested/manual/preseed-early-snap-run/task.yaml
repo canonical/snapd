@@ -1,0 +1,109 @@
+summary: Check that early snap run does not break preseeding.
+
+details: |
+  This test checks that preseeding preseeding completes successfully even if
+  there is an early snap run executed during boot.
+
+systems: [ubuntu-24.04-*]
+
+environment:
+  IMAGE_MOUNTPOINT: /mnt/cloudimg
+
+prepare: |
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
+  # create a VM and mount a cloud image
+  tests.nested build-image classic
+  mkdir -p "$IMAGE_MOUNTPOINT"
+  IMAGE_NAME=$(tests.nested get image-name classic)
+  mount_ubuntu_image "$(tests.nested get images-path)/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
+
+  # Add snapd from this branch into the seed
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap .
+  mv snapd_*.snap snapd.snap
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
+
+  snap download --edge --basename=core24 core24
+  snap download --edge --basename=test-snapd-sh-core24 test-snapd-sh-core24
+
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" core24
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" test-snapd-sh-core24
+
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+
+  cat <<'EOF' > "$IMAGE_MOUNTPOINT"/lib/systemd/system/early-snap-run.service
+  [Unit]
+  Description=test unit invoking snap run early during boot
+  # make sure that snapd.socket is started
+  After=snapd.socket
+
+  [Install]
+  WantedBy=multi-user.target
+
+  [Service]
+  Type=oneshot
+  Restart=no
+  Environment=SNAPD_DEBUG=1
+  ExecStart=/snap/bin/test-snapd-sh-core24.sh -c 'echo hello'
+  EOF
+
+  systemctl --root="$IMAGE_MOUNTPOINT" enable early-snap-run.service
+
+  cat <<'EOF' > "$IMAGE_MOUNTPOINT"/lib/systemd/system/early-snap-run-proper.service
+  [Unit]
+  Description=test unit invoking snap run early during boot but after seeded is completed
+  After=snapd.seeded.service
+
+  [Install]
+  WantedBy=multi-user.target
+
+  [Service]
+  Type=oneshot
+  Restart=no
+  Environment=SNAPD_DEBUG=1
+  ExecStart=/snap/bin/test-snapd-sh-core24.sh -c 'echo hello'
+  EOF
+
+  systemctl --root="$IMAGE_MOUNTPOINT" enable early-snap-run-proper.service
+
+  echo "Running pre-seeding"
+  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" | MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd"
+
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
+
+restore: |
+  tests.nested vm remove
+
+  # any of the restore commands can fail depending on where execute part stopped,
+  # account for that with ||true.
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+
+execute: |
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
+  tests.nested create-vm classic --param-cpus 1
+
+  echo "Waiting for firstboot seeding to finish"
+  remote.exec "sudo snap wait system seed.loaded"
+  # check that seeding completed successfully
+  remote.exec "snap changes" | MATCH "Done .+ Initialize system state"
+  # there was no change to regenerate security profiles
+  remote.exec "snap changes" | NOMATCH "Regenerate security profiles"
+
+  # the side-loaded services were executed
+
+  remote.exec "sudo journalctl -u early-snap-run.service" | \
+      MATCH "ignoring system-key mismatch error: cannot process system key: system not yet seeded"
+  # despite hitting a mismatch the service continued
+  remote.exec "sudo systemctl show early-snap-run.service" | MATCH "status=0"
+
+  remote.exec "sudo systemctl show early-snap-run-proper.service" | MATCH "status=0"
+  remote.exec "sudo journalctl -u early-snap-run-proper.service" | NOMATCH "mismatch"

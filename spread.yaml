@@ -1493,6 +1493,7 @@ suites:
             - google-nested-dev
             - qemu-nested
             - google-nested-arm
+            - garden
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
