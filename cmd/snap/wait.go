@@ -147,9 +147,23 @@ func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 		}
 
 		// progress reporting
+		inDoing := map[string]*client.Task{}
+		for _, t := range chg.Tasks {
+			if t.Status == "Doing" {
+				inDoing[t.ID] = t
+			}
+		}
+
 		for _, t := range chg.Tasks {
 			switch {
 			case t.Status != "Doing" && t.Status != "Wait":
+				continue
+			case t.Kind == "auto-connect" && len(inDoing) > 1:
+				// auto-connect in Doing state, which is often observed during
+				// install or refresh, in this case if the snap has any
+				// prerequisites they will already be in Doing status (most
+				// likely downloading), so skip the current task giving the
+				// other tasks a chance to have their progress reported
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
