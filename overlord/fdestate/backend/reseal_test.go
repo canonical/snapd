@@ -2581,3 +2581,61 @@ func (s *resealTestSuite) TestTPMResealEnsureProvisioned(c *C) {
 	c.Check(resealCalls, Equals, 3)
 	c.Check(provisioned, Equals, 1)
 }
+
+func (s *resealTestSuite) testLoadParametersForBootChains(c *C, method device.SealingMethod) {
+	manager := &fakeState{}
+	bootChains := boot.BootChains{
+		RunModeBootChains:           []boot.BootChain{{}},
+		RecoveryBootChainsForRunKey: []boot.BootChain{{}},
+		RecoveryBootChains:          []boot.BootChain{{}},
+		RoleToBlName:                map[bootloader.Role]string{},
+	}
+
+	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+		return []byte(`"serialized-pcr-profile"`), nil
+	})()
+
+	err := backend.LoadParametersForBootChains(manager, method, s.rootdir, bootChains)
+	c.Assert(err, IsNil)
+
+	if method == device.SealingMethodFDESetupHook {
+		c.Assert(manager.state, HasLen, 3)
+	} else {
+		c.Assert(manager.state, HasLen, 4)
+	}
+
+	if method != device.SealingMethodFDESetupHook {
+		c.Check(manager.state["run|all"].BootModes, DeepEquals, []string{"run"})
+	}
+	c.Check(manager.state["run+recover|all"].BootModes, DeepEquals, []string{"run", "recover"})
+	c.Check(manager.state["recover|system-data"].BootModes, DeepEquals, []string{"recover"})
+	c.Check(manager.state["recover|system-save"].BootModes, DeepEquals, []string{"recover", "factory-reset"})
+
+	for _, params := range manager.state {
+		if method == device.SealingMethodFDESetupHook {
+			c.Check(params.TpmPCRProfile, IsNil)
+		} else {
+			c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+		}
+	}
+}
+
+func (s *resealTestSuite) TestLoadParametersForBootChainsTPM(c *C) {
+	const method = device.SealingMethodTPM
+	s.testLoadParametersForBootChains(c, method)
+}
+
+func (s *resealTestSuite) TestLoadParametersForBootChainsLegacyTPM(c *C) {
+	const method = device.SealingMethodLegacyTPM
+	s.testLoadParametersForBootChains(c, method)
+}
+
+func (s *resealTestSuite) TestLoadParametersForBootChainsFDEHook(c *C) {
+	const method = device.SealingMethodFDESetupHook
+	s.testLoadParametersForBootChains(c, method)
+}
+
+func (s *resealTestSuite) TestLoadParametersForBootChainsBadMethod(c *C) {
+	err := backend.LoadParametersForBootChains(nil, "bad-method", s.rootdir, boot.BootChains{})
+	c.Assert(err, ErrorMatches, `unknown key sealing method: "bad-method"`)
+}

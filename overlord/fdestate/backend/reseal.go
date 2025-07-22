@@ -551,6 +551,32 @@ func updateFallbackProtectionProfile(
 	return nil
 }
 
+// LoadParametersForBootChains loads the sealing parameters into the FDE state.
+func LoadParametersForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, bootChains boot.BootChains) error {
+	switch method {
+	case device.SealingMethodFDESetupHook:
+		inputs := resealInputs{bootChains: bootChains}
+		if err := recalculateParamatersFDEHook(manager, method, rootdir, inputs, resealOptions{}); err != nil {
+			return err
+		}
+	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		pbc := boot.ToPredictableBootChains(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))
+		runOnlyPbc := boot.ToPredictableBootChains(bootChains.RunModeBootChains)
+		if err := updateRunProtectionProfile(manager, runOnlyPbc, pbc, nil, bootChains.RoleToBlName); err != nil {
+			return err
+		}
+
+		rpbc := boot.ToPredictableBootChains(bootChains.RecoveryBootChains)
+		if err := updateFallbackProtectionProfile(manager, rpbc, nil, bootChains.RoleToBlName); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown key sealing method: %q", method)
+	}
+
+	return nil
+}
+
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
 func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
 	return resealKeys(manager, method, rootdir,
