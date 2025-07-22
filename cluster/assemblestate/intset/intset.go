@@ -1,81 +1,81 @@
-package bitset
+package intset
 
 import (
 	"math/bits"
 )
 
-// Bitset represents a set of non-negative integer values. The zero value is
+// IntSet represents a set of non-negative integer values. The zero value is
 // ready for use and represents an empty set.
-type Bitset[T ~int] struct {
+type IntSet[T ~int] struct {
 	words []uint64
 }
 
 // wordAndBit returns the word index (value / 64) and bit offset (value % 64)
 // for the provided value. These indexes are used to lookup our value in the
-// bitset.
+// set.
 func wordAndBit[T ~int](value T) (word T, bit T) {
 	if value < 0 {
-		panic("bitset: negative values not supported")
+		panic("intset: negative values not supported")
 	}
 	return value / 64, value % 64
 }
 
-// Set adds value to the bitset. Set will panic if the value is negative.
-func (b *Bitset[T]) Set(value T) {
+// Add adds value to the set. Add will panic if the value is negative.
+func (is *IntSet[T]) Add(value T) {
 	word, bit := wordAndBit(value)
 
 	// grow the slice if the target word does not yet exist
-	if int(word) >= len(b.words) {
+	if int(word) >= len(is.words) {
 		cp := make([]uint64, word+1)
-		copy(cp, b.words)
-		b.words = cp
+		copy(cp, is.words)
+		is.words = cp
 	}
 
-	b.words[word] |= 1 << bit
+	is.words[word] |= 1 << bit
 }
 
-// Has reports whether value is present in the bitset.
-func (bs *Bitset[T]) Has(value T) bool {
+// Contains returns true if value is present in the set.
+func (is *IntSet[T]) Contains(value T) bool {
 	if value < 0 {
 		return false
 	}
 
 	word, bit := wordAndBit(value)
-	if int(word) >= len(bs.words) {
+	if int(word) >= len(is.words) {
 		return false
 	}
 
-	return bs.words[word]&(1<<bit) != 0
+	return is.words[word]&(1<<bit) != 0
 }
 
-// Clear removes value from the bitset.
-func (b *Bitset[T]) Clear(value T) {
+// Remove removes value from the set.
+func (is *IntSet[T]) Remove(value T) {
 	if value < 0 {
 		return
 	}
 
 	word, bit := wordAndBit(value)
-	if int(word) < len(b.words) {
-		b.words[word] &^= 1 << bit
+	if int(word) < len(is.words) {
+		is.words[word] &^= 1 << bit
 	}
 }
 
-// All returns a slice containing every value currently set.
-func (b *Bitset[T]) All() []T {
-	result := make([]T, 0, b.Count())
-	b.Range(func(value T) bool {
+// All returns a slice containing all values in the set.
+func (is *IntSet[T]) All() []T {
+	result := make([]T, 0, is.Count())
+	is.Range(func(value T) bool {
 		result = append(result, value)
 		return true
 	})
 	return result
 }
 
-// Diff returns a new bitset containing elements that are set in this bitset but
-// not in the given bitset.
-func (b *Bitset[T]) Diff(other *Bitset[T]) *Bitset[T] {
-	diff := make([]uint64, len(b.words))
+// Diff returns a new [IntSet] containing elements that are set in this set but
+// not in the given set.
+func (is *IntSet[T]) Diff(other *IntSet[T]) *IntSet[T] {
+	diff := make([]uint64, len(is.words))
 
-	for i, w := range b.words {
+	for i, w := range is.words {
 		if i < len(other.words) {
 			diff[i] = w &^ other.words[i]
 		} else {
@@ -89,15 +89,15 @@ func (b *Bitset[T]) Diff(other *Bitset[T]) *Bitset[T] {
 		n--
 	}
 
-	return &Bitset[T]{words: diff[:n]}
+	return &IntSet[T]{words: diff[:n]}
 }
 
-// Range calls fn for every value present in the bitset. If fn returns false,
+// Range calls fn for every value present in the set. If fn returns false,
 // iteration stops early.
 //
 // TODO: consider using the new range functionality from go 1.23 once possible
-func (b *Bitset[T]) Range(fn func(value T) bool) {
-	for wi, word := range b.words {
+func (is *IntSet[T]) Range(fn func(value T) bool) {
+	for wi, word := range is.words {
 		for word != 0 {
 			// find the index of the least significant set bit
 			zeroes := bits.TrailingZeros64(word)
@@ -115,18 +115,19 @@ func (b *Bitset[T]) Range(fn func(value T) bool) {
 	}
 }
 
-// Count returns the total number of values contained in the bitset.
-func (b *Bitset[T]) Count() int {
+// Count returns the total number of values contained in the set.
+func (is *IntSet[T]) Count() int {
 	var total int
-	for _, w := range b.words {
+	for _, w := range is.words {
 		total += bits.OnesCount64(w)
 	}
 	return total
 }
 
-// Equals returns true if this bitset and the given bitset are identical.
-func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
-	if b == other {
+// Equal returns true if this set and the given set contain the same set of
+// values.
+func (is *IntSet[T]) Equal(other *IntSet[T]) bool {
+	if is == other {
 		return true
 	}
 
@@ -134,10 +135,10 @@ func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
 	// length of words is not the same. one of the sets might have a value in
 	// words that once contained something but has been cleared. this could
 	// result in an empty word, which is the same as a non-existent word.
-	for i := 0; i < max(len(b.words), len(other.words)); i++ {
+	for i := 0; i < max(len(is.words), len(other.words)); i++ {
 		var word uint64
-		if i < len(b.words) {
-			word = b.words[i]
+		if i < len(is.words) {
+			word = is.words[i]
 		}
 
 		var otherWord uint64
@@ -149,6 +150,7 @@ func (b *Bitset[T]) Equals(other *Bitset[T]) bool {
 			return false
 		}
 	}
+
 	return true
 }
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/cluster/assemblestate/bimap"
-	"github.com/snapcore/snapd/cluster/assemblestate/bitset"
+	"github.com/snapcore/snapd/cluster/assemblestate/intset"
 	"github.com/snapcore/snapd/randutil"
 )
 
@@ -79,7 +79,7 @@ type PrioritySelector struct {
 	// knownByPeers keeps track which routes each peer knows about. A route is
 	// considered known by a peer if either they have sent it to us, or we've
 	// sent it to them.
-	knownByPeers map[peerID]*bitset.Bitset[edgeID]
+	knownByPeers map[peerID]*intset.IntSet[edgeID]
 
 	// edgeSources keeps track of how many unique peers we've seen an edge from
 	// and sent an edge to. This helps us prioritize which routes to send to our
@@ -89,7 +89,7 @@ type PrioritySelector struct {
 	// verifiedEdges keeps track of which edges are safe to publish. These routes
 	// only include RDTs for devices that are reported as identified by our
 	// caller.
-	verifiedEdges *bitset.Bitset[edgeID]
+	verifiedEdges *intset.IntSet[edgeID]
 
 	// authoritative keeps track of the set of edges from this local node to
 	// each other peer. Each of these can be safely sent to the destination node
@@ -113,8 +113,8 @@ func NewPrioritySelector(
 		rdts:          bimap.New[DeviceToken, peerID](),
 		edges:         bimap.New[edge, edgeID](),
 		addresses:     bimap.New[string, addrID](),
-		verifiedEdges: &bitset.Bitset[edgeID]{},
-		knownByPeers:  make(map[peerID]*bitset.Bitset[edgeID]),
+		verifiedEdges: &intset.IntSet[edgeID]{},
+		knownByPeers:  make(map[peerID]*intset.IntSet[edgeID]),
 		edgeSources:   make(map[edgeID]int),
 		authoritative: make(map[DeviceToken]edgeID),
 	}
@@ -143,7 +143,7 @@ func (p *PrioritySelector) peerID(rdt DeviceToken) peerID {
 	}
 
 	pid := p.rdts.Add(rdt)
-	p.knownByPeers[pid] = &bitset.Bitset[edgeID]{}
+	p.knownByPeers[pid] = &intset.IntSet[edgeID]{}
 
 	return pid
 }
@@ -219,19 +219,19 @@ func (p *PrioritySelector) RecordRoutes(source DeviceToken, r Routes) (added int
 
 		// if we aren't aware that this peer knows about this route already,
 		// increment our counter of sources for that edge
-		if !p.knownByPeers[pid].Has(eid) {
+		if !p.knownByPeers[pid].Contains(eid) {
 			p.edgeSources[eid]++
 		}
 
 		// record that the peer who sent this Routes message knows about this
 		// edge
-		p.knownByPeers[pid].Set(eid)
+		p.knownByPeers[pid].Add(eid)
 
 		// if we have the identities of both the from and to devices, then we
 		// know can verify this route. verified routes can published to our
 		// peers.
 		if p.identified(fromRDT) && p.identified(toRDT) {
-			p.verifiedEdges.Set(eid)
+			p.verifiedEdges.Add(eid)
 		}
 	}
 
@@ -246,7 +246,7 @@ func (p *PrioritySelector) VerifyRoutes() {
 		toRDT := p.rdts.Value(edge.to)
 
 		if p.identified(fromRDT) && p.identified(toRDT) {
-			p.verifiedEdges.Set(edgeID(eid))
+			p.verifiedEdges.Add(edgeID(eid))
 		}
 	}
 }
@@ -288,7 +288,7 @@ func (p *PrioritySelector) Select(to DeviceToken, n int) (routes Routes, ack fun
 	edgesToSend = edgesToSend[:min(len(edgesToSend), n)]
 
 	// if we have an authoritative route for this peer, make sure to include it
-	if eid, ok := p.authoritative[to]; ok && !peerKnown.Has(eid) {
+	if eid, ok := p.authoritative[to]; ok && !peerKnown.Contains(eid) {
 		edgesToSend = append(edgesToSend, eid)
 	}
 
@@ -304,8 +304,8 @@ func (p *PrioritySelector) Select(to DeviceToken, n int) (routes Routes, ack fun
 			// the peer might know about the route already since selection time.
 			// if that has happened, then we don't want to double count that
 			// peer as a source.
-			if !peerKnown.Has(eid) {
-				peerKnown.Set(eid)
+			if !peerKnown.Contains(eid) {
+				peerKnown.Add(eid)
 				p.edgeSources[eid]++
 			}
 		}
