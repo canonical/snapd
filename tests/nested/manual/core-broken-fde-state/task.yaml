@@ -32,7 +32,7 @@ execute: |
 
     remote.exec "sudo systemctl stop snapd.socket snapd.service"
 
-    remote.exec "journalctl -u snapd.service" >snapd.before.log
+    remote.exec "sudo journalctl -u snapd.service" >snapd.before.log
     NOMATCH "WARNING: primary key is not matching the FDE state" <snapd.before.log
     NOMATCH "WARNING: policy counter handle is not matching the FDE state" <snapd.before.log
 

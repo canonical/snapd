@@ -215,7 +215,7 @@ func (m *unlockedStateManager) Get(role string, containerRole string) (parameter
 	}, primaryKeyID, policyCounterHandle, nil
 }
 
-func (m *unlockedStateManager) 	VerifyPrimaryKey(primaryKeyID int, primaryKey []byte) bool {
+func (m *unlockedStateManager) VerifyPrimaryKey(primaryKeyID int, primaryKey []byte) bool {
 	var s FdeState
 	if err := m.state.Get(fdeStateKey, &s); err != nil {
 		return false
@@ -228,7 +228,7 @@ func (m *unlockedStateManager) 	VerifyPrimaryKey(primaryKeyID int, primaryKey []
 
 	h := hmac.New(crypto.Hash(primaryKeyInfo.Digest.Algorithm).New, primaryKeyInfo.Digest.Salt[:])
 	h.Write(primaryKey)
-	return !hmac.Equal(h.Sum(nil), primaryKeyInfo.Digest.Digest)
+	return hmac.Equal(h.Sum(nil), primaryKeyInfo.Digest.Digest)
 }
 
 func (m *unlockedStateManager) Unlock() (relock func()) {

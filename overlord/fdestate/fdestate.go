@@ -286,30 +286,6 @@ func (s *FdeState) updateParameters(role string, containerRole string, bootModes
 		return fmt.Errorf("cannot find keyslot role %s", role)
 	}
 
-	/*
-	if roleInfo.TPM2PCRPolicyRevocationCounter == 0 {
-		if policyCounter != 0 {
-			roleInfo.TPM2PCRPolicyRevocationCounter = policyCounter
-		}
-	} else {
-		if policyCounter != 0 && policyCounter != roleInfo.TPM2PCRPolicyRevocationCounter {
-			logger.Noticef("WARNING: policy counter in FDE state is %08x, but new parameters expect %08x", roleInfo.TPM2PCRPolicyRevocationCounter, policyCounter)
-			roleInfo.TPM2PCRPolicyRevocationCounter = policyCounter
-		}
-	}
-
-	primaryKeyInfo, hasPrimaryKeyInfo := s.PrimaryKeys[roleInfo.PrimaryKeyID]
-	if !hasPrimaryKeyInfo {
-		logger.Noticef("WARNING: primary key info not found")
-	} else if primaryKey != nil {
-		h := hmac.New(crypto.Hash(primaryKeyInfo.Algorithm).New, primaryKeyInfo.Digest.Salt[:])
-		h.Write(primaryKey)
-		if !hmac.Equal(h.Sum(nil), primaryKeyInfo.Digest.Digest) {
-			logger.Noticef("WARNING: the primary key used for resealing is not matching the FDE state")
-		}
-	}
-	*/
-
 	var convertedModels []*Model
 	for _, model := range models {
 		convertedModels = append(convertedModels, newModel(model))
