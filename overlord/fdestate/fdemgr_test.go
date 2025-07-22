@@ -587,13 +587,17 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	var fdeSt fdestate.FdeState
 	err := st.Get("fde", &fdeSt)
 	c.Assert(err, IsNil)
-	fdeSt.KeyslotRoles["run"].PrimaryKeyID = 1
-	fdeSt.KeyslotRoles["run"].TPM2PCRPolicyRevocationCounter = 2
-	fdeSt.KeyslotRoles["recover"].PrimaryKeyID = 3
-	fdeSt.KeyslotRoles["recover"].TPM2PCRPolicyRevocationCounter = 4
-	s.st.Set("fde", fdestate.FdeState{})
+	runRole := fdeSt.KeyslotRoles["run"]
+	runRole.PrimaryKeyID = 1
+	runRole.TPM2PCRPolicyRevocationCounter = 2
+	fdeSt.KeyslotRoles["run"] = runRole
+	recoverRole := fdeSt.KeyslotRoles["recover"]
+	recoverRole.PrimaryKeyID = 3
+	recoverRole.TPM2PCRPolicyRevocationCounter = 4
+	fdeSt.KeyslotRoles["recover"] = recoverRole
+	s.st.Set("fde", fdeSt)
 
-	err := manager.UpdateParameters("recover", "something", []string{"recover"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover`))
+	err = manager.UpdateParameters("recover", "something", []string{"recover"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover`))
 	c.Assert(err, IsNil)
 	err = manager.UpdateParameters("recover", "all", []string{"recover-all"}, models, secboot.SerializedPCRProfile(`serialized-profile-recover-all`))
 	c.Assert(err, IsNil)
@@ -609,7 +613,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	c.Check(foundModels[1].Model(), Equals, "other")
 	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover`))
 	c.Check(primaryKey, Equals, 3)
-	c.Check(policyCounterHandle, Equals, 4)
+	c.Check(policyCounterHandle, Equals, uint32(4))
 
 	hasParameters, foundRunModes, foundModels, foundPCRProfile, primaryKey, policyCounterHandle, err = manager.GetParameters("recover", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
@@ -620,7 +624,7 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	c.Check(foundModels[1].Model(), Equals, "other")
 	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-recover-all`))
 	c.Check(primaryKey, Equals, 3)
-	c.Check(policyCounterHandle, Equals, 4)
+	c.Check(policyCounterHandle, Equals, uint32(4))
 
 	hasParameters, foundRunModes, foundModels, foundPCRProfile, primaryKey, policyCounterHandle, err = manager.GetParameters("run", "something")
 	c.Assert(err, IsNil)
@@ -631,13 +635,13 @@ func (s *fdeMgrSuite) TestGetParameters(c *C) {
 	c.Check(foundModels[1].Model(), Equals, "other")
 	c.Check(foundPCRProfile, DeepEquals, []byte(`serialized-profile-run`))
 	c.Check(primaryKey, Equals, 1)
-	c.Check(policyCounterHandle, Equals, 2)
+	c.Check(policyCounterHandle, Equals, uint32(2))
 
 	hasParameters, _, _, _, primaryKey, policyCounterHandle, err = manager.GetParameters("run", "something-that-is-not-specific")
 	c.Assert(err, IsNil)
 	c.Check(hasParameters, Equals, false)
 	c.Check(primaryKey, Equals, 1)
-	c.Check(policyCounterHandle, Equals, 2)
+	c.Check(policyCounterHandle, Equals, uint32(2))
 }
 
 func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
