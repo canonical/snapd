@@ -652,6 +652,9 @@ func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return nil
 }
 
+// PCRPolicyCounterHandles returns the set of handles used by keys
+// in the UpdatedKeys. Handles will appear only once, even if
+// multiple keys use the the same.
 func (uk *UpdatedKeys) PCRPolicyCounterHandles() []uint32 {
 	ret := make(map[uint32]bool)
 	for _, key := range *uk {
