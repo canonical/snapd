@@ -72,10 +72,6 @@ func NewOpteeKeyProtector() KeyProtector {
 	return &placeholderKeyProtector{}
 }
 
-func ResealKeys(params *ResealKeysParams) error {
-	return errBuildWithoutSecboot
-}
-
 func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
 	return nil, errBuildWithoutSecboot
 }
