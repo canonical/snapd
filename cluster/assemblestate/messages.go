@@ -37,13 +37,12 @@ type (
 // Auth is a top-level message used in the assemble protocol. This message is
 // used prior to any other communications to prove knowledge of a shared secret.
 type Auth struct {
-	// HMAC is the sha512 of the byte representation of the following values, in
-	// this order:
-	//   - The shared assembly session secret
-	//   - The fingerprint of the TLS certificate that is being used by this
-	//     device.
-	//   - The RDT of the device sending this message. Should match the RDT
-	//     field.
+	// HMAC is calculated using sha512, using the shared assembly session secret
+	// as the HMAC key. The hash is applied to the concatenated byte
+	// representation of the following values:
+	//   1. The fingerprint of the TLS certificate presented by this message's
+	//      sender
+	//   2. The device’s RDT value (must match the RDT field)
 	// Failure to match this pattern will result in authentication being denied.
 	HMAC []byte `json:"hmac"`
 
