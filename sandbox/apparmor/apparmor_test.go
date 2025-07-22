@@ -136,6 +136,7 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
 		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
 		// 4.0 was preferred.
 		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/4.0"),
+		"-O", "diff-encode",
 	})
 	c.Check(internal, Equals, true)
 }

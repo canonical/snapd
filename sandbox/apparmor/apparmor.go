@@ -919,9 +919,11 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			abiFile := ""
 			fi40, err40 := os.Lstat(snapdAbi40File)
 			fi30, err30 := os.Lstat(snapdAbi30File)
+			diffEncode := false
 			switch {
 			case err40 == nil && !fi40.IsDir():
 				abiFile = snapdAbi40File
+				diffEncode = true
 			case err30 == nil && !fi30.IsDir():
 				abiFile = snapdAbi30File
 			default:
@@ -932,6 +934,10 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 				"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
 				"--base", filepath.Join(prefix, "/apparmor.d"),
 				"--policy-features", abiFile,
+			}
+
+			if diffEncode {
+				args = append(args, "-O", "diff-encode")
 			}
 
 			return exec.Command(path, args...), true, nil
