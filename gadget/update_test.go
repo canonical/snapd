@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 
@@ -5669,7 +5670,16 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20MultiVolumeNonMo
 	c.Assert(mockLogBuf.String(), testutil.Contains, "structure 2 on volume foo (/dev/vdb2) is not mounted read/write anywhere to be able to update it")
 }
 
+func (s *updateTestSuite) mockEMMCDeviceNodes(c *C) {
+	c.Assert(os.Mkdir(path.Join(dirs.GlobalRootDir, "dev"), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot0"), []byte(``), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0boot1"), []byte(``), 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(dirs.GlobalRootDir, "dev", "mmcblk0rpmb"), []byte(``), 0755), IsNil)
+}
+
 func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
+	s.mockEMMCDeviceNodes(c)
+
 	traits := map[string]gadget.DiskVolumeDeviceTraits{
 		"pc":      gadgettest.VMSystemVolumeDeviceTraits,
 		"my-emmc": gadgettest.VMEmmcVolumeDeviceTraits,
@@ -5727,13 +5737,15 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMC(c *C) {
 }
 
 func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedName(c *C) {
+	s.mockEMMCDeviceNodes(c)
+
 	traits := map[string]gadget.DiskVolumeDeviceTraits{
 		"my-emmc": {
 			OriginalKernelPath: "/dev/mmcblk0",
 			DiskID:             "86964016-3b5c-477e-9828-24ba9c552d39",
 			Size:               5120 * quantity.SizeMiB,
 			SectorSize:         quantity.Size(512),
-			Schema:             "emmc",
+			Schema:             "mbr",
 			Structure: []gadget.DiskStructureDeviceTraits{
 				{
 					OriginalKernelPath: "/dev/mmcblk0rpmb",
@@ -5752,8 +5764,9 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedN
 			DiskUsableSectorEnd: 5120 * uint64(quantity.SizeMiB) / 512,
 			DiskSizeInBytes:     5120 * uint64(quantity.SizeMiB),
 			SectorSizeBytes:     512,
-			DiskSchema:          "emmc",
-			ID:                  "86964016-3b5c-477e-9828-24ba9c552d39",
+			// Make the disk schema realistic, must be either mbr or gpt
+			DiskSchema: "mbr",
+			ID:         "86964016-3b5c-477e-9828-24ba9c552d39",
 			Structure: []disks.Partition{
 				{
 					PartitionLabel:   "rpmb",
@@ -5766,6 +5779,17 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedN
 					SizeInBytes:      uint64(quantity.SizeMiB),
 				},
 			},
+		},
+		// Mock the RPMB without any structures
+		"/dev/mmcblk0rpmb": {
+			DevNode:             "/dev/mmcblk0rpmb",
+			DevPath:             "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/mmcblk0rpmb",
+			DevNum:              "525:1",
+			DiskUsableSectorEnd: 4 * uint64(quantity.SizeMiB) / 512,
+			DiskSizeInBytes:     4 * uint64(quantity.SizeMiB),
+			SectorSizeBytes:     512,
+			DiskSchema:          "emmc",
+			ID:                  "86964016-3b5c-477e-9828-24ba9c552d39",
 		},
 	}
 
