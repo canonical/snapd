@@ -350,29 +350,26 @@ func (p *PrioritySelector) Routes() Routes {
 	// here we build a slice of devices and address that are used in the routes.
 	// we want the slices to be sorted for output consistency, so we also build
 	// a mapping of values to indexes in these slices. this first pass just
-	// fills the maps with placeholders (-1) until we can actually assign those
-	// values after sorting.
+	// fills the maps with placeholders (-1) to track seen values, later we
+	// actually assign indexes to the values after sorting.
 	for _, eid := range eids {
 		edge := p.edges.Value(eid)
 
 		to := string(p.rdts.Value(edge.to))
 		if _, ok := devIndexes[to]; !ok {
 			devs = append(devs, to)
-
 			devIndexes[to] = -1
 		}
 
 		from := string(p.rdts.Value(edge.from))
 		if _, ok := devIndexes[from]; !ok {
 			devs = append(devs, from)
-
 			devIndexes[from] = -1
 		}
 
 		via := p.addresses.Value(edge.via)
 		if _, ok := addrIndexes[via]; !ok {
 			addrs = append(addrs, via)
-
 			addrIndexes[via] = -1
 		}
 	}
