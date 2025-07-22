@@ -5,14 +5,18 @@ details: |
 
 systems: [ubuntu-*]
 
-kill-timeout: 90m
+kill-timeout: 100m
 
 prepare: |
     # make sure snapd snap is refreshed
+    if [ -z "$(command -v snap)" ]; then
+        apt update
+        apt install -y snapd
+    fi
     snap refresh
     snap install --channel="${SNAPCRAFT_SNAP_CHANNEL}" snapcraft --classic
 
 execute: |  
     cd "$PROJECT_PATH"
-    snapcraft --verbose --destructive-mode | tee snapcraft.log
-    MATCH "Created snap package snapd_*" < snapcraft.log
+    snapcraft --verbose --destructive-mode
+    test -f snapd_*.snap

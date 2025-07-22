@@ -64,11 +64,11 @@ prepare: |
   cloud-localds "$CLOUD_INIT_ISO" user-data meta-data
 
   # Calculate the amount of memory and cpus to use
-  processors="$(echo $(( $(grep -c ^processor /proc/cpuinfo) / 2 )))"
+  processors="$(echo $(( $(grep -c ^processor /proc/cpuinfo) - 1 )))"
   memory="$(echo $(( $(free -m | awk '/^Mem:/ { print $2 }') / 2 )))"
 
   # Create the nested vm service
-  tests.systemd create-and-start-unit "$SERVICE_NAME" "qemu-system-arm \
+  tests.systemd create-and-start-unit "$SERVICE_NAME" "qemu-system-aarch64 \
     -M virt \
     -cpu cortex-a15 \
     -smp $processors \
@@ -77,6 +77,7 @@ prepare: |
     -snapshot \
     -kernel $KERNEL_FILE \
     -initrd $INITRD_FILE \
+    -accel tcg,thread=multi \
     -append 'root=/dev/vda1 console=ttyAMA0 modprobe.blacklist=*' \
     -drive file=$IMAGE_FILE_RAW,format=raw,if=none,id=hd0 \
     -device virtio-blk-device,drive=hd0 \
@@ -113,5 +114,5 @@ execute: |
       set -o pipefail
       # shellcheck disable=SC2086
       cd "$PROJECT_PATH"
-      "$SPREAD" $RUN_TESTS | tee spread.log
+      "$SPREAD" -no-debug-output $RUN_TESTS | tee spread.log
   )
