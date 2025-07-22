@@ -81,6 +81,8 @@ var (
 
 	sbUpdateKeyDataPCRProtectionPolicy = sb_tpm2.UpdateKeyDataPCRProtectionPolicy
 
+	sbPCRPolicyCounterHandle = (*sb_tpm2.SealedKeyData).PCRPolicyCounterHandle
+
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
@@ -658,7 +660,7 @@ func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 func (uk *UpdatedKeys) PCRPolicyCounterHandles() []uint32 {
 	ret := make(map[uint32]bool)
 	for _, key := range *uk {
-		ret[uint32(key.Unwrap().PCRPolicyCounterHandle())] = true
+		ret[uint32(sbPCRPolicyCounterHandle(key.Unwrap()))] = true
 	}
 
 	var rawRet []uint32
