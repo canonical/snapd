@@ -162,10 +162,10 @@ const (
 	// ErrorKindInterfacesRequestsInvalidFields: POST body to prompting API contains invalid fields.
 	ErrorKindInterfacesRequestsInvalidFields ErrorKind = "interfaces-requests-invalid-fields"
 
-	// ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions: patched rule has no permission
+	// ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions: patched rule has no permission.
 	ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions ErrorKind = "interfaces-requests-patched-rule-has-no-permissions"
 
-	// ErrorKindInterfacesRequestsNewSessionRuleNoSession: cannot create a rule with lifespan "session" when the user session is not present
+	// ErrorKindInterfacesRequestsNewSessionRuleNoSession: cannot create a rule with lifespan "session" when the user session is not present.
 	ErrorKindInterfacesRequestsNewSessionRuleNoSession ErrorKind = "interfaces-requests-new-session-rule-no-session"
 
 	// ErrorKindInterfacesRequestsReplyNotMatchRequest: the prompt reply does not match the path and/or permissions which were requested.
@@ -174,7 +174,7 @@ const (
 	// ErrorKindInterfacesRequestsRuleConflict: a rule with conflicting path pattern and permissions already exists.
 	ErrorKindInterfacesRequestsRuleConflict ErrorKind = "interfaces-requests-rule-conflict"
 
-	// ErrorKindMissingSnapResourcePair: cannot find a snap-resource-pair when attempting to sideload a component
+	// ErrorKindMissingSnapResourcePair: cannot find a snap-resource-pair when attempting to sideload a component.
 	ErrorKindMissingSnapResourcePair ErrorKind = "missing-snap-resource-pair"
 
 	// ErrorKindInvalidPassphrase: passphrase is invalid and/or does not pass quality checks.
@@ -183,11 +183,10 @@ const (
 	// ErrorKindInvalidPIN: PIN is invalid and/or does not pass quality checks.
 	ErrorKindInvalidPIN ErrorKind = "invalid-pin"
 
-	// ErrorKindUnsupported: target system does not support corresponding feature (e.g. client.StorageEncryptionFeaturePassphraseAuth)
+	// ErrorKindUnsupportedByTargetSystem: target system does not support corresponding feature (e.g. client.StorageEncryptionFeaturePassphraseAuth).
 	ErrorKindUnsupportedByTargetSystem ErrorKind = "unsupported"
 
-	// ErrorKindSystemKeyVersionUnsupported: snapd does not support the system
-	// key version sent by the client
+	// ErrorKindSystemKeyVersionUnsupported: snapd does not support the system key version sent by the client.
 	ErrorKindSystemKeyVersionUnsupported ErrorKind = "unsupported-system-key-version"
 )
 
