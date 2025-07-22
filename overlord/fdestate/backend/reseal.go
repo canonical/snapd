@@ -376,7 +376,7 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 	return nil
 }
 
-func anyClassicModel(params... *secboot.SealKeyModelParams) bool {
+func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
 	for _, m := range params {
 		if m.Model.Classic() {
 			return true
