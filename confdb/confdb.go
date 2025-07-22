@@ -456,12 +456,13 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 // If the validation succeeds, it returns lists of typed representations of each
 // path.
 func validateRequestStoragePair(request, storage string) (reqAccessors []accessor, storageAccessors []accessor, err error) {
-	opts := validationOptions{pathType: viewPath}
+	opts := parseOpts{pathType: viewPath, forbidIndexes: true}
 	reqAccessors, err = parsePathIntoAccessors(request, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
+	opts.forbidIndexes = false
 	storageAccessors, err = parsePathIntoAccessors(storage, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
@@ -546,8 +547,10 @@ const (
 	userPath
 )
 
-type validationOptions struct {
-	pathType pathType
+type parseOpts struct {
+	pathType         pathType
+	forbidIndexes    bool
+	allowPartialPath bool
 }
 
 // parsePathIntoAccessors validates that the path is composed of (some of these
@@ -561,12 +564,12 @@ type validationOptions struct {
 //
 // If the validation succeeds, it returns an []accessor which contains typed
 // representations of each type of subkey (e.g., key placeholder, index, etc).
-func parsePathIntoAccessors(path string, opts validationOptions) ([]accessor, error) {
+func parsePathIntoAccessors(path string, opts parseOpts) ([]accessor, error) {
 	if path == "" {
 		return nil, nil
 	}
 
-	subkeys, err := splitViewPath(path)
+	subkeys, err := splitViewPath(path, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +585,9 @@ func parsePathIntoAccessors(path string, opts validationOptions) ([]accessor, er
 		case isKey:
 			accessors = append(accessors, key(subkey))
 		case isIndex:
+			if opts.forbidIndexes {
+				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
+			}
 			accessors = append(accessors, index(subkey[1:len(subkey)-1]))
 
 		case opts.pathType == userPath:
@@ -626,12 +632,17 @@ type accessor interface {
 	keyType() keyType
 }
 
-func splitViewPath(path string) ([]string, error) {
+func splitViewPath(path string, opts parseOpts) ([]string, error) {
 	var subkeys []string
 	sb := &strings.Builder{}
 
 	finishSubkey := func() error {
 		if sb.Len() == 0 {
+			if len(subkeys) == 0 && opts.allowPartialPath {
+				// we may be parsing a suffix of a path 'foo[2].bar' so allow a path to
+				// start with a separator '[2].bar'
+				return nil
+			}
 			return errors.New("cannot have empty subkeys")
 		}
 		subkeys = append(subkeys, sb.String())
@@ -655,9 +666,7 @@ func splitViewPath(path string) ([]string, error) {
 			fallthrough
 
 		default:
-			if _, err := sb.WriteRune(c); err != nil {
-				return nil, err
-			}
+			sb.WriteRune(c)
 		}
 	}
 
@@ -766,7 +775,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		return badRequestErrorFrom(v, "set", request, "")
 	}
 
-	opts := validationOptions{pathType: userPath}
+	opts := parseOpts{pathType: userPath}
 	accessors, err := parsePathIntoAccessors(request, opts)
 	if err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
@@ -823,6 +832,12 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
+	// sort again since we may have unpacked a list into many expanded matches.
+	// Since list Set()s depend on the length of the existing list, the order matters
+	sort.Slice(expandedMatches, func(x, y int) bool {
+		return expandedMatches[x].storagePath < expandedMatches[y].storagePath
+	})
+
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
@@ -845,7 +860,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 }
 
 func (v *View) Unset(databag Databag, request string) error {
-	opts := validationOptions{pathType: userPath}
+	opts := parseOpts{pathType: userPath}
 	accessors, err := parsePathIntoAccessors(request, opts)
 	if err != nil {
 		return badRequestErrorFrom(v, "unset", request, err.Error())
@@ -915,7 +930,7 @@ func checkSchemaMismatch(schema DatabagSchema, rules []*viewRule) error {
 out:
 	for _, rule := range rules {
 		path := rule.originalStorage
-		pathParts, err := splitViewPath(path)
+		pathParts, err := splitViewPath(path, parseOpts{})
 		if err != nil {
 			return err
 		}
@@ -1002,66 +1017,103 @@ func schemaTypesStr(types []SchemaType) string {
 var getValuesThroughPaths = getValuesThroughPathsImpl
 
 func getValuesThroughPathsImpl(storagePath string, unmatchedSuffix []accessor, val any) (map[string]any, error) {
-	// use the non-placeholder parts of the suffix to find the value to write
-	var placeIndex int
-	for _, part := range unmatchedSuffix {
-		if part.keyType() == keyPlaceholderType {
-			// there is a placeholder, we have to consider potentially many candidates
-			break
-		}
+	for unmatchedIndex, unmatchedPart := range unmatchedSuffix {
+		switch unmatchedPart.keyType() {
+		case keyPlaceholderType:
+			mapVal, ok := val.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
+			}
 
-		mapVal, ok := val.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
-		}
+			storagePathsToValues := make(map[string]any)
+			// suffix has an unmatched placeholder, try all possible values to fill it and
+			// find the corresponding nested value.
+			for cand, candVal := range mapVal {
+				newStoragePath, err := replaceIn(storagePath, unmatchedPart.access(), cand)
+				if err != nil {
+					return nil, err
+				}
 
-		val, ok = mapVal[part.name()]
-		if !ok {
-			return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, part, mapVal)
-		}
+				pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], candVal)
+				if err != nil {
+					return nil, err
+				}
 
-		placeIndex++
+				for path, val := range pathsToValues {
+					storagePathsToValues[path] = val
+				}
+			}
+			return storagePathsToValues, nil
+
+		case mapKeyType:
+			// use the non-placeholder parts of the suffix to find the value to write
+			mapVal, ok := val.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
+			}
+
+			val, ok = mapVal[unmatchedPart.name()]
+			if !ok {
+				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart, mapVal)
+			}
+
+		case indexPlaceholderType:
+			list, ok := val.([]any)
+			if !ok {
+				return nil, fmt.Errorf(`expected list for unmatched request parts but got %T`, val)
+			}
+
+			// TODO: can this be optimised? Maybe by changing the databag logic to be more
+			// match-aware instead of using these values to expand the matches?
+			storagePathsToValues := make(map[string]any)
+			for i, el := range list {
+				newStoragePath, err := replaceIn(storagePath, unmatchedPart.access(), "["+strconv.Itoa(i)+"]")
+				if err != nil {
+					return nil, err
+				}
+
+				pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], el)
+				if err != nil {
+					return nil, err
+				}
+
+				for path, val := range pathsToValues {
+					storagePathsToValues[path] = val
+				}
+
+				storagePathsToValues[newStoragePath] = el
+			}
+			return storagePathsToValues, nil
+
+		case listIndexType:
+			// we don't allow literal indexes in request paths and check this early
+			// so shouldn't be possible to hit this
+			return nil, fmt.Errorf("internal error: unexpected index %q in unmatched suffix", unmatchedPart)
+		}
 	}
 
 	// we reached the end of the suffix (there are no unmatched placeholders) so
 	// we have the full storage path and final value
-	if placeIndex == len(unmatchedSuffix) {
-		return map[string]any{storagePath: val}, nil
-	}
-
-	mapVal, ok := val.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
-	}
-
-	storagePathsToValues := make(map[string]any)
-	// suffix has an unmatched placeholder, try all possible values to fill it and
-	// find the corresponding nested value.
-	for cand, candVal := range mapVal {
-		newStoragePath := replaceIn(storagePath, unmatchedSuffix[placeIndex].access(), cand)
-		pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[placeIndex+1:], candVal)
-		if err != nil {
-			return nil, err
-		}
-
-		for path, val := range pathsToValues {
-			storagePathsToValues[path] = val
-		}
-	}
-
-	return storagePathsToValues, nil
+	return map[string]any{storagePath: val}, nil
 }
 
-func replaceIn(path, key, value string) string {
-	// TODO: the PR adding list support to Get() will adapt this to indexes
-	parts := strings.Split(path, ".")
+func replaceIn(path, key, value string) (string, error) {
+	opts := parseOpts{
+		pathType:         viewPath,
+		allowPartialPath: true,
+	}
+	parts, err := splitViewPath(path, opts)
+	if err != nil {
+		return "", err
+	}
+
 	for i, part := range parts {
 		if part == key {
 			parts[i] = value
 		}
 	}
 
-	return strings.Join(parts, ".")
+	return joinPathParts(parts), nil
 }
 
 // checkForUnusedBranches checks that the value is entirely covered by the paths.
@@ -1071,9 +1123,15 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 	copyValue := deepCopy(value)
 	for path := range paths {
 		var err error
-		var pathParts []string
+		var pathParts []accessor
+
 		if path != "" {
-			pathParts, err = splitViewPath(path)
+			opts := parseOpts{
+				pathType:         viewPath,
+				allowPartialPath: true,
+			}
+
+			pathParts, err = parsePathIntoAccessors(path, opts)
 			if err != nil {
 				return err
 			}
@@ -1090,21 +1148,7 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 		return nil
 	}
 
-	var parts []string
-	for copyValue != nil {
-		mapVal, ok := copyValue.(map[string]any)
-		if !ok {
-			break
-		}
-
-		for k, v := range mapVal {
-			parts = append(parts, k)
-			copyValue = v
-			break
-		}
-	}
-
-	return fmt.Errorf("value contains unused data under %q", strings.Join(parts, "."))
+	return fmt.Errorf("value contains unused data: %v", copyValue)
 }
 
 // deepCopy returns a deep copy of the value. Only supports the types that the
@@ -1130,20 +1174,21 @@ func deepCopy(value any) any {
 	}
 }
 
-func prunePathInValue(parts []string, val any) (any, error) {
+func prunePathInValue(parts []accessor, val any) (any, error) {
 	if len(parts) == 0 {
 		return nil, nil
 	} else if val == nil {
 		return nil, nil
 	}
 
-	mapVal, ok := val.(map[string]any)
-	if !ok {
-		// shouldn't happen since we already checked this
-		return nil, fmt.Errorf(`expected map but got %T`, val)
-	}
+	switch parts[0].keyType() {
+	case keyPlaceholderType:
+		mapVal, ok := val.(map[string]any)
+		if !ok {
+			// shouldn't happen since we already checked this
+			return nil, fmt.Errorf(`internal error: expected map but got %T`, val)
+		}
 
-	if isPlaceholder(parts[0]) {
 		nested := make(map[string]any)
 		for k, v := range mapVal {
 			newVal, err := prunePathInValue(parts[1:], v)
@@ -1161,30 +1206,69 @@ func prunePathInValue(parts []string, val any) (any, error) {
 		}
 
 		return nested, nil
-	}
 
-	nested, ok := mapVal[parts[0]]
-	if !ok {
-		// shouldn't happen since we already checked this
-		return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, parts[0], nested)
-	}
+	case indexPlaceholderType:
+		list, ok := val.([]any)
+		if !ok {
+			// shouldn't happen since we already checked this
+			return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
+		}
 
-	newValue, err := prunePathInValue(parts[1:], nested)
-	if err != nil {
-		return nil, err
-	}
+		nested := make([]any, 0, len(list))
+		for _, v := range list {
+			newVal, err := prunePathInValue(parts[1:], v)
+			if err != nil {
+				return nil, err
+			}
 
-	if newValue == nil {
-		delete(mapVal, parts[0])
-	} else {
-		mapVal[parts[0]] = newValue
-	}
+			if newVal != nil {
+				nested = append(nested, newVal)
+			}
+		}
 
-	if len(mapVal) == 0 {
-		return nil, nil
-	}
+		if len(nested) == 0 {
+			return nil, nil
+		}
 
-	return mapVal, nil
+		return nested, nil
+
+	case mapKeyType:
+		mapVal, ok := val.(map[string]any)
+		if !ok {
+			// shouldn't happen since we already checked this
+			return nil, fmt.Errorf(`internal error: expected map but got %T`, val)
+		}
+
+		nested, ok := mapVal[parts[0].name()]
+		if !ok {
+			// shouldn't happen since we already checked this
+			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0], mapVal)
+		}
+
+		newValue, err := prunePathInValue(parts[1:], nested)
+		if err != nil {
+			return nil, err
+		}
+
+		if newValue == nil {
+			delete(mapVal, parts[0].name())
+		} else {
+			mapVal[parts[0].name()] = newValue
+		}
+
+		if len(mapVal) == 0 {
+			return nil, nil
+		}
+		return mapVal, nil
+
+	case listIndexType:
+		// we don't allow literal indexes in request paths and check this early
+		// so shouldn't be possible to hit this
+		return nil, fmt.Errorf("internal error: unexpected index %q in request path", parts[0])
+
+	default:
+		return nil, fmt.Errorf("internal error: unknown key type %d", parts[0].keyType())
+	}
 }
 
 // namespaceResult creates a nested namespace around the result that corresponds
@@ -1234,13 +1318,21 @@ func namespaceResult(res any, unmatchedSuffix []accessor) (any, error) {
 
 		return list, nil
 
-	default:
+	case mapKeyType:
 		nested, err := namespaceResult(res, unmatchedSuffix[1:])
 		if err != nil {
 			return nil, err
 		}
 
 		return map[string]any{part.name(): nested}, nil
+
+	case listIndexType:
+		// we don't allow literal indexes in request paths and check this early
+		// so shouldn't be possible to hit this
+		return nil, fmt.Errorf("internal error: unexpected index %q in unmatched suffix", part)
+
+	default:
+		return nil, fmt.Errorf("internal error: unknown key type %d", part.keyType())
 	}
 }
 
@@ -1251,7 +1343,7 @@ func (v *View) Get(databag Databag, request string) (any, error) {
 	var accessors []accessor
 	if request != "" {
 		var err error
-		opts := validationOptions{pathType: userPath}
+		opts := parseOpts{pathType: userPath}
 		accessors, err = parsePathIntoAccessors(request, opts)
 		if err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
@@ -1297,9 +1389,15 @@ func (v *View) Get(databag Databag, request string) (any, error) {
 	return merged, nil
 }
 
+// mergeNamespaces takes two results of reading confdb (the same request can match
+// many view paths) and merges them recursively. The results should be possible to
+// merge as long as the types are consistent. This isn't guaranteed to be true,
+// if the schema rules allow for strange mappings.
 func mergeNamespaces(old, new any) (any, error) {
 	if old == nil {
 		return new, nil
+	} else if new == nil {
+		return old, nil
 	}
 
 	oldType, newType := reflect.TypeOf(old).Kind(), reflect.TypeOf(new).Kind()
@@ -1307,15 +1405,25 @@ func mergeNamespaces(old, new any) (any, error) {
 		return nil, fmt.Errorf("cannot merge results of different types %T, %T", old, new)
 	}
 
-	if oldType != reflect.Map {
-		// if the values are both scalars/lists, the new replaces the old value
+	if oldType != reflect.Map && oldType != reflect.Slice {
+		// if the values are both scalars, the new value replaces the old one
 		return new, nil
 	}
 
-	// if the values are maps, merge them recursively
-	oldMap, newMap := old.(map[string]any), new.(map[string]any)
-	for k, v := range newMap {
-		if storeVal, ok := oldMap[k]; ok {
+	if oldType == reflect.Map {
+		oldMap, newMap := old.(map[string]any), new.(map[string]any)
+		return mergeMaps(oldMap, newMap)
+	}
+
+	oldList, newList := old.([]any), new.([]any)
+	return mergeLists(oldList, newList)
+}
+
+// mergeMaps merges two maps recursively, combining the merged values into a
+// single map.
+func mergeMaps(old, new map[string]any) (map[string]any, error) {
+	for k, v := range new {
+		if storeVal, ok := old[k]; ok {
 			merged, err := mergeNamespaces(storeVal, v)
 			if err != nil {
 				return nil, err
@@ -1323,10 +1431,32 @@ func mergeNamespaces(old, new any) (any, error) {
 			v = merged
 		}
 
-		oldMap[k] = v
+		old[k] = v
 	}
 
-	return oldMap, nil
+	return old, nil
+}
+
+// mergeLists merges two lists of results recursively. The lists are merged
+// by merging the element from both until one list runs out of elements to merge,
+// at that point the other list's remaining are appended.
+func mergeLists(old, new []any) ([]any, error) {
+	for i, oldEl := range old {
+		if i >= len(new) {
+			break
+		}
+
+		merged, err := mergeNamespaces(oldEl, new[i])
+		if err != nil {
+			return nil, err
+		}
+		old[i] = merged
+	}
+
+	if len(old) < len(new) {
+		old = append(old, new[len(old):]...)
+	}
+	return old, nil
 }
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
@@ -1337,7 +1467,7 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 		requests = []string{""}
 	}
 
-	opts := validationOptions{pathType: userPath}
+	opts := parseOpts{pathType: userPath}
 	var matches []requestMatch
 	for _, request := range requests {
 		accessors, err := parsePathIntoAccessors(request, opts)
@@ -1544,6 +1674,19 @@ func joinAccessors(parts []accessor) string {
 	return sb.String()
 }
 
+func joinPathParts(parts []string) string {
+	var sb strings.Builder
+	for i, part := range parts {
+		if !(strings.HasPrefix(part, "[") || strings.HasSuffix(part, "]") || i == 0) {
+			sb.WriteRune('.')
+		}
+
+		sb.WriteString(part)
+	}
+
+	return sb.String()
+}
+
 func isPlaceholder(part string) bool {
 	return len(part) > 2 && strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}")
 }
@@ -1737,11 +1880,6 @@ func (k key) keyType() keyType { return mapKeyType }
 
 type index string
 
-// match returns true if the subkey is equal to the literal index.
-func (i index) match(subkey accessor, _ *matchedPlaceholders) bool {
-	return subkey.keyType() == listIndexType && string(i) == subkey.name()
-}
-
 // write writes the literal subkey into the strings.Builder.
 func (i index) write(sb *strings.Builder, _ *matchedPlaceholders, _ writeOpts) {
 	sb.WriteString(i.access())
@@ -1779,7 +1917,7 @@ func NewJSONDatabag() JSONDatabag {
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
 func (s JSONDatabag) Get(path string) (any, error) {
-	opts := validationOptions{pathType: viewPath}
+	opts := parseOpts{pathType: viewPath}
 	subKeys, err := parsePathIntoAccessors(path, opts)
 	if err != nil {
 		return nil, err
@@ -2056,13 +2194,21 @@ func unmarshalLevel(subKeys []accessor, index int, rawLevel json.RawMessage) (an
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 // If the value is nil, the entry is deleted.
 func (s JSONDatabag) Set(path string, value any) error {
-	subKeys := strings.Split(path, ".")
+	opts := parseOpts{pathType: viewPath}
+	subKeys, err := parsePathIntoAccessors(path, opts)
+	if err != nil {
+		return err
+	}
 
-	var err error
 	if value != nil {
 		_, err = set(subKeys, 0, s, value)
 	} else {
-		_, err = unset(subKeys, 0, s)
+		var parts []string
+		parts, err = splitViewPath(path, opts)
+		if err != nil {
+			return err
+		}
+		_, err = unset(parts, 0, s)
 	}
 
 	return err
@@ -2086,8 +2232,30 @@ func removeNilValues(value any) any {
 	return level
 }
 
-func set(subKeys []string, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
+func set(subKeys []accessor, index int, node any, value any) (json.RawMessage, error) {
+	// the first level will be typed as JSONDatabag so we have to convert it
+	if bag, ok := node.(JSONDatabag); ok {
+		node = map[string]json.RawMessage(bag)
+	}
+
+	if obj, ok := node.(map[string]json.RawMessage); ok {
+		return setMap(subKeys, index, obj, value)
+	} else if list, ok := node.([]json.RawMessage); ok {
+		return setList(subKeys, index, list, value)
+	}
+
+	// should be impossible since we handle terminal cases in the type specific functions
+	path := joinAccessors(subKeys[:index+1])
+	return nil, pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+}
+
+func setMap(subKeys []accessor, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
 	key := subKeys[index]
+	if key.keyType() != mapKeyType {
+		pathPrefix := joinAccessors(subKeys[:index+1])
+		return nil, fmt.Errorf("key %q cannot be used to access map at path %q", key.access(), pathPrefix)
+	}
+
 	if index == len(subKeys)-1 {
 		// remove nil values that may be nested in the value
 		value = removeNilValues(value)
@@ -2097,36 +2265,111 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value any
 			return nil, err
 		}
 
-		node[key] = data
+		node[key.name()] = data
 		return json.Marshal(node)
 	}
 
-	rawLevel, ok := node[key]
-	if !ok {
-		rawLevel = []byte("{}")
-	}
-
-	var level map[string]json.RawMessage
-	err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level)
-	if err != nil {
-		var uerr *json.UnmarshalTypeError
-		if !errors.As(err, &uerr) {
-			return nil, err
+	var level any
+	rawLevel, ok := node[key.name()]
+	if ok {
+		var err error
+		level, err = unmarshalLevel(subKeys, index+1, rawLevel)
+		if err != nil {
+			if !errors.As(err, new(*noContainerError)) {
+				return nil, err
+			}
+			// stored value wasn't map but new write expects one so overwrite value.
+			// Shouldn't be possible if schema stays the same but let's be robust in
+			// case schema is evolved in a way that overwrites previous paths
 		}
 	}
 
-	// stored valued wasn't map but new write expects one so overwrite value
+	// next level doesn't exist yet or isn't right type so overwrite
 	if level == nil {
-		level = make(map[string]json.RawMessage)
+		nextKey := subKeys[index+1]
+		level = emptyContainerForType(nextKey)
 	}
 
-	rawLevel, err = set(subKeys, index+1, level, value)
+	rawLevel, err := set(subKeys, index+1, level, value)
 	if err != nil {
 		return nil, err
 	}
 
-	node[key] = rawLevel
+	node[key.name()] = rawLevel
 	return json.Marshal(node)
+}
+
+func setList(subKeys []accessor, keyIndex int, list []json.RawMessage, value any) (json.RawMessage, error) {
+	pathPrefix := joinAccessors(subKeys[:keyIndex+1])
+	key := subKeys[keyIndex]
+
+	if key.keyType() != listIndexType {
+		return nil, fmt.Errorf("key %q cannot be used to index list at path %q", key, pathPrefix)
+	}
+
+	listIndex, _ := strconv.Atoi(key.name())
+	// note that the index can exceed the list length by 1 (in which case we
+	// append the entry, extending the list)
+	if listIndex > len(list) {
+		return nil, pathErrorf("cannot index list at %q: list has length %d", pathPrefix, len(list))
+	}
+
+	if keyIndex == len(subKeys)-1 {
+		// remove nil values that may be nested in the value
+		value = removeNilValues(value)
+		data, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+
+		if listIndex == len(list) {
+			list = append(list, data)
+		} else {
+			list[listIndex] = data
+		}
+		return json.Marshal(list)
+	}
+
+	var level any
+	// if we're setting new element to list there's no value to unmarshal
+	if listIndex < len(list) {
+		var err error
+		level, err = unmarshalLevel(subKeys, keyIndex+1, list[listIndex])
+		if err != nil {
+			if !errors.As(err, new(*noContainerError)) {
+				return nil, err
+			}
+			// stored value isn't container but path expects one so overwrite value.
+			// Shouldn't be possible if schema stays the same but let's be robust in
+			// case schema is evolved in way that overwrites previous paths
+		}
+	}
+
+	// if we're adding a new nested level or overriding a previous one, create it
+	// according to whether the path expects a map or list
+	if level == nil {
+		nextKey := subKeys[keyIndex+1]
+		level = emptyContainerForType(nextKey)
+	}
+
+	rawLevel, err := set(subKeys, keyIndex+1, level, value)
+	if err != nil {
+		return nil, err
+	}
+
+	if listIndex == len(list) {
+		list = append(list, rawLevel)
+	} else {
+		list[listIndex] = rawLevel
+	}
+	return json.Marshal(list)
+}
+
+func emptyContainerForType(acc accessor) any {
+	if acc.keyType() == keyPlaceholderType || acc.keyType() == mapKeyType {
+		return map[string]json.RawMessage{}
+	}
+	return []json.RawMessage{}
 }
 
 func (s JSONDatabag) Unset(path string) error {
