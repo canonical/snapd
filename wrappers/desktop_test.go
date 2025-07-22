@@ -626,6 +626,22 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 	c.Assert(string(e), Equals, string(desktopContent))
 }
 
+func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileIcon(c *C) {
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "snap"}}
+
+	desktopContent := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
+Icon=${SNAP}/icon.png
+`)
+	desktopExpected := []byte(`[Desktop Entry]
+X-SnapInstanceName=snap
+Icon=/snap/snap/current/icon.png
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, string(desktopExpected))
+}
+
 func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopFileAyatana(c *C) {
 	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "snap"}}
 
@@ -756,8 +772,7 @@ version: 1.0
 
 	newl, err := wrappers.RewriteIconLine(snap, "Icon=${SNAP}/icon.png")
 	c.Check(err, IsNil)
-	c.Check(strings.HasPrefix(newl, "Icon="), Equals, true)
-	c.Check(strings.HasSuffix(newl, "/snap/snap/current/icon.png"), Equals, true)
+	c.Check(newl, Equals, "Icon=${SNAP}/icon.png")
 
 	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon")
 	c.Check(err, IsNil)
