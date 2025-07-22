@@ -28,7 +28,7 @@
         "group": "debian-not-req",
         "backend": "openstack",
         "alternative-backend": "google-distro-1",
-        "systems": "debian-12-64 debian-sid-64",
+        "systems": "debian-sid-64",
         "tasks": "tests/...",
         "rules": "main"
       },

@@ -12,7 +12,6 @@ systems:
    - -amazon-linux-2-* # no fish package for AMZN2
    - -amazon-linux-2023-* # no fish package for AL2023
    - -centos-9-* # no fish package
-   - -debian-11-* # not supposed to work as snapd is very old in the repository
 
 environment:
     TEST_ZSH_USER: test-zsh
