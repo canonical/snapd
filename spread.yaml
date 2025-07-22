@@ -135,18 +135,6 @@ environment:
     SNAPD_JSON_LOGGING: '$(HOST: echo "${SPREAD_SNAPD_JSON_LOGGING:-$SPREAD_TAG_FEATURES}")'
 
 backends:
-    #this backend is used for classic validation
-    testflinger:
-        environment:
-            TRUST_TEST_KEYS: "false"
-        halt-timeout: 3h
-        wait-timeout: 2h
-        systems:
-            - ubuntu-22.04-arm-32-rpi3:
-                  queue: rpi3b
-                  image: https://old-releases.ubuntu.com/releases/jammy/ubuntu-22.04-beta-preinstalled-server-armhf+raspi.img.xz
-                  username: ubuntu
-                  password: ubuntu    
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/europe-west2-b

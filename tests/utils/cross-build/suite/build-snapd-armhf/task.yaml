@@ -8,11 +8,6 @@ details: |
 kill-timeout: 120m
 
 environment:
-  VERSION/noble: 24.04
-  IMAGE_URL/noble: https://cloud-images.ubuntu.com/releases/$VERSION/release/ubuntu-$VERSION-server-cloudimg-armhf.img  
-  KERNEL_URL/noble: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-vmlinuz-generic
-  INITRD_URL/noble: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-initrd-generic
-
   VERSION/jammy: 22.04
   IMAGE_URL/jammy: https://cloud-images.ubuntu.com/releases/$VERSION/release/ubuntu-$VERSION-server-cloudimg-armhf.img  
   KERNEL_URL/jammy: https://cloud-images.ubuntu.com/releases/$VERSION/release/unpacked/ubuntu-$VERSION-server-cloudimg-armhf-vmlinuz-lpae

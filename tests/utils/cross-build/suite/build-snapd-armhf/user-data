@@ -23,8 +23,6 @@ users:
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
     groups: sudo
     shell: /bin/bash
-    users:
-    sudo: "ALL=(ALL) NOPASSWD:ALL"
     lock_passwd: false
     plain_text_passwd: "ubuntu"
   - name: test
