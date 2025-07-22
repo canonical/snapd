@@ -233,9 +233,6 @@ backends:
         location: snapd-spread/europe-west3-b
         halt-timeout: 2h
         systems:
-            - debian-11-64:
-                  storage: 20G
-                  workers: 6
             - debian-12-64:
                   storage: 20G
                   workers: 6
@@ -581,9 +578,6 @@ backends:
             - ubuntu-25.04-64:
                   username: ubuntu
                   password: ubuntu
-            - debian-11-64:
-                  username: debian
-                  password: debian
             - debian-12-64:
                   username: debian
                   password: debian
@@ -686,9 +680,6 @@ backends:
                   username: root
                   password: root
             - ubuntu-25.10-64:
-                  username: root
-                  password: root
-            - debian-11-64:
                   username: root
                   password: root
             - debian-12-64:
