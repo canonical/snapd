@@ -78,7 +78,7 @@ prepare: |
     -kernel $KERNEL_FILE \
     -initrd $INITRD_FILE \
     -accel tcg,thread=multi \
-    -append 'root=/dev/vda1 console=ttyAMA0 modprobe.blacklist=*' \
+    -append 'root=/dev/vda1 console=ttyAMA0' \
     -drive file=$IMAGE_FILE_RAW,format=raw,if=none,id=hd0 \
     -device virtio-blk-device,drive=hd0 \
     -drive file=$CLOUD_INIT_ISO,format=raw,if=virtio \
