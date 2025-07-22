@@ -35,6 +35,9 @@ type RouteSelector interface {
 	// For all routes that are already known, they will be marked as available
 	// for publication if the selector knows the identity of the route's origin
 	// and destination devices.
+	//
+	// This method should be called whenever the RouteSelector's knowledge of
+	// device identities changes.
 	VerifyRoutes()
 
 	// Select selects a subset of routes that the specified peer needs to receive.
