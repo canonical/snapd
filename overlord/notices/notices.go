@@ -64,7 +64,8 @@ type NoticeManager struct {
 	// providers for at least one notice type.
 	backends []NoticeBackend
 	// idNamespaceToBackend maps from a prefix used to namespace notice IDs to
-	// the backend which registered that namespace.
+	// the backend which registered that namespace. This allows querying just
+	// the relevant backend when attempting to look up a notice by ID.
 	//
 	// No two backends may register the same namespace, but a given backend may
 	// register the same namespace multiple times (e.g. for different notice
@@ -74,17 +75,9 @@ type NoticeManager struct {
 	// be of the form "<prefix>-<id>". For notices from state, the IDs must not
 	// contain '-'.
 	idNamespaceToBackend map[string]NoticeBackend
-	// backendTypeToNamespace maps from backend+type combination to the ID
-	// prefix namespace registered with that backend and type.
-	backendTypeToNamespace map[backendWithType]string
 	// noticeTypeBackends maps from notice type to the set of notice backends
 	// which are capable of providing notices of that type.
 	noticeTypeBackends map[state.NoticeType][]NoticeBackend
-}
-
-type backendWithType struct {
-	backend    NoticeBackend
-	noticeType state.NoticeType
 }
 
 // stateBackend wraps a state to ensure that the state lock is acquired when
@@ -116,11 +109,10 @@ func (sb stateBackend) BackendWaitNotices(ctx context.Context, filter *state.Not
 func NewNoticeManager(st *state.State) *NoticeManager {
 	wrapper := stateBackend{st}
 	nm := &NoticeManager{
-		state:                  wrapper,
-		backends:               []NoticeBackend{wrapper},
-		idNamespaceToBackend:   make(map[string]NoticeBackend),
-		backendTypeToNamespace: make(map[backendWithType]string),
-		noticeTypeBackends:     make(map[state.NoticeType][]NoticeBackend),
+		state:                wrapper,
+		backends:             []NoticeBackend{wrapper},
+		idNamespaceToBackend: make(map[string]NoticeBackend),
+		noticeTypeBackends:   make(map[state.NoticeType][]NoticeBackend),
 	}
 
 	return nm
@@ -149,16 +141,6 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 		return nil, fmt.Errorf("internal error: cannot register notice backend with namespace which is already registered to a different backend: %q", namespace)
 	}
 
-	// Check that there is not already a different namespace registered to this
-	// combination of backend and type
-	bkndAndTyp := backendWithType{
-		backend:    bknd,
-		noticeType: typ,
-	}
-	if existingNs, ok := nm.backendTypeToNamespace[bkndAndTyp]; ok && existingNs != namespace {
-		return nil, fmt.Errorf("internal error: cannot register namespace %q with backend and notice type which are already registered with a different namespace: %q", namespace, existingNs)
-	}
-
 	// From this point on, no errors can occur, so free to mutate nm.
 
 	if !backendsContain(nm.backends, bknd) {
@@ -166,7 +148,6 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 	}
 
 	nm.idNamespaceToBackend[namespace] = bknd
-	nm.backendTypeToNamespace[bkndAndTyp] = namespace
 
 	typeBackends, ok := nm.noticeTypeBackends[typ]
 	if !ok {
