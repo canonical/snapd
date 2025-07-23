@@ -1,0 +1,51 @@
+summary: Ensure that Kerberos tickets integration works
+
+details: |
+    Snap_run overwrites the Kerberos cache via the environment.
+    Check that that is working as expected.
+
+    Also ensure that the snap can read a ticket in the cache
+    if and only if the kerberos-ticket interface is connected,
+    and can never write to it.
+
+environment:
+    TICKET: /tmp/krb5cc_test #Must initiate with /tmp/krb5cc_
+    TICKET_CONTENTS: contents
+    KRB5CCNAME: FILE:$TICKET
+    # Snap_run will overwrite the original KRB5CCNAME
+    EXPECTED_KRB5CCNAME: FILE:/var/lib/snapd/hostfs/tmp/krb5cc_test
+
+prepare: |
+    echo "Given a snap declaring a plug on the kerberos-tickets interface is installed"
+    "$TESTSTOOLS"/snaps-state install-local kerberos-tickets-consumer
+
+    echo "Mock the kerberos ticket at $TICKET"
+    echo "$TICKET_CONTENTS" > "$TICKET"
+
+execute: |
+    echo "KRB5CCNAME was correctly overwritten in the snap's environment."
+    kerberos-tickets-consumer | tr -s / | MATCH "KRB5CCNAME:$EXPECTED_KRB5CCNAME"
+
+    echo "The interface is disconnected by default"
+    snap interfaces -i kerberos-tickets | MATCH -- '^- +kerberos-tickets-consumer:kerberos-tickets'
+
+    echo "When the plug is connected"
+    snap connect kerberos-tickets-consumer:kerberos-tickets
+
+    if snap debug sandbox-features --required apparmor:kernel:file; then
+        echo "Then the snap command can rean read the Kerberos ticket, but not write to it"
+        kerberos-tickets-consumer | MATCH "$TICKET_CONTENTS"
+        kerberos-tickets-consumer | MATCH "cannot write to ticket"
+
+        echo "When the plug is disconnected"
+        snap disconnect kerberos-tickets-consumer:kerberos-tickets
+
+        echo "Then the snap command can neither read the Kerberos ticket nor write to it"
+        kerberos-tickets-consumer | MATCH "cannot read ticket"
+        kerberos-tickets-consumer | MATCH "cannot write to ticket"
+
+        export KRB5CCNAME=FILE:/a/b/c
+        kerberos-tickets-consumer 2>&1 | MATCH "will not expose Kerberos tickets"
+        kerberos-tickets-consumer | MATCH "cannot read ticket"
+        kerberos-tickets-consumer | MATCH "cannot write to ticket"
+    fi
