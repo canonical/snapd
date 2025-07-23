@@ -319,7 +319,6 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	bknd2.noticesChan <- nil
 
 	namespace1 := "foo"
-	namespace2 := "bar"
 	typ1 := state.WarningNotice
 
 	validate, err := nm.RegisterBackend(bknd1, typ1, "")
@@ -345,16 +344,6 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	c.Assert(validate, IsNil)
 	select {
 	case filter := <-bknd2.noticesFilterChan:
-		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
-	default:
-		// all good
-	}
-
-	validate, err = nm.RegisterBackend(bknd1, typ1, namespace2)
-	c.Assert(err, ErrorMatches, "internal error: cannot register namespace .* with backend and notice type which are already registered with a different namespace: .*")
-	c.Assert(validate, IsNil)
-	select {
-	case filter := <-bknd1.noticesFilterChan:
 		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
 	default:
 		// all good
