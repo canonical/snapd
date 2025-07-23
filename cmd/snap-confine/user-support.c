@@ -36,7 +36,8 @@ void setup_user_data(void) {
 
     debug("creating user data directory: %s", user_data);
     if (sc_nonfatal_mkpath(user_data, 0755, -1, -1) < 0) {
-        if ((errno == EROFS || errno == EACCES) && !sc_startswith(user_data, "/home/")) {
+        if ((errno == EROFS || errno == EACCES) && !sc_startswith(user_data, "/home/") &&
+            !sc_startswith(user_data, "/root/")) {
             // clear errno or it will be displayed in die()
             errno = 0;
             // XXX: may point to the right config option here?
