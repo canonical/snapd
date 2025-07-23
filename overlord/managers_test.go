@@ -1090,7 +1090,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", iconURL.JoinPath("icon.svg").String(), -1)
+		hit = strings.Replace(hit, "@ICON@", path.Join(iconURL.String(), "icon.svg"), -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
