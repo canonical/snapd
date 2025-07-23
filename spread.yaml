@@ -440,7 +440,7 @@ backends:
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
             NTP_SERVER: 'ntp.ps7.internal'
-        systems:
+        systems: &openstack-ps7-systems
             - ubuntu-16.04-64:
                 image: snapd-spread/ubuntu-16.04-64
                 workers: 8
@@ -473,6 +473,26 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64-uefi
                 workers: 8
 
+    openstack-dev-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
+        plan: shared.xsmall
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.54.0/24:4000]
+        environment:
+            SNAPD_USE_PROXY: 'true'
+            HTTP_PROXY: 'http://egress.ps7.internal:3128'
+            HTTPS_PROXY: 'http://egress.ps7.internal:3128'
+            http_proxy: 'http://egress.ps7.internal:3128'
+            https_proxy: 'http://egress.ps7.internal:3128'
+            no_proxy: '127.0.0.1,127.0.0.53,localhost'
+            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
+            NTP_SERVER: 'ntp.ps7.internal'
+        systems: *openstack-ps7-systems
+
     openstack-arm-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
@@ -491,7 +511,7 @@ backends:
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
             NTP_SERVER: 'ntp.ps7.internal'
-        systems:
+        systems: &openstack-arm-systems
             - ubuntu-20.04-arm-64:
                 image: auto-sync/ubuntu-focal-20.04-arm64-server
                 workers: 8
@@ -508,6 +528,26 @@ backends:
             - ubuntu-core-24-arm-64:
                 image: snapd-spread/ubuntu-24.04-arm-64-uefi
                 workers: 8
+
+    openstack-arm-dev-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
+        plan: shared.xsmall.arm64
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.53.0/24:3000]
+        environment:
+            SNAPD_USE_PROXY: 'true'
+            HTTP_PROXY: 'http://egress.ps7.internal:3128'
+            HTTPS_PROXY: 'http://egress.ps7.internal:3128'
+            http_proxy: 'http://egress.ps7.internal:3128'
+            https_proxy: 'http://egress.ps7.internal:3128'
+            no_proxy: '127.0.0.1,127.0.0.53,localhost'
+            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
+            NTP_SERVER: 'ntp.ps7.internal'
+        systems: *openstack-arm-systems
 
     qemu-nested:
         memory: 4G
