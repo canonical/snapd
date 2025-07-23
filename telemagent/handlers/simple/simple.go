@@ -27,7 +27,7 @@ func New(logger *slog.Logger) *Handler {
 
 // AuthConnect is called on device connection,
 // prior forwarding to the MQTT broker.
-func (h *Handler) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string) error {
+func (h *Handler) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte) error {
 	return session.LogAction(ctx, "AuthConnect", nil, nil, nil, *h.logger)
 }
 

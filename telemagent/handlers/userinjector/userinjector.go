@@ -29,7 +29,7 @@ func New(logger *slog.Logger) *UserInjector {
 
 // AuthConnect is called on device connection,
 // prior forwarding to the MQTT broker.
-func (h *UserInjector) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string) error {
+func (h *UserInjector) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte) error {
 	return session.LogAction(ctx, "AuthConnect", nil, nil, nil, *h.logger)
 }
 

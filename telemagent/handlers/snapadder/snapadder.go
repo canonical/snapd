@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/canonical/mqtt.golang/packets"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/telemagent/interceptors/permissioncontroller"
 	"github.com/snapcore/snapd/telemagent/internal/utils"
 	"github.com/snapcore/snapd/telemagent/pkg/session"
-	"github.com/snapcore/snapd/client"
 )
 
 var _ session.Handler = (*SnapAdder)(nil)
@@ -32,7 +32,17 @@ func New(logger *slog.Logger) *SnapAdder {
 
 // AuthConnect is called on device connection,
 // prior forwarding to the MQTT broker.
-func (tr *SnapAdder) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string) error {
+func (tr *SnapAdder) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte) error {
+	snapClient := client.New(nil)
+
+	macaroon, err := snapClient.DeviceSession()
+	if err != nil {
+		tr.logger.Error(err.Error())
+	}
+
+	tr.logger.Info(fmt.Sprintf("Acquired device session macaroon: %s", macaroon[0]))
+
+
 	var snapPublisher string
 	var ok bool
 
@@ -44,6 +54,9 @@ func (tr *SnapAdder) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *
 	if err != nil {
 		tr.logger.Warn(err.Error())
 	}
+
+	*Username = deviceId
+	*Password = []byte(macaroon[0])
 
 	if WillFlag {
 		newTopic := fmt.Sprintf("/%s/%s/%s", deviceId, snapPublisher, *WillTopic)

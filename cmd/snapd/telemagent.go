@@ -134,17 +134,17 @@ func StopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger *s
 
 func addEnv() {
 	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_ADDRESS",":1884")
-	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_TARGET","broker.emqx.io:1883")
+	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_TARGET","demo.staging:8883")
 
 	os.Setenv("MPROXY_MQTT_WITH_TLS_ADDRESS",":8883")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_TARGET","broker.emqx.io:8883")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_CERT_FILE","/home/omar/telem-agent/ssl/certs/server.crt")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_KEY_FILE","/home/omar/telem-agent/ssl/certs/server.key")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_SERVER_CA_FILE","/home/omar/telem-agent/ssl/certs/ca.crt")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_TARGET","demo.staging:8883")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_CERT_FILE","/home/omar.hatem@canonical.com/telem-agent/ssl/certs/server.crt")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_KEY_FILE","/home/omar.hatem@canonical.com/telem-agent/ssl/certs/server.key")
+	os.Setenv("MPROXY_MQTT_WITH_TLS_SERVER_CA_FILE","/home/omar.hatem@canonical.com/telem-agent/ssl/certs/ca.crt")
 
 
 	os.Setenv("REST_ENABLED","true")
-	os.Setenv("REST_ENDPOINT","mqtts://broker.emqx.io:8883")
-	os.Setenv("REST_SERVER_CA_FILE","/home/omar/telem-agent/ssl/certs/broker.emqx.io-ca.crt")
+	os.Setenv("REST_ENDPOINT","mqtts://demo.staging:8883")
+	os.Setenv("REST_SERVER_CA_FILE","/home/omar.hatem@canonical.com/Desktop/staging.cert")
 
 }

@@ -6,10 +6,12 @@ package mqtt
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"os"
 
 	"github.com/snapcore/snapd/telemagent/config"
 	"github.com/snapcore/snapd/telemagent/pkg/session"
@@ -55,6 +57,23 @@ func (p Proxy) accept(ctx context.Context, l net.Listener) {
 
 func (p Proxy) handle(ctx context.Context, inbound net.Conn) {
 	defer p.close(inbound)
+	var tlsConfig *tls.Config
+	var err error
+	caCert, err := os.ReadFile("/home/omar.hatem@canonical.com/Desktop/staging.cert")
+	if err != nil {
+		p.logger.Error(err.Error())
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig = &tls.Config{
+		RootCAs:            caCertPool,
+		InsecureSkipVerify: false, // Set to true ONLY if you want to skip hostname verification (not recommended)
+	}
+
+	p.dialer.Config = tlsConfig
+	
 	outbound, err := p.dialer.Dial("tcp", p.config.Target)
 	if err != nil {
 		p.logger.Error("Cannot connect to remote broker " + p.config.Target + " due to: " + err.Error())

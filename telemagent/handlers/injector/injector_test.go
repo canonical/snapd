@@ -44,7 +44,7 @@ func (inj *injectorSuite) SetUpSuite(c *C) {
 }
 
 func (inj *injectorSuite) TestAuthConnect(c *C) {
-	err := inj.handler.AuthConnect(inj.ctx, false, nil)
+	err := inj.handler.AuthConnect(inj.ctx, false, nil, nil, nil)
 	c.Check(err, IsNil)
 }
 
@@ -120,7 +120,7 @@ func (inj *injectorSuite) TestDisconnect(c *C) {
 }
 
 func (inj *injectorSuite) TestNoSession(c *C) {
-	err := inj.handler.AuthConnect(context.Background(), false, nil)
+	err := inj.handler.AuthConnect(context.Background(), false, nil, nil, nil)
 	c.Check(err, NotNil)
 }
 
@@ -128,6 +128,6 @@ func (inj *injectorSuite) TestAuthConnectWithCertificate(c *C) {
 	fakeCertificate := x509.Certificate{Subject: pkix.Name{CommonName: "fake_cert"}}
 	ctxWithCertificate := session.NewContext(context.Background(), &session.Session{Cert: fakeCertificate})
 
-	err := inj.handler.AuthConnect(ctxWithCertificate, false, nil)
+	err := inj.handler.AuthConnect(ctxWithCertificate, false, nil, nil, nil)
 	c.Check(err, IsNil)
 }

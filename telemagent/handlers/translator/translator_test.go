@@ -53,7 +53,7 @@ func (ts *translatorSuite) SetUpSuite(c *C) {
 }
 
 func (ts *translatorSuite) TestAuthConnect(c *C) {
-	err := ts.handler.AuthConnect(ts.ctx, false, nil)
+	err := ts.handler.AuthConnect(ts.ctx, false, nil, nil, nil)
 	c.Check(err, IsNil)
 }
 
@@ -148,7 +148,7 @@ func (ts *translatorSuite) TestDisconnect(c *C) {
 }
 
 func (ts *translatorSuite) TestNoSession(c *C) {
-	err := ts.handler.AuthConnect(context.Background(), false, nil)
+	err := ts.handler.AuthConnect(context.Background(), false, nil, nil, nil)
 	c.Check(err, NotNil)
 }
 
@@ -156,6 +156,6 @@ func (ts *translatorSuite) TestAuthConnectWithCertificate(c *C) {
 	fakeCertificate := x509.Certificate{Subject: pkix.Name{CommonName: "fake_cert"}}
 	ctxWithCertificate := session.NewContext(context.Background(), &session.Session{Cert: fakeCertificate})
 
-	err := ts.handler.AuthConnect(ctxWithCertificate, false, nil)
+	err := ts.handler.AuthConnect(ctxWithCertificate, false, nil, nil, nil)
 	c.Check(err, IsNil)
 }
