@@ -478,7 +478,7 @@ backends:
 
     openstack-dev-ps7:
         type: openstack
-        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_DEV_PS7")'
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
         plan: shared.xsmall
         halt-timeout: 2h
         wait-timeout: 5m
@@ -534,7 +534,7 @@ backends:
 
     openstack-arm-dev-ps7:
         type: openstack
-        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_DEV_PS7")'
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
         plan: shared.xsmall.arm64
         halt-timeout: 2h
         wait-timeout: 5m
