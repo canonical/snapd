@@ -251,16 +251,17 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		return res, nil
 	}
 
-	_, hasFDEHook := constraints.Kernel.Hooks["fde-setup"]
-	sealingMethod := secboot.DetermineSealingMethod(hasFDEHook, constraints.StandaloneInstall)
+	_, hasKernelHook := constraints.Kernel.Hooks["fde-setup"]
+	hasOPTEE := !hasKernelHook && !constraints.StandaloneInstall && secboot.FDEOpteeTAPresent()
+	checkTPM := !hasKernelHook && !hasOPTEE
 
 	var checkEncryptionErr error
-	switch sealingMethod {
-	case device.SealingMethodFDESetupHook:
+	switch {
+	case hasKernelHook:
 		res.Type, checkEncryptionErr = checkFDEFeatures(runSetupHook)
-	case device.SealingMethodOPTEE:
+	case hasOPTEE:
 		res.Type = device.EncryptionTypeLUKS
-	case device.SealingMethodTPM:
+	default:
 		unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(constraints.Model, constraints.TPMMode)
 		if err != nil {
 			return res, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
@@ -272,8 +273,6 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 			checkEncryptionErr = errors.New(unavailableReason)
 			res.AvailabilityCheckErrors = preinstallErrorDetails
 		}
-	default:
-		return res, fmt.Errorf("internal error: unknown sealing method: %v", sealingMethod)
 	}
 	res.Available = checkEncryptionErr == nil
 
@@ -283,9 +282,9 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		case encrypted:
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		case sealingMethod == device.SealingMethodFDESetupHook:
+		case hasKernelHook:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		case sealingMethod == device.SealingMethodTPM:
+		case checkTPM:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
 		default:
 			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
@@ -299,7 +298,7 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		// Hook based setup support does not make sense (at least for now) because
 		// it is usually in the context of embedded systems where passphrase
 		// authentication is not practical.
-		if sealingMethod == device.SealingMethodTPM {
+		if checkTPM {
 			passphraseAuthAvailable, err := checkPassphraseSupportedByTargetSystem(constraints.SnapdVersions)
 			if err != nil {
 				return res, fmt.Errorf("cannot check passphrase support: %v", err)

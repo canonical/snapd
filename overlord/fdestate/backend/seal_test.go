@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strconv"
 
@@ -43,6 +44,41 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
+
+type mockFDEKeyProtector struct {
+	hookFunc fde.RunSetupHookFunc
+	keyName  string
+}
+
+func (m *mockFDEKeyProtector) ProtectKey(r io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	keyParams := &fde.InitialSetupParams{
+		Key:     cleartext,
+		KeyName: m.keyName,
+	}
+	res, err := fde.InitialSetup(m.hookFunc, keyParams)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return res.EncryptedKey, nil, nil
+}
+
+type mockFDEKeyFactory struct {
+	hookFunc fde.RunSetupHookFunc
+}
+
+func (m *mockFDEKeyFactory) ForKeyName(name string) secboot.KeyProtector {
+	return &mockFDEKeyProtector{
+		hookFunc: m.hookFunc,
+		keyName:  name,
+	}
+}
+
+type mockOpteeFactory struct{}
+
+func (m *mockOpteeFactory) ForKeyName(name string) secboot.KeyProtector {
+	return secboot.NewOpteeKeyProtector()
+}
 
 type sealSuite struct {
 	testutil.BaseTest
@@ -468,24 +504,28 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 
 	n := 0
 	var runFDESetupHookReqs []*fde.SetupRequest
-	restore := fdeBackend.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
-		n++
-		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
-		output, err := json.Marshal(fde.InitialSetupResult{
-			EncryptedKey: []byte(fmt.Sprintf("key-%v", strconv.Itoa(n))),
-		})
-		if err != nil {
-			return nil, err
-		}
-		return output, nil
-	})
-	defer restore()
+	mockFactory := &mockFDEKeyFactory{
+		hookFunc: func(req *fde.SetupRequest) ([]byte, error) {
+			n++
+			runFDESetupHookReqs = append(runFDESetupHookReqs, req)
+
+			output, err := json.Marshal(fde.InitialSetupResult{
+				EncryptedKey: []byte(fmt.Sprintf("key-%v", strconv.Itoa(n))),
+			})
+			if err != nil {
+				return nil, err
+			}
+			return output, nil
+		},
+	}
+
 	dataContainer := secboot.CreateMockBootstrappedContainer()
 	saveContainer := secboot.CreateMockBootstrappedContainer()
 	savedKeyFiles := make(map[string][]byte)
 	savedTokens := make(map[string][]byte)
-	restore = fdeBackend.MockSecbootSealKeysWithProtector(func(newProtector func(name string) secboot.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+	restore := fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(hook secboot.KeyProtectorFactory, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+		c.Check(hook, Equals, mockFactory)
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
 		if useTokens {
@@ -504,7 +544,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 			}
 			c.Assert(skr.BootstrappedContainer, Equals, expectedBootstrappedContainer)
 
-			p := newProtector(skr.KeyName)
+			p := hook.ForKeyName(skr.KeyName)
 			out, _, err := p.ProtectKey(nil, []byte{1, 2, 3, 4}, nil)
 			c.Assert(err, IsNil)
 
@@ -552,6 +592,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 		UseTokens:              useTokens,
 		PrimaryKey:             []byte{1, 2, 3, 4},
+		KeyProtectorFactory:    mockFactory,
 	}
 	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, params)
 	c.Assert(err, IsNil)
@@ -613,11 +654,13 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 	restore := optee.MockNewFDETAClient(&client)
 	defer restore()
 
+	mockOpteeFactory := &mockOpteeFactory{}
+
 	dataContainer := secboot.CreateMockBootstrappedContainer()
 	saveContainer := secboot.CreateMockBootstrappedContainer()
 	savedKeyFiles := make(map[string][]byte)
 	savedTokens := make(map[string][]byte)
-	restore = fdeBackend.MockSecbootSealKeysWithProtector(func(newProtector func(name string) secboot.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+	restore = fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(hook secboot.KeyProtectorFactory, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
@@ -632,7 +675,7 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 			}
 			c.Assert(skr.BootstrappedContainer, Equals, expectedBootstrappedContainer)
 
-			p := newProtector(skr.KeyName)
+			p := hook.ForKeyName(skr.KeyName)
 			out, _, err := p.ProtectKey(nil, []byte{1, 2, 3, 4}, nil)
 			c.Assert(err, IsNil)
 
@@ -682,9 +725,10 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 		UseTokens:              false,
 		PrimaryKey:             []byte{1, 2, 3, 4},
+		KeyProtectorFactory:    mockOpteeFactory,
 	}
 
-	err := boot.SealKeyForBootChains(device.SealingMethodOPTEE, dataContainer, saveContainer, nil, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, params)
 	c.Assert(err, IsNil)
 
 	// check that runFDESetupHook was called the expected way
@@ -707,13 +751,13 @@ func (s *sealSuite) TestSealToModeenvWithOPTEE(c *C) {
 	}
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
-	c.Check(marker, testutil.FileEquals, string(device.SealingMethodOPTEE))
+	c.Check(marker, testutil.FileEquals, string(device.SealingMethodFDESetupHook))
 }
 
 func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	model := boottest.MakeMockUC20Model()
 
-	restore := fdeBackend.MockSecbootSealKeysWithProtector(func(func(name string) secboot.KeyProtector, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
+	restore := fdeBackend.MockSecbootSealKeysWithFDESetupHook(func(secboot.KeyProtectorFactory, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
 		return fmt.Errorf("hook failed")
 	})
 	defer restore()
@@ -743,10 +787,12 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 		},
 		RoleToBlName: nil,
 	}
+	mockFactory := &mockFDEKeyFactory{hookFunc: func(*fde.SetupRequest) ([]byte, error) { return nil, fmt.Errorf("hook failed") }}
 	params := &boot.SealKeyForBootChainsParams{
 		BootChains:             bootChains,
 		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
+		KeyProtectorFactory:    mockFactory,
 	}
 	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, params)
 	c.Assert(err, ErrorMatches, "hook failed")

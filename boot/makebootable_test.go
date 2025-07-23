@@ -20,7 +20,9 @@
 package boot_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -50,6 +52,20 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
+
+type fakeProtector struct {
+}
+
+type fakeProtectorFactory struct {
+}
+
+func (*fakeProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	return nil, nil, errors.New("unexpected call")
+}
+
+func (*fakeProtectorFactory) ForKeyName(name string) secboot.KeyProtector {
+	return &fakeProtector{}
+}
 
 type makeBootableSuite struct {
 	baseBootenvSuite
@@ -517,8 +533,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealStandaloneSystem(c *C) {
 	}
 	observer := boot.TrustedAssetsInstallObserverWithEncryption()
 
-	restore := boot.MockHasFDESetupHook(func(*snap.Info) (bool, error) {
-		return true, nil
+	restore := boot.MockFDEKeyProtectorFactory(func(*snap.Info) (secboot.KeyProtectorFactory, error) {
+		return &fakeProtectorFactory{}, nil
 	})
 	defer restore()
 
@@ -539,7 +555,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealStandaloneSystem(c *C) {
 	err := boot.MakeRunnableStandaloneSystem(model, bootWith, &observer, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(gotFlags.HasFDESetupHook, Equals, true)
+	c.Assert(gotFlags.FDEKeyProtectorFactory, NotNil)
 	c.Assert(gotFlags.StandaloneInstall, Equals, true)
 }
 
@@ -793,11 +809,11 @@ version: 5.0
 	})
 	defer restore()
 
-	hasFDESetupHookCalled := false
-	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
+	fdeKeyProtectorCalled := false
+	restore = boot.MockFDEKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
 		c.Check(kernel, Equals, kernelInfo)
-		hasFDESetupHookCalled = true
-		return false, nil
+		fdeKeyProtectorCalled = true
+		return nil, nil
 	})
 	defer restore()
 
@@ -926,7 +942,7 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
 	// we checked for fde-setup-hook
-	c.Check(hasFDESetupHookCalled, Equals, true)
+	c.Check(fdeKeyProtectorCalled, Equals, true)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
 

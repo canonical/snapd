@@ -43,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -60,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -1804,10 +1807,16 @@ hooks:
  fde-setup:
 `
 
-func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
+func (s *deviceMgrSuite) TestFDEKeyProtector(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	hasOPTEE := false
+	restore := optee.MockNewFDETAClient(&opteetest.MockClient{
+		PresentFn: func() bool { return hasOPTEE },
+	})
+	defer restore()
 
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
@@ -1822,15 +1831,23 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	for _, tc := range []struct {
 		kernelYaml      string
 		hasFdeSetupHook bool
+		hasOPTEE        bool
 	}{
-		{kernelYamlNoFdeSetup, false},
-		{kernelYamlWithFdeSetup, true},
+		{kernelYamlNoFdeSetup, false, false},
+		{kernelYamlWithFdeSetup, true, false},
+		{kernelYamlWithFdeSetup, true, true},
 	} {
+		hasOPTEE = tc.hasOPTEE
 		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
 
-		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
-		c.Assert(err, IsNil)
-		c.Check(hasHook, Equals, tc.hasFdeSetupHook)
+		protector, err := devicestate.DeviceManagerFDEKeyProtector(s.mgr, nil)
+		if tc.hasFdeSetupHook || tc.hasOPTEE {
+			c.Assert(err, IsNil)
+			c.Check(protector != nil, Equals, true)
+		} else {
+			c.Assert(err, testutil.ErrorIs, secboot.ErrNoKeyProtector)
+			c.Check(protector, IsNil)
+		}
 	}
 }
 
@@ -1853,13 +1870,12 @@ func (s *deviceMgrSuite) TestHasFdeSetupHookOtherKernel(c *C) {
 	_, otherInfo := snaptest.MakeTestSnapInfoWithFiles(c, kernelYamlWithFdeSetup, nil, otherSI)
 	makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 
-	hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
-	c.Assert(err, IsNil)
-	c.Check(hasHook, Equals, false)
+	_, err := devicestate.DeviceManagerFDEKeyProtector(s.mgr, nil)
+	c.Assert(err, testutil.ErrorIs, secboot.ErrNoKeyProtector)
 
-	hasHook, err = devicestate.DeviceManagerHasFDESetupHook(s.mgr, otherInfo)
+	protector, err := devicestate.DeviceManagerFDEKeyProtector(s.mgr, otherInfo)
 	c.Assert(err, IsNil)
-	c.Check(hasHook, Equals, true)
+	c.Check(protector != nil, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {

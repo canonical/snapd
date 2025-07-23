@@ -23,6 +23,7 @@ package secboot
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -77,6 +78,16 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	}
 }
 
+func OPTEEKeyProtectorFactory() KeyProtectorFactory {
+	return &opteeKeyProtectorFactory{}
+}
+
+type opteeKeyProtectorFactory struct{}
+
+func (o *opteeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &opteeKeyProtector{}
+}
+
 type opteeKeyProtector struct{}
 
 func NewOpteeKeyProtector() sb_hooks.KeyProtector {
@@ -106,7 +117,28 @@ func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (c
 // tag.
 type KeyProtector sb_hooks.KeyProtector
 
-func SealKeysWithProtector(newProtector func(name string) KeyProtector, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+type KeyProtectorFactory interface {
+	ForKeyName(name string) KeyProtector
+}
+
+var ErrNoKeyProtector = errors.New("cannot find supported FDE key protector")
+
+type fdeKeyProtectorFactory struct {
+	runHook fde.RunSetupHookFunc
+}
+
+func (f *fdeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &hookKeyProtector{
+		runHook: f.runHook,
+		keyName: name,
+	}
+}
+
+func FDEKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+	return &fdeKeyProtectorFactory{runHook: runHook}
+}
+
+func SealKeysWithProtector(kf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
 		// TODO:FDEM:FIX: add unit test taking that primary key
@@ -114,28 +146,22 @@ func SealKeysWithProtector(newProtector func(name string) KeyProtector, keys []S
 	}
 
 	for _, skr := range keys {
-		protector := newProtector(skr.KeyName)
-
+		protector := kf.ForKeyName(skr.KeyName)
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
-
-		// TODO: this is only running at the end of the function, seems we
-		// should probably just defer this once at the top of the loop
 		defer sb_hooks.SetKeyProtector(nil, 0)
 
-		params := &sb_hooks.KeyParams{
+		// TODO: this is maybe odd since we're reusing the same implementation
+		// as the hooks
+		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
 			PrimaryKey: primaryKey,
 			Role:       skr.KeyName,
 			AuthorizedSnapModels: []sb.SnapModel{
 				params.Model,
 			},
 			AuthorizedBootModes: skr.BootModes,
-		}
-
-		// TODO: this is maybe odd since we're reusing the same implementation
-		// as the hooks
-		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+		})
 		if err != nil {
 			return err
 		}

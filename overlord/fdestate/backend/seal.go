@@ -26,25 +26,15 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 )
 
 var (
-	secbootProvisionTPM          = secboot.ProvisionTPM
-	secbootSealKeys              = secboot.SealKeys
-	secbootSealKeysWithProtector = secboot.SealKeysWithProtector
-	secbootFindFreeHandle        = secboot.FindFreeHandle
-)
-
-// Hook functions setup by devicestate to support device-specific full
-// disk encryption implementations. The state must be locked when these
-// functions are called.
-var (
-	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
-		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
-	}
+	secbootProvisionTPM             = secboot.ProvisionTPM
+	secbootSealKeys                 = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithProtector
+	secbootFindFreeHandle           = secboot.FindFreeHandle
 )
 
 func runKeySealRequests(key secboot.BootstrappedContainer, useTokens bool) []secboot.SealKeyRequest {
@@ -174,9 +164,7 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 
 // TODO: rename me
 func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
-	switch method {
-	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
-	default:
+	if method != device.SealingMethodFDESetupHook {
 		return fmt.Errorf("internal error: sealKeyForBootChainsHook called with unsupported method %q", method)
 	}
 
@@ -194,15 +182,7 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 	}
 
 	skrs := append(runKeySealRequests(key, params.UseTokens), fallbackKeySealRequests(key, saveKey, params.FactoryReset, params.UseTokens)...)
-
-	newProtector := func(name string) secboot.KeyProtector {
-		if method == device.SealingMethodFDESetupHook {
-			return secboot.NewHookKeyProtector(RunFDESetupHook, name)
-		}
-		return secboot.NewOpteeKeyProtector()
-	}
-
-	if err := secbootSealKeysWithProtector(newProtector, skrs, &sealingParams); err != nil {
+	if err := secbootSealKeysWithFDESetupHook(params.KeyProtectorFactory, skrs, &sealingParams); err != nil {
 		return err
 	}
 
@@ -226,7 +206,7 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 }
 
 func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
-	if method == device.SealingMethodFDESetupHook || method == device.SealingMethodOPTEE {
+	if method == device.SealingMethodFDESetupHook {
 		// TODO: unsure what this means, but should it be supported for the
 		// OPTEE integration?
 		//
@@ -316,16 +296,10 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
-func MockSecbootSealKeysWithProtector(f func(newProtector func(name string) secboot.KeyProtector, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
-	old := secbootSealKeysWithProtector
-	secbootSealKeysWithProtector = f
+func MockSecbootSealKeysWithFDESetupHook(f func(hook secboot.KeyProtectorFactory, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+	old := secbootSealKeysWithFDESetupHook
+	secbootSealKeysWithFDESetupHook = f
 	return func() {
-		secbootSealKeysWithProtector = old
+		secbootSealKeysWithFDESetupHook = old
 	}
-}
-
-func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
-	oldRunFDESetupHook := RunFDESetupHook
-	RunFDESetupHook = f
-	return func() { RunFDESetupHook = oldRunFDESetupHook }
 }

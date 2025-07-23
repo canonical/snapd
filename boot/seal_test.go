@@ -37,8 +37,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
-	"github.com/snapcore/snapd/kernel/fde/optee"
-	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -1642,7 +1640,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true, UseTokens: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{FDEKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true})
 	c.Assert(err, IsNil)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1675,7 +1673,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
+	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{FDEKeyProtectorFactory: &fakeProtectorFactory{}})
 	c.Assert(err, ErrorMatches, `seal key failed`)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1705,7 +1703,7 @@ func (s *sealSuite) TestSealToModeenvWithOPTEEHookHappy(c *C) {
 	sealKeyForBootChainsCalled := 0
 	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
 		sealKeyForBootChainsCalled++
-		c.Check(method, Equals, device.SealingMethodOPTEE)
+		c.Check(method, Equals, device.SealingMethodFDESetupHook)
 		c.Check(key, DeepEquals, myKey)
 		c.Check(saveKey, DeepEquals, myKey2)
 
@@ -1732,15 +1730,10 @@ func (s *sealSuite) TestSealToModeenvWithOPTEEHookHappy(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	client := opteetest.MockClient{
-		PresentFn: func() bool {
-			return true
-		},
-	}
-	restore = optee.MockNewFDETAClient(&client)
-	defer restore()
-
-	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{UseTokens: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{
+		UseTokens:              true,
+		FDEKeyProtectorFactory: secboot.OPTEEKeyProtectorFactory(),
+	})
 	c.Assert(err, IsNil)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1764,8 +1757,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	// TODO: this simulates that the hook is not available yet
 	//       because of e.g. seeding. Longer term there will be
 	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
-	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
-		return false, fmt.Errorf("hook not available yet because e.g. seeding")
+	restore = boot.MockFDEKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
+		return nil, fmt.Errorf("hook not available yet because e.g. seeding")
 	})
 	defer restore()
 
@@ -2201,7 +2194,7 @@ func (s *sealSuite) TestWithBootChainsFDEHookAndOPTEE(c *C) {
 	err = boot.WithBootChains(func(ch boot.BootChains) error {
 		chains = ch
 		return nil
-	}, device.SealingMethodOPTEE)
+	}, device.SealingMethodFDESetupHook)
 	c.Assert(err, IsNil)
 
 	expected := boot.BootChains{
@@ -2217,14 +2210,6 @@ func (s *sealSuite) TestWithBootChainsFDEHookAndOPTEE(c *C) {
 			},
 		},
 	}
-
-	c.Check(chains, DeepEquals, expected)
-
-	err = boot.WithBootChains(func(ch boot.BootChains) error {
-		chains = ch
-		return nil
-	}, device.SealingMethodFDESetupHook)
-	c.Assert(err, IsNil)
 
 	c.Check(chains, DeepEquals, expected)
 }

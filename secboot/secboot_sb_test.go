@@ -1990,6 +1990,14 @@ func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
 	c.Assert(called, Equals, false)
 }
 
+type testKeyFactory struct {
+	fn func(name string) secboot.KeyProtector
+}
+
+func (t *testKeyFactory) ForKeyName(name string) secboot.KeyProtector {
+	return t.fn(name)
+}
+
 func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")
@@ -2027,11 +2035,13 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 	}
 
-	newProtector := func(name string) secboot.KeyProtector {
-		return secboot.NewHookKeyProtector(runFDESetupHook, name)
+	kf := testKeyFactory{
+		fn: func(name string) secboot.KeyProtector {
+			return secboot.NewHookKeyProtector(runFDESetupHook, name)
+		},
 	}
 
-	err := secboot.SealKeysWithProtector(newProtector, myKeys, &params)
+	err := secboot.SealKeysWithProtector(&kf, myKeys, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, HasLen, 2)
@@ -2162,11 +2172,13 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 		KeyFile:               filepath.Join(root, "key-file"),
 	}}
 
-	newProtector := func(string) secboot.KeyProtector {
-		return secboot.NewOpteeKeyProtector()
+	kf := testKeyFactory{
+		fn: func(string) secboot.KeyProtector {
+			return secboot.NewOpteeKeyProtector()
+		},
 	}
 
-	err := secboot.SealKeysWithProtector(newProtector, keys, &params)
+	err := secboot.SealKeysWithProtector(&kf, keys, &params)
 	c.Assert(err, IsNil)
 	_, ok := container.Slots["one"]
 	c.Check(ok, Equals, true)

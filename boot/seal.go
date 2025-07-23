@@ -54,11 +54,11 @@ func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []
 // disk encryption implementations. The state must be locked when these
 // functions are called.
 var (
-	// HasFDESetupHook purpose is to detect if the target kernel has a
-	// fde-setup-hook. If kernelInfo is nil the current kernel is checked
-	// assuming it is representative` of the target one.
-	HasFDESetupHook = func(kernelInfo *snap.Info) (bool, error) {
-		return false, nil
+	// FDEKeyProtectorFactory returns a secboot.KeyProtectorFactory
+	// implementation, which will create a secboot.KeyProtector based on which
+	// sealing methods are detected as supported.
+	FDEKeyProtectorFactory = func(kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
+		return nil, nil
 	}
 )
 
@@ -85,8 +85,9 @@ func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, pri
 }
 
 type sealKeyToModeenvFlags struct {
-	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
-	HasFDESetupHook bool
+	// FDEKeyProtectorFactory will be used to create a [secboot.KeyProtector].
+	// If nil, it is assumed that TPM sealing should be used.
+	FDEKeyProtectorFactory secboot.KeyProtectorFactory
 	// StandaloneInstall indicates that the sealing is happening when installing
 	// a standalone system. Installing a standalone system doesn't assume that
 	// the run system being set up is related to the current system.
@@ -136,7 +137,10 @@ func sealKeyToModeenvImpl(
 		}
 	}
 
-	method := secboot.DetermineSealingMethod(flags.HasFDESetupHook, flags.StandaloneInstall)
+	method := device.SealingMethodTPM
+	if flags.FDEKeyProtectorFactory != nil {
+		method = device.SealingMethodFDESetupHook
+	}
 
 	if flags.StateUnlocker != nil && method == device.SealingMethodTPM {
 		relock := flags.StateUnlocker()
@@ -170,6 +174,8 @@ type SealKeyForBootChainsParams struct {
 	InstallHostWritableDir string
 	// PrimaryKey is the chosen primary key if it was chosen. It can be nil if not.
 	PrimaryKey []byte
+
+	KeyProtectorFactory secboot.KeyProtectorFactory
 }
 
 func sealKeyForBootChainsImpl(
@@ -198,11 +204,12 @@ func sealKeyToModeenvForMethod(
 		UseTokens:              flags.UseTokens,
 		InstallHostWritableDir: InstallHostWritableDir(model),
 		PrimaryKey:             primaryKey,
+		KeyProtectorFactory:    flags.FDEKeyProtectorFactory,
 	}
 
 	var tbl bootloader.TrustedAssetsBootloader
 	var bl bootloader.Bootloader
-	if method != device.SealingMethodFDESetupHook && method != device.SealingMethodOPTEE {
+	if method != device.SealingMethodFDESetupHook {
 		// build the recovery mode boot chain
 		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 			Role: bootloader.RoleRecovery,
@@ -338,16 +345,10 @@ func WithBootChains(f func(bc BootChains) error, method device.SealingMethod) er
 // device such that they can be used as an input for resealing of encryption
 // keys.
 func bootChains(modeenv *Modeenv, method device.SealingMethod) (BootChains, error) {
-	requiresBootLoaders := true
-	switch method {
-	case device.SealingMethodFDESetupHook, device.SealingMethodOPTEE:
-		requiresBootLoaders = false
-	}
-
 	var bc BootChains
-
 	var tbl bootloader.TrustedAssetsBootloader
 
+	requiresBootLoaders := method != device.SealingMethodFDESetupHook
 	if requiresBootLoaders {
 		// build the recovery mode boot chain
 		rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
