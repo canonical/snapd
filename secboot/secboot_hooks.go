@@ -44,6 +44,11 @@ var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
 const legacyFdeHooksPlatformName = "fde-hook-v2"
 
+type taggedHandle struct {
+	Method string          `json:"method"`
+	Handle json.RawMessage `json:"handle"`
+}
+
 func init() {
 	v2Handler := &fdeHookV2DataHandler{}
 	flags := sb.PlatformKeyDataHandlerFlags(0)
@@ -128,10 +133,17 @@ func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (c
 		return nil, nil, err
 	}
 
-	// this seems wrong, but the KeyProtector API expects handle to be valid
-	// JSON, see [sb_hooks.NewProtectedKey]. thus, we're returning a JSON string
-	// here, which will be our handle, base64 encoded and wrapped in quotes.
-	handleJSON, err := json.Marshal(rawHandle)
+	parsed, err := json.Marshal(rawHandle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tagged := taggedHandle{
+		Method: "optee",
+		Handle: parsed,
+	}
+
+	handleJSON, err := json.Marshal(tagged)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -322,10 +334,39 @@ type keyRevealerV3 struct{}
 
 func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
 	logger.Noticef("Called reveal key")
+
+	// try to parse as new tagged format first. if that fails, assume this is
+	// the older handle format that isn't inside of a JSON object.
+	var tagged taggedHandle
+	if len(data) == 0 || json.Unmarshal(data, &tagged) != nil {
+		logger.Debug("cannot parse handle as JSON object, using fde-setup hook revealer")
+		return revealWithHooks(data, ciphertext)
+	}
+
+	switch tagged.Method {
+	case "hooks":
+		return revealWithHooks(tagged.Handle, ciphertext)
+	case "optee":
+		return revealWithOPTEE(tagged.Handle, ciphertext)
+	default:
+		return nil, fmt.Errorf("unknown key revealer method: %s", tagged.Method)
+	}
+}
+
+func revealWithOPTEE(handleJSON []byte, ciphertext []byte) ([]byte, error) {
+	var handle []byte
+	if err := json.Unmarshal(handleJSON, &handle); err != nil {
+		return nil, err
+	}
+	client := optee.NewFDETAClient()
+	return client.DecryptKey(ciphertext, handle)
+}
+
+func revealWithHooks(handleJSON []byte, ciphertext []byte) ([]byte, error) {
 	var handle *json.RawMessage
-	if len(data) != 0 {
-		rawHandle := json.RawMessage(data)
-		handle = &rawHandle
+	if len(handleJSON) != 0 {
+		tmp := json.RawMessage(handleJSON)
+		handle = &tmp
 	}
 	p := fde.RevealParams{
 		SealedKey: ciphertext,
@@ -333,20 +374,6 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
-}
-
-type opteeKeyRevealer struct{}
-
-func (o *opteeKeyRevealer) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
-	// same deal as the opteeKeyProtector, but the inverse. data is a JSON
-	// encoded, base64 encoded byte array
-	var handle []byte
-	if err := json.Unmarshal(data, &handle); err != nil {
-		return nil, err
-	}
-
-	client := optee.NewFDETAClient()
-	return client.DecryptKey(ciphertext, handle)
 }
 
 // FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that

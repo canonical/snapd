@@ -178,11 +178,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
 
-	if expectFDEHook {
-		sbSetKeyRevealer(&keyRevealerV3{})
-	} else {
-		sbSetKeyRevealer(&opteeKeyRevealer{})
-	}
+	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 
 	const allowPassphrase = true
