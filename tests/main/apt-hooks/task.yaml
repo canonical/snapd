@@ -59,7 +59,7 @@ execute: |
     Try "snap install aws-cli"
     
     EOF
-    if os.query is-ubuntu-ge 24.10; then
+    if os.query is-ubuntu-ge 25.04; then
         echo "Error: Unable to locate package aws-cli" >> expected
     else
         echo "E: Unable to locate package aws-cli" >> expected

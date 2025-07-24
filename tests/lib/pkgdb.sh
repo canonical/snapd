@@ -642,7 +642,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-25.*)
             # bpftool is part of linux-tools package
-            # ubuntu-24.10+ systemd-dev is optional
+            # ubuntu-25.04+ systemd-dev is optional
             echo "
                 dbus-user-session
                 fwupd
