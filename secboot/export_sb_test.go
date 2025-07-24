@@ -44,7 +44,12 @@ var (
 
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
+
+	ResealKeysWithTPM          = resealKeysWithTPM
+	ResealKeysWithFDESetupHook = resealKeysWithFDESetupHook
 )
+
+type ResealKeysWithTPMParams = resealKeysWithTPMParams
 
 func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext) (restore func()) {
 	old := sbPreinstallNewRunChecksContext
@@ -538,4 +543,16 @@ func MockSbKeyDataChangePassphrase(f func(d *sb.KeyData, oldPassphrase string, n
 
 func NewKeyData(kd *sb.KeyData) KeyData {
 	return &keyData{kd: kd}
+}
+
+func MockResealKeysWithFDESetupHook(f func(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, models []ModelForSealing, bootModes []string) error) (restore func()) {
+	return testutil.Mock(&resealKeysWithFDESetupHook, f)
+}
+
+func MockResealKeysWithTPM(f func(params *resealKeysWithTPMParams, newPCRPolicyVersion bool) (UpdatedKeys, error)) (restore func()) {
+	return testutil.Mock(&resealKeysWithTPM, f)
+}
+
+func MockSbKeyDataPlatformName(f func(d *sb.KeyData) string) (restore func()) {
+	return testutil.Mock(&sbKeyDataPlatformName, f)
 }
