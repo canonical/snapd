@@ -50,6 +50,7 @@ const cudaDriverLibsConsumerYaml = `name: snapd
 version: 0
 plugs:
   cuda:
+    compatibility: cuda-(9..12)-ubuntu-2404
     interface: cuda-driver-libs
 apps:
   app:
@@ -60,7 +61,7 @@ const cudaDriverLibsProvider = `name: cuda-provider
 version: 0
 slots:
   cuda-driver-libs:
-    api-version: 9 .. 12.4
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -89,6 +90,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
     source:
       - /snap/cuda-provider/current/lib1
 `, nil, "cuda")
@@ -100,6 +102,7 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "cuda-provider" does not have attribute "source" for interface "cuda-driver-libs"`)
@@ -109,10 +112,22 @@ version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2404
     source: $SNAP/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "cuda-provider" has interface "cuda-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+
+	slot = MockSlot(c, `name: cuda-provider
+version: 0
+slots:
+  cuda:
+    interface: cuda-driver-libs
+    source:
+      - $SNAP/lib1
+`, nil, "cuda")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`snap "cuda-provider" does not have attribute "compatibility" for interface "cuda-driver-libs"`)
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
@@ -120,23 +135,19 @@ func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
 		versRange string
 		err       string
 	}{
-		{"9.2.3", ""},
-		{"9.2.3 .. 12", ""},
-		{"9.2 .. 9.2.1", ""},
-		{"9.2ubuntu", `invalid CUDA version: "9.2ubuntu"`},
-		{".3", `invalid CUDA version: ".3"`},
-		{"3.", `invalid CUDA version: "3."`},
-		{"1.. 4.1", `wrong format for api-version: "1.. 4.1"`},
-		{"1 ..4.1", `wrong format for api-version: "1 ..4.1"`},
-		{"1 ... 4.1", `invalid separator in api-version: "..."`},
-		{"4.1.1 .. 4.1", `"4.1.1" should not be bigger than "4.1"`},
+		{"cuda-9-ubuntu-2404", ""},
+		{"cuda-(9..12)-ubuntu-2510", ""},
+		{"cuda-9", `compatibility label "cuda-9": unexpected number of strings \(should be 2\)`},
+		{"other-9", `compatibility label "other-9": unexpected number of strings \(should be 2\)`},
+		{"cuda-10-2-ubuntu-2510", `compatibility label "cuda-10-2-ubuntu-2510": unexpected number of integers \(should be 1 for "cuda"\)`},
+		{"cuda 5", `compatibility label "cuda 5": bad string "cuda 5"`},
 	} {
 		slot := MockSlot(c, fmt.Sprintf(`name: cuda-provider
 version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
-    api-version: '%s'
+    compatibility: '%s'
     source:
       - $SNAP/lib1
 `, tt.versRange), nil, "cuda")
