@@ -97,7 +97,7 @@ execute: |
 
   set +x
   export SPREAD_EXTERNAL_ADDRESS=localhost:"$PORT"
-  RUN_TESTS=external:ubuntu-"$VERSION"-arm-22:tests/utils/cross-build/suite/build-snapd
+  RUN_TESTS=external:ubuntu-"$VERSION"-arm-32:tests/utils/cross-build/suite/build-snapd
 
   export SPREAD_HTTP_PROXY="$HTTP_PROXY"
   export SPREAD_HTTPS_PROXY="$HTTPS_PROXY"
