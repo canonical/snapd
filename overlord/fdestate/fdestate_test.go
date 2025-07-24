@@ -444,3 +444,30 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	c.Assert(err, ErrorMatches, `external EFI DBX update in progress, no other FDE changes allowed until this is done`)
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 }
+
+func (s *fdeMgrSuite) testSystemEncryptedFromState(c *C, hasEncryptedDisks bool) {
+	onClassic := true
+	if hasEncryptedDisks {
+		s.startedManager(c, onClassic)
+	} else {
+		s.startedManagerNoEncryptedDisks(c, onClassic)
+	}
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	encrypted, err := fdestate.SystemEncryptedFromState(st)
+	c.Assert(err, IsNil)
+	c.Assert(encrypted, Equals, hasEncryptedDisks)
+}
+
+func (s *fdeMgrSuite) TestSystemEncryptedFromStateHasEncryptedDisks(c *C) {
+	hasEncryptedDisks := true
+	s.testSystemEncryptedFromState(c, hasEncryptedDisks)
+}
+
+func (s *fdeMgrSuite) TestSystemEncryptedFromStateNoEncryptedDisks(c *C) {
+	hasEncryptedDisks := false
+	s.testSystemEncryptedFromState(c, hasEncryptedDisks)
+}
