@@ -143,11 +143,6 @@ func getUniqueModels(bootChains []boot.BootChain) []secboot.ModelForSealing {
 	return models
 }
 
-type resealParamsAndLocation struct {
-	params   *SealingParameters
-	location secboot.KeyDataLocation
-}
-
 type doResealOptions struct {
 	revokeOldKeys     bool
 	hintExpectFDEHook bool
@@ -161,12 +156,45 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) err
 		return err
 	}
 
-	var keys []resealParamsAndLocation
-
 	var devices []string
 
 	for _, container := range containers {
 		devices = append(devices, container.DevPath())
+	}
+
+	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
+	fallbackPrimaryKeyFiles := []string{
+		filepath.Join(saveFDEDir, "aux-key"),
+		filepath.Join(saveFDEDir, "tpm-policy-auth-key"),
+	}
+
+	var allResealedKeys secboot.UpdatedKeys
+	resealKey := func(key secboot.KeyDataLocation, params *SealingParameters) error {
+		rkp := &secboot.ResealKeyParams{
+			// Because the save disk might be opened with
+			// an old plainkey, there might not be any
+			// primary key available in keyring for that
+			// save device. So we need to look at all
+			// devices.
+			PrimaryKeyDevices:       devices,
+			FallbackPrimaryKeyFiles: fallbackPrimaryKeyFiles,
+			BootModes:               params.BootModes,
+			Models:                  params.Models,
+			TpmPCRProfile:           params.TpmPCRProfile,
+			NewPCRPolicyVersion:     revokeOldKeys,
+			HintExpectFDEHook:       opts.hintExpectFDEHook,
+		}
+		resealedKeys, err := secbootResealKey(key, rkp)
+		if err != nil {
+			return err
+		}
+		if revokeOldKeys {
+			allResealedKeys = append(allResealedKeys, resealedKeys...)
+		}
+		return nil
+	}
+
+	for _, container := range containers {
 		legacyKeys := container.LegacyKeys()
 
 		switch container.ContainerRole() {
@@ -197,10 +225,10 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) err
 				if hasDefaultLegacyKey {
 					runKey.KeyFile = defaultLegacyKey
 				}
-				keys = append(keys, resealParamsAndLocation{
-					params:   parameters,
-					location: runKey,
-				})
+
+				if err := resealKey(runKey, parameters); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -234,44 +262,13 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) err
 					fallbackKey.KeyFile = fallbackLegacyKey
 				}
 
-				keys = append(keys, resealParamsAndLocation{
-					params:   parameters,
-					location: fallbackKey,
-				})
+				if err := resealKey(fallbackKey, parameters); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
-	fallbackPrimaryKeyFiles := []string{
-		filepath.Join(saveFDEDir, "aux-key"),
-		filepath.Join(saveFDEDir, "tpm-policy-auth-key"),
-	}
-
-	var allResealedKeys secboot.UpdatedKeys
-	for _, key := range keys {
-		params := &secboot.ResealKeyParams{
-			// Because the save disk might be opened with
-			// an old plainkey, there might not be any
-			// primary key available in keyring for that
-			// save device. So we need to look at all
-			// devices.
-			PrimaryKeyDevices:       devices,
-			FallbackPrimaryKeyFiles: fallbackPrimaryKeyFiles,
-			BootModes:               key.params.BootModes,
-			Models:                  key.params.Models,
-			TpmPCRProfile:           key.params.TpmPCRProfile,
-			NewPCRPolicyVersion:     revokeOldKeys,
-			HintExpectFDEHook:       opts.hintExpectFDEHook,
-		}
-		resealedKeys, err := secbootResealKey(key.location, params)
-		if err != nil {
-			return err
-		}
-		if revokeOldKeys {
-			allResealedKeys = append(allResealedKeys, resealedKeys...)
-		}
-	}
 	if revokeOldKeys {
 		primaryKey, err := secbootGetPrimaryKey(devices, fallbackPrimaryKeyFiles)
 		if err != nil {
