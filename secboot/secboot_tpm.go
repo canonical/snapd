@@ -659,12 +659,21 @@ func sbNewSealedKeyDataImpl(k *sb.KeyData) (MaybeSealedKeyData, error) {
 
 var sbNewSealedKeyData = sbNewSealedKeyDataImpl
 
-// ResealKeys updates the PCR protection policy for the sealed encryption keys
+type resealKeysWithTPMParams struct {
+	// The snap model parameters
+	PCRProfile SerializedPCRProfile
+	// The locations to the key data
+	Keys []KeyDataLocation
+	// The primary key
+	PrimaryKey []byte
+}
+
+// resealKeysWithTPMImpl updates the PCR protection policy for the sealed encryption keys
 // according to the specified parameters.
 // If newPCRPolicyVersion is true, the keys will use a new policy version
 // so that the policy counter can be incremented. The function will
 // then also return the updated keys in order to increase the counter.
-func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
+func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
 	numSealedKeyObjects := len(params.Keys)
 	if numSealedKeyObjects < 1 {
 		return nil, fmt.Errorf("at least one key file is required")
@@ -760,6 +769,8 @@ func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys
 
 	return updatedKeys, nil
 }
+
+var resealKeysWithTPM = resealKeysWithTPMImpl
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
@@ -1089,7 +1100,7 @@ func GetPCRHandle(node, keySlot, keyFile string, hintExpectFDEHook bool) (uint32
 			if err != nil {
 				return 0, fmt.Errorf("cannot read key data for slot '%s': %w", keySlot, err)
 			}
-			if keyData.PlatformName() != "tpm2" {
+			if keyData.PlatformName() != platformTpm2 {
 				return 0, nil
 			}
 			sealedKeyData, err := keyData.GetTPMSealedKeyData()
@@ -1122,7 +1133,7 @@ func GetPCRHandle(node, keySlot, keyFile string, hintExpectFDEHook bool) (uint32
 	}
 
 	if loadedKey.KeyData != nil {
-		if loadedKey.KeyData.PlatformName() != "tpm2" {
+		if loadedKey.KeyData.PlatformName() != platformTpm2 {
 			return 0, nil
 		}
 		sealedKeyData, err := loadedKey.KeyData.GetTPMSealedKeyData()
@@ -1166,7 +1177,7 @@ func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, pos
 			if err != nil {
 				return fmt.Errorf("cannot read key data for slot '%s': %w", slot, err)
 			}
-			if keyData.PlatformName() != "tpm2" {
+			if keyData.PlatformName() != platformTpm2 {
 				continue
 			}
 			sealedKeyData, err := keyData.GetTPMSealedKeyData()
@@ -1201,7 +1212,7 @@ func RemoveOldCounterHandles(device string, possibleOldKeys map[string]bool, pos
 				logger.Noticef("WARNING: we are deleting an unexpected handle. That should never have happened.")
 			}
 		} else if loadedKey.KeyData != nil {
-			if loadedKey.KeyData.PlatformName() != "tpm2" {
+			if loadedKey.KeyData.PlatformName() != platformTpm2 {
 				continue
 			}
 			sealedKeyData, err := loadedKey.KeyData.GetTPMSealedKeyData()
