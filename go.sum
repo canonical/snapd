@@ -57,6 +57,8 @@ github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0E
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
 github.com/snapcore/secboot v0.0.0-20250716090113-a44df50f5352 h1:2r8fFh1ItbDAZp31tck02YJ81gjmqnOVsQjsMf2Iwq0=
 github.com/snapcore/secboot v0.0.0-20250716090113-a44df50f5352/go.mod h1:YOJQnKKG5YXotxAebtzIJrnDiDAMirAbVTRj7IkGa7U=
+github.com/snapcore/secboot v0.0.0-20250723142039-3e181c8edf0f h1:9fDxDbmLSfDTk3T9pAdHqmP/cm5s8brua3OnIbG8d9Y=
+github.com/snapcore/secboot v0.0.0-20250723142039-3e181c8edf0f/go.mod h1:YOJQnKKG5YXotxAebtzIJrnDiDAMirAbVTRj7IkGa7U=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 go.etcd.io/bbolt v1.3.9 h1:8x7aARPEXiXbHmtUwAIv7eV2fQFHrLLavdiJ3uzJXoI=
 go.etcd.io/bbolt v1.3.9/go.mod h1:zaO32+Ti0PK1ivdPtgMESzuzL2VPoIG1PCQNvOdo/dE=
