@@ -152,18 +152,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	fdeHookPresent := fdeHasRevealKey()
-
-	client := optee.NewFDETAClient()
-	opteePresent := client.Present()
-
-	// TODO: better name for this, since this isn't just a hook now. really, we
-	// need a name that is representative of an abstraction over both the hooks
-	// and the integrated optee implementation, since they are both so similar.
-	hintExpectFDEHookOrTEE := fdeHookPresent || opteePresent
-
+	expectFDEHook := fdeHasRevealKey()
 	loadedKey := &defaultKeyLoader{}
-	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHookOrTEE); err != nil {
+	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, expectFDEHook); err != nil {
 		if !os.IsNotExist(err) {
 			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
 		}
@@ -187,7 +178,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
 
-	if fdeHookPresent {
+	if expectFDEHook {
 		sbSetKeyRevealer(&keyRevealerV3{})
 	} else {
 		sbSetKeyRevealer(&opteeKeyRevealer{})
