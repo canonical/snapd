@@ -160,9 +160,6 @@ backends:
                   image: ubuntu-2404-64
                   storage: 15G
                   workers: 8
-            - ubuntu-24.10-64:
-                  storage: 15G
-                  workers: 8
             - ubuntu-25.04-64:
                   image: ubuntu-2504-amd64
                   storage: 15G
@@ -321,7 +318,7 @@ backends:
             - ubuntu-24.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-24.10-64:
+            - ubuntu-25.04-64:
                   storage: 12G
                   workers: 8
 
@@ -575,9 +572,6 @@ backends:
             - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-24.10-64:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-25.04-64:
                   username: ubuntu
                   password: ubuntu
@@ -677,9 +671,6 @@ backends:
                   username: root
                   password: root
             - ubuntu-24.04-64:
-                  username: root
-                  password: root
-            - ubuntu-24.10-64:
                   username: root
                   password: root
             - ubuntu-25.04-64:
