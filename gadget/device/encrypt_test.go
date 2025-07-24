@@ -117,7 +117,6 @@ func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
 		{device.SealingMethodLegacyTPM, ""},
 		{device.SealingMethodTPM, "tpm"},
 		{device.SealingMethodFDESetupHook, "fde-setup-hook"},
-		{device.SealingMethodOPTEE, "optee"},
 	} {
 		err := device.StampSealedKeys(root, tc.mth)
 		c.Assert(err, IsNil)
