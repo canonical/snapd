@@ -186,5 +186,13 @@ restore: |
     systemctl stop fakedevicesvc.service || true
 
 execute: |
-    remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH "${SEALING_METHOD}"
+    # despite using optee, we will always set fde-setup-hook here. the
+    # difference is handled internally
+    remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH 'fde-setup-hook'
     remote.exec 'sudo blkid /dev/disk/by-label/ubuntu-data-enc' | MATCH 'TYPE="crypto_LUKS"'
+
+    expected='optee'
+    if [ "${SEALING_METHOD}" = 'fde-setup-hook' ]; then
+      expected='hooks'
+    fi
+    remote.exec 'sudo cat /var/lib/snapd/seed/device/fde/ubuntu-data.recovery.sealed-key' | gojq .platform_handle.handle.method | MATCH "${expected}"
