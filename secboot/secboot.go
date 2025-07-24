@@ -290,3 +290,12 @@ func MarkSuccessful() error {
 const (
 	defaultKeyringPrefix = "ubuntu-fde"
 )
+
+type ResealKeyParams struct {
+	GetPrimaryKey              func() ([]byte, error)
+	BootModes                  []string
+	Models                     []ModelForSealing
+	TpmPCRProfile              []byte
+	IncrementRevocationCounter bool
+	HintExpectFDEHook          bool
+}

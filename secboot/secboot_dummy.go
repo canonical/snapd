@@ -134,7 +134,7 @@ func DeleteOldKeys(devicePath string) error {
 	return errBuildWithoutSecboot
 }
 
-func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
+func GetPrimaryKey(devices []string, fallbackKeyFiles []string) ([]byte, error) {
 	return nil, errBuildWithoutSecboot
 }
 
@@ -168,4 +168,8 @@ func DeleteContainerKey(devicePath, slotName string) error {
 
 func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.RecoveryKey) error {
 	return errBuildWithoutSecboot
+}
+
+func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error) {
+	return nil, errBuildWithoutSecboot
 }

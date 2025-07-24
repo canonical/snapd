@@ -3707,7 +3707,7 @@ func (s *secbootSuite) TestGetPrimaryKey(c *C) {
 		}
 	})()
 
-	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, "/nonexistant")
+	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, []string{"/nonexistant"})
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }
@@ -3753,7 +3753,7 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 	err := os.WriteFile(keyFile, []byte{1, 2, 3, 4}, 0644)
 	c.Assert(err, IsNil)
 
-	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, keyFile)
+	found, err := secboot.GetPrimaryKey([]string{"/dev/test/device1", "/dev/test/device2"}, []string{keyFile})
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, []byte{1, 2, 3, 4})
 }
