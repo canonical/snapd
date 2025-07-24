@@ -3186,13 +3186,13 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	// check that both Get and Set handle a path/container mismatch gracefully if
 	// the container is a map
 	_, err = view.Get(bag, "a[0]")
-	c.Assert(err, ErrorMatches, `key "\[0\]" cannot be used to access map at path "a\[0\]"`)
+	c.Assert(err, ErrorMatches, `cannot use "\[0\]" to access map at path "a"`)
 
 	err = view.Set(bag, "a[0]", "foo")
-	c.Assert(err, ErrorMatches, `key "\[0\]" cannot be used to access map at path "a\[0\]"`)
+	c.Assert(err, ErrorMatches, `cannot use "\[0\]" to access map at path "a"`)
 
 	err = view.Unset(bag, "a[0]")
-	c.Assert(err, ErrorMatches, `key "\[0\]" cannot be used to access map at path "a\[0\]"`)
+	c.Assert(err, ErrorMatches, `cannot use "\[0\]" to access map at path "a"`)
 
 	err = bag.Unset("a")
 	c.Assert(err, IsNil)
@@ -3203,13 +3203,13 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	// check that both Get and Set handle a path/container mismatch gracefully if
 	// the container is a list
 	_, err = view.Get(bag, "a.b")
-	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
+	c.Assert(err, ErrorMatches, `cannot use "b" to index list at path "a"`)
 
 	err = view.Set(bag, "a.b", "foo")
-	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
+	c.Assert(err, ErrorMatches, `cannot use "b" to index list at path "a"`)
 
 	err = view.Unset(bag, "a.b")
-	c.Assert(err, ErrorMatches, `key "b" cannot be used to index list at path "a.b"`)
+	c.Assert(err, ErrorMatches, `cannot use "b" to index list at path "a"`)
 }
 
 func (*viewSuite) TestSetListSetsOrAppends(c *C) {
@@ -3248,7 +3248,7 @@ func (*viewSuite) TestSetListSetsOrAppends(c *C) {
 	// cannot append if index is not next one
 	err = view.Set(bag, "a[9]", "foo")
 	c.Assert(err, testutil.ErrorIs, confdb.PathError(""))
-	c.Assert(err.Error(), Equals, `cannot index list at "a[9]": list has length 2`)
+	c.Assert(err.Error(), Equals, `cannot access "a[9]": list has length 2`)
 }
 
 func (*viewSuite) TestSetListNested(c *C) {

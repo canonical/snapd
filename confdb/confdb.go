@@ -1962,7 +1962,7 @@ func get(subKeys []accessor, index int, node any, result *any) error {
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
 func getMap(subKeys []accessor, index int, node map[string]json.RawMessage, result *any) error {
-	pathPrefix := joinAccessors(subKeys[:index+1])
+	curPath := joinAccessors(subKeys[:index+1])
 	key := subKeys[index]
 
 	var matchAll bool
@@ -1971,12 +1971,13 @@ func getMap(subKeys []accessor, index int, node map[string]json.RawMessage, resu
 		var ok bool
 		rawLevel, ok = node[key.name()]
 		if !ok {
-			return pathErrorf("no value was found under path %q", pathPrefix)
+			return pathErrorf("no value was found under path %q", curPath)
 		}
 	} else if key.keyType() == keyPlaceholderType {
 		matchAll = true
 	} else {
-		return fmt.Errorf("key %q cannot be used to access map at path %q", key.access(), pathPrefix)
+		pathPrefix := joinAccessors(subKeys[:index])
+		return fmt.Errorf("cannot use %q to access map at path %q", key.access(), pathPrefix)
 	}
 
 	// read the final value
@@ -2032,7 +2033,7 @@ func getMap(subKeys []accessor, index int, node map[string]json.RawMessage, resu
 		}
 
 		if len(results) == 0 {
-			return pathErrorf("no value was found under path %q", pathPrefix)
+			return pathErrorf("no value was found under path %q", curPath)
 		}
 
 		*result = results
@@ -2055,7 +2056,6 @@ func getMap(subKeys []accessor, index int, node map[string]json.RawMessage, resu
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
 func getList(subKeys []accessor, keyIndex int, list []json.RawMessage, result *any) error {
-	pathPrefix := joinAccessors(subKeys[:keyIndex+1])
 	key := subKeys[keyIndex]
 
 	var matchAll bool
@@ -2065,11 +2065,13 @@ func getList(subKeys []accessor, keyIndex int, list []json.RawMessage, result *a
 	} else if key.keyType() == indexPlaceholderType {
 		matchAll = true
 	} else {
-		return fmt.Errorf("key %q cannot be used to index list at path %q", key.access(), pathPrefix)
+		pathPrefix := joinAccessors(subKeys[:keyIndex])
+		return fmt.Errorf("cannot use %q to index list at path %q", key.access(), pathPrefix)
 	}
 
+	curPath := joinAccessors(subKeys[:keyIndex+1])
 	if listIndex >= len(list) {
-		return pathErrorf("no value was found under path %q", pathPrefix)
+		return pathErrorf("no value was found under path %q", curPath)
 	}
 
 	// read the final value
@@ -2125,7 +2127,7 @@ func getList(subKeys []accessor, keyIndex int, list []json.RawMessage, result *a
 		}
 
 		if len(results) == 0 {
-			return pathErrorf("no value was found under path %q", pathPrefix)
+			return pathErrorf("no value was found under path %q", curPath)
 		}
 
 		*result = results
@@ -2246,8 +2248,8 @@ func set(subKeys []accessor, index int, node any, value any) (json.RawMessage, e
 func setMap(subKeys []accessor, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
 	key := subKeys[index]
 	if key.keyType() != mapKeyType {
-		pathPrefix := joinAccessors(subKeys[:index+1])
-		return nil, fmt.Errorf("key %q cannot be used to access map at path %q", key.access(), pathPrefix)
+		pathPrefix := joinAccessors(subKeys[:index])
+		return nil, fmt.Errorf("cannot use %q to access map at path %q", key.access(), pathPrefix)
 	}
 
 	if index == len(subKeys)-1 {
@@ -2294,18 +2296,19 @@ func setMap(subKeys []accessor, index int, node map[string]json.RawMessage, valu
 }
 
 func setList(subKeys []accessor, keyIndex int, list []json.RawMessage, value any) (json.RawMessage, error) {
-	pathPrefix := joinAccessors(subKeys[:keyIndex+1])
 	key := subKeys[keyIndex]
 
 	if key.keyType() != listIndexType {
-		return nil, fmt.Errorf("key %q cannot be used to index list at path %q", key, pathPrefix)
+		pathPrefix := joinAccessors(subKeys[:keyIndex])
+		return nil, fmt.Errorf("cannot use %q to index list at path %q", key.access(), pathPrefix)
 	}
 
 	listIndex, _ := strconv.Atoi(key.name())
 	// note that the index can exceed the list length by 1 (in which case we
 	// append the entry, extending the list)
 	if listIndex > len(list) {
-		return nil, pathErrorf("cannot index list at %q: list has length %d", pathPrefix, len(list))
+		pathPrefix := joinAccessors(subKeys[:keyIndex+1])
+		return nil, pathErrorf("cannot access %q: list has length %d", pathPrefix, len(list))
 	}
 
 	if keyIndex == len(subKeys)-1 {
@@ -2397,9 +2400,9 @@ func unset(subKeys []accessor, index int, node any) (json.RawMessage, error) {
 func unsetMap(subKeys []accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
 	key := subKeys[index]
 
-	pathPrefix := joinAccessors(subKeys[:index+1])
+	pathPrefix := joinAccessors(subKeys[:index])
 	if key.keyType() != mapKeyType && key.keyType() != keyPlaceholderType {
-		return nil, fmt.Errorf("key %q cannot be used to access map at path %q", key.access(), pathPrefix)
+		return nil, fmt.Errorf("cannot use %q to access map at path %q", key.access(), pathPrefix)
 	}
 
 	if index == len(subKeys)-1 {
@@ -2458,9 +2461,9 @@ func unsetMap(subKeys []accessor, index int, node map[string]json.RawMessage) (j
 func unsetList(subKeys []accessor, keyIndex int, node []json.RawMessage) (json.RawMessage, error) {
 	key := subKeys[keyIndex]
 
-	pathPrefix := joinAccessors(subKeys[:keyIndex+1])
+	pathPrefix := joinAccessors(subKeys[:keyIndex])
 	if key.keyType() != listIndexType && key.keyType() != indexPlaceholderType {
-		return nil, fmt.Errorf("key %q cannot be used to index list at path %q", key.access(), pathPrefix)
+		return nil, fmt.Errorf("cannot use %q to index list at path %q", key.access(), pathPrefix)
 	}
 
 	if keyIndex == len(subKeys)-1 {
@@ -2479,7 +2482,7 @@ func unsetList(subKeys []accessor, keyIndex int, node []json.RawMessage) (json.R
 		return json.Marshal(node)
 	}
 
-	unsetKey := func(list []json.RawMessage, index int) (json.RawMessage, error) {
+	unsetIndex := func(list []json.RawMessage, index int) (json.RawMessage, error) {
 		nextLevel, err := unmarshalLevel(subKeys, keyIndex+1, list[index])
 		if err != nil {
 			return nil, err
@@ -2491,7 +2494,7 @@ func unsetList(subKeys []accessor, keyIndex int, node []json.RawMessage) (json.R
 	if key.keyType() == indexPlaceholderType {
 		var wi int
 		for i := range node {
-			updated, err := unsetKey(node, i)
+			updated, err := unsetIndex(node, i)
 			if err != nil {
 				return nil, err
 			}
@@ -2512,7 +2515,7 @@ func unsetList(subKeys []accessor, keyIndex int, node []json.RawMessage) (json.R
 			return json.Marshal(node)
 		}
 
-		updated, err := unsetKey(node, i)
+		updated, err := unsetIndex(node, i)
 		if err != nil {
 			return nil, err
 		}
