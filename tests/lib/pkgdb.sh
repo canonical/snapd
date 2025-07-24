@@ -626,12 +626,6 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22*-arm-*)
-            echo "
-                golang
-                lz4
-                "
-            ;;
         ubuntu-22.*|ubuntu-23.*|ubuntu-24.04*)
             # bpftool is part of linux-tools package
             echo "

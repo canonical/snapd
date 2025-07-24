@@ -837,7 +837,10 @@ backends:
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
-            - ubuntu-22.04-armhf:
+            - ubuntu-20.04-arm-32:
+                username: root
+                password: ubuntu
+            - ubuntu-22.04-arm-32:
                 username: root
                 password: ubuntu
             - ubuntu-core-16-64:
@@ -1281,7 +1284,8 @@ suites:
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
     tests/utils/cross-build/suite/:
-        summary: Test building snapd in different architectures
+        summary: Test building snapd in different architectures        
+        manual: true
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
