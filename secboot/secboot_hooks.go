@@ -144,9 +144,9 @@ func setAuthorizedBootModesOnHooksKeydataImpl(kd *sb_hooks.KeyData, rand io.Read
 
 var setAuthorizedBootModesOnHooksKeydata = setAuthorizedBootModesOnHooksKeydataImpl
 
-// ResealKeysWithFDESetupHook updates hook based keydatas for given
+// resealKeysWithFDESetupHookImpl updates hook based keydatas for given
 // files with a specific list of models
-func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []ModelForSealing, bootModes []string) error {
+func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []ModelForSealing, bootModes []string) error {
 	var sbModels []sb.SnapModel
 	for _, model := range models {
 		sbModels = append(sbModels, model)
@@ -212,6 +212,8 @@ func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyGetter func() 
 
 	return nil
 }
+
+var resealKeysWithFDESetupHook = resealKeysWithFDESetupHookImpl
 
 func unlockDiskWithHookV1Key(mapperName, sourceDevice string, sealed []byte) error {
 	p := fde.RevealParams{
