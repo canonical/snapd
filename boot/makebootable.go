@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
@@ -634,9 +636,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 	}
 
 	if observer != nil && observerImpl.useEncryption {
-		hasHook, err := HasFDESetupHook(bootWith.Kernel)
-		if err != nil {
-			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
+		protector, err := FDEKeyProtectorFactory(bootWith.Kernel)
+		if err != nil && !errors.Is(err, secboot.ErrNoKeyProtector) {
+			return fmt.Errorf("cannot check for fde-setup hook key protector: %v", err)
 		}
 
 		tokens := UseTokens(model)
@@ -647,11 +649,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		}
 
 		flags := sealKeyToModeenvFlags{
-			HasFDESetupHook: hasHook,
-			FactoryReset:    makeOpts.AfterDataReset,
-			SeedDir:         makeOpts.SeedDir,
-			StateUnlocker:   makeOpts.StateUnlocker,
-			UseTokens:       tokens,
+			FDEKeyProtectorFactory: protector,
+			FactoryReset:           makeOpts.AfterDataReset,
+			StandaloneInstall:      makeOpts.Standalone,
+			SeedDir:                makeOpts.SeedDir,
+			StateUnlocker:          makeOpts.StateUnlocker,
+			UseTokens:              tokens,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir

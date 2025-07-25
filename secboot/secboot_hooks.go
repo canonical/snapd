@@ -23,6 +23,7 @@ package secboot
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -69,7 +70,35 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	}
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+// KeyProtector is an abstraction for an externally supplied key setup hook.
+type KeyProtector sb_hooks.KeyProtector
+
+// KeyProtectorFactory enables creating a [KeyProtector] implementation.
+type KeyProtectorFactory interface {
+	// ForKeyName returns a new [KeyProtector].
+	ForKeyName(name string) KeyProtector
+}
+
+var ErrNoKeyProtector = errors.New("cannot find supported FDE key protector")
+
+type fdeKeyProtectorFactory struct {
+	runHook fde.RunSetupHookFunc
+}
+
+func (f *fdeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &hookKeyProtector{
+		runHook: f.runHook,
+		keyName: name,
+	}
+}
+
+func FDEKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+	return &fdeKeyProtectorFactory{runHook: runHook}
+}
+
+// TODO: add an OPTEE key protector and factory
+
+func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
 		// TODO:FDEM:FIX: add unit test taking that primary key
@@ -77,25 +106,20 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	}
 
 	for _, skr := range keys {
-		protector := &hookKeyProtector{
-			runHook: runHook,
-			keyName: skr.KeyName,
-		}
+		protector := kpf.ForKeyName(skr.KeyName)
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
 		defer sb_hooks.SetKeyProtector(nil, 0)
 
-		params := &sb_hooks.KeyParams{
+		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
 			PrimaryKey: primaryKey,
 			Role:       skr.KeyName,
 			AuthorizedSnapModels: []sb.SnapModel{
 				params.Model,
 			},
 			AuthorizedBootModes: skr.BootModes,
-		}
-
-		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+		})
 		if err != nil {
 			return err
 		}
