@@ -153,7 +153,7 @@ func (s *SelectorSuite) TestVerifyRoutes(c *check.C) {
 	c.Assert(sel.Routes(), check.DeepEquals, expected)
 }
 
-func (s *SelectorSuite) TestAddAuthoritativeRouteAndPublish(c *check.C) {
+func (s *SelectorSuite) TestAddAuthoritativeRouteAndSelect(c *check.C) {
 	self := assemblestate.DeviceToken("self")
 	one := assemblestate.DeviceToken("one")
 	two := assemblestate.DeviceToken("two")
@@ -186,10 +186,10 @@ func (s *SelectorSuite) TestAddAuthoritativeRouteAndPublish(c *check.C) {
 		},
 	}
 
-	c.Assert(&routes, check.DeepEquals, &expected)
+	c.Assert(routes, check.DeepEquals, expected)
 }
 
-func (s *SelectorSuite) TestPublishSelectsLowSourceRoutes(c *check.C) {
+func (s *SelectorSuite) TestSelectSelectsLowSourceRoutes(c *check.C) {
 	self := assemblestate.DeviceToken("self")
 	peer := assemblestate.DeviceToken("peer")
 
@@ -248,7 +248,7 @@ func (s *SelectorSuite) TestPublishSelectsLowSourceRoutes(c *check.C) {
 		},
 	}
 
-	c.Assert(&routes, check.DeepEquals, &expected)
+	c.Assert(routes, check.DeepEquals, expected)
 }
 
 func (s *SelectorSuite) TestRoutes(c *check.C) {
@@ -331,7 +331,7 @@ func (s *SelectorSuite) TestRoutesOnlyIdentified(c *check.C) {
 	c.Assert(got, check.DeepEquals, expected)
 }
 
-func (s *SelectorSuite) TestPublishWithNoPeers(c *check.C) {
+func (s *SelectorSuite) TestSelectWithNoPeers(c *check.C) {
 	self := assemblestate.DeviceToken("self")
 	sel := assemblestate.NewPrioritySelector(self, nil, func(assemblestate.DeviceToken) bool { return true })
 
@@ -339,7 +339,46 @@ func (s *SelectorSuite) TestPublishWithNoPeers(c *check.C) {
 	c.Assert(ok, check.Equals, false)
 }
 
-func (s *SelectorSuite) TestPublishRouteSelectionDeterministic(c *check.C) {
+func (s *SelectorSuite) TestSelectForOurself(c *check.C) {
+	self := assemblestate.DeviceToken("self")
+	sel := assemblestate.NewPrioritySelector(self, nil, func(assemblestate.DeviceToken) bool { return true })
+
+	_, _, ok := sel.Select(assemblestate.DeviceToken("self"), 100)
+	c.Assert(ok, check.Equals, false)
+}
+
+func (s *SelectorSuite) TestSelectEverythingKnown(c *check.C) {
+	self := assemblestate.DeviceToken("self")
+	sel := assemblestate.NewPrioritySelector(self, nil, func(assemblestate.DeviceToken) bool { return true })
+
+	expected := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"a", "b"},
+		Addresses: []string{"ip-1"},
+		Routes: []int{
+			0, 1, 0, // a->b via ip-1
+		},
+	}
+
+	_, _, err := sel.RecordRoutes("peer-1", expected)
+	c.Assert(err, check.IsNil)
+
+	_, _, err = sel.RecordRoutes("peer-2", assemblestate.Routes{})
+	c.Assert(err, check.IsNil)
+
+	// first time, peer-2 should be sent the routes we know about
+	routes, ack, ok := sel.Select(assemblestate.DeviceToken("peer-2"), 100)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(routes, check.DeepEquals, expected)
+
+	// ack those routes, they shouldn't be sent to peer-2 again
+	ack()
+
+	// nothing to send to peer-2
+	_, _, ok = sel.Select(assemblestate.DeviceToken("peer-2"), 100)
+	c.Assert(ok, check.Equals, false)
+}
+
+func (s *SelectorSuite) TestSelectRouteSelectionDeterministic(c *check.C) {
 	self := assemblestate.DeviceToken("self")
 	peer := assemblestate.DeviceToken("peer")
 
@@ -381,7 +420,7 @@ func (s *SelectorSuite) TestPublishRouteSelectionDeterministic(c *check.C) {
 		Routes:    []int{0, 1, 0}, // self -> peer via low-freq
 	}
 
-	c.Assert(&routes, check.DeepEquals, &expected)
+	c.Assert(routes, check.DeepEquals, expected)
 }
 
 func (s *SelectorSuite) TestRoutesNoDuplicates(c *check.C) {
