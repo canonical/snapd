@@ -1,4 +1,4 @@
-summary: Build snap on a specific architecture
+summary: Build snapd on a specific architecture
 
 details: |
    Verifies that snapd can be built on a specific architecture.
