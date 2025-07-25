@@ -30,7 +30,8 @@ import (
 )
 
 // RouteSelector keeps track of which routes we've seen and helps pick which
-// peers to publish routes to.
+// peers to publish routes to. While transparent in the interface, a
+// RouteSelector is provided a source to query which peers are identified.
 type RouteSelector interface {
 	// AddAuthoritativeRoute records a route from this local node to the given
 	// [DeviceToken]. This route will be published to the given peer, regardless
@@ -55,8 +56,8 @@ type RouteSelector interface {
 	// for publication if the selector knows the identity of the route's origin
 	// and destination devices.
 	//
-	// This method should be called whenever the RouteSelector's knowledge of
-	// device identities changes.
+	// This method should be called whenever the RouteSelector's source of
+	// knowledge of device identities changes.
 	VerifyRoutes()
 
 	// Select selects a subset of routes that the specified peer needs to receive.
