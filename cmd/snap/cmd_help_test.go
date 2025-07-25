@@ -37,9 +37,10 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 
+	var sameOutput string
 	for _, cmdLine := range [][]string{
-		{"snap"},
 		{"snap", "help"},
+		{"snap"},
 		{"snap", "--help"},
 		{"snap", "-h"},
 		{"snap", "--help", "install"},
@@ -51,7 +52,13 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 
 		err := snap.RunMain()
 		c.Assert(err, check.IsNil, comment)
-		c.Check(s.Stdout(), check.Matches, "(?s)"+strings.Join([]string{
+		c.Check(s.Stderr(), check.Equals, "", comment)
+		if sameOutput != "" {
+			c.Check(s.Stdout(), check.Equals, sameOutput, comment)
+			continue
+		}
+		sameOutput := s.Stdout()
+		c.Check(sameOutput, check.Matches, "(?s)"+strings.Join([]string{
 			snap.LongSnapDescription,
 			"",
 			regexp.QuoteMeta(snap.SnapUsage),
@@ -61,7 +68,45 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 			snap.SnapHelpAllFooter,
 			snap.SnapHelpFooter,
 		}, "\n")+`\s*`, comment)
-		c.Check(s.Stderr(), check.Equals, "", comment)
+	}
+}
+
+func (s *SnapSuite) TestHelpPrintsCommands(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	re, err := regexp.Compile("(?s)" + strings.Join([]string{
+		snap.LongSnapDescription,
+		"",
+		regexp.QuoteMeta(snap.SnapUsage),
+		"",
+		snap.SnapHelpCategoriesIntro,
+		"(.*)", "",
+		snap.SnapHelpAllFooter,
+		snap.SnapHelpFooter,
+	}, "\n") + `\s*`)
+	c.Assert(err, check.IsNil)
+
+	var cmds []string
+	for _, categ := range snap.HelpCategories {
+		cmds = append(cmds, categ.Commands...)
+	}
+
+	os.Args = []string{"snap", "help"}
+	comment := check.Commentf("%q", os.Args)
+
+	err = snap.RunMain()
+	c.Assert(err, check.IsNil, comment)
+	c.Check(s.Stderr(), check.Equals, "", comment)
+	m := re.FindStringSubmatch(s.Stdout())
+	c.Assert(m, check.HasLen, 2, comment)
+	cmdsListing := m[1]
+	for _, cmd := range cmds {
+		cre, err := regexp.Compile(`(?m) ` + cmd + `(?:,|$)`)
+		c.Assert(err, check.IsNil)
+		res := cre.FindAllString(cmdsListing, -1)
+		// command appears once
+		c.Check(res, check.HasLen, 1, check.Commentf("%q", cmd))
 	}
 }
 

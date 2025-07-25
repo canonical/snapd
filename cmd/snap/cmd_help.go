@@ -311,13 +311,14 @@ func printShortHelp() {
 	maxLen := utf8.RuneCountInString("... Other")
 	var otherCommands []string
 	var develCateg *helpCategory
-	for _, categ := range helpCategories {
+	for i := range helpCategories {
+		categ := &helpCategories[i]
 		if categ.Other {
 			otherCommands = append(otherCommands, categ.Commands...)
 			continue
 		}
 		if categ.Label == "Development" {
-			develCateg = &categ
+			develCateg = categ
 		}
 		if l := utf8.RuneCountInString(categ.Label); l > maxLen {
 			maxLen = l
