@@ -568,6 +568,8 @@ prepare_project() {
                 ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
                 ;;
         esac
+    elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then
+        find "$PROJECT_PATH/built-pkgs/$SPREAD_SYSTEM" -type f -exec cp -v {} "${GOPATH%%:*}" \;
     else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
