@@ -76,6 +76,12 @@ jobs:
           - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
           - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
 
+  package-snapd-arch:
+    uses: ./.github/workflows/arch-builds.yaml
+    name: Package arch-linux-64
+    with:
+      runs-on: '["ubuntu-latest"]'
+
   package-snapd-deb:
     uses: ./.github/workflows/deb-builds.yaml
     name: Package ${{ matrix.build-config.system }}

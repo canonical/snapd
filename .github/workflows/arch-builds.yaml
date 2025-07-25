@@ -1,0 +1,52 @@
+name: Build arch package
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+
+jobs:
+  build-arch:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        load: true
+        file: tests/lib/packaging/arch.dockerfile
+        tags: arch-base:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build arch pkg
+      run: |
+        chmod -R a+w .
+        mkdir -p /tmp/builds
+        chmod -R a+w /tmp/builds
+        docker run --cap-add SYS_ADMIN --rm \
+          --mount type=bind,src=$(pwd),dst=/home/test/snapd \
+          --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
+          arch-base:latest \
+          bash -c "
+            /home/test/snapd/tests/lib/packaging/build-arch.sh /home/test/snapd test /tmp/pkg/ && \
+            cp /tmp/pkg/snapd*.pkg.tar.* /tmp/builds
+          "
+        cd /tmp/builds
+        find . -name '*.pkg.tar.*' -exec tar cvf package-arch-linux-64.tar {} +
+
+    - name: upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-arch-linux-64
+        path: /tmp/builds/package-arch-linux-64.tar
