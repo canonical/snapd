@@ -451,8 +451,20 @@ jobs:
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: needs.read-systems.outputs.fundamental-systems != ''
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - package-snapd-rpm
+      - package-snapd-arch
+      - package-snapd-deb
+    if: always() && 
+        needs.read-systems.outputs.fundamental-systems != '' &&
+        needs.read-systems.result == 'success' &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -478,10 +490,27 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - spread-fundamental
+      - package-snapd-rpm
+      - package-snapd-arch
+      - package-snapd-deb
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
+    if: always() && 
+        github.event_name == 'pull_request' &&
+        !contains(github.base_ref, 'release') &&
+        !contains(github.event.pull_request.labels.*.name, 'cross-distro') &&
+        needs.read-systems.outputs.non-fundamental-systems != '' &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success' &&
+        needs.read-systems.result == 'success' &&
+        needs.spread-fundamental.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -506,10 +535,26 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - package-snapd-rpm
+      - package-snapd-arch
+      - package-snapd-deb
+    if: always () &&
+        (
+          github.event_name != 'pull_request' ||
+          contains(github.base_ref, 'release') ||
+          contains(github.event.pull_request.labels.*.name, 'cross-distro')
+        ) &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success' &&
+        needs.read-systems.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -534,8 +579,18 @@ jobs:
 
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: needs.read-systems.outputs.nested-systems != ''
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - package-snapd-deb
+    if: always() &&
+        needs.read-systems.outputs.nested-systems != '' &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success' &&
+        needs.read-systems.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
