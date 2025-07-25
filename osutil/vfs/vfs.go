@@ -92,6 +92,13 @@ type mount struct {
 	rootDir    string // Path of fsFS that is actually mounted.
 	isDir      bool   // Mount is attached to a directory.
 	fsFS       fs.StatFS
+
+	// Links to parent, children and siblings. Any of those may be nil.
+	parent      *mount
+	firstChild  *mount
+	lastChild   *mount
+	nextSibling *mount
+	prevSibling *mount
 }
 
 // pathDominator contains information about the mount that dominates a given path.
@@ -118,6 +125,74 @@ func NewVFS(rootFS fs.StatFS) *VFS {
 		isDir:    true,
 		fsFS:     rootFS,
 	}}}
+}
+
+// attachMount attaches a new mount to the VFS.
+//
+// The main responsibility of the function is to allocate a new mount ID and parent ID
+// for the child mount and to update linkage between parent and siblings.
+func (v *VFS) attachMount(parent *mount, child *mount) {
+	if child.mountID != 0 {
+		panic("attachMount called with mountID != 0")
+	}
+	if child.parentID != 0 {
+		panic("attachMount called with parentID != 0")
+	}
+
+	child.parentID = parent.mountID
+	child.mountID = v.allocateMountID()
+
+	child.parent = parent
+
+	if parent.firstChild == nil {
+		parent.firstChild = child
+	}
+
+	if parent.lastChild != nil {
+		child.prevSibling = parent.lastChild
+		parent.lastChild.nextSibling = child
+	}
+
+	parent.lastChild = child
+
+	v.mounts = append(v.mounts, child)
+}
+
+func (v *VFS) detachMount(m *mount, idx int) {
+	if m.parent == nil {
+		panic("cannot detach rootfs")
+	}
+
+	if m.parent.firstChild == m {
+		m.parent.firstChild = m.nextSibling
+	}
+	if m.parent.lastChild == m {
+		m.parent.lastChild = m.prevSibling
+	}
+
+	if m.prevSibling != nil {
+		m.prevSibling.nextSibling = m.nextSibling
+	}
+	if m.nextSibling != nil {
+		m.nextSibling.prevSibling = m.prevSibling
+	}
+
+	m.nextSibling = nil
+	m.prevSibling = nil
+	m.parent = nil
+
+	m.parentID = 0
+	m.mountID = 0
+
+	// TODO: use slices from future go to avoid this hand-crafted surgery.
+	v.mounts = append(v.mounts[:idx], v.mounts[idx+1:]...)
+}
+
+// allocateMountID returns a new mount ID.
+func (v *VFS) allocateMountID() MountID {
+	id := v.nextMountID
+	v.nextMountID++
+	return id
 }
 
 // pathDominator returns information about the mount that dominates a given path.

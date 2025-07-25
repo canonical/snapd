@@ -60,14 +60,12 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 	}
 
 	// Mount and return.
-	v.mounts = append(v.mounts, &mount{
-		mountID:    v.nextMountID,
-		parentID:   pd.mount.mountID,
+	m := &mount{
 		mountPoint: mountPoint,
 		isDir:      true,
 		fsFS:       fsFS,
-	})
-	v.nextMountID++
+	}
+	v.attachMount(pd.mount, m)
 
 	return nil
 }
@@ -130,16 +128,12 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 
 	// Mount and return.
 	m := &mount{
-		mountID:    v.nextMountID,
-		parentID:   pd.mount.mountID,
 		mountPoint: mountPoint,
 		rootDir:    sourcePd.combinedRootDir(),
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourcePd.mount.fsFS,
 	}
-	v.mounts = append(v.mounts, m)
-
-	v.nextMountID++
+	v.attachMount(pd.mount, m)
 
 	return m, nil
 }
@@ -249,9 +243,8 @@ func (v *VFS) Unmount(mountPoint string) error {
 		}
 	}
 
-	// TODO: use slices from future go to avoid this hand-crafted surgery.
-	// Actually forget the mount.
-	v.mounts = append(v.mounts[:pd.index], v.mounts[pd.index+1:]...)
+	// Detach the mount from linked lists.
+	v.detachMount(pd.mount, pd.index)
 
 	return nil
 }
