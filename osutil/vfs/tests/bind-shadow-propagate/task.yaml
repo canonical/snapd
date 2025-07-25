@@ -5,21 +5,29 @@ details: |
   one that makes the destination directory inaccessible?
 prepare: |
   mkdir a
+  cp /proc/self/mountinfo view-0.txt
   mount -t tmpfs tmpfs-a a
+  cp /proc/self/mountinfo view-1.txt
   mount --make-shared a
+  cp /proc/self/mountinfo view-2.txt
   mkdir a/1
   mount -t tmpfs tmpfs-a-1 a/1
+  cp /proc/self/mountinfo view-3.txt
   mkdir a/1/1
   # We stopped short of mounting at a/1/1.
   mkdir b
   mount --rbind a b
+  cp /proc/self/mountinfo view-4.txt
   mount --make-rslave b
+  cp /proc/self/mountinfo view-5.txt
   # Now "b" has the same content as "a", but with slave propagation.
   # It receives events from "a" but does produce events itself.
   mount -t tmpfs tmpfs-b-1 b/1
+  cp /proc/self/mountinfo view-6.txt
   # Now b/1 is no longer the same file system as a/1.
   # What happens to the mount event that propagates from "a/1/1"?
   mount -t tmpfs tmpfs-a-1-1 a/1/1
+  cp /proc/self/mountinfo view-7.txt
   # To be sure, the directory b/1/1 does NOT exist.
   test ! -e b/1/1
 restore: |
@@ -29,7 +37,16 @@ restore: |
   rmdir b
 debug: |
   cat /proc/self/mountinfo
+  cat progress.txt
 execute: |
   # Print the fifth (mount point) and second-to-last field (file system source).
   tail -n 7 /proc/self/mountinfo | awk '{ print substr($5, length(ENVIRON["PWD"]) + 1) " " $(NF-1) }' >actual.txt
   diff -u actual.txt expected.txt
+
+  # Build a "progress report" of the mount operations. Nothing reads or
+  # verifies this file, but it is rather insightful to look at as a human.
+  last=/dev/null
+  for v in view-*.txt; do
+      diff -u "$last" "$v" || true
+      last="$v"
+  done > progress.txt
