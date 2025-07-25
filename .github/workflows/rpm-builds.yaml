@@ -1,0 +1,91 @@
+name: Build rpm package
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+      system:
+        description: 'The system to build the rpm package for'
+        required: true
+        type: string
+      pkg-dir:
+        description: 'The name of the relevant folder in packaging directory'
+        required: true
+        type: string
+      config:
+        description: 'The name of the mock config file'
+        required: true
+        type: string
+
+jobs:
+  build-rpm:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        load: true
+        file: tests/lib/packaging/fedora.dockerfile
+        tags: mock-base:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Restore mock cache
+      uses: actions/cache@v3
+      with:
+        path: /tmp/mock
+        key: mock-cache-${{ inputs.system }}
+
+    - name: Run mock inside container
+      run: |
+        pwd
+        chmod -R 777 .
+        mkdir -p /tmp/mock
+        mkdir -p /tmp/builds
+        chmod -R 777 /tmp/builds
+        docker run --privileged --rm \
+          --mount type=bind,src=/tmp/mock,dst=/var/cache/mock \
+          --mount type=bind,src=$(pwd),dst=/home/mockbuilder/snapd \
+          --mount type=bind,src=/tmp/builds,dst=/home/mockbuilder/builds \
+          mock-base:latest \
+          bash -c "
+            mock -r /etc/mock/${{ inputs.config }}.cfg --install git && \
+            cd /home/mockbuilder/snapd && \
+            go mod vendor && \
+            ./tests/lib/packaging/build-source-rpm.sh ${{ inputs.pkg-dir }} && \
+            mock -r /etc/mock/${{ inputs.config }}.cfg --no-clean --no-cleanup-after --enable-network --nocheck --with testkeys --resultdir /home/mockbuilder/builds /home/mockbuilder/rpmbuild/SRPMS/snapd-*.src.rpm
+          "
+        find /tmp/builds -name '*debug*' -delete
+        cd /tmp/builds
+        find . -name '*.rpm' -exec tar cvf package-${{ inputs.system }}.tar {} +
+
+    - name: Save mock cache
+      if: always()
+      uses: actions/cache@v3
+      with:
+        path: /tmp/mock
+        key: mock-cache-${{ inputs.system }}
+
+    - name: Check logs if build failed
+      if: failure()
+      run: |
+        if [ -f /tmp/builds/build.log ]; then
+          cat /tmp/builds/build.log
+        fi
+
+    - name: upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-${{ inputs.system }}
+        path: /tmp/builds/package-${{ inputs.system }}.tar
