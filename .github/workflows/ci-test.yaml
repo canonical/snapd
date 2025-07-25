@@ -76,6 +76,30 @@ jobs:
           - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
           - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
 
+  package-snapd-deb:
+    uses: ./.github/workflows/deb-builds.yaml
+    name: Package ${{ matrix.build-config.system }}
+    with:
+      runs-on: ${{ matrix.build-config.runs-on }}
+      system: ${{ matrix.build-config.system }}
+      os-version: ${{ matrix.build-config.os-version }}
+      go-version: ${{ matrix.build-config.go-version }}
+      os: ${{ matrix.build-config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build-config:
+          - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10', go-version: '1.18' }
+          - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04', go-version: '1.18' }
+          - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04', go-version: '1.18' }
+          - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04', go-version: '1.18' }
+          - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04', go-version: '1.18' }
+          - { system: "ubuntu-18.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '18.04', go-version: '1.18' }
+          - { system: "ubuntu-16.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '16.04', go-version: '1.18' }
+          - { system: "debian-12-64",        runs-on: '["ubuntu-latest"]',     os: debian, os-version: '12',    go-version: '1.18' }
+          - { system: "debian-sid-64",       runs-on: '["ubuntu-latest"]',     os: debian, os-version: 'sid',   go-version: '1.18' }
+          - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04', go-version: '1.18' }
+          - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04', go-version: '1.18' }
 
   cache-build-deps:
     runs-on: ubuntu-latest

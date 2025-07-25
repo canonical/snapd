@@ -1,0 +1,74 @@
+name: Build deb package
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+      os:
+        description: 'The OS to build the deb package for'
+        required: true
+        type: string
+      os-version:
+        description: 'The OS version to build the deb package for'
+        required: true
+        type: string
+      go-version:
+        description: 'The golang version to build the deb package in'
+        required: true
+        type: string
+      system:
+        description: 'The system name as known by spread'
+        required: true
+        type: string
+
+jobs:
+  build-deb:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        load: true
+        file: tests/lib/packaging/debian.dockerfile
+        build-args: |
+          SYSTEM=${{ inputs.os }}
+          TAG=${{ inputs.os-version }}
+          GOLANG_VERSION=${{ inputs.go-version }}
+        tags: deb-base:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build deb
+      run: |
+        chmod -R a+w .
+        mkdir -p /tmp/builds
+        chmod -R a+w /tmp/builds
+        docker run --cap-add SYS_ADMIN --rm \
+          --mount type=bind,src=$(pwd),dst=/tmp/snapd \
+          --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
+          deb-base:latest \
+          bash -c "
+            cp -r /tmp/snapd /home/test/snapd
+            chown -R test:test /home/test/snapd && \
+            /home/test/snapd/tests/lib/packaging/build-deb.sh /home/test/snapd test && \
+            cp /home/test/*.deb /tmp/builds
+          "
+        cd /tmp/builds
+        find . -name '*.deb' -exec tar cvf package-${{ inputs.system }}.tar {} +
+
+    - name: upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-${{ inputs.system }}
+        path: /tmp/builds/package-${{ inputs.system }}.tar
