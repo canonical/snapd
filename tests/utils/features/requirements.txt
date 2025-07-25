@@ -1,1 +1,4 @@
+dash
+dash-bootstrap-components
+dash-daq
 pymongo
