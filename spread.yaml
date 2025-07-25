@@ -510,13 +510,13 @@ backends:
             NTP_SERVER: 'ntp.ps7.internal'
         systems: &openstack-arm-systems
             - ubuntu-20.04-arm-64:
-                image: auto-sync/ubuntu-focal-20.04-arm64-server
+                image: snapd-spread/ubuntu-20.04-arm-64
                 workers: 8
             - ubuntu-22.04-arm-64:
-                image: auto-sync/ubuntu-jammy-22.04-arm64-server
+                image: snapd-spread/ubuntu-22.04-arm-64
                 workers: 8
             - ubuntu-24.04-arm-64:
-                image: auto-sync/ubuntu-noble-24.04-arm64-server
+                image: snapd-spread/ubuntu-24.04-arm-64
                 workers: 8
 
             - ubuntu-core-22-arm-64:
