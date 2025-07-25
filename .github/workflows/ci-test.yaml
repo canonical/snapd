@@ -55,6 +55,58 @@ jobs:
           - runs-on: '["ubuntu-22.04-arm"]'
             variant: pristine
 
+
+  package-snapd-rpm:
+    uses: ./.github/workflows/rpm-builds.yaml
+    name: Package ${{ matrix.build-config.system }}
+    with:
+      runs-on: '["ubuntu-latest"]'
+      system: ${{ matrix.build-config.system }}
+      pkg-dir: ${{ matrix.build-config.pkg-dir }}
+      config: ${{ matrix.build-config.config }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build-config:
+          - { system: fedora-41-64,           pkg-dir: fedora-41,            config: fedora-41-x86_64           }
+          - { system: fedora-42-64,           pkg-dir: fedora-42,            config: fedora-42-x86_64           }
+          - { system: opensuse-tumbleweed-64, pkg-dir: opensuse-tumbleweed,  config: opensuse-tumbleweed-x86_64 }
+          - { system: opensuse-15.6-64,       pkg-dir: opensuse-15.6,        config: opensuse-leap-15.6-x86_64  }
+          - { system: centos-9-64,            pkg-dir: centos-9,             config: centos-stream-9-x86_64     }
+          - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
+          - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
+
+  package-snapd-arch:
+    uses: ./.github/workflows/arch-builds.yaml
+    name: Package arch-linux-64
+    with:
+      runs-on: '["ubuntu-latest"]'
+
+  package-snapd-deb:
+    uses: ./.github/workflows/deb-builds.yaml
+    name: Package ${{ matrix.build-config.system }}
+    with:
+      runs-on: ${{ matrix.build-config.runs-on }}
+      system: ${{ matrix.build-config.system }}
+      os-version: ${{ matrix.build-config.os-version }}
+      go-version: ${{ matrix.build-config.go-version }}
+      os: ${{ matrix.build-config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build-config:
+          - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10', go-version: '1.18' }
+          - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04', go-version: '1.18' }
+          - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04', go-version: '1.18' }
+          - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04', go-version: '1.18' }
+          - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04', go-version: '1.18' }
+          - { system: "ubuntu-18.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '18.04', go-version: '1.18' }
+          - { system: "ubuntu-16.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '16.04', go-version: '1.18' }
+          - { system: "debian-12-64",        runs-on: '["ubuntu-latest"]',     os: debian, os-version: '12',    go-version: '1.18' }
+          - { system: "debian-sid-64",       runs-on: '["ubuntu-latest"]',     os: debian, os-version: 'sid',   go-version: '1.18' }
+          - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04', go-version: '1.18' }
+          - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04', go-version: '1.18' }
+
   cache-build-deps:
     runs-on: ubuntu-latest
     steps:
@@ -398,8 +450,20 @@ jobs:
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: needs.read-systems.outputs.fundamental-systems != ''
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - package-snapd-rpm
+      - package-snapd-arch
+      - package-snapd-deb
+    if: always() && 
+        needs.read-systems.outputs.fundamental-systems != '' &&
+        needs.read-systems.result == 'success' &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -425,10 +489,27 @@ jobs:
 
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - spread-fundamental
+      - package-snapd-rpm
+      - package-snapd-arch
+      - package-snapd-deb
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
+    if: always() && 
+        github.event_name == 'pull_request' &&
+        !contains(github.base_ref, 'release') &&
+        !contains(github.event.pull_request.labels.*.name, 'cross-distro') &&
+        needs.read-systems.outputs.non-fundamental-systems != '' &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success' &&
+        needs.read-systems.result == 'success' &&
+        needs.spread-fundamental.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -453,10 +534,26 @@ jobs:
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - package-snapd-rpm
+      - package-snapd-arch
+      - package-snapd-deb
+    if: always () &&
+        (
+          github.event_name != 'pull_request' ||
+          contains(github.base_ref, 'release') ||
+          contains(github.event.pull_request.labels.*.name, 'cross-distro')
+        ) &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success' &&
+        needs.read-systems.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -481,8 +578,18 @@ jobs:
 
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: needs.read-systems.outputs.nested-systems != ''
+    needs: 
+      - unit-tests
+      - unit-tests-c
+      - snap-builds
+      - read-systems
+      - package-snapd-deb
+    if: always() &&
+        needs.read-systems.outputs.nested-systems != '' &&
+        needs.unit-tests.result == 'success' &&
+        needs.unit-tests-c.result == 'success' &&
+        needs.snap-builds.result == 'success' &&
+        needs.read-systems.result == 'success'
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
