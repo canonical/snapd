@@ -1860,7 +1860,11 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        if os.query is-arm; then
+            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-arm64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        else 
+            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        fi
         # make sure spread really exists
         test -x "$NESTED_WORK_DIR/spread"
     fi
