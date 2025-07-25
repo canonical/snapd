@@ -273,9 +273,9 @@ func (p *PrioritySelector) VerifyRoutes() {
 	}
 }
 
-// Select n selects routes that should be published to the specified peer.
+// Select selects n routes that should be published to the specified peer.
 //
-// We prioritize routes that this local node has witnessed and published fewer
+// We prioritize routes that the local node has witnessed and published fewer
 // times.
 func (p *PrioritySelector) Select(to DeviceToken, n int) (routes Routes, ack func(), ok bool) {
 	selected, exists := p.rdts.IndexOf(to)
