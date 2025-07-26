@@ -1322,7 +1322,16 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
 
-	encryptInfo, err := m.encryptionSupportInfo(systemAndSeeds.Model, secboot.TPMProvisionFull, systemAndSeeds.InfosByType[snap.TypeKernel], gadgetInfo, &systemAndSeeds.SystemSnapdVersions)
+	constraints := installLogic.EncryptionConstraints{
+		Model:             systemAndSeeds.Model,
+		Kernel:            systemAndSeeds.InfosByType[snap.TypeKernel],
+		Gadget:            gadgetInfo,
+		TPMMode:           secboot.TPMProvisionFull,
+		SnapdVersions:     systemAndSeeds.SystemSnapdVersions,
+		StandaloneInstall: true,
+	}
+
+	encryptInfo, err := m.encryptionSupportInfo(constraints)
 	if err != nil {
 		return err
 	}
@@ -1426,10 +1435,10 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 //   - Remove factory-reset-* keyslots.
 //   - Release TPM handles used by the removed keys.
 func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
-	hasHook, err := boot.HasFDESetupHook(nil)
+	protector, err := boot.FDEKeyProtectorFactory(nil)
 	if err != nil {
 		logger.Noticef("WARNING: cannot determine whether FDE hooks are in use: %v", err)
-		hasHook = false
+		protector = nil
 	}
 
 	uuid, err := disksDMCryptUUIDFromMountPoint(saveMntPnt)
@@ -1456,11 +1465,12 @@ func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 		renameKey = true
 	}
 
+	expectHook := protector != nil
 	err = secbootRemoveOldCounterHandles(
 		diskPath,
 		oldPossiblyTPMKeySlots,
 		oldKeys,
-		hasHook,
+		expectHook,
 	)
 	if err != nil {
 		return fmt.Errorf("could not clean up old counter handles: %v", err)

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 )
 
 const (
@@ -287,6 +288,10 @@ func MarkSuccessful() error {
 	return nil
 }
 
-const (
-	defaultKeyringPrefix = "ubuntu-fde"
-)
+const defaultKeyringPrefix = "ubuntu-fde"
+
+// FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
+// enables FDE is present.
+func FDEOpteeTAPresent() bool {
+	return optee.NewFDETAClient().Present()
+}

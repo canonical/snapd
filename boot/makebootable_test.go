@@ -20,7 +20,9 @@
 package boot_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -50,6 +52,20 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
+
+type fakeProtector struct {
+}
+
+type fakeProtectorFactory struct {
+}
+
+func (*fakeProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	return nil, nil, errors.New("unexpected call")
+}
+
+func (*fakeProtectorFactory) ForKeyName(name string) secboot.KeyProtector {
+	return &fakeProtector{}
+}
 
 type makeBootableSuite struct {
 	baseBootenvSuite
@@ -498,6 +514,51 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
+func (s *makeBootable20Suite) TestMakeSystemRunnableSealStandaloneSystem(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	basePath, baseInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: core24\ntype: base\nversion: 1", nil, nil)
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc-kernel\ntype: kernel\nversion: 1", nil, nil)
+	gadgetPath, gadgetInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc\ntype: gadget\nversion: 1", nil, nil)
+
+	bootWith := &boot.BootableSet{
+		Recovery:            true,
+		Base:                baseInfo,
+		BasePath:            basePath,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelPath,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetPath,
+		RecoverySystemLabel: "label",
+	}
+	observer := boot.TrustedAssetsInstallObserverWithEncryption()
+
+	restore := boot.MockFDEKeyProtectorFactory(func(*snap.Info) (secboot.KeyProtectorFactory, error) {
+		return &fakeProtectorFactory{}, nil
+	})
+	defer restore()
+
+	var gotFlags boot.MockSealKeyToModeenvFlags
+	restore = boot.MockSealKeyToModeenv(func(
+		key, saveKey secboot.BootstrappedContainer,
+		primaryKey []byte,
+		volumesAuth *device.VolumesAuthOptions,
+		model *asserts.Model,
+		modeenv *boot.Modeenv,
+		flags boot.MockSealKeyToModeenvFlags,
+	) error {
+		gotFlags = flags
+		return nil
+	})
+	defer restore()
+
+	err := boot.MakeRunnableStandaloneSystem(model, bootWith, &observer, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotFlags.FDEKeyProtectorFactory, NotNil)
+	c.Assert(gotFlags.StandaloneInstall, Equals, true)
+}
+
 type testMakeSystemRunnable20Opts struct {
 	standalone    bool
 	factoryReset  bool
@@ -748,11 +809,11 @@ version: 5.0
 	})
 	defer restore()
 
-	hasFDESetupHookCalled := false
-	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
+	fdeKeyProtectorCalled := false
+	restore = boot.MockFDEKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
 		c.Check(kernel, Equals, kernelInfo)
-		hasFDESetupHookCalled = true
-		return false, nil
+		fdeKeyProtectorCalled = true
+		return nil, nil
 	})
 	defer restore()
 
@@ -761,7 +822,7 @@ version: 5.0
 
 	switch {
 	case opts.standalone && opts.fromInitrd:
-		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
+		err = boot.MakeRunnableSystemFromInitrd(model, bootWith, obs)
 	case opts.standalone && !opts.fromInitrd:
 		u := mockUnlocker{}
 		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)
@@ -881,7 +942,7 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
 	// we checked for fde-setup-hook
-	c.Check(hasFDESetupHookCalled, Equals, true)
+	c.Check(fdeKeyProtectorCalled, Equals, true)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
 

@@ -23,6 +23,7 @@ package secboot
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -31,6 +32,7 @@ import (
 	sb_hooks "github.com/snapcore/secboot/hooks"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -42,6 +44,11 @@ var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
 const legacyFdeHooksPlatformName = "fde-hook-v2"
 
+type taggedHandle struct {
+	Method string          `json:"method"`
+	Handle json.RawMessage `json:"handle"`
+}
+
 func init() {
 	v2Handler := &fdeHookV2DataHandler{}
 	flags := sb.PlatformKeyDataHandlerFlags(0)
@@ -51,6 +58,13 @@ func init() {
 type hookKeyProtector struct {
 	runHook fde.RunSetupHookFunc
 	keyName string
+}
+
+func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) sb_hooks.KeyProtector {
+	return &hookKeyProtector{
+		runHook: runHook,
+		keyName: keyName,
+	}
 }
 
 func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
@@ -64,12 +78,89 @@ func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ci
 	}
 	if res.Handle == nil {
 		return res.EncryptedKey, nil, nil
-	} else {
-		return res.EncryptedKey, *res.Handle, nil
+	}
+
+	tagged := taggedHandle{
+		Method: "hooks",
+		Handle: *res.Handle,
+	}
+
+	handleJSON, err := json.Marshal(tagged)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return res.EncryptedKey, handleJSON, nil
+}
+
+func OPTEEKeyProtectorFactory() KeyProtectorFactory {
+	return &opteeKeyProtectorFactory{}
+}
+
+type opteeKeyProtectorFactory struct{}
+
+func (o *opteeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &opteeKeyProtector{}
+}
+
+type opteeKeyProtector struct{}
+
+func NewOpteeKeyProtector() sb_hooks.KeyProtector {
+	return &opteeKeyProtector{}
+}
+
+func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	client := optee.NewFDETAClient()
+	rawHandle, sealed, err := client.EncryptKey(cleartext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parsed, err := json.Marshal(rawHandle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tagged := taggedHandle{
+		Method: "optee",
+		Handle: parsed,
+	}
+
+	handleJSON, err := json.Marshal(tagged)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sealed, handleJSON, nil
+}
+
+// KeyProtector is a type alias for a type in sb_hooks, which we cannot export
+// directly because it cannot be imported by packages with the "nosecboot" build
+// tag.
+type KeyProtector sb_hooks.KeyProtector
+
+type KeyProtectorFactory interface {
+	ForKeyName(name string) KeyProtector
+}
+
+var ErrNoKeyProtector = errors.New("cannot find supported FDE key protector")
+
+type fdeKeyProtectorFactory struct {
+	runHook fde.RunSetupHookFunc
+}
+
+func (f *fdeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &hookKeyProtector{
+		runHook: f.runHook,
+		keyName: name,
 	}
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+func FDEKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+	return &fdeKeyProtectorFactory{runHook: runHook}
+}
+
+func SealKeysWithProtector(kf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
 	if params.PrimaryKey != nil {
 		// TODO:FDEM:FIX: add unit test taking that primary key
@@ -77,25 +168,22 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	}
 
 	for _, skr := range keys {
-		protector := &hookKeyProtector{
-			runHook: runHook,
-			keyName: skr.KeyName,
-		}
+		protector := kf.ForKeyName(skr.KeyName)
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
 		defer sb_hooks.SetKeyProtector(nil, 0)
 
-		params := &sb_hooks.KeyParams{
+		// TODO: this is maybe odd since we're reusing the same implementation
+		// as the hooks
+		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
 			PrimaryKey: primaryKey,
 			Role:       skr.KeyName,
 			AuthorizedSnapModels: []sb.SnapModel{
 				params.Model,
 			},
 			AuthorizedBootModes: skr.BootModes,
-		}
-
-		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, params)
+		})
 		if err != nil {
 			return err
 		}
@@ -249,15 +337,42 @@ func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData,
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
 
-type keyRevealerV3 struct {
-}
+type keyRevealerV3 struct{}
 
 func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
 	logger.Noticef("Called reveal key")
+
+	// try to parse as new tagged format first. if that fails, assume this is
+	// the older handle format that isn't inside of a JSON object.
+	var tagged taggedHandle
+	if len(data) == 0 || json.Unmarshal(data, &tagged) != nil {
+		return revealWithHooks(data, ciphertext)
+	}
+
+	switch tagged.Method {
+	case "hooks":
+		return revealWithHooks(tagged.Handle, ciphertext)
+	case "optee":
+		return revealWithOPTEE(tagged.Handle, ciphertext)
+	default:
+		return nil, fmt.Errorf("unknown key revealer method: %s", tagged.Method)
+	}
+}
+
+func revealWithOPTEE(handleJSON []byte, ciphertext []byte) ([]byte, error) {
+	var handle []byte
+	if err := json.Unmarshal(handleJSON, &handle); err != nil {
+		return nil, err
+	}
+	client := optee.NewFDETAClient()
+	return client.DecryptKey(ciphertext, handle)
+}
+
+func revealWithHooks(handleJSON []byte, ciphertext []byte) ([]byte, error) {
 	var handle *json.RawMessage
-	if len(data) != 0 {
-		rawHandle := json.RawMessage(data)
-		handle = &rawHandle
+	if len(handleJSON) != 0 {
+		tmp := json.RawMessage(handleJSON)
+		handle = &tmp
 	}
 	p := fde.RevealParams{
 		SealedKey: ciphertext,

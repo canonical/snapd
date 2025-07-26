@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
-	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 
@@ -84,8 +83,7 @@ func init() {
 type cmdInitramfsMounts struct{}
 
 func (c *cmdInitramfsMounts) Execute([]string) error {
-	boot.HasFDESetupHook = hasFDESetupHook
-	fdeBackend.RunFDESetupHook = runFDESetupHook
+	boot.FDEKeyProtectorFactory = fdeKeyProtectorFactory
 
 	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
 
@@ -118,7 +116,7 @@ var (
 	}
 
 	gadgetInstallRun                 = gadgetInstall.Run
-	bootMakeRunnableStandaloneSystem = boot.MakeRunnableStandaloneSystemFromInitrd
+	bootMakeRunnableSystemFromInitrd = boot.MakeRunnableSystemFromInitrd
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
@@ -297,9 +295,17 @@ func runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	}
 	return output, nil
 }
-func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok, nil
+
+func fdeKeyProtectorFactory(kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
+	if _, ok := kernelInfo.Hooks["fde-setup"]; ok {
+		return secboot.FDEKeyProtectorFactory(runFDESetupHook), nil
+	}
+
+	if secboot.FDEOpteeTAPresent() {
+		return secboot.OPTEEKeyProtectorFactory(), nil
+	}
+
+	return nil, secboot.ErrNoKeyProtector
 }
 
 func readSnapInfoFromSeed(seedSnap *seed.Snap) (*snap.Info, error) {
@@ -355,7 +361,13 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err != nil {
 		return err
 	}
-	encryptionSupport, err := install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+
+	encryptionSupport, err := install.CheckEncryptionSupport(install.EncryptionConstraints{
+		Model:   model,
+		Kernel:  kernelSnap,
+		Gadget:  gadgetInfo,
+		TPMMode: secboot.TPMProvisionFull,
+	}, runFDESetupHook)
 	if err != nil {
 		return err
 	}
@@ -494,7 +506,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
-	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnableSystemFromInitrd(model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
 
