@@ -63,7 +63,7 @@ func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyM
 	}
 }
 
-func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFile string) ([]byte, error)) (restore func()) {
+func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFiles []string) ([]byte, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootGetPrimaryKey only can be mocked in tests")
 	old := secbootGetPrimaryKey
 	secbootGetPrimaryKey = f
@@ -144,23 +144,47 @@ func getUniqueModels(bootChains []boot.BootChain) []secboot.ModelForSealing {
 	return models
 }
 
-type resealParamsAndLocation struct {
-	params   *SealingParameters
-	location secboot.KeyDataLocation
-}
-
-func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string, revokeOldKeys bool) error {
+func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool) error {
 	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
 	}
 
-	var keys []resealParamsAndLocation
-
 	var devices []string
-
 	for _, container := range containers {
 		devices = append(devices, container.DevPath())
+	}
+
+	primaryKeyGetter := func() ([]byte, error) {
+		saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
+		fallbackPrimaryKeyFiles := []string{
+			filepath.Join(saveFDEDir, "aux-key"),
+			filepath.Join(saveFDEDir, "tpm-policy-auth-key"),
+		}
+		return secbootGetPrimaryKey(devices, fallbackPrimaryKeyFiles)
+	}
+
+	var allResealedKeys secboot.UpdatedKeys
+	//for _, key := range keys {
+	resealKey := func(key secboot.KeyDataLocation, params *SealingParameters) error {
+		rkp := &secboot.ResealKeyParams{
+			GetPrimaryKey:              primaryKeyGetter,
+			BootModes:                  params.BootModes,
+			Models:                     params.Models,
+			TpmPCRProfile:              params.TpmPCRProfile,
+			IncrementRevocationCounter: revokeOldKeys,
+		}
+		resealedKeys, err := secboot.ResealKey(key, rkp)
+		if err != nil {
+			return err
+		}
+		if revokeOldKeys {
+			allResealedKeys = append(allResealedKeys, resealedKeys...)
+		}
+		return nil
+	}
+
+	for _, container := range containers {
 		legacyKeys := container.LegacyKeys()
 
 		switch container.ContainerRole() {
@@ -191,10 +215,10 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 				if hasDefaultLegacyKey {
 					runKey.KeyFile = defaultLegacyKey
 				}
-				keys = append(keys, resealParamsAndLocation{
-					params:   parameters,
-					location: runKey,
-				})
+
+				if err := resealKey(runKey, parameters); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -228,61 +252,24 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 					fallbackKey.KeyFile = fallbackLegacyKey
 				}
 
-				keys = append(keys, resealParamsAndLocation{
-					params:   parameters,
-					location: fallbackKey,
-				})
+				if err := resealKey(fallbackKey, parameters); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	switch method {
-	case device.SealingMethodFDESetupHook:
-		// Note this is the fallback key path for old installations. The file might not exist.
-		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
-		// All devices should have the same primary key
-		primaryKeyGetter := func() ([]byte, error) {
-			return secbootGetPrimaryKey(devices, primaryKeyFile)
-		}
-		for _, key := range keys {
-			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKeyGetter, key.params.Models, key.params.BootModes); err != nil {
-				return err
-			}
-		}
-		return nil
-	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-		saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
-		authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
-		// All devices should have the same primary key
-		primaryKey, err := secbootGetPrimaryKey(devices, authKeyFile)
+	if revokeOldKeys {
+		primaryKey, err := primaryKeyGetter()
 		if err != nil {
 			return err
 		}
-		var allResealedKeys secboot.UpdatedKeys
-		for _, key := range keys {
-			keyParams := &secboot.ResealKeysParams{
-				PCRProfile: key.params.TpmPCRProfile,
-				Keys:       []secboot.KeyDataLocation{key.location},
-				PrimaryKey: primaryKey,
-			}
-
-			resealedKeys, err := secbootResealKeys(keyParams, revokeOldKeys)
-			if err != nil {
-				return fmt.Errorf("cannot reseal the encryption key: %v", err)
-			}
-			if revokeOldKeys {
-				allResealedKeys = append(allResealedKeys, resealedKeys...)
-			}
+		if err := secbootRevokeOldKeys(&allResealedKeys, primaryKey); err != nil {
+			return fmt.Errorf("cannot revoke older keys: %v", err)
 		}
-		if revokeOldKeys {
-			if err := secbootRevokeOldKeys(&allResealedKeys, primaryKey); err != nil {
-				return fmt.Errorf("cannot revoke older keys: %v", err)
-			}
-		}
-		return nil
-	default:
-		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
+
+	return nil
 }
 
 func recalculateParamatersFDEHook(manager FDEStateManager, method device.SealingMethod, rootdir string, inputs resealInputs, opts resealOptions) error {
@@ -633,7 +620,7 @@ func resealKeys(
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 
-	return doReseal(manager, method, rootdir, opts.Revoke)
+	return doReseal(manager, rootdir, opts.Revoke)
 }
 
 func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {
