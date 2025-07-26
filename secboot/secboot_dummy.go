@@ -53,6 +53,10 @@ func (uk *UpdatedKeys) RevokeOldKeys(primaryKey []byte) error {
 	return errBuildWithoutSecboot
 }
 
+func (uk *UpdatedKeys) PCRPolicyCounterHandles() []uint32 {
+	return nil
+}
+
 func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
 	return nil, errBuildWithoutSecboot
 }
