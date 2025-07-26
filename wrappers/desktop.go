@@ -208,6 +208,10 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 				logger.Debugf("ignoring icon in source desktop file %q: %s", filepath.Base(desktopFile), err)
 				continue
 			}
+			// use "current" instead of the revision number to avoid icon
+			// breakage when users copy the desktop files (LP: #1851490)
+			mountDirSymlink := filepath.Dir(s.MountDir()) + "/current"
+			line = strings.Replace(line, "${SNAP}", mountDirSymlink, -1)
 			bline = []byte(line)
 		}
 
