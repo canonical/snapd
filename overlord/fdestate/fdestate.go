@@ -623,3 +623,5 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 
 	return ts, nil
 }
+
+type volumesAuthOptionsKey struct{}
