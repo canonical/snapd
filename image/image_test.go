@@ -5662,7 +5662,7 @@ func WriteSystemUserAssertion(c *C, brands *assertstest.SigningAccounts, user ma
 	}
 }
 
-func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, passwordUser bool) {
+func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, grade string, passwordUser bool) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -5676,15 +5676,9 @@ func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, passwordUser boo
 		"pc":        "canonical",
 	}, "")
 
+	model := s.makeUC20Model(map[string]any{"grade": grade})
+
 	preparedir := c.MkDir()
-
-	model := s.Brands.Model("my-brand", "my-model", map[string]any{
-		"display-name": "my display name",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-	})
-
 	modelFn := filepath.Join(preparedir, "model.assertion")
 	err := os.WriteFile(modelFn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
@@ -5716,19 +5710,28 @@ func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, passwordUser boo
 		// Pass model assertion as extra assertion
 		ExtraAssertionsFiles: []string{systemUserAssert},
 	})
-	if passwordUser {
-		c.Assert(err.Error(), testutil.Contains, "system-user assertions must not contain a password for security reasons, please use public key authentication instead")
+	if grade != "dangerous" {
+		c.Assert(err.Error(), testutil.Contains, "seeding system-user assertions is allowed for dangerous grade model only")
 	} else {
-		c.Assert(s.stderr.String(), testutil.Contains, `INFO: the provided system-user assertion for user guy will be imported on first boot`+"\n")
+		if passwordUser {
+			c.Assert(err.Error(), testutil.Contains, "system-user assertions must not contain a password for security reasons, please use public key authentication instead")
+		} else {
+			c.Assert(s.stderr.String(), testutil.Contains, `INFO: the provided system-user assertion for user guy will be imported on first boot`+"\n")
+		}
 	}
 }
 
 func (s *imageSuite) TestPrepareExtraAssertionsSystemUserPassword(c *C) {
 	const passwordUser = true
-	s.testPrepareExtraAssertionsSystemUser(c, passwordUser)
+	s.testPrepareExtraAssertionsSystemUser(c, "dangerous", passwordUser)
 }
 
 func (s *imageSuite) TestPrepareExtraAssertionsSystemUserKey(c *C) {
 	const passwordUser = false
-	s.testPrepareExtraAssertionsSystemUser(c, passwordUser)
+	s.testPrepareExtraAssertionsSystemUser(c, "dangerous", passwordUser)
+}
+
+func (s *imageSuite) TestPrepareExtraAssertionsSystemUserGradeStrict(c *C) {
+	const passwordUser = false
+	s.testPrepareExtraAssertionsSystemUser(c, "signed", passwordUser)
 }
