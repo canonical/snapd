@@ -488,6 +488,34 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 	return s.getParameters(role, containerRole)
 }
 
+func (m *FDEManager) ensureParametersLoaded(role, containerRole string) error {
+	hasParameters, _, _, _, err := m.GetParameters(role, containerRole)
+	if err != nil {
+		return err
+	}
+	if hasParameters {
+		// nothing to do
+		return nil
+	}
+
+	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil {
+		return err
+	}
+
+	wrapped := &unlockedStateManager{
+		FDEManager: m,
+		unlocker:   m.state.Unlocker(),
+	}
+	return boot.WithBootChains(func(bc boot.BootChains) error {
+		params := boot.ResealKeyForBootChainsParams{
+			BootChains: bc,
+			Options:    boot.ResealKeyToModeenvOptions{Force: true},
+		}
+		return backendResealKeyForBootChains(wrapped, method, dirs.GlobalRootDir, &params)
+	}, method)
+}
+
 const recoveryKeyExpireAfter = 5 * time.Minute
 
 func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
