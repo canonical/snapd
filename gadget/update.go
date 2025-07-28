@@ -381,7 +381,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		gadgetVolume.Name, gadgetVolume.Partial, diskVolume.Device)
 
 	// eMMC will not follow the normal validation rules, and will instead
-	// need some different validation so we can make sure the disk is compatibile
+	// need some different validation so we can make sure the disk is compatible
 	// with the eMMC structures
 	if isVolumeEMMC(gadgetVolume) {
 		return ensureVolumeEMMCCompatibility(gadgetVolume, diskVolume)
@@ -764,7 +764,7 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 	// the form of pseudo-devices as boot0, boot1, rpmb. Depending on the volume given, we
 	// will handle the traits differently.
 	if vol.Schema == schemaEMMC {
-		// The volume is targetting eMMC specific "partitions". These will not show up
+		// The volume is targeting eMMC specific "partitions". These will not show up
 		// in any normal setting, but appear as different devices instead. We have to handle
 		// this.
 		return diskTraitsFromEMMCDevice(dev, vol)
