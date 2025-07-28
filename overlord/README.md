@@ -76,7 +76,7 @@ Testing `Task` handling logic
 Given the previous consideration is important that `Task` handler logic has tests:
 
 - ensuring that *undo* logic correctly matches and undoes what the *do* logic did
-- that task handling logic is idempotent
+- that task handling logic is idempotent, even if the task is only partially executed the first time around
 - error paths undo previous state changes as needed
 
 Conflicts and `Task` precondition blocking
