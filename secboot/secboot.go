@@ -312,8 +312,8 @@ type ResealKeyParams struct {
 	BootModes []string
 	// The allowed models
 	Models []ModelForSealing
-	// The TPM policy profile. May be be nil when using hooks.
-	TpmPCRProfile []byte
+	// Function that returns TPM policy profile. It is only called when resealing TPM keys.
+	GetTpmPCRProfile func() ([]byte, error)
 	// Whether a incremented value of the counter is allowed
 	// (before a revocation)
 	NewPCRPolicyVersion bool
