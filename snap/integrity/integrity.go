@@ -80,6 +80,8 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+// NewIntegrityDataParams create a new IntegrityDataParams instance with the given parameters.
+// The DataBlocks field is inferred from the snap size divided by DataBlockSize.
 func NewIntegrityDataParams(typ string, version uint, hashAlg string, dataBlockSize uint64, hashBlockSize uint64, digest string, salt string, snapSize uint64) *IntegrityDataParams {
 	return &IntegrityDataParams{
 		Type:          typ,
