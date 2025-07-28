@@ -493,7 +493,7 @@ func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 			defer os.Unsetenv("SNAPD_DISABLE_PREINSTALL_CHECK")
 		}
 
-		supported, err := install.PreinstallCheckSupported(modelMock)
+		supported, err := install.PreinstallCheckSupportedWithEnvFallback(modelMock)
 
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)

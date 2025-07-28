@@ -1061,6 +1061,19 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 }
 
 func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
+	mockIconServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/icon.svg" {
+			panic("unexpected icon path: " + r.URL.Path)
+		}
+
+		// the http server was hit while requesting the snap icon, so just
+		// write some stand-in data
+		w.Write([]byte("icon contents"))
+	}))
+	s.AddCleanup(mockIconServer.Close)
+
+	iconURL, _ := url.Parse(mockIconServer.URL)
+
 	var baseURL *url.URL
 	fillHit := func(hitTemplate, revno string, info *snap.Info, rawInfo string) string {
 		epochBuf, err := json.Marshal(info.Epoch)
@@ -1077,7 +1090,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
-		hit = strings.Replace(hit, "@ICON@", "http://example.com/icon.svg", -1)
+		hit = strings.Replace(hit, "@ICON@", path.Join(iconURL.String(), "icon.svg"), -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
@@ -1094,14 +1107,6 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.storeObserver != nil {
 			s.storeObserver(r)
-		}
-
-		if r.URL.Path == "http://example.com/icon.svg" {
-			// the http server was hit while requesting the snap icon, so just
-			// write some stand-in data
-			iconContents := fmt.Sprintf("icon contents")
-			w.Write([]byte(iconContents))
-			return
 		}
 
 		// all URLS are /api/v1/snaps/... or /v2/snaps/ or /v2/assertions/... so
@@ -7464,7 +7469,7 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
 
-	restore = fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	restore = fdeBackend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		return []byte(`"some-profile"`), nil
 	})
 	defer restore()

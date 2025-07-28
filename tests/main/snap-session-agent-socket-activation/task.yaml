@@ -27,11 +27,8 @@ prepare: |
         touch agent-was-enabled
     fi
 
-    # ensure curl is available (needed for e.g. core18)
-    if ! command -v curl; then
-        snap install --devmode --edge test-snapd-curl
-        snap alias test-snapd-curl.curl curl
-    fi
+    snap install --devmode --edge test-snapd-curl
+    snap alias test-snapd-curl.curl curl
 
     tests.session -u test prepare
 
@@ -65,5 +62,5 @@ execute: |
     tests.session -u test exec systemctl --user is-active snapd.session-agent.service
 
     echo "The user running the session agent can also communicate with it"
-    tests.session -u test exec curl --unix-socket /run/user/12345/snapd-session-agent.socket \
+    tests.session -u test exec test-snapd-curl.curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"

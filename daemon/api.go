@@ -95,11 +95,45 @@ var api = []*Command{
 	systemVolumesCmd,
 }
 
+type featureEndpoint struct {
+	Path    string   `json:"path"`
+	Method  string   `json:"method"`
+	Actions []string `json:"actions,omitempty"`
+}
+
+var featureList []featureEndpoint
+
+func init() {
+	// Create a complete list of all endpoints, which constitute
+	// the complete set of endpoint feature tags. It is created
+	// here instead of in api_debug to avoid circular dependencies.
+	featureList = []featureEndpoint{}
+	for _, cmd := range api {
+		var path string
+		if cmd.Path != "" {
+			path = cmd.Path
+		} else {
+			path = cmd.PathPrefix
+		}
+
+		if cmd.GET != nil {
+			featureList = append(featureList, featureEndpoint{Path: path, Method: "GET"})
+		}
+		if cmd.POST != nil {
+			featureList = append(featureList, featureEndpoint{Path: path, Actions: cmd.Actions, Method: "POST"})
+		}
+		if cmd.PUT != nil {
+			featureList = append(featureList, featureEndpoint{Path: path, Actions: cmd.Actions, Method: "PUT"})
+		}
+	}
+}
+
 const (
 	polkitActionLogin               = "io.snapcraft.snapd.login"
 	polkitActionManage              = "io.snapcraft.snapd.manage"
 	polkitActionManageInterfaces    = "io.snapcraft.snapd.manage-interfaces"
 	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
+	polkitActionManageFDE           = "io.snapcraft.snapd.manage-fde"
 )
 
 // userFromRequest extracts user information from request and return the

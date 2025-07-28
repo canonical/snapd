@@ -333,6 +333,13 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
+    if command -v modernize>/dev/null && [ -z "${SKIP_MODERNIZE_LINT:-}" ]; then
+        echo ">> [Go] Checking modernize"
+        modernize -test ./...
+    else
+        echo ">> [Go] Skipping modernize check"
+    fi
+
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo ">> [Bash] Checking shell scripts"
@@ -448,13 +455,6 @@ if [ "$STATIC" = 1 ]; then
         echo "Don't use equality checks with ErrNoState, use errors.Is() instead" >&2
         echo "$got" >&2
         exit 1
-    fi
-
-    if command -v modernize; then
-        echo ">> [Go] Checking modernize"
-        modernize -test ./...
-    else
-        echo ">> [Go] Skipping modernize check"
     fi
 
     if gcil=$(command -v golangci-lint) || [ -z "${SKIP_GOLANGCI_LINT:-}" ]; then

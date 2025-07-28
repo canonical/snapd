@@ -162,7 +162,10 @@ func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
 }
 
 func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
-	currTime := time.Now()
+	at := prompting.At{
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0x12345),
+	}
 	iface := "home"
 	pathPattern := mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**")
 
@@ -180,8 +183,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			},
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanTimespan,
-				Duration: "1ns",
+				Lifespan: prompting.LifespanSession,
 			},
 		},
 	}
@@ -196,24 +198,28 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			"write": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeDeny,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(10 * time.Second),
+				Expiration: at.Time.Add(10 * time.Second),
 			},
 			"execute": &prompting.RulePermissionEntry{
-				Outcome:    prompting.OutcomeAllow,
-				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(time.Nanosecond),
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: at.SessionID,
 			},
 		},
 	}
 
-	result, err := constraints.ToRuleConstraints(iface, currTime)
+	result, err := constraints.ToRuleConstraints(iface, at)
 	c.Assert(err, IsNil)
 	c.Assert(result, DeepEquals, expectedRuleConstraints)
 }
 
 func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
+	at := prompting.At{
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0),
+	}
 	badConstraints := &prompting.Constraints{}
-	result, err := badConstraints.ToRuleConstraints("home", time.Now())
+	result, err := badConstraints.ToRuleConstraints("home", at)
 	c.Check(result, IsNil)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern.*`)
 
@@ -226,7 +232,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 			},
 		},
 	}
-	result, err = constraints.ToRuleConstraints("foo", time.Now())
+	result, err = constraints.ToRuleConstraints("foo", at)
 	c.Check(result, IsNil)
 	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
 
@@ -258,23 +264,48 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 		},
 		{
 			perms: prompting.PermissionMap{
+				"write": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanSession,
+					Duration: "5s",
+				},
+			},
+			errStr: `invalid duration: cannot have specified duration when lifespan is "session":.*`,
+		},
+		{
+			perms: prompting.PermissionMap{
+				"write": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanSession,
+				},
+			},
+			// Error will occur because current session is 0 (not found) below
+			errStr: prompting_errors.ErrNewSessionRuleNoSession.Error(),
+		},
+		{
+			perms: prompting.PermissionMap{
 				"read": &prompting.PermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
 					Lifespan: prompting.LifespanTimespan,
+				},
+				"write": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanSession,
+					Duration: "5s",
 				},
 				"create": &prompting.PermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
 					Lifespan: prompting.LifespanForever,
 				},
 			},
-			errStr: joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `invalid permissions for home interface: "create"`),
+			errStr: joinErrorsUnordered(joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `invalid duration: cannot have specified duration when lifespan is "session":.*`), `invalid permissions for home interface: "create"`),
 		},
 	} {
 		constraints := &prompting.Constraints{
 			PathPattern: mustParsePathPattern(c, "/path/to/foo"),
 			Permissions: testCase.perms,
 		}
-		result, err = constraints.ToRuleConstraints("home", time.Now())
+		result, err = constraints.ToRuleConstraints("home", at)
 		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 	}
@@ -286,7 +317,10 @@ func joinErrorsUnordered(err1, err2 string) string {
 
 func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 	validPathPattern := mustParsePathPattern(c, "/path/to/foo")
-	currTime := time.Now()
+	at := prompting.At{
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0x12345),
+	}
 
 	// Happy
 	constraints := &prompting.RuleConstraints{
@@ -299,11 +333,16 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			"write": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeDeny,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(time.Second),
+				Expiration: at.Time.Add(time.Second),
+			},
+			"execute": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: at.SessionID,
 			},
 		},
 	}
-	expired, err := constraints.ValidateForInterface("home", currTime)
+	expired, err := constraints.ValidateForInterface("home", at)
 	c.Check(err, IsNil)
 	c.Check(expired, Equals, false)
 
@@ -365,18 +404,22 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeType("bar"),
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: time.Now().Add(-time.Second),
+					Expiration: at.Time.Add(-time.Second),
 				},
 			},
 			`invalid outcome: "bar"`,
 		},
+	}
+	at = prompting.At{
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0),
 	}
 	for _, testCase := range cases {
 		constraints := &prompting.RuleConstraints{
 			PathPattern: validPathPattern,
 			Permissions: testCase.perms,
 		}
-		expired, err = constraints.ValidateForInterface(testCase.iface, time.Now())
+		expired, err = constraints.ValidateForInterface(testCase.iface, at)
 		c.Check(err, ErrorMatches, testCase.errStr)
 		c.Check(expired, Equals, false)
 	}
@@ -390,13 +433,16 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	_, err = constraints.ValidateForInterface("home", time.Now())
+	_, err = constraints.ValidateForInterface("home", at)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 }
 
 func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *C) {
 	pathPattern := mustParsePathPattern(c, "/path/to/foo")
-	currTime := time.Now()
+	at := prompting.At{
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0x12345),
+	}
 
 	for _, testCase := range []struct {
 		perms    prompting.RulePermissionMap
@@ -423,7 +469,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime,
+					Expiration: at.Time,
 				},
 			},
 			true,
@@ -434,17 +480,17 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(-time.Minute),
+					Expiration: at.Time.Add(-time.Minute),
 				},
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 				"execute": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime,
+					Expiration: at.Time,
 				},
 			},
 			false,
@@ -452,26 +498,33 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 			},
 		},
 		{
 			prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
-					Outcome:    prompting.OutcomeAllow,
-					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(-time.Minute),
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID,
 				},
-				"write": &prompting.RulePermissionEntry{
-					Outcome:    prompting.OutcomeDeny,
-					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime,
+			},
+			false,
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID,
 				},
-				"execute": &prompting.RulePermissionEntry{
-					Outcome:    prompting.OutcomeAllow,
-					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime,
+			},
+		},
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID + 1,
 				},
 			},
 			true,
@@ -482,16 +535,38 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(-time.Minute),
+					Expiration: at.Time.Add(-time.Minute),
+				},
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeDeny,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: at.Time,
+				},
+				"execute": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID + 1,
+				},
+			},
+			true,
+			prompting.RulePermissionMap{},
+		},
+		{
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: at.Time.Add(-time.Minute),
 				},
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 				"execute": &prompting.RulePermissionEntry{
-					Outcome:  prompting.OutcomeDeny,
-					Lifespan: prompting.LifespanForever,
+					Outcome:   prompting.OutcomeDeny,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID,
 				},
 			},
 			false,
@@ -499,11 +574,12 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
-					Expiration: currTime.Add(time.Minute),
+					Expiration: at.Time.Add(time.Minute),
 				},
 				"execute": &prompting.RulePermissionEntry{
-					Outcome:  prompting.OutcomeDeny,
-					Lifespan: prompting.LifespanForever,
+					Outcome:   prompting.OutcomeDeny,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID,
 				},
 			},
 		},
@@ -516,7 +592,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 			PathPattern: pathPattern,
 			Permissions: copiedPerms,
 		}
-		expired, err := constraints.ValidateForInterface("home", currTime)
+		expired, err := constraints.ValidateForInterface("home", at)
 		c.Check(err, IsNil)
 		c.Check(expired, Equals, testCase.expired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 		c.Check(constraints.Permissions, DeepEquals, testCase.expected, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
@@ -574,6 +650,24 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 						Outcome:  prompting.OutcomeDeny,
 						Lifespan: prompting.LifespanTimespan,
 						Duration: "10m",
+					},
+				},
+			},
+		},
+		{
+			permissions: []string{"write", "execute"},
+			outcome:     prompting.OutcomeAllow,
+			lifespan:    prompting.LifespanSession,
+			expected: &prompting.Constraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.PermissionMap{
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
 					},
 				},
 			},
@@ -664,7 +758,13 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsUnhappy(c *C) {
 
 func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 	origTime := time.Now()
+	origSession := prompting.IDType(0x12345)
 	patchTime := origTime.Add(time.Second)
+	patchSession := prompting.IDType(0xf00ba4)
+	patchAt := prompting.At{
+		Time:      patchTime,
+		SessionID: patchSession,
+	}
 	iface := "home"
 
 	pathPattern := mustParsePathPattern(c, "/path/to/foo/ba?/**")
@@ -688,6 +788,11 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 						Lifespan:   prompting.LifespanTimespan,
 						Expiration: origTime.Add(-time.Second),
 					},
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: origSession,
+					},
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{},
@@ -704,6 +809,11 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 						Lifespan:   prompting.LifespanTimespan,
 						Expiration: origTime.Add(-time.Second), // expired perms are not pruned if patch perms are nil
 					},
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: origSession, // expired perms are not pruned if patch perms are nil
+					},
 				},
 			},
 		},
@@ -725,9 +835,9 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 			patch: &prompting.RuleConstraintsPatch{
 				Permissions: prompting.PermissionMap{
-					// Remove both existing permissions, but add a new permission
-					"read":  nil,
-					"write": nil,
+					// Remove read permissions, let write permission expire,
+					// and add new execute permission
+					"read": nil,
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
 						Lifespan: prompting.LifespanTimespan,
@@ -751,24 +861,22 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
 					"read": &prompting.RulePermissionEntry{
-						Outcome:    prompting.OutcomeAllow,
-						Lifespan:   prompting.LifespanTimespan,
-						Expiration: patchTime.Add(time.Second),
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: patchSession,
 					},
 					"write": &prompting.RulePermissionEntry{
-						Outcome:    prompting.OutcomeDeny,
-						Lifespan:   prompting.LifespanTimespan,
-						Expiration: origTime,
+						Outcome:   prompting.OutcomeDeny,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: origSession,
 					},
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
 				Permissions: prompting.PermissionMap{
-					"write": nil,
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
-						Lifespan: prompting.LifespanTimespan,
-						Duration: "1m",
+						Lifespan: prompting.LifespanSession,
 					},
 				},
 			},
@@ -776,14 +884,14 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
 					"read": &prompting.RulePermissionEntry{
-						Outcome:    prompting.OutcomeAllow,
-						Lifespan:   prompting.LifespanTimespan,
-						Expiration: patchTime.Add(time.Second),
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: patchSession,
 					},
 					"execute": &prompting.RulePermissionEntry{
-						Outcome:    prompting.OutcomeDeny,
-						Lifespan:   prompting.LifespanTimespan,
-						Expiration: patchTime.Add(time.Minute),
+						Outcome:   prompting.OutcomeDeny,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: patchSession,
 					},
 				},
 			},
@@ -793,9 +901,8 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
 					"read": &prompting.RulePermissionEntry{
-						Outcome:    prompting.OutcomeAllow,
-						Lifespan:   prompting.LifespanTimespan,
-						Expiration: patchTime.Add(time.Second),
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
 					},
 					"write": &prompting.RulePermissionEntry{
 						Outcome:    prompting.OutcomeDeny,
@@ -810,29 +917,26 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 			patch: &prompting.RuleConstraintsPatch{
 				Permissions: prompting.PermissionMap{
+					"read": nil,
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
+						Lifespan: prompting.LifespanSession,
 					},
 				},
 			},
 			final: &prompting.RuleConstraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
-					"read": &prompting.RulePermissionEntry{
-						Outcome:    prompting.OutcomeAllow,
-						Lifespan:   prompting.LifespanTimespan,
-						Expiration: patchTime.Add(time.Second),
-					},
 					"execute": &prompting.RulePermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: patchSession,
 					},
 				},
 			},
 		},
 	} {
-		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, iface, patchTime)
+		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, iface, patchAt)
 		c.Check(err, IsNil, Commentf("testCase %d", i))
 		c.Check(patched, DeepEquals, testCase.final, Commentf("testCase %d", i))
 	}
@@ -841,6 +945,11 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 	origTime := time.Now()
 	patchTime := origTime.Add(time.Second)
+	patchSession := prompting.IDType(0x12345)
+	patchAt := prompting.At{
+		Time:      patchTime,
+		SessionID: patchSession,
+	}
 	iface := "home"
 
 	pathPattern := mustParsePathPattern(c, "/path/to/foo/ba{r,z{,/**/}}")
@@ -865,13 +974,13 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 			"write": nil,
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanForever,
+				Lifespan: prompting.LifespanSession,
 			},
 		},
 	}
 
 	badIface := "foo"
-	result, err := goodPatch.PatchRuleConstraints(goodRule, badIface, patchTime)
+	result, err := goodPatch.PatchRuleConstraints(goodRule, badIface, patchAt)
 	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
 	c.Check(result, IsNil)
 
@@ -892,49 +1001,63 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 			},
 		},
 	}
-	expected := joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `cannot create rule with lifespan "single"`) + "\n" + `invalid permissions for home interface: ("create", "lock"|"lock", "create")`
+	expected := joinErrorsUnordered(`cannot create rule with lifespan "single"`, `invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`) + "\n" + `invalid permissions for home interface: ("create", "lock"|"lock", "create")`
 
-	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
+	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchAt)
 	c.Check(err, ErrorMatches, expected)
 	c.Check(result, IsNil)
 
 	badPatch = &prompting.RuleConstraintsPatch{
 		Permissions: prompting.PermissionMap{
 			// Remove all permissions
-			"read":  nil,
-			"write": nil,
+			"read": nil,
 		},
 	}
-	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchTime)
+	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchAt)
 	c.Check(err, Equals, prompting_errors.ErrPatchedRuleHasNoPerms)
 	c.Check(result, IsNil)
 }
 
 func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
-	currTime := time.Now()
+	at := prompting.At{
+		Time:      time.Now(),
+		SessionID: prompting.IDType(0x12345),
+	}
 	for _, pm := range []prompting.RulePermissionMap{
 		{},
 		{
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime,
+				Expiration: at.Time,
+			},
+		},
+		{
+			"write": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeDeny,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: at.SessionID + 1,
 			},
 		},
 		{
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(-time.Second),
+				Expiration: at.Time.Add(-time.Second),
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeDeny,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime,
+				Expiration: at.Time,
+			},
+			"execute": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: prompting.IDType(0xf00),
 			},
 		},
 	} {
-		c.Check(pm.Expired(currTime), Equals, true, Commentf("%+v", pm))
+		c.Check(pm.Expired(at), Equals, true, Commentf("%+v", pm))
 	}
 
 	for _, pm := range []prompting.RulePermissionMap{
@@ -942,7 +1065,18 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(-time.Second),
+				Expiration: at.Time.Add(-time.Second),
+			},
+			"write": &prompting.RulePermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+		{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: prompting.IDType(0xabcd),
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -953,22 +1087,330 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:    prompting.OutcomeAllow,
 				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(-time.Second),
-			},
-			"write": &prompting.RulePermissionEntry{
-				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanForever,
+				Expiration: at.Time.Add(time.Second),
 			},
 		},
 		{
 			"read": &prompting.RulePermissionEntry{
-				Outcome:    prompting.OutcomeAllow,
-				Lifespan:   prompting.LifespanTimespan,
-				Expiration: currTime.Add(time.Second),
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: at.SessionID,
 			},
 		},
 	} {
-		c.Check(pm.Expired(currTime), Equals, false, Commentf("%+v", pm))
+		c.Check(pm.Expired(at), Equals, false, Commentf("%+v", pm))
+	}
+}
+
+func (s *constraintsSuite) TestRulePermissionEntrySupersedes(c *C) {
+	currTime := time.Now()
+	currSession := prompting.IDType(0x12345)
+	for _, testCase := range []struct {
+		entry    *prompting.RulePermissionEntry
+		other    *prompting.RulePermissionEntry
+		expected bool
+	}{
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			expected: false,
+		},
+		{
+			// An expired session never supersedes another
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			expected: true,
+		},
+		{
+			// An expired session never supersedes another
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: true,
+		},
+		{
+			// An expired session never supersedes another
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			// LifespanTimespan doesn't supersede LifespanSession with active session
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			expected: false,
+		},
+		{
+			// LifespanTimespan does supersede LifespanSession with expired session
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			expected: true,
+		},
+		{
+			// Later expiration supersedes earlier, regardless of whether either is expired
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(-time.Second),
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime.Add(time.Second),
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanForever,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession,
+			},
+			expected: false,
+		},
+		{
+			// LifespanSingle supersedes LifespanSession with expired session
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:  prompting.LifespanSession,
+				SessionID: currSession + 1,
+			},
+			expected: true,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: currTime,
+			},
+			expected: false,
+		},
+		{
+			entry: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			other: &prompting.RulePermissionEntry{
+				Lifespan: prompting.LifespanSingle,
+			},
+			expected: false,
+		},
+	} {
+		c.Check(testCase.entry.Supersedes(testCase.other, currSession), Equals, testCase.expected, Commentf("testCase:\n\tentry: %+v\n\tother: %+v\n\texpected: %v", testCase.entry, testCase.other, testCase.expected))
+	}
+
+	// Check that LifespanSession when current session ID is 0 supersedes
+	// nothing and is superseded by everything.
+	expiredSession := currSession
+	currSession = 0
+	for _, lifespan := range []prompting.LifespanType{
+		prompting.LifespanSingle,
+		prompting.LifespanTimespan,
+		prompting.LifespanSession,
+		prompting.LifespanForever,
+	} {
+		entry := &prompting.RulePermissionEntry{
+			Lifespan:  prompting.LifespanSession,
+			SessionID: expiredSession,
+		}
+		other := &prompting.RulePermissionEntry{
+			Lifespan: lifespan,
+		}
+		c.Check(entry.Supersedes(other, currSession), Equals, false, Commentf("LifespanSession with expired session incorrectly superseded entry with lifespan %s", lifespan))
+	}
+	for _, lifespan := range []prompting.LifespanType{
+		prompting.LifespanSingle,
+		prompting.LifespanTimespan,
+		// there can't be an entry with LifespanSession and SessionID = 0
+		prompting.LifespanForever,
+	} {
+		entry := &prompting.RulePermissionEntry{
+			Lifespan: lifespan,
+		}
+		other := &prompting.RulePermissionEntry{
+			Lifespan:  prompting.LifespanSession,
+			SessionID: expiredSession,
+		}
+		c.Check(entry.Supersedes(other, currSession), Equals, true, Commentf("LifespanSession with expired session was incorrectly not superseded by entry with lifespan %s", lifespan))
 	}
 }
 
@@ -1010,6 +1452,14 @@ func (s *constraintsSuite) TestMarshalRulePermissionEntry(c *C) {
 				Expiration: timeNow,
 			},
 			expected: `{"outcome":"deny","lifespan":"timespan","expiration":"2025-02-20T16:00:27.913561089Z"}`,
+		},
+		{
+			entry: prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: prompting.IDType(0x12345678),
+			},
+			expected: `{"outcome":"allow","lifespan":"session","session-id":"0000000012345678"}`,
 		},
 	} {
 		marshalled, err := json.Marshal(testCase.entry)

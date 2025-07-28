@@ -1223,7 +1223,7 @@ nested_start_core_vm_unit() {
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-4}"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     else
@@ -1294,7 +1294,7 @@ nested_start_core_vm_unit() {
     if nested_is_core_lt 20; then
         if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
             PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
             # check if we have nested kvm
             if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
                 PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
@@ -1617,7 +1617,7 @@ nested_start_classic_vm() {
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-4}"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     else
@@ -1651,7 +1651,7 @@ nested_start_classic_vm() {
     if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         # check if we have nested kvm
         if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
             PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
@@ -1860,7 +1860,11 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        if os.query is-arm; then
+            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-arm64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        else 
+            curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-plus-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
+        fi
         # make sure spread really exists
         test -x "$NESTED_WORK_DIR/spread"
     fi

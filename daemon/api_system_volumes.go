@@ -43,8 +43,37 @@ var systemVolumesCmd = &Command{
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
 		"check-passphrase", "check-pin", "change-passphrase"},
-	ReadAccess:  rootAccess{},
-	WriteAccess: rootAccess{},
+	// anyone can enumerate key slots.
+	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+	WriteAccess: byActionAccess{
+		ByAction: map[string]accessChecker{
+			// anyone check passphrase/pin quality
+			"check-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-pin":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			// anyone can change passphrase given they know the old passphrase
+			// TODO:FDEM: rate limiting is needed to avoid DA lockout.
+			"change-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			// only root and admins (authenticated via Polkit) can do recovery key
+			// related actions.
+			"check-recovery-key": interfaceRootAccess{
+				// firmware-updater-support is allowed so that a user can verify
+				// their recovery key is valid before doing the firmware update
+				// which might require entering their recovery key on next boot.
+				Interfaces: []string{"snap-fde-control", "firmware-updater-support"},
+				Polkit:     polkitActionManageFDE,
+			},
+			"generate-recovery-key": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
+			"replace-recovery-key": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
+		},
+		// by default, all actions are only allowed for root.
+		Default: rootAccess{},
+	},
 }
 
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
@@ -103,6 +132,15 @@ func structureInfoFromVolumeStructure(structure *devicestate.VolumeStructureWith
 }
 
 func getSystemVolumes(c *Command, r *http.Request, user *auth.UserState) Response {
+	supported, respErr := systemVolumesAPISupportedLocking(c.d.overlord.State())
+	if respErr != nil {
+		return respErr
+	}
+
+	if !supported {
+		return BadRequest("this action is not supported on this system")
+	}
+
 	opts, err := parseSystemVolumesOptionsFromURL(r.URL.Query())
 	if err != nil {
 		return BadRequest(err.Error())
@@ -172,8 +210,16 @@ type systemVolumesActionRequest struct {
 }
 
 func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) Response {
-	contentType := r.Header.Get("Content-Type")
+	supported, respErr := systemVolumesAPISupportedLocking(c.d.overlord.State())
+	if respErr != nil {
+		return respErr
+	}
 
+	if !supported {
+		return BadRequest("this action is not supported on this system")
+	}
+
+	contentType := r.Header.Get("Content-Type")
 	switch contentType {
 	case "application/json":
 		return postSystemVolumesActionJSON(c, r)

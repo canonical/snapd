@@ -61,8 +61,11 @@ environment:
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
+    http_proxy: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
-    NO_PROXY: "127.0.0.1"
+    https_proxy: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
+    NO_PROXY: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
+    no_proxy: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
     NEW_CORE_CHANNEL: '$(HOST: echo "$SPREAD_NEW_CORE_CHANNEL")'
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
     # use the ppa_validation_name to install snapd from a public ppa
@@ -116,6 +119,7 @@ environment:
     # Whether we should use snapd snap ./built-snap/ directory
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
+    SNAPD_USE_PROXY: '$(HOST: echo "${SPREAD_SNAPD_USE_PROXY:-}")'
 
     # When SPREAD_TAG_FEATURES is populated with a non-empty value,
     # each spread task will extract relevant information form its
@@ -158,9 +162,6 @@ backends:
                   workers: 8
             - ubuntu-24.04-64:
                   image: ubuntu-2404-64
-                  storage: 15G
-                  workers: 8
-            - ubuntu-24.10-64:
                   storage: 15G
                   workers: 8
             - ubuntu-25.04-64:
@@ -233,9 +234,6 @@ backends:
         location: snapd-spread/europe-west3-b
         halt-timeout: 2h
         systems:
-            - debian-11-64:
-                  storage: 20G
-                  workers: 6
             - debian-12-64:
                   storage: 20G
                   workers: 6
@@ -321,7 +319,7 @@ backends:
             - ubuntu-24.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-24.10-64:
+            - ubuntu-25.04-64:
                   storage: 12G
                   workers: 8
 
@@ -399,40 +397,7 @@ backends:
             https_proxy: "http://squid.internal:3128"
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
-        systems: &openstack-systems
-            - ubuntu-16.04-64:
-                image: snapd-spread/ubuntu-16.04-64
-                workers: 8
-            - ubuntu-18.04-64:
-                image: snapd-spread/ubuntu-18.04-64
-                workers: 8
-            - ubuntu-20.04-64:
-                image: snapd-spread/ubuntu-20.04-64
-                workers: 8
-            - ubuntu-22.04-64:
-                image: snapd-spread/ubuntu-22.04-64
-                workers: 8
-            - ubuntu-24.04-64:
-                image: snapd-spread/ubuntu-24.04-64
-                workers: 8
-            - ubuntu-25.04-64:
-                image: snapd-spread/ubuntu-25.04-64
-                workers: 8
-
-
-            - ubuntu-core-18-64:
-                image: snapd-spread/ubuntu-18.04-64
-                workers: 8
-            - ubuntu-core-20-64:
-                image: snapd-spread/ubuntu-20.04-64-uefi
-                workers: 8
-            - ubuntu-core-22-64:
-                image: snapd-spread/ubuntu-22.04-64-uefi
-                workers: 8
-            - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
-                workers: 8
-
+        systems:
             - fedora-41-64:
                 image: snapd-spread/fedora-41-64
                 workers: 6
@@ -466,8 +431,8 @@ backends:
         wait-timeout: 5m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
-        cidr-port-rel: [10.151.54.0/24:4000]
-        environment:
+        cidr-port-rel: [10.151.96.0/21:5000]
+        environment: &openstack-ps7-env
             SNAPD_USE_PROXY: 'true'
             HTTP_PROXY: 'http://egress.ps7.internal:3128'
             HTTPS_PROXY: 'http://egress.ps7.internal:3128'
@@ -476,7 +441,50 @@ backends:
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
             NTP_SERVER: 'ntp.ps7.internal'
-        systems: *openstack-systems
+        systems: &openstack-ps7-systems
+            - ubuntu-16.04-64:
+                image: snapd-spread/ubuntu-16.04-64
+                workers: 8
+            - ubuntu-18.04-64:
+                image: snapd-spread/ubuntu-18.04-64
+                workers: 8
+            - ubuntu-20.04-64:
+                image: snapd-spread/ubuntu-20.04-64
+                workers: 8
+            - ubuntu-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64
+                workers: 8
+            - ubuntu-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64
+                workers: 8
+            - ubuntu-25.04-64:
+                image: snapd-spread/ubuntu-25.04-64
+                workers: 8
+
+            - ubuntu-core-18-64:
+                image: snapd-spread/ubuntu-18.04-64
+                workers: 8
+            - ubuntu-core-20-64:
+                image: snapd-spread/ubuntu-20.04-64-uefi
+                workers: 8
+            - ubuntu-core-22-64:
+                image: snapd-spread/ubuntu-22.04-64-uefi
+                workers: 8
+            - ubuntu-core-24-64:
+                image: snapd-spread/ubuntu-24.04-64-uefi
+                workers: 8
+
+    openstack-dev-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
+        plan: shared.xsmall
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.54.0/24:4000]
+        environment: *openstack-ps7-env
+        systems: *openstack-ps7-systems
 
     openstack-arm-ps7:
         type: openstack
@@ -486,25 +494,17 @@ backends:
         wait-timeout: 5m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
-        cidr-port-rel: [10.151.53.0/24:3000]
-        environment:
-            SNAPD_USE_PROXY: 'true'
-            HTTP_PROXY: 'http://egress.ps7.internal:3128'
-            HTTPS_PROXY: 'http://egress.ps7.internal:3128'
-            http_proxy: 'http://egress.ps7.internal:3128'
-            https_proxy: 'http://egress.ps7.internal:3128'
-            no_proxy: '127.0.0.1,127.0.0.53,localhost'
-            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
-            NTP_SERVER: 'ntp.ps7.internal'
-        systems:
+        cidr-port-rel: [10.151.89.0/24:8000]
+        environment: *openstack-ps7-env
+        systems: &openstack-arm-systems
             - ubuntu-20.04-arm-64:
-                image: auto-sync/ubuntu-focal-20.04-arm64-server
+                image: snapd-spread/ubuntu-20.04-arm-64
                 workers: 8
             - ubuntu-22.04-arm-64:
-                image: auto-sync/ubuntu-jammy-22.04-arm64-server
+                image: snapd-spread/ubuntu-22.04-arm-64
                 workers: 8
             - ubuntu-24.04-arm-64:
-                image: auto-sync/ubuntu-noble-24.04-arm64-server
+                image: snapd-spread/ubuntu-20.04-arm-64
                 workers: 8
 
             - ubuntu-core-22-arm-64:
@@ -514,6 +514,30 @@ backends:
                 image: snapd-spread/ubuntu-24.04-arm-64-uefi
                 workers: 8
 
+    openstack-arm-dev-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
+        plan: shared.xsmall.arm64
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.53.0/24:3000]
+        environment: *openstack-ps7-env
+        systems: *openstack-arm-systems
+
+    openstack-arm-ext-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
+        plan: shared.large.arm64
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.89.0/24:8000]
+        environment: *openstack-ps7-env
+        systems: *openstack-arm-systems
+        
     qemu-nested:
         memory: 4G
         type: qemu
@@ -577,15 +601,9 @@ backends:
             - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-24.10-64:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-25.04-64:
                   username: ubuntu
                   password: ubuntu
-            - debian-11-64:
-                  username: debian
-                  password: debian
             - debian-12-64:
                   username: debian
                   password: debian
@@ -681,16 +699,10 @@ backends:
             - ubuntu-24.04-64:
                   username: root
                   password: root
-            - ubuntu-24.10-64:
-                  username: root
-                  password: root
             - ubuntu-25.04-64:
                   username: root
                   password: root
             - ubuntu-25.10-64:
-                  username: root
-                  password: root
-            - debian-11-64:
                   username: root
                   password: root
             - debian-12-64:
@@ -825,6 +837,12 @@ backends:
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
+            - ubuntu-20.04-arm-32:
+                username: root
+                password: ubuntu
+            - ubuntu-22.04-arm-32:
+                username: root
+                password: ubuntu
             - ubuntu-core-16-64:
                   username: external
                   password: ubuntu123
@@ -1265,6 +1283,13 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
+    tests/utils/cross-build/suite/:
+        summary: Test building snapd in different architectures        
+        manual: true
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
     # as this is very slow and we run into timeouts.
@@ -1495,6 +1520,7 @@ suites:
             - google-nested-dev
             - qemu-nested
             - google-nested-arm
+            - garden
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line

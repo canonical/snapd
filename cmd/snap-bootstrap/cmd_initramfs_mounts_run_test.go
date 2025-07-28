@@ -687,13 +687,8 @@ Wants=%[1]s
 
 	checkDegradedJSON(c, "unlocked.json", map[string]any{
 		"ubuntu-boot": map[string]any{},
-		"ubuntu-data": map[string]any{
-			"find-state": "found",
-		},
-		"ubuntu-save": map[string]any{
-			"find-state": "not-found",
-		},
-		"error-log": any(nil),
+		"ubuntu-data": map[string]any{},
+		"ubuntu-save": map[string]any{},
 	})
 }
 
@@ -941,16 +936,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	checkDegradedJSON(c, "unlocked.json", map[string]any{
 		"ubuntu-boot": map[string]any{},
 		"ubuntu-data": map[string]any{
-			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "run",
 		},
 		"ubuntu-save": map[string]any{
-			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "run",
 		},
-		"error-log": any(nil),
 	})
 }
 
@@ -1090,16 +1082,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 	checkDegradedJSON(c, "unlocked.json", map[string]any{
 		"ubuntu-boot": map[string]any{},
 		"ubuntu-data": map[string]any{
-			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "recovery",
 		},
 		"ubuntu-save": map[string]any{
-			"find-state":   "found",
 			"unlock-state": "unlocked",
 			"unlock-key":   "run",
 		},
-		"error-log": any(nil),
 	})
 }
 

@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import query_features
 from query_features import TaskIdVariant
-from features import SystemFeatures, TaskFeatures, Cmd, Endpoint, Change, Task
+from features import SystemFeatures, TaskFeatures, Cmd, Endpoint, Change, Task, Ensure, Interface
 
 
 class DictRetriever(query_features.Retriever):
@@ -35,7 +35,7 @@ class DictRetriever(query_features.Retriever):
     def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         return deepcopy(self.data[timestamp][system])
 
-    def get_systems(self, timestamp: str, systems: list[str]) -> Iterable[SystemFeatures]:    
+    def get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:    
         if systems:
             return [deepcopy(self.data[timestamp][system]) for system in systems]
         else:
@@ -636,35 +636,46 @@ class TestQueryFeatures:
         all_features = {'timestamp1': {
             'cmds':[cmd for entry in data['timestamp1']['system']['tests'] if 'cmds' in entry for cmd in entry['cmds']],
             'endpoints':[endpt for entry in data['timestamp1']['system']['tests'] if 'endpoints' in entry for endpt in entry['endpoints']],
-            'changes':[Change(kind="install-snap", snap_types=["app"]),Change(kind="create-recovery-system", snap_types=[])]}}
+            'changes':[Change(kind="install-snap"),Change(kind="create-recovery-system")],
+            'ensures':[Ensure(manager="SnapManager",function="myFunction")],
+            'interfaces':[Interface(name="iface")],
+            'tasks':[Task(kind="refresh", last_status="Done")]}}
         
         retriever = DictRetriever(data, all_features)
 
         diff = query_features.diff_all_features(retriever, 'timestamp1', 'system', False)
-        expected = {'changes':[Change(kind="create-recovery-system", snap_types=[])]}
+        expected = {
+            'changes':[Change(kind="create-recovery-system")], 
+            'ensures':all_features['timestamp1']['ensures'], 
+            'interfaces': all_features['timestamp1']['interfaces'],
+            'tasks': all_features['timestamp1']['tasks']}
         assert expected == diff
 
         diff = query_features.diff_all_features(retriever, 'timestamp1', 'system', True)
         expected = {
             'cmds':[Cmd(cmd="snap routine file-access")],
             'endpoints':[Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")],
-            'changes':[Change(kind="create-recovery-system", snap_types=[])]}
+            'changes':[Change(kind="create-recovery-system")],
+            'ensures':all_features['timestamp1']['ensures'], 
+            'interfaces': all_features['timestamp1']['interfaces'],
+            'tasks': all_features['timestamp1']['tasks']}
         assert expected == diff
 
     def test_feat_find(self):
         data = {'timestamp1': {'system': {'system':'system', 'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list")],
-                         endpoints=[
-                             Endpoint(method="GET", path="/v2/snaps")],
-                         changes=[Change(kind="install-snap", snap_types=["app"])]),
+                         tasks=[Task(kind="a",last_status="Done",snap_types=["app"])],
+                         ensures=[Ensure(manager="a",function="c")]),
             TaskFeatures(suite='suite2', task_name='task2', success=True, variant='v1',
-                         cmds=[Cmd(cmd="snap pack"),
-                               Cmd(cmd="snap debug api")],
-                         endpoints=[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")]),
+                         cmds=[Cmd(cmd="snap pack"),Cmd(cmd="snap debug api")],
+                         interfaces=[Interface(name="i",plug_snap_type="snapd",slot_snap_type="app")],
+                         endpoints=[Endpoint(method="POST", path="/v", action="b")],
+                         changes=[Change(kind="a",snap_types=["app","snapd"])]),
             TaskFeatures(suite='suite2', task_name='task1', success=False, variant='v1',
                          cmds=[Cmd(cmd="snap list")],
-                         endpoints=[Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")]),
+                         endpoints=[Endpoint(method="POST", path="/v", action="a")],
+                         ensures=[Ensure(manager="a",function="b")]),
                          ]}}}
         
         retriever = DictRetriever(data)
@@ -675,6 +686,45 @@ class TestQueryFeatures:
         tests = query_features.find_feat(retriever, 'timestamp1', Cmd(cmd="snap list"), True)
         expected = {'system': [TaskIdVariant(suite='suite1',task_name='task1',variant='')]}
         assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
+        tests = query_features.find_feat(retriever, 'timestamp1', Task(kind='a',last_status='Done'), False)
+        expected = {'system': [TaskIdVariant(suite='suite1',task_name='task1',variant='')]}
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
+        tests = query_features.find_feat(retriever, 'timestamp1', Interface(name='i'), False)
+        expected = {'system': [TaskIdVariant(suite='suite2',task_name='task2',variant='v1')]}
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
+        tests = query_features.find_feat(retriever, 'timestamp1',Endpoint(method="POST", path="/v", action="a"), False)
+        expected = {'system': [TaskIdVariant(suite='suite2',task_name='task1',variant='v1')]}
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
+        tests = query_features.find_feat(retriever, 'timestamp1',Ensure(manager="a",function="b"), False)
+        expected = {'system': [TaskIdVariant(suite='suite2',task_name='task1',variant='v1')]}
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
+        tests = query_features.find_feat(retriever, 'timestamp1',Change(kind="a"), False)
+        expected = {'system': [TaskIdVariant(suite='suite2',task_name='task2',variant='v1')]}
+        assert json.dumps(expected, default=lambda x: str(x)) == json.dumps(tests, default=lambda x: str(x))
+
+
+    def test_task_list(self):
+        data = {'timestamp1': {'system': {'system':'system', 'tests': [
+            TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
+                         cmds=[Cmd(cmd="snap list")]),
+            TaskFeatures(suite='suite2', task_name='task2', success=True, variant='v1',
+                         cmds=[Cmd(cmd="snap pack"),Cmd(cmd="snap debug api")]),
+            TaskFeatures(suite='suite2', task_name='task1', success=False, variant='v1',
+                         cmds=[Cmd(cmd="snap list")]),
+                         ]}}}
+        
+        retriever = DictRetriever(data)
+        tasks = query_features.task_list(retriever, 'timestamp1')
+        assert len(tasks) == 3
+        assert TaskIdVariant(suite='suite1',task_name='task1',variant='') in tasks
+        assert TaskIdVariant(suite='suite2',task_name='task2',variant='v1') in tasks
+        assert TaskIdVariant(suite='suite2',task_name='task1',variant='v1') in tasks
+
 
 
     @patch('argparse.ArgumentParser.parse_args')
@@ -760,17 +810,26 @@ class TestQueryFeatures:
     def test_retriever_diff_all(self, parse_args_mock: Mock, mocker_class: str):
         data = [
             {'timestamp': '2025-05-04', 'system': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'b'}], 'endpoints': [{'1': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'endpoints': [{'5': 'd'}]},
+                {'cmds': [Cmd(cmd='a'), Cmd(cmd='b')], 'endpoints': [Endpoint(method='a',path='/a')]},
+                {'cmds': [Cmd(cmd='d')], 'endpoints': [Endpoint(method='b', path='/b', action='b')]},
+                {'tasks': [Task(kind='a',last_status='Done',snap_types=['a'])], 'changes': [Change(kind='change')],},
+                {'interfaces': [Interface(name='iface')],'ensures': [Ensure(manager='mgr',function='func')]}
             ]},
             {'timestamp': '2025-05-05', 'system': 'system', 'tests': [
-                {'cmds': [{'cmd': 'a'}, {'cmd': 'c'}], 'endpoints': [{'1': 'b'}, {'2': 'a'}]},
-                {'cmds': [{'cmd': 'd'}], 'tasks': [{'task': 'a'}]},
-                {'cmds': [{'cmd': 'e'}], 'endpoints': [{'5': 'd'}]}
+                {'cmds': [Cmd(cmd='a'), Cmd(cmd='c')], 'endpoints': [Endpoint(method='c',path='/c'),Endpoint(method='d',path='/d',action='d')]},
+                {'cmds': [Cmd(cmd='d')], 'tasks': [Task(kind='a',last_status='Done',snap_types=['a'])]},
+                {'cmds': [Cmd(cmd='e')], 'endpoints': [Endpoint(method='c',path='/c')]}
             ]},
             {'timestamp': '2025-05-04', 'all_features': True,
-                'cmds': [{'cmd': 'a'}, {'cmd': 'b'}, {'cmd': 'c'}, {'cmd': 'd'}, {'cmd': 'e'}, {'cmd': 'f'}], 
-                'endpoints': [{'1': 'a'},{'1': 'b'},{'2': 'a'},{'5': 'd'}]
+                'cmds': [Cmd(cmd='a'), Cmd(cmd='b'), Cmd(cmd='c'), Cmd(cmd='d'), Cmd(cmd='e'), Cmd(cmd='f')], 
+                'endpoints': [Endpoint(method='a',path='/a'),
+                              Endpoint(method='b', path='/b', action='b'),
+                              Endpoint(method='c',path='/c'),
+                              Endpoint(method='d',path='/d',action='d')],
+                'tasks': [Task(kind='a',last_status='Done'),Task(kind='a',last_status='Error')],
+                'interfaces': [Interface(name='iface')],
+                'changes': [Change(kind='change')],
+                'ensures': [Ensure(manager='mgr',function='func')]
             }
         ]
         Mocker = globals()[mocker_class]
@@ -785,8 +844,9 @@ class TestQueryFeatures:
                 remove_failed=False
             )
             query_features.main()
-            expected = {'cmds': [{'cmd': 'c'},{'cmd': 'e'},{'cmd': 'f'}],
-                        'endpoints': [{'1': 'b'},{'2': 'a'}]}
+            expected = {'cmds': [Cmd(cmd='c'),Cmd(cmd='e'),Cmd(cmd='f')],
+                        'endpoints': [Endpoint(method='c',path='/c'),Endpoint(method='d',path='/d',action='d')],
+                        'tasks': [Task(kind='a',last_status='Error')]}
             actual = json.loads(mocker.get_stdout())
             assert expected == actual
 

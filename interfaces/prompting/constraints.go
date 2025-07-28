@@ -74,11 +74,11 @@ func (c *Constraints) ContainPermissions(permissions []string) bool {
 // ToRuleConstraints validates the receiving Constraints and converts it to
 // RuleConstraints. If the constraints are not valid with respect to the given
 // interface, returns an error.
-func (c *Constraints) ToRuleConstraints(iface string, currTime time.Time) (*RuleConstraints, error) {
+func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, error) {
 	if c.PathPattern == nil {
 		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
-	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, currTime)
+	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, at)
 	if err != nil {
 		return nil, err
 	}
@@ -100,15 +100,15 @@ type RuleConstraints struct {
 	Permissions RulePermissionMap     `json:"permissions"`
 }
 
-// ValidateForInterface checks that the rule constraints are valid for the given
-// interface. Any permissions which have expired relative to the given current
+// ValidateForInterface checks that the rule constraints are valid for the
+// given interface. Any permissions which have expired at the given point in
 // time are pruned. If all permissions have expired, then returns true. If the
-// rule is invalid, returns an error.
-func (c *RuleConstraints) ValidateForInterface(iface string, currTime time.Time) (expired bool, err error) {
+// rule is If the rule is invalid, returns an error.
+func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
 	if c.PathPattern == nil {
 		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
-	return c.Permissions.validateForInterface(iface, currTime)
+	return c.Permissions.validateForInterface(iface, at)
 }
 
 // Match returns true if the constraints match the given path, otherwise false.
@@ -202,8 +202,11 @@ type RuleConstraintsPatch struct {
 // existing permission from the rule, the permission should map to null in the
 // permission map of the patch.
 //
-// The existing rule constraints should never be modified.
-func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, currTime time.Time) (*RuleConstraints, error) {
+// The the given at information is used to prune any existing expired
+// permissions and compute any expirations for new permissions.
+//
+// The existing rule constraints are not mutated.
+func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, at At) (*RuleConstraints, error) {
 	ruleConstraints := &RuleConstraints{
 		PathPattern: c.PathPattern,
 	}
@@ -218,7 +221,7 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 	newPermissions := make(RulePermissionMap, len(c.Permissions)+len(existing.Permissions))
 	// Pre-populate newPermissions with all the non-expired existing permissions
 	for perm, entry := range existing.Permissions {
-		if !entry.Expired(currTime) {
+		if !entry.Expired(at) {
 			newPermissions[perm] = entry
 		}
 	}
@@ -241,7 +244,7 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 			delete(newPermissions, perm)
 			continue
 		}
-		ruleEntry, err := entry.toRulePermissionEntry(currTime)
+		ruleEntry, err := entry.toRulePermissionEntry(at)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -267,10 +270,10 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 type PermissionMap map[string]*PermissionEntry
 
 // toRulePermissionMap validates the receiving PermissionMap and converts it
-// to a RulePermissionMap, using the given current time to convert any included
-// durations to expirations. If the permission map is not valid with respect to
-// the given interface, returns an error.
-func (pm PermissionMap) toRulePermissionMap(iface string, currTime time.Time) (RulePermissionMap, error) {
+// to a RulePermissionMap, using the given at information to convert each
+// PermissionEntry to a RulePermissionEntry. If the permission map is not valid
+// with respect to the given interface, returns an error.
+func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermissionMap, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
@@ -286,7 +289,7 @@ func (pm PermissionMap) toRulePermissionMap(iface string, currTime time.Time) (R
 			invalidPerms = append(invalidPerms, perm)
 			continue
 		}
-		rulePermissionEntry, err := entry.toRulePermissionEntry(currTime)
+		rulePermissionEntry, err := entry.toRulePermissionEntry(at)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -308,10 +311,10 @@ func (pm PermissionMap) toRulePermissionMap(iface string, currTime time.Time) (R
 type RulePermissionMap map[string]*RulePermissionEntry
 
 // validateForInterface checks that the rule permission map is valid for the
-// given interface. Any permissions which have expired relative to the given
-// current time are pruned. If all permissions have expired, then returns true.
-// If the permission map is invalid, returns an error.
-func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Time) (expired bool, err error) {
+// given interface. Any permissions which have expired at the given point in
+// time are pruned. If all permissions have expired, then returns true. If the
+// permission map is invalid, returns an error.
+func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired bool, err error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return false, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
@@ -331,7 +334,7 @@ func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Tim
 			errs = append(errs, err)
 			continue
 		}
-		if entry.Expired(currTime) {
+		if entry.Expired(at) {
 			expiredPerms = append(expiredPerms, perm)
 			continue
 		}
@@ -352,10 +355,11 @@ func (pm RulePermissionMap) validateForInterface(iface string, currTime time.Tim
 	return false, nil
 }
 
-// Expired returns true if all permissions in the map have expired.
-func (pm RulePermissionMap) Expired(currTime time.Time) bool {
+// Expired returns true if all permissions in the map have expired at the given
+// point in time.
+func (pm RulePermissionMap) Expired(at At) bool {
 	for _, entry := range pm {
-		if !entry.Expired(currTime) {
+		if !entry.Expired(at) {
 			return false
 		}
 	}
@@ -378,10 +382,11 @@ type PermissionEntry struct {
 //
 // Checks that the entry has a valid outcome, and that its lifespan is valid
 // for a rule (i.e. not LifespanSingle), and that it has an appropriate
-// duration for that lifespan. The duration, combined with the given current
-// time, is used to compute an expiration time, and that is returned as part
-// of the corresponding RulePermissionEntry.
-func (e *PermissionEntry) toRulePermissionEntry(currTime time.Time) (*RulePermissionEntry, error) {
+// duration for that lifespan. If the lifespan is LifespanTimespan, then the
+// expiration is computed as the entry's duration after the given point in time.
+// If the lifespan is LifepanSession, then the sessionID at the given point in
+// time must be non-zero, and is saved in the RulePermissionEntry.
+func (e *PermissionEntry) toRulePermissionEntry(at At) (*RulePermissionEntry, error) {
 	if _, err := e.Outcome.AsBool(); err != nil {
 		return nil, err
 	}
@@ -389,14 +394,23 @@ func (e *PermissionEntry) toRulePermissionEntry(currTime time.Time) (*RulePermis
 		// We don't allow rules with lifespan "single"
 		return nil, prompting_errors.NewRuleLifespanSingleError(SupportedRuleLifespans)
 	}
-	expiration, err := e.Lifespan.ParseDuration(e.Duration, currTime)
+	expiration, err := e.Lifespan.ParseDuration(e.Duration, at.Time)
 	if err != nil {
 		return nil, err
+	}
+	var sessionIDToUse IDType
+	if e.Lifespan == LifespanSession {
+		// SessionID should be 0 unless the lifespan is LifespanSession
+		if at.SessionID == 0 {
+			return nil, prompting_errors.ErrNewSessionRuleNoSession
+		}
+		sessionIDToUse = at.SessionID
 	}
 	rulePermissionEntry := &RulePermissionEntry{
 		Outcome:    e.Outcome,
 		Lifespan:   e.Lifespan,
 		Expiration: expiration,
+		SessionID:  sessionIDToUse,
 	}
 	return rulePermissionEntry, nil
 }
@@ -404,38 +418,47 @@ func (e *PermissionEntry) toRulePermissionEntry(currTime time.Time) (*RulePermis
 // RulePermissionEntry holds the outcome associated with a particular permission
 // and the lifespan for which that outcome is applicable.
 //
-// RulePermissionEntry is derived from a PermissionEntry after it has been used
-// along with the rule's timestamp to define the expiration timeouts for any
-// permissions which have a lifespan of "timespan". RulePermissionEntry is what
-// is returned when retrieving rule contents, but PermissionEntry is used when
-// replying to prompts, creating new rules, or modifying existing rules.
+// Each RulePermissionEntry is derived from a PermissionEntry. A PermissionEntry
+// is used when reply to a prompt, creating a new rule, or modifying an existing
+// rule, while a RulePermissionEntry is what is stored as part of the resulting
+// rule.
+//
+// If the entry has a lifespan of LifespanTimespan, the expiration time should
+// be non-zero and stores the time at which the entry expires. If the entry has
+// a lifespan of LifespanSession, then the session ID should be non-zero and
+// stores the user session ID associated with the rule at the time it was
+// created.
 type RulePermissionEntry struct {
 	Outcome    OutcomeType  `json:"outcome"`
 	Lifespan   LifespanType `json:"lifespan"`
 	Expiration time.Time    `json:"expiration,omitzero"`
+	SessionID  IDType       `json:"session-id,omitzero"`
 }
 
 // Expired returns true if the receiving permission entry has expired and
 // should no longer be considered when matching requests.
 //
 // This is the case if the permission has a lifespan of timespan and the
-// current time is after its expiration time.
-func (e *RulePermissionEntry) Expired(currTime time.Time) bool {
+// expiration time has passed at the given point in time, or the permission
+// has a lifespan of LifespanSession and the associated user session ID is not
+// equal to the user session ID at the given point in time.
+func (e *RulePermissionEntry) Expired(at At) bool {
 	switch e.Lifespan {
 	case LifespanTimespan:
-		if !currTime.Before(e.Expiration) {
+		if !at.Time.Before(e.Expiration) {
 			return true
 		}
-		// TODO: add lifespan session
-		//case LifespanSession:
-		// TODO: return true if the user session has changed
+	case LifespanSession:
+		if e.SessionID != at.SessionID {
+			return true
+		}
 	}
 	return false
 }
 
 // validate checks that the entry has a valid outcome, and that its lifespan
 // is valid for a rule (i.e. not LifespanSingle), and has an appropriate
-// expiration for that lifespan.
+// expiration information for that lifespan.
 func (e *RulePermissionEntry) validate() error {
 	if _, err := e.Outcome.AsBool(); err != nil {
 		return err
@@ -444,14 +467,73 @@ func (e *RulePermissionEntry) validate() error {
 		// We don't allow rules with lifespan "single"
 		return prompting_errors.NewRuleLifespanSingleError(SupportedRuleLifespans)
 	}
-	if err := e.Lifespan.ValidateExpiration(e.Expiration); err != nil {
+	if err := e.Lifespan.ValidateExpiration(e.Expiration, e.SessionID); err != nil {
 		// Should never error due to an API request, since rules are always
-		// added via the API using duration, rather than expiration.
+		// added via the API using duration, rather than expiration, and the
+		// user session should be active at the time the API request is made.
 		// Error may occur when validating a rule loaded from disk.
-		// We don't check expiration as part of validation.
+		// We don't check whether the entry has expired as part of validation.
 		return err
 	}
 	return nil
+}
+
+// Supersedes returns true if the receiver e has a lifespan which supersedes
+// that of given other entry.
+//
+// LifespanForever supersedes other lifespans. LifespanSession, if the entry's
+// session ID is equal to the given session ID, supersedes lifespans other
+// than LifespanForever; LifespanSession with an expired session ID supersedes
+// nothing and is superseded by everything else. LifespanTimespan supersedes
+// LifespanSingle. If the entries are both LifespanTimespan, then whichever
+// entry has a later expiration timestamp supersedes the other entry.
+func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry, currSession IDType) bool {
+	if other.Lifespan == LifespanForever {
+		// Nothing supersedes LifespanForever
+		return false
+	}
+	if e.Lifespan == LifespanForever {
+		// LifespanForever supersedes everything else
+		return true
+	}
+	if other.Lifespan == LifespanSession && other.SessionID == currSession {
+		// Validation ensures that there can be no entry with LifespanSession
+		// which has a SessionID of 0. Thus, if currSession is 0 (meaning
+		// there is no active user session), we'll never have other.SessionID
+		// equal to currSession.
+
+		// Nothing except LifespanForever supersedes LifespanSession with active session
+		return false
+	}
+	if e.Lifespan == LifespanSession {
+		if e.SessionID != currSession {
+			// LifespanSession with expired session supersedes nothing
+			return false
+		}
+		// LifespanSession with active session supersedes everything remaining
+		return true
+	}
+	if other.Lifespan == LifespanSession && other.SessionID != currSession {
+		// Everything except LifespanSession with expired session supersedes
+		// LifespanSession with expired session
+		return true
+	}
+	// Neither lifespan is LifespanForever or LifespanSession
+	if other.Lifespan == LifespanTimespan {
+		if e.Lifespan == LifespanSingle {
+			// LifespanSingle does not supersede LifespanTimespan
+			return false
+		}
+		// e also has LifespanTimespan, so supersedes if expiration is later
+		return e.Expiration.After(other.Expiration)
+	}
+	// Other lifespan is LifespanSingle
+	if e.Lifespan == LifespanTimespan {
+		// LifespanTimespan supersedes LifespanSingle
+		return true
+	}
+	// e also has LifespanSingle, which doesn't supersede other's LifespanSingle
+	return false
 }
 
 var (

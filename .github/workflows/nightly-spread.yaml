@@ -58,7 +58,7 @@ jobs:
             systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64'
           - group: debian-not-req
             backend: google-distro-1
-            systems: 'debian-11-64 debian-12-64 debian-sid-64'
+            systems: 'debian-12-64 debian-sid-64'
 
   spread-test-experimental:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}

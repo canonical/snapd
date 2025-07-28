@@ -54,7 +54,7 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams, newPCRPolicy
 	}
 }
 
-func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error)) (restore func()) {
+func MockSecbootBuildPCRProtectionProfile(f func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootBuildPCRProtectionProfile only can be mocked in tests")
 	old := secbootBuildPCRProtectionProfile
 	secbootBuildPCRProtectionProfile = f
@@ -376,6 +376,15 @@ func recalculateParamatersTPM(manager FDEStateManager, method device.SealingMeth
 	return nil
 }
 
+func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
+	for _, m := range params {
+		if m.Model.Classic() {
+			return true
+		}
+	}
+	return false
+}
+
 func updateRunProtectionProfile(
 	manager FDEStateManager,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
@@ -392,6 +401,8 @@ func updateRunProtectionProfile(
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key resealing: %v", err)
 	}
+
+	hasClassicModel := anyClassicModel(append(modelParams, modelParamsRunOnly...)...)
 
 	if len(modelParams) < 1 || len(modelParamsRunOnly) < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -412,12 +423,12 @@ func updateRunProtectionProfile(
 
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
 		if err != nil {
 			return err
 		}
 
-		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly)
+		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, !hasClassicModel)
 		if err != nil {
 			return err
 		}
@@ -489,6 +500,8 @@ func updateFallbackProtectionProfile(
 		attachSignatureDbxUpdate(modelParams, sigDbxUpdate)
 	}
 
+	hasClassicModel := anyClassicModel(modelParams...)
+
 	var pcrProfile []byte
 	err = func() error {
 		relock := manager.Unlock()
@@ -496,7 +509,7 @@ func updateFallbackProtectionProfile(
 
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams)
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
 		if err != nil {
 			return err
 		}
@@ -539,17 +552,17 @@ func updateFallbackProtectionProfile(
 }
 
 // ResealKeyForBootChains reseals disk encryption keys with the given bootchains.
-func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams, opts boot.ResealKeyToModeenvOptions) error {
+func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
 	return resealKeys(manager, method, rootdir,
 		resealInputs{
 			bootChains: params.BootChains,
 		},
 		resealOptions{
-			ExpectReseal:      opts.ExpectReseal,
-			Force:             opts.Force,
-			EnsureProvisioned: opts.EnsureProvisioned,
-			Revoke:            params.RevokeOldKeys,
-			IgnoreFDEHooks:    opts.IgnoreFDEHooks,
+			ExpectReseal:      params.Options.ExpectReseal,
+			Force:             params.Options.Force,
+			EnsureProvisioned: params.Options.EnsureProvisioned,
+			IgnoreFDEHooks:    params.Options.IgnoreFDEHooks,
+			Revoke:            params.Options.RevokeOldKeys,
 		})
 }
 

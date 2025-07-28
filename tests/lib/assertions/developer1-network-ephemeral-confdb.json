@@ -13,6 +13,6 @@
 			]
 		}
 	},
-	"body": "{\n  \"storage\": {\n    \"schema\": {\n      \"wifi\": {\n        \"schema\": {\n          \"psk\": {\n            \"ephemeral\": true,\n            \"type\": \"string\"\n          },\n          \"ssid\": \"string\",\n          \"ssids\": {\n            \"type\": \"array\",\n            \"unique\": true,\n            \"values\": \"string\"\n          },\n          \"status\": {\n            \"choices\": [\n              \"on\",\n              \"off\"\n            ],\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}",
+	"body": "{\n  \"storage\": {\n    \"aliases\": {\n      \"status-str\": {\n        \"choices\": [\n          \"on\",\n          \"off\"\n        ],\n        \"type\": \"string\"\n      }\n    },\n    \"schema\": {\n      \"wifi\": {\n        \"schema\": {\n          \"psk\": {\n            \"ephemeral\": true,\n            \"type\": \"string\"\n          },\n          \"ssid\": \"string\",\n          \"ssids\": {\n            \"type\": \"array\",\n            \"unique\": true,\n            \"values\": \"string\"\n          },\n          \"status\": \"${status-str}\"\n        }\n      }\n    }\n  }\n}",
 	"timestamp": "2025-03-21T11:51:32Z"
 }

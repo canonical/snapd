@@ -756,7 +756,7 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 
 		// there must be least one load-view hook if we're accessing ephemeral data
 		if hookPrefix == "load-view-" && mightAffectEph && !loadViewHookPresent {
-			return nil, fmt.Errorf("cannot schedule tasks to access %s: read might cover ephemeral data but no custodian has a save-view hook", view.ID())
+			return nil, fmt.Errorf("cannot schedule tasks to access %s: read might cover ephemeral data but no custodian has a load-view hook", view.ID())
 		}
 	}
 

@@ -517,7 +517,7 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	c.Check(n["key"], Equals, "foo.com/y")
 }
 
-func (s *noticesSuite) TestNoticesFilterBefore(c *C) {
+func (s *noticesSuite) TestNoticesFilterBeforeOrAt(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -529,21 +529,28 @@ func (s *noticesSuite) TestNoticesFilterBefore(c *C) {
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
 
+	time.Sleep(time.Microsecond)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)
+
 	// After unset
 	notices = st.Notices(nil)
-	c.Assert(notices, HasLen, 2)
+	c.Assert(notices, HasLen, 3)
 
 	n := noticeToMap(c, notices[1])
 	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
 	c.Assert(err, IsNil)
 
-	// After set
-	notices = st.Notices(&state.NoticeFilter{Before: lastRepeated})
-	c.Assert(notices, HasLen, 1)
+	// After set to second notice last repeated timestamp
+	notices = st.Notices(&state.NoticeFilter{BeforeOrAt: lastRepeated})
+	c.Assert(notices, HasLen, 2)
 	n = noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "foo.com/x")
+	n = noticeToMap(c, notices[1])
+	c.Check(n["user-id"], Equals, nil)
+	c.Check(n["type"], Equals, "warning")
+	c.Check(n["key"], Equals, "foo.com/y")
 }
 
 func (s *noticesSuite) TestDrainNotices(c *C) {
@@ -779,7 +786,7 @@ func (s *noticesSuite) TestWaitNoticesLongPoll(c *C) {
 	}
 }
 
-func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
+func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -789,14 +796,14 @@ func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
 
 	// If we ask for notices before now and there are no current notices
 	// matching the filter, return immediately
-	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now()})
+	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now()})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 0)
 
 	// If we ask for notices before now and there are notices matching the
 	// filter, return them immediately
 	addNotice(c, st, nil, state.WarningNotice, "existing", nil)
-	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now()})
+	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now()})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
@@ -804,7 +811,7 @@ func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
 
 	// If we ask for notices before a time in the past and there are no notices
 	// matching the filter, return immediately
-	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{Before: time.Now().Add(-time.Second)})
+	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now().Add(-time.Second)})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 0)
 
@@ -821,8 +828,8 @@ func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
 		st.Unlock()
 	}()
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{
-		Before: time.Now().Add(time.Second),
-		Keys:   []string{"needle"},
+		BeforeOrAt: time.Now().Add(time.Second),
+		Keys:       []string{"needle"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 1)
@@ -849,8 +856,8 @@ func (s *noticesSuite) TestWaitNoticesBeforeFilter(c *C) {
 	}()
 
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{
-		Before: time.Now().Add(10 * time.Millisecond),
-		Keys:   []string{"bar"},
+		BeforeOrAt: time.Now().Add(10 * time.Millisecond),
+		Keys:       []string{"bar"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 0)

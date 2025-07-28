@@ -1,0 +1,34 @@
+#cloud-config
+runcmd:
+  - echo root:ubuntu | chpasswd
+  - sed -i 's/^\s*#\?\s*\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+  - sed -i 's/^PermitRootLogin=/#PermitRootLogin=/g' /etc/ssh/sshd_config.d/* || true
+  - sed -i 's/^PasswordAuthentication=/#PasswordAuthentication=/g' /etc/ssh/sshd_config.d/* || true
+  - test -d /etc/ssh/sshd_config.d && echo 'PermitRootLogin=yes' > /etc/ssh/sshd_config.d/00-spread.conf
+  - test -d /etc/ssh/sshd_config.d && echo 'PasswordAuthentication=yes' >> /etc/ssh/sshd_config.d/00-spread.conf
+  - pkill -o -HUP sshd || true
+write_files:
+- path: /etc/environment
+  append: true
+  content: |
+    HTTPS_PROXY=<https_proxy>
+    HTTP_PROXY=<http_proxy>
+    NO_PROXY=<no_proxy>
+    https_proxy=<https_proxy>
+    http_proxy=<http_proxy>
+    no_proxy=<no_proxy>
+users:
+  - name: ubuntu
+    gecos: Ubuntu User
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: sudo
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: "ubuntu"
+  - name: test
+    gecos: Test User
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: sudo
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: "test"

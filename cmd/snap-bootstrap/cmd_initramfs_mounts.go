@@ -825,6 +825,13 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 	return nil
 }
 
+const (
+	// states for findState
+	partitionFound      = "found"
+	partitionNotFound   = "not-found"
+	partitionErrFinding = "error-finding"
+)
+
 // partitionState is the state of a partition after recover mode has completed
 // for degraded mode.
 type partitionState struct {
@@ -839,6 +846,8 @@ type partitionState struct {
 	// partDevice is always the physical block device of the partition, in the
 	// encrypted case this is the physical encrypted partition.
 	partDevice string
+	// findState indicates whether the partition was found on the disk or not.
+	findState string
 }
 
 type diskUnlockState struct {
@@ -851,7 +860,7 @@ type diskUnlockState struct {
 	// partition.
 	UbuntuSave partitionState
 
-	ErrorLog []string
+	isDegraded bool
 }
 
 func (r *diskUnlockState) serializeTo(name string) error {
@@ -859,15 +868,14 @@ func (r *diskUnlockState) serializeTo(name string) error {
 		UbuntuData: r.UbuntuData.PartitionState,
 		UbuntuBoot: r.UbuntuBoot.PartitionState,
 		UbuntuSave: r.UbuntuSave.PartitionState,
-		ErrorLog:   r.ErrorLog,
 	}
 
 	return exportState.WriteTo(name)
 }
 
-func (r *diskUnlockState) LogErrorf(format string, v ...any) {
+func (r *diskUnlockState) LogDegraded(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
-	r.ErrorLog = append(r.ErrorLog, msg)
+	r.isDegraded = true
 	logger.Notice(msg)
 }
 
@@ -960,11 +968,7 @@ func (m *recoverModeStateMachine) degraded() bool {
 	// TODO: should we also check MountLocation too?
 
 	// we should have nothing in the error log
-	if len(r.ErrorLog) != 0 {
-		return true
-	}
-
-	return false
+	return r.isDegraded
 }
 
 func (m *recoverModeStateMachine) diskOpts() *disks.Options {
@@ -993,21 +997,21 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 	if err != nil {
 		if _, ok := err.(disks.PartitionNotFoundError); ok {
 			// explicit error that the device was not found
-			part.FindState = boot.PartitionNotFound
+			part.findState = partitionNotFound
 			if !optionalPartition {
 				// partition is not optional, thus the error is relevant
-				m.degradedState.LogErrorf("cannot find %v partition on disk %s", partName, m.disk.Dev())
+				m.degradedState.LogDegraded("cannot find %v partition on disk %s", partName, m.disk.Dev())
 			}
 			return nil
 		}
 		// the error is not "not-found", so we have a real error
-		part.FindState = boot.PartitionErrFinding
-		m.degradedState.LogErrorf("error finding %v partition on disk %s: %v", partName, m.disk.Dev(), err)
+		part.findState = partitionErrFinding
+		m.degradedState.LogDegraded("error finding %v partition on disk %s: %v", partName, m.disk.Dev(), err)
 		return nil
 	}
 
 	// device was found
-	part.FindState = boot.PartitionFound
+	part.findState = partitionFound
 	dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
 	part.partDevice = dev
 	part.fsDevice = dev
@@ -1016,7 +1020,7 @@ func (m *recoverModeStateMachine) setFindState(partName, partUUID string, err er
 
 func (m *recoverModeStateMachine) setMountState(part, where string, err error) error {
 	if err != nil {
-		m.degradedState.LogErrorf("cannot mount %v: %v", part, err)
+		m.degradedState.LogDegraded("cannot mount %v: %v", part, err)
 		m.degradedState.partition(part).MountState = boot.PartitionErrMounting
 		return nil
 	}
@@ -1025,7 +1029,7 @@ func (m *recoverModeStateMachine) setMountState(part, where string, err error) e
 	m.degradedState.partition(part).MountLocation = where
 
 	if err := m.verifyMountPoint(where, part); err != nil {
-		m.degradedState.LogErrorf("cannot verify %s mount point at %v: %v", part, where, err)
+		m.degradedState.LogDegraded("cannot verify %s mount point at %v: %v", part, where, err)
 		return err
 	}
 	return nil
@@ -1042,11 +1046,11 @@ func (d *diskUnlockState) setUnlockStateWithRunKey(partName string, unlockRes se
 	part := d.partition(partName)
 	// save the device if we found it from secboot
 	if unlockRes.PartDevice != "" {
-		part.FindState = boot.PartitionFound
+		part.findState = partitionFound
 		part.partDevice = unlockRes.PartDevice
 		part.fsDevice = unlockRes.FsDevice
 	} else {
-		part.FindState = boot.PartitionNotFound
+		part.findState = partitionNotFound
 	}
 
 	if err != nil {
@@ -1054,11 +1058,11 @@ func (d *diskUnlockState) setUnlockStateWithRunKey(partName string, unlockRes se
 		if unlockRes.IsEncrypted {
 			// if we know the device is decrypted we must also always know at
 			// least the partDevice (which is the encrypted block device)
-			d.LogErrorf("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
+			d.LogDegraded("cannot unlock encrypted %s (device %s) with sealed run key: %v", partName, part.partDevice, err)
 			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// TODO: we don't know if this is a plain not found or  a different error
-			d.LogErrorf("cannot locate %s partition for mounting host data: %v", partName, err)
+			d.LogDegraded("cannot locate %s partition for mounting host data: %v", partName, err)
 		}
 
 		return
@@ -1117,7 +1121,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 
 	// now actually process the result into the state
 	if unlockRes.PartDevice != "" {
-		part.FindState = boot.PartitionFound
+		part.findState = partitionFound
 		// Note that in some case this may be redundantly assigning the same
 		// value to partDevice again.
 		part.partDevice = unlockRes.PartDevice
@@ -1144,14 +1148,14 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	if err != nil {
 		// create different error message for encrypted vs unencrypted
 		if m.isEncryptedDev {
-			m.degradedState.LogErrorf("cannot unlock encrypted %s partition with sealed fallback key: %v", partName, err)
+			m.degradedState.LogDegraded("cannot unlock encrypted %s partition with sealed fallback key: %v", partName, err)
 			part.UnlockState = boot.PartitionErrUnlocking
 		} else {
 			// if we don't have an encrypted device and err != nil, then the
 			// device must be not-found, see above checks
 
 			// log an error the partition is mandatory
-			m.degradedState.LogErrorf("cannot locate %s partition: %v", partName, err)
+			m.degradedState.LogDegraded("cannot locate %s partition: %v", partName, err)
 		}
 
 		return nil
@@ -1177,13 +1181,11 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 
 func newRecoverModeStateMachine(model *asserts.Model, bootMode string, disk disks.Disk, allowFallback bool) *recoverModeStateMachine {
 	m := &recoverModeStateMachine{
-		model: model,
-		mode:  bootMode,
-		disk:  disk,
-		degradedState: &diskUnlockState{
-			ErrorLog: []string{},
-		},
-		noFallback: !allowFallback,
+		model:         model,
+		mode:          bootMode,
+		disk:          disk,
+		degradedState: &diskUnlockState{},
+		noFallback:    !allowFallback,
 	}
 	// first step is to mount ubuntu-boot to check for run mode keys to unlock
 	// ubuntu-data
@@ -1228,30 +1230,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir(m.model))
 		if !trustData {
 			part.MountState = boot.PartitionMountedUntrusted
-			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
-		}
-	}
-
-	// finally, combine the states of partDevice and fsDevice into the
-	// exported Device field for marshalling
-	// ubuntu-boot is easy - it will always be unencrypted so we just set
-	// Device to partDevice
-	m.degradedState.partition("ubuntu-boot").Device = m.degradedState.partition("ubuntu-boot").partDevice
-
-	// for ubuntu-data and save, we need to actually look at the states
-	for _, partName := range []string{"ubuntu-data", "ubuntu-save"} {
-		part := m.degradedState.partition(partName)
-		if part.fsDevice == "" {
-			// then the device is encrypted, but we failed to decrypt it, so
-			// set Device to the encrypted block device
-			part.Device = part.partDevice
-		} else {
-			// all other cases, fsDevice is set to what we want to
-			// export, either it is set to the decrypted mapper device in the
-			// case it was successfully decrypted, or it is set to the encrypted
-			// block device if we failed to decrypt it, or it was set to the
-			// unencrypted block device if it was unencrypted
-			part.Device = part.fsDevice
+			m.degradedState.LogDegraded("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
 		}
 	}
 
@@ -1277,7 +1256,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	if err := m.setFindState("ubuntu-boot", partUUID, findErr, partitionMandatory); err != nil {
 		return nil, err
 	}
-	if part.FindState != boot.PartitionFound {
+	if part.findState != partitionFound {
 		// if we didn't find ubuntu-boot, we can't try to unlock data with the
 		// run key, and should instead just jump straight to attempting to
 		// unlock with the fallback key
@@ -1416,7 +1395,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	key, err := os.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
-		m.degradedState.LogErrorf("cannot access run ubuntu-save key: %v", err)
+		m.degradedState.LogDegraded("cannot access run ubuntu-save key: %v", err)
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
 
@@ -1455,7 +1434,7 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 	if err := m.setFindState("ubuntu-save", partUUID, findErr, partitionOptional); err != nil {
 		return nil, err
 	}
-	if partSave.FindState == boot.PartitionFound {
+	if partSave.findState == partitionFound {
 		// we have ubuntu-save, go mount it
 		return m.mountSave, nil
 	}
@@ -1541,10 +1520,6 @@ func (m *recoverModeStateMachine) writeRecoverUnlockState() error {
 }
 
 func (m *recoverModeStateMachine) writeFactoryResetUnlockState() error {
-	if err := m.degradedState.serializeTo(boot.FactoryResetStateFileName); err != nil {
-		return err
-	}
-
 	return m.degradedState.serializeTo(boot.UnlockedStateFileName)
 }
 

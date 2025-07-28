@@ -146,6 +146,11 @@ func (r *TaskRunner) KnownTaskKinds() []string {
 	return kinds
 }
 
+// TaskKindHasUndo returns true if the indicated kind has an undo handler.
+func (r *TaskRunner) TaskKindHasUndo(k string) bool {
+	return r.handlers[k].undo != nil
+}
+
 // AddCleanup registers a function to be called after the change completes,
 // for cleaning up data left behind by tasks of the specified kind.
 // The provided function will be called no matter what the final status of the

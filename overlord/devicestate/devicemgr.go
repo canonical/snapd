@@ -225,6 +225,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	// Mark-preseeded touches and records the system-key, ensure that it does
+	// not run in parallel with other tasks touching the system-key
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-ubuntu-save", m.doSetupUbuntuSave, nil)

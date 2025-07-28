@@ -8,9 +8,10 @@ details: |
 systems:
     # no AppArmor, no mediation
     - -amazon-linux-*
+    - -centos-9-64
+    - -fedora-*
     # Too old to support this feature entirely.
     - -ubuntu-14.04-64
-    - -debian-11-64
     # Distribution AppArmor parser does not support mqueue mediation.
     # AppArmor parser does not re-execute despite SNAPD_APPARMOR_REEXEC=1 in /usr/lib/snapd/info.
     - -opensuse-15.6-64

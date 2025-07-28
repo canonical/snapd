@@ -4,7 +4,7 @@
         "group": "debian-req (fundamental)",
         "backend": "google-distro-1",
         "alternative-backend": "google-distro-1", 
-        "systems": "debian-11-64",
+        "systems": "debian-12-64",
         "tasks": "tests/...",
         "rules": "main"
       },
@@ -28,7 +28,7 @@
         "group": "ubuntu-interim (fundamental)",
         "backend": "google",
         "alternative-backend": "google",
-        "systems": "ubuntu-24.10-64 ubuntu-25.04-64",
+        "systems": "ubuntu-25.04-64",
         "tasks": "tests/...",
         "rules": "main"
       },

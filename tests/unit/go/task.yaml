@@ -69,6 +69,8 @@ execute: |
         PROXY_PARAM="$PROXY_PARAM HTTPS_PROXY=$https_proxy"
     fi
 
+    export SKIP_MODERNIZE_LINT=y
+
     if not os.query is-trusty; then
         # TODO: skip building optee for now on arm, since this doesn't impact
         # any unit tests. once optee build is fully fixed, consider removing
@@ -77,7 +79,6 @@ execute: |
         if os.query is-arm64; then
           build_tags='nooptee'
         fi
-
         if [ "$VARIANT" = "static" ] ; then
             tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
                 PATH=$PATH \

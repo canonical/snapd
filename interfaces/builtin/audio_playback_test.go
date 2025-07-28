@@ -57,7 +57,7 @@ apps:
   plugs: [audio-playback]
 `
 
-// a audio-playback slot on a audio-playback snap (as installed on a core/all-snap system)
+// an audio-playback slot on a audio-playback snap (as installed on a core/all-snap system)
 const audioPlaybackMockCoreSlotSnapInfoYaml = `name: audio-playback
 version: 1.0
 apps:
@@ -66,7 +66,7 @@ apps:
   slots: [audio-playback]
 `
 
-// a audio-playback slot on the core snap (as automatically added on classic)
+// an audio-playback slot on the core snap (as automatically added on classic)
 const audioPlaybackMockClassicSlotSnapInfoYaml = `name: core
 version: 0
 type: os
@@ -149,6 +149,9 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/snap.audio-playback/pulse/ r,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/snap.audio-playback/pulse/native rwk,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /var/snap/audio-playback/common/pulse/ r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /var/snap/audio-playback/common/pulse/native rwk,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /var/snap/audio-playback/common/pulse/pid r,\n")
 
 	// connected core slot to plug
 	spec = apparmor.NewSpecification(s.coreSlot.AppSet())
@@ -177,6 +180,9 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/ r,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/native rwk,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.audio-playback/pulse/pid r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/r,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/native rwk,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "owner /var/snap/snap.audio-playback/common/pulse/pid r,\n")
 
 	// connected classic slot to plug
 	spec = apparmor.NewSpecification(s.classicSlot.AppSet())

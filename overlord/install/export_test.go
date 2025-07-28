@@ -27,11 +27,11 @@ import (
 )
 
 var (
-	EncryptionAvailabilityCheck    = encryptionAvailabilityCheck
-	PreinstallCheckSupported       = preinstallCheckSupported
-	OrderedCurrentBootImages       = orderedCurrentBootImages
-	OrderedCurrentBootImagesHybrid = orderedCurrentBootImagesHybrid
-	CheckFDEFeatures               = checkFDEFeatures
+	EncryptionAvailabilityCheck             = encryptionAvailabilityCheck
+	OrderedCurrentBootImages                = orderedCurrentBootImages
+	OrderedCurrentBootImagesHybrid          = orderedCurrentBootImagesHybrid
+	CheckFDEFeatures                        = checkFDEFeatures
+	PreinstallCheckSupportedWithEnvFallback = preinstallCheckSupportedWithEnvFallback
 )
 
 func MockPreinstallCheckTimeout(tm time.Duration) (restore func()) {
