@@ -52,6 +52,10 @@ import (
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
+
+	// to set [boot.SealKeyForBootChains]
+	_ "github.com/snapcore/snapd/overlord/fdestate/backend"
+
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
