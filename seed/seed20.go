@@ -1080,14 +1080,14 @@ func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.
 	snapIntegrityData := snapRev.SnapIntegrityData()
 
 	if len(snapIntegrityData) == 0 {
-		// XXX: integrity data are not enforced currently.
+		// TODO: integrity data are not enforced currently.
 		// Here we should throw an error if integrity data are required by policy.
 		return nil, nil
 	}
 
 	var idp *integrity.IntegrityDataParams
 	for i, sid := range snapIntegrityData {
-		// XXX: The first item in the snap-revision integrity data list is selected.
+		// TODO: The first item in the snap-revision integrity data list is selected.
 		// In future versions, extra logic will be required here to decide which integrity data
 		// should be used based on extra information (i.e from the model).
 		if i > 0 {
@@ -1168,9 +1168,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	var err error
 
 	if snapRev != nil {
-		timings.Run(tm, "find-integrity-params", fmt.Sprintf("find integrity params for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
-			integrityData, err = s.lookupIntegrityData(snapRev)
-		})
+		integrityData, err = s.lookupIntegrityData(snapRev)
 	}
 	// Currently integrity data are not enforced which means that lookupIntegrityData
 	// suppresses any errors that might have occurred during lookup. Moreover as invalid
