@@ -92,7 +92,7 @@ func (f *fdeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
 	}
 }
 
-func FDEKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+func HookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
 	return &fdeKeyProtectorFactory{runHook: runHook}
 }
 

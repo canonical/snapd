@@ -264,7 +264,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	// wire FDE kernel hook support into boot
-	boot.FDEKeyProtectorFactory = m.fdeKeyProtector
+	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
@@ -2741,7 +2741,7 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 	return m.ntpSyncedOrTimedOut
 }
 
-func (m *DeviceManager) fdeKeyProtector(kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
+func (m *DeviceManager) hookKeyProtectorFactory(kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
 	// state must be locked
 	st := m.state
 
@@ -2759,7 +2759,7 @@ func (m *DeviceManager) fdeKeyProtector(kernelInfo *snap.Info) (secboot.KeyProte
 	}
 
 	if _, ok := kernelInfo.Hooks["fde-setup"]; ok {
-		return secboot.FDEKeyProtectorFactory(m.runFDESetupHook), nil
+		return secboot.HookKeyProtectorFactory(m.runFDESetupHook), nil
 	}
 
 	// TODO: add OPTEE support here when available

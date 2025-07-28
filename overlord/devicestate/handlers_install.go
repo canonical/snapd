@@ -1426,7 +1426,7 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 //   - Remove factory-reset-* keyslots.
 //   - Release TPM handles used by the removed keys.
 func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
-	protector, err := boot.FDEKeyProtectorFactory(nil)
+	protector, err := boot.HookKeyProtectorFactory(nil)
 	if err != nil {
 		logger.Noticef("WARNING: cannot determine whether FDE hooks are in use: %v", err)
 	}

@@ -1640,7 +1640,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{FDEKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true})
 	c.Assert(err, IsNil)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1673,7 +1673,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{FDEKeyProtectorFactory: &fakeProtectorFactory{}})
+	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}})
 	c.Assert(err, ErrorMatches, `seal key failed`)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1697,7 +1697,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	// TODO: this simulates that the hook is not available yet
 	//       because of e.g. seeding. Longer term there will be
 	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
-	restore = boot.MockFDEKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
+	restore = boot.MockHookKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
 		return nil, errors.New("hook not available yet because e.g. seeding")
 	})
 	defer restore()

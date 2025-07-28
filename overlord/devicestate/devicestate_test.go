@@ -1805,7 +1805,7 @@ hooks:
  fde-setup:
 `
 
-func (s *deviceMgrSuite) TestFDEKeyProtector(c *C) {
+func (s *deviceMgrSuite) TestHookKeyProtectorFactory(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1829,7 +1829,7 @@ func (s *deviceMgrSuite) TestFDEKeyProtector(c *C) {
 	} {
 		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
 
-		_, err := devicestate.DeviceManagerFDEKeyProtector(s.mgr, nil)
+		_, err := devicestate.DeviceManagerHookKeyProtectorFactory(s.mgr, nil)
 		if tc.hasFdeSetupHook {
 			c.Assert(err, IsNil)
 		} else {
@@ -1857,10 +1857,10 @@ func (s *deviceMgrSuite) TestHasFdeSetupHookOtherKernel(c *C) {
 	_, otherInfo := snaptest.MakeTestSnapInfoWithFiles(c, kernelYamlWithFdeSetup, nil, otherSI)
 	makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 
-	_, err := devicestate.DeviceManagerFDEKeyProtector(s.mgr, nil)
+	_, err := devicestate.DeviceManagerHookKeyProtectorFactory(s.mgr, nil)
 	c.Assert(err, testutil.ErrorIs, secboot.ErrNoKeyProtector)
 
-	_, err = devicestate.DeviceManagerFDEKeyProtector(s.mgr, otherInfo)
+	_, err = devicestate.DeviceManagerHookKeyProtectorFactory(s.mgr, otherInfo)
 	c.Assert(err, IsNil)
 }
 

@@ -83,7 +83,7 @@ func init() {
 type cmdInitramfsMounts struct{}
 
 func (c *cmdInitramfsMounts) Execute([]string) error {
-	boot.FDEKeyProtectorFactory = fdeKeyProtectorFactory
+	boot.HookKeyProtectorFactory = fdeKeyProtectorFactory
 
 	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
 
@@ -297,7 +297,7 @@ func runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 }
 func fdeKeyProtectorFactory(kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
 	if _, ok := kernelInfo.Hooks["fde-setup"]; ok {
-		return secboot.FDEKeyProtectorFactory(runFDESetupHook), nil
+		return secboot.HookKeyProtectorFactory(runFDESetupHook), nil
 	}
 
 	// TODO: add OPTEE support here when available

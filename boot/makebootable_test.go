@@ -765,7 +765,7 @@ version: 5.0
 	defer restore()
 
 	fdeKeyProtectorCalled := false
-	restore = boot.MockFDEKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
+	restore = boot.MockHookKeyProtectorFactory(func(kernel *snap.Info) (secboot.KeyProtectorFactory, error) {
 		c.Check(kernel, Equals, kernelInfo)
 		fdeKeyProtectorCalled = true
 		return nil, nil
