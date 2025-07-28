@@ -483,10 +483,13 @@ func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
 	what = dirs.StripRootDir(what)
 
 	var options []string
-	if o, ok := opts.(*dmVerityOptions); ok && o != nil {
-		options, err = opts.AppendOptions(options)
-		if err != nil {
-			return err
+	switch o := opts.(type) {
+	case *dmVerityOptions:
+		if o != nil {
+			options, err = opts.AppendOptions(options)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
