@@ -1,0 +1,21 @@
+summary: Linux kernel version if TestVFS/bind-keeps-sharing unit test
+details: |
+  Ensure that our belief as to what the Linux kernel is doing is correct.
+prepare: |
+  mkdir a
+  mount -t tmpfs tmpfs-a a
+  mount --make-shared a
+  mkdir a/b
+  mount -t tmpfs tmpfs-a-b a/b
+  mkdir a_prime
+  mount --rbind a a_prime
+restore: |
+  umount -l a
+  rmdir a
+  umount -l a_prime
+  rmdir a_prime
+debug: |
+  cat /proc/self/mountinfo
+execute: |
+  tail -n 4 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+  diff -u actual.txt expected.txt
