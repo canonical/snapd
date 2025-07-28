@@ -22,9 +22,11 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
@@ -565,7 +567,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
 		}
-		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		// TODO:FDEM: accept custom key slot names when a naming convension is defined
 		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
@@ -620,6 +622,126 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	changeAuth.Set("keyslots", keyslotRefs)
 	changeAuth.Set("auth-mode", authMode)
 	ts.AddTask(changeAuth)
+
+	return ts, nil
+}
+
+type volumesAuthOptionsKey struct{}
+
+// ReplaceProtectedKey creates a taskset that replaces the
+// protected key for the specified target key slots.
+//
+// If keyslotRefs is empty, the following key slots are targets:
+//   - container-role: system-data, name: default
+//   - container-role: system-data, name: default-fallback
+//   - container-role: system-save, name: default-fallback
+func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	authMode := device.AuthModeNone
+	if volumesAuth != nil {
+		if err := volumesAuth.Validate(); err != nil {
+			return nil, err
+		}
+		authMode = volumesAuth.Mode
+	}
+
+	if len(keyslotRefs) == 0 {
+		// by default, target protected keys that would have been added during installation.
+		keyslotRefs = append(keyslotRefs,
+			KeyslotRef{ContainerRole: "system-data", Name: "default"},
+			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"},
+		)
+	}
+
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
+		}
+		// TODO:FDEM: accept custom key slot names when a naming convension is defined
+		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
+		}
+
+		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
+	}
+
+	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	if unlockedWithRecoveryKey {
+		// primary key will be missing from kernel keyring if disk was
+		// unlocked with recovery key during boot.
+		return nil, errors.New("system was unlocked with a recovery key during boot: reboot required")
+	}
+
+	// Note: checking that there are no ongoing conflicting changes and that the
+	// targeted key slots exist while state is locked ensures that we don't suffer
+	// from TOCTOU.
+
+	if err := checkFDEParametersChangeConflicts(st); err != nil {
+		return nil, err
+	}
+
+	if err := checkFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	mgr := fdeMgr(st)
+
+	keyslots, missing, err := mgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(missing) != 0 {
+		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+
+	tmpKeyslotRoles := make(map[string][]string, len(keyslots))
+	for _, keyslot := range keyslots {
+		if keyslot.Type != KeyslotTypePlatform {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypePlatform)
+		}
+		kd, err := keyslot.KeyData()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+
+		tmpKeyslotRef := tmpKeyslotRef(keyslot.Ref())
+		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()
+	}
+
+	if volumesAuth != nil {
+		// Auth data must be in memory to avoid leaking credentials.
+		if st.Cached(volumesAuthOptionsKey{}) != nil {
+			logger.Noticef("WARNING: authentication options already exists in memory")
+		}
+		st.Cache(volumesAuthOptionsKey{}, volumesAuth)
+	}
+
+	ts := state.NewTaskSet()
+
+	addTemporaryKeys := st.NewTask("fde-add-protected-keys", fmt.Sprintf("Add temporary %s key slots", authMode))
+	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
+	addTemporaryKeys.Set("auth-mode", authMode)
+	addTemporaryKeys.Set("roles", tmpKeyslotRoles)
+	ts.AddTask(addTemporaryKeys)
+
+	removeOldKeys := st.NewTask("fde-remove-keys", fmt.Sprintf("Remove old %s key slots", authMode))
+	removeOldKeys.Set("keyslots", keyslotRefs)
+	removeOldKeys.WaitFor(addTemporaryKeys)
+	ts.AddTask(removeOldKeys)
+
+	renameTemporaryKeys := st.NewTask("fde-rename-keys", fmt.Sprintf("Rename temporary %s key slots", authMode))
+	renameTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
+	renameTemporaryKeys.Set("renames", tmpKeyslotRenames)
+	renameTemporaryKeys.WaitFor(removeOldKeys)
+	ts.AddTask(renameTemporaryKeys)
 
 	return ts, nil
 }

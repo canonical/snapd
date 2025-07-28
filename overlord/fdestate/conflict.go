@@ -48,6 +48,12 @@ func checkFDEChangeConflict(st *state.State) error {
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
+		case "fde-change-passphrase":
+			return &snapstate.ChangeConflictError{
+				Message:    "changing passphrase in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
 		case "fde-reset-passphrase":
 			return &snapstate.ChangeConflictError{
 				Message:    "resetting passphrase in progress, no other FDE changes allowed until this is done",

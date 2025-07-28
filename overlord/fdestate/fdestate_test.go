@@ -23,12 +23,14 @@ package fdestate_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
@@ -37,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -443,4 +447,335 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{})
 	c.Assert(err, ErrorMatches, `external EFI DBX update in progress, no other FDE changes allowed until this is done`)
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+}
+
+func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, defaultKeyslots bool) {
+	keyslots := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+	}
+	tmpKeyslots := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "snapd-tmp:default"},
+	}
+	if defaultKeyslots {
+		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"})
+		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "snapd-tmp:default-fallback"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "snapd-tmp:default-fallback"})
+	}
+
+	var volumesAuth *device.VolumesAuthOptions
+	switch authMode {
+	case device.AuthModePassphrase:
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "password"}
+	case device.AuthModePIN:
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+	}
+
+	s.mockDeviceInState(&asserts.Model{}, "run")
+	s.mockCurrentKeys(c, nil, nil)
+
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		switch fmt.Sprintf("%s:%s", devicePath, slotName) {
+		case "/dev/disk/by-uuid/data:default",
+			"/dev/disk/by-uuid/data:default-fallback",
+			"/dev/disk/by-uuid/save:default-fallback":
+			return &mockKeyData{authMode: device.AuthModePassphrase, roles: []string{"run"}}, nil
+		default:
+			panic("unexpected container")
+		}
+	})()
+
+	// initialize fde manager
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	var ts *state.TaskSet
+	var err error
+	if defaultKeyslots {
+		ts, err = fdestate.ReplaceProtectedKey(s.st, volumesAuth, nil)
+	} else {
+		ts, err = fdestate.ReplaceProtectedKey(s.st, volumesAuth, keyslots)
+	}
+	if authMode == device.AuthModePIN {
+		// this is expected to break when PIN support lands
+		c.Assert(err, ErrorMatches, `"pin" authentication mode is not implemented`)
+		c.Assert(ts, IsNil)
+		return
+	}
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+	tsks := ts.Tasks()
+	c.Check(tsks, HasLen, 3)
+
+	c.Check(tsks[0].Summary(), Matches, fmt.Sprintf("Add temporary %s key slots", authMode))
+	c.Check(tsks[0].Kind(), Equals, "fde-add-protected-keys")
+	// check tmp key slots are passed to task
+	var tskKeyslots []fdestate.KeyslotRef
+	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
+	var tskAuthMode device.AuthMode
+	c.Assert(tsks[0].Get("auth-mode", &tskAuthMode), IsNil)
+	c.Check(tskAuthMode, Equals, authMode)
+	var tskRoles map[string][]string
+	c.Assert(tsks[0].Get("roles", &tskRoles), IsNil)
+	if defaultKeyslots {
+		c.Check(tskRoles, DeepEquals, map[string][]string{
+			`(container-role: "system-data", name: "snapd-tmp:default")`:          {"run"},
+			`(container-role: "system-data", name: "snapd-tmp:default-fallback")`: {"run"},
+			`(container-role: "system-save", name: "snapd-tmp:default-fallback")`: {"run"},
+		})
+	} else {
+		c.Check(tskRoles, DeepEquals, map[string][]string{
+			`(container-role: "system-data", name: "snapd-tmp:default")`: {"run"},
+		})
+	}
+
+	c.Check(tsks[1].Summary(), Matches, fmt.Sprintf("Remove old %s key slots", authMode))
+	c.Check(tsks[1].Kind(), Equals, "fde-remove-keys")
+	// check target key slots are passed to task
+	c.Assert(tsks[1].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, keyslots)
+
+	c.Check(tsks[2].Summary(), Matches, fmt.Sprintf("Rename temporary %s key slots", authMode))
+	c.Check(tsks[2].Kind(), Equals, "fde-rename-keys")
+	// check tmp key slots are passed to task
+	c.Assert(tsks[2].Get("keyslots", &tskKeyslots), IsNil)
+	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
+	// and renames are also passed
+	var renames map[string]string
+	c.Assert(tsks[2].Get("renames", &renames), IsNil)
+	if defaultKeyslots {
+		c.Check(renames, DeepEquals, map[string]string{
+			`(container-role: "system-data", name: "snapd-tmp:default")`:          "default",
+			`(container-role: "system-data", name: "snapd-tmp:default-fallback")`: "default-fallback",
+			`(container-role: "system-save", name: "snapd-tmp:default-fallback")`: "default-fallback",
+		})
+	} else {
+		c.Check(renames, DeepEquals, map[string]string{
+			`(container-role: "system-data", name: "snapd-tmp:default")`: "default",
+		})
+	}
+
+	if authMode == device.AuthModeNone {
+		c.Check(s.st.Cached(fdestate.VolumesAuthOptionsKey()), IsNil)
+	} else {
+		c.Check(s.st.Cached(fdestate.VolumesAuthOptionsKey()), Equals, volumesAuth)
+	}
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeyAuthModeNone(c *C) {
+	const defaultKeyslots = false
+	const authMode = device.AuthModeNone
+	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeyAuthModePassphrase(c *C) {
+	const defaultKeyslots = false
+	const authMode = device.AuthModePassphrase
+	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeyAuthModePIN(c *C) {
+	const defaultKeyslots = false
+	const authMode = device.AuthModePIN
+	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeyDefaultKeyslots(c *C) {
+	const defaultKeyslots = true
+	const authMode = device.AuthModeNone
+	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeyErrors(c *C) {
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		switch fmt.Sprintf("%s:%s", devicePath, slotName) {
+		case "/dev/disk/by-uuid/data:default":
+			return &mockKeyData{authMode: device.AuthModeNone}, nil
+		case "/dev/disk/by-uuid/data:default-fallback":
+			return nil, fmt.Errorf("boom!")
+		default:
+			panic("unexpected container")
+		}
+	})()
+
+	s.mockCurrentKeys(c, nil, []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+		{ContainerRole: "system-data", Name: "default-fallback"},
+	})
+
+	// initialize fde manager
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// unsupported auth mode
+	_, err := fdestate.ReplaceProtectedKey(s.st, &device.VolumesAuthOptions{Mode: "unknown"}, nil)
+	c.Assert(err, ErrorMatches, `invalid authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
+
+	// invalid key slot reference
+	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
+
+	// invalid key slot reference
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported name, expected "default" or "default-fallback"`)
+
+	// missing keyslot
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-fallback"\) not found`)
+
+	// keyslot key data loading error
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `cannot read key data for \(container-role: "system-data", name: "default-fallback"\): cannot read key data for "default-fallback" from "/dev/disk/by-uuid/data": boom!`)
+
+	// bad keyslot type (recovery instead of platform)
+	s.st.Unlock()
+	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}}, nil)
+	s.st.Lock()
+	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported type "recovery", expected "platform"`)
+
+	// recovery mode
+	unlockState := boot.DiskUnlockState{
+		UbuntuData: boot.PartitionState{UnlockKey: "recovery"},
+	}
+	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	c.Assert(err, ErrorMatches, "system was unlocked with a recovery key during boot: reboot required")
+	// cleanup
+	c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil)
+
+	// change conflict with fde changes
+	chg := s.st.NewChange("fde-change-passphrase", "")
+	task := s.st.NewTask("some-fde-task", "")
+	chg.AddTask(task)
+	_, err = fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	c.Assert(err, ErrorMatches, `changing passphrase in progress, no other FDE changes allowed until this is done`)
+	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+	// cleanup
+	chg.Abort()
+
+	// change conflict with snaps that cause a reseal
+	gadgetSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: gadget
+`[1:], model.Gadget())
+	kernelSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: kernel
+`[1:], model.Kernel())
+	baseSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: base
+`[1:], model.Base())
+
+	for _, sn := range []struct {
+		snapYaml string
+		name     string
+	}{
+		{snapYaml: gadgetSnapYamlContent, name: model.Gadget()},
+		{snapYaml: kernelSnapYamlContent, name: model.Kernel()},
+		{snapYaml: baseSnapYamlContent, name: model.Base()},
+	} {
+		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
+		s.st.Set("seeded", true)
+		ts, _, err := snapstate.InstallPath(s.st, &snap.SideInfo{
+			RealName: sn.name,
+		}, path, "", "", snapstate.Flags{}, nil)
+		c.Assert(err, IsNil)
+		chg = s.st.NewChange("install-essential-snap", "")
+		chg.AddAll(ts)
+		_, err = fdestate.ReplaceProtectedKey(s.st, nil, nil)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q has "install-essential-snap" change in progress`, sn.name))
+		// cleanup
+		chg.Abort()
+	}
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeyConflictSnaps(c *C) {
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		return &mockKeyData{authMode: device.AuthModeNone}, nil
+	})()
+
+	// initialize fde manager
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	s.mockCurrentKeys(c, nil, nil)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.st.Set("seeded", true)
+
+	// mock change in progress
+	ts, err := fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	chg := s.st.NewChange("fde-change", "")
+	chg.AddAll(ts)
+	c.Assert(err, IsNil)
+
+	gadgetSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: gadget
+`[1:], model.Gadget())
+	kernelSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: kernel
+`[1:], model.Kernel())
+	baseSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: base
+`[1:], model.Base())
+	appSnapYamlContent := `
+name: apps
+version: "1.0"
+type: app
+`[1:]
+
+	for _, sn := range []struct {
+		snapYaml   string
+		name       string
+		noConflict bool
+	}{
+		{snapYaml: gadgetSnapYamlContent, name: model.Gadget()},
+		{snapYaml: kernelSnapYamlContent, name: model.Kernel()},
+		{snapYaml: baseSnapYamlContent, name: model.Base()},
+		{snapYaml: appSnapYamlContent, name: "apps", noConflict: true},
+	} {
+		c.Logf("checking snap %s:\n%s", sn.name, sn.snapYaml)
+		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
+
+		_, _, err = snapstate.InstallPath(s.st, &snap.SideInfo{
+			RealName: sn.name,
+		}, path, "", "", snapstate.Flags{}, nil)
+
+		if !sn.noConflict {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q has "fde-change" change in progress`, sn.name))
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }
