@@ -124,7 +124,6 @@ var (
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
 	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
-	generateDmVerityData             = integrity.GenerateDmVerityData
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -1998,24 +1997,8 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 				essentialSnap.Path,
 				essentialSnap.IntegrityDataParams)
 
-			switch {
-			case errors.Is(err, integrity.ErrDmVerityDataNotFound):
-				var rootHash string
-				hashDevice, rootHash, err = generateDmVerityData(
-					essentialSnap.Path,
-					essentialSnap.IntegrityDataParams)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				if essentialSnap.IntegrityDataParams.Digest != rootHash {
-					return nil, nil, fmt.Errorf("computed root hash doesn't match trusted root hash from assertion: %s != %s",
-						essentialSnap.IntegrityDataParams.Digest, rootHash)
-				}
-			case errors.Is(err, integrity.ErrUnexpectedDmVerityData):
-				return nil, nil, fmt.Errorf("dm-verity data from disk for snap %s don't match trusted data from assertion: %w", essentialSnap.Path, err)
-			case err != nil:
-				return nil, nil, err
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot generate mount for snap %s: %w", essentialSnap.Path, err)
 			}
 
 			verityOptions = &dmVerityOptions{
