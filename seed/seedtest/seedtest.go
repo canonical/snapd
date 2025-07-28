@@ -164,10 +164,10 @@ func (ss *SeedSnaps) makeAssertedSnap(
 		revHeaders["provenance"] = revProvenance
 	}
 
-	var intData []interface{}
+	var intData []any
 
 	for _, id := range integrityData {
-		intData = append(intData, map[string]interface{}{
+		intData = append(intData, map[string]any{
 			"type":            id.Type,
 			"version":         fmt.Sprintf("%d", id.Version),
 			"hash-algorithm":  id.HashAlg,

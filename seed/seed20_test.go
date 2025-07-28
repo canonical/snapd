@@ -5357,18 +5357,18 @@ func (s *seed20Suite) TestLoadMetaCore20WithIntegrityData(c *C) {
 	id.DataBlocks = rev.SnapSize() / uint64(id.DataBlockSize)
 
 	sysLabel := "20250113"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
@@ -5467,18 +5467,18 @@ func (s *seed20Suite) TestLoadMetaCore20WithIntegrityDataMultiple(c *C) {
 	id.DataBlocks = rev.SnapSize() / uint64(id.DataBlockSize)
 
 	sysLabel := "20250113"
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
+		"snaps": []any{
+			map[string]any{
 				"name":            "pc-kernel",
 				"id":              s.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"name":            "pc",
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
