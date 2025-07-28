@@ -54,6 +54,7 @@ func checkFDEChangeConflict(st *state.State) error {
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
+		// TODO:FDEM: add entry for passphrase reset when API lands
 		default:
 			// try to catch changes/tasks that could have been missed
 			// and log a warning.
