@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2024 Canonical Ltd
+ * Copyright (C) 2019-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1926,6 +1926,27 @@ func createSysrootMount() bool {
 	return isCore24plus == "1" || isCore24plus == "true"
 }
 
+func getVerityOptions(snapPath string, idp *integrity.IntegrityDataParams) (*dmVerityOptions, error) {
+	if idp != nil && idp.Type == "dm-verity" {
+		hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
+
+		if err != nil {
+			return nil, fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, err)
+		}
+
+		// TODO: we currently rely on several parameters from the on-disk unverified superblock
+		// which gets automatically parsed by veritysetup for the mount. Instead we can use
+		// the parameters we already have in the assertion as options to the mount but this
+		// would require extra support in libmount.
+		return &dmVerityOptions{
+			HashDevice: hashDevice,
+			RootHash:   idp.Digest,
+		}, nil
+	}
+
+	// TODO: throw error instead if integrity data are required by policy
+	return nil, nil
+}
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -1987,29 +2008,9 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
 
-		var verityOptions *dmVerityOptions
-
-		// XXX: throw error if integrity data are required by policy
-		// XXX: even if no integrity data were found from a verified revision, we could still
-		// generate and use verity data to detect random errors that could occur.
-		if essentialSnap.IntegrityDataParams != nil && essentialSnap.IntegrityDataParams.Type == "dm-verity" {
-			hashDevice, err := lookupDmVerityDataAndCrossCheck(
-				essentialSnap.Path,
-				essentialSnap.IntegrityDataParams)
-
-			if err != nil {
-				return nil, nil, fmt.Errorf("cannot generate mount for snap %s: %w", essentialSnap.Path, err)
-			}
-
-			verityOptions = &dmVerityOptions{
-				HashDevice: hashDevice,
-				RootHash:   essentialSnap.IntegrityDataParams.Digest,
-			}
-
-			// TODO: we currently rely on several parameters from the on-disk unverified superblock
-			// which gets automatically parsed by veritysetup for the mount. Instead we can use
-			// the parameters we already have in the assertion as options to the mount but this
-			// would require extra support in libmount.
+		verityOptions, err := getVerityOptions(essentialSnap.Path, essentialSnap.IntegrityDataParams)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		if essentialSnap.EssentialType == snap.TypeBase && createSysrootMount() {
