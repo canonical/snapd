@@ -560,7 +560,7 @@ func (as *AssembleState) Run(
 	ctx context.Context,
 	ln net.Listener,
 	transport Transport,
-	discoveries <-chan []string,
+	discoveries <-chan string,
 	opts RunOptions,
 ) (Routes, error) {
 	if as.initiated.IsZero() {
@@ -603,17 +603,16 @@ func (as *AssembleState) Run(
 		defer wg.Done()
 		for {
 			select {
-			case discoveries := <-discoveries:
-				// filter out our address
-				addrs := make([]string, 0, len(discoveries))
-				for _, d := range discoveries {
-					if d == addr {
-						continue
-					}
-					addrs = append(addrs, d)
+			case discovery, ok := <-discoveries:
+				if !ok {
+					return
 				}
 
-				if err := as.publishAuthAndCommit(ctx, addrs, client); err != nil {
+				if discovery == addr {
+					continue
+				}
+
+				if err := as.publishAuthAndCommit(ctx, []string{discovery}, client); err != nil {
 					logger.Debugf("error publishing auth messages: %v", err)
 				}
 			case <-ctx.Done():
