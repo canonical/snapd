@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <glob.h>
 #include <inttypes.h>
+#include <linux/prctl.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -29,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -292,6 +294,15 @@ static void enter_classic_execution_environment(const sc_invocation *inv, gid_t 
 static void enter_non_classic_execution_environment(sc_invocation *inv, struct sc_apparmor *aa, uid_t real_uid,
                                                     gid_t real_gid, gid_t saved_gid);
 
+/* Snapd may be packaged with two more capabilities assigned to snap-confine:
+ * setuid and setgid. Those capabilities are required to run snap applications
+ * on cgroup-v1 systems, due to the additional operations on the freezer
+ * controller hierarchy necessary to operate in user namespaces. */
+static const cap_value_t snap_confine_caps_extra_cgroup_v1[] = {
+    CAP_SETUID,  // to join freezer cgroup
+    CAP_SETGID,  // to create the freezer cgroup
+};
+
 int main(int argc, char **argv) {
     sc_error *err = NULL;
 
@@ -393,6 +404,7 @@ int main(int argc, char **argv) {
         0) {
         die("cannot fill effective capability set");
     }
+
     /* inheritable caps when forking off to a helper tool */
     if (cap_set_flag(caps_privileged, CAP_INHERITABLE, SC_ARRAY_SIZE(helper_tools_inheritable_caps),
                      helper_tools_inheritable_caps, CAP_SET) != 0) {
@@ -414,12 +426,43 @@ int main(int argc, char **argv) {
 
     if (cap_set_flag(caps_no_effective, CAP_PERMITTED, SC_ARRAY_SIZE(keep_no_effective_caps), keep_no_effective_caps,
                      CAP_SET) != 0) {
-        die("cannot set capapbility flags");
+        die("cannot set capability flags");
+    }
+
+    if (sc_cgroup_is_v2()) {
+        /* On cgroup v2 systems we don't need to use CAP_SETUID and CAP_SETGID
+         * so we can drop them from the permitted set. */
+        if (cap_set_flag(caps_privileged, CAP_EFFECTIVE, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                         snap_confine_caps_extra_cgroup_v1, CAP_CLEAR) != 0) {
+            die("cannot clear effective capability set (setuid) from privileged caps");
+        }
+        if (cap_set_flag(caps_privileged, CAP_PERMITTED, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                         snap_confine_caps_extra_cgroup_v1, CAP_CLEAR) != 0) {
+            die("cannot clear permitted capability set (setuid) from privileged caps");
+        }
+        if (cap_set_flag(caps_privileged, CAP_INHERITABLE, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                         snap_confine_caps_extra_cgroup_v1, CAP_CLEAR) != 0) {
+            die("cannot clear inheritable capability set (setuid) from privileged caps");
+        }
+    } else {
+        /* On cgroup v1 systems we need CAP_SETUID and CAP_SETGID to manipulate
+         * the freezer. Do an early check if packaging contains those
+         * permissions or if we bail out early with a clear error message. */
+        cap_flag_value_t can_cap_setuid, can_cap_setgid;
+        if (cap_get_flag(caps_privileged, CAP_SETUID, CAP_PERMITTED, &can_cap_setuid) != 0) {
+            die("cannot check if CAP_SETUID is permitted");
+        }
+        if (cap_get_flag(caps_privileged, CAP_SETGID, CAP_PERMITTED, &can_cap_setgid) != 0) {
+            die("cannot check if CAP_SETGID is permitted");
+        }
+        if (can_cap_setuid == CAP_CLEAR || can_cap_setgid == CAP_CLEAR) {
+            die("snap-confine is packaged without permissions necessary to operate on legacy cgroup-v1 systems");
+        }
     }
 
     /* set privileged capabilities */
     if (cap_set_proc(caps_privileged) != 0) {
-        die("cannot set capabilities");
+        die("cannot set privileged capabilities");
     }
 
     sc_debug_capabilities("after setting privileged caps");
@@ -509,6 +552,7 @@ int main(int argc, char **argv) {
     // a while. Note, we keep CAP_SYS_ADMIN in permitted as it will be needed
     // later.
     debug("dropping caps");
+    sc_debug_capabilities("before dropping effective caps");
     if (cap_set_proc(caps_no_effective) != 0) {
         die("cannot drop capabilities");
     }
@@ -894,7 +938,92 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
     // starting the snap application has already ensure that the process has
     // been put in a dedicated group.
     if (!sc_cgroup_is_v2()) {
+        sc_debug_capabilities("before freezer");
+        // Cgroups are somewhat finicky and put additional constrainst on
+        // what kind of process cgroup transitions are allowed. To move a
+        // process to the v1 cgroup the EUID of the process that opened the
+        // cgroups.procs file must EITHER be global root, or task UID, or
+        // task SUID group in the cgroup/user namespace. Since all the
+        // cgroups are root-owned, make ourselves root for a brief moment.
+        // Yes this is sad.
+        //
+        // Kernel reference:
+        // https://elixir.bootlin.com/linux/v6.16-rc6/source/kernel/cgroup/cgroup-v1.c#L520
+
+        uid_t ruid, euid, suid;
+        gid_t rgid, egid, sgid;
+        getresuid(&ruid, &euid, &suid);
+        getresgid(&rgid, &egid, &sgid);
+
+        /* We are going to change uid or gid so let's give us the capability to
+         * do so and set "keep caps" so that we are not going to lose
+         * capabilities after switching back to non-root user. */
+        if ((ruid != 0 || euid != 0 || suid != 0) || (rgid != 0 || egid != 0 || sgid != 0)) {
+            /* Once we switch back to the non-root user, we will drop the
+             * effective capabilities but this is okay because after this
+             * function returns we will again manipulate capabilities before
+             * the next privileged operation. */
+            if (prctl(PR_SET_KEEPCAPS, 1) < 0) {
+                die("cannot set PR_SET_KEEPCAPS 1");
+            }
+            cap_t c SC_CLEANUP(sc_cleanup_cap_t) = cap_get_proc();
+            if (c == NULL) {
+                die("cannot obtain current caps");
+            }
+            if (cap_set_flag(c, CAP_EFFECTIVE, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                             snap_confine_caps_extra_cgroup_v1, CAP_SET) != 0) {
+                die("cannot fill effective capability set (setuid, setgid)");
+            }
+            if (cap_set_proc(c) != 0) {
+                die("cannot set privileged capabilities");
+            }
+            sc_debug_capabilities("after cap_set_proc");
+        }
+
+        if (ruid != 0 || euid != 0 || suid != 0) {
+            if (setresuid(0, 0, 0) < 0) {
+                die("cannot setresuid(%d, %d, %d) before freezer join", 0, 0, 0);
+            }
+        }
+        if (rgid != 0 || egid != 0 || sgid != 0) {
+            if (setresgid(0, 0, 0) < 0) {
+                die("cannot setresgid(%d, %d, %d) before freezer join", 0, 0, 0);
+            }
+        }
+        sc_debug_capabilities("caps at freezer join");
         sc_cgroup_freezer_join(inv->snap_instance, getpid());
+        if (rgid != 0 || egid != 0 || sgid != 0) {
+            if (setresgid(rgid, egid, sgid) < 0) {
+                die("cannot setresgid(%d, %d, %d) after freezer join", rgid, egid, sgid);
+            }
+        }
+        if (ruid != 0 || euid != 0 || suid != 0) {
+            if (setresuid(ruid, euid, suid) < 0) {
+                die("cannot setresuid(%d, %d, %d) after freezer join", ruid, euid, suid);
+            }
+        }
+        /* We no longer need CAP_SETUID or CAP_SETGID in the permitted set.
+         * Let's drop them as a hardening measure. */
+        cap_t c SC_CLEANUP(sc_cleanup_cap_t) = cap_get_proc();
+        if (c == NULL) {
+            die("cannot obtain current caps");
+        }
+        if (cap_set_flag(c, CAP_EFFECTIVE, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                         snap_confine_caps_extra_cgroup_v1, CAP_CLEAR) != 0) {
+            die("cannot clear effective capability set (setuid, setgid)");
+        }
+        if (cap_set_flag(c, CAP_INHERITABLE, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                         snap_confine_caps_extra_cgroup_v1, CAP_CLEAR) != 0) {
+            die("cannot clear inheritable capability set (setuid, setgid)");
+        }
+        if (cap_set_flag(c, CAP_PERMITTED, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+                         snap_confine_caps_extra_cgroup_v1, CAP_CLEAR) != 0) {
+            die("cannot clear permitted capability set (setuid, setgid)");
+        }
+        sc_debug_capabilities("before cap_set_proc (drop)");
+        if (cap_set_proc(c) != 0) {
+            die("cannot set reduced capabilities (setuid, setgid)");
+        }
     }
 
     sc_unlock(snap_lock_fd);

@@ -375,7 +375,7 @@ chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
 # once snap-confine is added to the permissions package. This is done following
 # the recommendations on
 # https://en.opensuse.org/openSUSE:Package_security_guidelines
-install_caps="$(cat %{buildroot}%{_libexecdir}/snapd/snap-confine.caps)"
+install_caps="$(cat %{buildroot}%{_libexecdir}/snapd/snap-confine.v2-only.caps)"
 sed -e 's,@LIBEXECDIR@,%{_libexecdir},' -e "s#@CAPS@#$install_caps#" < %{indigo_srcdir}/packaging/opensuse/permissions.in > permissions
 install -pm 644 -D permissions %{buildroot}%{_sysconfdir}/permissions.d/snapd
 sed -e 's,@LIBEXECDIR@,%{_libexecdir},' -e "s#@CAPS@#$install_caps#" < %{indigo_srcdir}/packaging/opensuse/permissions.paranoid.in > permissions.paranoid
@@ -547,6 +547,7 @@ fi
 %ghost %{snap_mount_dir}/README
 # capabilities and permissions are set through permctl and set_permissions snippet in post
 %verify(not caps) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
+%{_libexecdir}/snapd/snap-confine.v2-only.caps
 %{_libexecdir}/snapd/snap-confine.caps
 %{_bindir}/snap
 %{_bindir}/snapctl

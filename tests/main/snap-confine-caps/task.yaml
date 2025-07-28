@@ -18,11 +18,23 @@ execute: |
     # newer version (at least 2.44+, Ubuntu 22.04+):
     # <file-name> cap_sys_admin=ep
     MATCH ' .*cap_sys_admin(.*)?(=|\+)p$' < s-c-snap.caps
+    MATCH 'cap_setgid' < s-c-snap.caps
+    MATCH 'cap_setgid' < s-c-snap.caps
 
     if ! os.query is-core && ! tests.info is-snapd-from-archive; then
         getcap "$LIBEXEC_DIR/snapd/snap-confine" | tee s-c-pkg.caps
         MATCH ' .*cap_sys_admin(.*)?(=|\+)p$' < s-c-pkg.caps
 
-        echo "Capabilities from a snap and a local package are identical"
-        diff -up <(cut -f2 -d' ' < s-c-pkg.caps) <(cut -f2 -d' ' < s-c-snap.caps)
+        case "$SPREAD_SYSTEM" in
+            fedora-*|opensuse-*|centos-*|amazon-linux-2023-*|debian-*|arch-*)
+                echo "Capabilities from a snap and a local package are not identical"
+                not diff -up <(cut -f2 -d' ' < s-c-pkg.caps) <(cut -f2 -d' ' < s-c-snap.caps)
+                NOMATCH 'cap_setgid' < s-c-pkg.caps
+                NOMATCH 'cap_setuid' < s-c-pkg.caps
+                ;;
+            *)
+                echo "Capabilities from a snap and a local package are identical"
+                diff -up <(cut -f2 -d' ' < s-c-pkg.caps) <(cut -f2 -d' ' < s-c-snap.caps)
+                ;;
+        esac
     fi

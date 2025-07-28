@@ -117,6 +117,8 @@ execute: |
         echo "Install snapd in container"
         lxd.lxc exec $cont_name -- /root/prep-snapd-in-lxd.sh
         lxd.lxc exec $cont_name -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
+        lxd.lxc file push "$(find "$SNAPD_WORK_DIR/snapd_snap" -name 'snapd_*.snap')" "$cont_name"/
+        lxd.lxc exec $cont_name -- sh -c 'snap install --dangerous /snapd_*.snap'
     done
 
     # FIXME: ensure that the kernel running is recent enough, this
@@ -128,7 +130,7 @@ execute: |
     lxd.lxc exec my-ubuntu -- apt-get update
     lxd.lxc exec my-ubuntu -- apt-get install -y dbus-user-session
     lxd.lxc exec my-ubuntu -- su -l ubuntu -c "systemctl --user enable dbus.socket"
-    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "/snap/bin/test-snapd-sh.sh -c 'echo from-the-inside'" | MATCH from-the-inside
+    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "SNAP_CONFINE_DEBUG=yes /snap/bin/test-snapd-sh.sh -c 'echo from-the-inside'" | MATCH from-the-inside
     echo "And as root"
     lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
     echo "We can also remove snaps successfully"
