@@ -295,7 +295,7 @@ type ResealKeyParams struct {
 	GetPrimaryKey              func() ([]byte, error)
 	BootModes                  []string
 	Models                     []ModelForSealing
-	TpmPCRProfile              []byte
+	GetTpmPCRProfile           func() ([]byte, error)
 	IncrementRevocationCounter bool
 	HintExpectFDEHook          bool
 }

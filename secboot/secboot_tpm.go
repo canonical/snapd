@@ -659,27 +659,6 @@ func sbNewSealedKeyDataImpl(k *sb.KeyData) (MaybeSealedKeyData, error) {
 
 var sbNewSealedKeyData = sbNewSealedKeyDataImpl
 
-type lazyTPM struct {
-	connection *sb_tpm2.Connection
-}
-
-func (lt *lazyTPM) Connection() (*sb_tpm2.Connection, error) {
-	if lt.connection == nil {
-		tpm, err := sbConnectToDefaultTPM()
-		if err != nil {
-			return nil, err
-		}
-		lt.connection = tpm
-	}
-	return lt.connection, nil
-}
-
-func (lt *lazyTPM) Close() {
-	t := lt.connection
-	lt.connection = nil
-	t.Close()
-}
-
 // ResealKeys updates the PCR protection policy for the sealed encryption keys
 // according to the specified parameters.
 // If newPCRPolicyVersion is true, the keys will use a new policy version
