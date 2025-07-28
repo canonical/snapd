@@ -1108,7 +1108,7 @@ func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.
 		default:
 			// The assertion signing code doesn't allow assertions with unsupported
 			// types so this shouldn't be reachable.
-			return nil, fmt.Errorf("Unsupported integrity data type: %q.", sid.Type)
+			return nil, fmt.Errorf("unsupported integrity data type: %q.", sid.Type)
 		}
 
 	}
