@@ -2591,7 +2591,7 @@ func (s *resealTestSuite) testLoadParametersForBootChains(c *C, method device.Se
 		RoleToBlName:                map[bootloader.Role]string{},
 	}
 
-	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams) (secboot.SerializedPCRProfile, error) {
+	defer backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, allowInsufficientDmaProtection bool) (secboot.SerializedPCRProfile, error) {
 		return []byte(`"serialized-pcr-profile"`), nil
 	})()
 

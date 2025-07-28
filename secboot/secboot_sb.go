@@ -673,17 +673,6 @@ func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.Recov
 	return sbAddLUKS2ContainerRecoveryKey(devicePath, slotName, unlockKey, sb.RecoveryKey(rkey))
 }
 
-type ProtectKeyParams struct {
-	// The snap model parameter
-	PCRProfile SerializedPCRProfile
-	// The handle at which to create a NV index for dynamic authorization policy revocation support
-	PCRPolicyCounterHandle uint32
-	// The key role (run, run+recover, recover)
-	KeyRole string
-	// Optional volume authentication options
-	VolumesAuth *device.VolumesAuthOptions
-}
-
 // AddContainerRecoveryKey adds a new TPM protected key to specified device.
 //
 // Note: The unlock and primary keys are implicitly obtained from the kernel
