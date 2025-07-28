@@ -38,7 +38,7 @@ case "$1" in
         chmod 111 /var/lib/snapd/void
 
         # ensure required caps on snap-confine
-        setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
+        setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.v2-only.caps
         ;;
 esac
 

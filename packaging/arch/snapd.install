@@ -1,5 +1,5 @@
 _set_snap_confine_caps() {
-  /usr/bin/setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
+  /usr/bin/setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.v2-only.caps
 }
 
 ## arg 1:  the new package version

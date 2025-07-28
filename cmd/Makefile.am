@@ -75,7 +75,7 @@ fmt-check:: $(wildcard $(addsuffix /*.[ch],$(addprefix $(srcdir)/,$(subdirs))))
 hack: PROF_NAME=$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
 	sudo install -D -m 755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
-	sudo setcap "$$(cat $(top_srcdir)/snap-confine/snap-confine.caps)" $(DESTDIR)$(libexecdir)/snap-confine
+	sudo setcap "$$(cat $(top_srcdir)/snap-confine/snap-confine.v2-only.caps)" $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d $(DESTDIR)$(APPARMOR_SYSCONFIG) ]; then \
 		if [ -f $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(PROF_NAME).real ]; then \
 			sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(PROF_NAME).real; \
@@ -261,6 +261,7 @@ endif
 EXTRA_DIST += snap-confine/snap-confine.rst
 EXTRA_DIST += snap-confine/snap-confine.apparmor.in
 EXTRA_DIST += snap-confine/snap-confine.caps
+EXTRA_DIST += snap-confine/snap-confine.v2-only.caps
 
 snap_confine_snap_confine_SOURCES = \
 	snap-confine/cookie-support.c \
@@ -408,6 +409,7 @@ endif
 # NOTE: The 'void' directory *has to* be chmod 111
 	install -d -m 111 $(DESTDIR)$(snapdstatedir)/void
 	install -m 644 $(srcdir)/snap-confine/snap-confine.caps $(DESTDIR)$(libexecdir)/
+	install -m 644 $(srcdir)/snap-confine/snap-confine.v2-only.caps $(DESTDIR)$(libexecdir)/
 
 uninstall-local:
 if APPARMOR
@@ -415,6 +417,7 @@ if APPARMOR
 endif
 	rmdir $(DESTDIR)$(snapdstatedir)/void || true
 	rm -f $(DESTDIR)$(libexecdir)/snap-confine.caps || true
+	rm -f $(DESTDIR)$(libexecdir)/snap-confine.v2-only.caps || true
 
 ##
 ## snap-mgmt

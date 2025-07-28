@@ -68,6 +68,16 @@
 %global snappy_svcs      snapd.service snapd.socket snapd.seeded.service snapd.apparmor.service snapd.mounts.target snapd.mounts-pre.target
 %global snappy_user_svcs snapd.session-agent.service snapd.session-agent.socket
 
+# Note that packaging for Fedora does omit cap_setgid and cap_setuid that are
+# only required to use snapd in user namespaces when the host system uses
+# cgroup-v1 hierarchy. Since no actively supported Fedora release uses cgroup
+# v1, those capabilities are omitted.
+%global snap_confine_caps cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=p
+%if 0%{?amzn2} == 1
+# However on AMZN2 we still have cgroup-v1, so setgid and setuid are needed.
+%global snap_confine_caps cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_setuid,cap_setgid,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=p
+%endif
+
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
 %if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?amzn2023}
@@ -887,8 +897,9 @@ make -C data -k check
 %doc cmd/snap-confine/PORTING
 %license COPYING
 %dir %{_libexecdir}/snapd
-%caps(cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_chroot,cap_chown,cap_fowner,cap_sys_ptrace=p) %{_libexecdir}/snapd/snap-confine
+%caps(%{snap_confine_caps}) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-confine.caps
+%{_libexecdir}/snapd/snap-confine.v2-only.caps
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim

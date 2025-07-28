@@ -21,6 +21,7 @@ usr/bin/snapctl /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-confine.caps
+usr/lib/snapd/snap-confine.v2-only.caps
 usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-discard-ns
 # gdb helper
