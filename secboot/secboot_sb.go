@@ -740,8 +740,13 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 		if err != nil {
 			return nil, err
 		}
+		pcrProfile, err := params.GetTpmPCRProfile()
+		if err != nil {
+			return nil, err
+		}
+
 		keyParams := &resealKeysWithTPMParams{
-			PCRProfile: params.TpmPCRProfile,
+			PCRProfile: pcrProfile,
 			Keys:       []KeyDataLocation{key},
 			PrimaryKey: primaryKey,
 		}
