@@ -23,15 +23,18 @@ package fdestate_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -845,4 +848,293 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeysNoop(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.mockCurrentKeys(c, nil, nil)
+
+	defaultKeyslots := []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "tmp-default"}}
+	defaultRoles := [][]string{{"run"}}
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	type testcase struct {
+		keyslots                      []fdestate.KeyslotRef
+		authMode                      device.AuthMode
+		noVolumesAuth                 bool
+		recoveryMode                  bool
+		noop                          bool
+		roles                         [][]string
+		expectedAdds, expectedDeletes []string
+		errOn                         []string
+		expectedErr                   string
+	}
+	tcs := []testcase{
+		{
+			authMode: device.AuthModeNone, noVolumesAuth: true,
+			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default"},
+		},
+		{
+			authMode:     device.AuthModePassphrase,
+			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default"},
+		},
+		{
+			authMode:    device.AuthModePIN,
+			expectedErr: `internal error: invalid authentication options: "pin" authentication mode is not implemented`,
+		},
+		{
+			authMode: device.AuthModePIN, noVolumesAuth: true,
+			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+		},
+		{
+			authMode: device.AuthModePassphrase, noVolumesAuth: true,
+			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+		},
+		{
+			authMode: device.AuthModePassphrase, recoveryMode: true,
+			expectedErr: "cannot add protected keys if the system was unlocked with a recovery key during boot",
+		},
+		{
+			authMode:    device.AuthModePassphrase,
+			roles:       [][]string{{"run", "recover"}},
+			expectedErr: `internal error: expected one key role, found \[run recover\]`,
+		},
+		{
+			authMode:    device.AuthModePassphrase,
+			roles:       [][]string{{"run+recover"}},
+			expectedErr: `internal error: cannot find parameters \(key role: run\+recover, container role: system-data\)`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-3"},
+			},
+			authMode: device.AuthModePassphrase,
+			roles:    [][]string{{"run"}, {"run"}, {"run"}},
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-3",    // to trigger clean up
+				"delete:/dev/disk/by-uuid/data:tmp-default-2", // to test best effort deletion
+			},
+			// best effort deletion for clean up
+			expectedDeletes: []string{"/dev/disk/by-uuid/data:tmp-default-1"},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			expectedErr: `cannot add protected key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode: device.AuthModePassphrase,
+			noop:     true,
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("tcs[%d] failed", i)
+
+		var added, deleted []string
+
+		if len(tc.keyslots) == 0 {
+			tc.keyslots = defaultKeyslots
+		}
+
+		roles := make(map[string][]string)
+		if len(tc.roles) == 0 {
+			tc.roles = defaultRoles
+		}
+
+		c.Assert(tc.roles, HasLen, len(tc.keyslots))
+		for idx, ref := range tc.keyslots {
+			roles[ref.String()] = tc.roles[idx]
+		}
+
+		if tc.recoveryMode {
+			unlockState := boot.DiskUnlockState{
+				UbuntuData: boot.PartitionState{UnlockKey: "recovery"},
+			}
+			c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
+		}
+
+		var volumesAuth *device.VolumesAuthOptions
+		if !tc.noVolumesAuth {
+			volumesAuth = &device.VolumesAuthOptions{Mode: tc.authMode}
+			if tc.authMode == device.AuthModePassphrase {
+				volumesAuth.Passphrase = "password"
+			}
+			s.st.Cache(fdestate.VolumesAuthOptionsKey(), volumesAuth)
+		}
+
+		defer fdestate.MockSecbootAddContainerTPMProtectedKey(func(devicePath string, slotName string, params *secboot.ProtectKeyParams) error {
+			c.Check(params.PCRProfile, DeepEquals, secboot.SerializedPCRProfile("serialized-pcr-profile"), cmt)
+			c.Check(params.PCRPolicyCounterHandle, Equals, uint32(41), cmt)
+			c.Check(params.VolumesAuth, DeepEquals, volumesAuth, cmt)
+
+			entry := fmt.Sprintf("%s:%s", devicePath, slotName)
+			if strutil.ListContains(tc.errOn, fmt.Sprintf("add:%s", entry)) {
+				return fmt.Errorf("add error on %s", entry)
+			}
+			added = append(added, entry)
+			return nil
+		})()
+
+		defer fdestate.MockSecbootDeleteContainerKey(func(devicePath, slotName string) error {
+			entry := fmt.Sprintf("%s:%s", devicePath, slotName)
+			if strutil.ListContains(tc.errOn, fmt.Sprintf("delete:%s", entry)) {
+				return fmt.Errorf("delete error on %s", entry)
+			}
+			deleted = append(deleted, entry)
+			return nil
+		})()
+
+		loadParameterCalls := 0
+		defer fdestate.MockBackendLoadParametersForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, bootChains boot.BootChains) error {
+			loadParameterCalls++
+			params := backend.SealingParameters{TpmPCRProfile: []byte("serialized-pcr-profile")}
+			c.Assert(manager.Update("run", "system-data", &params), IsNil)
+			return nil
+		})()
+
+		c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+		task := s.st.NewTask("fde-add-protected-keys", "test")
+		task.Set("keyslots", tc.keyslots)
+		task.Set("auth-mode", tc.authMode)
+		task.Set("roles", roles)
+
+		chg := s.st.NewChange("sample", "...")
+		chg.AddTask(task)
+
+		s.settle(c)
+
+		if tc.expectedErr == "" {
+			c.Check(chg.Status(), Equals, state.DoneStatus, cmt)
+			c.Assert(chg.Err(), IsNil, cmt)
+			if !tc.noop {
+				// only called once
+				c.Check(loadParameterCalls, Equals, 1, cmt)
+			}
+			// volumes auth is removed
+			c.Assert(s.st.Cached(fdestate.VolumesAuthOptionsKey()), IsNil)
+		} else {
+			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
+- test \(%s\)`, tc.expectedErr), cmt)
+			if !tc.noVolumesAuth {
+				// volumes auth is kept to account for re-runs
+				c.Assert(s.st.Cached(fdestate.VolumesAuthOptionsKey()), Equals, volumesAuth)
+			}
+		}
+
+		if tc.noop {
+			c.Check(loadParameterCalls, Equals, 0, cmt)
+			c.Check(added, HasLen, 0)
+			c.Check(deleted, HasLen, 0)
+		}
+
+		sort.Strings(added)
+		c.Check(added, DeepEquals, tc.expectedAdds, cmt)
+
+		sort.Strings(deleted)
+		c.Check(deleted, DeepEquals, tc.expectedDeletes, cmt)
+
+		// clean up
+		c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil, cmt)
+		s.st.Cache(fdestate.VolumesAuthOptionsKey(), nil)
+		var fdeState fdestate.FdeState
+		c.Assert(s.st.Get("fde", &fdeState), IsNil)
+		delete(fdeState.KeyslotRoles["run"].Parameters, "system-data")
+		s.st.Set("fde", fdeState)
+	}
+}
+
+func (s *fdeMgrSuite) TestDoAddProtectedKeysIdempotence(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	currentKeys := []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key"}}
+	s.mockCurrentKeys(c, currentKeys, nil)
+
+	defer fdestate.MockBackendLoadParametersForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, bootChains boot.BootChains) error {
+		c.Assert(manager.Update("run", "system-data", &backend.SealingParameters{TpmPCRProfile: []byte("serialized-pcr-profile")}), IsNil)
+		return nil
+	})()
+
+	ops := make([]string, 0)
+	defer fdestate.MockSecbootAddContainerTPMProtectedKey(func(devicePath string, slotName string, params *secboot.ProtectKeyParams) error {
+		var containerRole string
+		switch filepath.Base(devicePath) {
+		case "data":
+			containerRole = "system-data"
+		case "save":
+			containerRole = "system-save"
+		default:
+			panic("unexpected device path")
+		}
+		newKeys := []fdestate.KeyslotRef{{ContainerRole: containerRole, Name: slotName}}
+		found := false
+		for _, ref := range currentKeys {
+			if ref.ContainerRole == containerRole && ref.Name == slotName {
+				found = true
+				continue
+			}
+			newKeys = append(newKeys, ref)
+		}
+		c.Assert(found, Equals, false, Commentf("%s:%s already exists", containerRole, slotName))
+
+		currentKeys = newKeys
+		s.mockCurrentKeys(c, currentKeys, nil)
+		ops = append(ops, fmt.Sprintf("add:%s:%s", containerRole, slotName))
+		return nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	keyslotRefs := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default-0"},
+		{ContainerRole: "system-data", Name: "default-1"},
+		{ContainerRole: "system-data", Name: "default-2"},
+		{ContainerRole: "system-data", Name: "default-3"},
+	}
+	roles := make(map[string][]string, 4)
+	for _, ref := range keyslotRefs {
+		roles[ref.String()] = []string{"run"}
+	}
+
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	chg := s.st.NewChange("sample", "...")
+
+	for i := 1; i <= 3; i++ {
+		t := s.st.NewTask("fde-add-protected-keys", "test")
+		t.Set("keyslots", keyslotRefs)
+		t.Set("auth-mode", device.AuthModeNone)
+		t.Set("roles", roles)
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+
+	sort.Strings(ops)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// task is idempotent
+	c.Check(ops, DeepEquals, []string{
+		"add:system-data:default-0",
+		"add:system-data:default-1",
+		"add:system-data:default-2",
+		"add:system-data:default-3",
+	})
 }

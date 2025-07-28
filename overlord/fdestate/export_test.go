@@ -48,7 +48,8 @@ var (
 	NotifyDBXUpdatePrepareDoneOK = notifyDBXUpdatePrepareDoneOK
 	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
 
-	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+	DbxUpdateAffectedSnaps        = dbxUpdateAffectedSnaps
+	AddProtectedKeysAffectedSnaps = addProtectedKeysAffectedSnaps
 
 	CheckFDEChangeConflict = checkFDEChangeConflict
 )
@@ -69,6 +70,10 @@ func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDESt
 
 func MockBackendNewInMemoryRecoveryKeyCache(f func() backend.RecoveryKeyCache) (restore func()) {
 	return testutil.Mock(&backendNewInMemoryRecoveryKeyCache, f)
+}
+
+func MockBackendLoadParametersForBootChains(f func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, bootChains boot.BootChains) error) (restore func()) {
+	return testutil.Mock(&backendLoadParametersForBootChains, f)
 }
 
 func MockKeysNewRecoveryKey(f func() (keys.RecoveryKey, error)) (restore func()) {
@@ -123,6 +128,10 @@ func MockSecbootAddContainerRecoveryKey(f func(devicePath string, slotName strin
 	return testutil.Mock(&secbootAddContainerRecoveryKey, f)
 }
 
+func MockSecbootAddContainerTPMProtectedKey(f func(devicePath string, slotName string, params *secboot.ProtectKeyParams) error) (restore func()) {
+	return testutil.Mock(&secbootAddContainerTPMProtectedKey, f)
+}
+
 func MockSecbootDeleteContainerKey(f func(devicePath string, slotName string) error) (restore func()) {
 	return testutil.Mock(&secbootDeleteContainerKey, f)
 }
@@ -157,4 +166,8 @@ func (o *changeAuthOptions) Old() string {
 
 func (o *changeAuthOptions) New() string {
 	return o.new
+}
+
+func VolumesAuthOptionsKey() volumesAuthOptionsKey {
+	return volumesAuthOptionsKey{}
 }

@@ -80,3 +80,25 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 	}
 
 }
+
+func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
+	st := s.st
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	st.Lock()
+	defer st.Unlock()
+
+	tsk := st.NewTask("foo", "foo task")
+
+	names, err := fdestate.AddProtectedKeysAffectedSnaps(tsk)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{
+		"pc",        // gadget
+		"pc-kernel", // kernel
+		"core20",    // base
+	})
+}
