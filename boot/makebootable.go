@@ -651,7 +651,6 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		flags := sealKeyToModeenvFlags{
 			HookKeyProtectorFactory: protector,
 			FactoryReset:            makeOpts.AfterDataReset,
-			StandaloneInstall:       makeOpts.Standalone,
 			SeedDir:                 makeOpts.SeedDir,
 			StateUnlocker:           makeOpts.StateUnlocker,
 			UseTokens:               tokens,
