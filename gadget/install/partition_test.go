@@ -1023,15 +1023,6 @@ const gptGadgetContentWithRangeForSeed = `volumes:
         size: 1200M
 `
 
-const emmcGadgetVolume = `volumes:
-  emmc:
-    schema: emmc
-    structure:
-      - name: boot0
-        content:
-          - image: boot0filename
-`
-
 // createdDuringInstall returns a list of partitions created during the
 // install process.
 func createdDuringInstall(gv *gadget.Volume, layout *gadget.OnDiskVolume) (created []string) {
