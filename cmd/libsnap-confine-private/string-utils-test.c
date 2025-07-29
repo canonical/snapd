@@ -882,6 +882,32 @@ static void test_sc_string_split_basic(void) {
     g_assert_cmpstr(suffix, ==, "");
 }
 
+static void test_sc_str_chomp(void) {
+    char noRet[] = "foo";
+    g_assert(sc_str_chomp(noRet) == noRet);
+    g_assert_cmpstr(sc_str_chomp(noRet), ==, "foo");
+
+    char withRet[] = "foo\n";
+    g_assert(sc_str_chomp(withRet) == withRet);
+    g_assert_cmpstr(withRet, ==, "foo");
+
+    char twoLines[] = "foo\nbar\n";
+    g_assert(sc_str_chomp(twoLines) == twoLines);
+    g_assert_cmpstr(sc_str_chomp(twoLines), ==, "foo\nbar");
+
+    char someRets[] = "foo\n\n\n\n";
+    g_assert(sc_str_chomp(someRets) == someRets);
+    g_assert_cmpstr(someRets, ==, "foo");
+
+    char withJustRet[] = "\n";
+    g_assert(sc_str_chomp(withJustRet) == withJustRet);
+    g_assert_cmpstr(withJustRet, ==, "");
+
+    char empty[] = "";
+    g_assert(sc_str_chomp(empty) == empty);
+    g_assert_cmpstr(sc_str_chomp(empty), ==, "");
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/string-utils/sc_streq", test_sc_streq);
     g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
@@ -921,4 +947,5 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/string-utils/sc_string_split/null_string", test_sc_string_split_null_string);
     g_test_add_func("/string-utils/sc_string_split/null_prefix_and_suffix",
                     test_sc_string_split_null_prefix_and_suffix);
+    g_test_add_func("/string-utils/sc_str_chomp", test_sc_str_chomp);
 }
