@@ -225,3 +225,15 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataAnyError(c *C) {
 	c.Check(hashFileName, Equals, "")
 	c.Check(err, ErrorMatches, "any other error")
 }
+
+func (s *IntegrityTestSuite) TestNewIntegrityDataParams(c *C) {
+	params := integrity.NewIntegrityDataParams("type", 1, "sha256", 4096, 4096, "digest", "salt", 8192)
+	c.Assert(params.Type, Equals, "type")
+	c.Assert(params.Version, Equals, uint(1))
+	c.Assert(params.HashAlg, Equals, "sha256")
+	c.Assert(params.DataBlockSize, Equals, uint64(4096))
+	c.Assert(params.HashBlockSize, Equals, uint64(4096))
+	c.Assert(params.Digest, Equals, "digest")
+	c.Assert(params.Salt, Equals, "salt")
+	c.Assert(params.DataBlocks, Equals, uint64(8192/4096))
+}
