@@ -1649,7 +1649,12 @@ func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent)
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if !vs.hasPartialSize() {
+	// Size for volume structures are not required for eMMC devices
+	// as we are not creating anything
+	if vs.Size != 0 && isVolumeEMMC(vol) {
+		return errors.New("size not allowed for emmc volume structures")
+	}
+	if !vs.hasPartialSize() && !isVolumeEMMC(vol) {
 		if vs.Size == 0 {
 			return errors.New("missing size")
 		}

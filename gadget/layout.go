@@ -463,8 +463,13 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure) ([]LaidO
 			Index:         idx,
 		}
 		previousEnd = start + quantity.Offset(actualSize)
-		if quantity.Size(previousEnd) > ps.VolumeStructure.Size {
-			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
+
+		// On EMMC devices, we do not create the structures, they already exist
+		// and thus the size check happens against the hardware device size.
+		if ps.VolumeStructure.Size != 0 {
+			if quantity.Size(previousEnd) > ps.VolumeStructure.Size {
+				return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
+			}
 		}
 	}
 
