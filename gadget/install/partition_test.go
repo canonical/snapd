@@ -336,6 +336,17 @@ func (s *partitionTestSuite) TestBuildPartitionListExistingPartsInSizeRange(c *C
 	})
 }
 
+func (s *partitionTestSuite) TestBuildPartitionListEMMCIsEmptyButNoError(c *C) {
+	sfdiskInput, create, err := install.BuildPartitionList(&gadget.OnDiskVolume{
+		SectorSize: 512,
+	}, &gadget.Volume{
+		Schema: "emmc",
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(sfdiskInput, IsNil)
+	c.Assert(create, IsNil)
+}
+
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
 	defer cmdSfdisk.Restore()
@@ -1010,6 +1021,15 @@ const gptGadgetContentWithRangeForSeed = `volumes:
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1200M
+`
+
+const emmcGadgetVolume = `volumes:
+  emmc:
+    schema: emmc
+    structure:
+      - name: boot0
+        content:
+          - image: boot0filename
 `
 
 // createdDuringInstall returns a list of partitions created during the
