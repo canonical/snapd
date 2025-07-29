@@ -12,8 +12,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from dashboard_callbacks import *
 
 app.layout = html.Div(
-    [
-        html.Div(children="", style={"fontSize": "24px", "marginBottom": "20px"}),
+    style={
+        "padding": "15px",
+    },
+    children=[
+        html.Div(children="", style={"fontSize": "24px", "marginBottom": "10px"}),
         html.H4(
             "1. First input path for either a mongo credential file or a folder containing the data."
         ),
