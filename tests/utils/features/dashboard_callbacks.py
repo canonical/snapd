@@ -176,11 +176,10 @@ def display_column_details(active_cell, table_data, timestamp):
         sort_action="native",
         style_cell={
             "textAlign": "center",
-            "minWidth": "100px",
-            "maxWidth": "200px",
+            "maxWidth": "100%",
             "whiteSpace": "normal",
         },
-        style_table={"overflowX": "auto", "maxWidth": "900px", "margin": "auto"},
+        style_table={"overflowX": "auto", "maxWidth": "100%", "margin": "auto"},
     )
 
     return [html.H4(f"{test['system']} -- {col_name}"), table]
@@ -218,16 +217,15 @@ def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same
             sort_action="native",
             style_cell={
                 "textAlign": "center",
-                "minWidth": "100px",
-                "maxWidth": "200px",
+                "maxWidth": "100%",
                 "whiteSpace": "normal",
             },
-            style_table={"overflowX": "auto", "maxWidth": "900px", "margin": "auto"},
+            style_table={"overflowX": "auto", "maxWidth": "100%", "margin": "auto"},
         )
         tables.append(
             html.Div(
                 [html.H4(feature_name), table],
-                style={"maxWidth": "900px", "margin": "auto"},
+                style={"maxWidth": "100%", "margin": "auto"},
             )
         )
 
@@ -343,15 +341,14 @@ def display_cell_data(active_cell, table_data, timestamp):
         sort_action="native",
         style_cell={
             "textAlign": "center",
-            "minWidth": "100px",
-            "maxWidth": "200px",
+            "maxWidth": "100%",
             "whiteSpace": "normal",
         },
-        style_table={"overflowX": "auto", "maxWidth": "900px", "margin": "auto"},
+        style_table={"overflowX": "auto", "maxWidth": "100%", "margin": "auto"},
     )
     return html.Div(
         [html.H4(f"{system} ---- {col_idx}:", style={"textAlign": "center"}), table],
-        style={"maxWidth": "900px", "margin": "auto"},
+        style={"maxWidth": "100%", "margin": "auto"},
     )
 
 
@@ -434,16 +431,15 @@ def display_duplicate_cell_data(active_cell, table_data, timestamp, system):
             sort_action="native",
             style_cell={
                 "textAlign": "center",
-                "minWidth": "100px",
-                "maxWidth": "200px",
+                "maxWidth": "100%",
                 "whiteSpace": "normal",
             },
-            style_table={"overflowX": "auto", "maxWidth": "900px", "margin": "auto"},
+            style_table={"overflowX": "auto", "maxWidth": "100%", "margin": "auto"},
         )
         tables.append(
             html.Div(
                 [html.H4(feature_name), table],
-                style={"maxWidth": "900px", "margin": "auto"},
+                style={"maxWidth": "100%", "margin": "auto"},
             )
         )
 
