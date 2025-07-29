@@ -2204,7 +2204,7 @@ func (*schemaSuite) TestSchemaAtTopLevel(c *C) {
 		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
 
-		schemas, err := schema.SchemaAt([]string{"foo"})
+		schemas, err := schema.SchemaAt(parsePath(c, "foo"))
 		c.Assert(err, IsNil, cmt)
 		types := schemasToTypes(schemas)
 		c.Assert(types, testutil.DeepUnsortedMatches, []confdb.SchemaType{tc.schemaType}, cmt)
@@ -2224,7 +2224,7 @@ func (*schemaSuite) TestSchemaAtNestedMapWithSchema(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.bar"))
 	c.Assert(err, IsNil)
 	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 }
@@ -2241,7 +2241,7 @@ func (*schemaSuite) TestSchemaAtNestedInMapWithValues(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.bar"))
 	c.Assert(err, IsNil)
 	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 }
@@ -2259,7 +2259,11 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, indexPart := range []string{"[0]", "[{n}]"} {
-		schemas, err := schema.SchemaAt([]string{"foo", indexPart})
+		opts := confdb.ParseOptions{AllowPlaceholders: true}
+		path, err := confdb.ParsePathIntoAccessors("foo"+indexPart, opts)
+		c.Assert(err, IsNil)
+
+		schemas, err := schema.SchemaAt(path)
 		c.Assert(err, IsNil)
 		c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 	}
@@ -2282,7 +2286,7 @@ func (*schemaSuite) TestSchemaAtInUserDefinedType(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.bar"))
 	c.Assert(err, IsNil)
 	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 }
@@ -2298,7 +2302,7 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
 		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
 
-		schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+		schemas, err := schema.SchemaAt(parsePath(c, "foo.bar"))
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot follow path beyond %q type`, typ), cmt)
 		c.Assert(schemas, IsNil, cmt)
 	}
@@ -2313,7 +2317,7 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaContainerSchema(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "[0]", "bar"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo[0].bar"))
 	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
 }
@@ -2327,7 +2331,7 @@ func (*schemaSuite) TestSchemaAtBadPathArray(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "b"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.b"))
 	c.Assert(err, ErrorMatches, `key "b" cannot be used to index array`)
 	c.Assert(schemas, IsNil)
 }
@@ -2345,7 +2349,7 @@ func (*schemaSuite) TestSchemaAtBadPathMap(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.baz"))
 	c.Assert(err, ErrorMatches, `cannot use "baz" as key in map`)
 	c.Assert(schemas, IsNil)
 }
@@ -2359,7 +2363,7 @@ func (*schemaSuite) TestSchemaAtAlternativesDifferentDepthsHappy(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.bar"))
 	c.Assert(err, IsNil)
 	c.Assert(schemasToTypes(schemas), DeepEquals, []confdb.SchemaType{confdb.String})
 }
@@ -2373,7 +2377,7 @@ func (*schemaSuite) TestSchemaAtAlternativesFail(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.bar"))
 	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
 }
@@ -2387,7 +2391,7 @@ func (*schemaSuite) TestSchemaAtAnyAcceptsLongerPath(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
+	schemas, err := schema.SchemaAt(parsePath(c, "foo.baz"))
 	c.Assert(err, IsNil)
 	c.Assert(schemas, NotNil)
 }
@@ -2420,7 +2424,7 @@ func (*schemaSuite) TestEphemeralAllTypes(c *C) {
 		schema, err := confdb.ParseStorageSchema(schemaStr)
 		c.Assert(err, IsNil, cmt)
 
-		nestedSchema, err := schema.SchemaAt([]string{"foo"})
+		nestedSchema, err := schema.SchemaAt(parsePath(c, "foo"))
 		c.Assert(err, IsNil, cmt)
 		c.Assert(nestedSchema, HasLen, 1, cmt)
 		c.Check(nestedSchema[0].Ephemeral(), Equals, true, cmt)
@@ -2444,7 +2448,7 @@ func (*schemaSuite) TestAlternativesAllEphemeralOk(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(schema.NestedEphemeral(), Equals, true)
 
-	nestedSchema, err := schema.SchemaAt([]string{"foo"})
+	nestedSchema, err := schema.SchemaAt(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(nestedSchema, HasLen, 2)
 	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
@@ -2516,7 +2520,7 @@ func (*schemaSuite) TestUserTypeReferenceEphemeral(c *C) {
 	schema, err := confdb.ParseStorageSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	nestedSchema, err := schema.SchemaAt([]string{"foo"})
+	nestedSchema, err := schema.SchemaAt(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(nestedSchema, HasLen, 1)
 	c.Assert(nestedSchema[0].Ephemeral(), Equals, true)
@@ -2560,41 +2564,41 @@ func (*schemaSuite) TestNestedEphemeralOnlyNestedType(c *C) {
 	c.Assert(err, IsNil)
 
 	type testcase struct {
-		path []string
+		path string
 		eph  bool
 	}
 
 	tcs := []testcase{
 		{
-			path: []string{"map-schema"},
+			path: "map-schema",
 			eph:  true,
 		},
 		{
-			path: []string{"map-schema", "bar"},
+			path: "map-schema.bar",
 			eph:  true,
 		},
 		{
-			path: []string{"map-schema", "baz"},
+			path: "map-schema.baz",
 			eph:  false,
 		},
 		{
-			path: []string{"map-values"},
+			path: "map-values",
 			eph:  true,
 		},
 		{
-			path: []string{"map-keys"},
+			path: "map-keys",
 			eph:  true,
 		},
 
 		{
-			path: []string{"arr"},
+			path: "arr",
 			eph:  true,
 		},
 	}
 
 	for i, tc := range tcs {
 		cmt := Commentf("failed test case %d", i)
-		nestedSchema, err := schema.SchemaAt(tc.path)
+		nestedSchema, err := schema.SchemaAt(parsePath(c, tc.path))
 		c.Assert(err, IsNil, cmt)
 		c.Assert(nestedSchema, HasLen, 1, cmt)
 		c.Check(nestedSchema[0].NestedEphemeral(), Equals, tc.eph, cmt)

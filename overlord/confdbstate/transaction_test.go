@@ -70,14 +70,14 @@ func (s *transactionTestSuite) TestSet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 	c.Assert(s.writeCalled, Equals, 0)
 
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	_, err = bag.Get("foo")
+	_, err = bag.Get(parsePath(c, "foo"))
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 }
 
@@ -86,7 +86,7 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 	c.Assert(s.writeCalled, Equals, 0)
@@ -97,7 +97,7 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	value, err := bag.Get("foo")
+	value, err := bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 	c.Assert(s.writeCalled, Equals, 1)
@@ -110,10 +110,10 @@ func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = bag.Set("foo", "bar")
+	err = bag.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "baz")
+	err = tx.Set(parsePath(c, "foo"), "baz")
 	c.Assert(err, IsNil)
 
 	// nothing was committed
@@ -122,7 +122,7 @@ func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	// but Data shows uncommitted data
 	c.Assert(txData(c, tx), Equals, `{"foo":"baz"}`)
 
-	val, err := tx.Get("foo")
+	val, err := tx.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "baz")
 }
@@ -135,7 +135,7 @@ func (f *failingSchema) Validate([]byte) error {
 	return f.err
 }
 
-func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) {
+func (f *failingSchema) SchemaAt(path []confdb.Accessor) ([]confdb.DatabagSchema, error) {
 	return []confdb.DatabagSchema{f}, nil
 }
 
@@ -147,7 +147,7 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	err = tx.Commit(s.state, &failingSchema{err: errors.New("expected error")})
@@ -158,11 +158,11 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	_, err = bag.Get("foo")
+	_, err = bag.Get(parsePath(c, "foo"))
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 
 	// but subsequent Gets still read the uncommitted values
-	val, err := tx.Get("foo")
+	val, err := tx.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 }
@@ -171,9 +171,9 @@ func (s *transactionTestSuite) TestManyWrites(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
-	err = tx.Set("foo", "baz")
+	err = tx.Set(parsePath(c, "foo"), "baz")
 	c.Assert(err, IsNil)
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
@@ -186,7 +186,7 @@ func (s *transactionTestSuite) TestManyWrites(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	value, err := bag.Get("foo")
+	value, err := bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -196,13 +196,13 @@ func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.readCalled, Equals, 1)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = bag.Set("bar", "baz")
+	err = bag.Set(parsePath(c, "bar"), "baz")
 	c.Assert(err, IsNil)
 	err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
@@ -217,12 +217,12 @@ func (s *transactionTestSuite) TestCommittedIncludesRecentWrites(c *C) {
 	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	value, err := bag.Get("foo")
+	value, err := bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
 	// contains recent values not written by the transaction
-	value, err = bag.Get("bar")
+	value, err = bag.Get(parsePath(c, "bar"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -234,10 +234,10 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	txTwo, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = txOne.Set("foo", "bar")
+	err = txOne.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
-	err = txTwo.Set("bar", "baz")
+	err = txTwo.Set(parsePath(c, "bar"), "baz")
 	c.Assert(err, IsNil)
 
 	err = txOne.Commit(s.state, confdb.NewJSONSchema())
@@ -246,11 +246,11 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	value, err := bag.Get("foo")
+	value, err := bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
-	value, err = bag.Get("bar")
+	value, err = bag.Get(parsePath(c, "bar"))
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 	c.Assert(value, IsNil)
 
@@ -260,11 +260,11 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	value, err = bag.Get("foo")
+	value, err = bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
-	value, err = bag.Get("bar")
+	value, err = bag.Get(parsePath(c, "bar"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -311,10 +311,10 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = bag.Set("foo", "bar")
+	err = bag.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
-	_, err = tx.Get("foo")
+	_, err = tx.Get(parsePath(c, "foo"))
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 }
 
@@ -322,7 +322,7 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
@@ -331,11 +331,11 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 	bag, err := confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get("foo")
+	val, err := bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 
-	err = tx.Unset("foo")
+	err = tx.Unset(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
@@ -343,13 +343,13 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 
 	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
-	_, err = bag.Get("foo")
+	_, err = bag.Get(parsePath(c, "foo"))
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 }
 
 func (s *transactionTestSuite) TestSerializable(c *C) {
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("other", "value")
+	err := bag.Set(parsePath(c, "other"), "value")
 	c.Assert(err, IsNil)
 
 	err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
@@ -358,7 +358,7 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	jsonData, err := json.Marshal(tx)
@@ -369,7 +369,7 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	c.Assert(err, IsNil)
 
 	// transaction deltas are preserved
-	val, err := tx.Get("foo")
+	val, err := tx.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 
@@ -380,11 +380,11 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	value, err := bag.Get("foo")
+	value, err := bag.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
-	value, err = bag.Get("other")
+	value, err = bag.Get(parsePath(c, "other"))
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "value")
 }
@@ -399,10 +399,10 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
-	val, err := tx.Get("foo")
+	val, err := tx.Get(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 	c.Check(val, Equals, "bar")
 
@@ -412,16 +412,16 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	c.Assert(reason, Equals, "don't like the changes")
 	c.Assert(snap, Equals, "my-snap")
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
 	err = tx.Clear(s.state)
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
-	err = tx.Unset("foo")
+	err = tx.Unset(parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
-	_, err = tx.Get("foo")
+	_, err = tx.Get(parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
 
 	_, err = tx.Data()
@@ -433,7 +433,7 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 
 func (s *transactionTestSuite) TestTransactionPrevious(c *C) {
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("foo", "bar")
+	err := bag.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
@@ -442,12 +442,12 @@ func (s *transactionTestSuite) TestTransactionPrevious(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "baz")
+	err = tx.Set(parsePath(c, "foo"), "baz")
 	c.Assert(err, IsNil)
 
 	checkPrevious := func() {
 		previousBag := tx.Previous()
-		val, err := previousBag.Get("foo")
+		val, err := previousBag.Get(parsePath(c, "foo"))
 		c.Assert(err, IsNil)
 		c.Check(val, Equals, "bar")
 	}

@@ -405,6 +405,12 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Check(string(stderr), Equals, "")
 }
 
+func parsePath(c *C, path string) []confdb.Accessor {
+	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+	return accs
+}
+
 func (s *confdbSuite) TestConfdbSetSingleView(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
@@ -424,7 +430,7 @@ func (s *confdbSuite) TestConfdbSetSingleView(c *C) {
 	c.Assert(s.mockContext.Done(), IsNil)
 	s.mockContext.Unlock()
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "other-ssid")
 }
@@ -453,7 +459,7 @@ func (s *confdbSuite) TestConfdbSetSingleViewNewTransaction(c *C) {
 
 	c.Assert(called, Equals, true)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "other-ssid")
 }
@@ -474,11 +480,11 @@ func (s *confdbSuite) TestConfdbSetManyViews(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "other-ssid")
 
-	val, err = tx.Get("wifi.psk")
+	val, err = tx.Get(parsePath(c, "wifi.psk"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "other-secret")
 }
@@ -514,10 +520,10 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "foo")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.psk", "bar")
+	err = tx.Set(parsePath(c, "wifi.psk"), "bar")
 	c.Assert(err, IsNil)
 
 	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
@@ -530,10 +536,10 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	_, err = tx.Get("wifi.psk")
+	_, err = tx.Get(parsePath(c, "wifi.psk"))
 	c.Assert(err, ErrorMatches, "no value was found under path \"wifi.psk\"")
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }
