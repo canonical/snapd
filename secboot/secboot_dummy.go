@@ -41,7 +41,7 @@ type KeyProtector interface {
 
 var ErrNoKeyProtector = errors.New("cannot find supported FDE key protector")
 
-func HookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+func FDESetupHookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
 	return nil
 }
 

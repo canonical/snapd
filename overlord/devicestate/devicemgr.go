@@ -2759,7 +2759,7 @@ func (m *DeviceManager) hookKeyProtectorFactory(kernelInfo *snap.Info) (secboot.
 	}
 
 	if _, ok := kernelInfo.Hooks["fde-setup"]; ok {
-		return secboot.HookKeyProtectorFactory(m.runFDESetupHook), nil
+		return secboot.FDESetupHookKeyProtectorFactory(m.runFDESetupHook), nil
 	}
 
 	// TODO: add OPTEE support here when available

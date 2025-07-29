@@ -92,7 +92,10 @@ func (f *fdeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
 	}
 }
 
-func HookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+// FDESetupHookKeyProtectorFactory returns a [KeyProtectorFactory] that will use
+// the kernel's fde-setup hook to protect the key, invoked via the given
+// runHook.
+func FDESetupHookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
 	return &fdeKeyProtectorFactory{runHook: runHook}
 }
 
