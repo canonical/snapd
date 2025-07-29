@@ -445,15 +445,22 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 
 func assembleSysrootMountUnitContent(what, mntType string, opts []string) string {
 	var typ string
-	optionStr := ""
+
 	if mntType == "" {
-		typ = "Type=none\nOptions=bind"
-	} else {
-		typ = fmt.Sprintf("Type=%s", mntType)
-		if len(opts) != 0 {
-			optionStr = "\nOptions=" + strings.Join(opts, ",")
-		}
+		mntType = "none"
 	}
+
+	if mntType == "none" {
+		opts = append(opts, "bind")
+	}
+
+	typ = fmt.Sprintf("Type=%s", mntType)
+
+	optionStr := ""
+	if len(opts) != 0 {
+		optionStr = "\nOptions=" + strings.Join(opts, ",")
+	}
+
 	content := fmt.Sprintf(`[Unit]
 DefaultDependencies=no
 Before=initrd-root-fs.target
