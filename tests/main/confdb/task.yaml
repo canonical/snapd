@@ -42,9 +42,21 @@ execute: |
   snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
   snap set developer1/network/wifi-setup private.your-company!
 
-  # check writing and reading different types
+  # check setting lists with different types
   snap set -t developer1/network/wifi-setup ssids='["one", 2]'
-  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH '["one", 2]'
+  snap set developer1/network/wifi-setup ssids[0]=two
+  # read specific index
+  snap get developer1/network/wifi-setup ssids[0] | MATCH 'two'
+
+  # append to the list
+  snap set developer1/network/wifi-setup ssids[2]=true
+  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH "\[\"two\",2,true\]"
+
+  # remove at the middle and at the end (both with unset and set!)
+  snap unset developer1/network/wifi-setup ssids[1]
+  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH "\[\"two\",true\]"
+  snap set developer1/network/wifi-setup ssids[1]!
+  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH "\[\"two\"\]"
 
   # check access control
   snap set developer1/network/wifi-setup status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" through developer1/network/wifi-setup: no matching rule'

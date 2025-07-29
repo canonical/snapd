@@ -6,7 +6,7 @@
 	"views": {
 		"wifi-setup": {
 			"rules": [
-				{"request": "ssids", "storage": "wifi.ssids"},
+				{"request": "ssids", "storage": "wifi.ssids", "content": [{"request": "[{n}]", "storage": "[{n}]"}]},
 				{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
 				{"request": "password", "storage": "wifi.psk", "access": "write"},
 				{"request": "status", "storage": "wifi.status", "access": "read"},

@@ -58,6 +58,10 @@ views:
   wifi-setup:
     rules:
       -
+        content:
+          -
+            request: [{n}]
+            storage: [{n}]
         request: ssids
         storage: wifi.ssids
       -
@@ -88,13 +92,13 @@ sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11m
   }
 }
 
-AcLBUgQAAQoABgUCZ8cpDgAAHLgQAFpXnEway2Q2LKqA8T+W86rhs5g+7xoqds5gUVt9uJv2PE6t
-0+9dmaWbtAFKLuT0uKE44oR5VwM55L9AoPcEQzajhBe7gnimpz1STEhut6UBjq5ZUMGdxzkn7gTZ
-SBvJwi9+jm7QLwMW4B95woiW9WpPE7UHGzz6L3HB1vggDiUWW1TByx5H3uogaX/1Hn1CwILRrE6k
-znxYuAi9GgXf6FzB+QHWZyNZ1ASojzjotBogZNurco7pzsHzqpI+nvkbV0y3OQrSHYXPAtAhPPlu
-u/xUInvHixG1h+wQ+LkzLvGL/BvfUzGe3/lHgPhvatjswjZqWqunb7/XdNUPQcms64WJVH2slN4s
-4bG8M3UXdjQPjIpJoYKc8Y+TDEiZ8YwNEH7OuB1WAmlifKT6BbrcFBg9qYrcAEw9YWSU/ROqz1aQ
-8Audx4Qf6cZ0L992iQP/E9/Df8QbZ5yW9WViNPm87WcYfrITgsMmB5rXL1Dc0ix+YVB8I8gAQqby
-TH55ipXICbpo+tgd3fz/42SraebXAWoxLatpb2etKZPIu8yaYWhAqWtz0f4IPXfzJZJogmgRs77K
-+YuXxRsHg5uXN4Iayz4uQMrGIO5udnxeArmaX4CujRGATqxNw/PplQTok+A9DvcX/HdYHQWhkmtU
-xaLdVzIC1l2eY6jb4aC66PRPvdSR
+AcLBUgQAAQoABgUCaIjODQAAJZ8QAAvgv3oy4iOMLp1drGn9CWWoNX2ab4YRrEw5KGhBvqljTkmt
+RxaFBXecEreGYEc/WKBFhgeslDlAKQCz4IUqFY+Gqu70FUU2f/hYAfnFTuRYbDy1v8GJkpCLyzWV
+FAC1mZISwPvwQeXyYBTQLlMHc6H3E3DXWIivSG9XfceSAGxjvQYQDjs2RCJ6CjdsyhaXnH7yQKEO
+sR0t78PjDrJbnDBCZgPhw3tXBQj7JaGX9kJc7WT8Z6py2kV7MjnItrVQRi+T9sZ8BcRDLR6R/hpd
+TvxXOpMBECp5Ny6Mj/B5WsdD7MqjgYTipNWW5+75MNof/1izA7NLokIkA4AeErRUHl2AJXv92zmn
+kJFNrVlIKF6QFVTNPfTLGeCKEc/Lb918RIjr1EV8vk/PVvaqGrcLP67EgI3cOSM+6aEiLOvQ7qrq
+Z0diQozn3i6CT0uwOo3G1mc49RPXVaDqQ/OqAZEsBUN6BpbVDTU07hHiciNhyOvpmtTRT/STEX6p
+AWZ5gl+rTdEsKrfrG54SCtJTg7mx3wbAtnLkRUWMb5IL16FmQsi8TRyZ3c9J/T+W//K/larRJqlK
+ID84AHnrCDym0BFzjvQVf03yUY5CHCuL+n/4VhlFVnGLB3sT/iFAQ1YxyhiUW7tcxSRqY9GixArI
+B+K2PjDpYnuDbL/7lf7r+mo4kKhK
