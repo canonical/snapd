@@ -23,6 +23,7 @@ from features import SystemFeatures, TaskFeatures, Cmd, Endpoint, Change, Task, 
 
 class DictRetriever(query_features.Retriever):
     def __init__(self, data, all_features=None):
+        super().__init__()
         self.data = data
         self.all_features = all_features
 
@@ -32,16 +33,16 @@ class DictRetriever(query_features.Retriever):
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, list[str]]]:
         pass
 
-    def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
+    def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         return deepcopy(self.data[timestamp][system])
 
-    def get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:    
+    def _get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:    
         if systems:
             return [deepcopy(self.data[timestamp][system]) for system in systems]
         else:
             return [deepcopy(data) for _, data in self.data[timestamp].items()]
 
-    def get_all_features(self, timestamp):
+    def _get_all_features(self, timestamp):
         return deepcopy(self.all_features[timestamp])
 
 
@@ -107,6 +108,7 @@ class MongoMocker:
         data = self.collection_data
 
         def my_init(self, *_):
+            super(query_features.MongoRetriever, self).__init__()
             self.collection = FakeMongoCollection(data)
             self.client = FakeClient()
         self.patch_mongo = patch.object(
@@ -724,6 +726,86 @@ class TestQueryFeatures:
         assert TaskIdVariant(suite='suite1',task_name='task1',variant='') in tasks
         assert TaskIdVariant(suite='suite2',task_name='task2',variant='v1') in tasks
         assert TaskIdVariant(suite='suite2',task_name='task1',variant='v1') in tasks
+
+
+    def test_sys_caching(self):
+        data = {'timestamp1': {
+                'system1': {'system':'system1', 'tests': [
+                    TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
+                                cmds=[Cmd(cmd="some command")])]},
+                'system2': {'system':'system2', 'tests': [
+                    TaskFeatures(suite='suite2', task_name='task2', success=True, variant='',
+                                cmds=[Cmd(cmd="system2")]),]}},}
+        retriever = DictRetriever(data)
+        retriever.get_single_json('timestamp1', 'system1')
+        assert len(retriever.cache) == 0
+        res = retriever.get_systems('timestamp1', ['system1'])
+        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'some command'
+
+        # Before data is cached, it's possible to overwrite values
+        retriever.data['timestamp1']['system1']['tests'][0]['cmds'][0]['cmd'] = 'system1'
+        res = retriever.get_systems('timestamp1', ['system1'])
+        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'system1'
+        assert len(retriever.cache) == 0
+
+        # By calling get_systems without specifying a system list, the base
+        # class will cache the result
+        retriever.get_systems('timestamp1')
+        assert len(retriever.cache) == 1
+        assert 'timestamp1' in retriever.cache
+        assert 'systems' in retriever.cache['timestamp1']
+
+        # To prove the cached data is being used, here we change the underlying data
+        retriever.data['timestamp1']['system1']['tests'][0]['cmds'][0]['cmd'] = 'new'
+        res = retriever.get_single_json('timestamp1', 'system1')
+        assert res['tests'][0]['cmds'][0]['cmd'] == 'system1'
+
+        # get_systems and get_single_json all use the cached data
+        res = retriever.get_systems('timestamp1', ['system1'])
+        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'system1'
+        res = retriever.get_systems('timestamp1')
+        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'system1'
+        res = retriever.get_single_json('timestamp1', 'system1')
+        assert res['tests'][0]['cmds'][0]['cmd'] == 'system1'
+
+
+    def test_all_features_caching(self):
+        data = {'timestamp1': {'system': {'tests': [
+            TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
+                         cmds=[Cmd(cmd="snap list")],
+                         endpoints=[
+                             Endpoint(method="GET", path="/v2/snaps")],
+                         changes=[Change(kind="install-snap", snap_types=["app"])]),
+            TaskFeatures(suite='suite2', task_name='task2', success=True, variant='v1',
+                         cmds=[Cmd(cmd="snap pack"),
+                               Cmd(cmd="snap debug api")],
+                         endpoints=[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")]),
+            TaskFeatures(suite='suite2', task_name='task1', success=False, variant='v1',
+                         cmds=[Cmd(cmd="snap routine file-access")],
+                         endpoints=[Endpoint(method="POST", path="/v2/system-info", action="advise-system-key-mismatch")]),
+                         ]}}}
+        all_features = {'timestamp1': {
+            'cmds':[cmd for entry in data['timestamp1']['system']['tests'] if 'cmds' in entry for cmd in entry['cmds']],
+            'endpoints':[endpt for entry in data['timestamp1']['system']['tests'] if 'endpoints' in entry for endpt in entry['endpoints']],
+            'changes':[Change(kind="install-snap"),Change(kind="create-recovery-system")],
+            'ensures':[Ensure(manager="SnapManager",function="myFunction")],
+            'interfaces':[Interface(name="iface")],
+            'tasks':[Task(kind="refresh", last_status="Done")]}}
+        
+        retriever = DictRetriever(data, all_features)
+        
+        assert len(retriever.cache) == 0
+        retriever.get_all_features('timestamp1')
+        assert len(retriever.cache) == 1
+        assert 'timestamp1' in retriever.cache
+        assert 'all-features' in retriever.cache['timestamp1']
+
+        # all-features is now cached. To prove the result
+        # comes from the cache, here we overwrite some data
+        # and see the original values reflected in the output
+        retriever.all_features['cmds'] = []
+        res = retriever.get_all_features('timestamp1')
+        assert len(res['cmds']) > 0
 
 
 
