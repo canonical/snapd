@@ -294,3 +294,12 @@ void sc_string_split(const char *string, char delimiter, char *prefix_buf, size_
         suffix_buf[suffix_len] = '\0';
     }
 }
+
+char *sc_str_chomp(char *string) {
+    size_t len = strlen(string);
+    if (len > 0 && string[len - 1] == '\n') {
+        string[len - 1] = '\0';
+    }
+
+    return string;
+}
