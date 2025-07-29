@@ -221,7 +221,7 @@ endif
 # output that unit tests do not mock.
 .PHONY: check
 check:
-	LC_ALL=C.UTF-8 go test $(GO_MOD) $(import_path)/...
+	LC_ALL=C.UTF-8 go test $(GO_MOD) $(if $(GO_TAGS),-tags "$(GO_TAGS)") $(import_path)/...
 
 .PHONY: clean
 clean:
