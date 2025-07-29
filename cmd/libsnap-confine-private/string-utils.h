@@ -122,4 +122,9 @@ void sc_string_quote(char *buf, size_t buf_size, const char *str);
 void sc_string_split(const char *string, char delimiter, char *prefix_buf, size_t prefix_size, char *suffix_buf,
                      size_t suffix_size);
 
+/**
+ * Removes line ends at the end of the string.
+ **/
+char *sc_str_chomp(char *string);
+
 #endif
