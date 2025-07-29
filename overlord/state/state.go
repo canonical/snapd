@@ -506,7 +506,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 	s.pruneWarnings(now)
 
 	for k, n := range s.notices {
-		if n.expired(now) {
+		if n.Expired(now) {
 			delete(s.notices, k)
 		}
 	}

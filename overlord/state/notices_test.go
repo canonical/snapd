@@ -46,12 +46,15 @@ func (s *noticesSuite) TestNewNotice(c *C) {
 	notice := state.NewNotice(id, &userID, nType, key, timestamp, data, repeatAfter, expireAfter)
 
 	// Check the fields which are exported via methods for correctness
+	c.Check(notice.ID(), Equals, id)
 	c.Check(notice.String(), Equals, "Notice foo (123:bar:baz)")
 	uid, isSet := notice.UserID()
 	c.Check(uid, Equals, userID)
 	c.Check(isSet, Equals, true)
 	c.Check(notice.Type(), Equals, nType)
+	c.Check(notice.Key(), Equals, key)
 	c.Check(notice.LastRepeated(), Equals, timestamp)
+	c.Check(notice.LastData(), DeepEquals, data)
 	// TODO: expand method checks when more public methods are added
 	n := noticeToMap(c, notice)
 	c.Check(n["id"], Equals, id)
