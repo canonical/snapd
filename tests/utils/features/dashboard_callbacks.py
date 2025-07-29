@@ -487,7 +487,7 @@ def populate_feature_table(timestamp, selected_feature, add_freq):
     for feature in feature_data:
         feat_dict = {}
         if add_freq:
-            feat_dict["#"] = len(
+            feat_dict["number-of-tests-with-feature"] = len(
                 get_task_list_from_dict(
                     qf.find_feat(retriever, timestamp, feature, False)
                 )
@@ -497,7 +497,7 @@ def populate_feature_table(timestamp, selected_feature, add_freq):
         processed.append(feat_dict)
     cols = get_columns_from_list_of_dicts(feature_data)
     if add_freq:
-        cols = [{"name": "#", "id": "#"}] + cols
+        cols = [{"name": "Number of tests with feature", "id": "number-of-tests-with-feature"}] + cols
 
     if add_freq:
         if timestamp not in cached_feat_explore:
@@ -523,8 +523,8 @@ def update_test_list(active_cell, table_data, timestamp, selected_feature):
     row_idx = active_cell["row"]
 
     feature = copy.deepcopy(table_data[row_idx])
-    if "#" in feature:
-        del feature["#"]
+    if "number-of-tests-with-feature" in feature:
+        del feature["number-of-tests-with-feature"]
 
     tests = qf.find_feat(retriever, timestamp, feature, False)
 
