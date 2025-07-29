@@ -1742,6 +1742,7 @@ prepare_ubuntu_core() {
     # This is not needed in classic systems becuase the images already have ntp configured
     if [ -n "${NTP_SERVER:-}" ]; then
         sed -i "s/^#NTP=.*/NTP=$NTP_SERVER/" /etc/systemd/timesyncd.conf
+        systemctl daemon-reload
         systemctl restart systemd-timesyncd
     fi
 
