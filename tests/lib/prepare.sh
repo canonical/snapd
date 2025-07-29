@@ -1515,6 +1515,18 @@ EOF
         # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
             unsquashfs -d "${BASE}-snap" "${BASE}.snap"
+
+            # We setup the ntp server in case it is defined in the current env
+            # This is not needed in classic systems becuase the images already have ntp configured
+            if [ -n "${NTP_SERVER:-}" ]; then
+                TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
+                if [ -z "$TARGET_TIME_CONF" ]; then
+                    echo "File timesyncd.conf not found in core image"
+                    exit 1
+                fi
+                cp /etc/systemd/timesyncd.conf "$TARGET_TIME_CONF"
+            fi
+
             snap pack --filename="${BASE}-repacked.snap" "${BASE}-snap"
             rm -r "${BASE}-snap"
             mv "${BASE}-repacked.snap" "${IMAGE_HOME}/${BASE}.snap"
@@ -1737,14 +1749,6 @@ prepare_ubuntu_core() {
         REBOOT
     fi
     setup_snapd_proxy
-
-    # We setup the ntp server in case it is defined in the current env
-    # This is not needed in classic systems becuase the images already have ntp configured
-    if [ -n "${NTP_SERVER:-}" ]; then
-        sed -i "s/^#NTP=.*/NTP=$NTP_SERVER/" /etc/systemd/timesyncd.conf
-        systemctl daemon-reload
-        systemctl restart systemd-timesyncd
-    fi
 
     disable_journald_rate_limiting
     disable_journald_start_limiting
