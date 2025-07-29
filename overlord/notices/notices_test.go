@@ -418,6 +418,45 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	}
 }
 
+func (s *noticesSuite) TestDrainNotices(c *C) {
+	uid := uint32(1000)
+
+	// Create some notices before creating the manager
+	s.st.Lock()
+	id1, err := s.st.AddNotice(&uid, state.WarningNotice, "foo", nil)
+	c.Assert(err, IsNil)
+	id2, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "bar", nil)
+	c.Assert(err, IsNil)
+	s.st.Unlock()
+
+	nm := notices.NewNoticeManager(s.st)
+
+	// Create some notices after creating the manager
+	s.st.Lock()
+	id3, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "baz", nil)
+	c.Assert(err, IsNil)
+	id4, err := s.st.AddNotice(&uid, state.WarningNotice, "qux", nil)
+	c.Assert(err, IsNil)
+	s.st.Unlock()
+
+	existing := nm.Notices(nil)
+	c.Assert(existing, HasLen, 4)
+	c.Assert(existing[0].ID(), Equals, id1)
+	c.Assert(existing[1].ID(), Equals, id2)
+	c.Assert(existing[2].ID(), Equals, id3)
+	c.Assert(existing[3].ID(), Equals, id4)
+
+	drained := nm.DrainNotices(state.WarningNotice)
+	c.Check(drained, HasLen, 2)
+	c.Check(drained[0].ID(), Equals, id1)
+	c.Check(drained[1].ID(), Equals, id4)
+
+	existing = nm.Notices(nil)
+	c.Check(existing, HasLen, 2)
+	c.Check(existing[0].ID(), Equals, id2)
+	c.Check(existing[1].ID(), Equals, id3)
+}
+
 func (s *noticesSuite) TestRelevantBackendsForFilter(c *C) {
 	nm := notices.NewNoticeManager(s.st)
 
