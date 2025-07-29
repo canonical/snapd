@@ -17,12 +17,20 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
 VERSION := $(shell dpkg-parsechangelog -S Version)
+DISTRO := $(shell dpkg-parsechangelog -S Distribution)
 
 ifneq (,$(findstring +fips,$(VERSION)))
 	# the version has +fips tag, we're building a FIPS variant
 	FIPSBUILD = 1
 else
 	FIPSBUILD = 0
+endif
+
+ifneq (,$(findstring noble,$(DISTRO)))
+	# noble and later will include the optee dependency
+	OPTEEBUILD = 1
+else
+	OPTEEBUILD = 0
 endif
 
 export PATH:=${PATH}:${CURDIR}
@@ -109,12 +117,12 @@ else
 	_SNAP_TAGS=nomanagers
 endif
 
-# Decision to not support optee (arm64, armhf only) on debs because focal build
-# fails due to missing build time dependency optee-client-dev.
-# TODO: The intention is to split control files for different releases, after
-# which point this build dependency can be enabled where its available.
-_TAGS := $(_TAGS),nooptee
-_SNAP_TAGS := $(_SNAP_TAGS),nooptee
+# We only want to support optee on noble releases and higher, due to the
+# optee-client-dev dependency.
+ifeq (${OPTEEBUILD},0)
+	_TAGS := $(_TAGS),nooptee
+	_SNAP_TAGS := $(_SNAP_TAGS),nooptee
+endif
 
 ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
