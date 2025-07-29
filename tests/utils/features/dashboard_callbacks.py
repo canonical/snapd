@@ -542,7 +542,8 @@ def update_test_list(active_cell, table_data, timestamp, selected_feature):
 
     for p in processed:
         s = json.dumps(p)
-        p["systems"] = " ".join(sorted(sys_dict[s]))
+        p["systems"] = "\n".join(sorted(sys_dict[s]))
+        p["systems"] = p["systems"].replace('-', '\u2011')
 
     return [
         html.H4(f"Tests that contain feature {feature}"),
@@ -558,10 +559,17 @@ def update_test_list(active_cell, table_data, timestamp, selected_feature):
             sort_action="native",
             style_cell={
                 "textAlign": "center",
-                "minWidth": "100px",
-                "maxWidth": "200px",
+                "maxWidth": "auto",
                 "whiteSpace": "normal",
             },
-            style_table={"overflowX": "auto", "maxWidth": "900px", "margin": "auto"},
+            style_data_conditional=[
+                {
+                    "if": {"column_id": "systems"},
+                    "whiteSpace": "pre-line",
+                    "maxWidth": "auto",
+                    "width": "auto",
+                }
+            ],
+            style_table={"overflowX": "auto", "maxWidth": "100%", "margin": "auto"},
         ),
     ]
