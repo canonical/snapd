@@ -1,0 +1,67 @@
+name: Build rpm package
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+
+jobs:
+  build-rpm:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download vendor
+      uses: actions/download-artifact@v4
+      with:
+        name: vendor-pkgs
+        path: /tmp/pkg
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        load: true
+        file: tests/lib/packaging/opensuse.dockerfile
+        tags: opensuse-leap-base:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run mock inside container
+      run: |
+        chmod -R 777 .
+        mkdir -p /tmp/builds
+        chmod -R 777 /tmp/builds
+        docker run --cap-add=SYS_ADMIN --rm \
+          --mount type=bind,src=$(pwd),dst=/root/snapd \
+          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
+          --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
+          opensuse-leap-base:latest \
+          bash -c "
+            cd /root/snapd && \
+            tests/lib/packaging/build-opensuse-leap.sh /tmp/pkg /tmp/builds
+          "
+        cd /tmp/builds
+        find . -name '*.rpm' -exec tar cvf package-opensuse-15.6-64.tar {} +
+
+
+    - name: Check logs if build failed
+      if: failure()
+      run: |
+        if [ -f /tmp/builds/build.log ]; then
+          cat /tmp/builds/build.log
+        fi
+
+    - name: upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-opensuse-15.6-64
+        path: /tmp/builds/package-opensuse-15.6-64.tar

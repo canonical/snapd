@@ -82,8 +82,6 @@ jobs:
           name: vendor-pkgs
           path: /tmp/pkg
 
-
-
   package-snapd-rpm:
     needs: create-vendor-dir
     uses: ./.github/workflows/rpm-builds.yaml
@@ -100,10 +98,16 @@ jobs:
           - { system: fedora-41-64,           pkg-dir: fedora-41,            config: fedora-41-x86_64           }
           - { system: fedora-42-64,           pkg-dir: fedora-42,            config: fedora-42-x86_64           }
           - { system: opensuse-tumbleweed-64, pkg-dir: opensuse-tumbleweed,  config: opensuse-tumbleweed-x86_64 }
-          - { system: opensuse-15.6-64,       pkg-dir: opensuse-15.6,        config: opensuse-leap-15.6-x86_64  }
           - { system: centos-9-64,            pkg-dir: centos-9,             config: centos-stream-9-x86_64     }
           - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
           - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
+
+  package-snapd-opensuse-leap-rpm:
+    needs: create-vendor-dir
+    uses: ./.github/workflows/opensuse-leap-builds.yaml
+    name: Package opensuse-15.6-64
+    with:
+      runs-on: '["ubuntu-latest"]'
 
   package-snapd-arch:
     needs: create-vendor-dir
@@ -489,6 +493,7 @@ jobs:
       - package-snapd-rpm
       - package-snapd-arch
       - package-snapd-deb
+      - package-snapd-opensuse-leap-rpm
     if: always() && 
         needs.read-systems.outputs.fundamental-systems != '' &&
         needs.read-systems.result == 'success' &&
@@ -529,6 +534,7 @@ jobs:
       - package-snapd-rpm
       - package-snapd-arch
       - package-snapd-deb
+      - package-snapd-opensuse-leap-rpm
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
     if: always() && 
@@ -575,6 +581,7 @@ jobs:
       - package-snapd-rpm
       - package-snapd-arch
       - package-snapd-deb
+      - package-snapd-opensuse-leap-rpm
     if: always () &&
         (
           github.event_name != 'pull_request' ||
@@ -615,6 +622,7 @@ jobs:
       - snap-builds
       - read-systems
       - package-snapd-deb
+      - package-snapd-opensuse-leap-rpm
     if: always() &&
         needs.read-systems.outputs.nested-systems != '' &&
         needs.unit-tests.result == 'success' &&
