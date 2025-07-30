@@ -41,6 +41,7 @@ message-kind: confdb
 devices:
   - generic.generic-classic.03961d5d-26e5
   - acme-corp.rpi5.66:c5:d7:14:84:f8
+  - some.very.long.device.id
 assumes:
   - snapd2.70
 valid-since: 2025-01-08T13:31:20+00:00
@@ -73,12 +74,13 @@ func (s *requestMessageSuite) TestDecodeOK(c *C) {
 	c.Check(req.AuthorityID(), Equals, "store")
 	c.Check(req.AccountID(), Equals, "account-id-1")
 	c.Check(req.ID(), Equals, "someId")
-	c.Check(req.SeqNum(), IsNil)
+	c.Check(req.SeqNum(), Equals, 0)
 	c.Check(req.Kind(), Equals, "confdb")
 
 	expectedDevices := []asserts.DeviceID{
 		{"generic", "generic-classic", "03961d5d-26e5"},
 		{"acme-corp", "rpi5", "66:c5:d7:14:84:f8"},
+		{"some", "very", "long.device.id"},
 	}
 	c.Check(req.Devices(), DeepEquals, expectedDevices)
 
@@ -96,7 +98,7 @@ func (s *requestMessageSuite) TestDecodeSequencedOK(c *C) {
 
 	req := a.(*asserts.RequestMessage)
 	c.Check(req.ID(), Equals, "someId")
-	c.Check(*req.SeqNum(), Equals, 4)
+	c.Check(req.SeqNum(), Equals, 4)
 }
 
 func (s *requestMessageSuite) TestDecodeNoAssumesOK(c *C) {
@@ -114,7 +116,11 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 	encoded := fmt.Sprintf(requestMessageExample, reqBodyExample)
 
 	const errPrefix = "assertion request-message: "
-	devices := "devices:\n  - generic.generic-classic.03961d5d-26e5\n  - acme-corp.rpi5.66:c5:d7:14:84:f8\n"
+	devices := `devices:
+  - generic.generic-classic.03961d5d-26e5
+  - acme-corp.rpi5.66:c5:d7:14:84:f8
+  - some.very.long.device.id
+`
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: account-id-1\n", "", `"account-id" header is mandatory`},
@@ -122,16 +128,16 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 		{"account-id: account-id-1\n", "account-id: @9\n", `invalid account id: @9`},
 		{"message-id: someId\n", "", `"message-id" header is mandatory`},
 		{"message-id: someId\n", "message-id: \n", `"message-id" header should not be empty`},
-		{"message-id: someId\n", "message-id: s#ome&Id\n", `"message-id" header contains invalid characters: "s#ome&Id"`},
-		{"message-id: someId\n", "message-id: someId-\n", `"message-id" header contains invalid characters: "someId-"`},
-		{"message-id: someId\n", "message-id: someId-abc\n", `"message-id" header contains invalid characters: "someId-abc"`},
+		{"message-id: someId\n", "message-id: s#ome&Id\n", "invalid message-id: s#ome&Id"},
+		{"message-id: someId\n", "message-id: someId-\n", "invalid message-id: someId-"},
+		{"message-id: someId\n", "message-id: someId-abc\n", "invalid message-id: someId-abc"},
+		{"message-id: someId\n", "message-id: someId-0\n", "invalid message-id: sequence number must be greater than 0"},
 		{"message-kind: confdb\n", "", `"message-kind" header is mandatory`},
 		{"message-kind: confdb\n", "message-kind: \n", `"message-kind" header should not be empty`},
 		{"message-kind: confdb\n", "message-kind: 23#s\n", `"message-kind" header contains invalid characters: "23#s"`},
 		{devices, "", `"devices" header must not be empty`},
 		{devices, "devices: \n", `"devices" header must be a list of strings`},
-		{devices, "devices:\n  - ab\n", `"devices" header contains an invalid element: "ab"`},
-		{devices, "devices:\n  - a.b.c.xy\n", `"devices" header contains an invalid element: "a.b.c.xy"`},
+		{devices, "devices:\n  - ab\n", "cannot parse device at position 1: invalid device id: ab"},
 		{devices, "devices:\n  - a#3.b.c\n", `cannot parse device at position 1: invalid brand-id: a#3`},
 		{devices, "devices:\n  - abc.x3#4.y\n", `cannot parse device at position 1: invalid model: x3#4`},
 		{"assumes:\n  - snapd2.70\n", "assumes:\n  - 345345\n", `"assumes" header contains an invalid element: "345345"`},

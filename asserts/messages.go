@@ -40,12 +40,29 @@ type DeviceID struct {
 	Serial  string
 }
 
+func newDeviceIDFromString(rawID string) (*DeviceID, error) {
+	parts := strings.SplitN(rawID, ".", 3)
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid device id: %s", rawID)
+	}
+
+	if !validAccountID.MatchString(parts[0]) {
+		return nil, fmt.Errorf("invalid brand-id: %s", parts[0])
+	}
+
+	if !validModel.MatchString(parts[1]) {
+		return nil, fmt.Errorf("invalid model: %s", parts[1])
+	}
+
+	return &DeviceID{BrandID: parts[0], Model: parts[1], Serial: parts[2]}, nil
+}
+
 // RequestMessage represents a request message assertion used to trigger actions on snapd.
 type RequestMessage struct {
 	assertionBase
 
 	id     string
-	seqNum *int
+	seqNum int
 
 	devices []DeviceID
 
@@ -65,8 +82,8 @@ func (req *RequestMessage) ID() string {
 	return req.id
 }
 
-// SeqNum returns the message's sequence number within a sequence, or nil if not sequenced.
-func (req *RequestMessage) SeqNum() *int {
+// SeqNum returns the message's sequence number within a sequence, or zero if not sequenced.
+func (req *RequestMessage) SeqNum() int {
 	return req.seqNum
 }
 
@@ -91,18 +108,9 @@ func assembleRequestMessage(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("invalid account id: %s", accountID)
 	}
 
-	rawID, err := checkStringMatches(assert.headers, "message-id", validMessageID)
+	id, seqNum, err := parseMessageID(assert.HeaderString("message-id"))
 	if err != nil {
 		return nil, err
-	}
-
-	id := rawID
-	var seqNum *int
-	dashIdx := strings.LastIndex(rawID, "-")
-	if dashIdx != -1 {
-		id = rawID[:dashIdx]
-		seq, _ := strconv.Atoi(rawID[dashIdx+1:])
-		seqNum = &seq
 	}
 
 	_, err = checkStringMatches(assert.headers, "message-kind", validMessageKind)
@@ -110,36 +118,12 @@ func assembleRequestMessage(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	validDeviceID := regexp.MustCompile(`^[^.]+\.[^.]+\.[^.]+$`)
-	devices, err := checkStringListMatches(assert.headers, "devices", validDeviceID)
+	deviceIDs, err := parseDevices(assert.headers)
 	if err != nil {
 		return nil, err
 	}
-	if len(devices) == 0 {
-		return nil, errors.New(`"devices" header must not be empty`)
-	}
 
-	var deviceIDs []DeviceID
-	for i, device := range devices {
-		errPrefix := fmt.Sprintf("cannot parse device at position %d", i+1)
-		parts := strings.Split(device, ".")
-
-		if !validAccountID.MatchString(parts[0]) {
-			return nil, fmt.Errorf("%s: invalid brand-id: %s", errPrefix, parts[0])
-		}
-
-		if !validModel.MatchString(parts[1]) {
-			return nil, fmt.Errorf("%s: invalid model: %s", errPrefix, parts[1])
-		}
-
-		deviceID := DeviceID{BrandID: parts[0], Model: parts[1], Serial: parts[2]}
-		deviceIDs = append(deviceIDs, deviceID)
-	}
-
-	// TODO: Update after refactoring overlord.snapstate.checkAssumes for reuse
-	// Currently matches snapd<version> or some[-feature]*
-	var validAssumesHeuristic = regexp.MustCompile(`^(?:snapd[1-9]\d*(?:\.\d+)*|[a-z]+(?:-[a-z]+)*)$`)
-	assumes, err := checkStringListMatches(assert.headers, "assumes", validAssumesHeuristic)
+	assumes, err := checkAssumes(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -167,4 +151,71 @@ func assembleRequestMessage(assert assertionBase) (Assertion, error) {
 		sinceUntil:    *sinceUntil,
 		timestamp:     timestamp,
 	}, nil
+}
+
+func parseMessageID(rawID string) (string, int, error) {
+	if !validMessageID.MatchString(rawID) {
+		return "", 0, fmt.Errorf("invalid message-id: %s", rawID)
+	}
+
+	id := rawID
+	var seqNum int
+	dashIdx := strings.LastIndex(rawID, "-")
+	if dashIdx != -1 {
+		id = rawID[:dashIdx]
+		seqNum, _ = strconv.Atoi(rawID[dashIdx+1:])
+
+		if seqNum == 0 {
+			return "", 0, errors.New("invalid message-id: sequence number must be greater than 0")
+		}
+	}
+
+	return id, seqNum, nil
+}
+
+func parseDevices(headers map[string]any) ([]DeviceID, error) {
+	devices, err := checkStringList(headers, "devices")
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) == 0 {
+		return nil, errors.New(`"devices" header must not be empty`)
+	}
+
+	var deviceIDs []DeviceID
+	for i, rawDeviceId := range devices {
+		deviceID, err := newDeviceIDFromString(rawDeviceId)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse device at position %d: %w", i+1, err)
+		}
+
+		deviceIDs = append(deviceIDs, *deviceID)
+	}
+
+	return deviceIDs, nil
+}
+
+// TODO: Update after refactoring overlord.snapstate.checkAssumes for reuse
+// Currently matches snapd<version> or some[-feature]*
+func checkAssumes(headers map[string]any) ([]string, error) {
+	var validAssumesHeuristic = regexp.MustCompile(`^(?:snapd[1-9]\d*(?:\.\d+)*|[a-z]+(?:-[a-z]+)*)$`)
+	return checkStringListMatches(headers, "assumes", validAssumesHeuristic)
+}
+
+func checkValidSinceUntilWhat(m map[string]any, what string) (*sinceUntil, error) {
+	since, err := checkRFC3339DateWhat(m, "valid-since", what)
+	if err != nil {
+		return nil, err
+	}
+
+	until, err := checkRFC3339DateWhat(m, "valid-until", what)
+	if err != nil {
+		return nil, err
+	}
+
+	if until.Before(since) {
+		return nil, fmt.Errorf("'valid-until' time cannot be before 'valid-since' time")
+	}
+
+	return &sinceUntil{since: since, until: until}, nil
 }
