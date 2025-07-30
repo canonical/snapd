@@ -62,7 +62,9 @@ The deferred `Unlock` will implicitly commit any working state mutations at the 
 
 Due to potential restarts (because of snapd updating itself, reboots or snapd being restarted on failure), the do or undo handler logic in a `Task` may be re-executed if it hasn't already completed. This necessitates the following considerations:
 -   on-disk/external state manipulation should be idempotent or equivalent
--   working state manipulation should either be idempotent or designed to combine working state mutations with setting the next status of the task. This approach currently requires using `Task.SetStatus` before returning from the handler
+-   working state manipulation should either be idempotent or designed to combine working state mutations with setting the next status of the task. This approach currently requires using `Task.SetStatus`(with `DoneStatus`or `UndoneStatus` as appropriate) before returning from the handler
+
+The latter is because exiting the handler and consequent unlocking will commit the workings state changes, but the automatic updating of the `Task`s status will happen only later in the `TaskRunner` after reacquiring the lock. So there's a window of time in which if snapd restarts it will reexecute the task with the working state changes already committed which it might not expect, respectively be able to handle.
 
 If slow operations need to be performed, the required `Unlock/Lock` should happen before any working state manipulation.
 
