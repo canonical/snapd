@@ -5645,7 +5645,7 @@ func (s *imageSuite) TestPrepareExtraAssertionsForbiddenType(c *C) {
 
 }
 
-func WriteSystemUserAssertion(c *C, brands *assertstest.SigningAccounts, user map[string]any, filename string, perm os.FileMode) {
+func writeSystemUserAssertion(c *C, brands *assertstest.SigningAccounts, user map[string]any, filename string, perm os.FileMode) {
 	systemUsers := []map[string]any{user}
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, perm)
 	c.Assert(err, IsNil)
@@ -5702,7 +5702,7 @@ func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, grade string, pa
 	}
 
 	systemUserAssert := filepath.Join(preparedir, "systemUser.assertion")
-	WriteSystemUserAssertion(c, s.Brands, user, systemUserAssert, 0644)
+	writeSystemUserAssertion(c, s.Brands, user, systemUserAssert, 0644)
 
 	err = image.Prepare(&image.Options{
 		ModelFile:  modelFn,
@@ -5714,7 +5714,7 @@ func (s *imageSuite) testPrepareExtraAssertionsSystemUser(c *C, grade string, pa
 		c.Assert(err.Error(), testutil.Contains, "seeding system-user assertions is allowed for dangerous grade model only")
 	} else {
 		if passwordUser {
-			c.Assert(err.Error(), testutil.Contains, "system-user assertions must not contain a password for security reasons, please use public key authentication instead")
+			c.Assert(err.Error(), testutil.Contains, "seeded system-user assertions must not contain a password for security reasons, please use public key authentication instead")
 		} else {
 			c.Assert(s.stderr.String(), testutil.Contains, `INFO: the provided system-user assertion for user guy will be imported on first boot`+"\n")
 		}

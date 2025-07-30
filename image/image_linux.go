@@ -162,7 +162,7 @@ func Prepare(opts *Options) error {
 			return fmt.Errorf("cannot read extra assertion: %s", err)
 		}
 		defer assertionsFile.Close()
-		extraAssertions, err := decodeExtraAssertions(model, assertionsFile)
+		extraAssertions, err := decodeExtraAssertions(assertionsFile, model.Grade())
 		if err != nil {
 			return err
 		}
@@ -1118,7 +1118,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	return s.finish()
 }
 
-func decodeExtraAssertions(model *asserts.Model, r io.Reader) ([]asserts.Assertion, error) {
+func decodeExtraAssertions(r io.Reader, grade asserts.ModelGrade) ([]asserts.Assertion, error) {
 	var extraAssertions []asserts.Assertion
 
 	dec := asserts.NewDecoder(r)
@@ -1135,11 +1135,11 @@ func decodeExtraAssertions(model *asserts.Model, r io.Reader) ([]asserts.Asserti
 		case asserts.SnapDeclarationType, asserts.SnapRevisionType, asserts.ModelType, asserts.SerialType, asserts.ValidationSetType:
 			return nil, fmt.Errorf("assertion type %v is not allowed for extra assertions", a.Type().Name)
 		case asserts.SystemUserType:
-			if model.Grade() != asserts.ModelDangerous {
+			if grade != asserts.ModelDangerous {
 				return nil, fmt.Errorf("seeding system-user assertions is allowed for dangerous grade model only")
 			}
 			if a.HeaderString("password") != "" {
-				return nil, fmt.Errorf("system-user assertions must not contain a password for security reasons, please use public key authentication instead")
+				return nil, fmt.Errorf("seeded system-user assertions must not contain a password for security reasons, please use public key authentication instead")
 			}
 			fmt.Fprintf(Stderr, "INFO: the provided system-user assertion for user %s will be imported on first boot\n", a.HeaderString("username"))
 		}
