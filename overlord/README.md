@@ -15,7 +15,7 @@ During startup, and after construction, an optional `StartUp` method is invoked 
 
 The *ensure loop* is intended to initiate any automatic state management and corresponding transitions, state repair, and any other consistency-maintaining operations.
 
-The other mechanism for state managers to perform their responsibilities is by providing implementations for different kind of `Task`s (see details in the next sections). Each state manager provides tasks for making changes related to their area to the system. For example `snapstate` `link-snap` tasks expose an installed snap to the system for use. Higher-level part of the system and the state managers themselves affect system changes by composing the right kind of tasks under a `state.Change`. Helpers used for this, usually return a `state.TaskSet`, are provided by the side of the managers code itself (e.g `snapstate.InstallOne`, `ifacestate.Connect`).
+The other mechanism for state managers to perform their responsibilities is by providing implementations for different kind of `Task`s (see details in the next sections). Each state manager provides tasks for making changes related to their area of the system. For example `snapstate`'s `link-snap` task exposes an installed snap to the system for use. Higher-level parts of the system and the state managers themselves affect system changes by composing the right kind of tasks under a `state.Change`. Helpers used for this usually return a `state.TaskSet`. These helpers are provided alongside of each manager's code (e.g `snapstate.InstallOne`, `ifacestate.Connect`).
 
 `state.Change`
 ---------------
@@ -33,7 +33,7 @@ The `state.TaskRunner` is responsible for `state.Change` and `state.Task` execut
 
 `TaskRunner` is wired into the *ensure loop* like a state manager. Its Ensure method is executed last for each loop. The method logic is responsible for spawning and managing goroutines that execute the `Task`s do or undo handlers.
 
-High-level part of the system can use `State.EnsureBefore` to have the *ensure loop* run before its normal schedule to process `Task`s needing execution.
+High-level parts of the system can use `State.EnsureBefore` to have the *ensure loop* run before its normal schedule to process `Task`s needing execution.
 
 During execution, a `Task` goes through a series of statuses.  These are represented by `state.Status` and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`. A Task needing execution is initially `DoStatus`. While the goroutine for its *do* logic is running it is in `DoingStatus`, respectively if the goroutine for its *undo* logic is running in `UndoingStatus` (after having been marked `UndoStatus` first).
 
@@ -73,7 +73,7 @@ See also the comment in `overlord/snapstate/handlers.go` about state locking.
 Testing `Task` handling logic
 ------------------------------
 
-Given the previous consideration is important that `Task` handler logic has tests:
+Given the previous consideration it is important that `Task` handler logic has tests:
 
 - ensuring that *undo* logic correctly matches and undoes what the *do* logic did
 - that task handling logic is idempotent, even if the task is only partially executed the first time around
@@ -98,4 +98,4 @@ Before running a task, the precondition predicates are invoked and, if none retu
 Cleanup logic
 --------------
 
-`Task`s can also have cleanup log registered for them (`TaskRunner.AddCleanup`), this logic is run only after the entire `Change` the `Task` belonged to is considered ready, which means this is not run under the protection of conflict logic anymore, so while it can be used to clean up temporary state belonging to the task, in all situations, success or not, it cannot touch state that can interfere with other `Change`s or the system in general.
+`Task`s can also have cleanup handlers registered for them with TaskRunner.AddCleanup`. This logic is run only after the entire `Change` the `Task` belonged to is considered ready, which means this is not run under the protection of conflict logic anymore, so while it can be used to clean up temporary state belonging to the task, in all situations, success or not, it cannot touch state that can interfere with other `Change`s or the system in general.
