@@ -779,12 +779,13 @@ func (s *noticesSuite) TestNotice(c *C) {
 	c.Check(result, IsNil)
 }
 
-func (s *noticesSuite) TestWaitNotices(c *C) {
+func (s *noticesSuite) prepareTestWaitNotices(c *C) (*notices.NoticeManager, []*testNoticeBackend, []*state.Notice) {
 	nm := notices.NewNoticeManager(s.st)
 
 	bknd1 := newTestNoticeBackend()
 	bknd2 := newTestNoticeBackend()
 	bknd3 := newTestNoticeBackend()
+	backends := []*testNoticeBackend{bknd1, bknd2, bknd3}
 
 	bknd1.noticesChan <- nil
 	_, err := nm.RegisterBackend(bknd1, state.WarningNotice, "foo")
@@ -812,38 +813,50 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	n3 := state.NewNotice("3", nil, "", "abc", time.Now(), nil, 0, 0)
 	n4 := state.NewNotice("4", nil, "", "abc", time.Now(), nil, 0, 0)
 
+	notices := []*state.Notice{n1, n2, n3, n4}
+
+	return nm, backends, notices
+}
+
+func (s *noticesSuite) TestWaitNoticesFilterOneBackend(c *C) {
+	nm, backends, notices := s.prepareTestWaitNotices(c)
+
 	// If filter only matches one backend, BackendWaitNotices is called on that
 	// backend directly, and returned. Other backends are not queried.
-	bknd2.waitNoticesChan <- []*state.Notice{n2, n3}
+	backends[1].waitNoticesChan <- []*state.Notice{notices[1], notices[2]}
 	filter := &state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}}
 	result, err := nm.WaitNotices(context.Background(), filter)
 	c.Assert(err, IsNil)
-	c.Check(result, DeepEquals, []*state.Notice{n2, n3})
-	receivedFilter := <-bknd2.waitNoticesFilterChan
+	c.Check(result, DeepEquals, []*state.Notice{notices[1], notices[2]})
+	receivedFilter := <-backends[1].waitNoticesFilterChan
 	c.Check(receivedFilter, DeepEquals, &state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+}
+
+func (s *noticesSuite) TestWaitNoticesExistingNotices(c *C) {
+	nm, backends, notices := s.prepareTestWaitNotices(c)
 
 	// If filter matches multiple backends, then each should queried for
 	// existing notices before or at the current time, and if one or more
 	// already has notices, then return them immediately, once all backends
 	// return.
-	bknd1.noticesChan <- []*state.Notice{n3, n1}
+	backends[0].noticesChan <- []*state.Notice{notices[2], notices[0]}
 	beforeTime := time.Now()
 	beforeOrAtFilterTime := beforeTime.Add(time.Hour)
-	// Simulate bknd2 being slow to return notices, and ensure its result is included.
+	// Simulate backends[1] being slow to return notices, and ensure its result is included.
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		bknd2.noticesChan <- []*state.Notice{n2}
+		backends[1].noticesChan <- []*state.Notice{notices[1]}
 	}()
-	filter = &state.NoticeFilter{
+	filter := &state.NoticeFilter{
 		Types:      []state.NoticeType{state.WarningNotice},
 		BeforeOrAt: beforeOrAtFilterTime,
 	}
-	result, err = nm.WaitNotices(context.Background(), filter)
+	result, err := nm.WaitNotices(context.Background(), filter)
 	afterTime := time.Now()
 	c.Assert(err, IsNil)
-	c.Check(result, DeepEquals, []*state.Notice{n1, n2, n3})
+	c.Check(result, DeepEquals, []*state.Notice{notices[0], notices[1], notices[2]})
 	// Check that the backends received a filter with BeforeOrAt set to the current time when called.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(receivedFilter.Types, DeepEquals, []state.NoticeType{state.WarningNotice})
 		c.Check(beforeTime.Before(receivedFilter.BeforeOrAt), Equals, true)
@@ -852,137 +865,150 @@ func (s *noticesSuite) TestWaitNotices(c *C) {
 	}
 	// Check that the original filter was not overwritten
 	c.Check(filter.BeforeOrAt, Equals, beforeOrAtFilterTime)
+}
+
+func (s *noticesSuite) TestWaitNoticesFilterInPast(c *C) {
+	nm, backends, _ := s.prepareTestWaitNotices(c)
 
 	// If filter matches multiple backends, then each should queried for
 	// existing notices before or at the current time, and if none have
 	// notices, and the BeforeOrAt filter is in the past, then return
 	// immediately, once all backends return.
-	bknd1.noticesChan <- nil
-	beforeTime = time.Now()
-	// Simulate bknd2 being slow to return, and test the result waited for it.
+	backends[0].noticesChan <- nil
+	beforeTime := time.Now()
+	// Simulate backends[1] being slow to return, and test the result waited for it.
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		bknd2.noticesChan <- nil
+		backends[1].noticesChan <- nil
 	}()
-	filter = &state.NoticeFilter{
+	filter := &state.NoticeFilter{
 		Types:      []state.NoticeType{state.WarningNotice},
 		BeforeOrAt: beforeTime, // this is in the past at call time
 	}
-	result, err = nm.WaitNotices(context.Background(), filter)
-	afterTime = time.Now()
+	result, err := nm.WaitNotices(context.Background(), filter)
+	afterTime := time.Now()
 	c.Check(beforeTime.Add(10*time.Millisecond).Before(afterTime), Equals, true)
 	c.Assert(err, IsNil)
 	c.Check(result, HasLen, 0)
 	// Check that the backends received a filter with BeforeOrAt unchanged from the original filter.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter)
 	}
 	// Check that the original filter was not overwritten
 	c.Check(filter.BeforeOrAt, Equals, beforeTime)
+}
+
+func (s *noticesSuite) TestWaitNoticesContextCancelled(c *C) {
+	nm, backends, _ := s.prepareTestWaitNotices(c)
 
 	// If all backends return empty lists for BackendNotices, and then the
 	// context is cancelled, return immediately.
-	bknd1.noticesChan <- nil
-	bknd2.noticesChan <- nil
-	filter = &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}
-	ctx, cancel := context.WithCancel(context.Background())
-	beforeTime = time.Now()
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
-	result, err = nm.WaitNotices(ctx, filter)
-	afterTime = time.Now()
+	backends[0].noticesChan <- nil
+	backends[1].noticesChan <- nil
+	filter := &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}
+	beforeTime := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	result, err := nm.WaitNotices(ctx, filter)
+	afterTime := time.Now()
 	c.Check(beforeTime.Add(10*time.Millisecond).Before(afterTime), Equals, true)
-	c.Check(err, ErrorMatches, "context canceled")
+	c.Check(err, ErrorMatches, "context deadline exceeded")
 	c.Check(result, HasLen, 0)
 	// Check that the backends received a filter to BackendNotices with
 	// BeforeOrAt set to the current time when called.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(beforeTime.Before(receivedFilter.BeforeOrAt), Equals, true)
 		c.Check(receivedFilter.BeforeOrAt.Before(afterTime), Equals, true)
 	}
 	// Check that the backends received a filter to BackendWaitNotices with
 	// BeforeOrAt unset.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.waitNoticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter)
 	}
 	// Check that the original filter was not overwritten
 	c.Check(filter.BeforeOrAt.IsZero(), Equals, true)
+}
+
+func (s *noticesSuite) TestWaitNoticesNoNotices(c *C) {
+	nm, backends, _ := s.prepareTestWaitNotices(c)
 
 	// If all backends return empty lists for both BackendNotices and
 	// BackendWaitNotices, then WaitNotices returns nil immediately.
-	bknd1.noticesChan <- nil
-	bknd2.noticesChan <- nil
-	bknd1.waitNoticesChan <- nil
-	bknd2.waitNoticesChan <- nil
-	filter = &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}
-	result, err = nm.WaitNotices(context.Background(), filter)
+	backends[0].noticesChan <- nil
+	backends[1].noticesChan <- nil
+	backends[0].waitNoticesChan <- nil
+	backends[1].waitNoticesChan <- nil
+	filter := &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}
+	result, err := nm.WaitNotices(context.Background(), filter)
 	c.Check(err, IsNil)
 	c.Check(result, HasLen, 0)
 	// Check that the backends received a filter to BackendNotices with
 	// BeforeOrAt set to the current time when called.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(receivedFilter.BeforeOrAt.IsZero(), Equals, false)
 	}
 	// Check that the backends received a filter to BackendWaitNotices with
 	// BeforeOrAt unset.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.waitNoticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter)
 	}
 	// Check that the original filter was not overwritten
 	c.Check(filter.BeforeOrAt.IsZero(), Equals, true)
+}
+
+func (s *noticesSuite) TestWaitNoticesFutureNotice(c *C) {
+	nm, backends, notices := s.prepareTestWaitNotices(c)
 
 	// If all backends return empty lists for BackendNotices, then a backend
 	// returns some notices for BackendWaitNotices, then all backends are
 	// again queried for BackendNotices, but with a BeforeOrAt filter set to
 	// the last return notice's timestamp.
-	bknd1.noticesChan <- nil
-	bknd2.noticesChan <- nil
-	bknd1.waitNoticesChan <- []*state.Notice{n3, n4}
-	// bknd2 doesn't return notices from WaitNotices, instead it should be
-	// cancelled once bknd1 returns the notices.
-	beforeTime = time.Now()
+	backends[0].noticesChan <- nil
+	backends[1].noticesChan <- nil
+	backends[0].waitNoticesChan <- []*state.Notice{notices[2], notices[3]}
+	// backends[1] doesn't return notices from WaitNotices, instead it should
+	// be cancelled once backends[0] returns the notices.
+	beforeTime := time.Now()
 	go func() {
 		// Once able, send notices for final BackendNotices.
 		// These notices might include the notice(s) originally returned by
 		// BackendWaitNotices, since they might have been re-recorded since.
 		// For consistency with other backends, they should be excluded from
 		// the final result. Test this by returning unrelated notices.
-		bknd1.noticesChan <- []*state.Notice{n2}
+		backends[0].noticesChan <- []*state.Notice{notices[1]}
 		time.Sleep(10 * time.Millisecond)
-		bknd2.noticesChan <- []*state.Notice{n1}
+		backends[1].noticesChan <- []*state.Notice{notices[0]}
 	}()
-	filter = &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}
-	result, err = nm.WaitNotices(context.Background(), filter)
-	afterTime = time.Now()
+	filter := &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}
+	result, err := nm.WaitNotices(context.Background(), filter)
+	afterTime := time.Now()
 	c.Check(err, IsNil)
-	c.Check(result, DeepEquals, []*state.Notice{n1, n2})
+	c.Check(result, DeepEquals, []*state.Notice{notices[0], notices[1]})
 	c.Check(beforeTime.Add(10*time.Millisecond).Before(afterTime), Equals, true)
 	// Check that the backends first received a filter to BackendNotices
 	// with BeforeOrAt set to the current time when called.
-	for _, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for _, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.noticesFilterChan
 		c.Check(beforeTime.Before(receivedFilter.BeforeOrAt), Equals, true)
 		c.Check(receivedFilter.BeforeOrAt.Before(afterTime), Equals, true)
 	}
 	// Check that the backends then received a filter to BackendWaitNotices
 	// with BeforeOrAt unset.
-	for i, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for i, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.waitNoticesFilterChan
 		c.Check(receivedFilter, DeepEquals, filter, Commentf("Backend %d", i+1))
 	}
 	// Check that the backends lastly receive a filter to BackendNotices
 	// with BeforeOrAt set to the lastRepeated timestamp of the final notice
 	// returned by the calls to BackendWaitNotices.
-	for i, bknd := range []*testNoticeBackend{bknd1, bknd2} {
+	for i, bknd := range []*testNoticeBackend{backends[0], backends[1]} {
 		receivedFilter := <-bknd.noticesFilterChan
-		c.Check(receivedFilter.BeforeOrAt.Equal(n4.LastRepeated()), Equals, true, Commentf("Backend %d receivedFilter.BeforeOrAt: %v", i+1, receivedFilter.BeforeOrAt))
+		c.Check(receivedFilter.BeforeOrAt.Equal(notices[3].LastRepeated()), Equals, true, Commentf("Backend %d receivedFilter.BeforeOrAt: %v", i+1, receivedFilter.BeforeOrAt))
 	}
 	// Check that the original filter was not overwritten
 	c.Check(filter.BeforeOrAt.IsZero(), Equals, true)
