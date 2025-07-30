@@ -8,7 +8,12 @@ build_dir=$3
 
 cd "$snapd_dir"
 
-version=$(ls "$build_dir" | grep -oP '(?<=snapd_).*(?=\.vendor\.tar\.xz)')
+version=
+for file in "$build_dir"/snapd_*.vendor.tar.xz; do
+        version="${file##*/snapd_}"
+        version="${version%.vendor.tar.xz}"
+        break
+done
 cp -av packaging/arch/* "$build_dir"
 sed -i -e "s/pkgver=.*/pkgver=$version/" "$build_dir"/PKGBUILD
 chown -R "$user":"$user" "$build_dir"
