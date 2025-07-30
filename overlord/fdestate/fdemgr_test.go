@@ -558,6 +558,8 @@ func (s *fdeMgrSuite) TestMountResolveError_FactoryReset(c *C) {
 }
 
 func (s *fdeMgrSuite) TestManagerUC_16_18(c *C) {
+	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
+
 	// no modeenv
 	err := os.Remove(dirs.SnapModeenvFileUnder(s.rootdir))
 	c.Assert(err, IsNil)
@@ -576,11 +578,76 @@ func (s *fdeMgrSuite) TestManagerPreseeding(c *C) {
 	manager, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 
+	ensureCalled := 0
+	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error {
+		ensureCalled++
+		return nil
+	})()
+
 	// neither startup nor ensure fails
 	c.Assert(manager.StartUp(), IsNil)
 	c.Assert(manager.Ensure(), IsNil)
+	c.Assert(ensureCalled, Equals, 0) // not called during preseeding
 	// but the manager is deemed non functional, so API calls will fail
 	c.Assert(manager.IsFunctional(), ErrorMatches, "internal error: FDE manager cannot be used in preseeding mode")
+}
+
+type mockContainer struct {
+	containerRole, devPath string
+}
+
+func (c *mockContainer) ContainerRole() string         { return c.containerRole }
+func (c *mockContainer) DevPath() string               { return c.devPath }
+func (c *mockContainer) LegacyKeys() map[string]string { return nil }
+
+func (s *fdeMgrSuite) TestManagerEnsureUniqueContainerRoles(c *C) {
+	defer snapdenv.MockPreseeding(false)()
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	defer fdestate.MockGetEncryptedContainers(func(state *state.State) ([]backend.EncryptedContainer, error) {
+		// check state is locked
+		s.st.Unlock()
+		s.st.Lock()
+
+		return []backend.EncryptedContainer{
+			&mockContainer{containerRole: "system-data", devPath: "/data-1"},
+			&mockContainer{containerRole: "system-data", devPath: "/data-2"},
+			&mockContainer{containerRole: "system-save", devPath: "/save-1"},
+			&mockContainer{containerRole: "system-save", devPath: "/save-2"},
+			&mockContainer{containerRole: "system-boot", devPath: "/boot-1"},
+			&mockContainer{containerRole: "system-seed", devPath: "/seed-1"},
+		}, nil
+	})()
+
+	c.Check(s.st.AllWarnings(), HasLen, 0)
+
+	for i := 0; i < 10; i++ {
+		c.Assert(manager.Ensure(), IsNil)
+	}
+
+	warnings := s.st.AllWarnings()
+	c.Check(warnings, HasLen, 2)
+	c.Check(warnings[0].String(), Equals, `container roles should map to one volume only: container role "system-data" maps to /data-1 and /data-2`)
+	c.Check(warnings[1].String(), Equals, `container roles should map to one volume only: container role "system-save" maps to /save-1 and /save-2`)
+}
+
+func (s *fdeMgrSuite) TestEnsureUniqueContainerRolesNoop(c *C) {
+	// force manager to be non-functional
+	defer snapdenv.MockPreseeding(true)()
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+
+	called := 0
+	defer fdestate.MockGetEncryptedContainers(func(state *state.State) ([]backend.EncryptedContainer, error) {
+		called++
+		return nil, errors.New("unexpected")
+	})()
+
+	c.Assert(fdestate.EnsureUniqueContainerRoles(manager), IsNil)
+	c.Assert(called, Equals, 0)
 }
 
 func (s *fdeMgrSuite) TestGetParameters(c *C) {

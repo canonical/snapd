@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -100,6 +101,7 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
 	ovs.AddCleanup(func() { ifacestate.MockSecurityBackends(nil) })
+	ovs.AddCleanup(fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil }))
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {

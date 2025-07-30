@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -125,6 +126,8 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 		return sysconfig.CloudInitRestrictedBySnapd, nil
 	})
 	t.AddCleanup(r)
+
+	t.AddCleanup(fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil }))
 }
 
 // startOverlord will setup and create a new overlord, note that it will not

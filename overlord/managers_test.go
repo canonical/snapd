@@ -271,6 +271,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
+	s.AddCleanup(fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil }))
+
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := o.State()
