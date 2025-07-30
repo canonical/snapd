@@ -311,6 +311,10 @@ func ensureVolumeEMMCCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolum
 	gadgetStructIdxToOnDiskStruct := map[int]*OnDiskStructure{}
 	for _, gs := range gadgetVolume.Structure {
 		// ensure the device node exists
+		// TODO: maybe better to check /sys/block/
+		// example output from CM5:
+		// $ ls /sys/block
+		// mmcblk0  mmcblk0boot0  mmcblk0boot1
 		emmcNode := fmt.Sprintf("%s%s", diskVolume.Device, gs.Name)
 		if _, err := os.Stat(path.Join(dirs.GlobalRootDir, emmcNode)); err != nil {
 			return nil, fmt.Errorf("emmc disk partition %s is specified, but no such disk: %s",

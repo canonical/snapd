@@ -1648,13 +1648,54 @@ func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent)
 	}
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	// Size for volume structures are not required for eMMC devices
-	// as we are not creating anything
-	if vs.Size != 0 && isVolumeEMMC(vol) {
-		return errors.New("size not allowed for emmc volume structures")
+// For emmc volume structures, we do not allow anything but
+// content and name
+func validateEMMCVolumeStructure(vs *VolumeStructure) error {
+	fielderr := func(field string) error {
+		return fmt.Errorf("%q not allowed for emmc volume structures", field)
 	}
-	if !vs.hasPartialSize() && !isVolumeEMMC(vol) {
+
+	if vs.Size != 0 {
+		return fielderr("size")
+	}
+	if vs.MinSize != 0 {
+		return fielderr("min-size")
+	}
+	if vs.Label != "" {
+		return fielderr("filesystem-label")
+	}
+	if vs.Offset != nil && *vs.Offset != 0 {
+		return fielderr("offset")
+	}
+	if vs.OffsetWrite != nil {
+		return fielderr("offset-write")
+	}
+	if vs.Filesystem != "" {
+		return fielderr("filesystem")
+	}
+	if vs.Type != "" {
+		return fielderr("type")
+	}
+	if vs.ID != "" {
+		return fielderr("id")
+	}
+	if vs.Role != "" {
+		return fielderr("role")
+	}
+
+	for i, c := range vs.Content {
+		if err := validateEMMCContent(&c); err != nil {
+			return fmt.Errorf("invalid content #%v: %v", i, err)
+		}
+	}
+	return validateStructureUpdate(vs)
+}
+
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
+	if isVolumeEMMC(vol) {
+		return validateEMMCVolumeStructure(vs)
+	}
+	if !vs.hasPartialSize() {
 		if vs.Size == 0 {
 			return errors.New("missing size")
 		}
