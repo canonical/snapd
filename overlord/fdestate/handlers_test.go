@@ -419,6 +419,8 @@ func (s *fdeMgrSuite) TestDoRemoveKeysIdempotence(c *C) {
 }
 
 func (s *fdeMgrSuite) TestDoRemoveKeysGetKeyslotsError(c *C) {
+	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
+
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
@@ -586,6 +588,8 @@ func (s *fdeMgrSuite) TestDoRenameKeysIdempotence(c *C) {
 }
 
 func (s *fdeMgrSuite) TestDoRenameKeysMissingMapping(c *C) {
+	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
+
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
@@ -821,6 +825,8 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 }
 
 func (s *fdeMgrSuite) TestDoChangeAuthKeysNoop(c *C) {
+	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
+
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
