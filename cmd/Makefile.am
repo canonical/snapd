@@ -72,10 +72,17 @@ fmt-check:: $(wildcard $(addsuffix /*.[ch],$(addprefix $(srcdir)/,$(subdirs))))
 # The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
+hack: PROF_NAME=$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
 	sudo install -D -m 755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	sudo setcap "$$(cat $(top_srcdir)/snap-confine/snap-confine.caps)" $(DESTDIR)$(libexecdir)/snap-confine
-	if [ -d $(DESTDIR)$(APPARMOR_SYSCONFIG) ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
+	if [ -d $(DESTDIR)$(APPARMOR_SYSCONFIG) ]; then \
+		if [ -f $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(PROF_NAME).real ]; then \
+			sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(PROF_NAME).real; \
+		else \
+			sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)$(APPARMOR_SYSCONFIG)/$(PROF_NAME); \
+		fi ; \
+	fi
 	sudo install -d -m 755 $(DESTDIR)$(snapdstatedir)/apparmor/snap-confine/
 	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
