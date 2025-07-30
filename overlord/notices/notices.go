@@ -190,6 +190,7 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 	return validateNotice, nil
 }
 
+// TODO: replace this with slices.Contains() once we're on go 1.21+.
 func backendsContain(backends []NoticeBackend, backend NoticeBackend) bool {
 	for _, bknd := range backends {
 		if bknd == backend {
@@ -201,9 +202,9 @@ func backendsContain(backends []NoticeBackend, backend NoticeBackend) bool {
 
 // prefixFromID returns the namespace prefix from the given ID, if it has one.
 func prefixFromID(id string) (prefix string, ok bool) {
-	split := strings.SplitN(id, "-", 2)
-	if len(split) > 1 {
-		return split[0], true
+	prefix, _, found := strings.Cut(id, "-")
+	if found {
+		return prefix, true
 	}
 	return "", false
 }
@@ -388,8 +389,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	backendCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var wg sync.WaitGroup // Keep track of if all backends return empty notices.
-	wg.Add(len(backendsToCheck))
+	var wg sync.WaitGroup // Track when all queryBackend calls have returned
 
 	queryBackend := func(bknd NoticeBackend) {
 		defer wg.Done()
@@ -410,13 +410,14 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		}
 	}
 
+	wg.Add(len(backendsToCheck))
 	for _, backend := range backendsToCheck {
 		go queryBackend(backend)
 	}
 
-	// It is important that we want for all goroutines to exit before we read
+	// It is important that we wait for all goroutines to exit before we read
 	// from noticesChan. Otherwise, we might allow another backend to put
-	// something inside of noticeChan.
+	// something inside of noticeChan and think that it was the first to return.
 	wg.Wait()
 
 	select {
@@ -426,9 +427,9 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		// Request was cancelled
 		return nil, ctx.Err()
 	default:
-		// If neither the context was cancelled and we don't have any notices to
-		// read in the channel, then we know that all backends returned no
-		// notices.
+		// If no backend wrote any notices to the channel and the context was
+		// not cancelled, then no backend was capable of producing a notice
+		// matching the filter, so each returned no notices.
 		return nil, nil
 	}
 
