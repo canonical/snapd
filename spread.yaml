@@ -477,9 +477,6 @@ backends:
             - ubuntu-core-24-64:
                 image: snapd-spread/ubuntu-24.04-64-uefi
                 workers: 8
-            - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
-                workers: 8
 
     openstack-dev-ps7:
         type: openstack

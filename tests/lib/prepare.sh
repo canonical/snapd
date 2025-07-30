@@ -1517,7 +1517,7 @@ EOF
             unsquashfs -d "${BASE}-snap" "${BASE}.snap"
 
             # We setup the ntp server in case it is defined in the current env
-            # This is not needed in classic systems becuase the images already have ntp configured
+            # This is not needed in classic systems because the images already have ntp configured
             if [ -n "${NTP_SERVER:-}" ]; then
                 TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
                 if [ -z "$TARGET_TIME_CONF" ]; then
