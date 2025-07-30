@@ -384,24 +384,13 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	}
 
 	// Ask each backend to return the first notice it finds, unless cancelled
-	noticesChan := make(chan []*state.Notice)
+	noticesChan := make(chan []*state.Notice, 1)
 	backendCtx, cancel := context.WithCancel(ctx)
-	// TODO: on go 1.20+, use WithCancelCause instead of separate channel
-	allBackendsReturned := make(chan struct{})
-	defer cancel()        // Ensure the context is eventually cancelled; maybe cancel early.
+	defer cancel()
+
 	var wg sync.WaitGroup // Keep track of if all backends return empty notices.
 	wg.Add(len(backendsToCheck))
-	// Set up watcher in case all backends return empty notices, which should
-	// only occur if they know they can't possibly produce notices which match
-	// the filter.
-	go func() {
-		wg.Wait()
-		// All backends returned, so the caller either already received a
-		// non-empty list of notices, or all backends returned an empty list.
-		// If the latter, then no backends are capable of producing notices
-		// which match the filter.
-		close(allBackendsReturned)
-	}()
+
 	queryBackend := func(bknd NoticeBackend) {
 		defer wg.Done()
 		// Ignore error, as it should only ever be the context cancellation
@@ -412,29 +401,36 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		}
 		select {
 		case noticesChan <- backendNotices:
-			// Successfully sent notices back to caller
-		case <-backendCtx.Done():
-			// Some other backend replied first
+			// Successfully sent notices back to caller. Cancel any of the other
+			// goroutinues that are inside of BackendWaitNotices
+			cancel()
+		default:
+			// This channel was already full, so we know that another backend
+			// already wrote some notices to the channel.
 		}
 	}
+
 	for _, backend := range backendsToCheck {
 		go queryBackend(backend)
 	}
 
+	// It is important that we want for all goroutines to exit before we read
+	// from noticesChan. Otherwise, we might allow another backend to put
+	// something inside of noticeChan.
+	wg.Wait()
+
 	select {
 	case notices = <-noticesChan:
 		// A backend returned one or more notices
-	case <-allBackendsReturned:
-		// All backends sent empty notices over their respective channels,
-		// so none were capable of producing notices matching the filter.
-		return nil, nil
 	case <-ctx.Done():
 		// Request was cancelled
 		return nil, ctx.Err()
+	default:
+		// If neither the context was cancelled and we don't have any notices to
+		// read in the channel, then we know that all backends returned no
+		// notices.
+		return nil, nil
 	}
-
-	// Cancel the requests to the other backends
-	cancel()
 
 	// Get the last repeated timestamp of the newest received notice
 	lastRepeated := notices[len(notices)-1].LastRepeated()
