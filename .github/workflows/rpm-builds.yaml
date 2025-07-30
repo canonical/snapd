@@ -27,6 +27,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Download vendor
+      uses: actions/download-artifact@v4
+      with:
+        name: vendor-pkgs
+        path: /tmp/pkg
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -49,7 +55,6 @@ jobs:
 
     - name: Run mock inside container
       run: |
-        pwd
         chmod -R 777 .
         mkdir -p /tmp/mock
         mkdir -p /tmp/builds
@@ -57,13 +62,13 @@ jobs:
         docker run --privileged --rm \
           --mount type=bind,src=/tmp/mock,dst=/var/cache/mock \
           --mount type=bind,src=$(pwd),dst=/home/mockbuilder/snapd \
+          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
           --mount type=bind,src=/tmp/builds,dst=/home/mockbuilder/builds \
           mock-base:latest \
           bash -c "
             mock -r /etc/mock/${{ inputs.config }}.cfg --install git && \
             cd /home/mockbuilder/snapd && \
-            go mod vendor && \
-            ./tests/lib/packaging/build-source-rpm.sh ${{ inputs.pkg-dir }} && \
+            tests/lib/packaging/build-source-rpm.sh ${{ inputs.pkg-dir }} /tmp/pkg && \
             mock -r /etc/mock/${{ inputs.config }}.cfg --no-clean --no-cleanup-after --enable-network --nocheck --with testkeys --resultdir /home/mockbuilder/builds /home/mockbuilder/rpmbuild/SRPMS/snapd-*.src.rpm
           "
         find /tmp/builds -name '*debug*' -delete

@@ -2,8 +2,6 @@ FROM archlinux
 
 RUN pacman -Syu --noconfirm && \
     pacman pacman -Suq --needed --noconfirm \
-        debugedit \
-        fakeroot \
         git \
         go \
         go-tools \

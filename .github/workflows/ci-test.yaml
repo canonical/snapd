@@ -55,8 +55,37 @@ jobs:
           - runs-on: '["ubuntu-22.04-arm"]'
             variant: pristine
 
+  create-vendor-dir:
+    runs-on: ubuntu-latest
+    name: Create go vendor
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: vendor
+        run: |
+          sudo snap install --classic --channel 1.18/stable go
+          /snap/bin/go mod vendor
+          (
+            cd c-vendor
+            ./vendor.sh
+          )
+          mkdir /tmp/pkg
+          base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+          version="1337.$base_version"
+          ./packaging/pack-source -v "$version" -o /tmp/pkg
+          ./packaging/pack-source -v "$version" -o /tmp/pkg -s
+
+      - name: Upload vendors
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-pkgs
+          path: /tmp/pkg
+
+
 
   package-snapd-rpm:
+    needs: create-vendor-dir
     uses: ./.github/workflows/rpm-builds.yaml
     name: Package ${{ matrix.build-config.system }}
     with:
@@ -77,6 +106,7 @@ jobs:
           - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
 
   package-snapd-arch:
+    needs: create-vendor-dir
     uses: ./.github/workflows/arch-builds.yaml
     name: Package arch-linux-64
     with:
