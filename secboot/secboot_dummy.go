@@ -23,12 +23,27 @@ package secboot
 import (
 	"crypto"
 	"errors"
+	"io"
 
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
+
+type KeyProtectorFactory interface {
+	ForKeyName(name string) KeyProtector
+}
+
+type KeyProtector interface {
+	ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error)
+}
+
+var ErrNoKeyProtector = errors.New("cannot find supported FDE key protector")
+
+func FDESetupHookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorFactory {
+	return nil
+}
 
 type DiskUnlockKey []byte
 
@@ -40,7 +55,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	return nil, errBuildWithoutSecboot
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	return errBuildWithoutSecboot
 }
 

@@ -1850,7 +1850,7 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
-func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool) {
+func (s *secbootSuite) testSealKeysWithProtectorHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")
 	rawHandle1 := json.RawMessage(`{"handle-for":"key1"}`)
@@ -1886,7 +1886,8 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
 		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 	}
-	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook, myKeys, &params)
+	factory := secboot.FDESetupHookKeyProtectorFactory(runFDESetupHook)
+	err := secboot.SealKeysWithProtector(factory, myKeys, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, HasLen, 2)
@@ -1913,14 +1914,14 @@ func (s *secbootSuite) testSealKeysWithFDESetupHookHappy(c *C, useKeyFiles bool)
 	}
 }
 
-func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyKeyFiles(c *C) {
+func (s *secbootSuite) TestSealKeysWithProtectorHappyKeyFiles(c *C) {
 	const useKeyFiles = true
-	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
+	s.testSealKeysWithProtectorHappy(c, useKeyFiles)
 }
 
-func (s *secbootSuite) TestSealKeysWithFDESetupHookHappyTokens(c *C) {
+func (s *secbootSuite) TestSealKeysWithProtectorHappyTokens(c *C) {
 	const useKeyFiles = false
-	s.testSealKeysWithFDESetupHookHappy(c, useKeyFiles)
+	s.testSealKeysWithProtectorHappy(c, useKeyFiles)
 }
 
 func makeMockDiskKey() keys.EncryptionKey {
