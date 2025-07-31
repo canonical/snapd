@@ -400,6 +400,7 @@ app.layout = html.Div(
                     daq.BooleanSwitch(
                         id="add-frequency-numbers-switch",
                         label="Add column with number of tests that have feature",
+                        on=True
                     ),
                     html.Div(
                         [
