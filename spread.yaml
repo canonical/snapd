@@ -432,6 +432,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
+        volume-auto-delete: true
         environment: &openstack-ps7-env
             SNAPD_USE_PROXY: 'true'
             HTTP_PROXY: 'http://egress.ps7.internal:3128'
@@ -460,6 +461,9 @@ backends:
             - ubuntu-25.04-64:
                 image: snapd-spread/ubuntu-25.04-64
                 workers: 8
+            - ubuntu-25.10-64:
+                image: snapd-spread/ubuntu-25.10-64
+                workers: 8
 
             - ubuntu-core-18-64:
                 image: snapd-spread/ubuntu-18.04-64
@@ -483,6 +487,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.54.0/24:4000]
+        volume-auto-delete: true
         environment: *openstack-ps7-env
         systems: *openstack-ps7-systems
 
@@ -495,6 +500,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.89.0/24:8000]
+        volume-auto-delete: true
         environment: *openstack-ps7-env
         systems: &openstack-arm-systems
             - ubuntu-20.04-arm-64:
@@ -523,6 +529,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.53.0/24:3000]
+        volume-auto-delete: true
         environment: *openstack-ps7-env
         systems: *openstack-arm-systems
 
@@ -535,6 +542,7 @@ backends:
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.89.0/24:8000]
+        volume-auto-delete: true
         environment: *openstack-ps7-env
         systems: *openstack-arm-systems
         
