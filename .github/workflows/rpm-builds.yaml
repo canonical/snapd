@@ -72,6 +72,7 @@ jobs:
             mock -r /etc/mock/${{ inputs.config }}.cfg --no-clean --no-cleanup-after --enable-network --nocheck --with testkeys --resultdir /home/mockbuilder/builds /home/mockbuilder/rpmbuild/SRPMS/snapd-*.src.rpm
           "
         find /tmp/builds -name '*debug*' -delete
+        find /tmp/builds -name '*.src.rpm' -delete
         cd /tmp/builds
         find . -name '*.rpm' -exec tar cvf package-${{ inputs.system }}.tar {} +
 
