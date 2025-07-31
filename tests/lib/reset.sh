@@ -75,6 +75,9 @@ reset_classic() {
             # directories we just recreated. Otherwise, the entries created
             # inside will be incorrectly labeled.
             restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+            if [ -d /root/snap ]; then
+                restorecon -F -v -R /root/snap
+            fi
             ;;
     esac
 
