@@ -51,6 +51,7 @@ func (s *noticesSuite) TestNewNotice(c *C) {
 	c.Check(uid, Equals, userID)
 	c.Check(isSet, Equals, true)
 	c.Check(notice.Type(), Equals, nType)
+	c.Check(notice.LastRepeated(), Equals, timestamp)
 	// TODO: expand method checks when more public methods are added
 	n := noticeToMap(c, notice)
 	c.Check(n["id"], Equals, id)
