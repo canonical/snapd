@@ -48,6 +48,12 @@ func checkFDEChangeConflict(st *state.State) error {
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
+		case "fde-change-passphrase":
+			return &snapstate.ChangeConflictError{
+				Message:    "changing passphrase in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
 		default:
 			// try to catch changes/tasks that could have been missed
 			// and log a warning.
@@ -64,4 +70,79 @@ func checkFDEChangeConflict(st *state.State) error {
 		}
 	}
 	return nil
+}
+
+func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
+	// TODO:FDEM: check if we have sealed keys at all
+
+	// DBX updates cause a reseal, so any snaps which are either directly
+	// measured or their content is measured during the boot will count as
+	// affected
+
+	// XXX this effectively blocks updates of gadget, kernel & base until the
+	// change completes
+
+	return fdeRelevantSnaps(t.State())
+}
+
+func checkDBXChangeConflicts(st *state.State) error {
+	// TODO:FDEM: check if we have sealed keys at all
+
+	snaps, err := fdeRelevantSnaps(st)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		return nil
+	}
+
+	// make sure that there are no other DBX changes in progress
+	op, err := findFirstPendingExternalOperationByKind(st, "fde-efi-secureboot-db-update")
+	if err != nil {
+		return err
+	}
+
+	if op != nil {
+		return &snapstate.ChangeConflictError{
+			ChangeKind: "fde-efi-secureboot-db-update",
+			Message:    "cannot start a new DBX update when conflicting actions are in progress",
+		}
+	}
+
+	// make sure that there are no changes for the snaps that are relevant for
+	// FDE
+	return snapstate.CheckChangeConflictMany(st, snaps, "")
+}
+
+func addProtectedKeysAffectedSnaps(t *state.Task) ([]string, error) {
+	// TODO:FDEM: check if we have sealed keys at all
+
+	// adding a TPM protected key requires populating the role parameters
+	// in the FDE state (ensureParametersLoaded), those parameters could
+	// be updated as a result of a reseal caused by a refresh of any snap
+	// which is either directly measured or its content is measured during
+	// the boot.
+
+	// XXX this effectively blocks updates of gadget, kernel & base until the
+	// change completes
+
+	return fdeRelevantSnaps(t.State())
+}
+
+func checkFDEParametersChangeConflicts(st *state.State) error {
+	// TODO:FDEM: check if we have sealed keys at all
+
+	snaps, err := fdeRelevantSnaps(st)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		return nil
+	}
+
+	// make sure that there are no changes for the snaps that are relevant for
+	// FDE
+	return snapstate.CheckChangeConflictMany(st, snaps, "")
 }

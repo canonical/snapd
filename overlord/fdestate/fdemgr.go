@@ -111,6 +111,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	st.Cache(fdeMgrKey{}, m)
 
 	snapstate.RegisterAffectedSnapsByKind("efi-secureboot-db-update", dbxUpdateAffectedSnaps)
+	snapstate.RegisterAffectedSnapsByKind("fde-add-protected-keys", addProtectedKeysAffectedSnaps)
 
 	runner.AddHandler("efi-secureboot-db-update-prepare",
 		m.doEFISecurebootDBUpdatePrepare, m.undoEFISecurebootDBUpdatePrepare)
@@ -129,6 +130,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
 	runner.AddHandler("fde-change-auth", m.doChangeAuth, nil)
+	runner.AddHandler("fde-add-protected-keys", m.doAddProtectedKeys, nil)
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 		if isFDETask(t) {
 			for _, tRunning := range running {
