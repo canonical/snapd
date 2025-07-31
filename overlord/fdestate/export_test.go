@@ -48,7 +48,8 @@ var (
 	NotifyDBXUpdatePrepareDoneOK = notifyDBXUpdatePrepareDoneOK
 	DbxUpdatePreparedOKChan      = dbxUpdatePreparedOKChan
 
-	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
+	DbxUpdateAffectedSnaps        = dbxUpdateAffectedSnaps
+	AddProtectedKeysAffectedSnaps = addProtectedKeysAffectedSnaps
 
 	CheckFDEChangeConflict = checkFDEChangeConflict
 )
