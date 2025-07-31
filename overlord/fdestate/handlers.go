@@ -211,6 +211,11 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error) {
+	// TODO:FDEM: implement handler
+	return nil
+}
+
 func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()

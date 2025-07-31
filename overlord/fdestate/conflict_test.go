@@ -35,6 +35,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 	var chgToErr = map[string]string{
 		"fde-efi-secureboot-db-update": "external EFI DBX update in progress, no other FDE changes allowed until this is done",
 		"fde-replace-recovery-key":     "replacing recovery key in progress, no other FDE changes allowed until this is done",
+		"fde-change-passphrase":        "changing passphrase in progress, no other FDE changes allowed until this is done",
 		"some-fde-change":              "FDE change in progress, no other FDE changes allowed until this is done",
 
 		"some-change": "",
@@ -79,4 +80,26 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 		s.st.Unlock()
 	}
 
+}
+
+func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
+	st := s.st
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	st.Lock()
+	defer st.Unlock()
+
+	tsk := st.NewTask("foo", "foo task")
+
+	names, err := fdestate.AddProtectedKeysAffectedSnaps(tsk)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{
+		"pc",        // gadget
+		"pc-kernel", // kernel
+		"core20",    // base
+	})
 }
