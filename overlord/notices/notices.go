@@ -384,7 +384,10 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		return nil, nil
 	}
 
-	// Ask each backend to return the first notice it finds, unless cancelled
+	// Ask each backend to return its notices as soon as one is added. Once
+	// one backend returns notices, cancel the requests to the other backends.
+	// Thus, create a channel with capacity 1 so only one backend can send
+	// notices back to the main thread.
 	noticesChan := make(chan []*state.Notice, 1)
 	backendCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
