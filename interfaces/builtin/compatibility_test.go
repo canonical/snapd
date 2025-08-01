@@ -55,6 +55,8 @@ func (s *CompatSuite) TestValidCompatFields(c *C) {
 			{Tag: "foo", Values: []builtin.CompatRange{{4, 4}}}}}},
 		{"foo-4-(1..3)", &builtin.CompatField{Dimensions: []builtin.CompatDimension{
 			{Tag: "foo", Values: []builtin.CompatRange{{4, 4}, {1, 3}}}}}},
+		{"foo-(1..3)-4", &builtin.CompatField{Dimensions: []builtin.CompatDimension{
+			{Tag: "foo", Values: []builtin.CompatRange{{1, 3}, {4, 4}}}}}},
 		{"foo3e4-4-(1..3)-bar-2025-8-2", &builtin.CompatField{Dimensions: []builtin.CompatDimension{
 			{Tag: "foo3e4", Values: []builtin.CompatRange{{4, 4}, {1, 3}}},
 			{Tag: "bar", Values: []builtin.CompatRange{{2025, 2025}, {8, 8}, {2, 2}}},
@@ -131,8 +133,8 @@ func (s *CompatSuite) TestInvalidCompatFields(c *C) {
 		{"3foo", `compatibility label "3foo": bad string "3foo"`},
 		{"-foo", `compatibility label "-foo": bad string ""`},
 		{"foo-", `compatibility label "foo-": "" is not a valid string`},
-		{"foo-2-foo-5", `compatibility label "foo-2-foo-5": dimension "foo" appears more than once`},
-		{"foo-(0..0)-foo-5-other", `compatibility label "foo-(0..0)-foo-5-other": dimension "foo" appears more than once`},
+		{"foo-2-foo-5", `compatibility label "foo-2-foo-5": string "foo" appears more than once`},
+		{"foo-(0..0)-foo-5-other", `compatibility label "foo-(0..0)-foo-5-other": string "foo" appears more than once`},
 		{"foo-01", `compatibility label "foo-01": "01" is not a valid string`},
 		{"foo-(01..5)", `compatibility label "foo-(01..5)": "(01..5)" is not a valid string`},
 		{"foo-(1..05)", `compatibility label "foo-(1..05)": "(1..05)" is not a valid string`},
@@ -144,8 +146,6 @@ func (s *CompatSuite) TestInvalidCompatFields(c *C) {
 		{"foo-012345678", `compatibility label "foo-012345678": "012345678" is not a valid string`},
 		{"foo-(10..012345678)", `compatibility label "foo-(10..012345678)": "(10..012345678)" is not a valid string`},
 		{"foo-bar-baz-other", `compatibility label "foo-bar-baz-other": only 3 strings allowed`},
-		{"bar-(2..5)-3", `compatibility label "bar-(2..5)-3": ranges only allowed at the end of the label`},
-		{"foo-5-1-bar-(2..5)-3", `compatibility label "foo-5-1-bar-(2..5)-3": ranges only allowed at the end of the label`},
 		{"foo-1-2-3-4", `compatibility label "foo-1-2-3-4": only 3 integer/integer ranges allowed per string`},
 		{"bar-3-(2..1)", `compatibility label "bar-3-(2..1)": invalid range "(2..1)"`},
 		{"bar-3-(2 ..99)", `compatibility label "bar-3-(2 ..99)": "(2 ..99)" is not a valid string`},
