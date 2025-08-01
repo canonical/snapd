@@ -19,7 +19,16 @@
 
 package client
 
-import "errors"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"time"
+)
 
 
 func (c *Client) DeviceSession() (deviceSession []string, err error) {
@@ -30,4 +39,83 @@ func (c *Client) DeviceSession() (deviceSession []string, err error) {
 	}
 
 	return
+}
+
+// Login logs user in.
+func (client *Client) CheckEmail(email, password, otp string) (bool, error) {
+	postData := loginData{
+		Email:    email,
+		Password: password,
+		Otp:      otp,
+	}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(postData); err != nil {
+		return false, err
+	}
+
+	var user User
+	if _, err := client.doSync("POST", "/v2/login", nil, nil, &body, &user); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (c *Client) Associate(email string, password string, otp string, isLogged bool) error {
+	url := os.Getenv("TELEMGW_SERVICE_URL")
+
+	if !isLogged {
+		isEmailOk, err := c.CheckEmail(email, password, otp)
+		if err != nil {
+			return err
+		}
+		
+		if !isEmailOk {
+			return errors.New("email or password are incorrect")
+		}
+	}
+
+
+	var payload struct {
+		Macaroon  string  `json:"macaroon"`
+	}
+
+	macaroon, err := c.DeviceSession()
+	if err != nil {
+		return err
+	}
+
+	payload.Macaroon = macaroon[0]
+
+	jsonBytes, err := json.Marshal(payload)
+		if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
+    req.Header.Set("Content-Type", "application/json")
+	if err != nil {
+        return err
+    }
+
+    client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+    resp, err := client.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+
+	
+    body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+    }
+	
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("could not associate device: %s", string(body))
+	}
+
+	return nil
 }

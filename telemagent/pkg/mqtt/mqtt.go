@@ -59,7 +59,7 @@ func (p Proxy) handle(ctx context.Context, inbound net.Conn) {
 	defer p.close(inbound)
 	var tlsConfig *tls.Config
 	var err error
-	caCert, err := os.ReadFile("/home/omar.hatem@canonical.com/Desktop/staging.cert")
+	caCert, err := os.ReadFile("/home/omar/telem-agent/ssl/certs/staging.cert")
 	if err != nil {
 		p.logger.Error(err.Error())
 	}

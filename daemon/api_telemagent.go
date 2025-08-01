@@ -31,7 +31,7 @@ var (
 	deviceSessionCmd = &Command{
 		Path:        "/v2/devicesession",
 		GET:         getDeviceSession,
-		ReadAccess:  openAccess{},
+		ReadAccess:  openAccess{}, //TODO: this is open for now just for testing, but the goal is to make it protected
 	}
 
 
