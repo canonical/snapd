@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -1016,12 +1017,11 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 	}, nil
 }
 
-func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, sideInfo *snap.SideInfo, seedComps []Component, err error) {
-	var snapRev *asserts.SnapRevision
+func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, handler ContainerHandler, snapsDir string, tm timings.Measurer) (snapPath string, sideInfo *snap.SideInfo, seedComps []Component, snapRev *asserts.SnapRevision, err error) {
 	var snapDecl *asserts.SnapDeclaration
 	snapPath, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, handler, snapsDir, tm)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, nil, nil, err
 	}
 	sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
 
@@ -1038,12 +1038,12 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 					// component not in seed
 					if modelComp.Presence == "required" {
 						err = fmt.Errorf("component %s required in the model but is not in the seed: %v", comp, err)
-						return "", nil, nil, err
+						return "", nil, nil, nil, err
 					}
 					// ignore if optional and not in seed
 					continue
 				}
-				return "", nil, nil, err
+				return "", nil, nil, nil, err
 			}
 			seedComps = append(seedComps, seedComp)
 		}
@@ -1059,7 +1059,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 	if optSnap != nil {
 		for _, comp := range optSnap.Components {
 			if comp.Unasserted != "" {
-				return "", nil, nil, fmt.Errorf("internal error: unasserted component in options.yaml for asserted snap: %s", comp.Unasserted)
+				return "", nil, nil, nil, fmt.Errorf("internal error: unasserted component in options.yaml for asserted snap: %s", comp.Unasserted)
 			}
 
 			seedComp, err := s.lookupVerifiedComponent(
@@ -1067,13 +1067,53 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
 				snapRev.Provenance(), handler, tm)
 			if err != nil {
-				return "", nil, nil, err
+				return "", nil, nil, nil, err
 			}
 			seedComps = append(seedComps, seedComp)
 		}
 	}
 
-	return snapPath, sideInfo, seedComps, nil
+	return snapPath, sideInfo, seedComps, snapRev, nil
+}
+
+func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.IntegrityDataParams, error) {
+	snapIntegrityData := snapRev.SnapIntegrityData()
+
+	if len(snapIntegrityData) == 0 {
+		// TODO: integrity data are not enforced currently.
+		// Here we should throw an error if integrity data are required by policy.
+		return nil, nil
+	}
+
+	var idp *integrity.IntegrityDataParams
+	for i, sid := range snapIntegrityData {
+		// TODO: The first item in the snap-revision integrity data list is selected.
+		// In future versions, extra logic will be required here to decide which integrity data
+		// should be used based on extra information (i.e from the model).
+		if i > 0 {
+			break
+		}
+
+		switch sid.Type {
+		case "dm-verity":
+			idp = integrity.NewIntegrityDataParams(
+				sid.Type,
+				sid.Version,
+				sid.HashAlg,
+				uint64(sid.DataBlockSize),
+				uint64(sid.HashBlockSize),
+				sid.Digest,
+				sid.Salt,
+				snapRev.SnapSize())
+		default:
+			// The assertion signing code doesn't allow assertions with unsupported
+			// types so this shouldn't be reachable.
+			return nil, fmt.Errorf("unsupported integrity data type: %q.", sid.Type)
+		}
+
+	}
+
+	return idp, nil
 }
 
 func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
@@ -1084,6 +1124,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	var path string
 	var sideInfo *snap.SideInfo
 	var seedComps []Component
+	var snapRev *asserts.SnapRevision
 	if optSnap != nil && optSnap.Unasserted != "" {
 		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
 		info, err := readInfo(path, nil)
@@ -1115,12 +1156,27 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	} else {
 		var err error
 		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
-			path, sideInfo, seedComps, err = s.deriveSideInfo(
+			path, sideInfo, seedComps, snapRev, err = s.deriveSideInfo(
 				snapRef, modelSnap, optSnap, handler, snapsDir, tm)
 		})
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	var integrityData *integrity.IntegrityDataParams
+	var err error
+
+	if snapRev != nil {
+		integrityData, err = s.lookupIntegrityData(snapRev)
+	}
+	// Currently integrity data are not enforced which means that lookupIntegrityData
+	// suppresses any errors that might have occurred during lookup. Moreover as invalid
+	// integrity data types are not allowed by the assertion API, the "Unsupported integrity
+	// data type" error should also not be expected. Despite these, we keep the error handling
+	// code here to avoid disruptions caused by a future change.
+	if err != nil {
+		return nil, err
 	}
 
 	// complement with aux-info.json information
@@ -1136,11 +1192,13 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	if len(seedComps) > 0 {
 		comps = seedComps
 	}
+
 	return &Snap{
-		Path:       path,
-		SideInfo:   sideInfo,
-		Channel:    channel,
-		Components: comps,
+		Path:                path,
+		SideInfo:            sideInfo,
+		Channel:             channel,
+		Components:          comps,
+		IntegrityDataParams: integrityData,
 	}, nil
 }
 
