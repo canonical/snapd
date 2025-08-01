@@ -538,3 +538,7 @@ func MockSbKeyDataChangePassphrase(f func(d *sb.KeyData, oldPassphrase string, n
 func NewKeyData(kd *sb.KeyData) KeyData {
 	return &keyData{kd: kd}
 }
+
+func MockSbPCRPolicyCounterHandle(f func(skd *sb_tpm2.SealedKeyData) tpm2.Handle) (restore func()) {
+	return testutil.Mock(&sbPCRPolicyCounterHandle, f)
+}

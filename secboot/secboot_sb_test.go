@@ -1538,12 +1538,12 @@ func (s *secbootSuite) TestResealKey(c *C) {
 				c.Check(keyFile, Not(testutil.FilePresent))
 				c.Check(keyFile2, Not(testutil.FilePresent))
 			}
-			if !tc.revoke {
+			if tc.oldKeyFiles {
 				c.Check(sealedKeysRequested, Equals, 0)
 				c.Check(updatedKeys, IsNil)
 			} else {
 				c.Check(sealedKeysRequested, Equals, 2)
-				c.Assert(updatedKeys, HasLen, 2)
+				c.Check(updatedKeys, HasLen, 2)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
@@ -4085,4 +4085,36 @@ func (s *secbootSuite) TestKeyDataWriteTokenAtomicError(c *C) {
 	kd := secboot.NewKeyData(&sb.KeyData{})
 	err := kd.WriteTokenAtomic("/dev/foo", "bar")
 	c.Assert(err, ErrorMatches, "boom!")
+}
+
+type fakeUnwrappableWrappedSealedKeyData struct {
+	unique int
+}
+
+func (f *fakeUnwrappableWrappedSealedKeyData) Unwrap() *sb_tpm2.SealedKeyData {
+	return nil
+}
+
+func (s *secbootSuite) TestUpdatedKeysPCRPolicyCounterHandles(c *C) {
+	calls := 0
+	callReturns := []uint32{42, 51, 42}
+	defer secboot.MockSbPCRPolicyCounterHandle(func(skd *sb_tpm2.SealedKeyData) tpm2.Handle {
+		calls += 1
+		return tpm2.Handle(callReturns[calls-1])
+	})()
+
+	key1 := &fakeUnwrappableWrappedSealedKeyData{1}
+	key2 := &fakeUnwrappableWrappedSealedKeyData{2}
+	key3 := &fakeUnwrappableWrappedSealedKeyData{3}
+	keys := secboot.UpdatedKeys([]secboot.MaybeSealedKeyData{key1, key2, key3})
+
+	handles := keys.PCRPolicyCounterHandles()
+	c.Assert(handles, HasLen, 2)
+	switch handles[0] {
+	case 42:
+		c.Check(handles[1], Equals, uint32(51))
+	case 51:
+		c.Check(handles[1], Equals, uint32(42))
+	}
+	c.Check(calls, Equals, 3)
 }
