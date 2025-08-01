@@ -5,7 +5,10 @@ details: |
     from the FDE state do not match what we get from resealing, we
     should at least warn about it in the logs.
 
-systems: [ubuntu-24.04-64]
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
 
 prepare: |
     tests.nested build-image core
@@ -47,6 +50,8 @@ execute: |
 
     remote.exec "sudo systemctl start snapd.socket snapd.service"
 
+    # Note installing a kernel snap reboots. So we need to inhibit it
+    # until we captured the journal.
     remote.exec "sudo systemd-inhibit bash -c 'snap install --dangerous new-pc-kernel.snap; journalctl -u snapd.service'" >snapd.log
     MATCH "WARNING: primary key is not matching the FDE state" <snapd.log
     MATCH "WARNING: policy counter handle is not matching the FDE state" <snapd.log

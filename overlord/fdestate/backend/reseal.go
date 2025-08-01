@@ -98,7 +98,7 @@ type EncryptedContainer interface {
 type FDEStateManager interface {
 	// Update will update the sealing parameters for a give role.
 	Update(role string, containerRole string, parameters *SealingParameters) error
-	// Get returns the current parameters for a given role. If parameters exist for that role, it will return nil without error.
+	// Get returns the current parameters for a given role as well as policy counter and primary key id. If role exists but there is no parameters, it will return nil parameters without error.
 	Get(role string, containerRole string) (parameters *SealingParameters, primaryKeyID int, policyCounterHandle uint32, err error)
 	// Unlock notifies the manager that the state can be unlocked and returns a function to relock it.
 	Unlock() (relock func())
