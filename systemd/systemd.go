@@ -369,6 +369,11 @@ type EnsureMountUnitFlags struct {
 	// StartBeforeDriversLoad is set if the unit is needed before
 	// udevd starts to run rules
 	StartBeforeDriversLoad bool
+	// BindMountRoot is set to indicate that the core snap should be bind
+	// mounted instead since it has already been mounted from the initramfs
+	// potentially with dm-verity enabled and this doesn't allow it to be mounted
+	// again.
+	BindMountRoot bool
 }
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
@@ -1514,6 +1519,7 @@ func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, f
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
+
 	mountOptions := &MountUnitOptions{
 		Lifetime:                 Persistent,
 		Description:              description,
@@ -1526,6 +1532,12 @@ func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, f
 	if flags.StartBeforeDriversLoad {
 		mountOptions.MountUnitType = BeforeDriversLoadMountUnit
 	}
+	if flags.BindMountRoot {
+		mountOptions.Options = append(options, "bind")
+		mountOptions.What = "/"
+		mountOptions.Fstype = ""
+	}
+
 	return s.EnsureMountUnitFileWithOptions(mountOptions)
 }
 

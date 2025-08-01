@@ -112,6 +112,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
+		BindMountRoot:          t == snap.TypeBase,
 	}
 	if err := addMountUnit(s, mountFlags, newSystemd(b.preseed, meter)); err != nil {
 		return snapType, nil, err
