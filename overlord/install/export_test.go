@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -64,4 +65,10 @@ func MockBootUseTokens(f func(model *asserts.Model) bool) (restore func()) {
 	return func() {
 		bootUseTokens = old
 	}
+}
+
+func MockSecbootFDEOpteeTAPresent(fn func() bool) (restore func()) {
+	restore = testutil.Backup(&secbootFDEOpteeTAPresent)
+	secbootFDEOpteeTAPresent = fn
+	return restore
 }

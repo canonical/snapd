@@ -45,8 +45,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
-	"github.com/snapcore/snapd/kernel/fde/optee"
-	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/install"
@@ -925,11 +923,10 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 	}
 
 	type testcase struct {
-		hooks      bool
-		optee      bool
-		tpm        bool
-		standalone bool
-		expected   expected
+		hooks    bool
+		optee    bool
+		tpm      bool
+		expected expected
 	}
 
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
@@ -940,7 +937,7 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 	for i, tc := range []testcase{
 		// uses the hooks, checks for nothing else
 		{
-			hooks: true, optee: true, tpm: true, standalone: false,
+			hooks: true, optee: true, tpm: true,
 			expected: expected{
 				hookRan:   true,
 				available: true,
@@ -950,27 +947,17 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 		// uses optee, checks for nothing else. technically we check for the
 		// hooks, but that check is just looking at the kernel snap.
 		{
-			hooks: false, optee: true, tpm: true, standalone: false,
+			hooks: false, optee: true, tpm: true,
 			expected: expected{
 				opteeChecked: true,
 				available:    true,
-			},
-		},
-
-		// standalone install, optee is reported as present (weird, but
-		// possible). should use tpm without checking for optee.
-		{
-			hooks: false, optee: true, tpm: true, standalone: true,
-			expected: expected{
-				tpmChecked: true,
-				available:  true,
 			},
 		},
 
 		// only the tpm is available, should use that. checks optee first,
 		// though.
 		{
-			hooks: false, optee: false, tpm: true, standalone: false,
+			hooks: false, optee: false, tpm: true,
 			expected: expected{
 				opteeChecked: true,
 				tpmChecked:   true,
@@ -978,33 +965,13 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 			},
 		},
 
-		// only the tpm is available, should use that. does not check for optee
-		// since this is a standalone install
-		{
-			hooks: false, optee: false, tpm: true, standalone: true,
-			expected: expected{
-				tpmChecked: true,
-				available:  true,
-			},
-		},
-
 		// nothing is around, should check for both optee and tpm
 		{
-			hooks: false, optee: false, tpm: false, standalone: false,
+			hooks: false, optee: false, tpm: false,
 			expected: expected{
 				opteeChecked: true,
 				tpmChecked:   true,
 				available:    false,
-			},
-		},
-
-		// nothing is around, should check for just the tpm since this is a
-		// standalone install
-		{
-			hooks: false, optee: false, tpm: false, standalone: true,
-			expected: expected{
-				tpmChecked: true,
-				available:  false,
 			},
 		},
 	} {
@@ -1021,13 +988,10 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 		}
 
 		opteeChecked := false
-		client := opteetest.MockClient{
-			PresentFn: func() bool {
-				opteeChecked = true
-				return tc.optee
-			},
-		}
-		restore := optee.MockNewFDETAClient(&client)
+		restore := install.MockSecbootFDEOpteeTAPresent(func() bool {
+			opteeChecked = true
+			return tc.optee
+		})
 		defer restore()
 
 		tpmChecked := false
@@ -1045,11 +1009,10 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 		})
 
 		constraints := install.EncryptionConstraints{
-			Model:             model,
-			Kernel:            kernelInfo,
-			Gadget:            gadgetInfo,
-			TPMMode:           secboot.TPMProvisionFull,
-			StandaloneInstall: tc.standalone,
+			Model:   model,
+			Kernel:  kernelInfo,
+			Gadget:  gadgetInfo,
+			TPMMode: secboot.TPMProvisionFull,
 		}
 
 		res, err := install.GetEncryptionSupportInfo(constraints, runHook)

@@ -124,6 +124,7 @@ var (
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	secbootPreinstallCheck             = secboot.PreinstallCheck
+	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
@@ -229,9 +230,6 @@ type EncryptionConstraints struct {
 	Gadget        *gadget.Info
 	TPMMode       secboot.TPMProvisionMode
 	SnapdVersions SystemSnapdVersions
-
-	// TODO: naming
-	StandaloneInstall bool
 }
 
 // GetEncryptionSupportInfo returns the encryption support information
@@ -265,7 +263,7 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	// we should use optee. thus, we check for its presence and fall back to the
 	// tpm if we can't see optee. this means that this function won't return any
 	// optee-specific errors/warnings. change this?
-	checkOPTEEEncryption := !checkFDESetupHookEncryption && !constraints.StandaloneInstall && secboot.FDEOpteeTAPresent()
+	checkOPTEEEncryption := !checkFDESetupHookEncryption && secbootFDEOpteeTAPresent()
 	checkSecbootEncryption := !checkOPTEEEncryption
 
 	var checkEncryptionErr error

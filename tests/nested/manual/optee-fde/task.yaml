@@ -6,7 +6,7 @@ details: |
     exercise this functionality. Their sources can be found in
     github.com/canonical/optee-uc-fde.
 
-systems: [-ubuntu-22.04-arm-64]
+systems: [ubuntu-24.04-arm-64]
 
 environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
