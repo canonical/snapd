@@ -198,6 +198,15 @@ app.layout = html.Div(
                     dcc.Loading(
                         html.Div(id="coverage-diff-container"),
                     ),
+                    dbc.Modal(
+                        [
+                            dbc.ModalHeader(dbc.ModalTitle("Tests with feature")),
+                            dbc.ModalBody(id="coverage-diff-modal-body"),
+                        ],
+                        id="coverage-diff-modal",
+                        size="xl",
+                        is_open=False,
+                    ),
                 ]
             ),
             id={"type": "collapse", "index": 2},
@@ -300,6 +309,15 @@ app.layout = html.Div(
                                 "margin": "auto",
                             },
                         ),
+                    ),
+                    dbc.Modal(
+                        [
+                            dbc.ModalHeader(dbc.ModalTitle("Tests with feature")),
+                            dbc.ModalBody(id="coverage-modal-body"),
+                        ],
+                        id="coverage-modal",
+                        size="xl",
+                        is_open=False,
                     ),
                 ]
             ),
