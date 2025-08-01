@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -153,15 +152,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 
 // Ensure implements StateManager.Ensure
 func (m *FDEManager) Ensure() error {
-	if m.preseed {
-		return nil
-	}
-
-	errs := []error{
-		ensureUniqueContainerRoles(m),
-	}
-
-	return strutil.JoinErrors(errs...)
+	return nil
 }
 
 // StartUp implements StateStarterUp.Startup
@@ -197,33 +188,6 @@ func (m *FDEManager) StartUp() error {
 func (m *FDEManager) isFunctional() error {
 	// TODO:FDEM: use more specific errors to capture different error states
 	return m.initErr
-}
-
-var ensureUniqueContainerRoles = ensureUniqueContainerRolesImpl
-
-func ensureUniqueContainerRolesImpl(m *FDEManager) error {
-	if err := m.isFunctional(); err != nil {
-		// skip
-		return nil
-	}
-
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	containers, err := m.GetEncryptedContainers()
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < len(containers); i++ {
-		for j := i + 1; j < len(containers); j++ {
-			if containers[i].ContainerRole() == containers[j].ContainerRole() {
-				m.state.Warnf("container roles should map to one volume only: container role %q maps to %s and %s", containers[i].ContainerRole(), containers[i].DevPath(), containers[j].DevPath())
-			}
-		}
-	}
-
-	return nil
 }
 
 // ReloadModeenv is a helper function for forcing a reload of modeenv. Only
@@ -287,9 +251,7 @@ func (m *FDEManager) GetEncryptedContainers() ([]backend.EncryptedContainer, err
 	return getEncryptedContainers(m.state)
 }
 
-var getEncryptedContainers = getEncryptedContainersImpl
-
-func getEncryptedContainersImpl(state *state.State) ([]backend.EncryptedContainer, error) {
+func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, error) {
 	var foundDisks []backend.EncryptedContainer
 
 	deviceCtx, err := snapstate.DeviceCtx(state, nil, nil)
@@ -339,6 +301,19 @@ func getEncryptedContainersImpl(state *state.State) ([]backend.EncryptedContaine
 			legacyKeys["default-fallback"] = defaultFallbackPath
 		}
 		foundDisks = append(foundDisks, &encryptedContainer{uuid: uuid, containerRole: "system-save", legacyKeys: legacyKeys})
+	}
+
+	for i := 0; i < len(foundDisks); i++ {
+		for j := i + 1; j < len(foundDisks); j++ {
+			// given how the list of found disks is built, this should never happen.
+			//
+			// it is still important to issue a warning if this ever happens
+			// since most key slot operations under assume that the mapping
+			// from container-role to volume is unique.
+			if foundDisks[i].ContainerRole() == foundDisks[j].ContainerRole() {
+				state.Warnf("container roles should map to one volume only: container role %q maps to %s and %s", foundDisks[i].ContainerRole(), foundDisks[i].DevPath(), foundDisks[j].DevPath())
+			}
+		}
 	}
 
 	return foundDisks, nil
@@ -465,6 +440,7 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 		keyslots = append(keyslots, matchedContainerKeyslots...)
 	}
 
+	// XXX: return error if len(keyslots) != keyslotRefs to indicate duplicates?
 	return keyslots, missingRefs, nil
 }
 
@@ -671,9 +647,4 @@ func MockDisksDMCryptUUIDFromMountPoint(f func(mountpoint string) (string, error
 func MockKeyslotKeyData(keyslot *Keyslot, kd secboot.KeyData) {
 	osutil.MustBeTestBinary("mocking Keyslot.keyData can be done only from tests")
 	keyslot.keyData = kd
-}
-
-func MockEnsureUniqueContainerRoles(f func(m *FDEManager) error) (restore func()) {
-	osutil.MustBeTestBinary("mocking fdestate.ensureUniqueContainerRoles can be done only from tests")
-	return testutil.Mock(&ensureUniqueContainerRoles, f)
 }

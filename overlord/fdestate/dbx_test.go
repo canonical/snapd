@@ -103,8 +103,6 @@ func (s *fdeMgrSuite) TestEFIDBXStartupClean(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -202,8 +200,6 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareHappy(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSelf(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -368,8 +364,6 @@ func (s *fdeMgrSuite) TestEFIDBXPrepareConflictSnapChanges(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -500,8 +494,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndCleanupRunningAction(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -664,8 +656,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAndUnexpectedStartupAction(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	// simulate a case when prepare is requested, but neither cleanup nor
 	// startup is called, the change will wait till it is auto aborted
 
@@ -786,8 +776,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAbort(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
 	st := s.st
@@ -850,8 +838,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateResealFailedAborts(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	// mock an error in a reseal which happens in the 'do' handler after snapd
 	// has been notified of a completed update
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
@@ -958,8 +944,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdatePostUpdateResealFailed(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXUpdateUndoResealFails(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	// mock an error in a reseal which happens in the 'undo' path after snapd
 	// has been notified of a restart in the external DBX manager process
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
@@ -1292,8 +1276,6 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateAffectedSnaps(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEFIDBXConflictingSnaps(c *C) {
-	defer fdestate.MockEnsureUniqueContainerRoles(func(m *fdestate.FDEManager) error { return nil })()
-
 	// mock an error in a reseal which happens in the 'undo' path after snapd
 	// has been notified of a restart in the external DBX manager process
 	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
