@@ -12,7 +12,7 @@ on:
 
 jobs:
   rerun:
-    if: github.event.workflow_dispatch
+    if: github.event_name == 'workflow_dispatch'
     permissions: 
       actions: write
     runs-on: ubuntu-latest
