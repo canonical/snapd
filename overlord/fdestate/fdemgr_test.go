@@ -175,6 +175,23 @@ func (u *instrumentedUnlocker) Relock() {
 	u.relocked += 1
 }
 
+func (s *fdeMgrSuite) startedManagerNoEncryptedDisks(c *C, onClassic bool) *fdestate.FDEManager {
+	s.mockDeviceInState(&asserts.Model{}, "run")
+
+	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		// disks.ErrNoDmUUID results in getEncryptedContainers
+		// not returning any encrypted containers
+		return "", disks.ErrNoDmUUID
+	})()
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+	s.o.AddManager(manager)
+	c.Assert(manager.StartUp(), IsNil)
+	c.Assert(s.logbuf.String(), testutil.Contains, "WARNING: no primary key was found")
+	return manager
+}
+
 func (s *fdeMgrSuite) startedManager(c *C, onClassic bool) *fdestate.FDEManager {
 	s.mockDeviceInState(&asserts.Model{}, "run")
 
@@ -1279,7 +1296,7 @@ func (s *fdeMgrSuite) TestFDEBlockedTasks(c *C) {
 	c.Check(chg2.Status(), Equals, state.DoStatus)
 	c.Check(tsk2.Status(), Equals, state.DoStatus)
 
-	// // now unblock it
+	// now unblock it
 	close(ready)
 	st.Unlock()
 	iterateUnlockedStateWaitingFor(st, chg1.IsReady)
