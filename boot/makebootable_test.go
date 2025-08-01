@@ -514,6 +514,61 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
+func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	basePath, baseInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: core24\ntype: base\nversion: 1", nil, nil)
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc-kernel\ntype: kernel\nversion: 1", nil, nil)
+	gadgetPath, gadgetInfo := snaptest.MakeTestSnapInfoWithFiles(c, "name: pc\ntype: gadget\nversion: 1", nil, nil)
+
+	bootWith := &boot.BootableSet{
+		Recovery:            true,
+		Base:                baseInfo,
+		BasePath:            basePath,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelPath,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetPath,
+		RecoverySystemLabel: "label",
+	}
+	observer := boot.TrustedAssetsInstallObserverWithEncryption()
+
+	restore := boot.MockHookKeyProtectorFactory(func(*snap.Info) (secboot.KeyProtectorFactory, error) {
+		return &fakeProtectorFactory{}, nil
+	})
+	defer restore()
+
+	var gotFlags boot.MockSealKeyToModeenvFlags
+	restore = boot.MockSealKeyToModeenv(func(
+		key, saveKey secboot.BootstrappedContainer,
+		primaryKey []byte,
+		volumesAuth *device.VolumesAuthOptions,
+		model *asserts.Model,
+		modeenv *boot.Modeenv,
+		flags boot.MockSealKeyToModeenvFlags,
+	) error {
+		gotFlags = flags
+		return nil
+	})
+	defer restore()
+
+	err := boot.MakeRunnableSystem(model, bootWith, &observer)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotFlags.HookKeyProtectorFactory, NotNil)
+
+	restore = boot.MockHookKeyProtectorFactory(func(*snap.Info) (secboot.KeyProtectorFactory, error) {
+		return nil, secboot.ErrNoKeyProtector
+	})
+	defer restore()
+
+	err = boot.MakeRunnableSystem(model, bootWith, &observer)
+	c.Assert(err, IsNil)
+
+	// now, we don't have the key protector
+	c.Assert(gotFlags.HookKeyProtectorFactory, IsNil)
+}
+
 type testMakeSystemRunnable20Opts struct {
 	standalone    bool
 	factoryReset  bool
