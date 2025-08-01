@@ -193,15 +193,6 @@ type KeyData interface {
 // opaque binary blob outside of secboot package.
 type SerializedPCRProfile []byte
 
-type ResealKeysParams struct {
-	// The snap model parameters
-	PCRProfile SerializedPCRProfile
-	// The locations to the key data
-	Keys []KeyDataLocation
-	// The primary key
-	PrimaryKey []byte
-}
-
 // UnlockVolumeUsingSealedKeyOptions contains options for unlocking encrypted
 // volumes using keys sealed to the TPM.
 type UnlockVolumeUsingSealedKeyOptions struct {
@@ -290,3 +281,21 @@ func MarkSuccessful() error {
 const (
 	defaultKeyringPrefix = "ubuntu-fde"
 )
+
+type ResealKeyParams struct {
+	// GetPrimaryKey returns the primary key. It is not called if
+	// not needed.
+	GetPrimaryKey              func() ([]byte, error)
+	// The allowed boot modes (run, recover, factory-reset)
+	BootModes                  []string
+	// The allowed models
+	Models                     []ModelForSealing
+	// The TPM policy profile. May be be nil when using hooks.
+	TpmPCRProfile              []byte
+	// Whether a incremented value of the counter is allowed
+	// (before a revocation)
+	IncrementRevocationCounter bool
+	// Whether we should consider old ambiguous key formats a
+	// FDE hook key.
+	HintExpectFDEHook          bool
+}
