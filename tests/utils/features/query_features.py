@@ -720,6 +720,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     find.add_argument('-s', '--system', help='(optional) system to search for feature in', default=None, type=str)
     find.add_argument('--feat', help='feature to search for (json format)', required=True, type=str)
     find.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    find.add_argument('--force-exact', help='force match the entire feature', action='store_true')
     return cmd, cmd_all, cmd_sys, cmd_find
 
 
@@ -778,7 +779,7 @@ def main():
             elif args.features_cmd == feat_find_cmd:
                 try:
                     feat = json.loads(args.feat)
-                    result = find_feat(retriever, args.timestamp, feat, args.remove_failed, args.system)
+                    result = find_feat(retriever, args.timestamp, feat, args.remove_failed, args.system, args.force_exact)
                     json.dump(result, sys.stdout, default=lambda x: str(x))
                 except Exception as e:
                     raise RuntimeError(f'Error parsing feature {args.feat}: {e}')
