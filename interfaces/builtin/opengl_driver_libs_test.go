@@ -127,6 +127,29 @@ slots:
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "opengl-provider" has interface "opengl-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+
+	slot = MockSlot(c, `name: opengl-provider
+version: 0
+slots:
+  opengl:
+    interface: opengl-driver-libs
+    source:
+      - $SNAP/lib1
+`, nil, "opengl")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`snap "opengl-provider" does not have attribute "compatibility" for interface "opengl-driver-libs"`)
+
+	slot = MockSlot(c, `name: opengl-provider
+version: 0
+slots:
+  opengl:
+    interface: opengl-driver-libs
+    compatibility: opengl-other-2510
+    source:
+      - $SNAP/lib1
+`, nil, "opengl")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`compatibility label "opengl-other-2510": string does not match interface spec \(other != ubuntu\)`)
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {

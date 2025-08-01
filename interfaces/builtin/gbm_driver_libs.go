@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -61,14 +62,27 @@ type gbmDriverLibsInterface struct {
 	commonInterface
 }
 
+var reClientDriver = regexp.MustCompile("^[-0-9a-zA-Z_.]+$").Match
+var reKernelDriver = regexp.MustCompile("^[-0-9a-zA-Z_]+$").Match
+
 func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// Validate attributes
 	var clientDriver, kernelDriver string
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
+	// We want a file name in client-driver, without directories
+	if strings.ContainsRune(clientDriver, os.PathSeparator) {
+		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
+	}
+	if !reClientDriver([]byte(clientDriver)) {
+		return fmt.Errorf("invalid client-driver name: %s", clientDriver)
+	}
 	if err := slot.Attr("kernel-driver", &kernelDriver); err != nil {
 		return fmt.Errorf("invalid kernel-driver: %w", err)
+	}
+	if !reKernelDriver([]byte(kernelDriver)) {
+		return fmt.Errorf("invalid kernel-driver name: %s", kernelDriver)
 	}
 	var compatField string
 	if err := slot.Attr("compatibility", &compatField); err != nil {
@@ -86,10 +100,6 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	}})
 	if err != nil {
 		return err
-	}
-	// We want a file name in client-driver, without directories
-	if strings.ContainsRune(clientDriver, os.PathSeparator) {
-		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
 	}
 	// Validate directories
 	return validateLdconfigLibDirs(slot)

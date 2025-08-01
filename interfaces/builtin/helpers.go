@@ -66,7 +66,7 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	return spec.AddLibDirs(expandedDirs)
 }
 
-// filePathInLibDirs returns the path of the first occurrence of file in the
+// filePathInLibDirs returns the path of the first occurrence of fileName in the
 // list of library directories of the slot. snapPath is the path where the snap
 // is mounted.
 func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string, error) {

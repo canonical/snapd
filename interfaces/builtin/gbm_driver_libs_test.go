@@ -20,6 +20,7 @@
 package builtin_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -169,6 +171,34 @@ slots:
   gbm:
     interface: gbm-driver-libs
     kernel-driver: graphics-module
+    client-driver: libnvidia@-allocator.so.1
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
+    source:
+      - $SNAP/lib1
+`, nil, "gbm")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`invalid client-driver name: libnvidia@-allocator.so.1`)
+
+	slot = MockSlot(c, `name: gbm-provider
+version: 0
+slots:
+  gbm:
+    interface: gbm-driver-libs
+    kernel-driver: graphics@-module
+    client-driver: libnvidia-allocator.so.1
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
+    source:
+      - $SNAP/lib1
+`, nil, "gbm")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`invalid kernel-driver name: graphics@-module`)
+
+	slot = MockSlot(c, `name: gbm-provider
+version: 0
+slots:
+  gbm:
+    interface: gbm-driver-libs
+    kernel-driver: graphics-module
     client-driver: /abs/path/libnvidia-allocator.so.1
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     source:
@@ -255,9 +285,10 @@ func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	c.Assert(os.MkdirAll(snapSourceDir, 0755), IsNil)
 	c.Assert(os.WriteFile(targetPath, []byte{}, 0644), IsNil)
 
+	dir := fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
-		"/usr/lib/x86_64-linux-gnu/gbm": {
+		dir: {
 			"nvidia-drm_gbm.so": targetPath,
 		},
 	})
@@ -267,6 +298,44 @@ func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClient(c *C) {
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
 		`"libnvidia-allocator\.so\.1" not found in the source directories`)
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClientDriver(c *C) {
+	spec := &symlinks.Specification{}
+	slot, _ := MockConnectedSlot(c, `name: gbm-provider
+version: 0
+slots:
+  gbm:
+    kernel-driver: graphics-module
+    compatibility: gbmbackend-(0..2)-arch64
+    interface: gbm-driver-libs
+    source:
+      - $SNAP/lib1
+`, nil, "gbm")
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), ErrorMatches,
+		`invalid client-driver: snap "gbm-provider" does not have attribute "client-driver" for interface "gbm-driver-libs"`)
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoKernelDriver(c *C) {
+	spec := &symlinks.Specification{}
+	slot, _ := MockConnectedSlot(c, `name: gbm-provider
+version: 0
+slots:
+  gbm:
+    client-driver: libnvidia-allocator.so.1
+    interface: gbm-driver-libs
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
+    source:
+      - /snap/gbm-provider/current/lib1
+`, nil, "gbm")
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), ErrorMatches,
+		`invalid client-driver: snap "gbm-provider" does not have attribute "kernel-driver" for interface "gbm-driver-libs"`)
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
+	symlinksUser := builtin.SymlinksUserIfaceFromGbmIface(s.iface)
+	c.Assert(symlinksUser.TrackedDirectories(), DeepEquals, []string{
+		fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())})
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
