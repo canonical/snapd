@@ -272,12 +272,6 @@ distro_purge_package() {
             exit 1
             ;;
     esac
-
-    if [ "$1" = "snapd" ] && os.query is-opensuse tumbleweed; then
-        # explicitly attempt to stop the snapd.socket due to
-        # https://bugzilla.suse.com/show_bug.cgi?id=1245551
-        systemctl disable --now snapd.socket
-    fi
 }
 
 distro_update_package_db() {
