@@ -30,11 +30,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/canonical/go-tpm2"
-	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
-	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/gadget/device"
@@ -678,55 +675,4 @@ func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.Recov
 		return fmt.Errorf("cannot get key from kernel keyring for unlocked disk %s: %v", devicePath, err)
 	}
 	return sbAddLUKS2ContainerRecoveryKey(devicePath, slotName, unlockKey, sb.RecoveryKey(rkey))
-}
-
-// AddContainerRecoveryKey adds a new TPM protected key to specified device.
-//
-// Note: The unlock and primary keys are implicitly obtained from the kernel
-// keyring so this will not work if the disk was unlocked with a recovery key
-// during boot.
-func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) error {
-	var pcrProfile sb_tpm2.PCRProtectionProfile
-	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
-		return fmt.Errorf("cannot unmarshal PCR profile: %v", err)
-	}
-
-	// this will fail if the disk was unlocked with a recovery key during boot.
-	primaryKey, err := sbGetPrimaryKeyFromKernel(defaultKeyringPrefix, devicePath, false)
-	if err != nil {
-		return fmt.Errorf("cannot get primary key from kernel keyring for unlocked disk %s: %v", devicePath, err)
-	}
-
-	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultKeyringPrefix, devicePath, false)
-	if err != nil {
-		return fmt.Errorf("cannot get unlock key from kernel keyring for unlocked disk %s: %v", devicePath, err)
-	}
-
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
-	defer tpm.Close()
-	if !isTPMEnabled(tpm) {
-		return errors.New("TPM device is not enabled")
-	}
-
-	creationParams := &sb_tpm2.ProtectKeyParams{
-		PCRProfile:             &pcrProfile,
-		Role:                   params.KeyRole,
-		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
-		PrimaryKey:             primaryKey,
-	}
-
-	protectedKey, _, newKey, err := newTPMProtectedKey(tpm, creationParams, params.VolumesAuth)
-	if err != nil {
-		return fmt.Errorf("cannot seal key: %v", err)
-	}
-
-	if err := sbAddLUKS2ContainerUnlockKey(devicePath, slotName, unlockKey, newKey); err != nil {
-		return fmt.Errorf("cannot add key: %v", err)
-	}
-
-	keyData := keyData{kd: protectedKey}
-	return keyData.WriteTokenAtomic(devicePath, slotName)
 }
