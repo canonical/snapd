@@ -169,10 +169,10 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "foo")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.psk", "bar")
+	err = tx.Set(parsePath(c, "wifi.psk"), "bar")
 	c.Assert(err, IsNil)
 
 	ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
@@ -184,10 +184,10 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	_, err = tx.Get("wifi.ssid")
+	_, err = tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, ErrorMatches, `no value was found under path "wifi.ssid"`)
 
-	_, err = tx.Get("wifi.psk")
+	_, err = tx.Get(parsePath(c, "wifi.psk"))
 	c.Assert(err, ErrorMatches, `no value was found under path "wifi.psk"`)
 }
 

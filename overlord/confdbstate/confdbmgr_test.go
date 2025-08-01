@@ -182,7 +182,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	c.Assert(err, IsNil)
 	setTransaction(commitTask, tx)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	// the first save-view hook is done
@@ -232,7 +232,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	// the transaction has been cleared
 	tx, _, _, err = confdbstate.GetStoredTransaction(secondTask)
 	c.Assert(err, IsNil)
-	_, err = tx.Get("foo")
+	_, err = tx.Get(parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, "no value was found under path \"foo\"")
 
 	halts := secondTask.HaltTasks()
@@ -286,7 +286,7 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorHoldsTasks(c *C) {
 	c.Assert(err, IsNil)
 	setTransaction(commitTask, tx)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	// the first save-view hook will fail
@@ -437,7 +437,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "foo")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	setTransaction(t, tx)
@@ -457,7 +457,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 	err = tx.Clear(s.state)
 	c.Assert(err, IsNil)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }
@@ -514,7 +514,7 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	c.Assert(err, IsNil)
 
 	// the schema will reject this, so the commit will fail
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 	setTransaction(commitTask, tx)
 

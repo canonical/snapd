@@ -166,12 +166,18 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	tr.Commit()
 }
 
+func parsePath(c *C, path string) []confdb.Accessor {
+	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+	return accs
+}
+
 func (s *confdbTestSuite) TestGetView(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "foo")
+	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
@@ -224,7 +230,7 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get("wifi.ssid")
+	val, err := bag.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "foo")
 }
@@ -252,7 +258,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	defer s.state.Unlock()
 
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "foo")
+	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
@@ -261,7 +267,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil})
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get("wifi.ssid")
+	val, err := bag.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, FitsTypeOf, confdb.PathError(""))
 	c.Assert(val, Equals, nil)
 }
@@ -271,12 +277,17 @@ func (s *confdbTestSuite) TestConfdbstateGetEntireView(c *C) {
 	defer s.state.Unlock()
 
 	bag := confdb.NewJSONDatabag()
-	c.Assert(bag.Set("wifi.ssids", []any{"foo", "bar"}), IsNil)
-	c.Assert(bag.Set("wifi.psk", "pass"), IsNil)
-	c.Assert(bag.Set("private", map[string]any{
+	err := bag.Set(parsePath(c, "wifi.ssids"), []any{"foo", "bar"})
+	c.Assert(err, IsNil)
+
+	err = bag.Set(parsePath(c, "wifi.psk"), "pass")
+	c.Assert(err, IsNil)
+
+	err = bag.Set(parsePath(c, "private"), map[string]any{
 		"a": 1,
 		"b": 2,
-	}), IsNil)
+	})
+	c.Assert(err, IsNil)
 
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
@@ -390,7 +401,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *
 }
 
 func (s *confdbTestSuite) TestPlugsAffectedByPaths(c *C) {
-	confdb, err := confdb.NewSchema(s.devAccID, "confdb", map[string]any{
+	schema, err := confdb.NewSchema(s.devAccID, "confdb", map[string]any{
 		// exact match
 		"view-1": map[string]any{
 			"rules": []any{
@@ -479,7 +490,8 @@ slots:
 		c.Assert(err, IsNil)
 	}
 
-	snapPlugs, err := confdbstate.GetPlugsAffectedByPaths(s.state, confdb, []string{"foo"})
+	path := parsePath(c, "foo")
+	snapPlugs, err := confdbstate.GetPlugsAffectedByPaths(s.state, schema, [][]confdb.Accessor{path})
 	c.Assert(err, IsNil)
 	c.Assert(snapPlugs, HasLen, 1)
 
@@ -501,7 +513,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -558,7 +570,7 @@ func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -601,7 +613,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -672,7 +684,7 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -870,14 +882,14 @@ func (s *confdbTestSuite) TestGetStoredTransaction(c *C) {
 		c.Assert(txTask.ID(), Equals, commitTask.ID())
 
 		// check that making and saving changes works
-		c.Assert(storedTx.Set("foo", "bar"), IsNil)
+		c.Assert(storedTx.Set(parsePath(c, "foo"), "bar"), IsNil)
 		saveChanges()
 
 		tx = nil
 		tx, _, _, err = confdbstate.GetStoredTransaction(t)
 		c.Assert(err, IsNil)
 
-		val, err := tx.Get("foo")
+		val, err := tx.Get(parsePath(c, "foo"))
 		c.Assert(err, IsNil)
 		c.Assert(val, Equals, "bar")
 
@@ -924,7 +936,7 @@ func (s *confdbTestSuite) TestGetTransactionFromUserCreatesNewChange(c *C) {
 	c.Assert(tx, NotNil)
 	c.Assert(commitTxFunc, NotNil)
 
-	err = tx.Set("wifi.ssid", "foo")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	// mock the daemon triggering the commit
@@ -1095,7 +1107,7 @@ func (s *confdbTestSuite) checkSetConfdbChange(c *C, chg *state.Change, hooks *[
 	c.Assert(err, IsNil)
 
 	// was committed (otherwise would've been removed by Clear)
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }
@@ -1121,7 +1133,7 @@ func (s *confdbTestSuite) TestGetTransactionFromChangeViewHook(c *C) {
 	tx, _, _, err := confdbstate.GetStoredTransaction(t)
 	c.Assert(err, IsNil)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 }
@@ -1156,7 +1168,7 @@ func (s *confdbTestSuite) testGetReadableOngoingTransaction(c *C, hook string) *
 	originalTx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = originalTx.Set("wifi.ssid", "foo")
+	err = originalTx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("test", "")
@@ -1246,7 +1258,7 @@ func (s *confdbTestSuite) testConfdbLoadNoCustodian(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -1307,7 +1319,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -1352,7 +1364,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianWithNoHooks(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -1373,7 +1385,7 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "my-ssid")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
@@ -1462,7 +1474,7 @@ func (s *confdbTestSuite) testGetTransactionForSnapctl(c *C, ctx *hookstate.Cont
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "foo")
+	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
@@ -1472,7 +1484,7 @@ func (s *confdbTestSuite) testGetTransactionForSnapctl(c *C, ctx *hookstate.Cont
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 
@@ -1484,7 +1496,7 @@ func (s *confdbTestSuite) testGetTransactionForSnapctl(c *C, ctx *hookstate.Cont
 func (s *confdbTestSuite) TestGetTransactionInConfdbHook(c *C) {
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "foo")
+	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -1515,7 +1527,7 @@ func (s *confdbTestSuite) TestGetTransactionInConfdbHook(c *C) {
 	c.Assert(s.state.Changes(), HasLen, 1)
 	c.Assert(chg.Tasks(), HasLen, 2)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }
@@ -1541,7 +1553,7 @@ func (s *confdbTestSuite) TestGetTransactionNoConfdbHooks(c *C) {
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err = bag.Set("wifi.ssid", "foo")
+	err = bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
@@ -1554,7 +1566,7 @@ func (s *confdbTestSuite) TestGetTransactionNoConfdbHooks(c *C) {
 	// no tasks were scheduled
 	c.Assert(s.state.Changes(), HasLen, 0)
 
-	val, err := tx.Get("wifi.ssid")
+	val, err := tx.Get(parsePath(c, "wifi.ssid"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 
@@ -1578,7 +1590,7 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err = bag.Set("wifi.ssid", "foo")
+	err = bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
@@ -1671,9 +1683,9 @@ func (s *confdbTestSuite) TestGetTransactionForAPI(c *C) {
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "foo")
+	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	err = bag.Set("wifi.ssids", []string{"abc", "xyz"})
+	err = bag.Set(parsePath(c, "wifi.ssids"), []string{"abc", "xyz"})
 	c.Assert(err, IsNil)
 
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
@@ -1720,9 +1732,9 @@ func (s *confdbTestSuite) TestGetTransactionForAPINoHooks(c *C) {
 
 	// write some value for the get to read
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("wifi.ssid", "foo")
+	err := bag.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
-	err = bag.Set("wifi.ssids", []string{"abc", "xyz"})
+	err = bag.Set(parsePath(c, "wifi.ssids"), []string{"abc", "xyz"})
 	c.Assert(err, IsNil)
 
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
@@ -1886,7 +1898,7 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 	view := s.dbSchema.View("setup-wifi")
 	tx, commitTx, err := confdbstate.GetTransactionToSet(nil, s.state, view)
 	c.Assert(err, IsNil)
-	err = tx.Set("wifi.eph", "foo")
+	err = tx.Set(parsePath(c, "wifi.eph"), "foo")
 	c.Assert(err, IsNil)
 
 	// can't write an ephemeral path w/o a save-view hook
@@ -1895,7 +1907,7 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 
 	err = tx.Clear(s.state)
 	c.Assert(err, IsNil)
-	err = tx.Set("wifi.ssid", "foo")
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
 	c.Assert(err, IsNil)
 
 	// but we can if the path can't touch any ephemeral data
@@ -1961,7 +1973,7 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 	tx, commitTxFunc, err := confdbstate.GetTransactionToSet(nil, s.state, view)
 	c.Assert(err, IsNil)
 	// this shouldn't happen unless there's a mismatch between views and schemas but check we're robust
-	c.Assert(tx.Set("foo", "bar"), IsNil)
+	c.Assert(tx.Set(parsePath(c, "foo"), "bar"), IsNil)
 	_, _, err = commitTxFunc()
 	c.Assert(err, ErrorMatches, `cannot check if write affects ephemeral data: cannot use "foo" as key in map`)
 }

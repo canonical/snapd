@@ -34,9 +34,13 @@ func (a Authentication) ToStrings() []string {
 	return a.toStrings()
 }
 
-func ParsePathIntoAccessors(path string) ([]accessor, error) {
-	opts := parseOpts{pathType: viewPath}
-	return parsePathIntoAccessors(path, opts)
+func PathValuePairsIntoMap(pairs []pathValuePair) map[string]any {
+	pathsToValues := make(map[string]any, len(pairs))
+	for _, pair := range pairs {
+		pathsToValues[JoinAccessors(pair.path)] = pair.value
+	}
+
+	return pathsToValues
 }
 
 func MockMaxValueDepth(newDepth int) (restore func()) {

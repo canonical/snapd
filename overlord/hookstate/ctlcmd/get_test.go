@@ -611,7 +611,8 @@ func (s *confdbSuite) TestConfdbGetSingleView(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
@@ -632,8 +633,10 @@ func (s *confdbSuite) TestConfdbGetManyViews(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
-	c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "wifi.psk"), "secret")
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
@@ -658,8 +661,11 @@ func (s *confdbSuite) TestConfdbGetNoRequest(c *C) {
 	s.state.Lock()
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	c.Assert(tx.Set("wifi.ssid", "my-ssid"), IsNil)
-	c.Assert(tx.Set("wifi.psk", "secret"), IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "my-ssid")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "wifi.psk"), "secret")
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	restore := ctlcmd.MockConfdbstateTransactionForGet(func(ctx *hookstate.Context, view *confdb.View, requests []string) (*confdbstate.Transaction, error) {
@@ -816,12 +822,14 @@ func (s *confdbSuite) TestConfdbGetPrevious(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 
-	c.Assert(tx.Set("wifi.ssid", "foo"), IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
+	c.Assert(err, IsNil)
 	c.Assert(tx.Commit(s.state, confdb.NewJSONSchema()), IsNil)
 
 	tx, err = confdbstate.NewTransaction(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
-	c.Assert(tx.Set("wifi.ssid", "bar"), IsNil)
+	err = tx.Set(parsePath(c, "wifi.ssid"), "bar")
+	c.Assert(err, IsNil)
 
 	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
 		return tx, nil

@@ -41,12 +41,18 @@ type failingSchema struct {
 }
 
 func (f *failingSchema) Validate([]byte) error { return f.err }
-func (f *failingSchema) SchemaAt(path []string) ([]confdb.DatabagSchema, error) {
+func (f *failingSchema) SchemaAt(path []confdb.Accessor) ([]confdb.DatabagSchema, error) {
 	return []confdb.DatabagSchema{f}, nil
 }
 func (f *failingSchema) Type() confdb.SchemaType { return confdb.Any }
 func (f *failingSchema) Ephemeral() bool         { return false }
 func (f *failingSchema) NestedEphemeral() bool   { return false }
+
+func parsePath(c *C, path string) []confdb.Accessor {
+	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+	return accs
+}
 
 func (*viewSuite) TestNewConfdb(c *C) {
 	type testcase struct {
@@ -500,18 +506,18 @@ func newWitnessDatabag(bag confdb.Databag) *witnessDatabag {
 	return &witnessDatabag{bag: bag}
 }
 
-func (s *witnessDatabag) Get(path string) (any, error) {
-	s.getPath = path
+func (s *witnessDatabag) Get(path []confdb.Accessor) (any, error) {
+	s.getPath = confdb.JoinAccessors(path)
 	return s.bag.Get(path)
 }
 
-func (s *witnessDatabag) Set(path string, value any) error {
-	s.setPath = path
+func (s *witnessDatabag) Set(path []confdb.Accessor, value any) error {
+	s.setPath = confdb.JoinAccessors(path)
 	return s.bag.Set(path, value)
 }
 
-func (s *witnessDatabag) Unset(path string) error {
-	s.setPath = path
+func (s *witnessDatabag) Unset(path []confdb.Accessor) error {
+	s.setPath = confdb.JoinAccessors(path)
 	return s.bag.Unset(path)
 }
 
@@ -844,7 +850,8 @@ func (s *viewSuite) TestViewUnsetAlreadyUnsetEntry(c *C) {
 
 func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("foo", "bar")
+	path := parsePath(c, "foo")
+	err := bag.Set(path, "bar")
 	c.Assert(err, IsNil)
 
 	// precondition check
@@ -858,7 +865,7 @@ func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 	c.Assert(string(data), Equals, `{"foo":"bar"}`)
 
 	// changes in the copied bag don't affect the original
-	err = bagCopy.Set("foo", "baz")
+	err = bagCopy.Set(path, "baz")
 	c.Assert(err, IsNil)
 
 	data, err = bag.Data()
@@ -866,7 +873,7 @@ func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 	c.Assert(string(data), Equals, `{"foo":"bar"}`)
 
 	// and vice-versa
-	err = bag.Set("foo", "zab")
+	err = bag.Set(path, "zab")
 	c.Assert(err, IsNil)
 
 	data, err = bagCopy.Data()
@@ -876,7 +883,7 @@ func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 
 func (s *viewSuite) TestJSONDataOverwrite(c *C) {
 	bag := confdb.NewJSONDatabag()
-	err := bag.Set("foo", "bar")
+	err := bag.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	// precondition check
@@ -887,7 +894,7 @@ func (s *viewSuite) TestJSONDataOverwrite(c *C) {
 	err = bag.Overwrite([]byte(`{"bar":"foo"}`))
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get("bar")
+	val, err := bag.Get(parsePath(c, "bar"))
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 
@@ -910,7 +917,7 @@ func (s *viewSuite) TestViewGetResultNamespaceMatchesRequest(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("bar")
-	err = databag.Set("one", map[string]any{"two": "value"})
+	err = databag.Set(parsePath(c, "one"), map[string]any{"two": "value"})
 	c.Assert(err, IsNil)
 
 	value, err := view.Get(databag, "one.two")
@@ -1048,7 +1055,7 @@ func (s *viewSuite) TestViewCombineNamespacesInPrefixMatches(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	err = databag.Set("snaps", map[string]any{
+	err = databag.Set(parsePath(c, "snaps"), map[string]any{
 		"firefox": map[string]any{
 			"status": "active",
 		},
@@ -1085,14 +1092,14 @@ func (s *viewSuite) TestGetScalarOverwritesLeafOfMapValue(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	err = databag.Set("motors", map[string]any{
+	err = databag.Set(parsePath(c, "motors"), map[string]any{
 		"a": map[string]any{
 			"speed": 100,
 		},
 	})
 	c.Assert(err, IsNil)
 
-	err = databag.Set("new-speed", map[string]any{
+	err = databag.Set(parsePath(c, "new-speed"), map[string]any{
 		"a": 101.5,
 	})
 	c.Assert(err, IsNil)
@@ -1115,7 +1122,7 @@ func (s *viewSuite) TestGetSingleScalarOk(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	err = databag.Set("foo", "bar")
+	err = databag.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
@@ -1137,9 +1144,10 @@ func (s *viewSuite) TestGetMatchScalarAndMapError(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	err = databag.Set("bar", 1)
+	err = databag.Set(parsePath(c, "bar"), 1)
 	c.Assert(err, IsNil)
-	err = databag.Set("baz", 2)
+
+	err = databag.Set(parsePath(c, "baz"), 2)
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
@@ -1162,7 +1170,7 @@ func (s *viewSuite) TestGetRulesAreSortedByParentage(c *C) {
 	c.Assert(err, IsNil)
 	view := schema.View("foo")
 
-	err = databag.Set("first", map[string]any{"bar": map[string]any{"baz": "first"}})
+	err = databag.Set(parsePath(c, "first"), map[string]any{"bar": map[string]any{"baz": "first"}})
 	c.Assert(err, IsNil)
 
 	value, err := view.Get(databag, "foo")
@@ -1170,7 +1178,7 @@ func (s *viewSuite) TestGetRulesAreSortedByParentage(c *C) {
 	// returned the value read by entry "foo"
 	c.Assert(value, DeepEquals, map[string]any{"bar": map[string]any{"baz": "first"}})
 
-	err = databag.Set("second", map[string]any{"baz": "second"})
+	err = databag.Set(parsePath(c, "second"), map[string]any{"baz": "second"})
 	c.Assert(err, IsNil)
 
 	value, err = view.Get(databag, "foo")
@@ -1178,7 +1186,7 @@ func (s *viewSuite) TestGetRulesAreSortedByParentage(c *C) {
 	// the leaf is replaced by a value read from a rule that is nested
 	c.Assert(value, DeepEquals, map[string]any{"bar": map[string]any{"baz": "second"}})
 
-	err = databag.Set("third", "third")
+	err = databag.Set(parsePath(c, "third"), "third")
 	c.Assert(err, IsNil)
 
 	value, err = view.Get(databag, "foo")
@@ -1200,7 +1208,7 @@ func (s *viewSuite) TestGetUnmatchedPlaceholderReturnsAll(c *C) {
 	view := schema.View("snaps")
 	c.Assert(view, NotNil)
 
-	err = databag.Set("snaps", map[string]any{
+	err = databag.Set(parsePath(c, "snaps"), map[string]any{
 		"snapd": 1,
 		"foo": map[string]any{
 			"bar": 2,
@@ -1226,7 +1234,7 @@ func (s *viewSuite) TestGetUnmatchedPlaceholdersWithNestedValues(c *C) {
 	view := schema.View("statuses")
 	c.Assert(view, NotNil)
 
-	err = databag.Set("snaps", map[string]any{
+	err = databag.Set(parsePath(c, "snaps"), map[string]any{
 		"snapd": map[string]any{
 			"status": "active",
 		},
@@ -1254,7 +1262,7 @@ func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 	view := schema.View("foo")
 	c.Assert(view, NotNil)
 
-	err = databag.Set("a", map[string]any{
+	err = databag.Set(parsePath(c, "a"), map[string]any{
 		"b1": map[string]any{
 			"c": map[string]any{
 				// the request can be fulfilled here
@@ -1307,7 +1315,7 @@ func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
 	view := confdb.View("foo")
 	c.Assert(view, NotNil)
 
-	err = databag.Set("a", map[string]any{
+	err = databag.Set(parsePath(c, "a"), map[string]any{
 		"b": map[string]any{
 			"c": map[string]any{
 				"d": map[string]any{
@@ -1346,7 +1354,7 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 	view := schema.View("foo")
 	c.Assert(view, NotNil)
 
-	err = databag.Set("a", map[string]any{
+	err = databag.Set(parsePath(c, "a"), map[string]any{
 		"b": map[string]any{
 			"c": "value",
 		},
@@ -1448,11 +1456,11 @@ func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {
 	err = view.Set(databag, "a.b.c", "value")
 	c.Assert(err, IsNil)
 
-	stored, err := databag.Get("old")
+	stored, err := databag.Get(parsePath(c, "old"))
 	c.Assert(err, IsNil)
 	c.Assert(stored, Equals, "value")
 
-	stored, err = databag.Get("new")
+	stored, err = databag.Get(parsePath(c, "new"))
 	c.Assert(err, IsNil)
 	c.Assert(stored, Equals, "value")
 }
@@ -1478,7 +1486,7 @@ func (s *viewSuite) TestSetWritesToMoreNestedLast(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	val, err := databag.Get("snaps")
+	val, err := databag.Get(parsePath(c, "snaps"))
 	c.Assert(err, IsNil)
 
 	c.Assert(val, DeepEquals, map[string]any{
@@ -1507,7 +1515,8 @@ func (s *viewSuite) TestReadWriteRead(c *C) {
 			"c": "end",
 		},
 	}
-	err = databag.Set("a", initData)
+
+	err = databag.Set(parsePath(c, "a"), initData)
 	c.Assert(err, IsNil)
 
 	data, err := view.Get(databag, "a")
@@ -1540,7 +1549,9 @@ func (s *viewSuite) TestReadWriteSameDataAtDifferentLevels(c *C) {
 			"c": "end",
 		},
 	}
-	err = databag.Set("a", initialData)
+
+	path := parsePath(c, "a")
+	err = databag.Set(path, initialData)
 	c.Assert(err, IsNil)
 
 	for _, req := range []string{"a", "a.b", "a.b.c"} {
@@ -1551,7 +1562,7 @@ func (s *viewSuite) TestReadWriteSameDataAtDifferentLevels(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	data, err := databag.Get("a")
+	data, err := databag.Get(path)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, initialData)
 }
@@ -1596,14 +1607,14 @@ func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	err = databag.Set("snaps", map[string]any{
+	err = databag.Set(parsePath(c, "snaps"), map[string]any{
 		"snapd": map[string]any{
 			"version": 1,
 		},
 	})
 	c.Assert(err, IsNil)
 
-	err = databag.Set("anewversion", 2)
+	err = databag.Set(parsePath(c, "anewversion"), 2)
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
@@ -1905,6 +1916,60 @@ func (*viewSuite) TestSchemaMismatchCheckDifferentLevelPaths(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*viewSuite) TestSchemaMismatchPlaceholder(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"a": "string",
+				"b": {
+					"type": "array",
+					"values": "string"
+				}
+			}
+		},
+		"baz": {
+			"schema": {
+				"a": "string",
+				"b": "int"
+			}
+		}
+	}
+}`)
+	schema, err := confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	_, err = confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.{bar}[{n}]", "storage": "foo.{bar}[{n}]"},
+			},
+		},
+	}, schema)
+	c.Assert(err, IsNil)
+
+	schemaStr = []byte(`{
+	"schema": {
+		"baz": {
+			"schema": {
+				"b": "int"
+			}
+		}
+	}
+}`)
+	schema, err = confdb.ParseStorageSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	_, err = confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "baz.{bar}[{n}]", "storage": "baz.{bar}[{n}]"},
+			},
+		},
+	}, schema)
+	c.Assert(err, ErrorMatches, `.*storage path "baz.{bar}\[{n}\]" for request "baz.{bar}\[{n}\]" is invalid after "baz.{bar}": cannot follow path beyond "int" type`)
+}
+
 func (*viewSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -2187,15 +2252,20 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 
 	for i, tc := range tcs {
 		cmt := Commentf("failed test number %d", i+1)
-		accessors, err := confdb.ParsePathIntoAccessors(tc.suffix)
-		c.Assert(err, IsNil, cmt)
+		opts := confdb.ParseOptions{AllowPlaceholders: true}
+		suffix, err := confdb.ParsePathIntoAccessors(tc.suffix, opts)
+		c.Assert(err, IsNil)
 
-		pathsToValues, err := confdb.GetValuesThroughPaths(tc.path, accessors, tc.value)
+		path, err := confdb.ParsePathIntoAccessors(tc.path, opts)
+		c.Assert(err, IsNil)
+
+		pathValuePairs, err := confdb.GetValuesThroughPaths(path, suffix, tc.value)
 
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, cmt)
-			c.Check(pathsToValues, IsNil, cmt)
+			c.Check(pathValuePairs, IsNil, cmt)
 		} else {
+			pathsToValues := confdb.PathValuePairsIntoMap(pathValuePairs)
 			c.Check(err, IsNil, cmt)
 			c.Check(pathsToValues, DeepEquals, tc.expected, cmt)
 		}
@@ -2368,7 +2438,7 @@ func (*viewSuite) TestViewContentRule(c *C) {
 	c.Assert(err, IsNil)
 
 	databag := confdb.NewJSONDatabag()
-	err = databag.Set("c.d", "value")
+	err = databag.Set(parsePath(c, "c.d"), "value")
 	c.Assert(err, IsNil)
 
 	view := schema.View("bar")
@@ -2829,7 +2899,8 @@ func (*viewSuite) TestGetAffectedViews(c *C) {
 		schema, err := confdb.NewSchema("acc", "db", tc.views, confdb.NewJSONSchema())
 		c.Assert(err, IsNil, cmt)
 
-		affectedViews := schema.GetViewsAffectedByPath(tc.modified)
+		modified := parsePath(c, tc.modified)
+		affectedViews := schema.GetViewsAffectedByPath(modified)
 		c.Assert(affectedViews, HasLen, len(tc.affected), cmt)
 
 		viewNames := make([]string, 0, len(affectedViews))
@@ -3006,7 +3077,14 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 	v := schema.View("my-view")
 	for i, tc := range tcs {
 		cmt := Commentf("failed test number %d", i+1)
-		eph, err := v.WriteAffectsEphemeral(tc.requests)
+		var paths [][]confdb.Accessor
+		for _, req := range tc.requests {
+			path, err := confdb.ParsePathIntoAccessors(req, confdb.ParseOptions{})
+			c.Assert(err, IsNil)
+			paths = append(paths, path)
+		}
+
+		eph, err := v.WriteAffectsEphemeral(paths)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, cmt)
 		} else {
@@ -3053,7 +3131,7 @@ func (*viewSuite) TestGetListLiteral(c *C) {
 	c.Assert(err, IsNil)
 
 	bag := confdb.NewJSONDatabag()
-	err = bag.Set("a", []any{
+	err = bag.Set(parsePath(c, "a"), []any{
 		map[string]any{"bar": 1337},
 		[]any{map[string]any{"baz": 999}},
 	})
@@ -3095,10 +3173,10 @@ func (*viewSuite) TestGetListPlaceholder(c *C) {
 	c.Assert(err, IsNil)
 
 	bag := confdb.NewJSONDatabag()
-	err = bag.Set("a", []any{map[string]any{"bar": 1337}})
+	err = bag.Set(parsePath(c, "a"), []any{map[string]any{"bar": 1337}})
 	c.Assert(err, IsNil)
 
-	err = bag.Set("b", []any{[]any{map[string]any{"baz": 1}}, []any{map[string]any{"baz": 999}}})
+	err = bag.Set(parsePath(c, "b"), []any{[]any{map[string]any{"baz": 1}}, []any{map[string]any{"baz": 999}}})
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
@@ -3131,7 +3209,7 @@ func (*viewSuite) TestGetListPlaceholder(c *C) {
 
 	// read ending at path with two values (one container and one non-container)
 	// to test merging of final results
-	err = bag.Set("c", []any{map[string]any{"baz": 1}, 999})
+	err = bag.Set(parsePath(c, "c"), []any{map[string]any{"baz": 1}, 999})
 	c.Assert(err, IsNil)
 
 	val, err = view.Get(bag, "c")
@@ -3152,7 +3230,7 @@ func (*viewSuite) TestGetListPlaceholderValueNotFound(c *C) {
 	bag := confdb.NewJSONDatabag()
 
 	// value doesn't include path ending in ".baz"
-	err = bag.Set("c", []any{map[string]any{"bar": 1}, 999})
+	err = bag.Set(parsePath(c, "c"), []any{map[string]any{"bar": 1}, 999})
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
@@ -3194,10 +3272,10 @@ func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	err = view.Unset(bag, "a[0]")
 	c.Assert(err, ErrorMatches, `cannot use "\[0\]" to access map at path "a"`)
 
-	err = bag.Unset("a")
+	err = bag.Unset(parsePath(c, "a"))
 	c.Assert(err, IsNil)
 
-	err = bag.Set("a", []any{"foo", "bar"})
+	err = bag.Set(parsePath(c, "a"), []any{"foo", "bar"})
 	c.Assert(err, IsNil)
 
 	// check that both Get and Set handle a path/container mismatch gracefully if
@@ -3307,7 +3385,7 @@ func (*viewSuite) TestSetListPlaceholder(c *C) {
 	c.Assert(val, DeepEquals, "bar")
 
 	// reset databag and set value that makes placeholder be extended into several values
-	err = bag.Unset("a")
+	err = bag.Unset(parsePath(c, "a"))
 	c.Assert(err, IsNil)
 
 	err = view.Set(bag, "a", []any{"foo", "bar"})

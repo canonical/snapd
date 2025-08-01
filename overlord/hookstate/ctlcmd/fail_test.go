@@ -37,7 +37,7 @@ func (s *confdbSuite) TestFailAbortsConfdbTransaction(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-acc", "my-reg")
 	c.Assert(err, IsNil)
 
-	err = tx.Set("foo", "bar")
+	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 
 	commitTask.Set("confdb-transaction", tx)
