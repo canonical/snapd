@@ -431,7 +431,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionT
 				// creation of the mount unit file instead.
 			}
 
-			restore = s.mockSystemdMountSequence(c, mnts, nil)
+			restore = s.mockSystemdMountSequence(c, mnts, Commentf(tc.comment))
 			cleanups = append(cleanups, restore)
 
 			// mock a bootloader
@@ -503,17 +503,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 		},
 	}
 
-	// mock calls to veritysetup format so that the root hash is always the same.
-	// In run mode this is only called during first boot in the case where the snapd snap
-	// is loaded from the seed and its verity data are missing so they are generated using
-	// information from a valid assertion.
-	cmd := testutil.MockCommand(c, "veritysetup", `
-               echo -e "2.0.4"
-               echo -e "Root hash:        dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-               echo -e "Hash algorithm:   sha256"
-       `)
-	defer cmd.Restore()
-
 	// setup a run mode system
 	s.mode = "run"
 	s.setupRunDirWithIntegrityData(c, asid)
@@ -524,18 +513,21 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 		additionalMountsFunc   func() []systemdMount
 		lookupErr              error
 		expErr                 error
+		comment                string
 	}{
 		{
 			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/core20_1.snap",
 			lookupErr:              integrity.ErrDmVerityDataNotFound,
 			expErr:                 integrity.ErrDmVerityDataNotFound,
 			isFirstBoot:            true,
+			comment:                "snap-bootstrap fail if no dm-verity data found for core20_1.snap",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/core20_1.snap",
 			lookupErr:              integrity.ErrUnexpectedDmVerityData,
 			expErr:                 integrity.ErrUnexpectedDmVerityData,
 			isFirstBoot:            true,
+			comment:                "snap-bootstrap fail if unexpected dm-verity data found for core20_1.snap",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc_1.snap",
@@ -549,6 +541,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 				}
 			},
 			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if no dm-verity data found for pc_1.snap",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc_1.snap",
@@ -562,6 +555,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 				}
 			},
 			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if unexpected dm-verity data found for pc_1.snap",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap",
@@ -576,6 +570,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 				}
 			},
 			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if no dm-verity data found for pc-kernel_1.snap",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap",
@@ -590,31 +585,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 				}
 			},
 			isFirstBoot: true,
+			comment:     "snap-bootstrap fail if unexpected dm-verity data found for pc-kernel_1.snap",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/ubuntu-seed/snaps/snapd_1.snap",
 			lookupErr:              integrity.ErrDmVerityDataNotFound,
-			// if verity data is missing for snapd snap on first boot, it will be generated similar to how it is done
-			// in recover mode.
-			expErr: nil,
+			expErr:                 nil,
 			additionalMountsFunc: func() []systemdMount {
 				base := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
 				gadget := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
 				kernel := s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel)
-				snapd := s.makeSeedSnapSystemdMount(snap.TypeSnapd)
+				_ = s.makeSeedSnapSystemdMount(snap.TypeSnapd)
 				return []systemdMount{
 					base.addIntegrityData(&asid[0]),
 					gadget.addIntegrityData(&asid[0]),
 					kernel.addIntegrityData(&asid[0]),
-					snapd.addIntegrityData(&asid[0]),
 				}
 			},
 			isFirstBoot: true,
+			comment:     "snap-bootstrap doesn't fail if no dm-verity data found for snapd on first boot",
 		},
 		{
 			verityDataIssueForSnap: "/run/mnt/ubuntu-seed/snaps/snapd_1.snap",
 			lookupErr:              integrity.ErrUnexpectedDmVerityData,
-			expErr:                 integrity.ErrUnexpectedDmVerityData,
+			expErr:                 nil,
 			additionalMountsFunc: func() []systemdMount {
 				base := s.makeRunSnapSystemdMount(snap.TypeBase, s.core20)
 				gadget := s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget)
@@ -626,6 +620,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 				}
 			},
 			isFirstBoot: true,
+			comment:     "snap-bootstrap doesn't fail if unexpected dm-verity data found for snapd on first boot",
 		},
 	}
 
@@ -633,6 +628,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 		cleanups := []func(){}
 
 		restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+			// fake an error when retrieving the dm-verity hash file for the snap that is
+			// expected to fail in this testcase.
 			if strings.Contains(snapPath, t.verityDataIssueForSnap) {
 				return "", t.lookupErr
 			}
@@ -663,7 +660,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 			mnts = append(mnts, t.additionalMountsFunc()...)
 		}
 
-		restore = s.mockSystemdMountSequence(c, mnts, nil)
+		restore = s.mockSystemdMountSequence(c, mnts, Commentf(t.comment))
 		cleanups = append(cleanups, restore)
 
 		// mock a bootloader
@@ -679,6 +676,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 
 		// write modeenv
 		modeEnv := boot.Modeenv{
+			BrandID:        "canonical",
+			Model:          s.model.Model(),
+			Grade:          "signed",
 			Mode:           "run",
 			Base:           s.core20.Filename(),
 			Gadget:         s.gadget.Filename(),
@@ -702,10 +702,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithIntegrityAssertionM
 		var expErr error
 		switch t.expErr {
 		case integrity.ErrDmVerityDataNotFound:
-			expErr = fmt.Errorf("cannot mount snap %s with integrity data: %w", snapPath, t.expErr)
-			c.Check(err, ErrorMatches, expErr.Error())
 		case integrity.ErrUnexpectedDmVerityData:
-			expErr = fmt.Errorf("dm-verity data from disk for snap %s don't match trusted data from assertion: %w", snapPath, t.expErr)
+			expErr = fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, t.expErr)
 			c.Check(err, ErrorMatches, expErr.Error())
 		default:
 			c.Check(err, IsNil)
