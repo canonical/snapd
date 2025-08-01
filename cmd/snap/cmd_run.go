@@ -1827,12 +1827,28 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 				logger.Debugf("snapd cannot track the started application")
 				logger.Debugf("snap refreshes will not be postponed by this process")
 			default:
-				// For apps using core26+, fail hard.
-				if usr, err := userCurrent(); err == nil {
-					logger.Noticef("The user %s cannot run snap applications on this system.\n"+
-						"See https://forum.snapcraft.io/t/46210 for more details.", usr.Username)
+				// For apps using core26+, fail hard unless they don't rely on
+				// cgroup for device control and have the self-managed=true
+				// setting.
+				opts, err2 := cgroup.LoadSnapDeviceCgroupOptions(securityTag)
+				if err2 != nil {
+					logger.Noticef("cannot load snap device cgroup options: %s", err)
 				}
-				return err
+
+				// NOTE: opts is never nil so this is safe to use even in the error case.
+				if opts.SelfManaged == false {
+					// If the application is not self-managed, log a notice and return an error.
+					// Self-managed applications have no constraints on device access so failure
+					// to establish a control group where this is enforced is not a fatal problem.
+					//
+					// We do want to do this for NonStrict (devmode) applications as it would mask
+					// a legitimate environmental problem that is beyond the control of snap author/developer.
+					if usr, err := userCurrent(); err == nil {
+						logger.Noticef("The user %s cannot run snap applications on this system.\n"+
+							"See https://forum.snapcraft.io/t/46210 for more details.", usr.Username)
+					}
+					return err
+				}
 			}
 		}
 	}
