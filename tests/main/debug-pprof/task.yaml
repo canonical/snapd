@@ -6,8 +6,13 @@ details: |
     This test checks that the pprof profiles can be accessed through
     the http://localhost/v2/debug/pprof/ API
 
-# ubuntu-core: no jq and no go
-systems: [-ubuntu-core-*]
+systems:
+    # ubuntu-core: no jq and no go
+    - -ubuntu-core-*
+    # Go packaging issue affecting openSUSE
+    # https://warthogs.atlassian.net/browse/SNAPDENG-35300
+    # https://bugzilla.suse.com/show_bug.cgi?id=1233357
+    - -opensuse-tumbleweed-*
 
 execute: |
     # endpoints are accessible only for the root user
