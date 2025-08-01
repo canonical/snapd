@@ -51,8 +51,6 @@ var (
 	DbxUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 
 	CheckFDEChangeConflict = checkFDEChangeConflict
-
-	EnsureUniqueContainerRoles = ensureUniqueContainerRoles
 )
 
 type ExternalOperation = externalOperation
@@ -143,10 +141,6 @@ func MockChangeAuthOptionsInCache(st *state.State, old, new string) (restore fun
 	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
 
 	return func() { st.Cache(changeAuthOptionsKey{}, nil) }
-}
-
-func MockGetEncryptedContainers(f func(state *state.State) ([]backend.EncryptedContainer, error)) (restore func()) {
-	return testutil.Mock(&getEncryptedContainers, f)
 }
 
 func GetChangeAuthOptionsFromCache(st *state.State) *changeAuthOptions {
