@@ -337,8 +337,12 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 
 	// try to parse as new tagged format first. if that fails, assume this is
 	// the older handle format that isn't inside of a JSON object.
+	//
+	// NOTE: if the handle happens to be a JSON object, it must have the
+	// "method" field set for us to consider the method. otherwise, the handle
+	// is not unwrapped and we pass along the full JSON blob.
 	var tagged taggedHandle
-	if len(data) == 0 || json.Unmarshal(data, &tagged) != nil {
+	if len(data) == 0 || json.Unmarshal(data, &tagged) != nil || tagged.Method == "" {
 		logger.Debug("cannot parse handle as JSON object, using fde-setup hook revealer")
 		return revealWithHooks(data, ciphertext)
 	}
