@@ -255,6 +255,17 @@ type UnlockResult struct {
 	UnlockMethod UnlockMethod
 }
 
+type ProtectKeyParams struct {
+	// The snap model parameter
+	PCRProfile SerializedPCRProfile
+	// The handle at which to create a NV index for dynamic authorization policy revocation support
+	PCRPolicyCounterHandle uint32
+	// The key role (run, run+recover, recover)
+	KeyRole string
+	// Optional volume authentication options
+	VolumesAuth *device.VolumesAuthOptions
+}
+
 // EncryptedPartitionName returns the name/label used by an encrypted partition
 // corresponding to a given name.
 func EncryptedPartitionName(name string) string {
