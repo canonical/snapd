@@ -626,7 +626,7 @@ def update_test_list(active_cell, table_data, timestamp, selected_feature):
     for p in processed:
         s = json.dumps(p)
         p["systems"] = "\n".join(sorted(sys_dict[s]))
-        p["systems"] = p["systems"].replace('-', '\u2011')
+        p["systems"] = p["systems"].replace('-', '_')
 
     return [
         html.H4(f"Tests that contain feature {feature}"),
