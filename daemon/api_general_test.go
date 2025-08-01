@@ -62,7 +62,7 @@ func (s *generalSuite) expectSystemInfoWriteAccess() {
 }
 
 func (s *generalSuite) expectChangesReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "ros-snapd-support"}})
 }
 
 func (s *generalSuite) TestRoot(c *check.C) {
