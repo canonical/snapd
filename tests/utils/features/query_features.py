@@ -440,7 +440,7 @@ def get_feature_name_from_feature(feat: dict) -> str:
     return ''
 
 
-def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None) -> dict[str, TaskIdVariant]:
+def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None, force_exact: bool = False) -> dict[str, TaskIdVariant]:
     '''
     Given a timestamp, a feature, and optionally a system, finds
     all tests that contain the indicated feature. If no system
@@ -458,6 +458,7 @@ def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: b
     A feature match happens for interfaces when the names match.
 
     :param remove_failed: if true, will remove all instances of tests where success == False
+    :param force_exact: if true, will match the entire feature when searching for tests
     :returns: dictionary where each key is a system and each value is a list of tests that contain the feature
     '''
 
@@ -465,15 +466,14 @@ def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: b
     if not feat_name:
         raise RuntimeError(f'feature {feat} not a recognized feature')
 
-    feat_in_test=lambda _: False
-    if feat_name == 'cmds' or feat_name == 'ensures' or feat_name == 'endpoints':
-        feat_in_test = lambda test: feat_name in test and feat in test[feat_name]
-    elif feat_name == 'tasks':
-        feat_in_test = lambda test: feat_name in test and any(t['kind'] == feat['kind'] and t['last_status'] == feat['last_status'] for t in test['tasks'])
-    elif feat_name == 'changes':
-        feat_in_test = lambda test: feat_name in test and any(c['kind'] == feat['kind'] for c in test['changes'])
-    elif feat_name == 'interfaces':
-        feat_in_test = lambda test: feat_name in test and any(i['name'] == feat['name'] for i in test['interfaces'])
+    feat_in_test=lambda test: feat_name in test and feat in test[feat_name]
+    if not force_exact:
+        if feat_name == 'tasks':
+            feat_in_test = lambda test: feat_name in test and any(t['kind'] == feat['kind'] and t['last_status'] == feat['last_status'] for t in test['tasks'])
+        elif feat_name == 'changes':
+            feat_in_test = lambda test: feat_name in test and any(c['kind'] == feat['kind'] for c in test['changes'])
+        elif feat_name == 'interfaces':
+            feat_in_test = lambda test: feat_name in test and any(i['name'] == feat['name'] for i in test['interfaces'])
 
     system_list = None
     if system:
