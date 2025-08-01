@@ -874,7 +874,7 @@ restore_project_each() {
 
     # TODO: move this to tests.invariant.
     case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*)
+        fedora-*|centos-*|opensuse-*-selinux-*)
             # Make sure that we are not leaving behind incorrectly labeled snap
             # files on systems supporting SELinux
             (

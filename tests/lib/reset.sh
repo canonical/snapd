@@ -70,11 +70,14 @@ reset_classic() {
     rm -rf /tmp/snap-private-tmp/*
 
     case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*)
+        fedora-*|centos-*|opensuse-*-selinux-*)
             # On systems running SELinux we need to restore the context of the
             # directories we just recreated. Otherwise, the entries created
             # inside will be incorrectly labeled.
             restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+            if [ -d /root/snap ]; then
+                restorecon -F -v -R /root/snap
+            fi
             ;;
     esac
 

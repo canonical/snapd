@@ -5,7 +5,10 @@ details: |
     should the user enable support. Focus on snaps with services and hooks as
     those are run under targeted policy.
 
-systems: [fedora-*, centos-*]
+systems:
+    - fedora-*
+    - centos-*
+    - opensuse-*-selinux-*
 
 environment:
     CLASSIC_SNAP: test-snapd-classic-service-hooks
@@ -17,7 +20,10 @@ prepare: |
     # still want to verify if the basics do work if the user symlinks /snap to
     # $SNAP_MOUNT_DIR themselves
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    ln -sf "$SNAP_MOUNT_DIR" /snap
+    if [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
 
     getenforce > enforcing.mode
 
@@ -27,7 +33,6 @@ prepare: |
     ausearch --checkpoint stamp -m AVC || true
 
 restore: |
-    rm -f /snap
     setenforce "$(cat enforcing.mode)"
 
 execute: |
