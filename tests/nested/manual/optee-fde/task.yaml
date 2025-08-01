@@ -20,8 +20,8 @@ environment:
     NESTED_SIGN_SNAPS_FAKESTORE: true
     NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
 
-    SEALING_METHOD/optee: "optee"
-    SEALING_METHOD/hooks: "fde-setup-hook"
+    KEY_PROTECTOR/optee: "optee"
+    KEY_PROTECTOR/hooks: "fde-setup-hook"
 
 prepare: |
     if [ "${TRUST_TEST_KEYS}" = "false" ]; then
@@ -33,7 +33,7 @@ prepare: |
     kernel_revision=""
     gadget_name=""
     gadget_revision=""
-    if [ "${SEALING_METHOD}" = "optee" ]; then
+    if [ "${KEY_PROTECTOR}" = "optee" ]; then
         kernel_name="test-qemu-optee-kernel"
         kernel_revision=2
         gadget_name="test-qemu-optee-gadget"
@@ -114,7 +114,7 @@ prepare: |
     snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account"
     snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account-key"
 
-    model="${TESTSLIB}/assertions/nested-24-arm64-${SEALING_METHOD}.json"
+    model="${TESTSLIB}/assertions/nested-24-arm64-${KEY_PROTECTOR}.json"
     gendeveloper1 sign-model < "${model}" > model.assert
     cp model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
 
@@ -191,8 +191,10 @@ execute: |
     remote.exec 'cat /var/lib/snapd/device/fde/sealed-keys' | MATCH 'fde-setup-hook'
     remote.exec 'sudo blkid /dev/disk/by-label/ubuntu-data-enc' | MATCH 'TYPE="crypto_LUKS"'
 
-    expected='optee'
-    if [ "${SEALING_METHOD}" = 'fde-setup-hook' ]; then
-      expected='hooks'
+    if [ "${KEY_PROTECTOR}" = 'optee' ]; then
+      # the optee backend embeds a method in the JSON handle
+      remote.exec 'sudo cat /var/lib/snapd/seed/device/fde/ubuntu-data.recovery.sealed-key' | gojq .platform_handle.handle.method | MATCH 'optee'
+    else
+      # the hooks handle is just a JSON string, for now
+      remote.exec 'sudo cat /var/lib/snapd/seed/device/fde/ubuntu-data.recovery.sealed-key' | gojq '.platform_handle.handle | type' | MATCH string
     fi
-    remote.exec 'sudo cat /var/lib/snapd/seed/device/fde/ubuntu-data.recovery.sealed-key' | gojq .platform_handle.handle.method | MATCH "${expected}"

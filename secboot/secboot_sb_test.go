@@ -2880,6 +2880,26 @@ func (s *secbootSuite) TestKeyRevealerV3InvalidJSON(c *C) {
 	c.Check(plain, DeepEquals, decryptedKey)
 }
 
+func (s *secbootSuite) TestKeyRevealerV3JSONObjectWithoutMethod(c *C) {
+	encryptedKey := []byte{1, 2, 3, 4}
+	decryptedKey := []byte{5, 6, 7, 8}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, encryptedKey)
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte(`{"some": "data"}`)))
+		return decryptedKey, nil
+	})
+	defer restore()
+
+	// test with JSON that does not have a method set
+	var k secboot.KeyRevealerV3
+	plain, err := k.RevealKey([]byte(`{"some": "data"}`), encryptedKey, []byte{})
+	c.Assert(err, IsNil)
+	c.Check(plain, DeepEquals, decryptedKey)
+}
+
 func (s *secbootSuite) TestHookKeyProtectorTaggedHandle(c *C) {
 	cleartext := []byte{1, 2, 3, 4}
 	expectedHandle := json.RawMessage([]byte(`"fde-hook-handle"`))
