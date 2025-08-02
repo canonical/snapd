@@ -561,11 +561,9 @@ volumes:
     schema: emmc
     structure:
       - name: boot0
-        size: 1M
         content:
           - image: boot0filename
       - name: boot1
-        size: 1M
         content:
           - image: boot1filename
 `
@@ -577,11 +575,9 @@ volumes:
 	c.Assert(onDisk, DeepEquals, map[int]*gadget.OnDiskStructure{
 		0: {
 			Name: "boot0",
-			Size: quantity.SizeMiB,
 		},
 		1: {
 			Name: "boot1",
-			Size: quantity.SizeMiB,
 		},
 	})
 }
