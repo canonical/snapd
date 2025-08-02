@@ -297,6 +297,19 @@ func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, e
 		foundDisks = append(foundDisks, &encryptedContainer{uuid: uuid, containerRole: "system-save", legacyKeys: legacyKeys})
 	}
 
+	for i := 0; i < len(foundDisks); i++ {
+		for j := i + 1; j < len(foundDisks); j++ {
+			// given how the list of found disks is built, this should never happen.
+			//
+			// it is still important to issue a warning if this ever happens
+			// since most key slot operations under assume that the mapping
+			// from container-role to volume is unique.
+			if foundDisks[i].ContainerRole() == foundDisks[j].ContainerRole() {
+				state.Warnf("container roles should map to one volume only: container role %q maps to %s and %s", foundDisks[i].ContainerRole(), foundDisks[i].DevPath(), foundDisks[j].DevPath())
+			}
+		}
+	}
+
 	return foundDisks, nil
 }
 
