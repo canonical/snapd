@@ -49,6 +49,10 @@ execute: |
 
     remote.exec "sudo snap wait system seed.loaded"
     remote.wait-for device-initialized
+    # Reboot as we are installing from initramfs, so no unlock was necessary yet
+    boot_id=$(tests.nested boot-id)
+    remote.exec sudo reboot || true
+    tests.nested wait-for reboot "$boot_id"
 
     remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-run.json
 
