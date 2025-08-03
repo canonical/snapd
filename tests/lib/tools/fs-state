@@ -90,49 +90,31 @@ save_current_tree(){
     # runtime-state dir contains cursor and run log which are created during the first test
     find /etc ! -name "*~" > "$dir"/etc
     find /boot ! -name "*~" > "$dir"/boot
-    find /home ! -name "*~" | grep -v -e "$PROJECT_PATH/tests/lib/snaps/.*/.*.snap" -e "$PWD/.*.snap" > "$dir"/home
+    find /home ! -name "*~" | grep -v -e "$PROJECT_PATH/tests/lib/snaps/.*/.*.snap" > "$dir"/home
     find /root ! -name "*~" > "$dir"/root
 }
 
 start_monitor() {
     if os.query is-classic; then
-        save_current_tree /tmp/fs-initial
+        save_current_tree "$TESTSTMP"/fs-initial
     fi
  }
 
-skip_monitor() {
-    local path=$1
-    echo "$path" >> /tmp/fs-skip
-}
-
-clean_skipped() {
-    # shellcheck disable=SC2002
-    cat /tmp/fs-skip | while read -r file; do
-        for filename in /tmp/fs-initial/*; do
-            sed -i "/$file/d" "$filename"
-        done
-        for filename in /tmp/fs-final/*; do
-            sed -i "/$file/d" "$filename"
-        done
-    done
-}
-
 check_monitor() {
-    save_current_tree /tmp/fs-final
-    clean_skipped
+    save_current_tree "$TESTSTMP"/fs-final
 
-    rm -f /tmp/fs-diff
-    for f in /tmp/fs-initial/*; do
-        diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
+    rm -f "$TESTSTMP"/fs-diff
+    for f in "$TESTSTMP"/fs-initial/*; do
+        diff "$TESTSTMP"/fs-initial/"$(basename "$f")" "$TESTSTMP"/fs-final/"$(basename "$f")" >> "$TESTSTMP"/fs-diff
     done
 
-    if [ ! -e /tmp/fs-diff ]; then
-        echo "the /tmp/fs-diff file does not exist"
+    if [ ! -e "$TESTSTMP"/fs-diff ]; then
+        echo "the "$TESTSTMP"/fs-diff file does not exist"
         exit 1
     fi
-    if [ -n "$(cat /tmp/fs-diff)" ]; then
+    if [ -n "$(cat "$TESTSTMP"/fs-diff)" ]; then
         echo "the diff file is not empty:"
-        cat /tmp/fs-diff 
+        cat "$TESTSTMP"/fs-diff 
         exit 1
     fi
 }

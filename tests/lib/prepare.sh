@@ -579,6 +579,9 @@ prepare_classic() {
         mkdir -p /etc/dbus-1/system.d
         systemctl reload dbus.service
     fi
+
+    # Save all the installed packages
+    tests.pkgs list-installed > "$TESTSTMP"/installed-initial.pkgs
 }
 
 ensure_snapcraft() {
