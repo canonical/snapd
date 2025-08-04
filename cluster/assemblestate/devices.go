@@ -79,11 +79,11 @@ func NewDeviceQueryTracker(
 
 	// seed with any provided data
 	for _, identity := range data.IDs {
-		dt.Identify(identity)
+		dt.RecordIdentity(identity)
 	}
 
 	for peer, devices := range data.Unknowns {
-		dt.Query(peer, devices)
+		dt.RecordQuery(peer, devices)
 	}
 
 	for peer, devices := range data.Sources {
@@ -93,27 +93,26 @@ func NewDeviceQueryTracker(
 	return dt
 }
 
-// ResponsesAvailable returns a channel that signals when there are device query
-// responses ready to be sent to peers. After reading from this channel, it is
-// expected that all responses are handled via calls to
-// [DeviceQueryTracker.QueryResponses]. In the case that responses cannot be
-// handled, requeue them with [DeviceQueryTracker.RetryResponses].
-func (d *DeviceQueryTracker) ResponsesAvailable() <-chan struct{} {
+// PendingResponses returns a channel that signals when there are device
+// query responses ready to be sent to peers. After reading from this channel,
+// it is expected that all responses are handled via calls to
+// [DeviceQueryTracker.ResponsesTo].
+func (d *DeviceQueryTracker) PendingResponses() <-chan struct{} {
 	return d.responses
 }
 
-// QueriesAvailable returns a channel that signals when there are device queries
-// ready to be sent to peers. After reading from this channel, it is expected
-// that all queries are handled via calls to [DeviceQueryTracker.QueryableFrom].
-// In the case that queries cannot be handled, requeue them with
-// [DeviceQueryTracker.RetryQueries].
-func (d *DeviceQueryTracker) QueriesAvailable() <-chan struct{} {
+// PendingQueries returns a channel that signals when there are device
+// queries ready to be sent to peers. After reading from this channel, it is
+// expected that all queries are handled via calls to
+// [DeviceQueryTracker.QueriesTo].
+func (d *DeviceQueryTracker) PendingQueries() <-chan struct{} {
 	return d.queries
 }
 
-// Query records a query from a peer for unknown device identities. If we have
-// identity information for the requested devices, a response will be queued.
-func (d *DeviceQueryTracker) Query(from DeviceToken, unknowns []DeviceToken) {
+// RecordQuery records a query from a peer for unknown device identities. If we
+// have identity information for the requested devices, a response will be
+// queued.
+func (d *DeviceQueryTracker) RecordQuery(from DeviceToken, unknowns []DeviceToken) {
 	if d.unknowns[from] == nil {
 		d.unknowns[from] = make(map[DeviceToken]struct{})
 	}
@@ -139,12 +138,13 @@ func (d *DeviceQueryTracker) Query(from DeviceToken, unknowns []DeviceToken) {
 	}
 }
 
-// QueryResponses returns the device identities that should be sent to the
+// ResponsesTo returns the device identities that should be sent to the
 // specified peer, along with an acknowledgment function that must be called
-// after successful transmission.
-func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, ack func(bool)) {
-	ids = make([]Identity, 0, len(d.unknowns[from]))
-	for rdt := range d.unknowns[from] {
+// after successful transmission. ack(true) indicates that they responses were
+// sent, ack(false) indicates that the responses could not be sent.
+func (d *DeviceQueryTracker) ResponsesTo(to DeviceToken) (ids []Identity, ack func(bool)) {
+	ids = make([]Identity, 0, len(d.unknowns[to]))
+	for rdt := range d.unknowns[to] {
 		id, ok := d.ids[rdt]
 		if !ok {
 			continue
@@ -157,7 +157,7 @@ func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, a
 		// that the response is re-queued
 		if success {
 			for _, id := range ids {
-				delete(d.unknowns[from], id.RDT)
+				delete(d.unknowns[to], id.RDT)
 			}
 		} else {
 			select {
@@ -170,11 +170,13 @@ func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, a
 	return ids, ack
 }
 
-// QueryableFrom returns unknown device RDTs that should be queried from the
-// specified source peer, along with an acknowledgment function that must be
-// called after successful transmission to track inflight queries.
-func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []DeviceToken, ack func(bool)) {
-	for rdt := range d.sources[source] {
+// QueriesTo returns unknown device RDTs that should be sent as queries to the
+// given peer, along with an acknowledgment function that must be called after
+// successful transmission to track inflight queries. ack(true) indicates that
+// they queries were sent, ack(false) indicates that the queries could not be
+// sent.
+func (d *DeviceQueryTracker) QueriesTo(to DeviceToken) (unknown []DeviceToken, ack func(bool)) {
+	for rdt := range d.sources[to] {
 		if _, ok := d.ids[rdt]; ok {
 			continue
 		}
@@ -246,8 +248,8 @@ func (d *DeviceQueryTracker) Lookup(rdt DeviceToken) (Identity, bool) {
 	return id, ok
 }
 
-// Identify records identity information for a device.
-func (d *DeviceQueryTracker) Identify(id Identity) {
+// RecordIdentity records identity information for a device.
+func (d *DeviceQueryTracker) RecordIdentity(id Identity) {
 	d.ids[id.RDT] = id
 }
 

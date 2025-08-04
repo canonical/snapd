@@ -49,7 +49,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 	c.Assert(ok, check.Equals, false)
 
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.Identify(other)
+	dt.RecordIdentity(other)
 
 	c.Assert(dt.Identified("other"), check.Equals, true)
 	id, ok = dt.Lookup("other")
@@ -62,15 +62,15 @@ func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
 
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.Identify(other)
+	dt.RecordIdentity(other)
 
 	// peer queries us for devices
-	dt.Query("peer", []assemblestate.DeviceToken{"self", "other"})
+	dt.RecordQuery("peer", []assemblestate.DeviceToken{"self", "other"})
 
 	// should signal responses channel
-	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, true)
+	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, true)
 
-	ids, ack := dt.QueryResponses("peer")
+	ids, ack := dt.ResponsesTo("peer")
 	c.Assert(ids, check.HasLen, 2)
 
 	rdts := make([]assemblestate.DeviceToken, 0, len(ids))
@@ -84,7 +84,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 	ack(success)
 
 	// should have no more responses
-	ids, _ = dt.QueryResponses("peer")
+	ids, _ = dt.ResponsesTo("peer")
 	c.Assert(ids, check.HasLen, 0)
 }
 
@@ -97,10 +97,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
 	dt.UpdateSource("other", []assemblestate.DeviceToken{"device-1", "device-2"})
 
 	// should signal queries channel (we don't know these devices)
-	c.Assert(hasSignal(dt.QueriesAvailable()), check.Equals, true)
+	c.Assert(hasSignal(dt.PendingQueries()), check.Equals, true)
 
 	// should have queries for this peer
-	unknown, ack := dt.QueryableFrom("peer")
+	unknown, ack := dt.QueriesTo("peer")
 	c.Assert(unknown, testutil.DeepUnsortedMatches, []assemblestate.DeviceToken{"device-1", "device-2"})
 
 	// ack should mark as in flight
@@ -109,10 +109,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
 
 	// since we have queries in flight, we shouldn't report new queries from
 	// this peer
-	unknown, _ = dt.QueryableFrom("peer")
+	unknown, _ = dt.QueriesTo("peer")
 	c.Assert(unknown, check.HasLen, 0)
 
-	unknown, _ = dt.QueryableFrom("other")
+	unknown, _ = dt.QueriesTo("other")
 	c.Assert(unknown, check.HasLen, 0)
 }
 
@@ -136,7 +136,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 	// peer tells us they know about device
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"device-1"})
 
-	unknown, ack := dt.QueryableFrom("peer")
+	unknown, ack := dt.QueriesTo("peer")
 	c.Assert(len(unknown), check.Equals, 1)
 
 	// ack marks as in flight
@@ -144,11 +144,11 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 	ack(success)
 
 	// since the query is in flight, we shouldn't return anything here
-	unknown, _ = dt.QueryableFrom("peer")
+	unknown, _ = dt.QueriesTo("peer")
 	c.Assert(len(unknown), check.Equals, 0)
 
 	// should return query again after the timeout expires
-	unknown, _ = dt.QueryableFrom("peer")
+	unknown, _ = dt.QueriesTo("peer")
 	c.Assert(unknown, check.HasLen, 1)
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-1"))
 }
@@ -160,7 +160,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
 	// peer tells us they know about device
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"device-1"})
 
-	unknown, ack := dt.QueryableFrom("peer")
+	unknown, ack := dt.QueriesTo("peer")
 	c.Assert(len(unknown), check.Equals, 1)
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-1"))
 
@@ -169,10 +169,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
 	ack(failure)
 
 	// signal indicates that there are still queries available to send
-	c.Assert(hasSignal(dt.QueriesAvailable()), check.Equals, true)
+	c.Assert(hasSignal(dt.PendingQueries()), check.Equals, true)
 
 	// since we failed to send the query, it should be returned again here
-	unknown, ack = dt.QueryableFrom("peer")
+	unknown, ack = dt.QueriesTo("peer")
 	c.Assert(len(unknown), check.Equals, 1)
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-1"))
 
@@ -180,11 +180,11 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
 	ack(success)
 
 	// signal indicates that there is nothing to send
-	c.Assert(hasSignal(dt.QueriesAvailable()), check.Equals, false)
+	c.Assert(hasSignal(dt.PendingQueries()), check.Equals, false)
 
 	// now that we've marked it as a successful send, it should not be returned
 	// here
-	unknown, _ = dt.QueryableFrom("peer")
+	unknown, _ = dt.QueriesTo("peer")
 	c.Assert(unknown, check.HasLen, 0)
 }
 
@@ -201,11 +201,11 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Hour, time.Now, data)
 
 	// peer tells us they need info about a device
-	dt.Query("peer", []assemblestate.DeviceToken{"device-1"})
+	dt.RecordQuery("peer", []assemblestate.DeviceToken{"device-1"})
 
-	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, true)
+	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, true)
 
-	ids, ack := dt.QueryResponses("peer")
+	ids, ack := dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 1)
 	c.Assert(ids[0], check.Equals, one)
 
@@ -214,10 +214,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	ack(failure)
 
 	// signal indicates that there are still responses available to send
-	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, true)
+	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, true)
 
 	// since we failed to send the response, it should be returned again here
-	ids, ack = dt.QueryResponses("peer")
+	ids, ack = dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 1)
 	c.Assert(ids[0], check.Equals, one)
 
@@ -225,9 +225,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	ack(success)
 
 	// now no response signal
-	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, false)
+	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
-	ids, _ = dt.QueryResponses("peer")
+	ids, _ = dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 0)
 }
 
@@ -236,11 +236,11 @@ func (s *deviceTrackerSuite) TestDeviceTrackerEmptyQueries(c *check.C) {
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
 
 	// empty query shouldn't signal channel
-	dt.Query("peer", []assemblestate.DeviceToken{})
-	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, false)
+	dt.RecordQuery("peer", []assemblestate.DeviceToken{})
+	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
 	// should handle empty peer queries correctly
-	ids, _ := dt.QueryResponses("unknown")
+	ids, _ := dt.ResponsesTo("unknown")
 	c.Assert(ids, check.HasLen, 0)
 }
 
@@ -249,16 +249,16 @@ func (s *deviceTrackerSuite) TestDeviceTrackerUnknownDevices(c *check.C) {
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
 
 	// query for unknown device should be ignored
-	dt.Query("peer", []assemblestate.DeviceToken{"unknown"})
-	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, false)
+	dt.RecordQuery("peer", []assemblestate.DeviceToken{"unknown"})
+	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.Identify(other)
+	dt.RecordIdentity(other)
 
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"self", "other", "unknown"})
 
 	// should skip devices we already know
-	unknown, _ := dt.QueryableFrom("peer")
+	unknown, _ := dt.QueriesTo("peer")
 	c.Assert(unknown, check.HasLen, 1)
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("unknown"))
 }
@@ -269,14 +269,14 @@ func (s *deviceTrackerSuite) TestDeviceTrackerNoMissingDevices(c *check.C) {
 
 	// add device we know about
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.Identify(other)
+	dt.RecordIdentity(other)
 
 	// source update with only known devices shouldn't signal
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"self", "other"})
-	c.Assert(hasSignal(dt.QueriesAvailable()), check.Equals, false)
+	c.Assert(hasSignal(dt.PendingQueries()), check.Equals, false)
 
 	// should return empty when all devices are known
-	unknown, _ := dt.QueryableFrom("peer")
+	unknown, _ := dt.QueriesTo("peer")
 	c.Assert(unknown, check.HasLen, 0)
 }
 
@@ -333,7 +333,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, data)
 
 	// should have responses for preseeded unknowns
-	ids, ack := dt.QueryResponses("peer-1")
+	ids, ack := dt.ResponsesTo("peer-1")
 	c.Assert(ids, check.HasLen, 2)
 
 	rdts := make([]assemblestate.DeviceToken, 0, len(ids))
@@ -346,11 +346,11 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 	const success = true
 	ack(success)
 
-	ids, _ = dt.QueryResponses("peer-1")
+	ids, _ = dt.ResponsesTo("peer-1")
 	c.Assert(ids, check.HasLen, 0)
 
 	// peer-2 should have responses for device-1 only
-	ids, _ = dt.QueryResponses("peer-2")
+	ids, _ = dt.ResponsesTo("peer-2")
 	c.Assert(ids, check.HasLen, 1)
 	c.Assert(ids[0].RDT, check.Equals, assemblestate.DeviceToken("device-1"))
 }
@@ -368,7 +368,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, data)
 
 	// should be able to query from preseeded sources
-	unknown, ack := dt.QueryableFrom("peer-1")
+	unknown, ack := dt.QueriesTo("peer-1")
 	c.Assert(unknown, testutil.DeepUnsortedMatches, []assemblestate.DeviceToken{"device-1", "device-2"})
 
 	// ack should mark as in flight
@@ -376,11 +376,11 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 	ack(success)
 
 	// should not return same queries while in flight
-	unknown, _ = dt.QueryableFrom("peer-1")
+	unknown, _ = dt.QueriesTo("peer-1")
 	c.Assert(unknown, check.HasLen, 0)
 
 	// peer-2 should have separate queries
-	unknown, _ = dt.QueryableFrom("peer-2")
+	unknown, _ = dt.QueriesTo("peer-2")
 	c.Assert(unknown, check.HasLen, 1)
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-3"))
 }
@@ -402,10 +402,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
 
 	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
 
-	dt.Identify(one)
-	dt.Identify(two)
-	dt.Query("peer-1", []assemblestate.DeviceToken{"device-1", "device-2"})
-	dt.Query("peer-2", []assemblestate.DeviceToken{"self"})
+	dt.RecordIdentity(one)
+	dt.RecordIdentity(two)
+	dt.RecordQuery("peer-1", []assemblestate.DeviceToken{"device-1", "device-2"})
+	dt.RecordQuery("peer-2", []assemblestate.DeviceToken{"self"})
 	dt.UpdateSource("peer-1", []assemblestate.DeviceToken{"device-3", "device-4"})
 	dt.UpdateSource("peer-2", []assemblestate.DeviceToken{"device-5"})
 
