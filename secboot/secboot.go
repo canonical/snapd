@@ -194,7 +194,7 @@ type KeyData interface {
 type SerializedPCRProfile []byte
 
 type ResealKeysParams struct {
-	// The snap model parameters
+	// The serialized PCR profile
 	PCRProfile SerializedPCRProfile
 	// The locations to the key data
 	Keys []KeyDataLocation
@@ -256,7 +256,7 @@ type UnlockResult struct {
 }
 
 type ProtectKeyParams struct {
-	// The snap model parameter
+	// The serialized PCR profile
 	PCRProfile SerializedPCRProfile
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32

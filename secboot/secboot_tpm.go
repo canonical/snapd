@@ -1271,7 +1271,7 @@ func FindFreeHandle() (uint32, error) {
 // Note: The unlock and primary keys are implicitly obtained from the kernel
 // keyring so this will not work if the disk was unlocked with a recovery key
 // during boot.
-func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) error {
+func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) (err error) {
 	var pcrProfile sb_tpm2.PCRProtectionProfile
 	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
 		return fmt.Errorf("cannot unmarshal PCR profile: %v", err)
@@ -1312,6 +1312,14 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 	if err := sbAddLUKS2ContainerUnlockKey(devicePath, slotName, unlockKey, newKey); err != nil {
 		return fmt.Errorf("cannot add key: %v", err)
 	}
+
+	defer func() {
+		if err != nil {
+			if deleteErr := sbDeleteLUKS2ContainerKey(devicePath, slotName); deleteErr != nil {
+				logger.Noticef("cannot remove added key %s:%s during cleanup", devicePath, slotName)
+			}
+		}
+	}()
 
 	keyData := keyData{kd: protectedKey}
 	return keyData.WriteTokenAtomic(devicePath, slotName)
