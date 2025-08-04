@@ -34,6 +34,13 @@ func assertVFS(t *testing.T, v *vfs.VFS, expected string) {
 	}
 }
 
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // MetaDataFS allows injecting major:minor pair or source into into any fs.StatFS.
 
 // This allows making VFSes more readable by differentiating each file system.
