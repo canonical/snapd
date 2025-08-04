@@ -192,6 +192,11 @@ app.layout = html.Div(
                                 id="only-same-switch",
                                 label="Only compare features across tests that are present in both systems",
                             ),
+                            daq.BooleanSwitch(
+                                id="match-snap-types",
+                                label="Match snap types when comparing features",
+                                disabled=False
+                            ),
                         ],
                         style={"width": "25%"},
                     ),

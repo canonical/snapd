@@ -307,6 +307,76 @@ class TestQueryFeatures:
         assert len(minus["ensures"]) == 1
         assert {"manager": "SnapManager", "function": "ensureFunc1"} in minus["ensures"]
 
+
+    def test_subract_features_no_match_snap_types(self):
+        j = {"cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc1"}],
+             "interfaces": [Interface(name="my-interf", plug_snap_type="aaa", slot_snap_type="bbb")],
+             "endpoints": [Endpoint(method="GET", path="/my-end", action="")],
+             "tasks": [Task(kind="my-task", last_status="Done", snap_types=["aaa"]), 
+                       Task(kind="my-task", last_status="Error", snap_types=["bbb"])],
+             "changes": [Change(kind="my-task", snap_types=["aaa"])]
+             }
+        k = {"cmds": [{"cmd": "snap list --all"}],
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}],
+             "interfaces": [Interface(name="my-interf", plug_snap_type="bbb", slot_snap_type="aaa")],
+             "endpoints": [Endpoint(method="POST", path="/my-end", action="")],
+             "tasks": [Task(kind="my-task", last_status="Done", snap_types=["bbb"]), 
+                       Task(kind="my-task", last_status="Error", snap_types=["bbb"])],
+             "changes": [Change(kind="my-task", snap_types=["bbb"])]
+             }
+        minus = query_features.subtract_features(j, k, False)
+        assert len(minus) == 3
+        assert "cmds" in minus
+        assert "ensures" in minus
+        assert "endpoints" in minus
+        assert len(minus["cmds"]), 1
+        assert {"cmd": "snap ack file"} in minus["cmds"]
+        assert len(minus["ensures"]) == 1
+        assert {"manager": "SnapManager", "function": "ensureFunc1"} in minus["ensures"]
+        assert len(minus["endpoints"]), 1
+        assert Endpoint(method="GET", path="/my-end", action="") in minus['endpoints']
+    
+
+    def test_subtract_features_match_snap_types(self):
+        j = {"cmds": [{"cmd": "snap list --all"}, {"cmd": "snap ack file"},],
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc1"}],
+             "interfaces": [Interface(name="my-interf", plug_snap_type="aaa", slot_snap_type="bbb")],
+             "endpoints": [Endpoint(method="GET", path="/my-end", action="")],
+             "tasks": [Task(kind="my-task", last_status="Done", snap_types=["aaa"]), 
+                       Task(kind="my-task", last_status="Error", snap_types=["bbb"])],
+             "changes": [Change(kind="my-task", snap_types=["aaa"])]
+             }
+        k = {"cmds": [{"cmd": "snap list --all"}],
+             "ensures": [{"manager": "SnapManager", "function": "ensureFunc2"}],
+             "interfaces": [Interface(name="my-interf", plug_snap_type="bbb", slot_snap_type="aaa")],
+             "endpoints": [Endpoint(method="POST", path="/my-end", action="")],
+             "tasks": [Task(kind="my-task", last_status="Done", snap_types=["bbb"]), 
+                       Task(kind="my-task", last_status="Error", snap_types=["bbb"])],
+             "changes": [Change(kind="my-task", snap_types=["bbb"])]
+             }
+        minus = query_features.subtract_features(j, k, True)
+        assert len(minus) == 6
+        assert "cmds" in minus
+        assert "ensures" in minus
+        assert "endpoints" in minus
+        assert "tasks" in minus
+        assert "changes" in minus
+        assert "interfaces" in minus
+        assert len(minus["cmds"]), 1
+        assert {"cmd": "snap ack file"} in minus["cmds"]
+        assert len(minus["ensures"]) == 1
+        assert {"manager": "SnapManager", "function": "ensureFunc1"} in minus["ensures"]
+        assert len(minus["endpoints"]), 1
+        assert Endpoint(method="GET", path="/my-end", action="") in minus['endpoints']
+        assert len(minus["interfaces"]), 1
+        assert j['interfaces'][0] in minus['interfaces']
+        assert len(minus["tasks"]), 1
+        assert j['tasks'][0] in minus['tasks']
+        assert len(minus["changes"]), 1
+        assert j['changes'][0] in minus['changes']
+
+
     def test_list_tasks(self):
         sys_json = SystemFeatures(tests=[
             TaskFeatures(success=True,task_name='task1',variant='variant1',suite='suite1'),
@@ -879,7 +949,8 @@ class TestQueryFeatures:
                 timestamp2='2025-05-05',
                 system2='system',
                 remove_failed=False,
-                only_same=False
+                only_same=False,
+                match_snap_types=True
             )
             query_features.main()
             expected = {'cmds': [{'cmd': 'b'}], 'endpoints': [{'1': 'a'}]}
@@ -1127,7 +1198,8 @@ class TestQueryFeatures:
                 timestamp='2025-05-04',
                 feat='{"cmd":"d"}',
                 system=None,
-                remove_failed=True
+                remove_failed=True,
+                match_snap_types=True
             )
             query_features.main()
 

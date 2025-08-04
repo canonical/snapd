@@ -193,13 +193,14 @@ def display_column_details(active_cell, table_data, timestamp):
     Input({"type": "systems-dropdown", "index": 3}, "value"),
     Input("remove-failed-switch", "on"),
     Input("only-same-switch", "on"),
+    Input("match-snap-types", "on"),
 )
-def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value):
+def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types):
     if not ts_2 or not sys_2 or not ts_3 or not sys_3:
         return []
 
     diff = qf.diff(
-        retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value
+        retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
     )
 
     tables = []
@@ -241,8 +242,9 @@ def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same
     State({"type": "coverage-diff-table", "index": ALL}, "derived_viewport_data"),
     State({"type": "timestamp-dropdown", "index": 2}, "value"),
     State({"type": "systems-dropdown", "index": 2}, "value"),
+    Input("match-snap-types", "on"),
 )
-def populate_tests_in_coverage_diff_cmds(active_cell, table_data, timestamp, system):
+def populate_tests_in_coverage_diff_cmds(active_cell, table_data, timestamp, system, match_snap_types):
     triggered = dash.callback_context.triggered_id
     if not active_cell or not table_data or not triggered or not 'index' in triggered or not active_cell[triggered["index"]] or not table_data[triggered["index"]]:
         raise dash.exceptions.PreventUpdate
@@ -255,7 +257,7 @@ def populate_tests_in_coverage_diff_cmds(active_cell, table_data, timestamp, sys
         except:
             pass
 
-    results = qf.find_feat(retriever, timestamp, feature, remove_failed=False, system=system, force_exact=True)
+    results = qf.find_feat(retriever, timestamp, feature, remove_failed=False, system=system, match_snap_types=match_snap_types)
     table = dash_table.DataTable(
         data=get_task_list_from_dict(results),
         columns=[{"name":"suite","id":"suite"}, {"name":"test","id":"test"}, {"name":"variant","id":"variant"}],
@@ -404,8 +406,9 @@ def display_cell_data(active_cell, table_data, timestamp):
     State("coverage-matrix-table", "active_cell"),
     State("coverage-matrix-table", "derived_viewport_data"),
     State({"type": "timestamp-dropdown", "index": 4}, "value"),
+    State("match-snap-types", "on"),
 )
-def populate_tests_in_coverage_diff_cmds(active_cell, table_data, system_active_cell, system_table_data, timestamp):
+def populate_tests_in_coverage_diff_cmds(active_cell, table_data, system_active_cell, system_table_data, timestamp, match_snap_types):
     if not active_cell:
         raise dash.exceptions.PreventUpdate
 
@@ -420,7 +423,7 @@ def populate_tests_in_coverage_diff_cmds(active_cell, table_data, system_active_
         except:
             pass
 
-    results = qf.find_feat(retriever, timestamp, feature, remove_failed=False, system=system, force_exact=True)
+    results = qf.find_feat(retriever, timestamp, feature, remove_failed=False, system=system, match_snap_types=match_snap_types)
     table = dash_table.DataTable(
         data=get_task_list_from_dict(results),
         columns=[{"name":"suite","id":"suite"}, {"name":"test","id":"test"}, {"name":"variant","id":"variant"}],

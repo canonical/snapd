@@ -328,6 +328,26 @@ def minus(first: dict[str, list], second: dict[str, list]) -> dict:
     return minus
 
 
+def subtract_features(first: dict[str, list], second: dict[str, list], match_snap_types: bool) -> dict:
+    if match_snap_types:
+        return minus(first, second)
+    
+    diff = minus({'cmds': first['cmds'], 'ensures': first['ensures'], 'endpoints': first['endpoints']}, second)
+    tasks = [af for af in first['tasks'] 
+            if not any(af['kind'] == sf['kind'] and af['last_status'] == sf['last_status'] for sf in second['tasks'])]
+    changes = [af for af in first['changes'] 
+            if not any(af['kind'] == sf['kind'] for sf in second['changes'])]
+    interfaces = [af for af in first['interfaces'] 
+                if not any(af['name'] == sf['name'] for sf in second['interfaces'])]
+    if tasks:
+        diff['tasks'] = tasks
+    if changes:
+        diff['changes'] = changes
+    if interfaces:
+        diff['interfaces'] = interfaces
+    return diff
+
+
 def list_tasks(system_json: SystemFeatures, remove_failed: bool) -> set[TaskIdVariant]:
     '''
     Lists all tasks present in the SystemFeatures dictionary
@@ -342,7 +362,7 @@ def list_tasks(system_json: SystemFeatures, remove_failed: bool) -> set[TaskIdVa
     return tasks
 
 
-def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, system2: str, remove_failed: bool, only_same: bool) -> dict:
+def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, system2: str, remove_failed: bool, only_same: bool, match_snap_types: bool = True) -> dict:
     '''
     Calculates set(system1_features) - set(system2_features), each at their
     respective timestamps. 
@@ -366,8 +386,8 @@ def diff(retriever: Retriever, timestamp1: str, system1: str, timestamp2: str, s
         system_json1, include_tasks=include_tasks1)
     features2 = consolidate_system_features(
         system_json2, include_tasks=include_tasks2)
-    mns = minus(features1, features2)
-    return mns
+    
+    return subtract_features(features1, features2, match_snap_types)
 
 
 def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) -> dict:
@@ -381,20 +401,7 @@ def diff_all_features(retriever: Retriever, timestamp: str, system: str, remove_
     '''
     sys_features = feat_sys(retriever, timestamp, system, remove_failed)
     all_features = retriever.get_all_features(timestamp)
-    diff = minus({'cmds': all_features['cmds'], 'ensures': all_features['ensures'], 'endpoints': all_features['endpoints']}, sys_features)
-    tasks = [af for af in all_features['tasks'] 
-             if not any(af['kind'] == sf['kind'] and af['last_status'] == sf['last_status'] for sf in sys_features['tasks'])]
-    changes = [af for af in all_features['changes'] 
-               if not any(af['kind'] == sf['kind'] for sf in sys_features['changes'])]
-    interfaces = [af for af in all_features['interfaces'] 
-                  if not any(af['name'] == sf['name'] for sf in sys_features['interfaces'])]
-    if tasks:
-        diff['tasks'] = tasks
-    if changes:
-        diff['changes'] = changes
-    if interfaces:
-        diff['interfaces'] = interfaces
-    return diff
+    return subtract_features(all_features, sys_features, False)
 
 
 def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: bool, suite: str = None, task: str = None, variant: str = None) -> dict:
@@ -440,7 +447,7 @@ def get_feature_name_from_feature(feat: dict) -> str:
     return ''
 
 
-def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None, force_exact: bool = False) -> dict[str, TaskIdVariant]:
+def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: bool, system: str = None, match_snap_types: bool = False) -> dict[str, TaskIdVariant]:
     '''
     Given a timestamp, a feature, and optionally a system, finds
     all tests that contain the indicated feature. If no system
@@ -467,7 +474,7 @@ def find_feat(retriever: Retriever, timestamp: str, feat: dict, remove_failed: b
         raise RuntimeError(f'feature {feat} not a recognized feature')
 
     feat_in_test=lambda test: feat_name in test and feat in test[feat_name]
-    if not force_exact:
+    if not match_snap_types:
         if feat_name == 'tasks':
             feat_in_test = lambda test: feat_name in test and any(t['kind'] == feat['kind'] and t['last_status'] == feat['last_status'] for t in test['tasks'])
         elif feat_name == 'changes':
@@ -639,6 +646,7 @@ def add_diff_parsers(subparsers: argparse._SubParsersAction) -> tuple[str, str, 
     sys.add_argument('-s2', '--system2', help='system of second execution', type=str, required=True)
     sys.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     sys.add_argument('--only-same', help='only compare tasks that were executed on both systems', action='store_true')
+    sys.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
 
     all = diff_subparsers.add_parser(cmd_all, help='calculate diff between system features and all features',
                                      description=all_description, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -720,7 +728,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     find.add_argument('-s', '--system', help='(optional) system to search for feature in', default=None, type=str)
     find.add_argument('--feat', help='feature to search for (json format)', required=True, type=str)
     find.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
-    find.add_argument('--force-exact', help='force match the entire feature', action='store_true')
+    find.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
     return cmd, cmd_all, cmd_sys, cmd_find
 
 
@@ -750,7 +758,7 @@ def main():
         if args.command == diff_cmd:
             if args.diff_cmd == diff_sys_cmd:
                 result = diff(retriever, args.timestamp1, args.system1,
-                            args.timestamp2, args.system2, args.remove_failed, args.only_same)
+                            args.timestamp2, args.system2, args.remove_failed, args.only_same, args.match_snap_types)
             elif args.diff_cmd == diff_all_cmd:
                 result = diff_all_features(retriever, args.timestamp, args.system, args.remove_failed)
             else:
@@ -779,7 +787,7 @@ def main():
             elif args.features_cmd == feat_find_cmd:
                 try:
                     feat = json.loads(args.feat)
-                    result = find_feat(retriever, args.timestamp, feat, args.remove_failed, args.system, args.force_exact)
+                    result = find_feat(retriever, args.timestamp, feat, args.remove_failed, args.system, args.match_snap_types)
                     json.dump(result, sys.stdout, default=lambda x: str(x))
                 except Exception as e:
                     raise RuntimeError(f'Error parsing feature {args.feat}: {e}')
