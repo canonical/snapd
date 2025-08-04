@@ -254,9 +254,9 @@ func (d *DeviceQueryTracker) Identify(id Identity) {
 // DeviceQueryTrackerData represents the serializable state of
 // DeviceQueryTracker.
 type DeviceQueryTrackerData struct {
-	Unknowns map[DeviceToken][]DeviceToken `json:"unknowns"`
-	Sources  map[DeviceToken][]DeviceToken `json:"sources"`
-	IDs      map[DeviceToken]Identity      `json:"ids"`
+	Unknowns map[DeviceToken][]DeviceToken `json:"unknowns,omitempty"`
+	Sources  map[DeviceToken][]DeviceToken `json:"sources,omitempty"`
+	IDs      map[DeviceToken]Identity      `json:"ids,omitempty"`
 }
 
 // Export returns the serializable state of the DeviceQueryTracker.
