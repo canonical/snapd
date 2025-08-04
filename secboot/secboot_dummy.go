@@ -82,14 +82,6 @@ func (d *placeholderKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []by
 	return nil, nil, errBuildWithoutSecboot
 }
 
-func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) KeyProtector {
-	return &placeholderKeyProtector{}
-}
-
-func NewOpteeKeyProtector() KeyProtector {
-	return &placeholderKeyProtector{}
-}
-
 func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
 	return nil, errBuildWithoutSecboot
 }
