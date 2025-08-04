@@ -88,7 +88,7 @@ type marshalledTransaction struct {
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
-	deltas := make([]map[string]any, len(t.deltas))
+	deltas := make([]map[string]any, 0, len(t.deltas))
 	for _, delta := range t.deltas {
 		deltas = append(deltas, map[string]any{
 			confdb.JoinAccessors(delta.path): delta.value,
