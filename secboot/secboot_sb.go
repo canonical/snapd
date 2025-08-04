@@ -675,10 +675,10 @@ func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.Recov
 	return sbAddLUKS2ContainerRecoveryKey(devicePath, slotName, unlockKey, sb.RecoveryKey(rkey))
 }
 
-type neededResealKind int
+type resealKind int
 
 const (
-	tpmResealKind neededResealKind = iota
+	tpmResealKind resealKind = iota
 	hookResealKind
 	noResealKind
 )

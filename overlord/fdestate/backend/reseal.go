@@ -35,11 +35,11 @@ import (
 )
 
 var (
-	secbootResealKey                  = secboot.ResealKey
-	secbootBuildPCRProtectionProfile  = secboot.BuildPCRProtectionProfile
-	secbootGetPrimaryKey              = secboot.GetPrimaryKey
-	secbootRevokeOldKeys              = (*secboot.UpdatedKeys).RevokeOldKeys
-	bootIsResealNeeded                = boot.IsResealNeeded
+	secbootResealKey                 = secboot.ResealKey
+	secbootBuildPCRProtectionProfile = secboot.BuildPCRProtectionProfile
+	secbootGetPrimaryKey             = secboot.GetPrimaryKey
+	secbootRevokeOldKeys             = (*secboot.UpdatedKeys).RevokeOldKeys
+	bootIsResealNeeded               = boot.IsResealNeeded
 )
 
 // MockSecbootResealKey is only useful in testing. Note that this is a very low

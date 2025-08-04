@@ -285,17 +285,16 @@ const (
 type ResealKeyParams struct {
 	// GetPrimaryKey returns the primary key. It is not called if
 	// not needed.
-	GetPrimaryKey              func() ([]byte, error)
+	GetPrimaryKey func() ([]byte, error)
 	// The allowed boot modes (run, recover, factory-reset)
-	BootModes                  []string
+	BootModes []string
 	// The allowed models
-	Models                     []ModelForSealing
+	Models []ModelForSealing
 	// The TPM policy profile. May be be nil when using hooks.
-	TpmPCRProfile              []byte
+	TpmPCRProfile []byte
 	// Whether a incremented value of the counter is allowed
 	// (before a revocation)
 	IncrementRevocationCounter bool
-	// Whether we should consider old ambiguous key formats a
-	// FDE hook key.
-	HintExpectFDEHook          bool
+	// Whether old ambiguous key formats interpreted as FDE hook keys.
+	HintExpectFDEHook bool
 }

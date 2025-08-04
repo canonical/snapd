@@ -4332,6 +4332,68 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 	c.Check(resealKeysWithTPMCalled, Equals, 1)
 }
 
+func (s *secbootSuite) TestResealKeyHookV2(c *C) {
+	kd := &sb.KeyData{}
+
+	readKeyTokenCalls := 0
+	defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+		readKeyTokenCalls++
+		c.Check(devicePath, Equals, "/dev/somedevice")
+		c.Check(slotName, Equals, "key1")
+		return kd, nil
+	})()
+
+	platformNameCalled := 0
+	defer secboot.MockSbKeyDataPlatformName(func(k *sb.KeyData) string {
+		platformNameCalled++
+		c.Check(k, Equals, kd)
+		return "fde-hook-v2"
+	})()
+
+	resealKeysWithTPMCalled := 0
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []secboot.ModelForSealing, bootModes []string) error {
+		resealKeysWithTPMCalled++
+		primaryKey, err := primaryKeyGetter()
+		c.Assert(err, IsNil)
+		c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
+		c.Assert(keys, HasLen, 1)
+		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
+		c.Check(keys[0].SlotName, Equals, "key1")
+		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Assert(models, HasLen, 1)
+		c.Check(models[0].Model(), Equals, "mytest")
+		return nil
+	})()
+
+	key := secboot.KeyDataLocation{
+		DevicePath: "/dev/somedevice",
+		SlotName:   "key1",
+		KeyFile:    "/nonexistant",
+	}
+
+	m := &testModel{
+		name: "mytest",
+	}
+
+	params := &secboot.ResealKeyParams{
+		GetPrimaryKey: func() ([]byte, error) {
+			return []byte{1, 2, 3, 4}, nil
+		},
+		BootModes:         []string{"foo", "bar"},
+		Models:            []secboot.ModelForSealing{m},
+		HintExpectFDEHook: true,
+	}
+
+	updatedKeys, err := secboot.ResealKey(key, params)
+	c.Assert(err, IsNil)
+
+	c.Assert(updatedKeys, HasLen, 0)
+
+	c.Check(readKeyTokenCalls, Equals, 1)
+	c.Check(platformNameCalled, Equals, 1)
+	c.Check(resealKeysWithTPMCalled, Equals, 1)
+}
+
 func (s *secbootSuite) TestResealKeyHookV1(c *C) {
 	kd := &sb.KeyData{}
 
@@ -4372,4 +4434,65 @@ func (s *secbootSuite) TestResealKeyHookV1(c *C) {
 	c.Assert(updatedKeys, HasLen, 0)
 
 	c.Check(readKeyTokenCalls, Equals, 1)
+}
+
+func (s *secbootSuite) TestResealKeyAllOtherPlatforms(c *C) {
+	checkPlatform := func(platform string) {
+		kd := &sb.KeyData{}
+
+		readKeyTokenCalls := 0
+		defer secboot.MockReadKeyToken(func(devicePath, slotName string) (*sb.KeyData, error) {
+			readKeyTokenCalls++
+			c.Check(devicePath, Equals, "/dev/somedevice")
+			c.Check(slotName, Equals, "key1")
+			return kd, nil
+		})()
+
+		platformNameCalled := 0
+		defer secboot.MockSbKeyDataPlatformName(func(k *sb.KeyData) string {
+			platformNameCalled++
+			c.Check(k, Equals, kd)
+			return platform
+		})()
+
+		key := secboot.KeyDataLocation{
+			DevicePath: "/dev/somedevice",
+			SlotName:   "key1",
+			KeyFile:    "/some/path",
+		}
+
+		params := &secboot.ResealKeyParams{
+			HintExpectFDEHook: true,
+		}
+
+		updatedKeys, err := secboot.ResealKey(key, params)
+		c.Assert(err, IsNil)
+
+		c.Assert(updatedKeys, HasLen, 0)
+
+		c.Check(readKeyTokenCalls, Equals, 1)
+		c.Check(platformNameCalled, Equals, 1)
+
+	}
+	for _, platform := range sb.ListRegisteredKeyDataPlatforms() {
+		switch platform {
+		case "tpm2":
+			// tested in TestResealKeyTPM
+			break
+		case "tpm2-legacy":
+			// tested in TestResealKeyTPMKeyFileLegacy
+			break
+		case "fde-hooks-v3":
+			// tested in TestResealKeyHook
+			break
+		case "fde-hook-v2":
+			// tested in TestResealKeyHookV2
+			break
+		case "plainkey":
+			checkPlatform(platform)
+		default:
+			c.Errorf("Unexpected platform %s", platform)
+		}
+
+	}
 }
