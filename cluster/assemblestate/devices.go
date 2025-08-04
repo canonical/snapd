@@ -102,15 +102,6 @@ func (d *DeviceQueryTracker) ResponsesAvailable() <-chan struct{} {
 	return d.responses
 }
 
-// RetryResponses signals that device query responses should be retried. This
-// should be called when a response transmission fails.
-func (d *DeviceQueryTracker) RetryResponses() {
-	select {
-	case d.responses <- struct{}{}:
-	default:
-	}
-}
-
 // QueriesAvailable returns a channel that signals when there are device queries
 // ready to be sent to peers. After reading from this channel, it is expected
 // that all queries are handled via calls to [DeviceQueryTracker.QueryableFrom].
@@ -118,15 +109,6 @@ func (d *DeviceQueryTracker) RetryResponses() {
 // [DeviceQueryTracker.RetryQueries].
 func (d *DeviceQueryTracker) QueriesAvailable() <-chan struct{} {
 	return d.queries
-}
-
-// RetryQueries signals that device queries should be retried. This should be
-// called when a query transmission fails.
-func (d *DeviceQueryTracker) RetryQueries() {
-	select {
-	case d.queries <- struct{}{}:
-	default:
-	}
 }
 
 // Query records a query from a peer for unknown device identities. If we have
@@ -160,7 +142,7 @@ func (d *DeviceQueryTracker) Query(from DeviceToken, unknowns []DeviceToken) {
 // QueryResponses returns the device identities that should be sent to the
 // specified peer, along with an acknowledgment function that must be called
 // after successful transmission.
-func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, ack func()) {
+func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, ack func(bool)) {
 	ids = make([]Identity, 0, len(d.unknowns[from]))
 	for rdt := range d.unknowns[from] {
 		id, ok := d.ids[rdt]
@@ -170,9 +152,18 @@ func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, a
 		ids = append(ids, id)
 	}
 
-	ack = func() {
-		for _, id := range ids {
-			delete(d.unknowns[from], id.RDT)
+	ack = func(success bool) {
+		// on success, we mark these responses as sent. on failure, we make sure
+		// that the response is re-queued
+		if success {
+			for _, id := range ids {
+				delete(d.unknowns[from], id.RDT)
+			}
+		} else {
+			select {
+			case d.responses <- struct{}{}:
+			default:
+			}
 		}
 	}
 
@@ -182,7 +173,7 @@ func (d *DeviceQueryTracker) QueryResponses(from DeviceToken) (ids []Identity, a
 // QueryableFrom returns unknown device RDTs that should be queried from the
 // specified source peer, along with an acknowledgment function that must be
 // called after successful transmission to track inflight queries.
-func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []DeviceToken, ack func()) {
+func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []DeviceToken, ack func(bool)) {
 	for rdt := range d.sources[source] {
 		if _, ok := d.ids[rdt]; ok {
 			continue
@@ -197,10 +188,19 @@ func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []Device
 		unknown = append(unknown, rdt)
 	}
 
-	ack = func() {
-		sent := d.clock()
-		for _, u := range unknown {
-			d.inflight[u] = sent
+	ack = func(success bool) {
+		// on success, we mark these queries as in-flight. on failure, we make
+		// sure that the query is re-queued
+		if success {
+			sent := d.clock()
+			for _, u := range unknown {
+				d.inflight[u] = sent
+			}
+		} else {
+			select {
+			case d.queries <- struct{}{}:
+			default:
+			}
 		}
 	}
 

@@ -80,7 +80,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 	c.Assert(rdts, testutil.DeepUnsortedMatches, []assemblestate.DeviceToken{"self", "other"})
 
 	// ack should remove the queries
-	ack()
+	const success = true
+	ack(success)
 
 	// should have no more responses
 	ids, _ = dt.QueryResponses("peer")
@@ -103,7 +104,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
 	c.Assert(unknown, testutil.DeepUnsortedMatches, []assemblestate.DeviceToken{"device-1", "device-2"})
 
 	// ack should mark as in flight
-	ack()
+	const success = true
+	ack(success)
 
 	// since we have queries in flight, we shouldn't report new queries from
 	// this peer
@@ -138,7 +140,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 	c.Assert(len(unknown), check.Equals, 1)
 
 	// ack marks as in flight
-	ack()
+	const success = true
+	ack(success)
 
 	// since the query is in flight, we shouldn't return anything here
 	unknown, _ = dt.QueryableFrom("peer")
@@ -150,24 +153,82 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-1"))
 }
 
-func (s *deviceTrackerSuite) TestDeviceTrackerChannels(c *check.C) {
+func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
 	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	dt := assemblestate.NewDeviceQueryTracker(self, time.Hour, time.Now, assemblestate.DeviceQueryTrackerData{})
 
-	responses := dt.ResponsesAvailable()
-	queries := dt.QueriesAvailable()
+	// peer tells us they know about device
+	dt.UpdateSource("peer", []assemblestate.DeviceToken{"device-1"})
 
-	dt.RetryQueries()
-	c.Assert(hasSignal(queries), check.Equals, true)
+	unknown, ack := dt.QueryableFrom("peer")
+	c.Assert(len(unknown), check.Equals, 1)
+	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-1"))
 
-	dt.RetryResponses()
-	c.Assert(hasSignal(responses), check.Equals, true)
+	// ack with false indicates that we could not send the query
+	const failure = false
+	ack(failure)
 
-	// multiple retry calls don't ever block
-	dt.RetryQueries()
-	dt.RetryQueries()
-	dt.RetryResponses()
-	dt.RetryResponses()
+	// signal indicates that there are still queries available to send
+	c.Assert(hasSignal(dt.QueriesAvailable()), check.Equals, true)
+
+	// since we failed to send the query, it should be returned again here
+	unknown, ack = dt.QueryableFrom("peer")
+	c.Assert(len(unknown), check.Equals, 1)
+	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-1"))
+
+	const success = true
+	ack(success)
+
+	// signal indicates that there is nothing to send
+	c.Assert(hasSignal(dt.QueriesAvailable()), check.Equals, false)
+
+	// now that we've marked it as a successful send, it should not be returned
+	// here
+	unknown, _ = dt.QueryableFrom("peer")
+	c.Assert(unknown, check.HasLen, 0)
+}
+
+func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
+	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
+	one := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-1")}
+
+	data := assemblestate.DeviceQueryTrackerData{
+		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			"device-1": one,
+		},
+	}
+
+	dt := assemblestate.NewDeviceQueryTracker(self, time.Hour, time.Now, data)
+
+	// peer tells us they need info about a device
+	dt.Query("peer", []assemblestate.DeviceToken{"device-1"})
+
+	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, true)
+
+	ids, ack := dt.QueryResponses("peer")
+	c.Assert(len(ids), check.Equals, 1)
+	c.Assert(ids[0], check.Equals, one)
+
+	// ack with false indicates that we could not send the query
+	const failure = false
+	ack(failure)
+
+	// signal indicates that there are still responses available to send
+	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, true)
+
+	// since we failed to send the response, it should be returned again here
+	ids, ack = dt.QueryResponses("peer")
+	c.Assert(len(ids), check.Equals, 1)
+	c.Assert(ids[0], check.Equals, one)
+
+	const success = true
+	ack(success)
+
+	// now no response signal
+	c.Assert(hasSignal(dt.ResponsesAvailable()), check.Equals, false)
+
+	ids, _ = dt.QueryResponses("peer")
+	c.Assert(len(ids), check.Equals, 0)
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerEmptyQueries(c *check.C) {
@@ -282,7 +343,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 	c.Assert(rdts, testutil.DeepUnsortedMatches, []assemblestate.DeviceToken{"device-1", "device-2"})
 
 	// ack should clear the responses
-	ack()
+	const success = true
+	ack(success)
+
 	ids, _ = dt.QueryResponses("peer-1")
 	c.Assert(ids, check.HasLen, 0)
 
@@ -309,7 +372,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 	c.Assert(unknown, testutil.DeepUnsortedMatches, []assemblestate.DeviceToken{"device-1", "device-2"})
 
 	// ack should mark as in flight
-	ack()
+	const success = true
+	ack(success)
 
 	// should not return same queries while in flight
 	unknown, _ = dt.QueryableFrom("peer-1")
