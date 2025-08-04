@@ -66,6 +66,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"iter"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -80,6 +81,9 @@ var (
 
 // MountID is a 64 bit identifier of a mount.
 type MountID int64
+
+// GroupID is a 64 bit identifier of a mount peer group.
+type GroupID int64
 
 // RootMountID is the mount ID of the root file system in any VFS.
 const RootMountID MountID = -1 // LSMT_ROOT
@@ -98,6 +102,9 @@ type mount struct {
 	rootDir    string // Path of fsFS that is actually mounted.
 	isDir      bool   // Mount is attached to a directory.
 	fsFS       fs.StatFS
+	shared     GroupID // ID of the shared peer group, zero is invalid.
+	master     GroupID // ID of the peer group that is the master, zero is invalid.
+	unbindable bool    // The mount cannot be used as source.
 
 	mountPointCache *string
 
@@ -107,6 +114,32 @@ type mount struct {
 	lastChild   *mount
 	nextSibling *mount
 	prevSibling *mount
+}
+
+// ancestors returns an iterator from the node through all of its parents.
+//
+// The iteration starts at m and continues until the rootfs is reached.
+func (m *mount) ancestors() iter.Seq[*mount] {
+	return func(yield func(*mount) bool) {
+		for ; m != nil; m = m.parent {
+			if !yield(m) {
+				return
+			}
+		}
+	}
+}
+
+// children returns an iterator over the children of the given mount.
+//
+// Internally the order of iteration is from the first child.
+func (m *mount) children() iter.Seq[*mount] {
+	return func(yield func(*mount) bool) {
+		for m = m.firstChild; m != nil; m = m.nextSibling {
+			if !yield(m) {
+				return
+			}
+		}
+	}
 }
 
 func (m *mount) mountPoint() string {
@@ -149,6 +182,7 @@ type VFS struct {
 	mu          sync.RWMutex
 	mounts      []*mount
 	nextMountID MountID
+	lastGroupID GroupID // Groups IDs start with 1 so that zero value is not a valid group.
 }
 
 // NewVFS returns a VFS with the given root file system mounted.
@@ -229,6 +263,14 @@ func (v *VFS) allocateMountID() MountID {
 	return id
 }
 
+// allocateGroupID returns a new group ID.
+func (v *VFS) allocateGroupID() GroupID {
+	// Groups IDs start with 1
+	v.lastGroupID++
+	id := v.lastGroupID
+	return id
+}
+
 // pathDominator returns information about the mount that dominates a given path.
 //
 // Out of all the mounts in the VFS, the last one that dominates a given path,
@@ -303,6 +345,19 @@ func (m *mount) isDom(path string) (domSuffix, fsPath string, ok bool) {
 	fsPath = filepath.Join(m.rootDir, domSuffix)
 
 	return domSuffix, fsPath, true
+}
+
+// hasAncestor returns true if the mount's parent (recursively) has the given [id].
+func (m *mount) hasAncestor(id MountID) bool {
+	if m.parentID == id {
+		return true
+	}
+
+	if m.parent == nil {
+		return false
+	}
+
+	return m.parent.hasAncestor(id)
 }
 
 // combinedRootDir returns the combination of [mount.rootDir] and [pathDominator.suffix]
@@ -387,8 +442,18 @@ func (m *mount) String() string {
 		sbOpts    = "rw"
 		fsType    = "(fstype)"
 	)
-	// TODO: propagation flags here
 	fmt.Fprintf(&sb, "%-2d %d %d:%d /%s /%s %s", m.mountID, m.parentID, major, minor, m.rootDir, m.mountPoint(), mountOpts)
+	if m.shared != 0 {
+		fmt.Fprintf(&sb, " shared:%d", m.shared)
+	}
+	if m.master != 0 {
+		fmt.Fprintf(&sb, " master:%d", m.master)
+	}
+	// TODO: propagate_from:nnn if master is invisible (not possible yet, needs pivot or chroot or namespaces).
+	if m.unbindable {
+		fmt.Fprintf(&sb, " unbindable")
+	}
+
 	fmt.Fprintf(&sb, " - %s %s %s", fsType, source, sbOpts)
 	return sb.String()
 }
