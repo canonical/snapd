@@ -14,13 +14,17 @@ execute: |
         local status_code
         local num_retries=3
 
-        for _ in $(seq $num_retries); do
+        for retry in $(seq $num_retries); do
             # Make a HEAD request to the URL and capture the HTTP status code
             status_code=$(curl -I -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
 
             # The code 000 in curl means that a connection to the server could not be established
-            if [ "$status_code" -eq 000 ]; then
-                sleep 5
+            if [ "$status_code" == 000 ]; then
+                if [ "$retry" == "$num_retries" ]; then
+                    return 0
+                else
+                    sleep 5
+                fi
             fi
 
             # If the status code is 2xx the url is ok
