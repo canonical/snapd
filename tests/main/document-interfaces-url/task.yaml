@@ -18,6 +18,11 @@ execute: |
             # Make a HEAD request to the URL and capture the HTTP status code
             status_code=$(curl -I -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
 
+            # The code 000 in curl means that a connection to the server could not be established
+            if [ "$status_code" -eq 000 ]; then
+                sleep 5
+            fi
+
             # If the status code is 2xx the url is ok
             if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
                 return 0
