@@ -52,11 +52,18 @@ type DeviceQueryTracker struct {
 	// ids is our collection of device identities that we've heard from other
 	// peers.
 	ids map[DeviceToken]Identity
+
+	clock func() time.Time
 }
 
 // NewDeviceQueryTracker creates a new DeviceQueryTracker with the given
 // identity, timeout for inflight queries, and initial data.
-func NewDeviceQueryTracker(self Identity, timeout time.Duration, data DeviceQueryTrackerData) DeviceQueryTracker {
+func NewDeviceQueryTracker(
+	self Identity,
+	timeout time.Duration,
+	clock func() time.Time,
+	data DeviceQueryTrackerData,
+) DeviceQueryTracker {
 	dt := DeviceQueryTracker{
 		timeout:   timeout,
 		responses: make(chan struct{}, 1),
@@ -67,6 +74,7 @@ func NewDeviceQueryTracker(self Identity, timeout time.Duration, data DeviceQuer
 		ids: map[DeviceToken]Identity{
 			self.RDT: self,
 		},
+		clock: clock,
 	}
 
 	// seed with any provided data
@@ -182,7 +190,7 @@ func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []Device
 
 		// if we have a query in-flight for this rdt, omit it from the queries
 		// we will send
-		if time.Since(d.inflight[rdt]) < d.timeout {
+		if d.inflight[rdt].Add(d.timeout).After(d.clock()) {
 			continue
 		}
 
@@ -190,7 +198,7 @@ func (d *DeviceQueryTracker) QueryableFrom(source DeviceToken) (unknown []Device
 	}
 
 	ack = func() {
-		sent := time.Now()
+		sent := d.clock()
 		for _, u := range unknown {
 			d.inflight[u] = sent
 		}
