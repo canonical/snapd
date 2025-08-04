@@ -84,10 +84,6 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
 var ErrNoIntegrityDataFoundInRevision = errors.New("no integrity data found in revision")
 
-// ErrUnsupportedIntegrityDataInRevision is returned when integrity data for a snap are available but
-// are not one of the supported types (only dm-verity is supported for now).
-var ErrUnsupportedIntegrityDataInRevision = errors.New("unsupported integrity data found in revision")
-
 // NewIntegrityDataParamsFromRevision will parse a revision for integrity data and return them as
 // a new IntegrityDataParams object.
 //
@@ -104,10 +100,6 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 	// In future versions, extra logic will be required here to decide which integrity data
 	// should be used based on extra information (i.e from the model).
 	sid := snapIntegrityData[0]
-
-	if sid.Type != "dm-verity" {
-		return nil, fmt.Errorf("%w: %q", ErrUnsupportedIntegrityDataInRevision, sid.Type)
-	}
 
 	return &IntegrityDataParams{
 		Type:          sid.Type,
