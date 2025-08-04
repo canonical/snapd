@@ -32,7 +32,7 @@ func New(logger *slog.Logger, topics, revTopics map[string]string) *Translator {
 
 // AuthConnect is called on device connection,
 // prior forwarding to the MQTT broker.
-func (tr *Translator) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte)  error {
+func (tr *Translator) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte, userProperties *[]packets.User)  error {
 	return session.LogAction(ctx, "AuthConnect", nil, nil, nil, *tr.logger)
 }
 

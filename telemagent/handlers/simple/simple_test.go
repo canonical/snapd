@@ -43,7 +43,7 @@ func (s *simpleSuite) SetUpSuite(c *C) {
 }
 
 func (ss *simpleSuite) TestAuthConnect(c *C) {
-	err := ss.handler.AuthConnect(ss.ctx, false, nil, nil, nil)
+	err := ss.handler.AuthConnect(ss.ctx, false, nil, nil, nil, nil)
 	c.Check(err, IsNil)
 }
 
@@ -117,7 +117,7 @@ func (ss *simpleSuite) TestDisconnect(c *C) {
 }
 
 func (ss *simpleSuite) TestNoSession(c *C) {
-	err := ss.handler.AuthConnect(context.Background(), false, nil, nil, nil)
+	err := ss.handler.AuthConnect(context.Background(), false, nil, nil, nil, nil)
 	c.Check(err, NotNil)
 }
 
@@ -125,6 +125,6 @@ func (ss *simpleSuite) TestAuthConnectWithCertificate(c *C) {
 	fakeCertificate := x509.Certificate{Subject: pkix.Name{CommonName: "fake_cert"}}
 	ctxWithCertificate := session.NewContext(context.Background(), &session.Session{Cert: fakeCertificate})
 
-	err := ss.handler.AuthConnect(ctxWithCertificate, false, nil, nil, nil)
+	err := ss.handler.AuthConnect(ctxWithCertificate, false, nil, nil, nil, nil)
 	c.Check(err, IsNil)
 }

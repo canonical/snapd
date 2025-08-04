@@ -161,7 +161,7 @@ func authorize(ctx context.Context, pkt *packets.ControlPacket, h Handler) error
 		}
 
 		ctx = NewContext(ctx, s)
-		if err := h.AuthConnect(ctx, pkt.Content.(*packets.Connect).WillFlag, &pkt.Content.(*packets.Connect).WillTopic, &s.Username, &s.Password); err != nil {
+		if err := h.AuthConnect(ctx, pkt.Content.(*packets.Connect).WillFlag, &pkt.Content.(*packets.Connect).WillTopic, &s.Username, &s.Password, &pkt.Content.(*packets.Connect).Properties.User); err != nil {
 			return err
 		}
 		// Copy back to the packet in case values are changed by Event handler.

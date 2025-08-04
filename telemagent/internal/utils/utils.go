@@ -96,7 +96,7 @@ func GetDeviceId() (string, error) {
 		return "", fmt.Errorf("no device-id was returned")
 	}
 
-	deviceId := results[0].HeaderString("brand-id") + "-" + results[0].HeaderString("model") + "-" +
+	deviceId := results[0].HeaderString("brand-id") + "." + results[0].HeaderString("model") + "." +
 		results[0].HeaderString("serial")
 
 	return deviceId, nil

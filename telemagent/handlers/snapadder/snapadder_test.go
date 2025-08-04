@@ -84,7 +84,7 @@ func (sa *snapadderSuite) SetUpTest(c *C) {
 }
 
 func (sa *snapadderSuite) TestAuthConnect(c *C) {
-	err := sa.handler.AuthConnect(sa.ctx, false, nil, nil, nil)
+	err := sa.handler.AuthConnect(sa.ctx, false, nil, nil, nil, nil)
 	c.Check(err, IsNil)
 }
 
@@ -99,7 +99,7 @@ func (sa *snapadderSuite) TestAuthConnectWithWill(c *C) {
 
 	newTopic := fmt.Sprintf("/%s/canonical/my-topic/hello", deviceId)
 
-	err = sa.handler.AuthConnect(ctxWithProc, true, &lastWillTopic, nil, nil)
+	err = sa.handler.AuthConnect(ctxWithProc, true, &lastWillTopic, nil, nil, nil)
 	c.Check(err, IsNil)
 	c.Check(lastWillTopic, Equals, newTopic)
 }
@@ -345,7 +345,7 @@ func (sa *snapadderSuite) TestDisconnect(c *C) {
 }
 
 func (sa *snapadderSuite) TestNoSession(c *C) {
-	err := sa.handler.AuthConnect(context.Background(), false, nil, nil, nil)
+	err := sa.handler.AuthConnect(context.Background(), false, nil, nil, nil, nil)
 	c.Check(err, NotNil)
 }
 
@@ -353,7 +353,7 @@ func (sa *snapadderSuite) TestAuthConnectWithCertificate(c *C) {
 	fakeCertificate := x509.Certificate{Subject: pkix.Name{CommonName: "fake_cert"}}
 	ctxWithCertificate := session.NewContext(context.Background(), &session.Session{Cert: fakeCertificate})
 
-	err := sa.handler.AuthConnect(ctxWithCertificate, false, nil, nil, nil)
+	err := sa.handler.AuthConnect(ctxWithCertificate, false, nil, nil, nil, nil)
 	c.Check(err, IsNil)
 }
 

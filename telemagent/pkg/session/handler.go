@@ -15,7 +15,7 @@ import (
 type Handler interface {
 	// Authorization on client `CONNECT`
 	// Each of the params are passed by reference, so that it can be changed
-	AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte) error
+	AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte, userProperties *[]packets.User) error
 
 	// Authorization on client `PUBLISH`
 	// Topic is passed by reference, so that it can be modified

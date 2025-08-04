@@ -32,7 +32,7 @@ func New(logger *slog.Logger) *SnapAdder {
 
 // AuthConnect is called on device connection,
 // prior forwarding to the MQTT broker.
-func (tr *SnapAdder) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte) error {
+func (tr *SnapAdder) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *string, Username *string, Password *[]byte, userProperties *[]packets.User) error {
 	snapClient := client.New(nil)
 
 	macaroon, err := snapClient.DeviceSession()
@@ -65,6 +65,14 @@ func (tr *SnapAdder) AuthConnect(ctx context.Context, WillFlag bool, WillTopic *
 		msg := fmt.Sprintf("Will topic converted to global namespace, will send now to %s", *WillTopic)
 		tr.logger.Info(msg)
 	}
+
+	
+	clientType := packets.User{
+		Key:   "client-type",
+		Value: "device",
+	}
+
+	*userProperties = append(*userProperties, clientType)
 
 	return session.LogAction(ctx, "AuthConnect", nil, nil, nil, *tr.logger)
 }
