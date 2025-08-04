@@ -1624,20 +1624,11 @@ func newViewRule(request, storage []Accessor, accesstype string) (*viewRule, err
 		requestMatchers = append(requestMatchers, matcher)
 	}
 
-	pathWriters := make([]storageWriter, 0, len(storage))
-	for _, acc := range storage {
-		writer, ok := acc.(storageWriter)
-		if !ok {
-			return nil, fmt.Errorf("internal error: cannot convert accessor into storageWriter")
-		}
-		pathWriters = append(pathWriters, writer)
-	}
-
 	return &viewRule{
 		originalRequest: JoinAccessors(request),
 		originalStorage: JoinAccessors(storage),
 		request:         requestMatchers,
-		storage:         pathWriters,
+		storage:         storage,
 		access:          accType,
 	}, nil
 }
@@ -1663,7 +1654,7 @@ type viewRule struct {
 	originalStorage string
 
 	request []requestMatcher
-	storage []storageWriter
+	storage []Accessor
 	access  accessType
 }
 
@@ -1696,8 +1687,19 @@ func (p *viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, u
 // its placeholder values filled in with the map's values.
 func (p *viewRule) storagePath(matched *matchedPlaceholders) []Accessor {
 	var accessors []Accessor
-	for _, subkey := range p.storage {
-		accessors = append(accessors, subkey.write(matched))
+	for _, acc := range p.storage {
+		switch acc.Type() {
+		case KeyPlaceholderType:
+			if match, ok := matched.key[acc.Name()]; ok {
+				acc = key(match)
+			}
+
+		case IndexPlaceholderType:
+			if match, ok := matched.index[acc.Name()]; ok {
+				acc = index(match)
+			}
+		}
+		accessors = append(accessors, acc)
 	}
 
 	return accessors
@@ -1719,12 +1721,6 @@ type requestMatcher interface {
 	match(subkey Accessor, matched *matchedPlaceholders) bool
 }
 
-type storageWriter interface {
-	Accessor
-
-	write(matched *matchedPlaceholders) Accessor
-}
-
 // placeholder represents a subkey of a name/path (e.g., "{foo}") that can match
 // with any value and map it from the input name to the path.
 type keyPlaceholder string
@@ -1738,18 +1734,6 @@ func (p keyPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) boo
 
 	matched.setKey(string(p), subkey.Name())
 	return true
-}
-
-// write writes the value from the matchedPlaceholders entry corresponding to
-// this placeholder key into the strings.Builder.
-func (p keyPlaceholder) write(matched *matchedPlaceholders) Accessor {
-	subkey, ok := matched.key[string(p)]
-	if !ok {
-		// placeholder wasn't matched, return the original key in brackets
-		return p
-	}
-
-	return key(subkey)
 }
 
 func (p keyPlaceholder) Access() string {
@@ -1794,17 +1778,6 @@ func (p indexPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) b
 	return true
 }
 
-// write writes the value from the matchedPlaceholders entry corresponding to
-// this placeholder key into the strings.Builder.
-func (p indexPlaceholder) write(matched *matchedPlaceholders) Accessor {
-	subkey, ok := matched.index[string(p)]
-	if !ok {
-		// placeholder wasn't matched, return the original key in brackets
-		return p
-	}
-	return index(subkey)
-}
-
 func (p indexPlaceholder) Access() string     { return "[{" + string(p) + "}]" }
 func (p indexPlaceholder) Name() string       { return string(p) }
 func (p indexPlaceholder) Type() AccessorType { return IndexPlaceholderType }
@@ -1817,17 +1790,15 @@ func (k key) match(subkey Accessor, _ *matchedPlaceholders) bool {
 	return subkey.Type() == MapKeyType && string(k) == subkey.Name()
 }
 
-func (k key) write(_ *matchedPlaceholders) Accessor { return k }
-func (k key) Access() string                        { return k.Name() }
-func (k key) Name() string                          { return string(k) }
-func (k key) Type() AccessorType                    { return MapKeyType }
+func (k key) Access() string     { return k.Name() }
+func (k key) Name() string       { return string(k) }
+func (k key) Type() AccessorType { return MapKeyType }
 
 type index string
 
-func (i index) write(_ *matchedPlaceholders) Accessor { return i }
-func (i index) Access() string                        { return "[" + i.Name() + "]" }
-func (i index) Name() string                          { return string(i) }
-func (i index) Type() AccessorType                    { return ListIndexType }
+func (i index) Access() string     { return "[" + i.Name() + "]" }
+func (i index) Name() string       { return string(i) }
+func (i index) Type() AccessorType { return ListIndexType }
 
 type PathError string
 
