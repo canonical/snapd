@@ -4575,8 +4575,10 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 		addErr              error
 		primaryKeyErr       error
 		unlockKeyErr        error
+		keydataWriteErr     error
 		sealCalls           int
 		passphraseSealCalls int
+		deleteCalls         int
 		expectedErr         string
 	}{
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
@@ -4586,6 +4588,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 		{tpmEnabled: true, tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "cannot seal key: some error"},
 		{tpmEnabled: true, addErr: mockErr, sealCalls: 1, expectedErr: "cannot add key: some error"},
+		{tpmEnabled: true, keydataWriteErr: mockErr, sealCalls: 1, deleteCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: ""},
 		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", "argon2i"), expectedErr: ""},
 		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", "argon2id"), expectedErr: ""},
@@ -4654,13 +4657,21 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 			return tc.addErr
 		})()
 
+		deleteCalls := 0
+		defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, keyslotName string) error {
+			deleteCalls++
+			c.Check(devicePath, Equals, "/dev/foo")
+			c.Check(keyslotName, Equals, "bar")
+			return nil
+		})()
+
 		keyDataWriter := &myKeyDataWriter{}
 		tokenWritten := 0
 		restore = secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, name string) (secboot.KeyDataWriter, error) {
 			tokenWritten++
 			c.Check(devicePath, Equals, "/dev/foo")
 			c.Check(name, Equals, "bar")
-			return keyDataWriter, nil
+			return keyDataWriter, tc.keydataWriteErr
 		})
 		defer restore()
 
@@ -4676,10 +4687,15 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 			c.Check(tokenWritten, Equals, 1)
 			c.Assert(err, IsNil)
 		} else {
-			c.Check(tokenWritten, Equals, 0)
+			if tc.keydataWriteErr != nil {
+				c.Check(tokenWritten, Equals, 1)
+			} else {
+				c.Check(tokenWritten, Equals, 0)
+			}
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Check(sealCalls, Equals, tc.sealCalls)
 		c.Check(passphraseSealCalls, Equals, tc.passphraseSealCalls)
+		c.Check(deleteCalls, Equals, tc.deleteCalls)
 	}
 }
