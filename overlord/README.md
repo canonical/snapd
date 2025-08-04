@@ -35,7 +35,7 @@ The `state.TaskRunner` is responsible for `state.Change` and `state.Task` execut
 
 High-level parts of the system can use `State.EnsureBefore` to have the *ensure loop* run before its normal schedule to process `Task`s needing execution.
 
-During execution, a `Task` goes through a series of statuses.  These are represented by `state.Status` and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`. A Task needing execution is initially `DoStatus`. While the goroutine for its *do* logic is running it is in `DoingStatus`, respectively if the goroutine for its *undo* logic is running in `UndoingStatus` (after having been marked `UndoStatus` first).
+During execution, a `Task` goes through a series of statuses. These are represented by `state.Status` and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`. A Task needing execution is initially `DoStatus`. While the goroutine for its *do* logic is running it is in `DoingStatus`, respectively if the goroutine for its *undo* logic is running in `UndoingStatus` (after having been marked `UndoStatus` first).
 
 If errors are encountered, the `TaskRunner` will normally try to recursively execute the undo logic of any previously depended-upon `Task`s with the exception of the `Task` that generated the error. Each `Task` handler is instead expected to run any desired undo logic for its own errors as part of its error paths.
 
@@ -64,7 +64,7 @@ Due to potential restarts (because of snapd updating itself, reboots or snapd be
 -   on-disk/external state manipulation should be idempotent or equivalent
 -   working state manipulation should either be idempotent or designed to combine working state mutations with setting the next status of the task. This approach currently requires using `Task.SetStatus`(with `DoneStatus`or `UndoneStatus` as appropriate) before returning from the handler
 
-The latter is because exiting the handler and consequent unlocking will commit the workings state changes, but the automatic updating of the `Task`s status will happen only later in the `TaskRunner` after reacquiring the lock. So there's a window of time in which if snapd restarts it will reexecute the task with the working state changes already committed which it might not expect, respectively be able to handle.
+The latter is because when exiting the handler the consequent state unlocking will commit the working state changes, but the automatic updating of the `Task`'s status will happen only later in the `TaskRunner` after reacquiring the lock. So there's a window of time in which if snapd restarts it will reexecute the task with the working state changes already committed which it might not expect, respectively not be able to handle.
 
 If slow operations need to be performed, the required `Unlock/Lock` should happen before any working state manipulation.
 
@@ -75,10 +75,10 @@ See also the comment in `overlord/snapstate/handlers.go` about state locking.
 Testing `Task` handling logic
 ------------------------------
 
-Given the previous consideration it is important that `Task` handler logic has tests:
+Given the previous consideration it is important that `Task` handler logic has tests ensuring that:
 
-- ensuring that *undo* logic correctly matches and undoes what the *do* logic did
-- that task handling logic is idempotent, even if the task is only partially executed the first time around
+- *undo* logic correctly matches and undoes what the *do* logic did
+- task handling logic is idempotent, even if the task is only partially executed the first time around
 - error paths undo previous state changes as needed
 
 Conflicts and `Task` precondition blocking
@@ -100,4 +100,4 @@ Before running a task, the precondition predicates are invoked and, if none retu
 Cleanup logic
 --------------
 
-`Task`s can also have cleanup handlers registered for them with TaskRunner.AddCleanup`. This logic is run only after the entire `Change` the `Task` belonged to is considered ready, which means this is not run under the protection of conflict logic anymore, so while it can be used to clean up temporary state belonging to the task, in all situations, success or not, it cannot touch state that can interfere with other `Change`s or the system in general.
+`Task`s can also have cleanup handlers registered for them with `TaskRunner.AddCleanup`. This logic is run only after the entire `Change` the `Task` belonged to is considered ready, which means this is not run under the protection of conflict logic anymore. So while it can be used to clean up temporary state belonging to the task, in all situations, success or not, it cannot touch state that can interfere with other `Change`s or the system in general.
