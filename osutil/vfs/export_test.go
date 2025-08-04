@@ -19,6 +19,10 @@
 
 package vfs
 
+func (v *VFS) SetLastGroupID(id GroupID) {
+	v.lastGroupID = id
+}
+
 func (v *VFS) FindMount(id MountID) *mount {
 	for _, m := range v.mounts {
 		if m.mountID == id {

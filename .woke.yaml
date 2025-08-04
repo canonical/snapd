@@ -10,6 +10,9 @@ ignore_files:
   - cmd/snap-confine/snap-confine.c
   - osutil/mount/libmount/libmount_linux.go
   - osutil/mount/libmount/libmount_linux_test.go
+  - osutil/vfs/mount.go
+  - osutil/vfs/propagation.go
+  - osutil/vfs/propagation_test.go
   - osutil/vfs/tests/bind-semantics/task.yaml
   - osutil/vfs/tests/bind-shadow-propagate/task.yaml
   - osutil/vfs/tests/mount-in-slave/expected.txt
