@@ -2916,7 +2916,7 @@ func (s *secbootSuite) TestHookKeyProtectorTaggedHandle(c *C) {
 		return json.Marshal(result)
 	}
 
-	protector := secboot.NewHookKeyProtector(runSetupHook, "test-key")
+	protector := secboot.FDESetupHookKeyProtectorFactory(runSetupHook).ForKeyName("test-key")
 
 	ciphertext, handle, err := protector.ProtectKey(nil, cleartext, nil)
 	c.Assert(err, IsNil)
@@ -2982,7 +2982,7 @@ func (s *secbootSuite) TestRoundTripHooksProtectReveal(c *C) {
 	})
 	defer restore()
 
-	protector := secboot.NewHookKeyProtector(runSetupHook, keyName)
+	protector := secboot.FDESetupHookKeyProtectorFactory(runSetupHook).ForKeyName(keyName)
 	ciphertext, handle, err := protector.ProtectKey(nil, cleartext, nil)
 	c.Assert(err, IsNil)
 

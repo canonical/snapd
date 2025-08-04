@@ -64,13 +64,6 @@ type hookKeyProtector struct {
 	keyName string
 }
 
-func NewHookKeyProtector(runHook fde.RunSetupHookFunc, keyName string) sb_hooks.KeyProtector {
-	return &hookKeyProtector{
-		runHook: runHook,
-		keyName: keyName,
-	}
-}
-
 func (h *hookKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
 	keyParams := &fde.InitialSetupParams{
 		Key:     cleartext,
