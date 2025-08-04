@@ -61,7 +61,7 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 
 	// Mount and return.
 	m := &mount{
-		mountPoint: mountPoint,
+		attachedAt: pd.suffix,
 		isDir:      true,
 		fsFS:       fsFS,
 	}
@@ -128,7 +128,7 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 
 	// Mount and return.
 	m := &mount{
-		mountPoint: mountPoint,
+		attachedAt: pd.suffix,
 		rootDir:    sourcePd.combinedRootDir(),
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourcePd.mount.fsFS,
@@ -186,7 +186,7 @@ func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 		// suffix within the mount entry that dominates the path. In other
 		// words, when sourcePoint is a directory and we are processing
 		// this loop, skip everything that is NOT in that directory.
-		if !strings.HasPrefix(m.mountPoint, sourcePoint+"/") {
+		if !strings.HasPrefix(m.mountPoint(), sourcePoint+"/") {
 			continue
 		}
 
@@ -199,10 +199,10 @@ func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 		// will now bind-mount /home/user to /var/home/user, replacing
 		// /home with /var/home.
 		//
-		// The replacement works beucause m.mountPoint is guaranteed to
+		// The replacement works because m.mountPoint is guaranteed to
 		// start with sourcePoint which we just checked above.
-		newSourcePoint := m.mountPoint
-		newMountPoint := strings.Replace(m.mountPoint, sourcePoint, mountPoint, 1)
+		newSourcePoint := m.mountPoint()
+		newMountPoint := strings.Replace(m.mountPoint(), sourcePoint, mountPoint, 1)
 		if err := v.unlockedRecursiveBindMount(newSourcePoint, newMountPoint); err != nil {
 			return err
 		}

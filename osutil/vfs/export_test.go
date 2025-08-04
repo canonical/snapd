@@ -36,7 +36,7 @@ func (v *VFS) RootMount() *mount {
 
 // MountPoint returns the mount point of the given mount.
 func (m *mount) MountPoint() string {
-	return m.mountPoint
+	return m.mountPoint()
 }
 
 // Parent returns the parent mount.
