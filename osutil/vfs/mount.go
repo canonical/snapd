@@ -67,6 +67,19 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 	}
 	v.attachMount(pd.mount, m)
 
+	// The new mount entry is dominated by a shared mount
+	// so it joins a new peer group and gets propagated.
+	if pd.mount.shared != 0 {
+		// The parent mount is shared so allocate a new peer group.
+		m.shared = v.allocateGroupID()
+
+		// The parent mount point is shared so propagate to peers and slaves.
+		v.propagateMount(m, func(peer *mount) bool {
+			// Do not propagate back to the parent of the.
+			return peer == m.parent
+		})
+	}
+
 	return nil
 }
 
@@ -93,16 +106,19 @@ func (v *VFS) BindMount(sourcePoint, mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	_, err := v.unlockedBindMount(sourcePoint, mountPoint)
+	_, err := v.unlockedBindMount(sourcePoint, mountPoint, op)
 	return err
 }
 
-func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) {
-	const op = "bind-mount"
-
+func (v *VFS) unlockedBindMount(sourcePoint, mountPoint, op string) (*mount, error) {
 	// Find the mount dominating the source point and the mount point.
 	sourcePd := v.pathDominator(sourcePoint)
 	pd := v.pathDominator(mountPoint)
+
+	// If source is unbindable then flat out refuse.
+	if sourcePd.mount.unbindable {
+		return nil, &fs.PathError{Op: op, Path: sourcePoint, Err: fs.ErrInvalid}
+	}
 
 	// Stat the source point through the file system. The source suffix will
 	// influence the rootDir or the new mount entry so keep it.
@@ -132,8 +148,24 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 		rootDir:    sourcePd.combinedRootDir(),
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourcePd.mount.fsFS,
+		master:     sourcePd.mount.master,
+		shared:     sourcePd.mount.shared,
 	}
 	v.attachMount(pd.mount, m)
+
+	if pd.mount.shared != 0 {
+		// If the new mount entry is not shared yet, but the attachment point
+		// is dominated by a shared mount then join a new peer group.
+		if m.shared == 0 {
+			m.shared = v.allocateGroupID()
+		}
+
+		// The parent mount point is shared so propagate to peers and slaves.
+		v.propagateMount(m, func(peer *mount) bool {
+			// Do not propagate to the parent or to the source.
+			return peer == m.parent || peer == sourcePd.mount.parent
+		})
+	}
 
 	return m, nil
 }
@@ -157,15 +189,15 @@ func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	return v.unlockedRecursiveBindMount(sourcePoint, mountPoint)
+	return v.unlockedRecursiveBindMount(sourcePoint, mountPoint, op)
 }
 
-func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
+func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint, op string) (err error) {
 	pd := v.pathDominator(sourcePoint)
-	// TODO(propagation): fail loudly if source point is unbindable.
 
 	// Create the initial bind mount from source to mount point.
-	if m, err := v.unlockedBindMount(sourcePoint, mountPoint); err != nil || !m.isDir {
+	m, err := v.unlockedBindMount(sourcePoint, mountPoint, op)
+	if err != nil || !m.isDir {
 		// A recursive bind mount on a file reduces to just bind mount.
 		return err
 	}
@@ -174,20 +206,19 @@ func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 	// only direct descendants, as indirect descendants are handled by the
 	// recursion at the end of this loop. Only mounts rooted at sourcePoint
 	// are replicated (mounts above or to the side are not).
-	for _, m := range v.mounts[pd.index:] {
-		// Not a direct descendant.
-		if m.parentID != pd.mount.mountID {
-			continue
+	// TODO: use range syntax once we upgrade to go 1.23
+	pd.mount.children()(func(m *mount) bool {
+		// Silently skip unbindable elements.
+		if m.unbindable {
+			return true
 		}
-
-		// TODO(propagation): silently skip unbindable elements.
 
 		// Consider only those mounts that are scoped to the sourcePoint
 		// suffix within the mount entry that dominates the path. In other
 		// words, when sourcePoint is a directory and we are processing
 		// this loop, skip everything that is NOT in that directory.
 		if !strings.HasPrefix(m.mountPoint(), sourcePoint+"/") {
-			continue
+			return true
 		}
 
 		// Recursively bind-mount the mount to a new location in the desired mount point.
@@ -203,12 +234,12 @@ func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 		// start with sourcePoint which we just checked above.
 		newSourcePoint := m.mountPoint()
 		newMountPoint := strings.Replace(m.mountPoint(), sourcePoint, mountPoint, 1)
-		if err := v.unlockedRecursiveBindMount(newSourcePoint, newMountPoint); err != nil {
-			return err
-		}
-	}
+		err = v.unlockedRecursiveBindMount(newSourcePoint, newMountPoint, op)
 
-	return nil
+		return err == nil
+	})
+
+	return err
 }
 
 // Unmount removes a mount attached to a node otherwise named by mountPoint.
@@ -245,6 +276,8 @@ func (v *VFS) Unmount(mountPoint string) error {
 
 	// Detach the mount from linked lists.
 	v.detachMount(pd.mount, pd.index)
+
+	// TODO: implement propagation.
 
 	return nil
 }
