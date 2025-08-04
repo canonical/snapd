@@ -44,6 +44,10 @@ var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
 const legacyFdeHooksPlatformName = "fde-hook-v2"
 
+// taggedHandle wraps a raw handle from a secboot hook and adds a method field.
+// This field is used to route the handle to the correct [sb_hooks.KeyRevealer].
+// Note that this is currently only used for OPTEE at the moment to preserve
+// backwards compatibility.
 type taggedHandle struct {
 	Method string          `json:"method"`
 	Handle json.RawMessage `json:"handle"`
