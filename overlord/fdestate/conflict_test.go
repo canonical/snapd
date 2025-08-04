@@ -22,6 +22,7 @@ package fdestate_test
 
 import (
 	"errors"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -29,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
@@ -102,4 +105,50 @@ func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
 		"pc-kernel", // kernel
 		"core20",    // base
 	})
+}
+
+func (s *fdeMgrSuite) TestCheckFDEParametersChangeConflicts(c *C) {
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	gadgetSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: gadget
+`[1:], model.Gadget())
+	kernelSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: kernel
+`[1:], model.Kernel())
+	baseSnapYamlContent := fmt.Sprintf(`
+name: %s
+version: "1.0"
+type: base
+`[1:], model.Base())
+
+	for _, sn := range []struct {
+		snapYaml string
+		name     string
+	}{
+		{snapYaml: gadgetSnapYamlContent, name: model.Gadget()},
+		{snapYaml: kernelSnapYamlContent, name: model.Kernel()},
+		{snapYaml: baseSnapYamlContent, name: model.Base()},
+	} {
+		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
+		s.st.Set("seeded", true)
+		ts, _, err := snapstate.InstallPath(s.st, &snap.SideInfo{
+			RealName: sn.name,
+		}, path, "", "", snapstate.Flags{}, nil)
+		c.Assert(err, IsNil)
+		chg := s.st.NewChange("install-essential-snap", "")
+		chg.AddAll(ts)
+		err = fdestate.CheckFDEParametersChangeConflicts(s.st)
+		c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q has "install-essential-snap" change in progress`, sn.name))
+		// cleanup
+		chg.Abort()
+	}
 }

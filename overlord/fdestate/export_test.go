@@ -51,7 +51,8 @@ var (
 	DbxUpdateAffectedSnaps        = dbxUpdateAffectedSnaps
 	AddProtectedKeysAffectedSnaps = addProtectedKeysAffectedSnaps
 
-	CheckFDEChangeConflict = checkFDEChangeConflict
+	CheckFDEChangeConflict            = checkFDEChangeConflict
+	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
 )
 
 type ExternalOperation = externalOperation

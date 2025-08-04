@@ -85,6 +85,8 @@ func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 	return fdeRelevantSnaps(t.State())
 }
 
+// checkDBXChangeConflicts check that there are no conflicting
+// changes for DBX updates.
 func checkDBXChangeConflicts(st *state.State) error {
 	// TODO:FDEM: check if we have sealed keys at all
 
@@ -116,8 +118,6 @@ func checkDBXChangeConflicts(st *state.State) error {
 }
 
 func addProtectedKeysAffectedSnaps(t *state.Task) ([]string, error) {
-	// TODO:FDEM: check if we have sealed keys at all
-
 	// adding a TPM protected key requires populating the role parameters
 	// in the FDE state (ensureParametersLoaded), those parameters could
 	// be updated as a result of a reseal caused by a refresh of any snap
@@ -130,9 +130,9 @@ func addProtectedKeysAffectedSnaps(t *state.Task) ([]string, error) {
 	return fdeRelevantSnaps(t.State())
 }
 
+// checkFDEParametersChangeConflicts check that there are no conflicting
+// changes affecting the FDE parameters.
 func checkFDEParametersChangeConflicts(st *state.State) error {
-	// TODO:FDEM: check if we have sealed keys at all
-
 	snaps, err := fdeRelevantSnaps(st)
 	if err != nil {
 		return err
@@ -141,6 +141,8 @@ func checkFDEParametersChangeConflicts(st *state.State) error {
 	if len(snaps) == 0 {
 		return nil
 	}
+
+	// XXX: make sure that there are no external DBX changes in progress?
 
 	// make sure that there are no changes for the snaps that are relevant for
 	// FDE
