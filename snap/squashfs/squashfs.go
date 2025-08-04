@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -116,6 +117,13 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		return didNothing, nil
 	}
 
+	var srcVerityPath string
+	var destVerityPath string
+	if opts != nil && len(opts.IntegrityRootHash) > 0 {
+		srcVerityPath = integrity.DmVerityHashFileName(s.path, opts.IntegrityRootHash)
+		destVerityPath = integrity.DmVerityHashFileName(targetPath, opts.IntegrityRootHash)
+	}
+
 	overlayRoot, err := isRootWritableOverlay()
 	if err != nil {
 		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
@@ -147,7 +155,24 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// so we need to check if it has the prefix of the seed dir
 		cleanSrc := filepath.Clean(s.path)
 		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
-			if os.Symlink(s.path, targetPath) == nil {
+			err1 := os.Symlink(s.path, targetPath)
+
+			// try to symlink the verity data as well
+			var err2 error
+			if opts != nil && len(opts.IntegrityRootHash) > 0 {
+				err2 = os.Symlink(srcVerityPath, destVerityPath)
+			}
+
+			// if for some reason symlinking the verity data has failed while the snap
+			// has succeeded, unlink the snap before continuing trying to copy it
+			if err1 == nil && err2 != nil {
+				err := osRemove(targetPath)
+				if err != nil {
+					return false, err
+				}
+			}
+
+			if err1 == nil && err2 == nil {
 				return false, nil
 			}
 		}
