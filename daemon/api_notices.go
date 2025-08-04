@@ -125,6 +125,9 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid timeout: %v", err)
 	}
 
+	// State lock is not required to get or use the notice manager. The notice
+	// manager will decide whether it's necessary to query the state for
+	// notices, and if so, it is responsible for acquiring the state lock.
 	noticeMgr := c.d.overlord.NoticeManager()
 
 	var notices []*state.Notice

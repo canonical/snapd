@@ -699,7 +699,7 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 }
 
 // NoticeManager returns the notice manager responsible for mediating requests
-// for notice across all notice backends.
+// for notices across all notice backends.
 func (o *Overlord) NoticeManager() *notices.NoticeManager {
 	return o.noticeMgr
 }
