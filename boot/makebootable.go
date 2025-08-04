@@ -486,6 +486,33 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		}
 	}
 
+	// Copy verity data for essential snaps into the ubuntu-data partition.
+	for _, origDest := range []struct {
+		orig     string
+		fileName string
+	}{
+		{orig: bootWith.BasePath, fileName: bootWith.Base.Filename()},
+		{orig: bootWith.KernelPath, fileName: bootWith.Kernel.Filename()},
+		{orig: bootWith.GadgetPath, fileName: bootWith.Gadget.Filename()}} {
+
+		p := fmt.Sprintf("%s.verity_*", origDest.orig)
+		verityFilePaths, err := filepath.Glob(p)
+		if err != nil {
+			logger.Debugf("makeRunnableSystem: no verity files found for snap %s", origDest.orig)
+			return fmt.Errorf("makeRunnableSystem: no verity files found for snap %s", origDest.orig)
+		}
+
+		srcDir := filepath.Dir(origDest.orig)
+
+		for _, vfp := range verityFilePaths {
+			vf := filepath.Base(vfp)
+			if err := copyBootSnap(filepath.Join(srcDir, vf), vf, snapBlobDir); err != nil {
+				return err
+			}
+		}
+
+	}
+
 	// replicate the boot assets cache in host's writable
 	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir(model)); err != nil {
 		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
