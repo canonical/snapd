@@ -155,16 +155,18 @@ func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, param
 		primaryKey = params.PrimaryKey
 	}
 
+	// if we have any keys, then we'll be replacing the singleton key protector
+	// in sb_hooks. make sure we reset it before leaving this function.
+	if len(keys) > 0 {
+		defer sb_hooks.SetKeyProtector(nil, 0)
+	}
+
 	for _, skr := range keys {
 		protector := kpf.ForKeyName(skr.KeyName)
 
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
-
-		// TODO: this is only running at the end of the function, seems we
-		// should probably just defer this once at the top of the loop
-		defer sb_hooks.SetKeyProtector(nil, 0)
 
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
 			PrimaryKey: primaryKey,
