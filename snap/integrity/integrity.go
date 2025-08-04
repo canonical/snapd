@@ -32,6 +32,7 @@ import (
 var (
 	veritysetupFormat      = dmverity.Format
 	readDmVeritySuperblock = dmverity.ReadSuperblock
+	osRename               = os.Rename
 )
 
 // IntegrityDataParams struct includes all the parameters that are necessary
@@ -112,6 +113,9 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 	}, nil
 }
 
+// ErrDmVerityDataParamsNotFound is returned when the passed in integrityDataParams object is empty.
+var ErrIntegrityDataParamsNotFound = errors.New("integrity data parameters not found")
+
 // ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
 var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
 
@@ -122,13 +126,16 @@ var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
 // LookupDmVerityDataAndCrossCheck looks up dm-verity data for a snap based on its file name and validates
 // that the superblock properties of the discovered dm-verity data match the passed parameters.
 func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
-	hashFileName := snapPath + ".verity"
+	if params == nil {
+		return "", ErrIntegrityDataParamsNotFound
+	}
+
+	hashFileName := fmt.Sprintf("%s.dmverity_%s", snapPath, params.Digest)
 
 	vsb, err := readDmVeritySuperblock(hashFileName)
 	if os.IsNotExist(err) {
 		return "", fmt.Errorf("%w: %q doesn't exist.", ErrDmVerityDataNotFound, hashFileName)
 	}
-
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +150,7 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 
 // GenerateDmVerityData generates dm-verity data for a snap using the input parameters.
 func GenerateDmVerityData(snapPath string, params *IntegrityDataParams) (string, string, error) {
-	hashFileName := snapPath + ".verity"
+	hashFileName := snapPath + ".dmverity"
 
 	var opts = dmverity.DmVerityParams{
 		Format:        uint8(dmverity.DefaultVerityFormat),
@@ -159,5 +166,11 @@ func GenerateDmVerityData(snapPath string, params *IntegrityDataParams) (string,
 		return "", "", err
 	}
 
-	return hashFileName, rootHash, nil
+	newHashFileName := fmt.Sprintf("%s_%s", hashFileName, rootHash)
+	err = osRename(hashFileName, newHashFileName)
+	if err != nil {
+		return "", "", err
+	}
+
+	return newHashFileName, rootHash, nil
 }
