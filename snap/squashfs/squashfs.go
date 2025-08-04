@@ -148,6 +148,28 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		cleanSrc := filepath.Clean(s.path)
 		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
 			if os.Symlink(s.path, targetPath) == nil {
+
+				srcDir := filepath.Dir(s.path)
+				targetDir := filepath.Dir(targetPath)
+				targetSnap := filepath.Base(targetPath)
+
+				// Symlink available verity files as well
+				p := fmt.Sprintf("%s.verity_*", s.path)
+				verityFilePaths, err := filepath.Glob(p)
+				if err != nil {
+					logger.Debugf("Snap.Install: no verity files found next to snap %s", s.path)
+				}
+
+				for _, vfp := range verityFilePaths {
+					ext := filepath.Ext(vfp)
+					vf := fmt.Sprintf("%s%s", targetSnap, ext)
+
+					err := os.Symlink(filepath.Join(srcDir, vf), filepath.Join(targetDir, vf))
+					if err != nil {
+						return false, err
+					}
+				}
+
 				return false, nil
 			}
 		}

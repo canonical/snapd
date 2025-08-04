@@ -315,6 +315,41 @@ func (s *SquashfsTestSuite) TestInstallNothingToDo(c *C) {
 	c.Check(didNothing, Equals, true)
 }
 
+func (s *SquashfsTestSuite) TestInstallSeedWithVerityData(c *C) {
+	defer noLink()()
+
+	systemSnapsDir := filepath.Join(dirs.SnapSeedDir, "systems", "20200521", "snaps")
+	c.Assert(os.MkdirAll(systemSnapsDir, 0755), IsNil)
+	snap := makeSnapInDir(c, systemSnapsDir, "name: test2", "")
+
+	file, err := os.Create(filepath.Join(systemSnapsDir, "foo.snap.verity_a"))
+	c.Assert(err, IsNil)
+	defer file.Close()
+
+	file2, err := os.Create(filepath.Join(systemSnapsDir, "foo.snap.verity_b"))
+	c.Assert(err, IsNil)
+	defer file2.Close()
+
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	_, err = os.Lstat(targetPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	targetVerityPathA := filepath.Join(filepath.Dir(targetPath), "target.snap.verity_a")
+	_, err = os.Lstat(targetVerityPathA)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	targetVerityPathB := filepath.Join(filepath.Dir(targetPath), "target.snap.verity_b")
+	_, err = os.Lstat(targetVerityPathB)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	didNothing, err := snap.Install(targetPath, c.MkDir(), nil)
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	c.Check(osutil.IsSymlink(targetPath), Equals, true)
+	c.Check(osutil.IsSymlink(targetVerityPathA), Equals, true)
+	c.Check(osutil.IsSymlink(targetVerityPathB), Equals, true)
+}
+
 func (s *SquashfsTestSuite) TestPath(c *C) {
 	p := "/path/to/foo.snap"
 	sn := squashfs.New("/path/to/foo.snap")
