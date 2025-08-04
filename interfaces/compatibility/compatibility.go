@@ -17,7 +17,7 @@
  *
  */
 
-package builtin
+package compatibility
 
 import (
 	"fmt"
@@ -121,7 +121,7 @@ func parseIntegerRange(token string) (rg *CompatRange, err error) {
 // An optional spec can be provided to restrict the valid compatibility fields.
 // This spec must strictly follow the convention that there must be at least an
 // integer field per string (that is, "foo" must be specified as "foo-0").
-func decodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
+func DecodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
 	// TODO we want to consider these limits when doing snap pack but relax
 	// in run time.
 	maxNumDim := absoluteMaxDimensions
@@ -211,7 +211,7 @@ func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
 
 // checkCompatibility checks if two compatibility fields are compatible by
 // looking at the tags and at the intersection of the defined integer ranges.
-func checkCompatibility(compat1, compat2 CompatField) bool {
+func CheckCompatibility(compat1, compat2 CompatField) bool {
 	if len(compat1.Dimensions) != len(compat2.Dimensions) {
 		return false
 	}
