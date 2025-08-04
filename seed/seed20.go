@@ -1076,46 +1076,6 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 	return snapPath, sideInfo, seedComps, snapRev, nil
 }
 
-func (s *seed20) lookupIntegrityData(snapRev *asserts.SnapRevision) (*integrity.IntegrityDataParams, error) {
-	snapIntegrityData := snapRev.SnapIntegrityData()
-
-	if len(snapIntegrityData) == 0 {
-		// TODO: integrity data are not enforced currently.
-		// Here we should throw an error if integrity data are required by policy.
-		return nil, nil
-	}
-
-	var idp *integrity.IntegrityDataParams
-	for i, sid := range snapIntegrityData {
-		// TODO: The first item in the snap-revision integrity data list is selected.
-		// In future versions, extra logic will be required here to decide which integrity data
-		// should be used based on extra information (i.e from the model).
-		if i > 0 {
-			break
-		}
-
-		switch sid.Type {
-		case "dm-verity":
-			idp = integrity.NewIntegrityDataParams(
-				sid.Type,
-				sid.Version,
-				sid.HashAlg,
-				uint64(sid.DataBlockSize),
-				uint64(sid.HashBlockSize),
-				sid.Digest,
-				sid.Salt,
-				snapRev.SnapSize())
-		default:
-			// The assertion signing code doesn't allow assertions with unsupported
-			// types so this shouldn't be reachable.
-			return nil, fmt.Errorf("unsupported integrity data type: %q.", sid.Type)
-		}
-
-	}
-
-	return idp, nil
-}
-
 func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap, optSnap *internal.Snap20, channel string, handler ContainerHandler, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
@@ -1168,14 +1128,11 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	var err error
 
 	if snapRev != nil {
-		integrityData, err = s.lookupIntegrityData(snapRev)
+		integrityData, err = integrity.NewIntegrityDataParamsFromRevision(snapRev)
 	}
-	// Currently integrity data are not enforced which means that lookupIntegrityData
-	// suppresses any errors that might have occurred during lookup. Moreover as invalid
-	// integrity data types are not allowed by the assertion API, the "Unsupported integrity
-	// data type" error should also not be expected. Despite these, we keep the error handling
-	// code here to avoid disruptions caused by a future change.
-	if err != nil {
+	// Currently integrity data are not enforced therefore errors returned when integrity data
+	// are not found for a snap revision are ignored.
+	if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
 		return nil, err
 	}
 
