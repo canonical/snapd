@@ -20,6 +20,7 @@
 package assemblestate_test
 
 import (
+	"sort"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -318,6 +319,106 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 	unknown, _ = dt.QueryableFrom("peer-2")
 	c.Assert(unknown, check.HasLen, 1)
 	c.Assert(unknown[0], check.Equals, assemblestate.DeviceToken("device-3"))
+}
+
+func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
+	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
+	one := assemblestate.Identity{
+		RDT:         assemblestate.DeviceToken("device-1"),
+		FP:          assemblestate.Fingerprint{1, 2, 3},
+		Serial:      "serial-1",
+		SerialProof: assemblestate.Proof{7, 8, 9},
+	}
+	two := assemblestate.Identity{
+		RDT:         assemblestate.DeviceToken("device-2"),
+		FP:          assemblestate.Fingerprint{4, 5, 6},
+		Serial:      "serial-2",
+		SerialProof: assemblestate.Proof{10, 11, 12},
+	}
+
+	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+
+	dt.Identify(one)
+	dt.Identify(two)
+	dt.Query("peer-1", []assemblestate.DeviceToken{"device-1", "device-2"})
+	dt.Query("peer-2", []assemblestate.DeviceToken{"self"})
+	dt.UpdateSource("peer-1", []assemblestate.DeviceToken{"device-3", "device-4"})
+	dt.UpdateSource("peer-2", []assemblestate.DeviceToken{"device-5"})
+
+	exported := dt.Export()
+	normalizeDeviceExport(exported)
+
+	expected := assemblestate.DeviceQueryTrackerData{
+		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			"self":     self,
+			"device-1": one,
+			"device-2": two,
+		},
+		Unknowns: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
+			"peer-1": {"device-1", "device-2"},
+			"peer-2": {"self"},
+		},
+		Sources: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
+			"peer-1": {"device-3", "device-4"},
+			"peer-2": {"device-5"},
+		},
+	}
+
+	c.Assert(exported, check.DeepEquals, expected)
+}
+
+func (s *deviceTrackerSuite) TestDeviceTrackerExportRoundtrip(c *check.C) {
+	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
+	one := assemblestate.Identity{
+		RDT:         assemblestate.DeviceToken("device-1"),
+		FP:          assemblestate.Fingerprint{1, 2, 3},
+		Serial:      "serial-1",
+		SerialProof: assemblestate.Proof{7, 8, 9},
+	}
+	two := assemblestate.Identity{
+		RDT:         assemblestate.DeviceToken("device-2"),
+		FP:          assemblestate.Fingerprint{4, 5, 6},
+		Serial:      "serial-2",
+		SerialProof: assemblestate.Proof{10, 11, 12},
+	}
+
+	initial := assemblestate.DeviceQueryTrackerData{
+		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			"device-1": one,
+			"device-2": two,
+		},
+		Unknowns: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
+			"peer-1": {"device-1", "device-2"},
+			"peer-2": {"device-1"},
+		},
+		Sources: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
+			"peer-1": {"device-3", "device-4"},
+			"peer-2": {"device-5", "device-6"},
+		},
+	}
+
+	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, initial)
+
+	exported := dt.Export()
+	dt = assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, exported)
+	exported = dt.Export()
+	normalizeDeviceExport(exported)
+
+	initial.IDs["self"] = self
+	c.Assert(exported, check.DeepEquals, initial)
+}
+
+func normalizeDeviceExport(d assemblestate.DeviceQueryTrackerData) {
+	for _, devices := range d.Unknowns {
+		sort.Slice(devices, func(i, j int) bool {
+			return devices[i] < devices[j]
+		})
+	}
+	for _, devices := range d.Sources {
+		sort.Slice(devices, func(i, j int) bool {
+			return devices[i] < devices[j]
+		})
+	}
 }
 
 func hasSignal(ch <-chan struct{}) bool {
