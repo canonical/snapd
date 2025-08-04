@@ -56,6 +56,8 @@ endif
 go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
 
 GO_TAGS = nosecboot
+# optee integration is only relevant for snapd managed FDE
+GO_TAGS += nooptee
 ifeq ($(with_testkeys),1)
 GO_TAGS += withtestkeys
 GO_TAGS += structuredlogging
@@ -221,7 +223,7 @@ endif
 # output that unit tests do not mock.
 .PHONY: check
 check:
-	LC_ALL=C.UTF-8 go test $(GO_MOD) $(import_path)/...
+	LC_ALL=C.UTF-8 go test $(GO_MOD) $(if $(GO_TAGS),-tags "$(GO_TAGS)") $(import_path)/...
 
 .PHONY: clean
 clean:

@@ -1,0 +1,86 @@
+summary: observe documented semantics of the bind mount operation
+details: |
+    The kernel uses the following documented semantics for how bind-mount is
+    interpreted from the point of view of propagation settings. The table is
+    reproduced below for convenience:
+
+    --------------------------------------------------------------------------
+    |         BIND MOUNT OPERATION                                           |
+    |************************************************************************|
+    |source(A)->| shared      |       private  |       slave    | unbindable |
+    | dest(B)  |              |                |                |            |
+    |   |      |              |                |                |            |
+    |   v      |              |                |                |            |
+    |************************************************************************|
+    |  shared  | shared       |     shared     | shared & slave |  invalid   |
+    |          |              |                |                |            |
+    |non-shared| shared       |      private   |      slave     |  invalid   |
+    **************************************************************************
+
+    Given a mount a and b that are prepared according to the data in the table,
+    what is the outcome of the mount --bind a b? What kind of propagation
+    settings are applied to the new mount at b?
+environment:
+    # Source and destination are both shared.
+    ALTER_A/shared_to_shared: --make-shared
+    ALTER_B/shared_to_shared: --make-shared
+    EXPECTED_A/shared_to_shared: "/a shared:42 -"
+    EXPECTED_B/shared_to_shared: "/b shared:42 -"
+    # Source is shared, destination is private.
+    ALTER_A/shared_to_private: --make-shared
+    ALTER_B/shared_to_private: --make-private
+    EXPECTED_A/shared_to_private: "/a shared:42 -"
+    EXPECTED_B/shared_to_private: "/b shared:42 -"
+    # Source is private, destination is shared.
+    ALTER_A/private_to_shared: --make-private
+    ALTER_B/private_to_shared: --make-shared
+    EXPECTED_A/private_to_shared: "/a -"
+    # NOTE: shared:42 is the /b mount that is created by mount --make-shared b.
+    # Here we are seeing that /b is another shared mount but the underlying
+    # filesystem is tmpfs-a.
+    EXPECTED_B/private_to_shared: "/b shared:43 -"
+    # Source and destination are both private.
+    ALTER_A/private_to_private: --make-private
+    ALTER_B/private_to_private: --make-private
+    EXPECTED_A/private_to_private: "/a -"
+    EXPECTED_B/private_to_private: "/b -"
+    # Source is a slave, destination is shared.
+    ALTER_A/slave_to_shared: --make-slave
+    ALTER_B/slave_to_shared: --make-shared
+    EXPECTED_A/slave_to_shared: "/a master:42 -"
+    EXPECTED_B/slave_to_shared: "/b shared:44 master:42 -"
+    # Source is a slave, destination is private.
+    ALTER_A/slave_to_private: --make-slave
+    ALTER_B/slave_to_private: --make-private
+    EXPECTED_A/slave_to_private: "/a master:42 -"
+    EXPECTED_B/slave_to_private: "/b master:42 -"
+prepare: |
+    mkdir a
+    mount -t tmpfs tmpfs-a a
+    # If A needs to be slave then we need some help to allow it to be a slave.
+    if [ "$ALTER_A" = --make-slave ]; then
+      mount --make-shared a
+      mkdir a-helper
+      mount --bind a a-helper
+    fi
+    mount "$ALTER_A" a
+    mkdir b
+    mount -t tmpfs tmpfs-b b
+    for op in $ALTER_B; do mount "$op" b; done
+    mount --bind a b
+restore: |
+    umount -l a
+    rmdir a
+    umount -l b
+    umount -l b || true
+    rmdir b
+    if [ -d a-helper ]; then
+      umount -l a-helper
+      rmdir a-helper
+    fi
+debug: |
+    cat /proc/self/mountinfo
+execute: |
+    grep -F "$SPREAD_TASK" /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk | grep -v a-helper >actual.txt
+    test "$(head -n 1 actual.txt)" = "$EXPECTED_A"
+    test "$(tail -n 1 actual.txt)" = "$EXPECTED_B"

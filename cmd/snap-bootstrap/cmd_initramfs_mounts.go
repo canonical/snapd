@@ -47,12 +47,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
-	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
+
+	// to set [boot.SealKeyForBootChains]
+	_ "github.com/snapcore/snapd/overlord/fdestate/backend"
+
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -84,8 +87,7 @@ func init() {
 type cmdInitramfsMounts struct{}
 
 func (c *cmdInitramfsMounts) Execute([]string) error {
-	boot.HasFDESetupHook = hasFDESetupHook
-	fdeBackend.RunFDESetupHook = runFDESetupHook
+	boot.HookKeyProtectorFactory = hookKeyProtectorFactory
 
 	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
 
@@ -297,9 +299,14 @@ func runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	}
 	return output, nil
 }
-func hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
-	_, ok := kernelInfo.Hooks["fde-setup"]
-	return ok, nil
+func hookKeyProtectorFactory(kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
+	if _, ok := kernelInfo.Hooks["fde-setup"]; ok {
+		return secboot.FDESetupHookKeyProtectorFactory(runFDESetupHook), nil
+	}
+
+	// TODO: add OPTEE support here when available
+
+	return nil, secboot.ErrNoKeyProtector
 }
 
 func readSnapInfoFromSeed(seedSnap *seed.Snap) (*snap.Info, error) {

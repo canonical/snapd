@@ -92,3 +92,16 @@ execute: |
         #remote.exec "udevadm info --query=property --property=DM_NAME --value /dev/disk/snapd/ubuntu-data" | MATCH "^ubuntu-data"
         #remote.exec "udevadm info --query=property --property=DM_NAME --value /dev/disk/snapd/ubuntu-save" | MATCH "^ubuntu-save"
     fi
+
+    remote.exec "sudo cat /var/lib/snapd/state.json" >state.json
+    runrecover_handle=$(gojq -r '.data.fde."keyslot-roles"."run+recover"."tpm2-pcr-policy-revocation-counter"' <state.json)
+    run_handle=$(gojq -r '.data.fde."keyslot-roles"."run"."tpm2-pcr-policy-revocation-counter"' <state.json)
+    recover_handle=$(gojq -r '.data.fde."keyslot-roles".recover."tpm2-pcr-policy-revocation-counter"' <state.json)
+
+    # Revocation counter handles are expected in a specific range
+    # This range is defined in secboot/secboot.go (PCRPolicyCounterHandleRange)
+    [ "${runrecover_handle}" -ge $((0x01880005)) ]
+    [ "${runrecover_handle}" -le $((0x0188000f)) ]
+    # All profiles should use the same handle
+    [ "${runrecover_handle}" -eq "${run_handle}" ]
+    [ "${runrecover_handle}" -eq "${recover_handle}" ]

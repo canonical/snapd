@@ -77,6 +77,10 @@ class Retriever(ABC):
     '''
     Retrieves features tags from a data source.
     '''
+
+    def __init__(self):
+        self.cache = {}
+
     @abstractmethod
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
         '''
@@ -84,29 +88,66 @@ class Retriever(ABC):
         Format: [{"timestamp":<timestamp>,"systems":[<system1>,...,<systemN>]}]
         '''
 
-    @abstractmethod
     def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         '''
         Given the timestamp and system, gets a single dictionary entry.
 
         :raises RuntimeError: when there is not exactly one entry for the system at the timestamp
         '''
+        if timestamp in self.cache and 'systems' in self.cache[timestamp]:
+            for s in self.cache[timestamp]['systems']:
+                if s['system'] == system:
+                    return s
+        return self._get_single_json(timestamp, system)
 
     @abstractmethod
+    def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
+        pass
+
     def get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
         '''
         Retrieves dictionary entries for all indicated systems at 
         the given timestamp. If systems is None, then it retrieves 
         all dictionary entries for all systems at the given timestamp.
         '''
+        if timestamp in self.cache and 'systems' in self.cache[timestamp]:
+            if not systems:
+                return self.cache[timestamp]['systems']
+            else:
+                return [sys for sys in self.cache[timestamp]['systems'] if sys['system'] in systems]
+            
+        if systems:
+            # Do not cache if only a subset of systems is specified
+            # otherwise the cached list won't be complete
+            return self._get_systems(timestamp, systems)
+        else:
+            if timestamp not in self.cache:
+                self.cache[timestamp] = {}
+            self.cache[timestamp]['systems'] = list(self._get_systems(timestamp, systems))
+            return self.cache[timestamp]['systems']
+        
 
     @abstractmethod
+    def _get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
+        pass
+
     def get_all_features(self, timestamp: str) -> dict[str, list[Any]]:
         '''
         Retrives a dictionary of all feature data at the given timestmap.
         It contains only feature keys (e.g. cmds, endpoints) and the list
         of all possible feature data at the indicated moment in time.
         '''
+        if timestamp in self.cache and 'all-features' in self.cache[timestamp]:
+            return self.cache[timestamp]['all-features']
+        if timestamp not in self.cache:
+            self.cache[timestamp] = {}
+        all_feat = self._get_all_features(timestamp)
+        self.cache[timestamp]['all-features'] = all_feat
+        return all_feat
+
+    @abstractmethod
+    def _get_all_features(self, timestamp: str) -> dict[str, list[Any]]:
+        pass
 
     @abstractmethod
     def close(self) -> None:
@@ -122,6 +163,7 @@ class MongoRetriever(Retriever):
     '''
 
     def __init__(self, creds_file):
+        super().__init__()
         config = json.load(creds_file)
         self.client = pymongo.MongoClient(
             host=config['host'], port=config['port'], username=config['user'], password=config['password'])
@@ -140,7 +182,7 @@ class MongoRetriever(Retriever):
                 result['system'])
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
 
-    def get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
+    def _get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
         if systems:
             for system in systems:
                 system_jsons = self.collection.find(
@@ -152,14 +194,14 @@ class MongoRetriever(Retriever):
                 if 'all_features' not in result or not result['all_features']:
                     yield result
 
-    def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
+    def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         json_result = self.collection.find(
             {'timestamp': datetime.datetime.fromisoformat(timestamp), 'system': system}).to_list()
         if len(json_result) != 1:
             raise RuntimeError(f'{len(json_result)} entries of system {system} found in collection {timestamp}')
         return json_result[0]
     
-    def get_all_features(self, timestamp) -> dict[str, list[Any]]:
+    def _get_all_features(self, timestamp) -> dict[str, list[Any]]:
         json_result = self.collection.find(
             {'timestamp': datetime.datetime.fromisoformat(timestamp), 'all_features': True}).to_list()
         if len(json_result) != 1:
@@ -183,6 +225,7 @@ class DirRetriever(Retriever):
     '''
 
     def __init__(self, dir: str):
+        super().__init__()
         if not os.path.exists(dir):
             raise RuntimeError(f'directory {dir} does not exist')
         self.dir = dir
@@ -206,7 +249,7 @@ class DirRetriever(Retriever):
                     dictionary[timestamp].append(system)
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
 
-    def get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
+    def _get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
         timestamp_dir = os.path.join(self.dir, timestamp)
         if not os.path.isdir(timestamp_dir):
             raise RuntimeError(
@@ -218,14 +261,14 @@ class DirRetriever(Retriever):
                 with open(os.path.join(timestamp_dir, filename), 'r', encoding='utf-8') as f:
                     yield json.load(f)
 
-    def get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
+    def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         sys_path = os.path.join(self.dir, timestamp, system+'.json')
         if not os.path.exists(sys_path):
             raise RuntimeError(f'system file not found {sys_path}')
         with open(sys_path, 'r', encoding='utf-8') as f:
             return json.load(f)
         
-    def get_all_features(self, timestamp) -> dict[str, list[Any]]:
+    def _get_all_features(self, timestamp) -> dict[str, list[Any]]:
         sys_path = os.path.join(self.dir, timestamp, ALL_FEATURES_FILE)
         if not os.path.exists(sys_path):
             raise RuntimeError(f'{ALL_FEATURES_FILE} not found')
@@ -363,7 +406,12 @@ def feat_sys(retriever: Retriever, timestamp: str, system: str, remove_failed: b
     system_json = retriever.get_single_json(timestamp, system)
 
     if suite or task or variant:
-        system_json['tests'] = [test for test in system_json['tests'] 
+        tests = system_json['tests']
+        system_json = SystemFeatures(schema_version=system_json['schema_version'] if 'schema_version' in system_json else '', 
+                                     system=system_json['system'] if 'system' in system_json else '', 
+                                     scenarios=system_json['scenarios'] if 'scenarios' in system_json else '',
+                                     env_variables=system_json['env_variables'] if 'env_variables' in system_json else '')
+        system_json['tests'] = [test for test in tests 
                                 if (not suite or test['suite'] == suite) and 
                                 (not task or test['task_name'] == task) and 
                                 (not variant or test['variant'] == variant)]
@@ -466,8 +514,13 @@ def dup(retriever: Retriever, timestamp: str, system: str, remove_failed: bool) 
     system_json = retriever.get_single_json(timestamp, system)
 
     if remove_failed:
+        tests = system_json['tests']
+        system_json = SystemFeatures(schema_version=system_json['schema_version'] if 'schema_version' in system_json else '', 
+                                     system=system_json['system'] if 'system' in system_json else '', 
+                                     scenarios=system_json['scenarios'] if 'scenarios' in system_json else '',
+                                     env_variables=system_json['env_variables'] if 'env_variables' in system_json else '')
         system_json['tests'] = [
-            task for task in system_json['tests'] if task['success']]
+            task for task in tests if task['success']]
 
     duplicates = []
     with concurrent.futures.ProcessPoolExecutor() as executor:

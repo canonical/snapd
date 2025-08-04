@@ -1,0 +1,28 @@
+name: nightly-cross-build
+
+on:
+  schedule:
+  - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  build-snapd-armhf:
+    runs-on: ["self-hosted", "spread-enabled"]
+    steps:
+      - name: Cleanup job workspace
+        id: cleanup-job-workspace
+        run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # spread uses tags as delta reference
+          fetch-depth: 0
+
+      - name: build-snapd
+        run: |
+          # TODO: Move to openstack-arm-ext-ps7 when https://github.com/canonical/snapcraft/issues/5635 is fixed
+          spread google-nested-arm:ubuntu-22.04-arm-64:tests/utils/cross-build/suite/build-snapd-armhf:jammy
+

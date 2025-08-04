@@ -492,8 +492,8 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 	}
 }
 
-func DeviceManagerHasFDESetupHook(mgr *DeviceManager, kernelInfo *snap.Info) (bool, error) {
-	return mgr.hasFDESetupHook(kernelInfo)
+func DeviceManagerHookKeyProtectorFactory(mgr *DeviceManager, kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
+	return mgr.hookKeyProtectorFactory(kernelInfo)
 }
 
 func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {

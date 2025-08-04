@@ -10,8 +10,8 @@
       },
       {
         "group": "ubuntu-focal (fundamental)",
-        "backend": "google",
-        "alternative-backend": "openstack",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google",
         "systems": "ubuntu-20.04-64",
         "tasks": "tests/...",
         "rules": "main"
@@ -26,9 +26,9 @@
       },
       {
         "group": "ubuntu-interim (fundamental)",
-        "backend": "google",
+        "backend": "openstack-ps7",
         "alternative-backend": "google",
-        "systems": "ubuntu-24.10-64 ubuntu-25.04-64",
+        "systems": "ubuntu-25.04-64",
         "tasks": "tests/...",
         "rules": "main"
       },
@@ -42,7 +42,7 @@
       },
       {
         "group": "ubuntu-core-20 (fundamental)",
-        "backend": "google-core",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-20-64",
         "tasks": "tests/...",
@@ -50,7 +50,7 @@
       },
       {
         "group": "ubuntu-core-24 (fundamental)",
-        "backend": "google-core",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-24-64",
         "tasks": "tests/...",

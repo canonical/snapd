@@ -193,6 +193,11 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "8055",
 	},
 	{
+		Name:             "Kensington VeriMark DT Fingerprint Key",
+		VendorIDPattern:  "047d",
+		ProductIDPattern: "00f2",
+	},
+	{
 		Name:             "TrustKeys FIDO2 U2F",
 		VendorIDPattern:  "311f",
 		ProductIDPattern: "4a2a|a6e9",

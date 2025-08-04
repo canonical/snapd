@@ -16,7 +16,6 @@ systems:
     - ubuntu-20.04-64
     - ubuntu-22.04-64
     - ubuntu-24.04-64
-    - ubuntu-24.10-64
 
 environment:
     # WARNING: Not all combinations of system and variant do something.
@@ -97,20 +96,6 @@ prepare: |
     skip["ubuntu-24.04-64/550-server"]="transitional-driver"
     skip["ubuntu-24.04-64/560"]="no-driver"
 
-    skip["ubuntu-24.10-64/390"]="no-driver"
-    skip["ubuntu-24.10-64/418-server"]="no-driver"
-    skip["ubuntu-24.10-64/450-server"]="no-driver"
-    skip["ubuntu-24.10-64/470"]="no-driver"
-    skip["ubuntu-24.10-64/470-server"]="no-driver"
-    skip["ubuntu-24.10-64/510"]="no-driver"
-    skip["ubuntu-24.10-64/515"]="no-driver"
-    skip["ubuntu-24.10-64/515-server"]="no-driver"
-    skip["ubuntu-24.10-64/525"]="no-driver"
-    skip["ubuntu-24.10-64/530"]="transitional-driver"
-    skip["ubuntu-24.10-64/535"]="transitional-driver"
-    skip["ubuntu-24.10-64/550"]="transitional-driver"
-    skip["ubuntu-24.10-64/560"]="transitional-driver"
-
     driver_suffix="$PACKAGE_VERSION${PACKAGE_SUFFIX:-}"
     combi_key="$SPREAD_SYSTEM/$driver_suffix"
 
@@ -151,12 +136,6 @@ prepare: |
         # /var/lib/snapd/lib/gl/libEGL_nvidia.so.0
         # ...
         # /var/lib/snapd/lib/gl/libnvidia-vulkan-producer.so: undefined symbol: wlEglInitializeSurfaceExport: No such file or directory
-        echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
-        test "${skip[$combi_key]}" = "broken-driver"
-        exit 0
-        ;;
-    ubuntu-24.10-64/560*)
-        # /bin/bash: line 109: 10426 Segmentation fault      (core dumped) test-snapd-nvidia.64 > log-64.txt
         echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
         test "${skip[$combi_key]}" = "broken-driver"
         exit 0
