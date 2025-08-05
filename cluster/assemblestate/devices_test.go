@@ -35,7 +35,12 @@ var _ = check.Suite(&deviceTrackerSuite{})
 
 func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{
+		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT: self,
+		},
+	}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	c.Assert(dt.Identified("self"), check.Equals, true)
 
@@ -59,7 +64,12 @@ func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 
 func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{
+		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT: self,
+		},
+	}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
 	dt.RecordIdentity(other)
@@ -89,8 +99,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// peers tells us they know about some devices
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"device-1", "device-2"})
@@ -117,7 +127,6 @@ func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
 
 	// expected calls from: QueryableFrom, ack, QueryableFrom, QueryableFrom
 	// this mocks time passing, enabling us to test queries for device IDs that
@@ -131,7 +140,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 		return t
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Second, clock, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Second, clock)
 
 	// peer tells us they know about device
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"device-1"})
@@ -154,8 +164,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Hour, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Hour, time.Now)
 
 	// peer tells us they know about device
 	dt.UpdateSource("peer", []assemblestate.DeviceToken{"device-1"})
@@ -194,11 +204,12 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 
 	data := assemblestate.DeviceQueryTrackerData{
 		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT:   self,
 			"device-1": one,
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Hour, time.Now, data)
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Hour, time.Now)
 
 	// peer tells us they need info about a device
 	dt.RecordQuery("peer", []assemblestate.DeviceToken{"device-1"})
@@ -232,8 +243,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerEmptyQueries(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// empty query shouldn't signal channel
 	dt.RecordQuery("peer", []assemblestate.DeviceToken{})
@@ -245,8 +256,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerEmptyQueries(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerUnknownDevices(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// query for unknown device should be ignored
 	dt.RecordQuery("peer", []assemblestate.DeviceToken{"unknown"})
@@ -255,7 +266,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerUnknownDevices(c *check.C) {
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
 	dt.RecordIdentity(other)
 
-	dt.UpdateSource("peer", []assemblestate.DeviceToken{"self", "other", "unknown"})
+	dt.UpdateSource("peer", []assemblestate.DeviceToken{"other", "unknown"})
 
 	// should skip devices we already know
 	unknown, _ := dt.QueriesTo("peer")
@@ -264,15 +275,15 @@ func (s *deviceTrackerSuite) TestDeviceTrackerUnknownDevices(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerNoMissingDevices(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// add device we know about
 	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
 	dt.RecordIdentity(other)
 
 	// source update with only known devices shouldn't signal
-	dt.UpdateSource("peer", []assemblestate.DeviceToken{"self", "other"})
+	dt.UpdateSource("peer", []assemblestate.DeviceToken{"other"})
 	c.Assert(hasSignal(dt.PendingQueries()), check.Equals, false)
 
 	// should return empty when all devices are known
@@ -287,12 +298,13 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededIDs(c *check.C) {
 
 	data := assemblestate.DeviceQueryTrackerData{
 		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT:   self,
 			"device-1": one,
 			"device-2": two,
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, data)
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// preseeded devices should be identified
 	c.Assert(dt.Identified("device-1"), check.Equals, true)
@@ -321,6 +333,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 
 	data := assemblestate.DeviceQueryTrackerData{
 		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT:   self,
 			"device-1": one,
 			"device-2": two,
 		},
@@ -330,7 +343,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, data)
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// should have responses for preseeded unknowns
 	ids, ack := dt.ResponsesTo("peer-1")
@@ -356,8 +369,6 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-
 	data := assemblestate.DeviceQueryTrackerData{
 		Sources: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
 			"peer-1": {"device-1", "device-2"},
@@ -365,7 +376,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, data)
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	// should be able to query from preseeded sources
 	unknown, ack := dt.QueriesTo("peer-1")
@@ -400,7 +411,12 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
 		SerialProof: assemblestate.Proof{10, 11, 12},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, assemblestate.DeviceQueryTrackerData{})
+	data := assemblestate.DeviceQueryTrackerData{
+		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT: self,
+		},
+	}
+	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
 
 	dt.RecordIdentity(one)
 	dt.RecordIdentity(two)
@@ -448,6 +464,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExportRoundtrip(c *check.C) {
 
 	initial := assemblestate.DeviceQueryTrackerData{
 		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
+			self.RDT:   self,
 			"device-1": one,
 			"device-2": two,
 		},
@@ -461,14 +478,13 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExportRoundtrip(c *check.C) {
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, initial)
+	dt := assemblestate.NewDeviceQueryTracker(initial, time.Minute, time.Now)
 
 	exported := dt.Export()
-	dt = assemblestate.NewDeviceQueryTracker(self, time.Minute, time.Now, exported)
+	dt = assemblestate.NewDeviceQueryTracker(exported, time.Minute, time.Now)
 	exported = dt.Export()
 	normalizeDeviceExport(exported)
 
-	initial.IDs["self"] = self
 	c.Assert(exported, check.DeepEquals, initial)
 }
 

@@ -43,26 +43,32 @@ type DeviceQueryTracker struct {
 	// device information again.
 	timeout time.Duration
 
-	// unknowns keeps track of which devices each peer has queried us for.
+	// unknowns keeps track of which devices each peer has queried us for. Each
+	// DeviceToken maps to the set of devices that are unknown to the peer with
+	// that DeviceToken.
 	unknowns map[DeviceToken]map[DeviceToken]struct{}
 
-	// sources keeps track of which devices we know each peer knows about.
+	// sources keeps track of which devices we know each peer knows about. Each
+	// DeviceToken maps to the set of devices that are the peer with that
+	// DeviceToken has identitying information for.
 	sources map[DeviceToken]map[DeviceToken]struct{}
 
 	// ids is our collection of device identities that we've heard from other
 	// peers.
 	ids map[DeviceToken]Identity
 
+	// clock enables injecting a implementation to return the current time.
 	clock func() time.Time
 }
 
-// NewDeviceQueryTracker creates a new DeviceQueryTracker with the given
-// identity, timeout for inflight queries, and initial data.
+// NewDeviceQueryTracker creates a new DeviceQueryTracker with the given initial
+// data. A timeout can be provided, which will prevent queries from being
+// re-sent for the duration of that timeout. Additionally, a clock function can
+// can be provided in the case that time.Now needs to be overriden.
 func NewDeviceQueryTracker(
-	self Identity,
+	data DeviceQueryTrackerData,
 	timeout time.Duration,
 	clock func() time.Time,
-	data DeviceQueryTrackerData,
 ) DeviceQueryTracker {
 	dt := DeviceQueryTracker{
 		timeout:   timeout,
@@ -71,10 +77,8 @@ func NewDeviceQueryTracker(
 		unknowns:  make(map[DeviceToken]map[DeviceToken]struct{}),
 		sources:   make(map[DeviceToken]map[DeviceToken]struct{}),
 		inflight:  make(map[DeviceToken]time.Time),
-		ids: map[DeviceToken]Identity{
-			self.RDT: self,
-		},
-		clock: clock,
+		ids:       make(map[DeviceToken]Identity),
+		clock:     clock,
 	}
 
 	// seed with any provided data
