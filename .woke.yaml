@@ -1,28 +1,32 @@
 ignore_files:
-  - build-aux/snap/local/apparmor/apparmor-parser-fix-protocol-error-on-older-kernels-caused-by.patch
-  - build-aux/snap/local/apparmor/parser-add-support-for-prompting.patch
   - cmd/Makefile.am
   - cmd/configure.ac
-  - cmd/libsnap-confine-private/snap.c
-  - cmd/libsnap-confine-private/string-utils-test.c
-  - cmd/libsnap-confine-private/string-utils-test.c
-  - cmd/libsnap-confine-private/string-utils.c
-  - cmd/snap-confine/snap-confine.apparmor.in
-  - cmd/snap-confine/snap-confine.c
-  - osutil/mount/libmount/libmount_linux.go
-  - osutil/mount/libmount/libmount_linux_test.go
-  - osutil/vfs/tests/bind-shadow-propagate/task.yaml
-  - osutil/vfs/tests/mount-in-slave/expected.txt
-  - osutil/vfs/tests/mount-in-slave/task.yaml
-  - osutil/vfs/tests/rewrite-peer-groups.awk
-  - osutil/vfs/tests/shared-reduction/task.yaml
-  - osutil/vfs/tests/slave-bind/task.yaml
-  - osutil/vfs/tests/slave-mount/task.yaml
-  - osutil/vfs/tests/slave-reduction/expected.txt
-  - osutil/vfs/tests/slave-reduction/task.yaml
-  - osutil/vfs/tests/bind-semantics/task.yaml
-  - packaging/debian-sid/changelog
   - packaging/fedora/snapd.spec
+  - packaging/debian-sid/changelog
+  - cmd/snap-confine/snap-confine.c
   - packaging/ubuntu-14.04/changelog
   - packaging/ubuntu-16.04/changelog
+  - cmd/libsnap-confine-private/snap.c
+  - osutil/vfs/tests/slave-bind/task.yaml
+  - osutil/vfs/tests/slave-mount/task.yaml
+  - osutil/mount/libmount/libmount_linux.go
+  - osutil/vfs/tests/rewrite-peer-groups.awk
+  - cmd/snap-confine/snap-confine.apparmor.in
+  - osutil/vfs/tests/mount-in-slave/task.yaml
+  - osutil/vfs/tests/bind-semantics/task.yaml
+  - cmd/libsnap-confine-private/string-utils.c
+  - osutil/vfs/tests/slave-reduction/task.yaml
+  - osutil/vfs/tests/shared-reduction/task.yaml
+  - osutil/mount/libmount/libmount_linux_test.go
+  - osutil/vfs/tests/mount-in-slave/expected.txt
+  - osutil/vfs/tests/slave-reduction/expected.txt
+  - cmd/libsnap-confine-private/string-utils-test.c
+  - cmd/libsnap-confine-private/string-utils-test.c
+  - osutil/vfs/tests/propagation-to-slave/task.yaml
+  - osutil/vfs/tests/bind-shadow-propagate/task.yaml
+  - osutil/vfs/tests/propagation-to-slave/expected.txt
   - tests/lib/snaps/store/test-snapd-ovmf/snapcraft.yaml
+  - osutil/vfs/tests/propagation-to-shared-slave/task.yaml
+  - osutil/vfs/tests/propagation-to-shared-slave/expected.txt
+  - build-aux/snap/local/apparmor/parser-add-support-for-prompting.patch
+  - build-aux/snap/local/apparmor/apparmor-parser-fix-protocol-error-on-older-kernels-caused-by.patch
