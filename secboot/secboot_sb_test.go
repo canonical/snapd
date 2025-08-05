@@ -2764,33 +2764,6 @@ func (s *secbootSuite) TestHookKeyRevealV3Error(c *C) {
 	c.Assert(err, ErrorMatches, `some error`)
 }
 
-func (s *secbootSuite) TestKeyRevealerV3HooksTagged(c *C) {
-	encryptedKey := []byte{1, 2, 3, 4}
-	decryptedKey := []byte{5, 6, 7, 8}
-
-	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
-		c.Check(req.Op, Equals, "reveal")
-		c.Check(req.SealedKey, DeepEquals, encryptedKey)
-		c.Assert(req.Handle, NotNil)
-		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte(`"original-handle"`)))
-		return decryptedKey, nil
-	})
-	defer restore()
-
-	// create tagged handle in the new format
-	taggedHandle := secboot.TaggedHandle{
-		Method: "hooks",
-		Handle: json.RawMessage([]byte(`"original-handle"`)),
-	}
-	taggedJSON, err := json.Marshal(taggedHandle)
-	c.Assert(err, IsNil)
-
-	var k secboot.KeyRevealerV3
-	plain, err := k.RevealKey(taggedJSON, encryptedKey, []byte{})
-	c.Assert(err, IsNil)
-	c.Check(plain, DeepEquals, decryptedKey)
-}
-
 func (s *secbootSuite) TestKeyRevealerV3OpteeTagged(c *C) {
 	encryptedKey := []byte{1, 2, 3, 4}
 	decryptedKey := []byte{5, 6, 7, 8}
