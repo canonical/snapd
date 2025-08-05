@@ -86,7 +86,9 @@ func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 }
 
 // checkDBXChangeConflicts check that there are no conflicting
-// changes for DBX updates.
+// changes for DBX updates. It is a finer grained conflict check
+// that can produce more useful error when exercising DBX related
+// APIs, but should be used in combination with checkFDEChangeConflict.
 func checkDBXChangeConflicts(st *state.State) error {
 	// TODO:FDEM: check if we have sealed keys at all
 
@@ -132,6 +134,9 @@ func addProtectedKeysAffectedSnaps(t *state.Task) ([]string, error) {
 
 // checkFDEParametersChangeConflicts check that there are no conflicting
 // changes affecting the FDE parameters.
+//
+// Note: This does not check for DBX updates and should be used in
+// combination with checkFDEChangeConflict.
 func checkFDEParametersChangeConflicts(st *state.State) error {
 	snaps, err := fdeRelevantSnaps(st)
 	if err != nil {
