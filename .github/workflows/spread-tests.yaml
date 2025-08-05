@@ -413,6 +413,20 @@ jobs:
               echo "Running spread log analyzer"
               ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
 
+              if [ -n "${{ inputs.upload-artifacts }}" ] && \
+                  [ -d "$ARTIFACTS_FOLDER" ] && \
+                  grep -Eq "Failed (task|suite|project) restore: " spread.log; then
+                  
+                  # Restore encountered some errors, so check the retrieved data for any missing tests.
+                  # If any data is missing, add the corresponding test to the list of failed tests.
+                  for test in $RUN_TESTS; do
+                      dir="$(find $ARTIFACTS_FOLDER -name "$(sed 's/\//--/g' <<<$test)" -type d 2>/dev/null || true)"
+                      if [ -z "$dir" ] && ! grep -q "$test" "$FAILED_TESTS_FILE"; then
+                          echo -n " $test " >> "$FAILED_TESTS_FILE"
+                      fi
+                  done
+              fi
+
               echo "List of failed tests saved"
               cat "$FAILED_TESTS_FILE"
           else
