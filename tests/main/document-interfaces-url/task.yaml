@@ -7,6 +7,9 @@ details: |
 
 systems: [ubuntu-24.04-64]
 
+environment:
+    DOCS_URL: https://snapcraft.io/docs
+
 execute: |
     # Checks to see if the url supplied as the first argument returns an OK HTML status code
     webpage_exists() {
@@ -21,7 +24,8 @@ execute: |
             # The code 000 in curl means that a connection to the server could not be established
             if [ "$status_code" == 000 ]; then
                 if [ "$retry" == "$num_retries" ]; then
-                    return 0
+                    # When we cannot check the page, we validate at least it is included in the docs index
+                    grep -q "$url" index.html
                 else
                     sleep 5
                 fi
@@ -47,6 +51,9 @@ execute: |
         # If status code 4xx is returned then the page is not found, return error
         return 1
     }
+
+    # Download the supported interfaces page index to index.html
+    wget --convert-links --no-parent "$DOCS_URL/supported-interfaces/"
      
     # The exclusion_map contains interfaces that are missing              
     # documentation. Each key is the name of the interface, while its    
@@ -83,7 +90,7 @@ execute: |
     # Loop through all interfaces
     for iface in $(snap interface --all | awk 'NR > 1 {print $1}' | tr '\n' ' '); do
         echo "Checking presence of documentation url for interface $iface"
-        url="https://snapcraft.io/docs/${iface}-interface"
+        url="$DOCS_URL/${iface}-interface"
         actual="$( snap interface "$iface" )"
         if MATCH "documentation: $url" <<<"$actual"; then
             if exclude "$iface"; then
