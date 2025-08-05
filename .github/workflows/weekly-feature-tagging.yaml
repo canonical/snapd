@@ -236,6 +236,19 @@ jobs:
             --output "final-feature-tags" \
             --replace-old-runs
 
+          for json in final-feature-tags/*; do
+              if grep -qE "-nested.*04-64" <<<"$json"; then
+                  version=${json#*ubuntu-}
+                  version=${version%%.*}
+                  core_file=$(find final-feature-tags -name "*ubuntu-core-$version-64*" || true)
+                  if [ -n "$core_file" ]; then
+                      echo "merging $json into $core_file"
+                      jq -s '.[0].tests += .[1].tests | .[0]' "$core_file" "$json" > temp.json && mv temp.json "$core_file"
+                      rm "$json"
+                  fi
+              fi
+          done
+          
           ./tests/utils/features/feattranslator.py -f all-features.json -o final-feature-tags/all-features.json
 
           tar -czf "final-feature-tags.tar.gz" "final-feature-tags"
