@@ -1,0 +1,30 @@
+summary: observe how propagation to shared slave mounts works
+details: |
+    A file shared system is bind-mounted from a to b and c. The b and c mounts
+    are then turned into slaves and shared again. A new mount is created at
+    a/1. What are the propagation settings of the propagated copies to b/1 and
+    c/1?
+prepare: |
+    mkdir a
+    mkdir b
+    mkdir c
+    mount -t tmpfs tmpfs-a a
+    mount --make-shared a
+    mount --bind a b
+    mount --make-slave b
+    mount --make-shared b
+    mount --bind a c
+    mount --make-slave c
+    mount --make-shared c
+    mkdir a/1
+    mount -t tmpfs tmpfs-a-1 a/1
+restore: |
+    umount -l a
+    umount -l b
+    umount -l c
+    rmdir a b c
+debug: |
+    tail -n 6 /proc/self/mountinfo
+execute: |
+    tail -n 6 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+    diff -u actual.txt expected.txt
