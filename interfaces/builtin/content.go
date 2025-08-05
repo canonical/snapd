@@ -44,12 +44,18 @@ const contentBaseDeclarationSlots = `
         - kernel
     allow-connection:
       plug-attributes:
-        content: $SLOT(content)
+        -
+          content: $SLOT(content)
+        -
+          compatibility: $SLOT_COMPAT(compatibility)
     allow-auto-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
       plug-attributes:
-        content: $SLOT(content)
+        -
+          content: $SLOT(content)
+        -
+          compatibility: $SLOT_COMPAT(compatibility)
 `
 
 // contentInterface allows sharing content between snaps
@@ -82,15 +88,20 @@ func validatePath(path string) error {
 	return nil
 }
 
-func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	content, ok := slot.Attrs["content"].(string)
-	if !ok || len(content) == 0 {
-		if slot.Attrs == nil {
-			slot.Attrs = make(map[string]any)
-		}
-		// content defaults to "slot" name if unspecified
-		slot.Attrs["content"] = slot.Name
+func setContentDefault(attrs map[string]any, nameDef string) {
+	content, okContent := attrs["content"].(string)
+	compat, okCompat := attrs["compatibility"].(string)
+	if (!okContent || len(content) == 0) && (!okCompat || len(compat) == 0) {
+		// content defaults to nameDef if unspecified and no compatibility label either
+		attrs["content"] = nameDef
 	}
+}
+
+func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	if slot.Attrs == nil {
+		slot.Attrs = make(map[string]any)
+	}
+	setContentDefault(slot.Attrs, slot.Name)
 
 	// Error if "read" or "write" are present alongside "source".
 	if _, found := slot.Lookup("source"); found {
@@ -121,14 +132,11 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	content, ok := plug.Attrs["content"].(string)
-	if !ok || len(content) == 0 {
-		if plug.Attrs == nil {
-			plug.Attrs = make(map[string]any)
-		}
-		// content defaults to "plug" name if unspecified
-		plug.Attrs["content"] = plug.Name
+	if plug.Attrs == nil {
+		plug.Attrs = make(map[string]any)
 	}
+	setContentDefault(plug.Attrs, plug.Name)
+
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
