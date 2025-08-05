@@ -1,0 +1,15 @@
+# Because we are still using /run for some mounts, we need to have it
+# mounted
+[Unit]
+DefaultDependencies=no
+ConditionPathExists=!/sysroot/etc/system-image/writable-paths
+After=snap-initramfs-mounts.service
+RequiresMountsFor=/sysroot
+Before=initrd-root-fs.target
+After=snap-initramfs-mounts.service
+
+[Mount]
+Where=/sysroot/run
+What=/run
+Type=none
+Options=bind
