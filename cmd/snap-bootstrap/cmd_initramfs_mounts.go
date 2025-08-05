@@ -562,6 +562,12 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if hasDriversTree {
+		// FIXME: we should not remove or stop units while
+		// booting. That causes inconsistent jobs when
+		// something is depending on the removed unit,
+		// like: "[unit] has 'start' job queued, but 'stop' is
+		// included in transaction"
+
 		// Unmount the kernel snap mount, we keep it only for UC20/22
 		stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", "--umount", kernelMountDir)
 		if err != nil {
