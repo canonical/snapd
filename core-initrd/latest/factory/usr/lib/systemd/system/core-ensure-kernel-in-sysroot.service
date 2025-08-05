@@ -1,0 +1,13 @@
+[Unit]
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=initrd-root-fs.target initrd-parse-etc.target shutdown.target
+After=snap-initramfs-mounts.service
+ConditionPathIsMountPoint=/run/mnt/kernel
+ConditionPathExists=!/sysroot/etc/system-image/writable-paths
+
+[Service]
+# FIXME: It would be better to use dependencies rather than starting
+# units. However, since snap-bootstrap stops some mount units mid way,
+# this creates some conflicts.
+ExecStart=systemctl start sysroot-run-mnt-kernel.mount sysroot-run.mount
