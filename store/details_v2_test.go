@@ -171,7 +171,7 @@ const (
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
-  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    user-svc:\n        command: bin/user-svc\n        daemon-scope: user\n        daemon: simple\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\ncomponents:\n  some-component:\n    type: standard\n    name: some-component\n    description: Some component\n    summary: Component summary\n    hooks:\n      install:",
+  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\ngrade: stable\nassumes: [snapd2.49]\napps:\n    user-svc:\n        command: bin/user-svc\n        daemon-scope: user\n        daemon: simple\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\ncomponents:\n  some-component:\n    type: standard\n    name: some-component\n    description: Some component\n    summary: Component summary\n    hooks:\n      install:",
   "store-url": "https://snapcraft.io/thingy",
   "summary": "useful thingy",
   "title": "This Is The Most Fantastical Snap of Thingy",
@@ -322,6 +322,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		SnapType:    snap.TypeApp,
 		Version:     "9.50",
 		Confinement: snap.StrictConfinement,
+		Grade:       snap.StableGrade,
 		License:     "Proprietary",
 		Publisher: snap.StoreAccount{
 			ID:          "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
