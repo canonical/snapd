@@ -347,8 +347,6 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 	}
 
 	switch tagged.Method {
-	case "hooks":
-		return revealWithHooks(tagged.Handle, ciphertext)
 	case "optee":
 		return revealWithOPTEE(tagged.Handle, ciphertext)
 	default:
