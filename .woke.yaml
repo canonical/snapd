@@ -25,5 +25,4 @@ ignore_files:
   - packaging/fedora/snapd.spec
   - packaging/ubuntu-14.04/changelog
   - packaging/ubuntu-16.04/changelog
-  - packaging/ubuntu-24.04/control
   - tests/lib/snaps/store/test-snapd-ovmf/snapcraft.yaml

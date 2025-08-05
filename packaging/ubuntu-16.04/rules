@@ -26,13 +26,6 @@ else
 	FIPSBUILD = 0
 endif
 
-ifneq (,$(findstring noble,$(DISTRO)))
-	# noble and later will include the optee dependency
-	OPTEEBUILD = 1
-else
-	OPTEEBUILD = 0
-endif
-
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
@@ -66,6 +59,14 @@ endif
 ifneq (${VERSION_ID},"16.04")
 	# version with appropriate virtual packages
 	SUBSTVARS += -Vdbussession:Depends="default-dbus-session-bus | dbus-session-bus"
+endif
+
+ifneq (,$(findstring noble,$(DISTRO)))
+	# noble and later will include the optee dependency
+	OPTEEBUILD = 1
+	SUBSTVARS += -Voptee:Depends="libteec1 [arm64 armhf]"
+else
+	OPTEEBUILD = 0
 endif
 
 # Restart snapd only after the upgrade, this does not work on 16.04 so
