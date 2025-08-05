@@ -1,0 +1,23 @@
+# Because we are still using /run for some mounts, we need to have it
+# mounted while we resolve initrd-fs.target after daemon-reload from
+# initrd-parse-etc.service has executed fstab-generation.
+# However this unit is not part of initrd-fs.target. So when
+# the system gets isolated to initrd-switch-root.target from
+# initrd-cleanup.service, then this unit will get unmounted.
+# systemd's switch root then will move /run (along with /dev, /sys,
+# /proc) into /sysroot.
+#
+# In the future, we should avoid mounting in /run, and instead directly
+# mount within /sysroot.
+[Unit]
+DefaultDependencies=no
+ConditionPathExists=!/sysroot/etc/system-image/writable-paths
+After=snap-initramfs-mounts.service
+RequiresMountsFor=/sysroot
+Before=initrd-root-fs.target
+
+[Mount]
+Where=/sysroot/run
+What=/run
+Type=none
+Options=bind
