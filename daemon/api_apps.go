@@ -79,16 +79,6 @@ func readMaybeBoolValue(query url.Values, name string) (bool, error) {
 	return false, nil
 }
 
-func filterOnlySystemApps(apps []*snap.AppInfo) []*snap.AppInfo {
-	var filtered []*snap.AppInfo
-	for _, app := range apps {
-		if app.DaemonScope == snap.SystemDaemon {
-			filtered = append(filtered, app)
-		}
-	}
-	return filtered
-}
-
 func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	opts := appInfoOptions{}
@@ -116,10 +106,10 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot retrieve services: %v", err)
 	}
 
-	// For the root user, unless global was requested, we filter out
-	// user-services, since they won't be running for the root user.
-	if u.Uid == "0" && !global {
-		appInfos = filterOnlySystemApps(appInfos)
+	// For the root user, default to global to preserve the normal
+	// behaviour and we make sure to match behaviour for snapctl.
+	if u.Uid == "0" {
+		global = true
 	}
 
 	sd := newStatusDecorator(r.Context(), global, u.Uid)

@@ -55,8 +55,14 @@ execute: |
     echo "Test default behaviour for service status for root"
     snap debug api /v2/apps > app.infos
     gojq '.status' app.infos | MATCH '"OK"'
-    gojq '.result | length' app.infos | MATCH '0'
-    
+    gojq '.result | length' app.infos | MATCH '1'
+    # should not return an active status
+    ! gojq -e '.result[0].active' app.infos
+    gojq '.result[0].enabled' app.infos | MATCH 'true'
+    gojq '.result[0].name' app.infos | MATCH '"test-snapd-user-service"'
+
+    # For root user, both global=false and global=true will have the same behaviour
+    # as global will be set to true for the root user by default.
     echo "Test default behaviour for service status for root with global"
     snap debug api /v2/apps?global=true > app.infos
     gojq '.status' app.infos | MATCH '"OK"'
