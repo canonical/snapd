@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -210,15 +212,33 @@ type evalAttrMatcher struct {
 	// first iteration supports just $(SLOT|PLUG)(arg)
 	op  string
 	arg string
+	// Function that checks if the attributes match
+	matchAttr func(v1, v2 any) bool
 }
 
 var (
-	validEvalAttrMatcher    = regexp.MustCompile(`^\$([A-Z]+)\(([^,]+)(?:,([^,]+))?\)$`)
+	validEvalAttrMatcher    = regexp.MustCompile(`^\$([A-Z][A-Z_]*)\(([^,]+)(?:,([^,]+))?\)$`)
 	validEvalAttrMatcherOps = map[string]bool{
-		"PLUG": true,
-		"SLOT": true,
+		"PLUG":        true,
+		"SLOT":        true,
+		"SLOT_COMPAT": true,
 	}
 )
+
+func matchCompatLabels(v1, v2 any) bool {
+	c1, err := compatibility.DecodeCompatField(v1.(string), nil)
+	if err != nil {
+		logger.Noticef("while decoding compatibility label %s: %v", v1.(string), err)
+		return false
+	}
+	c2, err := compatibility.DecodeCompatField(v2.(string), nil)
+	if err != nil {
+		logger.Noticef("while decoding compatibility label %s: %v", v2.(string), err)
+		return false
+	}
+	logger.Debugf("comparing compatibility labels: %+v, %+v", c1, c2)
+	return compatibility.CheckCompatibility(*c1, *c2)
+}
 
 func compileEvalOrRefAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
 	if len(cc.opts.allowedOperations) == 0 && len(cc.opts.allowedRefs) == 0 {
@@ -246,9 +266,14 @@ func compileEvalOrRefAttrMatcher(cc compileContext, s string) (attrMatcher, erro
 	if ops[3] != "" {
 		return nil, fmt.Errorf("cannot compile %q constraint %q: $%s() constraint expects 1 argument", cc, s, ops[1])
 	}
+	matchAttr := reflect.DeepEqual
+	if ops[1] == "SLOT_COMPAT" {
+		matchAttr = matchCompatLabels
+	}
 	return evalAttrMatcher{
-		op:  ops[1],
-		arg: ops[2],
+		op:        ops[1],
+		arg:       ops[2],
+		matchAttr: matchAttr,
 	}, nil
 }
 
@@ -266,12 +291,14 @@ func (matcher evalAttrMatcher) match(apath string, v any, ctx *attrMatchingConte
 		comp = ctx.helper.SlotAttr
 	case "PLUG":
 		comp = ctx.helper.PlugAttr
+	case "SLOT_COMPAT":
+		comp = ctx.helper.SlotCompatAttr
 	}
 	v1, err := comp(matcher.arg)
 	if err != nil {
 		return fmt.Errorf("%s %q constraint $%s(%s) cannot be evaluated: %v", ctx.attrWord, apath, matcher.op, matcher.arg, err)
 	}
-	if !reflect.DeepEqual(v, v1) {
+	if !matcher.matchAttr(v, v1) {
 		return fmt.Errorf("%s %q does not match $%s(%s): %v != %v", ctx.attrWord, apath, matcher.op, matcher.arg, v, v1)
 	}
 	return nil

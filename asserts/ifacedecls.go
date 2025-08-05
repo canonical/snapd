@@ -33,6 +33,7 @@ import (
 type AttrMatchContext interface {
 	PlugAttr(arg string) (any, error)
 	SlotAttr(arg string) (any, error)
+	SlotCompatAttr(arg string) (any, error)
 	PlugPublisherID() string
 	SlotPublisherID() string
 }
@@ -58,7 +59,7 @@ func (ac *AttributeConstraints) feature(flabel string) bool {
 func compileAttributeConstraints(constraints any) (*AttributeConstraints, error) {
 	cc := compileContext{
 		opts: &compileAttrMatcherOptions{
-			allowedOperations: []string{"SLOT", "PLUG"},
+			allowedOperations: []string{"SLOT", "PLUG", "SLOT_COMPAT"},
 			allowedRefs:       []string{"PLUG_PUBLISHER_ID", "SLOT_PUBLISHER_ID"},
 		},
 	}

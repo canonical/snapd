@@ -412,18 +412,24 @@ func (s *attrMatcherSuite) TestCompileErrors(c *C) {
 		"$SLOT()",
 		"$SLOT(x,y)",
 		"$SLOT(x,y,z)",
+		"$SLOT_COMPAT",
+		"$SLOT_COMPAT()",
+		"$SLOT_COMPAT(x,y)",
+		"$SLOT_COMPAT(x,y,z)",
 	}
 
 	for _, wrong := range wrongDollarConstraints {
 		_, err := asserts.CompileAttrMatcher(map[string]any{
 			"foo": wrong,
-		}, []string{"SLOT", "OP"}, []string{"PLUG_PUBLISHER_ID"})
-		if wrong != "$SLOT(x,y)" {
-			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$OP\(\)/\$PLUG_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
-		} else {
+		}, []string{"SLOT", "SLOT_COMPAT", "OP"}, []string{"PLUG_PUBLISHER_ID"})
+		switch wrong {
+		case "$SLOT(x,y)":
 			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": \$SLOT\(\) constraint expects 1 argument`, regexp.QuoteMeta(wrong)))
+		case "$SLOT_COMPAT(x,y)":
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": \$SLOT_COMPAT\(\) constraint expects 1 argument`, regexp.QuoteMeta(wrong)))
+		default:
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$SLOT_COMPAT\(\)/\$OP\(\)/\$PLUG_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
 		}
-
 	}
 }
 

@@ -155,6 +155,10 @@ func (connc *ConnectCandidate) SlotAttr(arg string) (any, error) {
 	return nestedGet("slot", connc.Slot, arg)
 }
 
+func (connc *ConnectCandidate) SlotCompatAttr(arg string) (any, error) {
+	return nestedGet("slot_compat", connc.Slot, arg)
+}
+
 func (connc *ConnectCandidate) plugSnapID() string {
 	if connc.PlugSnapDeclaration != nil {
 		return connc.PlugSnapDeclaration.SnapID()
