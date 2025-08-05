@@ -1121,6 +1121,13 @@ prepare: |
 
         # Make sure docs are installed with the packages
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
+
+        # TODO: enable enforcing mode
+        if selinuxenabled; then
+            setenforce Permissive
+            # also make it permanent if the system were to reboot
+            sed -i -e 's/^SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
+        fi
     fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
