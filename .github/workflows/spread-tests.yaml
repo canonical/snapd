@@ -428,11 +428,13 @@ jobs:
     - name: Prepare artifact upload
       if: always() && fromJSON(inputs.upload-artifacts)
       run: |
-        echo "${{ github.run_attempt }}" > "${ARTIFACTS_FOLDER}/run-attempt.txt"
-        cp "$FAILED_TESTS_FILE" "${ARTIFACTS_FOLDER}/failed-tests.txt"
-        echo "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES}" > "${ARTIFACTS_FOLDER}/env-variables.txt"
-        echo "SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}" >> "${ARTIFACTS_FOLDER}/env-variables.txt"
-        tar -czf "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz" "$ARTIFACTS_FOLDER"
+        if [ -n "${ARTIFACTS_FOLDER}" ]; then
+          echo "${{ github.run_attempt }}" > "${ARTIFACTS_FOLDER}/run-attempt.txt"
+          cp "$FAILED_TESTS_FILE" "${ARTIFACTS_FOLDER}/failed-tests.txt"
+          echo "SPREAD_EXPERIMENTAL_FEATURES=${SPREAD_EXPERIMENTAL_FEATURES}" > "${ARTIFACTS_FOLDER}/env-variables.txt"
+          echo "SPREAD_SNAPD_DEB_FROM_REPO=${SPREAD_SNAPD_DEB_FROM_REPO}" >> "${ARTIFACTS_FOLDER}/env-variables.txt"
+          tar -czf "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz" "$ARTIFACTS_FOLDER"
+        fi
 
     - name: Upload artifacts
       if: always() && fromJSON(inputs.upload-artifacts)
@@ -440,6 +442,7 @@ jobs:
       with:
         name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
+        if-no-files-found: ignore
 
     - name: Save spread test results to cache
       if: always()
