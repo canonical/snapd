@@ -147,8 +147,6 @@ func checkFDEParametersChangeConflicts(st *state.State) error {
 		return nil
 	}
 
-	// XXX: make sure that there are no external DBX changes in progress?
-
 	// make sure that there are no changes for the snaps that are relevant for
 	// FDE
 	return snapstate.CheckChangeConflictMany(st, snaps, "")
