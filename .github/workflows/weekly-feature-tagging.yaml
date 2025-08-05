@@ -193,6 +193,8 @@ jobs:
 
       - name: Create feature tags
         run: |
+          shopt -s nullglob 
+          
           featdir="extracted-tags"
           mkdir -p "$featdir"
           composedir="composed-tags"
