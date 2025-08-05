@@ -19,7 +19,7 @@ execute: |
 
         for retry in $(seq $num_retries); do
             # Make a HEAD request to the URL and capture the HTTP status code
-            status_code=$(curl -I -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
+            status_code=$(curl -I -o /dev/null -s -w "%{http_code}\n" -k --connect-timeout 10 "$url")
 
             # The code 000 in curl means that a connection to the server could not be established
             if [ "$status_code" == 000 ]; then
@@ -27,7 +27,7 @@ execute: |
                     # When we cannot check the page, we validate at least it is included in the docs index
                     grep -q "$url" index.html
                 else
-                    sleep 5
+                    sleep 8
                 fi
             fi
 
