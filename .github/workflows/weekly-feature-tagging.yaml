@@ -201,6 +201,11 @@ jobs:
           for file in "feature-tags-artifacts"/*; do
             mkdir working
             tar -xzf "$file" -C working
+            if ! [ -d "working/spread-artifacts/feature-tags" ]; then
+              echo "Artifact $file has no artifact data"
+              rm -r working
+              continue
+            fi
             for dir in "working/spread-artifacts/feature-tags"/*/; do
               if [ -f "${dir}/journal.txt" ] && [ -f "${dir}/state.json" ]; then
                 ./tests/utils/features/featextractor.py \
