@@ -148,7 +148,7 @@ type resealParamsAndLocation struct {
 	location secboot.KeyDataLocation
 }
 
-func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool) error {
+func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool, hintExpectFDEHook bool) error {
 	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
@@ -252,6 +252,7 @@ func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool) error
 			Models:                     key.params.Models,
 			TpmPCRProfile:              key.params.TpmPCRProfile,
 			IncrementRevocationCounter: revokeOldKeys,
+			HintExpectFDEHook:          hintExpectFDEHook,
 		}
 		resealedKeys, err := secbootResealKey(key.location, params)
 		if err != nil {
@@ -622,7 +623,7 @@ func resealKeys(
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 
-	return doReseal(manager, rootdir, opts.Revoke)
+	return doReseal(manager, rootdir, opts.Revoke, method == device.SealingMethodFDESetupHook)
 }
 
 func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {
