@@ -53,7 +53,7 @@ execute: |
     }
 
     # Download the supported interfaces page index to index.html
-    wget --convert-links --no-parent "$DOCS_URL/supported-interfaces/"
+    wget --convert-links --no-parent --no-check-certificate "$DOCS_URL/supported-interfaces/"
      
     # The exclusion_map contains interfaces that are missing              
     # documentation. Each key is the name of the interface, while its    
