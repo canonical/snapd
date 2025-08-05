@@ -154,7 +154,7 @@ func (v *aliasReference) Validate(data []byte) error {
 
 // SchemaAt returns the alias reference itself if the path terminates at it. If
 // not, it uses the user-defined type to resolve the path.
-func (v *aliasReference) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *aliasReference) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) == 0 {
 		return []DatabagSchema{v}, nil
 	}
@@ -224,7 +224,7 @@ func (s *StorageSchema) Validate(raw []byte) error {
 }
 
 // SchemaAt returns the types that may be stored at the specified path.
-func (s *StorageSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (s *StorageSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	return s.topLevel.SchemaAt(path)
 }
 
@@ -457,7 +457,7 @@ func (v *alternativesSchema) Validate(raw []byte) error {
 
 // SchemaAt returns the list of schemas at the end of the path or an error if
 // the path cannot be followed.
-func (v *alternativesSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *alternativesSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) == 0 {
 		return v.schemas, nil
 	}
@@ -628,21 +628,48 @@ func validMapKeys(v map[string]json.RawMessage) error {
 
 // SchemaAt returns the Map schema if this is the last path element. If not, it
 // calls SchemaAt for the next path element's schema if the path is valid.
-func (v *mapSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *mapSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) == 0 {
 		return []DatabagSchema{v}, nil
 	}
 
 	key := path[0]
-	if v.entrySchemas != nil {
-		valSchema, ok := v.entrySchemas[key]
-		if !ok {
-			return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key)
-		}
-
-		return valSchema.SchemaAt(path[1:])
+	if key.Type() != MapKeyType && key.Type() != KeyPlaceholderType {
+		return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key)
 	}
 
+	if v.entrySchemas != nil {
+		if key.Type() == MapKeyType {
+			// the subkey is a literal map key so there has to be a corresponding entry
+			valSchema, ok := v.entrySchemas[key.Name()]
+			if !ok {
+				return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key)
+			}
+
+			return valSchema.SchemaAt(path[1:])
+		}
+
+		// since the path has a placeholder, we don't require it to be accepted by
+		// all sub-schemas but it should be by at least one
+		var schemas []DatabagSchema
+		var lastErr error
+		for _, valSchema := range v.entrySchemas {
+			schema, err := valSchema.SchemaAt(path[1:])
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			schemas = append(schemas, schema...)
+		}
+
+		if len(schemas) == 0 {
+			return nil, lastErr
+		}
+
+		return schemas, nil
+	}
+
+	// using key/value constraints instead
 	return v.valueSchema.SchemaAt(path[1:])
 }
 
@@ -879,7 +906,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 
 // SchemaAt returns the string schema if the path terminates at this schema and
 // an error if not.
-func (v *stringSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *stringSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) != 0 {
 		return nil, schemaAtErrorf(path, `cannot follow path beyond "string" type`)
 	}
@@ -964,7 +991,7 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 
 // SchemaAt returns the int schema if the path terminates here and an error if
 // not.
-func (v *intSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *intSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) != 0 {
 		return nil, schemaAtErrorf(path, `cannot follow path beyond "int" type`)
 	}
@@ -1056,7 +1083,7 @@ func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) err
 }
 
 // SchemaAt returns the "any" schema.
-func (v *anySchema) SchemaAt([]string) ([]DatabagSchema, error) {
+func (v *anySchema) SchemaAt([]Accessor) ([]DatabagSchema, error) {
 	return []DatabagSchema{v}, nil
 }
 
@@ -1101,7 +1128,7 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 
 // SchemaAt returns the number schema if the path terminates here and an error if
 // not.
-func (v *numberSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *numberSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) != 0 {
 		return nil, schemaAtErrorf(path, `cannot follow path beyond "number" type`)
 	}
@@ -1223,7 +1250,7 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 
 // SchemaAt returns the boolean schema if the path terminates here and an error
 // if not.
-func (v *booleanSchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *booleanSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) != 0 {
 		return nil, schemaAtErrorf(path, `cannot follow path beyond "bool" type`)
 	}
@@ -1297,14 +1324,14 @@ func (v *arraySchema) Validate(raw []byte) error {
 
 // SchemaAt returns the array schema the path is empty. Otherwise, it calls SchemaAt
 // for the next path element's schema if the path is valid.
-func (v *arraySchema) SchemaAt(path []string) ([]DatabagSchema, error) {
+func (v *arraySchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	if len(path) == 0 {
 		return []DatabagSchema{v}, nil
 	}
 
 	// key can be a number or a placeholder in square brackets ([1] or [{n}])
 	key := path[0]
-	if !validIndexPlaceholder.Match([]byte(key)) && !validIndexSubkey.Match([]byte(key)) {
+	if key.Type() != IndexPlaceholderType && key.Type() != ListIndexType {
 		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key)
 	}
 
@@ -1411,7 +1438,7 @@ func (e *schemaAtError) Error() string {
 	return e.err.Error()
 }
 
-func schemaAtErrorf(path []string, format string, v ...any) error {
+func schemaAtErrorf(path []Accessor, format string, v ...any) error {
 	return &schemaAtError{
 		left: len(path),
 		err:  fmt.Errorf(format, v...),

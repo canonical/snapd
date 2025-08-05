@@ -383,7 +383,10 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	s.st.Unlock()
 	c.Assert(err, IsNil)
 
-	err = tx.Set("wifi.ssid", "foo")
+	path, err := confdb.ParsePathIntoAccessors("wifi.ssid", confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+
+	err = tx.Set(path, "foo")
 	c.Assert(err, IsNil)
 
 	var calls int

@@ -21,6 +21,7 @@ package confdbstate
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/snapcore/snapd/confdb"
@@ -40,13 +41,18 @@ type Transaction struct {
 	ConfdbName    string
 
 	modified      confdb.JSONDatabag
-	deltas        []map[string]any
+	deltas        []pathValuePair
 	appliedDeltas int
 
 	abortingSnap string
 	abortReason  string
 
 	mu sync.RWMutex
+}
+
+type pathValuePair struct {
+	path  []confdb.Accessor
+	value any
 }
 
 // NewTransaction takes a getter and setter to read and write the databag.
@@ -82,13 +88,20 @@ type marshalledTransaction struct {
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
+	deltas := make([]map[string]any, 0, len(t.deltas))
+	for _, delta := range t.deltas {
+		deltas = append(deltas, map[string]any{
+			confdb.JoinAccessors(delta.path): delta.value,
+		})
+	}
+
 	return json.Marshal(marshalledTransaction{
 		Pristine:      t.pristine,
 		Previous:      t.previous,
 		ConfdbAccount: t.ConfdbAccount,
 		ConfdbName:    t.ConfdbName,
 		Modified:      t.modified,
-		Deltas:        t.deltas,
+		Deltas:        deltas,
 		AppliedDeltas: t.appliedDeltas,
 		AbortingSnap:  t.abortingSnap,
 		AbortReason:   t.abortReason,
@@ -101,12 +114,24 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	var deltas []pathValuePair
+	for _, delta := range mt.Deltas {
+		for path, value := range delta {
+			accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+			if err != nil {
+				return fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
+			}
+
+			deltas = append(deltas, pathValuePair{path: accs, value: value})
+		}
+	}
+
 	t.pristine = mt.Pristine
 	t.previous = mt.Previous
 	t.ConfdbAccount = mt.ConfdbAccount
 	t.ConfdbName = mt.ConfdbName
 	t.modified = mt.Modified
-	t.deltas = mt.Deltas
+	t.deltas = deltas
 	t.appliedDeltas = mt.AppliedDeltas
 	t.abortingSnap = mt.AbortingSnap
 	t.abortReason = mt.AbortReason
@@ -116,7 +141,7 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 
 // Set sets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
-func (t *Transaction) Set(path string, value any) error {
+func (t *Transaction) Set(path []confdb.Accessor, value any) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -124,13 +149,13 @@ func (t *Transaction) Set(path string, value any) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, map[string]any{path: value})
+	t.deltas = append(t.deltas, pathValuePair{path: path, value: value})
 	return nil
 }
 
 // Unset unsets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
-func (t *Transaction) Unset(path string) error {
+func (t *Transaction) Unset(path []confdb.Accessor) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -138,12 +163,12 @@ func (t *Transaction) Unset(path string) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, map[string]any{path: nil})
+	t.deltas = append(t.deltas, pathValuePair{path: path})
 	return nil
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path string) (any, error) {
+func (t *Transaction) Get(path []confdb.Accessor) (any, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -224,14 +249,12 @@ func (t *Transaction) Clear(st *state.State) error {
 	return nil
 }
 
-func (t *Transaction) AlteredPaths() []string {
+func (t *Transaction) AlteredPaths() [][]confdb.Accessor {
 	// TODO: maybe we can extend this to recurse into delta's value and figure out
 	// the most specific key possible
-	paths := make([]string, 0, len(t.deltas))
+	paths := make([][]confdb.Accessor, 0, len(t.deltas))
 	for _, delta := range t.deltas {
-		for path := range delta {
-			paths = append(paths, path)
-		}
+		paths = append(paths, delta.path)
 	}
 	return paths
 }
@@ -254,20 +277,18 @@ func (t *Transaction) applyChanges() error {
 	return nil
 }
 
-func applyDeltas(bag confdb.JSONDatabag, deltas []map[string]any) error {
+func applyDeltas(bag confdb.JSONDatabag, deltas []pathValuePair) error {
 	// changes must be applied in the order they were written
 	for _, delta := range deltas {
-		for k, v := range delta {
-			var err error
-			if v == nil {
-				err = bag.Unset(k)
-			} else {
-				err = bag.Set(k, v)
-			}
+		var err error
+		if delta.value == nil {
+			err = bag.Unset(delta.path)
+		} else {
+			err = bag.Set(delta.path, delta.value)
+		}
 
-			if err != nil {
-				return err
-			}
+		if err != nil {
+			return err
 		}
 	}
 

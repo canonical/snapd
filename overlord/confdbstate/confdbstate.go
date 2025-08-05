@@ -450,7 +450,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map
 	return custodians, custodianPlugs, nil
 }
 
-func getPlugsAffectedByPaths(st *state.State, dbSchema *confdb.Schema, storagePaths []string) (map[string][]*snap.PlugInfo, error) {
+func getPlugsAffectedByPaths(st *state.State, dbSchema *confdb.Schema, storagePaths [][]confdb.Accessor) (map[string][]*snap.PlugInfo, error) {
 	var viewNames []string
 	for _, path := range storagePaths {
 		views := dbSchema.GetViewsAffectedByPath(path)
