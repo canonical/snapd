@@ -795,6 +795,26 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	return nil
 }
 
+func isContentCompatLabelEnabled(st *state.State) bool {
+	tr := config.NewTransaction(st)
+	enabled, err := features.Flag(tr, features.ContentCompatLabel)
+	fmt.Println("isCompatLabelEnabled", enabled, err)
+	if err != nil && !config.IsNoOption(err) {
+		_, confName := features.ContentCompatLabel.ConfigOption()
+		logger.Noticef("internal error: cannot check %q feature flag: %v", confName, err)
+		return false
+	}
+	return enabled
+}
+
+func allowCompatLabel(featureEnabled bool, interfaceName string) bool {
+	fmt.Println("allowCompatLabel", featureEnabled, interfaceName)
+	if !featureEnabled && interfaceName == "content" {
+		return false
+	}
+	return true
+}
+
 // DebugAutoConnectCheck is a hook that can be set to debug auto-connection
 // candidates as they are checked.
 var DebugAutoConnectCheck func(*policy.ConnectCandidate, interfaces.SideArity, error)
@@ -803,9 +823,10 @@ type autoConnectChecker struct {
 	st   *state.State
 	repo *interfaces.Repository
 
-	deviceCtx snapstate.DeviceContext
-	cache     map[string]*asserts.SnapDeclaration
-	baseDecl  *asserts.BaseDeclaration
+	deviceCtx            snapstate.DeviceContext
+	cache                map[string]*asserts.SnapDeclaration
+	baseDecl             *asserts.BaseDeclaration
+	contentCompatEnabled bool
 }
 
 func newAutoConnectChecker(s *state.State, repo *interfaces.Repository, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
@@ -814,11 +835,12 @@ func newAutoConnectChecker(s *state.State, repo *interfaces.Repository, deviceCt
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &autoConnectChecker{
-		st:        s,
-		repo:      repo,
-		deviceCtx: deviceCtx,
-		cache:     make(map[string]*asserts.SnapDeclaration),
-		baseDecl:  baseDecl,
+		st:                   s,
+		repo:                 repo,
+		deviceCtx:            deviceCtx,
+		cache:                make(map[string]*asserts.SnapDeclaration),
+		baseDecl:             baseDecl,
+		contentCompatEnabled: isContentCompatLabelEnabled(s),
 	}, nil
 }
 
@@ -876,6 +898,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		BaseDeclaration:     c.baseDecl,
 		Model:               modelAs,
 		Store:               storeAs,
+		CompatEnabled:       allowCompatLabel(c.contentCompatEnabled, plug.Interface()),
 	}
 
 	arity, err := ic.CheckAutoConnect()
@@ -979,9 +1002,10 @@ func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[s
 }
 
 type connectChecker struct {
-	st        *state.State
-	deviceCtx snapstate.DeviceContext
-	baseDecl  *asserts.BaseDeclaration
+	st                   *state.State
+	deviceCtx            snapstate.DeviceContext
+	baseDecl             *asserts.BaseDeclaration
+	contentCompatEnabled bool
 }
 
 func newConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*connectChecker, error) {
@@ -990,9 +1014,10 @@ func newConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*conn
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &connectChecker{
-		st:        s,
-		deviceCtx: deviceCtx,
-		baseDecl:  baseDecl,
+		st:                   s,
+		deviceCtx:            deviceCtx,
+		baseDecl:             baseDecl,
+		contentCompatEnabled: isContentCompatLabelEnabled(s),
 	}, nil
 }
 
@@ -1035,6 +1060,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		BaseDeclaration:     c.baseDecl,
 		Model:               modelAs,
 		Store:               storeAs,
+		CompatEnabled:       allowCompatLabel(c.contentCompatEnabled, plug.Interface()),
 	}
 
 	// if either of plug or slot snaps don't have a declaration it

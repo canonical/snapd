@@ -23,10 +23,12 @@
 package policy
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -137,6 +139,9 @@ type ConnectCandidate struct {
 
 	Model *asserts.Model
 	Store *asserts.Store
+
+	// Are compatibility labels enabled?
+	CompatEnabled bool
 }
 
 func nestedGet(which string, attrs interfaces.Attrer, path string) (any, error) {
@@ -156,6 +161,10 @@ func (connc *ConnectCandidate) SlotAttr(arg string) (any, error) {
 }
 
 func (connc *ConnectCandidate) SlotCompatAttr(arg string) (any, error) {
+	if !connc.CompatEnabled {
+		logger.Debugf("compatibility labels are disabled")
+		return nil, errors.New("compatibility labels are disabled")
+	}
 	return nestedGet("slot_compat", connc.Slot, arg)
 }
 
