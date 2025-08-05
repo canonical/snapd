@@ -47,6 +47,7 @@ type snapYaml struct {
 	Epoch           Epoch                    `yaml:"epoch,omitempty"`
 	Base            string                   `yaml:"base,omitempty"`
 	Confinement     ConfinementType          `yaml:"confinement,omitempty"`
+	Grade           GradeType                `yaml:"grade,omitempty"`
 	Environment     strutil.OrderedMap       `yaml:"environment,omitempty"`
 	Plugs           map[string]any           `yaml:"plugs,omitempty"`
 	Slots           map[string]any           `yaml:"slots,omitempty"`
@@ -251,6 +252,7 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	// FIXME: validation of the fields
+
 	return snap, nil
 }
 
@@ -297,6 +299,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		License:             y.License,
 		Epoch:               y.Epoch,
 		Confinement:         confinement,
+		Grade:               y.Grade,
 		Base:                y.Base,
 		Apps:                make(map[string]*AppInfo),
 		LegacyAliases:       make(map[string]*AppInfo),
