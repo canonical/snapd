@@ -48,7 +48,7 @@ execute: |
     gojq '.status' app.infos | MATCH '"OK"'
     gojq '.result | length' app.infos | MATCH '1'
     # should not return an active status
-    ! gojq -e '.result[0].active' app.infos
+    (gojq -e '.result[0].active' app.infos && exit 1) || true
     gojq '.result[0].enabled' app.infos | MATCH 'true'
     gojq '.result[0].name' app.infos | MATCH '"test-snapd-user-service"'
 
@@ -57,7 +57,7 @@ execute: |
     gojq '.status' app.infos | MATCH '"OK"'
     gojq '.result | length' app.infos | MATCH '1'
     # should not return an active status
-    ! gojq -e '.result[0].active' app.infos
+    (gojq -e '.result[0].active' app.infos && exit 1) || true
     gojq '.result[0].enabled' app.infos | MATCH 'true'
     gojq '.result[0].name' app.infos | MATCH '"test-snapd-user-service"'
 
@@ -68,6 +68,6 @@ execute: |
     gojq '.status' app.infos | MATCH '"OK"'
     gojq '.result | length' app.infos | MATCH '1'
     # should not return an active status
-    ! gojq -e '.result[0].active' app.infos
+    (gojq -e '.result[0].active' app.infos && exit 1) || true
     gojq '.result[0].enabled' app.infos | MATCH 'true'
     gojq '.result[0].name' app.infos | MATCH '"test-snapd-user-service"'
