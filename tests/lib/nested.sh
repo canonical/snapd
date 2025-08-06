@@ -21,7 +21,7 @@
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
 : "${NESTED_UBUNTU_SEED_SIZE:=}"
 : "${NESTED_KEEP_FIRMWARE_STATE:=}"
-: "${NESTED_BIOS_FILE:=}"
+: "${NESTED_CUSTOM_FIRMWARE:=}"
 : "${NESTED_ENABLE_ARM_TRUSTZONE:=false}"
 
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
@@ -1311,31 +1311,30 @@ nested_start_core_vm_unit() {
     fi
 
     if nested_is_core_ge 20; then
-        nested_ensure_ovmf
-        local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF 
-        if os.query is-arm; then
-            OVMF=AAVMF
-            OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.ms.fd"
-        else
-            OVMF=OVMF
-            OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
-        fi
-        OVMF_CODE="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_CODE.fd"
-        OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
-        OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
-
-        if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
-            if nested_is_secure_boot_enabled; then
-                cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
+        if [ -z "$NESTED_CUSTOM_FIRMWARE" ]; then
+            nested_ensure_ovmf
+            local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
+            if os.query is-arm; then
+                OVMF=AAVMF
+                OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.ms.fd"
             else
-                cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
+                OVMF=OVMF
+                OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
             fi
-        fi
+            OVMF_CODE="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_CODE.fd"
+            OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
+            OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
 
-        if [ -z "$NESTED_BIOS_FILE" ]; then
+            if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
+                if nested_is_secure_boot_enabled; then
+                    cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
+                else
+                    cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
+                fi
+            fi
             PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
         else
-            PARAM_BIOS="-drive file=${NESTED_BIOS_FILE},if=pflash,format=raw,readonly=on  -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+            PARAM_BIOS="-drive file=${NESTED_CUSTOM_FIRMWARE},if=pflash,format=raw,readonly=on"
         fi
 
         local ENABLE_ARM_TRUSTZONE
