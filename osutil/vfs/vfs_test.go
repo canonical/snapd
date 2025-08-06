@@ -27,18 +27,42 @@ import (
 	"github.com/snapcore/snapd/osutil/vfs"
 )
 
-// MajorMinorFS allows injecting major:minor pair into any fs.StatFS.
+func assertVFS(t *testing.T, v *vfs.VFS, expected string) {
+	t.Helper()
+	if v.String() != expected {
+		t.Fatal("Unexpected VFS state", v)
+	}
+}
+
+// MetaDataFS allows injecting major:minor pair or source into into any fs.StatFS.
 
 // This allows making VFSes more readable by differentiating each file system.
-type MajorMinorFS struct {
+type MetaDataFS struct {
 	fs.StatFS
+	source       string
 	major, minor int
 }
 
-func (fs MajorMinorFS) MajorMinor() (int, int) { return fs.major, fs.minor }
+func (fs MetaDataFS) MajorMinor() (int, int) { return fs.major, fs.minor }
+func (fs MetaDataFS) Source() string         { return fs.source }
 
-func WithMajorMinor(major, minor int, sfs fs.StatFS) MajorMinorFS {
-	return MajorMinorFS{sfs, major, minor}
+func WithMajorMinor(major, minor int, sfs fs.StatFS) MetaDataFS {
+	if sfs, ok := sfs.(MetaDataFS); ok {
+		sfs.major = major
+		sfs.minor = minor
+		return sfs
+	}
+
+	return MetaDataFS{StatFS: sfs, major: major, minor: minor}
+}
+
+func WithSource(s string, sfs fs.StatFS) MetaDataFS {
+	if sfs, ok := sfs.(MetaDataFS); ok {
+		sfs.source = s
+		return sfs
+	}
+
+	return MetaDataFS{StatFS: sfs, source: s}
 }
 
 func TestRbindOrder(t *testing.T) {
@@ -138,17 +162,17 @@ func TestBindStack(t *testing.T) {
 		})
 
 		// a has three identical empty file-systems mounted on it.
-		aXfs := fstest.MapFS{}
+		aXfs := WithSource("tmpfs-x", fstest.MapFS{})
 		if err := v.Mount(WithMajorMinor(42, 0, aXfs), "a"); err != nil {
 			t.Fatal(err)
 		}
 
-		aYfs := fstest.MapFS{}
+		aYfs := WithSource("tmpfs-y", fstest.MapFS{})
 		if err := v.Mount(WithMajorMinor(42, 1, aYfs), "a"); err != nil {
 			t.Fatal(err)
 		}
 
-		aZfs := fstest.MapFS{}
+		aZfs := WithSource("tmpfs-z", fstest.MapFS{})
 		if err := v.Mount(WithMajorMinor(42, 2, aZfs), "a"); err != nil {
 			t.Fatal(err)
 		}
@@ -159,10 +183,10 @@ func TestBindStack(t *testing.T) {
 	// The semantics of rbind and bind, here, is identical.
 	const expected = `
 -1 -1 0:0 / / rw - (fstype) (source) rw
-0  -1 42:0 / /a rw - (fstype) (source) rw
-1  0 42:1 / /a rw - (fstype) (source) rw
-2  1 42:2 / /a rw - (fstype) (source) rw
-3  -1 42:2 / /b rw - (fstype) (source) rw
+0  -1 42:0 / /a rw - (fstype) tmpfs-x rw
+1  0 42:1 / /a rw - (fstype) tmpfs-y rw
+2  1 42:2 / /a rw - (fstype) tmpfs-z rw
+3  -1 42:2 / /b rw - (fstype) tmpfs-z rw
 `
 
 	t.Run("bind", func(t *testing.T) {
@@ -172,10 +196,7 @@ func TestBindStack(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if v.String() != expected {
-			t.Log(v)
-			t.Fatal("Unexpected mount table")
-		}
+		assertVFS(t, v, expected)
 	})
 
 	t.Run("rbind", func(t *testing.T) {
@@ -185,10 +206,7 @@ func TestBindStack(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if v.String() != expected {
-			t.Log(v)
-			t.Fatal("Unexpected mount table")
-		}
+		assertVFS(t, v, expected)
 	})
 }
 
