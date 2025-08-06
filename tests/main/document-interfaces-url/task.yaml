@@ -21,14 +21,14 @@ execute: |
             # The code 000 in curl means that a connection to the server could not be established
             if [ "$status_code" == 000 ]; then
                 if [ "$retry" == "$num_retries" ]; then
-                    # When we cannot check the page, we validate at least it is included in the docs index
+                    # When we cannot check the page, we validate at least it is included in the supported interfaces page
                     if grep -q "$url" index.html; then
                         return 0
                     else
                         return 1
                     fi
                 else
-                    sleep 8
+                    sleep 5
                 fi
             fi
 
