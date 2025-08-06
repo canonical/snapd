@@ -1,6 +1,6 @@
 summary: observe how propagation to shared slave mounts works
 details: |
-    A file shared system is bind-mounted from a to b and c. The b and c mounts
+    A shared file system is bind-mounted from a to b and c. The b and c mounts
     are then turned into slaves and shared again. A new mount is created at
     a/1. What are the propagation settings of the propagated copies to b/1 and
     c/1?
