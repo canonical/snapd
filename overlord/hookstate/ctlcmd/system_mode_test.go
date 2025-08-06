@@ -99,7 +99,7 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 				Seeded: true,
 			},
 			systemEncrypted: true,
-			stdout:          "system-mode: run\nseed-loaded: true\nstorage-encrypted: true\n",
+			stdout:          "system-mode: run\nseed-loaded: true\nstorage-encrypted: managed\n",
 		}, {
 			smi: devicestate.SystemModeInfo{
 				Mode:       "install",

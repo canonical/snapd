@@ -62,7 +62,7 @@ type systemModeResult struct {
 	SystemMode       string `yaml:"system-mode,omitempty"`
 	Seeded           bool   `yaml:"seed-loaded"`
 	Factory          bool   `yaml:"factory,omitempty"`
-	StorageEncrypted bool   `yaml:"storage-encrypted,omitempty"`
+	StorageEncrypted string `yaml:"storage-encrypted,omitempty"`
 }
 
 func (c *systemModeCommand) Execute(args []string) error {
@@ -88,10 +88,12 @@ func (c *systemModeCommand) Execute(args []string) error {
 	res := systemModeResult{
 		SystemMode:       smi.Mode,
 		Seeded:           smi.Seeded,
-		StorageEncrypted: encrypted,
 	}
 	if strutil.ListContains(smi.BootFlags, "factory") {
 		res.Factory = true
+	}
+	if encrypted {
+		res.StorageEncrypted = "managed"
 	}
 
 	b, err := yaml.Marshal(res)
