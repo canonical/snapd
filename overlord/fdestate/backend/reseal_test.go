@@ -838,7 +838,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			primaryKey, err := params.GetPrimaryKey()
 			c.Assert(err, IsNil)
 			c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
-			c.Check(params.IncrementRevocationCounter, Equals, false)
+			c.Check(params.NewPCRPolicyVersion, Equals, false)
 			c.Check(params.HintExpectFDEHook, Equals, false)
 
 			resealKeysCalls++
@@ -1294,7 +1294,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		primaryKey, err := params.GetPrimaryKey()
 		c.Assert(err, IsNil)
 		c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
-		c.Check(params.IncrementRevocationCounter, Equals, false)
+		c.Check(params.NewPCRPolicyVersion, Equals, false)
 		c.Check(params.HintExpectFDEHook, Equals, false)
 
 		resealKeysCalls++
@@ -1643,7 +1643,7 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		primaryKey, err := params.GetPrimaryKey()
 		c.Assert(err, IsNil)
 		c.Check(primaryKey, DeepEquals, []byte{1, 2, 3, 4})
-		c.Check(params.IncrementRevocationCounter, Equals, false)
+		c.Check(params.NewPCRPolicyVersion, Equals, false)
 		c.Check(params.HintExpectFDEHook, Equals, false)
 
 		resealKeysCalls++
@@ -1908,7 +1908,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	restore = backend.MockSecbootResealKey(func(key secboot.KeyDataLocation, params *secboot.ResealKeyParams) (secboot.UpdatedKeys, error) {
 		resealKeysCalls++
 
-		c.Check(params.IncrementRevocationCounter, Equals, false)
+		c.Check(params.NewPCRPolicyVersion, Equals, false)
 		c.Check(params.HintExpectFDEHook, Equals, false)
 		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 
@@ -2370,7 +2370,7 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	restore = backend.MockSecbootResealKey(func(key secboot.KeyDataLocation, params *secboot.ResealKeyParams) (secboot.UpdatedKeys, error) {
 		resealKeysCalls++
 
-		c.Check(params.IncrementRevocationCounter, Equals, false)
+		c.Check(params.NewPCRPolicyVersion, Equals, false)
 		c.Check(params.HintExpectFDEHook, Equals, false)
 
 		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile-with-dbx"`))

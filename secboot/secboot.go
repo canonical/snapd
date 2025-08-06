@@ -294,7 +294,7 @@ type ResealKeyParams struct {
 	TpmPCRProfile []byte
 	// Whether a incremented value of the counter is allowed
 	// (before a revocation)
-	IncrementRevocationCounter bool
+	NewPCRPolicyVersion bool
 	// Whether old ambiguous key formats interpreted as FDE hook keys.
 	HintExpectFDEHook bool
 }

@@ -733,7 +733,7 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 			PrimaryKey: primaryKey,
 		}
 
-		return resealKeysWithTPM(keyParams, params.IncrementRevocationCounter)
+		return resealKeysWithTPM(keyParams, params.NewPCRPolicyVersion)
 
 	case hookResealKind:
 		err = resealKeysWithFDESetupHook([]KeyDataLocation{key}, params.GetPrimaryKey, params.Models, params.BootModes)

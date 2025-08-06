@@ -247,12 +247,12 @@ func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool, hintE
 	var allResealedKeys secboot.UpdatedKeys
 	for _, key := range keys {
 		params := &secboot.ResealKeyParams{
-			GetPrimaryKey:              primaryKeyGetter,
-			BootModes:                  key.params.BootModes,
-			Models:                     key.params.Models,
-			TpmPCRProfile:              key.params.TpmPCRProfile,
-			IncrementRevocationCounter: revokeOldKeys,
-			HintExpectFDEHook:          hintExpectFDEHook,
+			GetPrimaryKey:       primaryKeyGetter,
+			BootModes:           key.params.BootModes,
+			Models:              key.params.Models,
+			TpmPCRProfile:       key.params.TpmPCRProfile,
+			NewPCRPolicyVersion: revokeOldKeys,
+			HintExpectFDEHook:   hintExpectFDEHook,
 		}
 		resealedKeys, err := secbootResealKey(key.location, params)
 		if err != nil {
