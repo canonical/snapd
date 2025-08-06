@@ -253,6 +253,9 @@ def populate_tests_in_coverage_diff_cmds(active_cell, table_data, timestamp, sys
     feature = copy.deepcopy(table_data[triggered["index"]][row_idx])
     for k, v in feature.items():
         try:
+            # Features with a snap type list like tasks and changes have been stringified
+            # for visualization purposes in the GUI. Change them back to lists of strings.
+            # All other field values that are not valid json can remain unaltered.
             feature[k] = json.loads(v)
         except:
             pass
@@ -419,6 +422,9 @@ def populate_tests_in_coverage_diff_cmds(active_cell, table_data, system_active_
     feature = copy.deepcopy(table_data[row_idx])
     for k, v in feature.items():
         try:
+            # Features with a snap type list like tasks and changes have been stringified
+            # for visualization purposes in the GUI. Change them back to lists of strings.
+            # All other field values that are not valid json can remain unaltered.
             feature[k] = json.loads(v)
         except:
             pass
