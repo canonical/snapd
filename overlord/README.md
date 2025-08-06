@@ -15,6 +15,8 @@ During startup, and after construction, an optional `StartUp` method is invoked 
 
 The *ensure loop* is intended to initiate any automatic state management and corresponding transitions, state repair, and any other consistency-maintaining operations.
 
+The other mechanism for state managers to perform their responsibilities is by providing implementations for different kind of `Task`s (see details in the next sections). Each state manager provides tasks for making changes related to their area of the system. For example `snapstate`'s `link-snap` task exposes an installed snap to the system for use. Higher-level parts of the system and the state managers themselves affect system changes by composing the right kind of tasks under a `state.Change`. Helpers used for this usually return a `state.TaskSet`. These helpers are provided alongside of each manager's code (e.g `snapstate.InstallOne`, `ifacestate.Connect`).
+
 `state.Change`
 ---------------
 A `state.Change` is a graph of `state.Task` structs and their inter-dependencies as edges. The purpose of both a `state.Change` and a `state.Task` is identified by their kind (which should be an explanatory string value).
@@ -27,11 +29,15 @@ Time-consuming and user-initiated operations, usually initiated from the API pro
 
 `state.TaskRunner`
 -------------------
-The `state.TaskRunner` is responsible for `state.Change` and `state.Task` execution, and their state management. The do and undo logic of a `state.Task` is defined by `Task` kind using `TaskRunner.AddHandler`.
+The `state.TaskRunner` is responsible for `state.Change` and `state.Task` execution, and their state management. The do and undo logic of a `state.Task` is defined by `Task` kind using `TaskRunner.AddHandler`. This is done by each state manager for its relevant task kinds.
 
-During execution, a `Task` goes through a series of statuses. These are represented by `state.Status` and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`.
+`TaskRunner` is wired into the *ensure loop* like a state manager. Its Ensure method is executed last for each loop. The method logic is responsible for spawning and managing goroutines that execute the `Task`s do or undo handlers.
 
-If errors are encountered, the `TaskRunner` will normally try to recursively execute the undo logic of any previously depended-upon `Task`s with the exception of the `Task` that generated the error. It is instead expected that any desired undo logic should be part of its error paths.
+High-level parts of the system can use `State.EnsureBefore` to have the *ensure loop* run before its normal schedule to process `Task`s needing execution.
+
+During execution, a `Task` goes through a series of statuses. These are represented by `state.Status` and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`. A Task needing execution is initially `DoStatus`. While the goroutine for its *do* logic is running it is in `DoingStatus`, respectively if the goroutine for its *undo* logic is running in `UndoingStatus` (after having been marked `UndoStatus` first).
+
+If errors are encountered, the `TaskRunner` will normally try to recursively execute the undo logic of any previously depended-upon `Task`s with the exception of the `Task` that generated the error. Each `Task` handler is instead expected to run any desired undo logic for its own errors as part of its error paths.
 
 Different `Change`s and independent `Task`s are normally executed concurrently.
 
@@ -54,15 +60,26 @@ where `st` is the runtime `state.State` instance, accessible via `Task.State()` 
 
 The deferred `Unlock` will implicitly commit any working state mutations at the end of the handler.
 
-Due to potential restarts, the do or undo handler logic in a `Task` may be re-executed if it hasn't already completed. This necessitates the following considerations:
+Due to potential restarts (because of snapd updating itself, reboots or snapd being restarted on failure), the do or undo handler logic in a `Task` may be re-executed if it hasn't already completed. This necessitates the following considerations:
 -   on-disk/external state manipulation should be idempotent or equivalent
--   working state manipulation should either be idempotent or designed to combine working state mutations with setting the next status of the task. This approach currently requires using `Task.SetStatus` before returning from the handler
+-   working state manipulation should either be idempotent or designed to combine working state mutations with setting the next status of the task. This approach currently requires using `Task.SetStatus`(with `DoneStatus`or `UndoneStatus` as appropriate) before returning from the handler
+
+The latter is because when exiting the handler the consequent state unlocking will commit the working state changes, but the automatic updating of the `Task`'s status will happen only later in the `TaskRunner` after reacquiring the lock. So there's a window of time in which if snapd restarts it will reexecute the task with the working state changes already committed which it might not expect, respectively not be able to handle.
 
 If slow operations need to be performed, the required `Unlock/Lock` should happen before any working state manipulation.
 
 If the `State` lock is released and reacquired in a handler, the code needs to consider that other code could have manipulated some relevant working state. There may be also cases where it’s neither possible nor desirable to hold the `State` lock for the entirety of a state manipulation, such as when a manipulation spans multiple subsystems, and so spans multiple tasks. For all such cases, and to simplify reasoning, snapd offers other coordination mechanisms with differing granularity to the `State` lock.
 
 See also the comment in `overlord/snapstate/handlers.go` about state locking.
+
+Testing `Task` handling logic
+------------------------------
+
+Given the previous consideration it is important that `Task` handler logic has tests ensuring that:
+
+- *undo* logic correctly matches and undoes what the *do* logic did
+- task handling logic is idempotent, even if the task is only partially executed the first time around
+- error paths undo previous state changes as needed
 
 Conflicts and `Task` precondition blocking
 -------------------------------------------
@@ -79,3 +96,8 @@ Some tasks, or family of tasks, need to release the `State` lock but cannot run 
 To address this, precondition predicates can be hooked into the `TaskRunner` via `TaskRunner.AddBlocked`.
 
 Before running a task, the precondition predicates are invoked and, if none return a value of true, the task is run. The input for these predicates is any candidate-for-running task and the set of currently running tasks.
+
+Cleanup logic
+--------------
+
+`Task`s can also have cleanup handlers registered for them with `TaskRunner.AddCleanup`. This logic is run only after the entire `Change` the `Task` belonged to is considered ready, which means this is not run under the protection of conflict logic anymore. So while it can be used to clean up temporary state belonging to the task, in all situations, success or not, it cannot touch state that can interfere with other `Change`s or the system in general.
