@@ -12,7 +12,6 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_REPACK_KERNEL_SNAP: false
     NESTED_REPACK_GADGET_SNAP: false
-    NESTED_REPACK_BASE_SNAP: false
     NESTED_ENABLE_ARM_TRUSTZONE: true
     NESTED_CPUS: 4
     NESTED_MEM: 4096
@@ -57,7 +56,6 @@ prepare: |
 
     snap download --revision "${kernel_revision}" --basename "${kernel_name}" "${kernel_name}"
     snap download --revision "${gadget_revision}" --basename "${gadget_name}" "${gadget_name}"
-    snap download --edge --basename core24 core24
 
     unsquashfs -d "./${kernel_name}" "${kernel_name}.snap"
 
@@ -113,12 +111,6 @@ prepare: |
     model="${TESTSLIB}/assertions/nested-24-arm64-${KEY_PROTECTOR}.json"
     gendeveloper1 sign-model < "${model}" > model.assert
     cp model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
-
-    "${TESTSTOOLS}"/store-state make-snap-installable \
-      --revision 1 \
-      "${NESTED_FAKESTORE_BLOB_DIR}" \
-      ./core24.snap \
-      dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
 
     # this is only required for the hooks case, but it doens't hurt to have it
     # for both
