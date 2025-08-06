@@ -26,5 +26,5 @@ restore: |
 debug: |
     tail -n 6 /proc/self/mountinfo
 execute: |
-    tail -n 6 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk >actual.txt
+    tail -n 6 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../root-dir-mount-point-optional-fields-and-source.awk >actual.txt
     diff -u actual.txt expected.txt
