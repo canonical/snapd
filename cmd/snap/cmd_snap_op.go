@@ -141,16 +141,23 @@ type cmdRemove struct {
 }
 
 func showRemoved(expectedSnaps []string, expectedComps map[string][]string, snapToRev map[string]string, removed *changedSnapsData) {
-	showRemovedSnaps(expectedSnaps, removed.names, snapToRev)
+	showRemovedSnaps(expectedSnaps, removed.names, snapToRev, removed.snapshots)
 	showRemovedComponents(expectedComps, removed.comps)
 }
 
-func showRemovedSnaps(expectedSnaps []string, removedSnaps []string, snapToRev map[string]string) {
+func showRemovedSnaps(expectedSnaps []string, removedSnaps []string, snapToRev map[string]string, snapshots map[string]bool) {
 	seen := make(map[string]bool)
 	for _, name := range removedSnaps {
-		if rev, ok := snapToRev[name]; ok {
+		rev, revOk := snapToRev[name]
+		snapshot := snapshots[name]
+		switch {
+		case revOk && snapshot:
+			fmt.Fprintf(Stdout, i18n.G("%s (revision %s) removed (snap data snapshot saved)\n"), name, rev)
+		case revOk:
 			fmt.Fprintf(Stdout, i18n.G("%s (revision %s) removed\n"), name, rev)
-		} else {
+		case snapshot:
+			fmt.Fprintf(Stdout, i18n.G("%s removed (snap data snapshot saved)\n"), name)
+		default:
 			fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
 		}
 		seen[name] = true
@@ -450,6 +457,8 @@ type changedSnapsData struct {
 	names []string
 	// Map of snap instance names to components
 	comps map[string][]string
+	// Set of snaps for which snapshots were saved
+	snapshots map[string]bool
 }
 
 func changedSnapsFromChange(chg *client.Change) (*changedSnapsData, error) {
@@ -471,10 +480,28 @@ func changedSnapsFromChange(chg *client.Change) (*changedSnapsData, error) {
 		return nil, err
 	}
 
-	return &changedSnapsData{
-		names: snapNames,
-		comps: compsPerSnap,
-	}, nil
+	cd := &changedSnapsData{
+		names:     snapNames,
+		comps:     compsPerSnap,
+		snapshots: make(map[string]bool, len(snapNames)),
+	}
+
+	if chg.Kind == "remove-snap" {
+		for _, t := range chg.Tasks {
+			var affected []string
+			if t.Kind == "save-snapshot" {
+				if err := t.Get("affected-snaps", &affected); err != nil {
+					return nil, fmt.Errorf("cannot obtain a list of affected snaps: %w", err)
+				}
+			}
+
+			for _, aff := range affected {
+				cd.snapshots[aff] = true
+			}
+		}
+	}
+
+	return cd, nil
 }
 
 func (csd *changedSnapsData) hasChanges() bool {
