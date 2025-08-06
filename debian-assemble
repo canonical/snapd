@@ -1,0 +1,154 @@
+#!/bin/bash
+
+# Replaces the distribution in debian/changelog with the provided
+# <release-name>, and then applies any version-specific override files (closest
+# available version at or below the specified release, but no earlier than
+# 16.04).
+#
+# The deb package can be built by passing the --build flag. This first runs the
+# ./get-deps.sh script and checks that the working directory doesn't contain any
+# unexpected files. If the working directory is clean, then "dpkg-buildpackage
+# -S" is invoked.
+#
+# Usage:
+#   ./debian-assemble [--build] <release-name> <release-version>
+
+set -euo pipefail
+
+build=false
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--build)
+		build=true
+		shift
+		;;
+	*)
+		break
+		;;
+	esac
+done
+
+if [ $# -ne 2 ]; then
+	echo "Usage: ${0} <release-name> <release-version>" >&2
+	exit 1
+fi
+
+release_name="${1}"
+release_version="${2}"
+min_version="16.04"
+
+# a previous invocation might have created this
+rm -f debian/files
+
+# replace the current distribution with the one provided
+current="$(dpkg-parsechangelog -S Distribution)"
+sed -i -E "1s/^([^(]+ \([^)]+\) )${current};/\1${release_name};/" debian/changelog
+
+override_dir="packaging/ubuntu-${release_version}"
+if [ ! -d "${override_dir}" ]; then
+	candidates=()
+	for dir in packaging/ubuntu-*; do
+		[ -d "${dir}" ] || continue
+		version="${dir##packaging/ubuntu-}"
+
+		# skip if newer than target
+		if [ "$(printf "%s\n%s\n" "${version}" "${release_version}" | sort -V | head -n1)" != "${version}" ]; then
+			continue
+		fi
+
+		# skip if older than the minimum expected version
+		if [ "$(printf "%s\n%s\n" "${min_version}" "${version}" | sort -V | head -n1)" != "${min_version}" ]; then
+			continue
+		fi
+		candidates+=("${version}")
+	done
+
+	if [ ${#candidates[@]} -gt 0 ]; then
+		best=$(printf "%s\n" "${candidates[@]}" | sort -V | tail -n1)
+		override_dir="packaging/ubuntu-${best}"
+	else
+		override_dir=""
+	fi
+fi
+
+if [ -n "${override_dir}" ] && [ -d "${override_dir}" ]; then
+	cp -a "${override_dir}/." debian/
+	override_msg="overrides applied from ${override_dir}"
+else
+	override_msg="no override directory found for ${release_version}"
+fi
+
+echo "Assembled ./debian:"
+echo "  * Release name:    ${release_name}"
+echo "  * Release version: ${release_version}"
+echo "  * ${override_msg}"
+
+if [ "${build}" != true ]; then
+	exit 0
+fi
+
+check_clean() {
+	local modified clean_output
+
+	# 1) any modified (staged or unstaged) tracked files?
+	modified=$(
+		git status --porcelain --untracked-files=no \
+			. \
+			':(exclude)vendor/' \
+			':(exclude)c-vendor/'
+	)
+
+	# 2) any untracked or ignored files?
+	clean_output=$(
+		git clean -ndffx . \
+			-e vendor/ \
+			-e c-vendor/ | sed 's/Would remove / /'
+	)
+
+	if [ -n "${modified}" ] || [ -n "${clean_output}" ]; then
+		echo "Working directory is not clean:"
+		if [ -n "${modified}" ]; then
+			echo "Modified tracked files:"
+			echo "${modified}"
+		fi
+		if [ -n "${clean_output}" ]; then
+			echo "Untracked/ignored files:"
+			echo "${clean_output}"
+		fi
+		return 1
+	fi
+
+	echo "Working directory is clean (ignoring vendor/, c-vendor/)."
+	return 0
+}
+
+echo ""
+
+if ! git diff --quiet --exit-code -- "$(readlink debian)"; then
+	echo "Diff after applying changes to ./debian:"
+	git diff -- "$(readlink debian)"
+	read -rp $'Accept diff? [y/N] ' answer
+	case "${answer}" in
+	[Yy]) ;;
+	*)
+		exit 1
+		;;
+	esac
+fi
+
+echo -e "Building source package..."
+./get-deps.sh >/dev/null 2>&1
+
+if ! check_clean; then
+	read -rp $'Proceed with build anyway? [y/N] ' answer
+	case "${answer}" in
+	[Yy])
+		echo "Proceeding despite unclean working directory."
+		;;
+	*)
+		echo "Aborting due to unclean working directory."
+		exit 1
+		;;
+	esac
+fi
+dpkg-buildpackage -S
