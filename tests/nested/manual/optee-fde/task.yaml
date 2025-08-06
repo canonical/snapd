@@ -19,6 +19,7 @@ environment:
     NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
     NESTED_SIGN_SNAPS_FAKESTORE: true
     NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+    NESTED_ENABLE_TPM: false
 
     KEY_PROTECTOR/optee: "optee"
     KEY_PROTECTOR/hooks: "fde-setup-hook"
@@ -99,11 +100,6 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # some of the scripts install this stuff (even though we won't use it on
-    # arm) and our usage of the fake store makes it fail
-    nested_ensure_ovmf
-    snap install test-snapd-swtpm --edge
-
     "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
     cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
@@ -170,8 +166,8 @@ prepare: |
     # a bit annoying to update
     unsquashfs -d . ./${gadget_name}.snap qemu_fw.bios
     truncate -s 64M qemu_fw.bios
-    NESTED_BIOS_FILE="$(realpath ./qemu_fw.bios)"
-    export NESTED_BIOS_FILE
+    NESTED_CUSTOM_FIRMWARE="$(realpath ./qemu_fw.bios)"
+    export NESTED_CUSTOM_FIRMWARE
 
     tests.nested create-vm core
 
