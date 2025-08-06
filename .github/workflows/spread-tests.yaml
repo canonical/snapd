@@ -422,7 +422,7 @@ jobs:
                   for test in $RUN_TESTS; do
                       dir="$(find $ARTIFACTS_FOLDER -name "$(sed 's/\//--/g' <<<$test)" -type d 2>/dev/null || true)"
                       if [ -z "$dir" ] && ! grep -q "$test" "$FAILED_TESTS_FILE"; then
-                          echo -n " $test " >> "$FAILED_TESTS_FILE"
+                          printf "%s %s\n" "$(< $FAILED_TESTS_FILE)" "$test" > "$FAILED_TESTS_FILE"
                       fi
                   done
               fi
