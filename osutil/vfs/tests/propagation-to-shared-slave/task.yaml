@@ -1,13 +1,15 @@
 summary: observe how propagation to shared slave mounts works
 details: |
     A shared file system is bind-mounted from a to b and c. The b and c mounts
-    are then turned into slaves and shared again. A new mount is created at
-    a/1. What are the propagation settings of the propagated copies to b/1 and
-    c/1?
+    are then turned into slaves and shared again. The shared slave mount at c
+    is then re-bound to d. A new mount is created at a/1. What are the
+    propagation settings of the propagated copies to b/1 and c/1? What
+    propagates to d?
 prepare: |
     mkdir a
     mkdir b
     mkdir c
+    mkdir d
     mount -t tmpfs tmpfs-a a
     mount --make-shared a
     mount --bind a b
@@ -16,15 +18,17 @@ prepare: |
     mount --bind a c
     mount --make-slave c
     mount --make-shared c
+    mount --bind c d
     mkdir a/1
     mount -t tmpfs tmpfs-a-1 a/1
 restore: |
     umount -l a
     umount -l b
     umount -l c
-    rmdir a b c
+    umount -l d
+    rmdir a b c d
 debug: |
-    tail -n 6 /proc/self/mountinfo
+    tail -n 8 /proc/self/mountinfo
 execute: |
-    tail -n 6 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../root-dir-mount-point-optional-fields-and-source.awk >actual.txt
+    tail -n 8 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../root-dir-mount-point-optional-fields-and-source.awk >actual.txt
     diff -u actual.txt expected.txt
