@@ -1241,6 +1241,58 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	}
 }
 
+func (s *gadgetYamlTestSuite) TestValidateStructureEMMC(c *C) {
+	vol := &gadget.Volume{Schema: "emmc"}
+
+	// check size
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Size: 123, EnclosingVolume: vol},
+		vol), ErrorMatches, `"size" not allowed for emmc volume structures`)
+
+	// check min-size
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{MinSize: 123, EnclosingVolume: vol},
+		vol), ErrorMatches, `"min-size" not allowed for emmc volume structures`)
+
+	// check label
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Label: "test", EnclosingVolume: vol},
+		vol), ErrorMatches, `"filesystem-label" not allowed for emmc volume structures`)
+
+	// check offset
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Offset: asOffsetPtr(0), EnclosingVolume: vol},
+		vol), IsNil)
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Offset: asOffsetPtr(1000), EnclosingVolume: vol},
+		vol), ErrorMatches, `"offset" not allowed for emmc volume structures`)
+
+	// check offset-write
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{OffsetWrite: &gadget.RelativeOffset{}, EnclosingVolume: vol},
+		vol), ErrorMatches, `"offset-write" not allowed for emmc volume structures`)
+
+	// check filesystem
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Filesystem: "ext4", EnclosingVolume: vol},
+		vol), ErrorMatches, `"filesystem" not allowed for emmc volume structures`)
+
+	// check type
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Type: "gpt", EnclosingVolume: vol},
+		vol), ErrorMatches, `"type" not allowed for emmc volume structures`)
+
+	// check ID
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{ID: "test", EnclosingVolume: vol},
+		vol), ErrorMatches, `"id" not allowed for emmc volume structures`)
+
+	// check role
+	c.Check(gadget.ValidateVolumeStructure(
+		&gadget.VolumeStructure{Role: "test", EnclosingVolume: vol},
+		vol), ErrorMatches, `"role" not allowed for emmc volume structures`)
+}
+
 func mustParseStructureNoImplicit(c *C, s string) *gadget.VolumeStructure {
 	var v gadget.VolumeStructure
 	err := yaml.Unmarshal([]byte(s), &v)

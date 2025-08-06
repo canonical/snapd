@@ -1414,9 +1414,7 @@ const MultiVolumeEmmcUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
     schema: emmc
     structure:
       - name: boot0
-        size: 1048576
       - name: boot1
-        size: 1048576
 volume-assignments:
   - assignment-name: my-emmc-device
     assignment:

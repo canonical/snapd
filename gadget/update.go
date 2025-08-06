@@ -22,6 +22,8 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path"
 	"sort"
 	"strings"
 
@@ -251,6 +253,10 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
+func isVolumeEMMC(vol *Volume) bool {
+	return vol.Schema == schemaEMMC
+}
+
 func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume *Volume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
 	// in uc16/uc18 we used to allow system-data to be implicit / missing from
 	// the gadget.yaml in which case we won't have system-data in the laidOutVol
@@ -301,6 +307,29 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume *Volume, diskLay
 		numPartsInGadget+1 == numPartsOnDisk
 }
 
+func ensureVolumeEMMCCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume) (map[int]*OnDiskStructure, error) {
+	gadgetStructIdxToOnDiskStruct := map[int]*OnDiskStructure{}
+	for _, gs := range gadgetVolume.Structure {
+		// ensure the device node exists
+		// TODO: maybe better to check /sys/block/
+		// example output from CM5:
+		// $ ls /sys/block
+		// mmcblk0  mmcblk0boot0  mmcblk0boot1
+		emmcNode := fmt.Sprintf("%s%s", diskVolume.Device, gs.Name)
+		if _, err := os.Stat(path.Join(dirs.GlobalRootDir, emmcNode)); err != nil {
+			return nil, fmt.Errorf("emmc disk partition %s is specified, but no such disk: %s",
+				gs.Name, path.Join(dirs.GlobalRootDir, emmcNode))
+		}
+
+		ds := &OnDiskStructure{
+			Name: gs.Name,
+			Node: emmcNode,
+		}
+		gadgetStructIdxToOnDiskStruct[gs.YamlIndex] = ds
+	}
+	return gadgetStructIdxToOnDiskStruct, nil
+}
+
 // VolumeCompatibilityOptions is a set of options for determining how
 // strict to be when evaluating whether an on-disk structure matches a laid out
 // structure.
@@ -334,6 +363,13 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	}
 	logger.Debugf("checking volume compatibility between gadget volume %s (partial: %v) and disk %s",
 		gadgetVolume.Name, gadgetVolume.Partial, diskVolume.Device)
+
+	// eMMC will not follow the normal validation rules, and will instead
+	// need some different validation so we can make sure the disk is compatible
+	// with the eMMC structures
+	if isVolumeEMMC(gadgetVolume) {
+		return ensureVolumeEMMCCompatibility(gadgetVolume, diskVolume)
+	}
 
 	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
 		gs := &vss[vssIdx]
@@ -624,6 +660,38 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	return gadgetStructIdxToOnDiskStruct, nil
 }
 
+func diskTraitsFromEMMCDevice(diskLayout *OnDiskVolume, mmc disks.Disk, vol *Volume) (res DiskVolumeDeviceTraits, err error) {
+	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(vol.Structure))
+	for _, vs := range vol.Structure {
+		mmcPartDev := fmt.Sprintf("%s%s", mmc.KernelDeviceNode(), vs.Name)
+		mmcPart, err := disks.DiskFromDeviceName(mmcPartDev)
+		if err != nil {
+			return res, fmt.Errorf("cannot get disk for device %s: %v", mmcPartDev, err)
+		}
+
+		sz, err := mmcPart.SizeInBytes()
+		if err != nil {
+			return res, fmt.Errorf("cannot get size of device %s: %v", mmcPartDev, err)
+		}
+
+		mappedStructures = append(mappedStructures, DiskStructureDeviceTraits{
+			OriginalDevicePath: mmcPart.KernelDevicePath(),
+			OriginalKernelPath: mmcPart.KernelDeviceNode(),
+			Size:               quantity.Size(sz),
+		})
+	}
+
+	return DiskVolumeDeviceTraits{
+		OriginalDevicePath: mmc.KernelDevicePath(),
+		OriginalKernelPath: mmc.KernelDeviceNode(),
+		DiskID:             mmc.DiskID(),
+		Structure:          mappedStructures,
+		Size:               diskLayout.Size,
+		SectorSize:         diskLayout.SectorSize,
+		Schema:             mmc.Schema(),
+	}, nil
+}
+
 // TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
 type DiskEncryptionMethod string
 
@@ -684,6 +752,16 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 	disk, err := disks.DiskFromDeviceName(dev)
 	if err != nil {
 		return res, fmt.Errorf("cannot get disk for device %s: %v", dev, err)
+	}
+
+	// For eMMC block devices, there will be both partitions, but also non-partitions in
+	// the form of pseudo-devices as boot0, boot1, rpmb. Depending on the volume given, we
+	// will handle the traits differently.
+	if vol.Schema == schemaEMMC {
+		// The volume is targeting eMMC specific "partitions". These will not show up
+		// in any normal setting, but appear as different devices instead. We have to handle
+		// this.
+		return diskTraitsFromEMMCDevice(diskLayout, disk, vol)
 	}
 
 	diskPartitions, err := disk.Partitions()

@@ -64,11 +64,9 @@ volumes:
     schema: emmc
     structure:
       - name: boot0
-        size: 4M
         content:
           - image: boot0filename
       - name: boot1
-        size: 4M
         content:
           - image: boot1filename
 `)
@@ -165,7 +163,6 @@ volumes:
     schema: emmc
     structure:
       - name: %s
-        size: 4M
         content:
           - image: boot0filename
             offset: 1000
@@ -200,7 +197,6 @@ volumes:
     schema: emmc
     structure:
       - name: %s
-        size: 4M
         content:
           - source: hello.bin
 `, t)), 0644)
@@ -234,7 +230,6 @@ volumes:
     schema: emmc
     structure:
       - name: %s
-        size: 4M
         content:
           - unpack: true
 `, t)), 0644)
@@ -292,8 +287,6 @@ func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlHappy(c *C) {
 						VolumeName: "my-emmc",
 						Name:       "boot0",
 						Offset:     asOffsetPtr(0),
-						Size:       4 * 1024 * 1024,
-						MinSize:    4 * 1024 * 1024,
 						Content: []gadget.VolumeContent{
 							{
 								Image: "boot0filename",
@@ -304,8 +297,6 @@ func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlHappy(c *C) {
 						VolumeName: "my-emmc",
 						Name:       "boot1",
 						Offset:     asOffsetPtr(0),
-						Size:       4 * 1024 * 1024,
-						MinSize:    4 * 1024 * 1024,
 						Content: []gadget.VolumeContent{
 							{
 								Image: "boot1filename",
