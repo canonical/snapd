@@ -562,15 +562,17 @@ func GetPrimaryKey(devices []string, fallbackKeyFiles []string) ([]byte, error) 
 		}
 	}
 
+	var fallbackErrors []string
+
 	for _, fallbackKeyFile := range fallbackKeyFiles {
 		primaryKey, err := os.ReadFile(fallbackKeyFile)
 		if err == nil {
-			// FIXME: save errors
 			return primaryKey, nil
 		}
+		fallbackErrors = append(fallbackErrors, fmt.Sprintf("cannot read %s: %v", fallbackKeyFile, err))
 	}
 
-	return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key files")
+	return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key files: %s", strings.Join(fallbackErrors, ", "))
 }
 
 // CheckRecoveryKey tests that the specified recovery key unlocks the
