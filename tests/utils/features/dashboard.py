@@ -192,11 +192,25 @@ app.layout = html.Div(
                                 id="only-same-switch",
                                 label="Only compare features across tests that are present in both systems",
                             ),
+                            daq.BooleanSwitch(
+                                id="match-snap-types",
+                                label="Match snap types when comparing features",
+                                disabled=False
+                            ),
                         ],
                         style={"width": "25%"},
                     ),
                     dcc.Loading(
                         html.Div(id="coverage-diff-container"),
+                    ),
+                    dbc.Modal(
+                        [
+                            dbc.ModalHeader(dbc.ModalTitle("Tests with feature")),
+                            dbc.ModalBody(id="coverage-diff-modal-body"),
+                        ],
+                        id="coverage-diff-modal",
+                        size="xl",
+                        is_open=False,
                     ),
                 ]
             ),
@@ -300,6 +314,15 @@ app.layout = html.Div(
                                 "margin": "auto",
                             },
                         ),
+                    ),
+                    dbc.Modal(
+                        [
+                            dbc.ModalHeader(dbc.ModalTitle("Tests with feature")),
+                            dbc.ModalBody(id="coverage-modal-body"),
+                        ],
+                        id="coverage-modal",
+                        size="xl",
+                        is_open=False,
                     ),
                 ]
             ),

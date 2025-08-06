@@ -193,16 +193,18 @@ def display_column_details(active_cell, table_data, timestamp):
     Input({"type": "systems-dropdown", "index": 3}, "value"),
     Input("remove-failed-switch", "on"),
     Input("only-same-switch", "on"),
+    Input("match-snap-types", "on"),
 )
-def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value):
+def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types):
     if not ts_2 or not sys_2 or not ts_3 or not sys_3:
         return []
 
     diff = qf.diff(
-        retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value
+        retriever, ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same_value, match_snap_types
     )
 
     tables = []
+    i = 0
     for feature_name, features in reversed(diff.items()):
         processed = []
         for feature in features:
@@ -211,6 +213,7 @@ def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same
                 feat_dict[k] = json.dumps(v) if isinstance(v, list) else v
             processed.append(feat_dict)
         table = dash_table.DataTable(
+            id={"type": "coverage-diff-table", "index":i},
             data=processed,
             columns=get_columns_from_list_of_dicts(features),
             filter_action="native",
@@ -228,8 +231,52 @@ def update_totals_table(ts_2, sys_2, ts_3, sys_3, remove_failed_value, only_same
                 style={"maxWidth": "100%", "margin": "auto"},
             )
         )
+        i=i+1
 
     return tables
+
+@app.callback(
+    Output("coverage-diff-modal-body", "children"),
+    Output("coverage-diff-modal", "is_open"),
+    Input({"type": "coverage-diff-table", "index": ALL}, "active_cell"),
+    State({"type": "coverage-diff-table", "index": ALL}, "derived_viewport_data"),
+    State({"type": "timestamp-dropdown", "index": 2}, "value"),
+    State({"type": "systems-dropdown", "index": 2}, "value"),
+    Input("match-snap-types", "on"),
+)
+def populate_tests_in_coverage_diff_cmds(active_cell, table_data, timestamp, system, match_snap_types):
+    triggered = dash.callback_context.triggered_id
+    if not active_cell or not table_data or not triggered or not 'index' in triggered or not active_cell[triggered["index"]] or not table_data[triggered["index"]]:
+        raise dash.exceptions.PreventUpdate
+
+    row_idx = active_cell[triggered["index"]]["row"]
+    feature = copy.deepcopy(table_data[triggered["index"]][row_idx])
+    for k, v in feature.items():
+        try:
+            # Features with a snap type list like tasks and changes have been stringified
+            # for visualization purposes in the GUI. Change them back to lists of strings.
+            # All other field values that are not valid json can remain unaltered.
+            feature[k] = json.loads(v)
+        except:
+            pass
+
+    results = qf.find_feat(retriever, timestamp, feature, remove_failed=False, system=system, match_snap_types=match_snap_types)
+    table = dash_table.DataTable(
+        data=get_task_list_from_dict(results),
+        columns=[{"name":"suite","id":"suite"}, {"name":"test","id":"test"}, {"name":"variant","id":"variant"}],
+        filter_action="native",
+        sort_action="native",
+        style_cell={
+            "textAlign": "center",
+            "maxWidth": "100%",
+            "whiteSpace": "normal",
+        },
+        style_table={"overflowX": "auto", "maxWidth": "100%", "minWidth": "600px", "margin": "auto"},
+    )
+    return html.Div(
+        [html.H4(f"{system} --- {feature}", style={"textAlign": "center"}), table],
+        style={"maxWidth": "100%", "margin": "auto"},
+    ), True
 
 
 @app.callback(
@@ -335,6 +382,7 @@ def display_cell_data(active_cell, table_data, timestamp):
         return "No data found for the selected cell."
 
     table = dash_table.DataTable(
+        id="coverage-feature-table",
         data=make_dict_table_friendly(features),
         columns=get_columns_from_list_of_dicts(features),
         filter_action="native",
@@ -350,6 +398,54 @@ def display_cell_data(active_cell, table_data, timestamp):
         [html.H4(f"{system} ---- {col_idx}:", style={"textAlign": "center"}), table],
         style={"maxWidth": "100%", "margin": "auto"},
     )
+
+
+
+@app.callback(
+    Output("coverage-modal-body", "children"),
+    Output("coverage-modal", "is_open"),
+    Input("coverage-feature-table", "active_cell"),
+    State("coverage-feature-table", "derived_viewport_data"),
+    State("coverage-matrix-table", "active_cell"),
+    State("coverage-matrix-table", "derived_viewport_data"),
+    State({"type": "timestamp-dropdown", "index": 4}, "value"),
+    State("match-snap-types", "on"),
+)
+def populate_tests_in_coverage_diff_cmds(active_cell, table_data, system_active_cell, system_table_data, timestamp, match_snap_types):
+    if not active_cell:
+        raise dash.exceptions.PreventUpdate
+
+    # Get the system name from the system matrix data
+    system = system_table_data[system_active_cell["row"]]["system"]
+
+    row_idx = active_cell["row"]
+    feature = copy.deepcopy(table_data[row_idx])
+    for k, v in feature.items():
+        try:
+            # Features with a snap type list like tasks and changes have been stringified
+            # for visualization purposes in the GUI. Change them back to lists of strings.
+            # All other field values that are not valid json can remain unaltered.
+            feature[k] = json.loads(v)
+        except:
+            pass
+
+    results = qf.find_feat(retriever, timestamp, feature, remove_failed=False, system=system, match_snap_types=match_snap_types)
+    table = dash_table.DataTable(
+        data=get_task_list_from_dict(results),
+        columns=[{"name":"suite","id":"suite"}, {"name":"test","id":"test"}, {"name":"variant","id":"variant"}],
+        filter_action="native",
+        sort_action="native",
+        style_cell={
+            "textAlign": "center",
+            "maxWidth": "100%",
+            "whiteSpace": "normal",
+        },
+        style_table={"overflowX": "auto", "maxWidth": "100%", "minWidth": "600px", "margin": "auto"},
+    )
+    return html.Div(
+        [html.H4(f"{system} --- {feature}", style={"textAlign": "center"}), table],
+        style={"maxWidth": "100%", "margin": "auto"},
+    ), True
 
 
 @app.callback(
@@ -539,7 +635,7 @@ def update_test_list(active_cell, table_data, timestamp, selected_feature):
     for p in processed:
         s = json.dumps(p)
         p["systems"] = "\n".join(sorted(sys_dict[s]))
-        p["systems"] = p["systems"].replace('-', '\u2011')
+        p["systems"] = p["systems"].replace('-', '_')
 
     return [
         html.H4(f"Tests that contain feature {feature}"),
