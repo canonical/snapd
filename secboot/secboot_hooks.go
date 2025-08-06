@@ -146,7 +146,7 @@ var setAuthorizedBootModesOnHooksKeydata = setAuthorizedBootModesOnHooksKeydataI
 
 // resealKeysWithFDESetupHookImpl updates hook based keydatas for given
 // files with a specific list of models
-func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []ModelForSealing, bootModes []string) error {
+func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, models []ModelForSealing, bootModes []string) error {
 	var sbModels []sb.SnapModel
 	for _, model := range models {
 		sbModels = append(sbModels, model)
@@ -182,7 +182,7 @@ func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyGetter fun
 		}
 
 		if primaryKey == nil {
-			pk, err := primaryKeyGetter()
+			pk, err := GetPrimaryKey(primaryKeyDevices, fallbackPrimaryKeyFiles)
 			if err != nil {
 				return err
 			}

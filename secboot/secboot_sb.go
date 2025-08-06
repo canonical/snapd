@@ -723,7 +723,7 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 
 	switch resealKind {
 	case tpmResealKind:
-		primaryKey, err := params.GetPrimaryKey()
+		primaryKey, err := GetPrimaryKey(params.PrimaryKeyDevices, params.FallbackPrimaryKeyFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -736,7 +736,7 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 		return resealKeysWithTPM(keyParams, params.NewPCRPolicyVersion)
 
 	case hookResealKind:
-		err = resealKeysWithFDESetupHook([]KeyDataLocation{key}, params.GetPrimaryKey, params.Models, params.BootModes)
+		err = resealKeysWithFDESetupHook([]KeyDataLocation{key}, params.PrimaryKeyDevices, params.FallbackPrimaryKeyFiles, params.Models, params.BootModes)
 		return nil, err
 
 	case noResealKind:

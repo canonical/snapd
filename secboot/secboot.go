@@ -283,9 +283,12 @@ const (
 )
 
 type ResealKeyParams struct {
-	// GetPrimaryKey returns the primary key. It is not called if
-	// not needed.
-	GetPrimaryKey func() ([]byte, error)
+	// PrimaryKeyDevices is the list of all devices that might
+	// have been unlocked and provides a primary key.
+	PrimaryKeyDevices []string
+	// FallbackPrimaryKeyFiles is the list of files that might contain
+	// the primary key.
+	FallbackPrimaryKeyFiles []string
 	// The allowed boot modes (run, recover, factory-reset)
 	BootModes []string
 	// The allowed models

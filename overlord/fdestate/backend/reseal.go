@@ -235,24 +235,22 @@ func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool, hintE
 		}
 	}
 
-	primaryKeyGetter := func() ([]byte, error) {
-		saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
-		fallbackPrimaryKeyFiles := []string{
-			filepath.Join(saveFDEDir, "aux-key"),
-			filepath.Join(saveFDEDir, "tpm-policy-auth-key"),
-		}
-		return secbootGetPrimaryKey(devices, fallbackPrimaryKeyFiles)
+	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
+	fallbackPrimaryKeyFiles := []string{
+		filepath.Join(saveFDEDir, "aux-key"),
+		filepath.Join(saveFDEDir, "tpm-policy-auth-key"),
 	}
 
 	var allResealedKeys secboot.UpdatedKeys
 	for _, key := range keys {
 		params := &secboot.ResealKeyParams{
-			GetPrimaryKey:       primaryKeyGetter,
-			BootModes:           key.params.BootModes,
-			Models:              key.params.Models,
-			TpmPCRProfile:       key.params.TpmPCRProfile,
-			NewPCRPolicyVersion: revokeOldKeys,
-			HintExpectFDEHook:   hintExpectFDEHook,
+			PrimaryKeyDevices:       devices,
+			FallbackPrimaryKeyFiles: fallbackPrimaryKeyFiles,
+			BootModes:               key.params.BootModes,
+			Models:                  key.params.Models,
+			TpmPCRProfile:           key.params.TpmPCRProfile,
+			NewPCRPolicyVersion:     revokeOldKeys,
+			HintExpectFDEHook:       hintExpectFDEHook,
 		}
 		resealedKeys, err := secbootResealKey(key.location, params)
 		if err != nil {
@@ -263,7 +261,7 @@ func doReseal(manager FDEStateManager, rootdir string, revokeOldKeys bool, hintE
 		}
 	}
 	if revokeOldKeys {
-		primaryKey, err := primaryKeyGetter()
+		primaryKey, err := secbootGetPrimaryKey(devices, fallbackPrimaryKeyFiles)
 		if err != nil {
 			return err
 		}
