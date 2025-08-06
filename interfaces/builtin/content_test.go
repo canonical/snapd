@@ -94,6 +94,23 @@ slots:
 	c.Assert(slot.Attrs["content"], IsNil)
 }
 
+func (s *ContentSuite) TestSanitizeSlotBadCompatibilityTag(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  compatibility: foo@-0
+  read:
+   - shared/read
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`config interface: compatibility label "foo@-0": bad string "foo@"`)
+	c.Assert(slot.Attrs["content"], IsNil)
+}
+
 func (s *ContentSuite) TestSanitizeSlotNoPaths(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
@@ -198,6 +215,22 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content-plug"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
+	c.Assert(plug.Attrs["content"], IsNil)
+}
+
+func (s *ContentSuite) TestSanitizePlugBadCompatibilityTag(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  compatibility: foo@-0
+  target: import
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`config interface: compatibility label "foo@-0": bad string "foo@"`)
 	c.Assert(plug.Attrs["content"], IsNil)
 }
 

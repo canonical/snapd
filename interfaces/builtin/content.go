@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
@@ -97,11 +98,25 @@ func setContentDefault(attrs map[string]any, nameDef string) {
 	}
 }
 
+func checkCompatLabel(attrs map[string]any) error {
+	compat, okCompat := attrs["compatibility"].(string)
+	if !okCompat || len(compat) == 0 {
+		return nil
+	}
+
+	_, err := compatibility.DecodeCompatField(compat, nil)
+	return err
+}
+
 func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if slot.Attrs == nil {
 		slot.Attrs = make(map[string]any)
 	}
 	setContentDefault(slot.Attrs, slot.Name)
+
+	if err := checkCompatLabel(slot.Attrs); err != nil {
+		return fmt.Errorf("config interface: %w", err)
+	}
 
 	// Error if "read" or "write" are present alongside "source".
 	if _, found := slot.Lookup("source"); found {
@@ -136,6 +151,10 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		plug.Attrs = make(map[string]any)
 	}
 	setContentDefault(plug.Attrs, plug.Name)
+
+	if err := checkCompatLabel(plug.Attrs); err != nil {
+		return fmt.Errorf("config interface: %w", err)
+	}
 
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
