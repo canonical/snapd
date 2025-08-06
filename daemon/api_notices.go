@@ -125,9 +125,10 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid timeout: %v", err)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
+	// State lock is not required to get or use the notice manager. The notice
+	// manager will decide whether it's necessary to query the state for
+	// notices, and if so, it is responsible for acquiring the state lock.
+	noticeMgr := c.d.overlord.NoticeManager()
 
 	var notices []*state.Notice
 
@@ -138,7 +139,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		ctx, cancel := context.WithTimeout(c.d.tomb.Context(r.Context()), timeout)
 		defer cancel()
 
-		notices, err = st.WaitNotices(ctx, filter)
+		notices, err = noticeMgr.WaitNotices(ctx, filter)
 		if errors.Is(err, context.Canceled) {
 			return InternalError("request canceled")
 		}
@@ -149,7 +150,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	} else {
 		// No timeout given, fetch currently-available notices
-		notices = st.Notices(filter)
+		notices = noticeMgr.Notices(filter)
 	}
 
 	if notices == nil {
@@ -167,7 +168,7 @@ func uidFromRequest(r *http.Request) (uint32, error) {
 	return cred.Uid, nil
 }
 
-// Construct the user IDs filter which will be passed to state.Notices.
+// Construct the user IDs filter which will be passed to noticeMgr.Notices.
 // Must only be called if the query user ID argument is set.
 func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 	userIDStrs := strutil.MultiCommaSeparatedList(queryUserID)
@@ -185,7 +186,7 @@ func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 	return &userID, nil
 }
 
-// Construct the types filter which will be passed to state.Notices.
+// Construct the types filter which will be passed to noticeMgr.Notices.
 func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.NoticeType, error) {
 	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
 	alreadySeen := make(map[state.NoticeType]bool, len(typeStrs))
@@ -319,10 +320,8 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot determine UID of request, so cannot retrieve notice")
 	}
 	noticeID := muxVars(r)["id"]
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-	notice := st.Notice(noticeID)
+	noticeMgr := c.d.overlord.NoticeManager()
+	notice := noticeMgr.Notice(noticeID)
 	if notice == nil {
 		return NotFound("cannot find notice with id %q", noticeID)
 	}

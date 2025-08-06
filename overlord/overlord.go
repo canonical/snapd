@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -115,6 +116,7 @@ type Overlord struct {
 	cmdMgr     *cmdstate.CommandManager
 	shotMgr    *snapshotstate.SnapshotManager
 	fdeMgr     *fdestate.FDEManager
+	noticeMgr  *notices.NoticeManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -136,6 +138,8 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	o.noticeMgr = notices.NewNoticeManager(s)
 
 	o.stateEng = NewStateEngine(s)
 	o.runner = state.NewTaskRunner(s)
@@ -692,6 +696,12 @@ func (o *Overlord) FDEManager() *fdestate.FDEManager {
 // SnapshotManager returns the manager responsible for snapshots.
 func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 	return o.shotMgr
+}
+
+// NoticeManager returns the notice manager responsible for mediating requests
+// for notices across all notice backends.
+func (o *Overlord) NoticeManager() *notices.NoticeManager {
+	return o.noticeMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
