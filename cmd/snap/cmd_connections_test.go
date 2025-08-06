@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -643,7 +644,15 @@ func (s *SnapSuite) TestConnectionsSorting(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
+func (s *SnapSuite) TestConnectionsDefiningContentAttribute(c *C) {
+	s.testConnectionsDefiningAttribute(c, "content")
+}
+
+func (s *SnapSuite) TestConnectionsDefiningCompatibilityAttribute(c *C) {
+	s.testConnectionsDefiningAttribute(c, "compatibility")
+}
+
+func (s *SnapSuite) testConnectionsDefiningAttribute(c *C, attr string) {
 	result := client.Connections{
 		Established: []client.Connection{
 			{
@@ -651,11 +660,11 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 				Slot:      client.SlotRef{Snap: "a-content-provider", Name: "data"},
 				Interface: "content",
 				PlugAttrs: map[string]any{
-					"content": "plug-some-data",
-					"target":  "$SNAP/foo",
+					attr:     attr + "-plug-some-data",
+					"target": "$SNAP/foo",
 				},
 				SlotAttrs: map[string]any{
-					"content": "slot-some-data",
+					attr: attr + "-slot-some-data",
 					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
@@ -669,7 +678,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					"target": "$SNAP/foo",
 				},
 				SlotAttrs: map[string]any{
-					"content": "slot-some-data",
+					attr: attr + "-slot-some-data",
 					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
@@ -716,8 +725,8 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Name: "data",
 				}},
 				Attrs: map[string]any{
-					"content": "plug-some-data",
-					"target":  "$SNAP/foo",
+					attr:     attr + "-plug-some-data",
+					"target": "$SNAP/foo",
 				},
 			}, {
 				Snap:      "foo",
@@ -771,7 +780,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Name: "a-plug",
 				}},
 				Attrs: map[string]any{
-					"content": "slot-some-data",
+					attr: attr + "-slot-some-data",
 					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
@@ -785,7 +794,7 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 					Name: "a-plug",
 				}},
 				Attrs: map[string]any{
-					"content": "slot-some-data",
+					attr: attr + "-slot-some-data",
 					"source": map[string]any{
 						"read": []string{"$SNAP/bar"},
 					},
@@ -841,13 +850,14 @@ func (s *SnapSuite) TestConnectionsDefiningAttribute(c *C) {
 	rest, err := Parser(Client()).ParseArgs([]string{"connections", "--all"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
+	spaces := strings.Repeat(" ", len(attr))
 	expectedStdout := "" +
-		"Interface                Plug              Slot                     Notes\n" +
-		"content[plug-some-data]  foo:a-plug        a-content-provider:data  -\n" +
-		"content[slot-some-data]  foo:b-plug        b-content-provider:data  -\n" +
-		"content                  foo:c-plug        c-content-provider:data  -\n" +
-		"content                  foo:d-plug        d-content-provider:data  -\n" +
-		"desktop                  foo:desktop-plug  :desktop                 -\n"
+		"Interface " + spaces + "                Plug              Slot                     Notes\n" +
+		"content[" + attr + "-plug-some-data]  foo:a-plug        a-content-provider:data  -\n" +
+		"content[" + attr + "-slot-some-data]  foo:b-plug        b-content-provider:data  -\n" +
+		"content " + spaces + "                  foo:c-plug        c-content-provider:data  -\n" +
+		"content " + spaces + "                  foo:d-plug        d-content-provider:data  -\n" +
+		"desktop " + spaces + "                  foo:desktop-plug  :desktop                 -\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
