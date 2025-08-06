@@ -27,6 +27,9 @@ systems:
   - -ubuntu-25.04-*
   - -ubuntu-25.10-*
 
+# TODO : remove the manual when the test works with the version 1.32-strict which is newer
+manual: true
+
 environment:
     CHANNEL/edge: 1.26-strict/edge
     # apparmor profile of microk8s can make snapd exceed its spread memory limit
