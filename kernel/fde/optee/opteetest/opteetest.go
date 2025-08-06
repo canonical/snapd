@@ -25,7 +25,7 @@ type MockClient struct {
 	DecryptKeyFn func(input []byte, handle []byte) ([]byte, error)
 	EncryptKeyFn func(input []byte) (handle []byte, sealed []byte, err error)
 	LockFn       func() error
-	VersionFn    func() (string, error)
+	VersionFn    func() (int, error)
 }
 
 func (m *MockClient) Present() bool {
@@ -56,7 +56,7 @@ func (m *MockClient) Lock() error {
 	return m.LockFn()
 }
 
-func (m *MockClient) Version() (string, error) {
+func (m *MockClient) Version() (int, error) {
 	if m.VersionFn == nil {
 		panic("unexpected call to Version")
 	}

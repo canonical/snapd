@@ -46,7 +46,7 @@ type FDETAClient interface {
 	Lock() error
 
 	// Version returns the version of the FDE TA.
-	Version() (string, error)
+	Version() (int, error)
 }
 
 // NewFDETAClient returns a new [FDETAClient].
