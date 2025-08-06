@@ -1,0 +1,22 @@
+summary: observe how propagation traverses to peers that share a subset of a fs
+details: |
+    A shared file system is mounted on a, with two additional directories a/1 and a/2.
+    The b directory is a bind mount of a/1. A pair of file systems are then mounted on
+    a/1 and a/2. How are those events propagated to b?
+prepare: |
+    mkdir a b
+    mount -t tmpfs tmpfs-a a
+    mount --make-shared a
+    mkdir a/1 a/2
+    mount --bind a/1 b
+    mount -t tmpfs tmpfs-a-1 a/1
+    mount -t tmpfs tmpfs-a-2 a/2
+restore: |
+    umount -l a
+    umount -l b
+    rmdir a b
+debug: |
+    tail -n 5 /proc/self/mountinfo
+execute: |
+    tail -n 5 /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../root-dir-mount-point-optional-fields-and-source.awk >actual.txt
+    diff -u actual.txt expected.txt

@@ -1,0 +1,5 @@
+/ /a shared:42 - tmpfs-a
+/1 /b shared:42 - tmpfs-a
+/ /a/1 shared:43 - tmpfs-a-1
+/ /b shared:43 - tmpfs-a-1
+/ /a/2 shared:44 - tmpfs-a-2
