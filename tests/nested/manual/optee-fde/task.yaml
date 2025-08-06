@@ -35,14 +35,14 @@ prepare: |
     gadget_revision=""
     if [ "${KEY_PROTECTOR}" = "optee" ]; then
         kernel_name="test-qemu-optee-kernel"
-        kernel_revision=2
+        kernel_revision=3
         gadget_name="test-qemu-optee-gadget"
-        gadget_revision=5
+        gadget_revision=6
     else
         kernel_name="test-qemu-fde-hooks-kernel"
-        kernel_revision=2
+        kernel_revision=3
         gadget_name="test-qemu-fde-hooks-gadget"
-        gadget_revision=3
+        gadget_revision=4
     fi
 
     tests.pkgs install u-boot-tools
