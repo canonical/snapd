@@ -512,6 +512,20 @@ backends:
         environment: *openstack-ps7-env
         systems: *openstack-ps7-systems
 
+    openstack-ext-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        plan: shared.medium
+        storage: 30G
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.96.0/21:5000]
+        volume-auto-delete: true
+        environment: *openstack-ps7-env
+        systems: *openstack-ps7-systems
+
     openstack-arm-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
@@ -541,6 +555,19 @@ backends:
                 image: snapd-spread/ubuntu-24.04-arm-64-uefi
                 workers: 8
 
+    openstack-arm-ext-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
+        plan: shared.medium.arm64
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.89.0/24:8000]
+        volume-auto-delete: true
+        environment: *openstack-ps7-env
+        systems: *openstack-arm-systems
+
     openstack-arm-dev-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
@@ -554,19 +581,6 @@ backends:
         environment: *openstack-ps7-env
         systems: *openstack-arm-systems
 
-    openstack-arm-ext-ps7:
-        type: openstack
-        key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
-        plan: shared.large.arm64
-        halt-timeout: 2h
-        wait-timeout: 5m
-        groups: [default]
-        proxy: ingress-haproxy.ps7.canonical.com
-        cidr-port-rel: [10.151.89.0/24:8000]
-        volume-auto-delete: true
-        environment: *openstack-ps7-env
-        systems: *openstack-arm-systems
-        
     qemu-nested:
         memory: 4G
         type: qemu
@@ -1557,6 +1571,8 @@ suites:
             - qemu-nested
             - google-nested-arm
             - garden
+            - openstack-ext-ps7
+            - openstack-arm-ext-ps7
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1581,6 +1597,10 @@ suites:
         warn-timeout: 10m
         kill-timeout: 60m
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            setup_system_proxy
+
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
@@ -1608,6 +1628,7 @@ suites:
                 . "$TESTSLIB"/core-initrd.sh
                 build_and_install_initramfs_deb
             fi
+
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
@@ -1630,6 +1651,8 @@ suites:
             - google-nested-dev
             - qemu-nested
             - google-nested-arm
+            - openstack-ext-ps7
+            - openstack-arm-ext-ps7
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1644,6 +1667,10 @@ suites:
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            setup_system_proxy
+
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
@@ -1686,6 +1713,8 @@ suites:
             - google-nested-dev
             - qemu-nested
             - google-nested-arm
+            - openstack-ext-ps7
+            - openstack-arm-ext-ps7
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1704,6 +1733,10 @@ suites:
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
         manual: true
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            setup_system_proxy
+
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
@@ -1748,7 +1781,13 @@ suites:
 
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
-        backends: [google-nested, google-nested-dev, qemu-nested]
+        backends:
+            - google-nested
+            - google-nested-dev
+            - qemu-nested
+            - google-nested-arm
+            - openstack-ext-ps7
+            - openstack-arm-ext-ps7
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1774,6 +1813,10 @@ suites:
         warn-timeout: 10m
         kill-timeout: 60m
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            setup_system_proxy
+
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies

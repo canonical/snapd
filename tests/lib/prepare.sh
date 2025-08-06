@@ -812,6 +812,10 @@ EOF
 
     cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        cp /etc/environment "${UNPACK_DIR}"/etc/environment
+    fi
+
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf "$UNPACK_DIR"
