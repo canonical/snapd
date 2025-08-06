@@ -460,6 +460,8 @@ type confdbSuite struct {
 
 	mockContext *hookstate.Context
 	mockHandler *hooktest.MockHandler
+
+	repo *interfaces.Repository
 }
 
 var _ = Suite(&confdbSuite{})
@@ -541,11 +543,11 @@ func (s *confdbSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 
-	repo := interfaces.NewRepository()
-	ifacerepo.Replace(s.state, repo)
+	s.repo = interfaces.NewRepository()
+	ifacerepo.Replace(s.state, s.repo)
 
 	regIface := &ifacetest.TestInterface{InterfaceName: "confdb"}
-	err = repo.AddInterface(regIface)
+	err = s.repo.AddInterface(regIface)
 	c.Assert(err, IsNil)
 
 	snapYaml := fmt.Sprintf(`name: test-snap
@@ -571,7 +573,7 @@ plugs:
 
 	appSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
-	err = repo.AddAppSet(appSet)
+	err = s.repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 
 	const coreYaml = `name: core
@@ -586,15 +588,17 @@ slots:
 	coreSet, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
-	err = repo.AddAppSet(coreSet)
+	err = s.repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
-	ref := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "test-snap", Name: "read-wifi"},
-		SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
+	for _, plugName := range []string{"read-wifi", "write-wifi", "other"} {
+		ref := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: "test-snap", Name: plugName},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
+		}
+		_, err = s.repo.Connect(ref, nil, nil, nil, nil, nil)
+		c.Assert(err, IsNil)
 	}
-	_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
 
 	s.setConfdbFlag(true, c)
 }
@@ -986,6 +990,43 @@ func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--previous", ":other", "foo"}, 0)
 	c.Assert(err.Error(), Equals, "cannot use --previous without --view")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
+
+func (s *confdbSuite) TestConfdbAccessUnconnectedPlug(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
+	c.Assert(err, IsNil)
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+		c.Fatal("should not allow access to confdb")
+		return tx, nil
+	})
+	defer restore()
+
+	for _, plugName := range []string{"read-wifi", "write-wifi", "other"} {
+		err := s.repo.Disconnect("test-snap", plugName, "core", "confdb-slot")
+		c.Assert(err, IsNil)
+	}
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", ":read-wifi"}, 0)
+	c.Assert(err, ErrorMatches, "cannot access confdb through unconnected plug :read-wifi")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=my-ssid"}, 0)
+	c.Assert(err, ErrorMatches, "cannot access confdb through unconnected plug :write-wifi")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+
+	stdout, stderr, err = ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid"}, 0)
+	c.Assert(err, ErrorMatches, "cannot access confdb through unconnected plug :write-wifi")
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }

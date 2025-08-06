@@ -439,7 +439,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map
 		// TODO: if a snap has more than one plug providing access to a view, then
 		// which plug we're getting here becomes unpredictable. We should check
 		// for this at some point (interface connection?)
-		custodianPlugs[plug.Snap.SnapName()] = plug
+		custodianPlugs[plug.Snap.InstanceName()] = plug
 		custodians = append(custodians, plug.Snap.InstanceName())
 	}
 
