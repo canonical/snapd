@@ -229,29 +229,25 @@ func (c *opteeClient) Lock() error {
 	return invoke(C.fde_ta_uuid, C.TA_CMD_LOCK, op)
 }
 
-func (c *opteeClient) Version() (string, error) {
+func (c *opteeClient) Version() (int, error) {
 	// parameters:
-	// - output parameter containing the version string
+	// - output parameter containing the version
 	// - none
 	// - none
 	// - none
-	params := teecParamTypes(C.TEEC_MEMREF_TEMP_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE)
+	params := teecParamTypes(C.TEEC_VALUE_OUTPUT, C.TEEC_NONE, C.TEEC_NONE, C.TEEC_NONE)
 	op := &C.TEEC_Operation{
 		started:    1,
 		paramTypes: params,
 	}
 
-	versionMemRef, free := addMemRefToOp(op, 0, make([]byte, 256))
-	defer free()
+	value := unionAsType[C.TEEC_Value](&op.params[0])
 
-	if err := invoke(C.fde_ta_uuid, C.TA_CMD_VERSION, op); err != nil {
-		return "", err
+	if err := invoke(C.fde_ta_uuid, C.TA_CMD_TA_VERSION, op); err != nil {
+		return 0, err
 	}
 
-	// version is a string, but no null terminator is included in the buffer
-	version := C.GoBytes(versionMemRef.buffer, C.int(versionMemRef.size))
-
-	return string(version), nil
+	return int(value.a), nil
 }
 
 func newFDETAClient() FDETAClient {

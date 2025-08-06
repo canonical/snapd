@@ -1,12 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause
  *
- * Copyright Canonical Ltd.
- */
-
-/*
  * This file lives in https://github.com/canonical/optee-uc-fde and an identical
  * copy is kept in https://github.com/canonica/snapd. Updating the original file
  * requires that the copy in the snapd repo is also updated.
+ *
+ * Copyright 2025, Canonical Ltd.
  */
 
 #ifndef FDE_KEY_HANDLER_TA_TYPE_H_
@@ -22,6 +20,9 @@
 #define MAX_BUF_SIZE    512
 #define HANDLE_SIZE     65  // (version)(1), IV(16), NONCE(32), TAG(16)
 
+/* TA version allowing tracking of future functionality changes */
+#define FDE_TA_VERSION_V1   0x00010001
+
 /* Define the command index in this TA */
 
 /*
@@ -30,13 +31,13 @@
  * Key handle is randomply generated at key derivation
  * - TEE_PARAM_TYPE_MEMREF_INPUT
  *    params[0].memref.buffer: plain key buffer
- *    params[0].memref.size: length of the buffer
+ *    params[0].memref.size: lenght of the buffer
  * - TEE_PARAM_TYPE_MEMREF_OUTPUT
  *    params[1].memref.buffer: returned key handle
- *    params[1].memref.size: length of the buffer
+ *    params[1].memref.size: lenght of the buffer
  * - TEE_PARAM_TYPE_MEMREF_OUTPUT
  *    params[2].memref.buffer: returned encrypted key
- *    params[2].memref.size: length of the buffer
+ *    params[2].memref.size: lenght of the buffer
  */
 #define TA_CMD_KEY_ENCRYPT            1U
 
@@ -44,13 +45,13 @@
  * TA_CMD_KEY_DECRYPT have 3 parameters
  * - TEE_PARAM_TYPE_MEMREF_INPUT
  *    params[0].memref.buffer:  encrypted key buffer
- *    params[0].memref.size: length of the string
+ *    params[0].memref.size: lenght of the string
  * - TEE_PARAM_TYPE_MEMREF_INPUT
  *    params[1].memref.buffer: key handle
- *    params[1].memref.size: length of the buffer
+ *    params[1].memref.size: lenght of the buffer
  * - TEE_PARAM_TYPE_MEMREF_OUTPUT
  *    params[2].memref.buffer: returned decrypted key buffer
- *    params[2].memref.size: length of the buffer
+ *    params[2].memref.size: lenght of the buffer
  */
 #define TA_CMD_KEY_DECRYPT            2U
 
@@ -72,18 +73,18 @@
  * TA_CMD_GEN_RANDOM generate random data
  * Generates rand data of given length
  * - TEE_PARAM_TYPE_MEMREF_OUTPUT
- *    params[1].memref.buffer: buffer to be filled with random data
- *    params[1].memref.size: length of the buffer
+ *    params[0].memref.buffer: buffer to be filled with random data
+ *    params[0].memref.size: lenght of the buffer
  */
 #define TA_CMD_GEN_RANDOM             5U
 
 /*
- * TA_CMD_VERSION reports the version of the TA
+ * TA_CMD_VERSION return TA version
+ * Return the version of TA
  * - TEE_PARAM_TYPE_MEMREF_OUTPUT
- *    params[1].memref.buffer: buffer to be filled with the version string; the string is not null terminated
- *    params[1].memref.size: length of the buffer
+ *    params[0].value.a: TA version as int
  */
-#define TA_CMD_VERSION             6U
+#define TA_CMD_TA_VERSION                6U
 
 /* Define the debug flag */
 #define DEBUG
