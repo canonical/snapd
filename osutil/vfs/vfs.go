@@ -363,8 +363,9 @@ func (m *mount) String() string {
 	var sb strings.Builder
 
 	var (
-		major = 0
-		minor = 0
+		major  int
+		minor  int
+		source string
 	)
 
 	// This interface is not implemented by anything in practice but tests
@@ -373,11 +374,18 @@ func (m *mount) String() string {
 		major, minor = fs.MajorMinor()
 	}
 
+	if fs, ok := m.fsFS.(interface{ Source() string }); ok {
+		source = fs.Source()
+	}
+
+	if source == "" {
+		source = "(source)"
+	}
+
 	const (
 		mountOpts = "rw"
 		sbOpts    = "rw"
 		fsType    = "(fstype)"
-		source    = "(source)"
 	)
 	// TODO: propagation flags here
 	fmt.Fprintf(&sb, "%-2d %d %d:%d /%s /%s %s", m.mountID, m.parentID, major, minor, m.rootDir, m.mountPoint(), mountOpts)
