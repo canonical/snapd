@@ -47,11 +47,15 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Restore mock cache
-      uses: actions/cache@v3
+    - name: Create cache key
+      # Force a cache refresh once a week by using the year and week number as part of the cache key
+      run: echo "CACHE_KEY=mock-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
+
+    - name: Cache mock dependencies
+      uses: actions/cache@v4
       with:
         path: /tmp/mock
-        key: mock-cache-${{ inputs.system }}
+        key: ${{ env.CACHE_KEY }}
 
     - name: Run mock inside container
       run: |
@@ -75,13 +79,6 @@ jobs:
         find /tmp/builds -name '*.src.rpm' -delete
         cd /tmp/builds
         find . -name '*.rpm' -exec tar cvf package-${{ inputs.system }}.tar {} +
-
-    - name: Save mock cache
-      if: always()
-      uses: actions/cache@v3
-      with:
-        path: /tmp/mock
-        key: mock-cache-${{ inputs.system }}
 
     - name: Check logs if build failed
       if: failure()
