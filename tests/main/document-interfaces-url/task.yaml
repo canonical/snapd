@@ -16,7 +16,7 @@ execute: |
 
         for _ in $(seq $num_retries); do
             # Make a HEAD request to the URL and capture the HTTP status code
-            status_code=$(curl -I -o /dev/null -s -w "%{http_code}\n" --connect-timeout 10 "$url")
+            status_code=$(curl --retry 5 --retry-connrefused -I -o /dev/null -s -w "%{http_code}\n" -k -L --connect-timeout 10 "$url")
 
             # If the status code is 2xx the url is ok
             if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
@@ -38,7 +38,7 @@ execute: |
         # If status code 4xx is returned then the page is not found, return error
         return 1
     }
-     
+
     # The exclusion_map contains interfaces that are missing              
     # documentation. Each key is the name of the interface, while its    
     # value is the date by which it should have a working URL.           
