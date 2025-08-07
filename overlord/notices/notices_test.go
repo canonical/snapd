@@ -166,8 +166,9 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 	// Send empty notices over bknd.noticesChan so registration doesn't block
 	// trying to get notices to update last notice timestamp
 	bknd.noticesChan <- nil
-	validateNotice1, err := nm.RegisterBackend(bknd, typ1, namespace1)
+	validateNotice1, drained, err := nm.RegisterBackend(bknd, typ1, namespace1, false)
 	c.Assert(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter := <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
@@ -183,8 +184,9 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 	// Send empty notices over bknd.noticesChan so registration doesn't block
 	// trying to get notices to update last notice timestamp
 	bknd.noticesChan <- nil
-	validateNotice2, err := nm.RegisterBackend(bknd, typ2, namespace2)
+	validateNotice2, drained, err := nm.RegisterBackend(bknd, typ2, namespace2, true)
 	c.Assert(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter = <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
@@ -201,8 +203,9 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 	bknd2.noticesChan <- nil
 
 	namespace3 := "baz"
-	validateNotice3, err := nm.RegisterBackend(bknd2, typ2, namespace3)
+	validateNotice3, drained, err := nm.RegisterBackend(bknd2, typ2, namespace3, false)
 	c.Assert(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter = <-bknd2.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
@@ -262,8 +265,9 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 	currLast := nm.NextNoticeTimestamp()
 	c.Assert(currLast.Before(time1), Equals, true)
 
-	_, err := nm.RegisterBackend(bknd1, typ, ns1)
+	_, drained, err := nm.RegisterBackend(bknd1, typ, ns1, true)
 	c.Check(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter := <-bknd1.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
@@ -272,8 +276,9 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 	currLast = nm.NextNoticeTimestamp()
 	c.Assert(currLast.Equal(time1.Add(time.Nanosecond)), Equals, true)
 
-	_, err = nm.RegisterBackend(bknd2, typ, ns2)
+	_, drained, err = nm.RegisterBackend(bknd2, typ, ns2, false)
 	c.Check(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter = <-bknd2.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
@@ -284,8 +289,9 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 	c.Assert(newLast.Equal(currLast.Add(time.Nanosecond)), Equals, true)
 	currLast = newLast
 
-	_, err = nm.RegisterBackend(bknd3, typ, ns3)
+	_, drained, err = nm.RegisterBackend(bknd3, typ, ns3, true)
 	c.Check(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter = <-bknd3.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
@@ -296,8 +302,9 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 	c.Assert(newLast.Equal(currLast.Add(time.Nanosecond)), Equals, true)
 	currLast = newLast
 
-	_, err = nm.RegisterBackend(bknd4, typ, ns4)
+	_, drained, err = nm.RegisterBackend(bknd4, typ, ns4, false)
 	c.Check(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter = <-bknd4.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ},
@@ -306,6 +313,111 @@ func (s *noticesSuite) TestRegisterBackendReportLastNoticeTimestamp(c *C) {
 	// Notice had later timestamp, so timestamp should be 1ns later than time4
 	newLast = nm.NextNoticeTimestamp()
 	c.Assert(newLast.Equal(time4.Add(time.Nanosecond)), Equals, true)
+}
+
+func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
+	uid := uint32(1000)
+
+	// Create some notices before creating the manager
+	s.st.Lock()
+	id1, err := s.st.AddNotice(&uid, state.WarningNotice, "foo", nil)
+	c.Assert(err, IsNil)
+	id2, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "bar", nil)
+	c.Assert(err, IsNil)
+	s.st.Unlock()
+
+	nm := notices.NewNoticeManager(s.st)
+
+	// Create some notices after creating the manager
+	s.st.Lock()
+	id3, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "baz", nil)
+	c.Assert(err, IsNil)
+	id4, err := s.st.AddNotice(&uid, state.WarningNotice, "qux", nil)
+	c.Assert(err, IsNil)
+	s.st.Unlock()
+
+	existing := nm.Notices(nil)
+	c.Assert(existing, HasLen, 4)
+	c.Assert(existing[0].ID(), Equals, id1)
+	c.Assert(existing[0].Key(), Equals, "foo")
+	c.Assert(existing[1].ID(), Equals, id2)
+	c.Assert(existing[1].Key(), Equals, "bar")
+	c.Assert(existing[2].ID(), Equals, id3)
+	c.Assert(existing[2].Key(), Equals, "baz")
+	c.Assert(existing[3].ID(), Equals, id4)
+	c.Assert(existing[3].Key(), Equals, "qux")
+
+	// Register a backend without draining notices
+	bknd1 := newTestNoticeBackend()
+	// Send empty notices over noticesChan so registration doesn't block
+	// trying to get notices to update last notice timestamp
+	bknd1.noticesChan <- nil
+	_, drained, err := nm.RegisterBackend(bknd1, state.WarningNotice, "something", false)
+	c.Check(err, IsNil)
+	c.Check(drained, HasLen, 0)
+
+	// Check that the state still has all notices
+	bknd1.noticesChan <- nil
+	result := nm.Notices(nil)
+	c.Check(result, HasLen, 4)
+	<-bknd1.noticesFilterChan
+	s.st.Lock()
+	result = s.st.Notices(nil)
+	s.st.Unlock()
+	c.Check(result, HasLen, 4)
+
+	// Register a backend and do drain notices
+	bknd2 := newTestNoticeBackend()
+	bknd2.noticesChan <- nil
+	_, drained, err = nm.RegisterBackend(bknd2, state.WarningNotice, "another", true)
+	c.Assert(err, IsNil)
+	c.Assert(drained, HasLen, 2)
+	c.Check(drained[0].ID(), Equals, id1)
+	c.Check(drained[0].Key(), Equals, "foo")
+	c.Check(drained[1].ID(), Equals, id4)
+	c.Check(drained[1].Key(), Equals, "qux")
+
+	// Check that the notices were successfully removed from state
+	bknd1.noticesChan <- nil
+	bknd2.noticesChan <- nil
+	result = nm.Notices(nil)
+	c.Assert(result, HasLen, 2)
+	c.Check(result[0].ID(), Equals, id2)
+	c.Check(result[0].Key(), Equals, "bar")
+	c.Check(result[1].ID(), Equals, id3)
+	c.Check(result[1].Key(), Equals, "baz")
+	<-bknd1.noticesFilterChan
+	<-bknd2.noticesFilterChan
+	s.st.Lock()
+	result = s.st.Notices(nil)
+	s.st.Unlock()
+	c.Check(result, HasLen, 2)
+
+	// Register a different backend and try to drain notices, but they've
+	// already been drained, so drained is empty.
+	bknd3 := newTestNoticeBackend()
+	bknd3.noticesChan <- nil
+	_, drained, err = nm.RegisterBackend(bknd3, state.WarningNotice, "different", true)
+	c.Check(err, IsNil)
+	c.Check(drained, HasLen, 0)
+
+	// Check that the notices are unchanged
+	bknd1.noticesChan <- nil
+	bknd2.noticesChan <- nil
+	bknd3.noticesChan <- nil
+	result = nm.Notices(nil)
+	c.Assert(result, HasLen, 2)
+	c.Check(result[0].ID(), Equals, id2)
+	c.Check(result[0].Key(), Equals, "bar")
+	c.Check(result[1].ID(), Equals, id3)
+	c.Check(result[1].Key(), Equals, "baz")
+	<-bknd1.noticesFilterChan
+	<-bknd2.noticesFilterChan
+	<-bknd3.noticesFilterChan
+	s.st.Lock()
+	result = s.st.Notices(nil)
+	s.st.Unlock()
+	c.Check(result, HasLen, 2)
 }
 
 func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
@@ -321,9 +433,10 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 	namespace1 := "foo"
 	typ1 := state.WarningNotice
 
-	validate, err := nm.RegisterBackend(bknd1, typ1, "")
+	validate, drained, err := nm.RegisterBackend(bknd1, typ1, "", false)
 	c.Assert(err, ErrorMatches, "internal error: cannot register notice backend with empty namespace")
 	c.Assert(validate, IsNil)
+	c.Assert(drained, HasLen, 0)
 	select {
 	case filter := <-bknd1.noticesFilterChan:
 		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
@@ -331,17 +444,19 @@ func (s *noticesSuite) TestRegisterBackendErrors(c *C) {
 		// all good
 	}
 
-	validate, err = nm.RegisterBackend(bknd1, typ1, namespace1)
+	validate, drained, err = nm.RegisterBackend(bknd1, typ1, namespace1, false)
 	c.Assert(err, IsNil)
 	c.Assert(validate, NotNil)
+	c.Assert(drained, HasLen, 0)
 	filter := <-bknd1.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
 	})
 
-	validate, err = nm.RegisterBackend(bknd2, typ1, namespace1)
+	validate, drained, err = nm.RegisterBackend(bknd2, typ1, namespace1, false)
 	c.Assert(err, ErrorMatches, "internal error: cannot register notice backend with namespace which is already registered to a different backend: .*")
 	c.Assert(validate, IsNil)
+	c.Assert(drained, HasLen, 0)
 	select {
 	case filter := <-bknd2.noticesFilterChan:
 		c.Errorf("Unexpectedly called BackendNotices even though registration failed: %+v", filter)
@@ -364,8 +479,9 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	// Send empty notices over bknd.noticesChan so registration doesn't block
 	// trying to get notices to update last notice timestamp
 	bknd.noticesChan <- nil
-	validateNotice1, err := nm.RegisterBackend(bknd, typ1, namespace1)
+	validateNotice1, drained, err := nm.RegisterBackend(bknd, typ1, namespace1, false)
 	c.Assert(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter := <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ1},
@@ -376,8 +492,9 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	// Send empty notices over bknd.noticesChan so registration doesn't block
 	// trying to get notices to update last notice timestamp
 	bknd.noticesChan <- nil
-	validateNotice2, err := nm.RegisterBackend(bknd, typ2, namespace2)
+	validateNotice2, drained, err := nm.RegisterBackend(bknd, typ2, namespace2, true)
 	c.Assert(err, IsNil)
+	c.Check(drained, HasLen, 0)
 	filter = <-bknd.noticesFilterChan
 	c.Check(filter, DeepEquals, &state.NoticeFilter{
 		Types: []state.NoticeType{typ2},
@@ -434,11 +551,11 @@ func (s *noticesSuite) TestRelevantBackendsForFilter(c *C) {
 	typ2 := state.WarningNotice
 	typ3 := state.ChangeUpdateNotice
 
-	_, err := nm.RegisterBackend(bknd1, typ1, "1")
+	_, _, err := nm.RegisterBackend(bknd1, typ1, "1", false)
 	c.Assert(err, IsNil)
-	_, err = nm.RegisterBackend(bknd2, typ2, "2")
+	_, _, err = nm.RegisterBackend(bknd2, typ2, "2", false)
 	c.Assert(err, IsNil)
-	_, err = nm.RegisterBackend(bknd3, typ3, "3")
+	_, _, err = nm.RegisterBackend(bknd3, typ3, "3", false)
 	c.Assert(err, IsNil)
 
 	filter := <-bknd1.noticesFilterChan
@@ -639,20 +756,20 @@ func (s *noticesSuite) TestNotices(c *C) {
 	bknd3 := newTestNoticeBackend()
 
 	bknd1.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd1, state.WarningNotice, "foo")
+	_, _, err = nm.RegisterBackend(bknd1, state.WarningNotice, "foo", false)
 	c.Assert(err, IsNil)
 	<-bknd1.noticesFilterChan
 	// Register bknd2 for two notice types
 	bknd2.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar")
+	_, _, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar", false)
 	c.Assert(err, IsNil)
 	<-bknd2.noticesFilterChan
 	bknd2.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd2, state.ChangeUpdateNotice, "baz")
+	_, _, err = nm.RegisterBackend(bknd2, state.ChangeUpdateNotice, "baz", false)
 	c.Assert(err, IsNil)
 	<-bknd2.noticesFilterChan
 	bknd3.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "qux")
+	_, _, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "qux", false)
 	c.Assert(err, IsNil)
 	<-bknd3.noticesFilterChan
 
@@ -736,13 +853,13 @@ func (s *noticesSuite) TestNotice(c *C) {
 	bknd3.noticesChan <- nil
 	bknd4.noticesChan <- nil
 
-	_, err = nm.RegisterBackend(bknd1, state.WarningNotice, "foo")
+	_, _, err = nm.RegisterBackend(bknd1, state.WarningNotice, "foo", false)
 	c.Assert(err, IsNil)
-	_, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar")
+	_, _, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar", false)
 	c.Assert(err, IsNil)
-	_, err = nm.RegisterBackend(bknd3, state.WarningNotice, "baz")
+	_, _, err = nm.RegisterBackend(bknd3, state.WarningNotice, "baz", false)
 	c.Assert(err, IsNil)
-	_, err = nm.RegisterBackend(bknd4, state.WarningNotice, "qux")
+	_, _, err = nm.RegisterBackend(bknd4, state.WarningNotice, "qux", false)
 	c.Assert(err, IsNil)
 
 	queryID := "baz-123"
@@ -788,20 +905,20 @@ func (s *noticesSuite) prepareTestWaitNotices(c *C) (*notices.NoticeManager, []*
 	backends := []*testNoticeBackend{bknd1, bknd2, bknd3}
 
 	bknd1.noticesChan <- nil
-	_, err := nm.RegisterBackend(bknd1, state.WarningNotice, "foo")
+	_, _, err := nm.RegisterBackend(bknd1, state.WarningNotice, "foo", false)
 	c.Assert(err, IsNil)
 	<-bknd1.noticesFilterChan
 	// Register bknd2 for two notice types
 	bknd2.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar")
+	_, _, err = nm.RegisterBackend(bknd2, state.WarningNotice, "bar", false)
 	c.Assert(err, IsNil)
 	<-bknd2.noticesFilterChan
 	bknd2.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd2, state.ChangeUpdateNotice, "baz")
+	_, _, err = nm.RegisterBackend(bknd2, state.ChangeUpdateNotice, "baz", false)
 	c.Assert(err, IsNil)
 	<-bknd2.noticesFilterChan
 	bknd3.noticesChan <- nil
-	_, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "qux")
+	_, _, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "qux", false)
 	c.Assert(err, IsNil)
 	<-bknd3.noticesFilterChan
 
