@@ -1,15 +1,12 @@
 FROM archlinux
 
+COPY packaging/arch/PKGBUILD /root
+
 RUN pacman -Syu --noconfirm && \
-    pacman pacman -Suq --needed --noconfirm \
-        git \
-        go \
-        go-tools \
-        xfsprogs \
-        python-docutils \
-        apparmor \
-        autoconf-archive \
-        squashfs-tools \
+    source /root/PKGBUILD && \
+    pacman -Suq --needed --noconfirm \
+        ${makedepends[@]} \
+        ${checkdepends[@]} \
         base-devel
 
 RUN useradd test -m
