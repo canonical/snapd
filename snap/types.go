@@ -140,7 +140,7 @@ func (confinementType *ConfinementType) fromString(str string) error {
 	return nil
 }
 
-// GradeType represents the grade of the snap
+// GradeType represents the grade of the snap.
 type GradeType string
 
 const (
@@ -149,11 +149,12 @@ const (
 	EmptyGrade  GradeType = ""
 )
 
-// UnmarshalText sets *gradeType to a copy of data, assuming validation passes
+// UnmarshalText sets *gradeType to a copy of data, after ensuring value is valid.
 func (gt *GradeType) UnmarshalText(data []byte) error {
 	g := GradeType(string(data))
 
-	// Validate grade field
+	// Validate the grade field, if it doesn't match a supported grade constant,
+	// return an error informing the user what value caused the validation to fail.
 	switch g {
 	case EmptyGrade, DevelGrade, StableGrade:
 		*gt = g
