@@ -200,15 +200,17 @@ func (s *infoSuite) TestMaybePrintNotes(c *check.C) {
 	for i, t := range []T{
 		{
 			nil,
-			&client.Snap{Private: true, Confinement: "devmode"},
+			&client.Snap{Private: true, Confinement: "devmode", Grade: "devel"},
 			"notes:\t\n" +
 				"  private:\ttrue\n" +
+				"  grade:\tdevel\n" +
 				"  confinement:\tdevmode\n",
 		}, {
-			&client.Snap{Private: true, Confinement: "devmode"},
+			&client.Snap{Private: true, Confinement: "devmode", Grade: "stable"},
 			nil,
 			"notes:\t\n" +
 				"  private:\ttrue\n" +
+				"  grade:\tstable\n" +
 				"  confinement:\tdevmode\n" +
 				"  devmode:\tfalse\n" +
 				"  jailmode:\ttrue\n" +
@@ -217,7 +219,7 @@ func (s *infoSuite) TestMaybePrintNotes(c *check.C) {
 				"  broken:\tfalse\n" +
 				"  ignore-validation:\tfalse\n",
 		}, {
-			&client.Snap{Private: true, Confinement: "devmode", Broken: "ouch"},
+			&client.Snap{Private: true, Confinement: "devmode", Grade: "", Broken: "ouch"},
 			nil,
 			"notes:\t\n" +
 				"  private:\ttrue\n" +
