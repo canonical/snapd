@@ -18,6 +18,7 @@ systems:
     # Affected by https://gitlab.com/apparmor/apparmor/-/issues/492
     - -ubuntu-16.04-64
     - -ubuntu-18.04-64
+    - -ubuntu-20.04-64
     - -ubuntu-core-18-*
     - -ubuntu-core-20-*
     - -debian-12-64
