@@ -127,18 +127,24 @@ func NewNoticeManager(st *state.State) *NoticeManager {
 // (retrieved by invoking BackendNotices on this backend), if any such notices
 // exist.
 //
+// If drainStateNotices is true, then drain the notices of this type from the
+// state and return them, with the intention that the caller will migrate them
+// into the newly-registered backend. If drainStateNotices is true, this
+// function will acquire state lock to drain notices from state, so the caller
+// must not hold state lock.
+//
 // Returns a closure which can be used by the backend to validate new notices
 // added by that backend. The backend is responsible for ensuring that the
 // notices which it serves are valid according to the closure.
-func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeType, namespace string) (validateNotice func(id string, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) error, retErr error) {
+func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeType, namespace string, drainStateNotices bool) (validateNotice func(id string, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) error, drainedNotices []*state.Notice, retErr error) {
 	if namespace == "" {
-		return nil, fmt.Errorf("internal error: cannot register notice backend with empty namespace")
+		return nil, nil, fmt.Errorf("internal error: cannot register notice backend with empty namespace")
 	}
 	nm.rwMu.Lock()
 	defer nm.rwMu.Unlock()
 	// Check that this namespace is not already registered to another backend
 	if existingBknd, ok := nm.idNamespaceToBackend[namespace]; ok && existingBknd != bknd {
-		return nil, fmt.Errorf("internal error: cannot register notice backend with namespace which is already registered to a different backend: %q", namespace)
+		return nil, nil, fmt.Errorf("internal error: cannot register notice backend with namespace which is already registered to a different backend: %q", namespace)
 	}
 
 	// From this point on, no errors can occur, so free to mutate nm.
@@ -187,7 +193,14 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 		return nil
 	}
 
-	return validateNotice, nil
+	if drainStateNotices {
+		filter := &state.NoticeFilter{Types: []state.NoticeType{typ}}
+		nm.state.Lock()
+		drainedNotices = nm.state.DrainNotices(filter)
+		nm.state.Unlock()
+	}
+
+	return validateNotice, drainedNotices, nil
 }
 
 // TODO: replace this with slices.Contains() once we're on go 1.21+.
