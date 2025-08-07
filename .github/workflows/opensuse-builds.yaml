@@ -73,11 +73,15 @@ jobs:
         sed -i -e "s/^Version:.*$/Version: $(cat /tmp/pkg/version)/g" snapd.spec
         osc build --config ${{ github.workspace }}/oscrc --no-checks --no-service --trust-all-projects --keep-pkgs /tmp/builds ${{ inputs.build-repo }} x86_64
 
-        cd /tmp/builds
-        find . -name '*.rpm' -and -not -name '*.src.rpm' -and -not -name '*debug*' -exec tar cvf package-${{ inputs.system }}.tar {} +
+        mkdir /tmp/uploads
+        sudo find /tmp/builds/* -type f \
+          ! -name '*debug*' \
+          ! -name '*.src.rpm' \
+          -name '*.rpm' \
+          -exec mv {} /tmp/uploads \;
 
     - name: Upload packages
       uses: actions/upload-artifact@v4
       with:
         name: package-${{ inputs.system }}
-        path: /tmp/builds/package-${{ inputs.system }}.tar
+        path: /tmp/uploads

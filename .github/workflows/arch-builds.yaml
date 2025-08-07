@@ -38,8 +38,6 @@ jobs:
     - name: Build arch pkg
       run: |
         chmod -R a+w .
-        mkdir -p /tmp/builds
-        chmod -R a+w /tmp/builds
         docker run --cap-add SYS_ADMIN --rm \
           --mount type=bind,src=$(pwd),dst=/home/test/snapd \
           --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
@@ -47,11 +45,11 @@ jobs:
           bash -c "
             /home/test/snapd/tests/lib/packaging/build-arch.sh /home/test/snapd test /tmp/pkg/
           "
-        cp /tmp/pkg/*.pkg.tar.* .
-        find . -name '*.pkg.tar.*' -exec tar cvf package-arch-linux-64.tar {} +
+        mkdir /tmp/uploads
+        sudo find /tmp/pkg/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;
 
     - name: upload packages
       uses: actions/upload-artifact@v4
       with:
         name: package-arch-linux-64
-        path: package-arch-linux-64.tar
+        path: /tmp/uploads

@@ -51,24 +51,22 @@ jobs:
 
     - name: Build deb
       run: |
+        chmod a+w ../
         chmod -R a+w .
         mkdir -p /tmp/builds
         chmod -R a+w /tmp/builds
         docker run --cap-add SYS_ADMIN --rm \
-          --mount type=bind,src=$(pwd),dst=/tmp/snapd \
+          --mount type=bind,src=$(dirname $(pwd)),dst=/home/test/snapd-parent \
           --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
           deb-base:latest \
           bash -c "
-            cp -r /tmp/snapd /home/test/snapd
-            chown -R test:test /home/test/snapd && \
-            /home/test/snapd/tests/lib/packaging/build-deb.sh /home/test/snapd test && \
-            cp /home/test/*.deb /tmp/builds
+            chown -R test:test /home/test/snapd-parent/snapd && \
+            /home/test/snapd-parent/snapd/tests/lib/packaging/build-deb.sh /home/test/snapd-parent/snapd test && \
+            cp /home/test/snapd-parent/*.deb /tmp/builds
           "
-        cd /tmp/builds
-        find . -name '*.deb' -exec tar cvf package-${{ inputs.system }}.tar {} +
 
     - name: upload packages
       uses: actions/upload-artifact@v4
       with:
         name: package-${{ inputs.system }}
-        path: /tmp/builds/package-${{ inputs.system }}.tar
+        path: /tmp/builds/

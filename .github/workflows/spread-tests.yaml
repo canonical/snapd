@@ -292,16 +292,6 @@ jobs:
             fs.mkdirSync(extractDir, { recursive: true });
             child_process.execSync(`unzip -q -o ${artifactZipPath} -d ${extractDir}`);
 
-            const extractedFiles = fs.readdirSync(extractDir);
-            const tarFile = extractedFiles.find(f => f.endsWith('.tar') || f.endsWith('.tar.gz') || f.endsWith('.tgz'));
-            if (tarFile) {
-              const tarPath = path.join(extractDir, tarFile);
-              console.log(`Untarring ${tarPath}`);
-              child_process.execSync(`tar -xf ${tarPath} -C ${extractDir}`);
-              fs.unlinkSync(tarPath);
-            } else {
-              console.log('No tar file found inside the zip archive.');
-            }
             fs.unlinkSync(artifactZipPath);
           }
 

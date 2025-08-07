@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       system:
-        description: 'The system to build the rpm package for'
+        description: 'The system, as known to spread, to build the rpm package for'
         required: true
         type: string
       pkg-dir:
@@ -75,20 +75,15 @@ jobs:
             tests/lib/packaging/build-source-rpm.sh ${{ inputs.pkg-dir }} /tmp/pkg && \
             mock -r /etc/mock/${{ inputs.config }}.cfg --no-clean --no-cleanup-after --enable-network --nocheck --with testkeys --resultdir /home/mockbuilder/builds /home/mockbuilder/rpmbuild/SRPMS/snapd-*.src.rpm
           "
-        find /tmp/builds -name '*debug*' -delete
-        find /tmp/builds -name '*.src.rpm' -delete
-        cd /tmp/builds
-        find . -name '*.rpm' -exec tar cvf package-${{ inputs.system }}.tar {} +
-
-    - name: Check logs if build failed
-      if: failure()
-      run: |
-        if [ -f /tmp/builds/build.log ]; then
-          cat /tmp/builds/build.log
-        fi
+        mkdir /tmp/uploads
+        sudo find /tmp/builds/* -type f \
+          ! -name '*debug*' \
+          ! -name '*.src.rpm' \
+          -name '*.rpm' \
+          -exec mv {} /tmp/uploads \;
 
     - name: upload packages
       uses: actions/upload-artifact@v4
       with:
         name: package-${{ inputs.system }}
-        path: /tmp/builds/package-${{ inputs.system }}.tar
+        path: /tmp/uploads
