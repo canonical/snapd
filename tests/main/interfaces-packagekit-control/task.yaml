@@ -32,10 +32,18 @@ execute: |
     snap connections test-snapd-packagekit | MATCH "packagekit-control +test-snapd-packagekit:packagekit-control +:packagekit-control +manual"
 
     echo "With the plug connected it is possible to communicate with packagekit"
-    if [ "${SNAPD_USE_PROXY:-}" = true ] && os.query is-xenial; then
-        # PackageKit fails with a proxy
-        # https://bugzilla.redhat.com/show_bug.cgi?id=1348843
-        exit 0
+    if test-snapd-packagekit.pkcon backend-details | grep -qF 'setting the proxy failed'; then
+        # Some versions of PackageKit cannot handle the presence of commonly
+        # used proxy environment variables. Specifically those that lack the patch
+        # 4626cc3bec7affb632122b1d3d4898d7a5bd0e7d (pk-engine:
+        # https://bugzilla.redhat.com/show_bug.cgi?id=1348843 Fix checking
+        # D-Bus caller details when setting proxy).
+        #
+        # Since the proxy is there for a reason, do a compromise and unset the
+        # variables do an offline request to see backend details and quit.
+        unset HTTP_PROXY http_proxy HTTPS_PROXY https_proxy NO_PROXY no_proxy
+        test-snapd-packagekit.pkcon backend-details | MATCH "Name:"
+    else
+        test-snapd-packagekit.pkcon backend-details | MATCH "Name:"
+        test-snapd-packagekit.pkcon resolve snapd | MATCH "Installed[[:space:]]+snapd"
     fi
-    test-snapd-packagekit.pkcon backend-details | MATCH "Name:"
-    test-snapd-packagekit.pkcon resolve snapd | MATCH "Installed[[:space:]]+snapd"
