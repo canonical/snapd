@@ -6,12 +6,7 @@ pkg=$1
 vendor_tar_dir=$2
 rpm_dir=$(rpm --eval "%_topdir")
 
-version=
-for file in "$vendor_tar_dir"/snapd_*.vendor.tar.xz; do
-        version="${file##*/snapd_}"
-        version="${version%.vendor.tar.xz}"
-        break
-done
+version=$(cat "$vendor_tar_dir"/version)
 packaging_path=packaging/"$pkg"
 
 sed -i -e "s/^Version:.*$/Version: $version/g" "$packaging_path/snapd.spec"
