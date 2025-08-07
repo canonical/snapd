@@ -1,0 +1,83 @@
+name: Build deb package
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+      build-repo:
+        description: 'The repository name in osc to build'
+        required: true
+        type: string
+      pkg-dir:
+        description: 'The directory name in packaging'
+        required: true
+        type: string
+      system:
+        description: 'The system name as known by spread'
+        required: true
+        type: string
+
+jobs:
+  build-rpm:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download vendor
+      uses: actions/download-artifact@v4
+      with:
+        name: vendor-pkgs
+        path: /tmp/pkg
+
+    - name: Install dependencies
+      run: |
+        curl https://build.opensuse.org/projects/openSUSE:Tools/signing_keys/download?kind=gpg -o openSUSE_Tools.gpg
+        sudo gpg --dearmor -o /etc/apt/keyrings/openSUSE_Tools.gpg openSUSE_Tools.gpg
+        echo 'deb [signed-by=/etc/apt/keyrings/openSUSE_Tools.gpg] https://download.opensuse.org/repositories/openSUSE:/Tools/xUbuntu_22.10/ ./' | sudo tee /etc/apt/sources.list.d/openBuildService.list
+        sudo apt update
+        sudo apt install -y osc
+
+    - name: Setup osc
+      run: |
+        mkdir ${{ github.workspace }}/.osc-cache
+        cat <<EOF > oscrc
+        [general]
+        apiurl=https://api.opensuse.org
+        packagecachedir = ${{ github.workspace }}/.osc-cache
+        [https://api.opensuse.org]
+        user=${{ secrets.OSC_USER }}
+        pass=${{ secrets.OSC_PASSWORD }}
+        credentials_mgr_class=osc.credentials.PlaintextConfigFileCredentialsManager
+        EOF
+        osc co --config oscrc system:snappy snapd
+
+    - name: Create cache key
+      # Force a cache refresh once a week by using the year and week number as part of the cache key
+      run: echo "CACHE_KEY=osc-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
+
+    - name: Cache rpm dependencies
+      uses: actions/cache@v4
+      with:
+        path: .osc-cache
+        key: ${{ env.CACHE_KEY }}
+
+    - name: Build rpm
+      run: |
+        cp packaging/${{ inputs.pkg-dir }}/snapd.spec system:snappy/snapd/
+        cp /tmp/pkg/* system:snappy/snapd
+        cd system:snappy/snapd
+        sed -i -e "s/^Version:.*$/Version: $(cat /tmp/pkg/version)/g" snapd.spec
+        osc build --config ${{ github.workspace }}/oscrc --no-checks --no-service --trust-all-projects --keep-pkgs /tmp/builds ${{ inputs.build-repo }} x86_64
+
+        cd /tmp/builds
+        find . -name '*.rpm' -and -not -name '*.src.rpm' -and -not -name '*debug*' -exec tar cvf package-${{ inputs.system }}.tar {} +
+
+    - name: Upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-${{ inputs.system }}
+        path: /tmp/builds/package-${{ inputs.system }}.tar
