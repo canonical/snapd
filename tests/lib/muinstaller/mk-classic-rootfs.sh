@@ -110,7 +110,7 @@ else
             pointrel=.4
             ;;
         24.04)
-            pointrel=.2
+            pointrel=.3
             ;;
         *)
             pointrel=
