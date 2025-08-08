@@ -1,8 +1,8 @@
-/ /a shared:42 - tmpfs-a
-/ /b shared:43 master:42 - tmpfs-a
-/ /c shared:44 master:42 - tmpfs-a
-/ /d shared:44 master:42 - tmpfs-a
-/ /a/1 shared:45 - tmpfs-a-1
-/ /c/1 shared:46 master:45 - tmpfs-a-1
-/ /d/1 shared:46 master:45 - tmpfs-a-1
-/ /b/1 shared:47 master:45 - tmpfs-a-1
+/ /A shared:42 - tmpfs-a
+/a /b master:42 - tmpfs-a
+/a /c shared:43 master:42 - tmpfs-a
+/a /d shared:43 master:42 - tmpfs-a
+/ /A/a/1 shared:44 - tmpfs-a-1
+/ /c/1 shared:45 master:44 - tmpfs-a-1
+/ /d/1 shared:45 master:44 - tmpfs-a-1
+/ /b/1 master:44 - tmpfs-a-1

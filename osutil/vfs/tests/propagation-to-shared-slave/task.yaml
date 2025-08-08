@@ -6,27 +6,27 @@ details: |
     propagation settings of the propagated copies to b/1 and c/1? What
     propagates to d?
 prepare: |
-    mkdir a
+    mkdir A
     mkdir b
     mkdir c
     mkdir d
-    mount -t tmpfs tmpfs-a a
-    mount --make-shared a
-    mount --bind a b
+    mount -t tmpfs tmpfs-a A
+    mkdir A/a
+    mount --make-shared A
+    mount --bind A/a b
     mount --make-slave b
-    mount --make-shared b
-    mount --bind a c
+    mount --bind A/a c
     mount --make-slave c
     mount --make-shared c
     mount --bind c d
-    mkdir a/1
-    mount -t tmpfs tmpfs-a-1 a/1
+    mkdir A/a/1
+    mount -t tmpfs tmpfs-a-1 A/a/1
 restore: |
-    umount -l a
+    umount -l A
     umount -l b
     umount -l c
     umount -l d
-    rmdir a b c d
+    rmdir A b c d
 debug: |
     tail -n 8 /proc/self/mountinfo
 execute: |
