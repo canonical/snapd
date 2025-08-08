@@ -436,7 +436,7 @@ distro_install_build_snapd(){
         distro_install_local_package $packages
 
         case "$SPREAD_SYSTEM" in
-            fedora-*|centos-*)
+            fedora-*|centos-*|opensuse-*-selinux-*)
                 # We need to wait until the man db cache is updated before do daemon-reexec
                 # Otherwise the service fails and the system will be degraded during tests executions
                 for i in $(seq 20); do
@@ -489,7 +489,7 @@ distro_install_build_snapd(){
         if ! systemctl is-enabled snapd.socket ; then
             # Can't use --now here as not all distributions we run on support it
             systemctl enable snapd.socket
-            systemctl start snapd.socket
+            systemctl restart snapd.socket
         fi
     fi
 }

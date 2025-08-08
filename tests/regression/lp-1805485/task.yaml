@@ -12,4 +12,10 @@ details: |
 systems: [ubuntu-1*, opensuse-*, arch-linux-*]
 
 execute: |
+    if selinuxenabled; then
+        # opensuse has a flavor where it's using SELinux
+        snap debug sandbox-features | NOMATCH "apparmor"
+        exit 0
+    fi
+
     snap debug sandbox-features | MATCH "^apparmor:"

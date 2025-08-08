@@ -112,6 +112,15 @@ main() {
 				fi
 			done
 
+			case $SPREAD_SYSTEM in
+				opensuse-*-selinux-*)
+					# allow optional transition from unconfined_service_t to
+					# unconfined_t which enables running things in the context
+					# of other user
+					setsebool unconfined_service_transition_to_unconfined_user 1
+				;;
+			esac
+
 			for u in $(echo "$user" | tr ',' ' '); do
 				# We've enabled linger, now let's explicitly start the
 				# default.target. This ensures that test code does not need to pay
@@ -179,6 +188,13 @@ main() {
 
 			# Make sure there is not neither stopping nor abandoned user sessions
 			systemctl restart systemd-logind.service
+
+			case $SPREAD_SYSTEM in
+				opensuse-*-selinux-*)
+					# restore the default
+					setsebool unconfined_service_transition_to_unconfined_user 0
+				;;
+			esac
 
 			exit 0
 			;;
@@ -349,7 +365,7 @@ BEGIN {
 	# The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
 	selinux_context_arg=
 	case $SPREAD_SYSTEM in
-		fedora-*|centos-*)
+		fedora-*|centos-*|opensuse-*-selinux-*)
 			local systemd_ver
 			systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
 			if [ "$systemd_ver" -gt 219 ]; then

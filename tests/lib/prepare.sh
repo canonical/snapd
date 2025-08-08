@@ -249,7 +249,7 @@ update_core_snap_for_classic_reexec() {
     esac
 
     case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
+        fedora-*|centos-*|amazon-*|opensuse-*-selinux-*)
             if selinuxenabled ; then
                 # On these systems just unpacking core snap to $HOME will
                 # automatically apply user_home_t label on all the contents of the
@@ -410,6 +410,17 @@ prepare_classic() {
     if [ "$REUSE_SNAPD" != 1 ]; then
         distro_install_build_snapd
     fi
+
+    case "$SPREAD_SYSTEM" in
+        opensuse-*-selinux-*)
+            # openSUSE SELinux variant may have restorecond installed, which
+            # apparently is unable to deal with changes to the policy, such as a
+            # new module, done at runtime
+            if systemctl is-active restorecond.service; then
+                systemctl restart restorecond.service
+            fi
+            ;;
+    esac
 
     if snap --version |MATCH unknown; then
         echo "Package build incorrect, 'snap --version' mentions 'unknown'"

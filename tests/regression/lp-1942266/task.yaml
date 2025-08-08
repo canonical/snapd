@@ -21,6 +21,7 @@ systems:
   - -centos-*
   - -amazon-*
   - -fedora-*
+  - -opensuse-*-selinux-*
 
 prepare: |
   # build the first version

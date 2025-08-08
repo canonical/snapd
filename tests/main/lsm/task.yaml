@@ -48,7 +48,7 @@ execute: |
   fi
 
   case "$SPREAD_SYSTEM" in
-      fedora-*|centos-*)
+      fedora-*|centos-*|opensuse-*-selinux-*)
           MATCH "selinux" < lsm.out
           NOMATCH "apparmor" < lsm.out
           MATCH 'selinux LSM context: "unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023"' < lsm.out

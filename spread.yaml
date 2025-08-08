@@ -268,6 +268,10 @@ backends:
             - opensuse-tumbleweed-64:
                   workers: 6
                   storage: 12G
+            - opensuse-tumbleweed-selinux-64:
+                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
+                  workers: 6
+                  storage: 12G
 
     google-arm:
         type: google
@@ -411,6 +415,9 @@ backends:
             - opensuse-tumbleweed-64:
                 image: snapd-spread/opensuse-tumbleweed-64
                 workers: 6
+            - opensuse-tumbleweed-selinux-64:
+                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
+                  workers: 6
 
             - centos-9-64:
                 image: snapd-spread/centos-9-64
@@ -1114,6 +1121,13 @@ prepare: |
 
         # Make sure docs are installed with the packages
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
+
+        # TODO: enable enforcing mode
+        if selinuxenabled; then
+            setenforce Permissive
+            # also make it permanent if the system were to reboot
+            sed -i -e 's/^SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
+        fi
     fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
