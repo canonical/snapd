@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -89,33 +90,34 @@ func validatePath(path string) error {
 	return nil
 }
 
-func setContentDefault(attrs map[string]any, nameDef string) {
+func checkLabelAttributes(attrs map[string]any, nameDef string) error {
+	// TODO we should check the ContentCompatLabel feature, but here we do
+	// not have access to the state.
 	content, okContent := attrs["content"].(string)
 	compat, okCompat := attrs["compatibility"].(string)
-	if (!okContent || len(content) == 0) && (!okCompat || len(compat) == 0) {
-		// content defaults to nameDef if unspecified and no compatibility label either
-		attrs["content"] = nameDef
+	hasContent := okContent && len(content) > 0
+	hasCompat := okCompat && len(compat) > 0
+	if hasCompat && hasContent {
+		return errors.New("cannot have both content and compatibility labels")
 	}
-}
-
-func checkCompatLabel(attrs map[string]any) error {
-	compat, okCompat := attrs["compatibility"].(string)
-	if !okCompat || len(compat) == 0 {
+	if hasCompat {
+		_, err := compatibility.DecodeCompatField(compat, nil)
+		return err
+	}
+	if hasContent {
 		return nil
 	}
-
-	_, err := compatibility.DecodeCompatField(compat, nil)
-	return err
+	// content defaults to nameDef if unspecified and no compatibility label either
+	attrs["content"] = nameDef
+	return nil
 }
 
 func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if slot.Attrs == nil {
 		slot.Attrs = make(map[string]any)
 	}
-	setContentDefault(slot.Attrs, slot.Name)
-
-	if err := checkCompatLabel(slot.Attrs); err != nil {
-		return fmt.Errorf("config interface: %w", err)
+	if err := checkLabelAttributes(slot.Attrs, slot.Name); err != nil {
+		return fmt.Errorf("content interface: %w", err)
 	}
 
 	// Error if "read" or "write" are present alongside "source".
@@ -150,10 +152,8 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if plug.Attrs == nil {
 		plug.Attrs = make(map[string]any)
 	}
-	setContentDefault(plug.Attrs, plug.Name)
-
-	if err := checkCompatLabel(plug.Attrs); err != nil {
-		return fmt.Errorf("config interface: %w", err)
+	if err := checkLabelAttributes(plug.Attrs, plug.Name); err != nil {
+		return fmt.Errorf("content interface: %w", err)
 	}
 
 	target, ok := plug.Attrs["target"].(string)
