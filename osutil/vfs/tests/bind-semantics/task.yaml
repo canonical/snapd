@@ -66,7 +66,7 @@ prepare: |
     mount "$ALTER_A" a
     mkdir b
     mount -t tmpfs tmpfs-b b
-    for op in $ALTER_B; do mount "$op" b; done
+    mount "$ALTER_B" b
     mount --bind a b
 restore: |
     umount -l a
