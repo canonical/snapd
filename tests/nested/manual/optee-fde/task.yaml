@@ -73,7 +73,7 @@ prepare: |
     pushd ./initrd
 
     unzstd < ../initrd.img | cpio -idmv
-    cp -a /usr/lib/snapd/snap-bootstrap ./lib/snapd/snap-bootstrap
+    cp -a /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap ./lib/snapd/snap-bootstrap
     find . -print0 | cpio --null --create --quiet --format=newc --owner=0:0 | zstd > ../initrd.img
 
     popd # ./initrd
