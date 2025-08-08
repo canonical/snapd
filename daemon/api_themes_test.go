@@ -380,7 +380,7 @@ func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 	hookMgr, err := hookstate.Manager(st, runner)
 	c.Assert(err, IsNil)
 	overlord.AddManager(hookMgr)
-	ifaceMgr, err := ifacestate.Manager(st, hookMgr, runner, nil, nil)
+	ifaceMgr, err := ifacestate.Manager(st, hookMgr, nil, runner, nil, nil)
 	c.Assert(err, IsNil)
 	overlord.AddManager(ifaceMgr)
 	overlord.AddManager(runner)
