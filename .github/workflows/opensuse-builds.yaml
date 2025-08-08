@@ -71,7 +71,15 @@ jobs:
         cp /tmp/pkg/* system:snappy/snapd
         cd system:snappy/snapd
         sed -i -e "s/^Version:.*$/Version: $(cat /tmp/pkg/version)/g" snapd.spec
-        osc build --config ${{ github.workspace }}/oscrc --no-checks --no-service --trust-all-projects --keep-pkgs /tmp/builds ${{ inputs.build-repo }} x86_64
+        osc build \
+          --config ${{ github.workspace }}/oscrc \
+          --with testkeys \
+          --buildtool-opt=--noclean \
+          --no-checks \
+          --no-service \
+          --trust-all-projects \
+          --keep-pkgs \
+          /tmp/builds ${{ inputs.build-repo }} x86_64
 
         mkdir /tmp/uploads
         sudo find /tmp/builds/* -type f \
