@@ -127,6 +127,7 @@ jobs:
       runs-on: '["ubuntu-latest"]'
 
   package-snapd-deb:
+    needs: create-vendor-dir
     uses: ./.github/workflows/deb-builds.yaml
     name: Package ${{ matrix.build-config.system }}
     with:

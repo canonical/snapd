@@ -2,15 +2,40 @@
 
 set -e
 
-snapd_dir=$1
-user=$2
-buildopt=$3
 
-cd "$snapd_dir"
-go mod vendor
-su -c "cd $snapd_dir/c-vendor && ./vendor.sh" "$user"
+usage() {
+    echo "Usage: $0 --user <user> --pkg-version <pkg_version>"
+    exit 1
+}
 
-newver="$(dpkg-parsechangelog --show-field Version)"
-dch --newversion "1337.$newver" "testing build"
+user=""
+pkg_version=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --user)
+            user="$2"
+            shift 2
+            ;;
+        --pkg-version)
+            pkg_version="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
+# Check required arguments
+if [ -z "$user" ] || [ -z "$pkg_version" ]; then
+    usage
+fi
+
+snapd_dir=$(pwd)
+
+dch --newversion "$pkg_version" "testing build"
 unshare -n -- \
-    su -l -c "cd $snapd_dir && DEB_BUILD_OPTIONS='nocheck testkeys ${buildopt}' dpkg-buildpackage -tc -b -Zgzip -uc -us" "$user"
+    su -l -c "cd $snapd_dir && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" "$user"

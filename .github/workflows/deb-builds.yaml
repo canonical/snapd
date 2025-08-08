@@ -31,6 +31,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Download vendor
+      uses: actions/download-artifact@v4
+      with:
+        name: vendor-pkgs
+        path: /tmp/pkg
+
+    - name: Extract vendor
+      run: |
+        mkdir /tmp/vendor-dir
+        tar -xf /tmp/pkg/snapd*.vendor.tar.xz -C /tmp/vendor-dir
+        mv /tmp/vendor-dir/snapd-*/vendor .
+        mv /tmp/vendor-dir/snapd-*/c-vendor/* c-vendor/
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -61,7 +74,8 @@ jobs:
           deb-base:latest \
           bash -c "
             chown -R test:test /home/test/snapd-parent/snapd && \
-            /home/test/snapd-parent/snapd/tests/lib/packaging/build-deb.sh /home/test/snapd-parent/snapd test && \
+            cd /home/test/snapd-parent/snapd && \
+            tests/lib/packaging/build-deb.sh --user test --pkg-version "$(cat /tmp/pkg/version)" && \
             cp /home/test/snapd-parent/*.deb /tmp/builds
           "
 
