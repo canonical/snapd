@@ -21,10 +21,12 @@ package fdestate
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -32,9 +34,10 @@ import (
 )
 
 var (
-	secbootAddContainerRecoveryKey = secboot.AddContainerRecoveryKey
-	secbootDeleteContainerKey      = secboot.DeleteContainerKey
-	secbootRenameContainerKey      = secboot.RenameContainerKey
+	secbootAddContainerRecoveryKey     = secboot.AddContainerRecoveryKey
+	secbootAddContainerTPMProtectedKey = secboot.AddContainerTPMProtectedKey
+	secbootDeleteContainerKey          = secboot.DeleteContainerKey
+	secbootRenameContainerKey          = secboot.RenameContainerKey
 )
 
 func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err error) {
@@ -207,6 +210,149 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now renamed.
 	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var keyslotRefs []KeyslotRef
+	if err := t.Get("keyslots", &keyslotRefs); err != nil {
+		return err
+	}
+
+	var authMode device.AuthMode
+	if err := t.Get("auth-mode", &authMode); err != nil {
+		return err
+	}
+	switch authMode {
+	case device.AuthModeNone, device.AuthModePassphrase, device.AuthModePIN:
+	default:
+		return fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
+	var keyslotRoles map[string][]string
+	if err := t.Get("roles", &keyslotRoles); err != nil {
+		return err
+	}
+
+	var volumesAuth *device.VolumesAuthOptions
+	// authentication options are only relevant for PINs and passphrases.
+	switch authMode {
+	case device.AuthModePassphrase, device.AuthModePIN:
+		cached := m.state.Cached(volumesAuthOptionsKey{})
+		if cached == nil {
+			return errors.New("cannot find authentication options in memory: unexpected snapd restart")
+		}
+		var ok bool
+		volumesAuth, ok = cached.(*device.VolumesAuthOptions)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type under volumesAuthOptionsKey: %T", cached)
+		}
+		if err := volumesAuth.Validate(); err != nil {
+			return fmt.Errorf("internal error: invalid authentication options: %v", err)
+		}
+	}
+
+	// XXX: unlock state and let conflict detection handle the rest?
+
+	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if unlockedWithRecoveryKey {
+		// primary key will be missing from kernel keyring if disk was
+		// unlocked with recovery key during boot.
+		return errors.New("cannot add protected keys if the system was unlocked with a recovery key during boot")
+	}
+
+	containers, err := m.GetEncryptedContainers()
+	if err != nil {
+		return err
+	}
+	containerDevicePath := make(map[string]string, len(containers))
+	for _, container := range containers {
+		containerDevicePath[container.ContainerRole()] = container.DevPath()
+	}
+
+	var addedKeyslots []KeyslotRef
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, keyslotRef := range addedKeyslots {
+			devicePath := containerDevicePath[keyslotRef.ContainerRole]
+			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
+				// best effort deletion, log errors only
+				logger.Noticef("cannot delete %s during clean up: %v", keyslotRef.String(), err)
+			}
+		}
+	}()
+
+	_, missingRefs, err := m.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return fmt.Errorf("cannot get key slots: %v", err)
+	}
+	if len(missingRefs) == 0 {
+		// this could be re-run and all key slots were already added, do nothing
+		m.state.Cache(volumesAuthOptionsKey{}, nil)
+		return nil
+	}
+
+	var fdeKeyslotRoles map[string]KeyslotRoleInfo
+	err = withFdeState(m.state, func(fde *FdeState) (modified bool, err error) {
+		fdeKeyslotRoles = fde.KeyslotRoles
+		return false, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// we only care about missing key slots because this might be
+	// a re-run due a force reboot or abrupt shutdown, so we want
+	// to continue adding the remaining key slots.
+	for _, ref := range missingRefs {
+		devicePath := containerDevicePath[ref.ContainerRole]
+
+		roles := keyslotRoles[ref.String()]
+		if len(roles) != 1 {
+			// multiple roles per key slot are not supported yet by secboot.
+			return fmt.Errorf("internal error: expected one key role, found %v", roles)
+		}
+		role := roles[0]
+
+		// NOTE: this is safe to call here even through internall the state is unlocked
+		// because there is conflict detection enforced to prevent other tasks that might
+		// cause a reseal from running (e.g. a kernel refresh).
+		if err := m.ensureParametersLoaded(role, ref.ContainerRole); err != nil {
+			return fmt.Errorf("internal error: cannot load FDE state parameters: %v", err)
+		}
+
+		hasParamters, _, _, pcrProfile, err := m.GetParameters(role, ref.ContainerRole)
+		if err != nil {
+			return err
+		}
+		if !hasParamters {
+			return fmt.Errorf("internal error: cannot find parameters (key role: %s, container role: %s)", role, ref.ContainerRole)
+		}
+
+		params := secboot.ProtectKeyParams{
+			PCRProfile:             pcrProfile,
+			PCRPolicyCounterHandle: fdeKeyslotRoles[role].TPM2PCRPolicyRevocationCounter,
+			KeyRole:                role,
+			VolumesAuth:            volumesAuth,
+		}
+		if err := secbootAddContainerTPMProtectedKey(devicePath, ref.Name, &params); err != nil {
+			return fmt.Errorf("cannot add protected key slot %s: %v", ref.String(), err)
+		}
+
+		addedKeyslots = append(addedKeyslots, ref)
+	}
+	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
+	t.SetStatus(state.DoneStatus)
+	m.state.Cache(volumesAuthOptionsKey{}, nil)
 
 	return nil
 }

@@ -546,49 +546,6 @@ func isEFISecurebootDBUpdateBlocked(t *state.Task) bool {
 	}
 }
 
-func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
-	// TODO:FDEM: check if we have sealed keys at all
-
-	// DBX updates cause a reseal, so any snaps which are either directly
-	// measured or their content is measured during the boot will count as
-	// affected
-
-	// XXX this effectively blocks updates of gadget, kernel & base until the
-	// change completes
-
-	return fdeRelevantSnaps(t.State())
-}
-
-func checkDBXChangeConflicts(st *state.State) error {
-	// TODO:FDEM: check if we have sealed keys at all
-
-	snaps, err := fdeRelevantSnaps(st)
-	if err != nil {
-		return err
-	}
-
-	if len(snaps) == 0 {
-		return nil
-	}
-
-	// make sure that there are no other DBX changes in progress
-	op, err := findFirstPendingExternalOperationByKind(st, "fde-efi-secureboot-db-update")
-	if err != nil {
-		return err
-	}
-
-	if op != nil {
-		return &snapstate.ChangeConflictError{
-			ChangeKind: "fde-efi-secureboot-db-update",
-			Message:    "cannot start a new DBX update when conflicting actions are in progress",
-		}
-	}
-
-	// make sure that there are no changes for the snaps that are relevant for
-	// FDE
-	return snapstate.CheckChangeConflictMany(st, snaps, "")
-}
-
 type dbxUpdatePrepareSyncKey struct{}
 
 func setupDBXNotifyPrepareDoneOKChan(st *state.State, changeID string) {
