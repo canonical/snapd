@@ -281,7 +281,7 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 		_, err := asserts.CompileAttributeConstraints(map[string]any{
 			"foo": wrong,
 		})
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\)/\$SLOT_COMPAT\(\)/\$PLUG_PUBLISHER_ID/\$SLOT_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\)/\$SLOT_COMPAT\(\)/\$PLUG_COMPAT\(\)/\$PLUG_PUBLISHER_ID/\$SLOT_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
 
 	}
 }
@@ -296,10 +296,6 @@ func (ca testEvalAttr) SlotAttr(arg string) (any, error) {
 	return ca.comp("slot", arg)
 }
 
-func (ca testEvalAttr) SlotCompatAttr(arg string) (any, error) {
-	return ca.comp("slot_compat", arg)
-}
-
 func (ca testEvalAttr) PlugAttr(arg string) (any, error) {
 	return ca.comp("plug", arg)
 }
@@ -310,6 +306,10 @@ func (ca testEvalAttr) PlugPublisherID() string {
 
 func (ca testEvalAttr) SlotPublisherID() string {
 	return ca.slotPublisherID
+}
+
+func (ca testEvalAttr) CompatLabelsEnabled() bool {
+	return true
 }
 
 func (s *attrConstraintsSuite) TestEvalCheck(c *C) {
@@ -373,8 +373,16 @@ bar: bar.baz
 }
 
 func (s *attrConstraintsSuite) TestEvalCheckSlotCompat(c *C) {
-	m, err := asserts.ParseHeaders([]byte(`attrs:
-  foo: $SLOT_COMPAT(foo)`))
+	s.testEvalCheckCompat(c, "SLOT_COMPAT")
+}
+
+func (s *attrConstraintsSuite) TestEvalCheckPlugCompat(c *C) {
+	s.testEvalCheckCompat(c, "PLUG_COMPAT")
+}
+
+func (s *attrConstraintsSuite) testEvalCheckCompat(c *C, compatOper string) {
+	m, err := asserts.ParseHeaders([]byte(fmt.Sprintf(`attrs:
+  foo: $%s(foo)`, compatOper)))
 	c.Assert(err, IsNil)
 
 	// No context
@@ -393,7 +401,7 @@ foo: libx-3
 	err = cstrs.Check(attrs(`
 foo: libx
 `), testEvalAttr{comp: comp1})
-	c.Check(err, ErrorMatches, `attribute "foo" does not match \$SLOT_COMPAT\(foo\): libx != libx-1`)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`attribute "foo" does not match \$%s\(foo\): libx != libx-1`, compatOper))
 
 	// Success case
 	comp2 := func(op string, arg string) (any, error) {

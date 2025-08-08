@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces/compatibility"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -220,23 +219,24 @@ var (
 	validEvalAttrMatcher    = regexp.MustCompile(`^\$([A-Z][A-Z_]*)\(([^,]+)(?:,([^,]+))?\)$`)
 	validEvalAttrMatcherOps = map[string]bool{
 		"PLUG":        true,
+		"PLUG_COMPAT": true,
 		"SLOT":        true,
 		"SLOT_COMPAT": true,
 	}
 )
 
 func matchCompatLabels(v1, v2 any) bool {
+	// Note that decoding errors should not happen as interfaces are
+	// expected to check the format of the labels before this can even be
+	// called.
 	c1, err := compatibility.DecodeCompatField(v1.(string), nil)
 	if err != nil {
-		logger.Noticef("while decoding compatibility label %s: %v", v1.(string), err)
 		return false
 	}
 	c2, err := compatibility.DecodeCompatField(v2.(string), nil)
 	if err != nil {
-		logger.Noticef("while decoding compatibility label %s: %v", v2.(string), err)
 		return false
 	}
-	logger.Debugf("comparing compatibility labels: %+v, %+v", c1, c2)
 	return compatibility.CheckCompatibility(*c1, *c2)
 }
 
@@ -263,15 +263,16 @@ func compileEvalOrRefAttrMatcher(cc compileContext, s string) (attrMatcher, erro
 		}
 		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid %s constraint", cc, s, strings.Join(oplst, "/"))
 	}
+	op := ops[1]
 	if ops[3] != "" {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: $%s() constraint expects 1 argument", cc, s, ops[1])
+		return nil, fmt.Errorf("cannot compile %q constraint %q: $%s() constraint expects 1 argument", cc, s, op)
 	}
 	matchAttr := reflect.DeepEqual
-	if ops[1] == "SLOT_COMPAT" {
+	if op == "SLOT_COMPAT" || op == "PLUG_COMPAT" {
 		matchAttr = matchCompatLabels
 	}
 	return evalAttrMatcher{
-		op:        ops[1],
+		op:        op,
 		arg:       ops[2],
 		matchAttr: matchAttr,
 	}, nil
@@ -292,7 +293,15 @@ func (matcher evalAttrMatcher) match(apath string, v any, ctx *attrMatchingConte
 	case "PLUG":
 		comp = ctx.helper.PlugAttr
 	case "SLOT_COMPAT":
-		comp = ctx.helper.SlotCompatAttr
+		if !ctx.helper.CompatLabelsEnabled() {
+			return fmt.Errorf("%s %q constraint $%s(%s) not evaluated: compatibility labels are disabled", ctx.attrWord, apath, matcher.op, matcher.arg)
+		}
+		comp = ctx.helper.SlotAttr
+	case "PLUG_COMPAT":
+		if !ctx.helper.CompatLabelsEnabled() {
+			return fmt.Errorf("%s %q constraint $%s(%s) not evaluated: compatibility labels are disabled", ctx.attrWord, apath, matcher.op, matcher.arg)
+		}
+		comp = ctx.helper.PlugAttr
 	}
 	v1, err := comp(matcher.arg)
 	if err != nil {
