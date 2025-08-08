@@ -26,6 +26,10 @@ environment:
     ALTER_B/shared_to_shared: --make-shared
     EXPECTED_A/shared_to_shared: "/ /A shared:42 - tmpfs-A"
     EXPECTED_B/shared_to_shared: "/ /B shared:43 - tmpfs-B"
+    # This test shows that the peer group of the new bind mount is taken from
+    # the source.  One can think of this as a bind-mount that is followed by
+    # --make-shared. Because B/b is already shared then nothing changes and no
+    # new group is allocated.
     EXPECTED_BIND/shared_to_shared: "/a /B/b shared:42 - tmpfs-A"
     # Source is shared, destination is private.
     ALTER_A/shared_to_private: --make-shared
@@ -41,6 +45,9 @@ environment:
     ALTER_B/private_to_shared: --make-shared
     EXPECTED_A/private_to_shared: "/ /A - tmpfs-A"
     EXPECTED_B/private_to_shared: "/ /B shared:42 - tmpfs-B"
+    # This test shows that the peer group of the new bind mount is a new
+    # allocated group. One can think of this as a bind-mount followed by
+    # --make-shared. Because B/b is private, a new group _is_ allocated.
     EXPECTED_BIND/private_to_shared: "/a /B/b shared:43 - tmpfs-A"
     # Source and destination are both private.
     ALTER_A/private_to_private: --make-private
@@ -53,6 +60,9 @@ environment:
     ALTER_B/slave_to_shared: --make-shared
     EXPECTED_A/slave_to_shared: "/ /A master:42 - tmpfs-A"
     EXPECTED_B/slave_to_shared: "/ /B shared:43 - tmpfs-B"
+    # This test shows that the new bind-mount B/b becomes shared (shared:44),
+    # exactly as in the private_to_shared test, but also retains the slave peer
+    # group from A (master:42)
     EXPECTED_BIND/slave_to_shared: "/a /B/b shared:44 master:42 - tmpfs-A"
     # Source is a slave, destination is private.
     ALTER_A/slave_to_private: --make-slave
