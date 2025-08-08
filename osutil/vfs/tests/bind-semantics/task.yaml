@@ -24,36 +24,36 @@ environment:
     # Source and destination are both shared.
     ALTER_A/shared_to_shared: --make-shared
     ALTER_B/shared_to_shared: --make-shared
-    EXPECTED_A/shared_to_shared: "/a shared:42 -"
-    EXPECTED_B/shared_to_shared: "/b shared:42 -"
+    EXPECTED_A/shared_to_shared: "/ /a shared:42 - tmpfs-a"
+    EXPECTED_B/shared_to_shared: "/ /b shared:42 - tmpfs-a"
     # Source is shared, destination is private.
     ALTER_A/shared_to_private: --make-shared
     ALTER_B/shared_to_private: --make-private
-    EXPECTED_A/shared_to_private: "/a shared:42 -"
-    EXPECTED_B/shared_to_private: "/b shared:42 -"
+    EXPECTED_A/shared_to_private: "/ /a shared:42 - tmpfs-a"
+    EXPECTED_B/shared_to_private: "/ /b shared:42 - tmpfs-a"
     # Source is private, destination is shared.
     ALTER_A/private_to_shared: --make-private
     ALTER_B/private_to_shared: --make-shared
-    EXPECTED_A/private_to_shared: "/a -"
+    EXPECTED_A/private_to_shared: "/ /a - tmpfs-a"
     # NOTE: shared:42 is the /b mount that is created by mount --make-shared b.
     # Here we are seeing that /b is another shared mount but the underlying
     # filesystem is tmpfs-a.
-    EXPECTED_B/private_to_shared: "/b shared:43 -"
+    EXPECTED_B/private_to_shared: "/ /b shared:43 - tmpfs-a"
     # Source and destination are both private.
     ALTER_A/private_to_private: --make-private
     ALTER_B/private_to_private: --make-private
-    EXPECTED_A/private_to_private: "/a -"
-    EXPECTED_B/private_to_private: "/b -"
+    EXPECTED_A/private_to_private: "/ /a - tmpfs-a"
+    EXPECTED_B/private_to_private: "/ /b - tmpfs-a"
     # Source is a slave, destination is shared.
     ALTER_A/slave_to_shared: --make-slave
     ALTER_B/slave_to_shared: --make-shared
-    EXPECTED_A/slave_to_shared: "/a master:42 -"
-    EXPECTED_B/slave_to_shared: "/b shared:44 master:42 -"
+    EXPECTED_A/slave_to_shared: "/ /a master:42 - tmpfs-a"
+    EXPECTED_B/slave_to_shared: "/ /b shared:44 master:42 - tmpfs-a"
     # Source is a slave, destination is private.
     ALTER_A/slave_to_private: --make-slave
     ALTER_B/slave_to_private: --make-private
-    EXPECTED_A/slave_to_private: "/a master:42 -"
-    EXPECTED_B/slave_to_private: "/b master:42 -"
+    EXPECTED_A/slave_to_private: "/ /a master:42 - tmpfs-a"
+    EXPECTED_B/slave_to_private: "/ /b master:42 - tmpfs-a"
 prepare: |
     mkdir a
     mount -t tmpfs tmpfs-a a
@@ -81,6 +81,6 @@ restore: |
 debug: |
     cat /proc/self/mountinfo
 execute: |
-    grep -F "$SPREAD_TASK" /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../mount-point-and-optional-fields.awk | grep -v a-helper >actual.txt
+    grep -F "$SPREAD_TASK" /proc/self/mountinfo | ../rewrite-peer-groups.awk | ../root-dir-mount-point-optional-fields-and-source.awk | grep -v a-helper >actual.txt
     test "$(head -n 1 actual.txt)" = "$EXPECTED_A"
     test "$(tail -n 1 actual.txt)" = "$EXPECTED_B"
