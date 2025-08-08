@@ -2,7 +2,7 @@
     "include": [
       {
         "group": "nested-ubuntu-18.04",
-        "backend": "google-nested",
+        "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-18.04-64",
         "tasks": "tests/nested/...",
@@ -10,7 +10,7 @@
       },
       {
         "group": "nested-ubuntu-20.04",
-        "backend": "google-nested",
+        "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-20.04-64",
         "tasks": "tests/nested/...",
@@ -18,7 +18,7 @@
       },
       {
         "group": "nested-ubuntu-22.04",
-        "backend": "google-nested",
+        "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-22.04-64",
         "tasks": "tests/nested/...",
@@ -26,7 +26,7 @@
       },
       {
         "group": "nested-ubuntu-24.04",
-        "backend": "google-nested",
+        "backend": "openstack-ext-ps7",
         "alternative-backend": "google-nested",
         "systems": "ubuntu-24.04-64",
         "tasks": "tests/nested/...",
