@@ -151,7 +151,7 @@ class State:
         elif _keys_in_dict(data, RECOVERY_SYSTEM_SETUP, SNAP_SETUP_TASKS):
             return list({snap_type for setup_task in data[RECOVERY_SYSTEM_SETUP][SNAP_SETUP_TASKS] for snap_type in self.get_snap_types_from_task_id(setup_task)})
 
-        raise RuntimeError(
+        raise NotInStateError(
             'cannot find snap type for task id {} in task {}'.format(id, task))
 
     def get_snap_types_from_change_id(self, id: str) -> set[str]:
