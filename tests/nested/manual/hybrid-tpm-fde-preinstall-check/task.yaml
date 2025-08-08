@@ -1,0 +1,136 @@
+summary: Test secboot efi preinstall check used for TPM backed FDE on hybrid Ubuntu 25.10+ system.
+
+details: |
+  This test prepares an encrypted hybrid Ubuntu system seed and test that the
+  snapd API endpoint /v2/systems/{system-label} can be used to determine
+  encryption availability.
+
+systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+
+environment:
+  # System seed
+  MODEL_VERSION: "25.10"
+  GADGET_VERSION: "classic-25.10"
+  KERNEL_VERSION: "25.10"
+
+  # Installation environment for TPM backed FDE
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_KEEP_FIRMWARE_STATE: true
+
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+
+  # Store related setup
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+   # Fakestore is needed for "snap prepare-image"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+  # Expose the needed assertions through the fakestore
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  # Retrieve the gadget
+  snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
+  
+  # Retrieve kernel
+  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
+  # Build kernel with initramfs with the compiled snap-bootstrap
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+
+  # Fetch model
+  model_version_string="${MODEL_VERSION//\./}"
+  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
+  # Only keep relevant snaps
+  gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
+  mv classic-tmp.json classic.json
+  # Replace authority-id and brand-id
+  gojq '."authority-id" = "developer1" | ."brand-id" = "developer1"' classic.json > classic-tmp.json
+  mv classic-tmp.json classic.json
+
+  # Sign the model
+  gendeveloper1 sign-model < classic.json > classic.model
+
+  # Prepare rootfs
+  cat << EOF > ./prepare-rootfs.sh
+  rootfs="\$1"
+  echo ID=ubuntu > \${rootfs}/etc/os-release
+  echo VERSION_ID="${MODEL_VERSION}" >> \${rootfs}/etc/os-release
+  EOF
+  export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
+
+  # Create preinstall environment, but do not run muninstaller
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+      --model classic.model \
+      --store-dir "${STORE_DIR}" \
+      --gadget pc.snap \
+      --gadget-assertion pc.assert \
+      --kernel pc-kernel.snap \
+      --kernel-assertion pc-kernel.assert \
+      --passphrase "ubuntu test" \
+      --exit-at-preinstall \
+
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+
+execute: |
+  # The secboot preinstall check is only available on Ubuntu 25.10+ install environment targeting
+  # a hybrid Ubuntu system. We already target a hybrid system, fake the Ubuntu Version ID.
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.10/' /etc/os-release"
+
+  # The secboot preinstall check currently only supports livecd install, therefore, expects the booted
+  # shim, grub and kernel in specific /cdrom locations
+  remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+  remote.exec "sudo mkdir -p /cdrom/casper"
+  remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
+
+  # Check that encryption is available for the targeted system
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"].support' | MATCH "available"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
+
+  # Cause an error by configuring bogus shim
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/bootx64.efi"
+
+  # Check that encryption is not available for the targeted system and provides reason with error-kind
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"].support' | MATCH "unavailable"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
+
+  cat <<EOF > availability-check-errors.reference
+  [
+    {
+      "actions": [
+        "contact-oem"
+      ],
+      "args": {
+        "pcr": 7
+      },
+      "kind": "tpm-pcr-unusable",
+      "message": "error with secure boot policy (PCR7) measurements: OS initial boot loader was not verified by any X.509 certificate measured by any EV_EFI_VARIABLE_AUTHORITY event"
+    }
+  ]
+  EOF
+
+  diff availability-check-errors availability-check-errors.reference
+
+  # Check that the basic availability check that do not consider shim, grub and kernel still works
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.04/' /etc/os-release"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"].support' | MATCH "available"
