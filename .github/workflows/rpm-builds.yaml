@@ -70,10 +70,11 @@ jobs:
           --mount type=bind,src=/tmp/builds,dst=/home/mockbuilder/builds \
           mock-base:latest \
           bash -c "
-            mock -r /etc/mock/${{ inputs.config }}.cfg --install git && \
             cd /home/mockbuilder/snapd && \
-            tests/lib/packaging/build-source-rpm.sh ${{ inputs.pkg-dir }} /tmp/pkg && \
-            mock -r /etc/mock/${{ inputs.config }}.cfg --no-clean --no-cleanup-after --enable-network --nocheck --with testkeys --resultdir /home/mockbuilder/builds /home/mockbuilder/rpmbuild/SRPMS/snapd-*.src.rpm
+            tests/lib/packaging/build-rpm.sh \
+              --pkg-dir ${{ inputs.pkg-dir }} \
+              --vendor-tar-dir /tmp/pkg \
+              --config-file /etc/mock/${{ inputs.config }}.cfg
           "
         mkdir /tmp/uploads
         sudo find /tmp/builds/* -type f \
