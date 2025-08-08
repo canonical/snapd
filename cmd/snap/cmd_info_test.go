@@ -223,7 +223,6 @@ func (s *infoSuite) TestMaybePrintNotes(c *check.C) {
 			nil,
 			"notes:\t\n" +
 				"  private:\ttrue\n" +
-				"  grade:\t\n" +
 				"  confinement:\tdevmode\n" +
 				"  devmode:\tfalse\n" +
 				"  jailmode:\ttrue\n" +
