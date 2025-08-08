@@ -38,15 +38,9 @@ if [ -z "$pkg_dir" ] || [ -z "$vendor_tar_dir" ] || [ -z "$config_file" ]; then
     usage
 fi
 
-src_dir=/tmp/sources
-
-mkdir "$src_dir"
-
-version=$(cat "$vendor_tar_dir"/version)
 packaging_path=packaging/"$pkg_dir"
-
-sed -i -e "s/^Version:.*$/Version: $version/g" "$packaging_path/snapd.spec"
-sed -i -e "s/^BuildRequires:.*fakeroot/# BuildRequires: fakeroot/" "$packaging_path/snapd.spec"
+src_dir=/tmp/sources
+mkdir "$src_dir"
 
 cp "$packaging_path"/* "$src_dir"
 cp "$vendor_tar_dir"/* "$src_dir"

@@ -35,6 +35,11 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    - name: Set version in spec
+      run: |
+        version=$(cat /tmp/pkg/version)
+        sed -i -e "s/pkgver=.*/pkgver=$version/" packaging/arch/PKGBUILD
+
     - name: Build arch pkg
       run: |
         chmod -R a+w .
@@ -43,7 +48,8 @@ jobs:
           --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
           arch-base:latest \
           bash -c "
-            /home/test/snapd/tests/lib/packaging/build-arch.sh /home/test/snapd test /tmp/pkg/
+            cd /home/test/snapd && \
+            tests/lib/packaging/build-arch.sh --user test --build-dir /tmp/pkg/
           "
         mkdir /tmp/uploads
         sudo find /tmp/pkg/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;

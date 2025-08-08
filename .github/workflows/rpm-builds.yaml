@@ -57,6 +57,11 @@ jobs:
         path: /tmp/mock
         key: ${{ env.CACHE_KEY }}
 
+    - name: Set version in spec
+      run: |
+        version=$(cat /tmp/pkg/version)
+        sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
+
     - name: Run mock inside container
       run: |
         chmod -R 777 .
@@ -71,7 +76,7 @@ jobs:
           mock-base:latest \
           bash -c "
             cd /home/mockbuilder/snapd && \
-            tests/lib/packaging/build-rpm.sh \
+            tests/lib/packaging/build-rpm-mock.sh \
               --pkg-dir ${{ inputs.pkg-dir }} \
               --vendor-tar-dir /tmp/pkg \
               --config-file /etc/mock/${{ inputs.config }}.cfg
