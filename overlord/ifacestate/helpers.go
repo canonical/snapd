@@ -798,7 +798,6 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 func isContentCompatLabelEnabled(st *state.State) bool {
 	tr := config.NewTransaction(st)
 	enabled, err := features.Flag(tr, features.ContentCompatLabel)
-	fmt.Println("isCompatLabelEnabled", enabled, err)
 	if err != nil && !config.IsNoOption(err) {
 		_, confName := features.ContentCompatLabel.ConfigOption()
 		logger.Noticef("internal error: cannot check %q feature flag: %v", confName, err)
@@ -808,7 +807,6 @@ func isContentCompatLabelEnabled(st *state.State) bool {
 }
 
 func allowCompatLabel(featureEnabled bool, interfaceName string) bool {
-	fmt.Println("allowCompatLabel", featureEnabled, interfaceName)
 	if !featureEnabled && interfaceName == "content" {
 		return false
 	}
