@@ -86,8 +86,8 @@ func (c *systemModeCommand) Execute(args []string) error {
 	}
 
 	res := systemModeResult{
-		SystemMode:       smi.Mode,
-		Seeded:           smi.Seeded,
+		SystemMode: smi.Mode,
+		Seeded:     smi.Seeded,
 	}
 	if strutil.ListContains(smi.BootFlags, "factory") {
 		res.Factory = true
