@@ -62,6 +62,10 @@ func (s *generalSuite) expectSystemInfoWriteAccess() {
 }
 
 func (s *generalSuite) expectChangesReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
+}
+
+func (s *generalSuite) expectChangeReadAccess() {
 	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "ros-snapd-support"}})
 }
 
@@ -911,7 +915,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	defer restore()
 
 	// Setup
-	s.expectChangesReadAccess()
+	s.expectChangeReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -997,7 +1001,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	defer restore()
 
 	// Setup
-	s.expectChangesReadAccess()
+	s.expectChangeReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -1063,7 +1067,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	defer restore()
 
 	// Setup
-	s.expectChangesReadAccess()
+	s.expectChangeReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
