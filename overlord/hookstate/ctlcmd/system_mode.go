@@ -46,7 +46,7 @@ The output is in YAML format. Example output:
     system-mode: install
     seed-loaded: true
     factory: true
-    storage-encrypted: true
+    storage-encrypted: managed
 `)
 
 func init() {
