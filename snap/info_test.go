@@ -1387,7 +1387,7 @@ plugs:
 X-SnapInstanceName=%s
 Name=foo
 X-SnapAppName=%s
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s
+Exec=%s
 `
 		content := fmt.Sprintf(mockDesktopFileTemplate, snapInfo.InstanceName(), app.Name, app.WrapperPath())
 		c.Assert(os.WriteFile(path, []byte(content), 0644), IsNil)

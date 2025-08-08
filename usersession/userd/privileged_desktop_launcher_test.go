@@ -52,7 +52,7 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	var rawMircadeDesktop = `[Desktop Entry]
   X-SnapInstanceName=mircade
   Name=mircade
-  Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mircade_mircade.desktop /snap/bin/mircade
+  Exec=/snap/bin/mircade
   Icon=/snap/mircade/143/meta/gui/mircade.png
   Comment=Sample confined desktop
   Type=Application
