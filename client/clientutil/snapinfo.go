@@ -72,6 +72,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info, decorator StatusDecorator) (*cl
 		Channel:     snapInfo.Channel,
 		Private:     snapInfo.Private,
 		Confinement: string(confinement),
+		Grade:       string(snapInfo.Grade),
 		Apps:        apps,
 		Broken:      snapInfo.Broken,
 		Title:       snapInfo.Title(),
