@@ -416,9 +416,6 @@ backends:
                 image: snapd-spread/centos-9-64
                 workers: 6
 
-            - debian-12-64:
-                image: snapd-spread/debian-12-64
-                workers: 6
             - debian-sid-64:
                 image: snapd-spread/debian-sid-64
                 workers: 6
@@ -477,6 +474,10 @@ backends:
             - ubuntu-core-24-64:
                 image: snapd-spread/ubuntu-24.04-64-uefi
                 workers: 8
+
+            - debian-12-64:
+                image: snapd-spread/debian-12-64
+                workers: 6
 
     openstack-dev-ps7:
         type: openstack
