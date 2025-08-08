@@ -9871,7 +9871,7 @@ X-SnapInstanceName=test-snap`)
 X-SnapInstanceName=test-snap
 Name=test
 X-SnapAppName=test-snap
-Exec=env BAMF_DESKTOP_FILE_HINT=%s/test-snap_test-snap.desktop %s/test-snap
+Exec=%s/test-snap
 `[1:], dirs.SnapDesktopFilesDir, dirs.SnapBinariesDir)
 
 	c.Assert(desktopFile, testutil.FileEquals, expectedContent)
