@@ -74,7 +74,7 @@ var (
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
 		GET:        getChanges,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "ros-snapd-support"}},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 	}
 
 	warningsCmd = &Command{
