@@ -287,7 +287,13 @@ execute: |
   remote.exec "snap list" | MATCH pc-kernel
 
   # check encryption
-  if [ "$NESTED_ENABLE_TPM" = true ]; then
+  remote.exec "sudo snap install test-snapd-tools"
+  remote.exec "snap list" | MATCH "test-snapd-tools"
+  if [ "$NESTED_ENABLE_TPM" = false ]; then
+      remote.exec "test-snapd-tools.cmd snapctl system-mode" | NOMATCH "storage-encrypted"
+  else
+      remote.exec "test-snapd-tools.cmd snapctl system-mode" | MATCH "storage-encrypted: managed"
+
       remote.exec "sudo test -d /var/lib/snapd/device/fde"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"

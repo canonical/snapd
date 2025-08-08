@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -36,7 +37,7 @@ var shortSystemModeHelp = i18n.G("Get the current system mode and associated det
 var longSystemModeHelp = i18n.G(`
 The system-mode command returns information about the device's current system mode.
 
-This information includes the mode itself and whether the model snaps have been installed from the seed (seed-loaded). The system mode is either run, recover, or install.
+This information includes the mode itself, whether the model snaps have been installed from the seed (seed-loaded), and whether Full Disk Encryption (FDE) is enabled. The system mode is either run, recover, or install.
 
 Retrieved information can also include "factory mode" details: 'factory: true' declares whether the device booted an image flagged as for factory use. This flag can be set for convenience when building the image. No security sensitive decisions should be based on this bit alone.
 
@@ -45,18 +46,23 @@ The output is in YAML format. Example output:
     system-mode: install
     seed-loaded: true
     factory: true
+    storage-encrypted: managed
 `)
 
 func init() {
 	addCommand("system-mode", shortSystemModeHelp, longSystemModeHelp, func() command { return &systemModeCommand{} })
 }
 
-var devicestateSystemModeInfoFromState = devicestate.SystemModeInfoFromState
+var (
+	devicestateSystemModeInfoFromState = devicestate.SystemModeInfoFromState
+	fdestateSystemEncryptedFromState   = fdestate.SystemEncryptedFromState
+)
 
 type systemModeResult struct {
-	SystemMode string `yaml:"system-mode,omitempty"`
-	Seeded     bool   `yaml:"seed-loaded"`
-	Factory    bool   `yaml:"factory,omitempty"`
+	SystemMode       string `yaml:"system-mode,omitempty"`
+	Seeded           bool   `yaml:"seed-loaded"`
+	Factory          bool   `yaml:"factory,omitempty"`
+	StorageEncrypted string `yaml:"storage-encrypted,omitempty"`
 }
 
 func (c *systemModeCommand) Execute(args []string) error {
@@ -74,12 +80,20 @@ func (c *systemModeCommand) Execute(args []string) error {
 		return err
 	}
 
+	encrypted, err := fdestateSystemEncryptedFromState(st)
+	if err != nil {
+		return err
+	}
+
 	res := systemModeResult{
-		SystemMode: smi.Mode,
-		Seeded:     smi.Seeded,
+		SystemMode:       smi.Mode,
+		Seeded:           smi.Seeded,
 	}
 	if strutil.ListContains(smi.BootFlags, "factory") {
 		res.Factory = true
+	}
+	if encrypted {
+		res.StorageEncrypted = "managed"
 	}
 
 	b, err := yaml.Marshal(res)
