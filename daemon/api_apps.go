@@ -106,6 +106,12 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot retrieve services: %v", err)
 	}
 
+	// For the root user, default to global to preserve the normal
+	// behaviour and we make sure to match behaviour for snapctl.
+	if u.Uid == "0" {
+		global = true
+	}
+
 	sd := newStatusDecorator(r.Context(), global, u.Uid)
 	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil {

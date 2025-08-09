@@ -296,7 +296,7 @@ func (s *appsSuite) TestGetAppsInfoNames(c *check.C) {
 
 func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
 	r := daemon.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
-		c.Check(isGlobal, check.Equals, false)
+		c.Check(isGlobal, check.Equals, true)
 		c.Check(uid, check.Equals, "0")
 		return s
 	})
