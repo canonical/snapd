@@ -38,7 +38,7 @@ execute: |
     Name=Echo
     Comment=It echos stuff
     X-SnapAppName=echo
-    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo
+    Exec=$SNAP_MOUNT_DIR/bin/basic-desktop_$instance.echo
     EOF
 
         test -d "$SNAP_MOUNT_DIR/basic-desktop_$instance/x1"

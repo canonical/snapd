@@ -545,7 +545,7 @@ Exec=snap.app.evil.evil
 X-SnapInstanceName=snap
 Name=foo
 X-SnapAppName=app
-Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
+Exec=%s/bin/snap.app
 `, dirs.SnapMountDir))
 }
 
@@ -568,7 +568,7 @@ Exec=snap.app %U
 X-SnapInstanceName=snap
 Name=foo
 X-SnapAppName=app
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
+Exec=%s/bin/snap.app %%U
 `, dirs.SnapMountDir))
 }
 
@@ -668,7 +668,7 @@ Exec=snap.app
 X-SnapInstanceName=snap_bar
 Name=foo
 X-SnapAppName=app
-Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
+Exec=%s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }
 
@@ -693,7 +693,7 @@ Exec=snap.app %U
 X-SnapInstanceName=snap_bar
 Name=foo
 X-SnapAppName=app
-Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app %%U
+Exec=%s/bin/snap_bar.app %%U
 `, dirs.SnapMountDir))
 }
 
@@ -716,7 +716,7 @@ apps:
 	appName, newl, err := wrappers.DetectAppAndRewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
 	c.Assert(appName, Equals, "app")
-	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=%s/bin/snap.app", dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
@@ -806,7 +806,7 @@ X-SnapInstanceName=snap_bar
 Name=foo
 Icon=snap.snap_bar.icon
 X-SnapAppName=app
-Exec=env BAMF_DESKTOP_FILE_HINT=snap+bar_app.desktop %s/bin/snap_bar.app
+Exec=%s/bin/snap_bar.app
 `, dirs.SnapMountDir))
 }
 

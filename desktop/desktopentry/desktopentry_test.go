@@ -461,7 +461,7 @@ Comment[vi]=Truy cập Internet
 Comment[zh_CN]=访问互联网
 Comment[zh_HK]=連線到網際網路
 Comment[zh_TW]=連線到網際網路
-Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium %U
+Exec=/snap/bin/chromium %U
 Terminal=false
 Type=Application
 Icon=/snap/chromium/1193/chromium.png
@@ -509,7 +509,7 @@ Name[uk]=Відкрити нове вікно
 Name[vi]=Mở cửa sổ mới
 Name[zh_CN]=打开新窗口
 Name[zh_TW]=開啟新視窗
-Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium
+Exec=/snap/bin/chromium
 
 [Desktop Action Incognito]
 Name=Open a New Window in incognito mode
@@ -547,7 +547,7 @@ Name[uk]=Відкрити нове вікно у приватному режим
 Name[vi]=Mở cửa sổ mới trong chế độ ẩn danh
 Name[zh_CN]=以隐身模式打开新窗口
 Name[zh_TW]=以匿名模式開啟新視窗
-Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium --incognito
+Exec=/snap/bin/chromium --incognito
 
 [Desktop Action TempProfile]
 Name=Open a New Window with a temporary profile
@@ -585,7 +585,7 @@ Name[ug]=ۋاقىتلىق سەپلىمە ھۆججەت بىلەن يېڭى كۆز
 Name[vi]=Mở cửa sổ mới với hồ sơ tạm
 Name[zh_CN]=以临时配置文件打开新窗口
 Name[zh_TW]=以暫時性個人身分開啟新視窗
-Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium --temp-profile
+Exec=/snap/bin/chromium --temp-profile
 `
 
 func (s *desktopentrySuite) TestParseChromiumDesktopEntry(c *C) {
@@ -595,29 +595,29 @@ func (s *desktopentrySuite) TestParseChromiumDesktopEntry(c *C) {
 
 	c.Check(de.Name, Equals, "Chromium Web Browser")
 	c.Check(de.Icon, Equals, "/snap/chromium/1193/chromium.png")
-	c.Check(de.Exec, Equals, "env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium %U")
+	c.Check(de.Exec, Equals, "/snap/bin/chromium %U")
 	c.Check(de.Actions, HasLen, 3)
 
 	c.Assert(de.Actions["NewWindow"], NotNil)
 	c.Check(de.Actions["NewWindow"].Name, Equals, "Open a New Window")
 	c.Check(de.Actions["NewWindow"].Icon, Equals, "")
-	c.Check(de.Actions["NewWindow"].Exec, Equals, "env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium")
+	c.Check(de.Actions["NewWindow"].Exec, Equals, "/snap/bin/chromium")
 
 	c.Assert(de.Actions["Incognito"], NotNil)
 	c.Check(de.Actions["Incognito"].Name, Equals, "Open a New Window in incognito mode")
 	c.Check(de.Actions["Incognito"].Icon, Equals, "")
-	c.Check(de.Actions["Incognito"].Exec, Equals, "env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium --incognito")
+	c.Check(de.Actions["Incognito"].Exec, Equals, "/snap/bin/chromium --incognito")
 
 	c.Assert(de.Actions["TempProfile"], NotNil)
 	c.Check(de.Actions["TempProfile"].Name, Equals, "Open a New Window with a temporary profile")
 	c.Check(de.Actions["TempProfile"].Icon, Equals, "")
-	c.Check(de.Actions["TempProfile"].Exec, Equals, "env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop /snap/bin/chromium --temp-profile")
+	c.Check(de.Actions["TempProfile"].Exec, Equals, "/snap/bin/chromium --temp-profile")
 
 	args, err := de.ExpandExec([]string{"http://example.org"})
 	c.Assert(err, IsNil)
-	c.Check(args, DeepEquals, []string{"env", "BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop", "/snap/bin/chromium", "http://example.org"})
+	c.Check(args, DeepEquals, []string{"/snap/bin/chromium", "http://example.org"})
 
 	args, err = de.ExpandActionExec("Incognito", nil)
 	c.Assert(err, IsNil)
-	c.Check(args, DeepEquals, []string{"env", "BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/chromium_chromium.desktop", "/snap/bin/chromium", "--incognito"})
+	c.Check(args, DeepEquals, []string{"/snap/bin/chromium", "--incognito"})
 }

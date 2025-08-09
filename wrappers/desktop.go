@@ -107,8 +107,6 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 // detectAppAndRewriteExecLine parses snap app name from passed "Exec=" line and rewrites it
 // to use the wrapper path for snap application.
 func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appName string, execLine string, err error) {
-	env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
-
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
 		wrapper := app.WrapperPath()
@@ -123,9 +121,9 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appNam
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd {
-			return app.Name, "Exec=" + env + wrapper, nil
+			return app.Name, "Exec=" + wrapper, nil
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return app.Name, fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
+			return app.Name, fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
 	}
 
@@ -137,7 +135,7 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appNam
 	desktopFileApp := strings.TrimSuffix(df, filepath.Ext(df))
 	app, ok := s.Apps[desktopFileApp]
 	if ok {
-		newExec := fmt.Sprintf("Exec=%s%s", env, app.WrapperPath())
+		newExec := fmt.Sprintf("Exec=%s", app.WrapperPath())
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
 		return app.Name, newExec, nil
 	}

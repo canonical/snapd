@@ -55,7 +55,7 @@ execute: |
     	Name=Echo
     	Comment=It echos stuff
     	X-SnapAppName=echo
-    	Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo
+    	Exec=$SNAP_MOUNT_DIR/bin/basic-desktop.echo
     EOF
 
     echo "Sideload devmode snap fails without flags"
