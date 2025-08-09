@@ -202,6 +202,33 @@ func (cs *clientSuite) TestClientChangesData(c *check.C) {
 	c.Assert(err, check.Equals, client.ErrNoData)
 }
 
+func (cs *clientSuite) TestClientTaskData(c *check.C) {
+	cs.rsp = `{"type": "sync", "result": [{
+  "id":   "uno",
+  "kind": "foo",
+  "summary": "...",
+  "status": "Do",
+  "ready": false,
+  "tasks": [{"data":{"foo":"bar"}, "kind": "bar", "summary": "...", "status": "Do", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
+}]}`
+
+	chgs, err := cs.cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	c.Assert(err, check.IsNil)
+
+	chg := chgs[0]
+	c.Assert(chg.Tasks, check.HasLen, 1)
+	tsk := chg.Tasks[0]
+	var v string
+	err = tsk.Get("foo", &v)
+	c.Assert(err, check.IsNil)
+	c.Check(v, check.Equals, "bar")
+
+	var n string
+	err = tsk.Get("missing", &n)
+	c.Check(err, check.Equals, client.ErrNoData)
+	c.Check(n, check.Equals, "")
+}
+
 func (cs *clientSuite) TestClientAbort(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": {
   "id":   "uno",

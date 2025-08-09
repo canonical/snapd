@@ -2975,6 +2975,43 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestRemoveSnapshotSavedPrompt(c *check.C) {
+	var n int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Logf("r: %v", r)
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+				"action": "remove",
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result":{
+"kind":"remove-snap",
+"ready": true, "status": "Done", "data": {},
+"data": { "snap-names": ["foo"] },
+"tasks":[{"data":{"affected-snaps":["foo"]},"kind":"save-snapshot"}]
+}}`)
+		default:
+			c.Fatalf("unexpected request")
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{})
+	c.Check(n, check.Equals, 2)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed \(snap data snapshot saved\)`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
 	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
