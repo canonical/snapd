@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -1308,4 +1309,36 @@ func (s *fdeMgrSuite) TestFDEBlockedTasks(c *C) {
 	st.Unlock()
 	iterateUnlockedStateWaitingFor(st, chg2.IsReady)
 	st.Lock()
+}
+
+func (s *fdeMgrSuite) TestEFIDBXUpdateTaskAffectedSnaps(c *C) {
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tsk := s.st.NewTask("efi-secureboot-db-update", "")
+	snaps, err := snapstate.SnapsAffectedByTask(tsk)
+	c.Assert(err, IsNil)
+	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})
+}
+
+func (s *fdeMgrSuite) TestAddProtectedKeysTaskAffectedSnaps(c *C) {
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tsk := s.st.NewTask("fde-add-protected-keys", "")
+	snaps, err := snapstate.SnapsAffectedByTask(tsk)
+	c.Assert(err, IsNil)
+	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})
 }
