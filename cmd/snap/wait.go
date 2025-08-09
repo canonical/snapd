@@ -147,9 +147,28 @@ func (wmx mustWaitMixin) wait(id string) (*client.Change, error) {
 		}
 
 		// progress reporting
+		inDoing := map[string]*client.Task{}
 		for _, t := range chg.Tasks {
+			if t.Status == "Doing" {
+				inDoing[t.ID] = t
+			}
+		}
+
+		// Show the last 'not yet done' task, which hopefully is a good
+		// representation of how the operation is progressing. In case of single
+		// snap operations this should nicely pick snap's own 'active' tasks or
+		// one from its dependencies.
+		for i := len(chg.Tasks) - 1; i >= 0; i-- {
+			t := chg.Tasks[i]
 			switch {
 			case t.Status != "Doing" && t.Status != "Wait":
+				continue
+			case t.Kind == "check-rerefresh" && len(inDoing) > 1:
+				// when doing a refresh, check-rerefresh task is perpetually in
+				// Doing state as it not blocked by other tasks, but rather
+				// monitors them for completion so that additional refresh check
+				// can be performend. Purposefully skip unless it's really the
+				// only running task.
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
