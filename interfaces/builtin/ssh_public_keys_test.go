@@ -79,13 +79,16 @@ func (s *SshPublicKeysInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner @{HOME}/.ssh/*.pub r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/etc/ssh/ssh_host_ecdsa_key.pub r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/etc/ssh/ssh_host_rsa_key.pub r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/etc/ssh/ssh_host_ed25519_key.pub r,`)
 }
 
 func (s *SshPublicKeysInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows reading ssh public keys and non-sensitive configuration`)
+	c.Assert(si.Summary, Equals, `allows reading ssh public keys and host public keys and non-sensitive configuration`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ssh-public-keys")
 }
 
