@@ -1,0 +1,76 @@
+summary: Ensure that compatibility labels for the content interface work.
+
+details: |
+  The content interface interface supports now compatibility labels as an
+  alternative to the content tags. This test checks its behavior.
+
+environment:
+  STORE_DIR: $(pwd)/fake-store-blobdir
+  STORE_ADDR: localhost:11028
+
+restore: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+  
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  snap set system experimental.content-compatibility-label=true
+
+  snap install core24
+
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+  snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+  snap ack "$TESTSLIB/assertions/developer1.account"
+  snap ack "$TESTSLIB/assertions/developer1.account-key"
+
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+
+  sed -i 's/##COMP##/foo-3/' prod/meta/snap.yaml
+  sed -i 's/##COMP##/foo-(0..2)/' cons/meta/snap.yaml
+  snap pack prod
+  snap pack cons
+  "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" test-prod_*.snap test-prod-id
+  "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" test-cons_*.snap test-cons-id
+  snap install test-prod test-cons
+
+  # Not connected and cannot be connected manually
+  snap connections | not MATCH 'test-cons:ciiface +test-prod:ciiface'
+  not snap connect test-cons:ciiface test-prod:ciiface
+
+  # Clean old snap in fakestore directory because the fakestore can't distinguish
+  # multiple snaps files for the same snap.
+  rm "$STORE_DIR"/test-prod_*.snap
+  # Now use a label compatible with the consumer
+  sed -i 's/foo-3/foo-2/' prod/meta/snap.yaml
+  snap pack prod
+  # The script only considers the revision if the snao ID is provided
+  "$TESTSTOOLS"/store-state make-snap-installable --revision 2 "$STORE_DIR" test-prod_*.snap test-prod-id
+  snap refresh test-prod
+
+  # Automatically connected, can also connect after a disconnection
+  snap connections | MATCH 'content\[foo-\(0\.\.2\)\] +test-cons:ciiface +test-prod:ciiface'
+  snap disconnect test-cons:ciiface test-prod:ciiface
+  snap connect test-cons:ciiface test-prod:ciiface
+  snap connections | MATCH 'content\[foo-\(0\.\.2\)\] +test-cons:ciiface +test-prod:ciiface'
+
+  # Check sharing actually works
+  test-prod.test
+  test-cons.test
+
+  snap remove test-cons test-prod
+
+  # Now disable the experimental flag
+  snap set system experimental.content-compatibility-label=false
+
+  snap install test-prod test-cons
+  snap connections | not MATCH 'test-cons:ciiface +test-prod:ciiface'
+  not snap connect test-cons:ciiface test-prod:ciiface

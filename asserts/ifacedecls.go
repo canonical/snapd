@@ -35,6 +35,8 @@ type AttrMatchContext interface {
 	SlotAttr(arg string) (any, error)
 	PlugPublisherID() string
 	SlotPublisherID() string
+	// This should be removed when the ContentCompatLabel feature is enabled by default.
+	CompatLabelsEnabled() bool
 }
 
 const (
@@ -58,7 +60,7 @@ func (ac *AttributeConstraints) feature(flabel string) bool {
 func compileAttributeConstraints(constraints any) (*AttributeConstraints, error) {
 	cc := compileContext{
 		opts: &compileAttrMatcherOptions{
-			allowedOperations: []string{"SLOT", "PLUG"},
+			allowedOperations: []string{"SLOT", "PLUG", "SLOT_COMPAT", "PLUG_COMPAT"},
 			allowedRefs:       []string{"PLUG_PUBLISHER_ID", "SLOT_PUBLISHER_ID"},
 		},
 	}
