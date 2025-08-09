@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/snap"
 )
 
 var confdbstateTransactionForSet = confdbstate.GetTransactionToSet
@@ -236,9 +237,14 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	account, dbSchemaName, viewName, err := getConfdbViewID(ctx, plugName)
+	plug, err := checkConfdbPlugConnection(ctx, plugName)
 	if err != nil {
 		return err
+	}
+
+	account, dbSchemaName, viewName, err := snap.ConfdbPlugAttrs(plug)
+	if err != nil {
+		return fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
 	}
 
 	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)

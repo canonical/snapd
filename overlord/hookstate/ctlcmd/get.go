@@ -385,9 +385,14 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	account, dbSchemaName, viewName, err := getConfdbViewID(ctx, plugName)
+	plug, err := checkConfdbPlugConnection(ctx, plugName)
 	if err != nil {
 		return err
+	}
+
+	account, dbSchemaName, viewName, err := snap.ConfdbPlugAttrs(plug)
+	if err != nil {
+		return fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
 	}
 
 	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)
@@ -413,24 +418,28 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	return c.printPatch(res)
 }
 
-func getConfdbViewID(ctx *hookstate.Context, plugName string) (account, dbSchemaName, viewName string, err error) {
+func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.PlugInfo, error) {
+	// TODO: this check currently doesn't support per-app plugs but it should eventually
 	repo := ifacerepo.Get(ctx.State())
-
 	plug := repo.Plug(ctx.InstanceName(), plugName)
 	if plug == nil {
-		return "", "", "", fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
+		return nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
 	}
 
 	if plug.Interface != "confdb" {
-		return "", "", "", fmt.Errorf(i18n.G("cannot use --view with non-confdb plug :%s"), plugName)
+		return nil, fmt.Errorf(i18n.G("cannot use --view with non-confdb plug :%s"), plugName)
 	}
 
-	account, dbSchemaName, viewName, err = snap.ConfdbPlugAttrs(plug)
+	conns, err := repo.Connected(ctx.InstanceName(), plugName)
 	if err != nil {
-		return "", "", "", fmt.Errorf(i18n.G("invalid plug :%s: %w"), plugName, err)
+		return nil, fmt.Errorf(i18n.G("cannot check if plug :%s is connected: %v"), plugName, err)
 	}
 
-	return account, dbSchemaName, viewName, nil
+	if len(conns) == 0 {
+		return nil, fmt.Errorf(i18n.G("cannot access confdb through unconnected plug :%s"), plugName)
+	}
+
+	return plug, nil
 }
 
 // validateConfdbsFeatureFlag checks whether the confdb experimental flag

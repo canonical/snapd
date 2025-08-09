@@ -9,9 +9,11 @@ systems: [ -ubuntu-16.04 ]
 
 prepare: |
   snap set system experimental.confdb=true
+  snap set system experimental.parallel-instances=true
 
 restore: |
   snap unset system experimental.confdb
+  snap unset system experimental.parallel-instances
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -62,3 +64,18 @@ execute: |
   snap set developer1/network/wifi-setup status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" through developer1/network/wifi-setup: no matching rule'
   snap set developer1/network/wifi-setup password=foo
   snap get developer1/network/wifi-setup password 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot get "password" through developer1/network/wifi-setup: no matching rule'
+
+  # check that snaps can't access confdb through snapctl without a connected plug
+  snap disconnect test-custodian-snap:manage-wifi
+
+  # install another snap to serve as the custodian
+  "$TESTSTOOLS"/snaps-state install-local-as test-custodian-snap test-custodian-snap_other
+  snap connect test-custodian-snap_other:manage-wifi
+  # the new custodian can still access confdb
+  snap run --shell test-custodian-snap_other.sh -c 'snapctl set --view :manage-wifi ssid=foo'
+  snap run --shell test-custodian-snap_other.sh -c 'snapctl get --view :manage-wifi ssid' | MATCH "foo"
+
+  # but the disconnected snap cannot
+  snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
+  snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=foo' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
+  snap run --shell test-custodian-snap.sh -c 'snapctl unset --view :manage-wifi ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
