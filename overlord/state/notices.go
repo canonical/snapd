@@ -136,6 +136,11 @@ func (n *Notice) String() string {
 	return fmt.Sprintf("Notice %s (%s:%s:%s)", n.id, userIDStr, n.noticeType, n.key)
 }
 
+// ID returns the notice's ID.
+func (n *Notice) ID() string {
+	return n.id
+}
+
 // UserID returns the value of the notice's user ID and whether it is set.
 // If it is nil, then the returned userID is 0, and isSet is false.
 func (n *Notice) UserID() (userID uint32, isSet bool) {
@@ -150,9 +155,19 @@ func (n *Notice) Type() NoticeType {
 	return n.noticeType
 }
 
+// Key returns the notice's key.
+func (n *Notice) Key() string {
+	return n.key
+}
+
 // LastRepeated returns the last repeated timestamp for this notice.
 func (n *Notice) LastRepeated() time.Time {
 	return n.lastRepeated
+}
+
+// LastData returns the last data associated with this notice.
+func (n *Notice) LastData() map[string]string {
+	return n.lastData
 }
 
 func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
@@ -162,8 +177,8 @@ func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
 	return *userID, true
 }
 
-// expired reports whether this notice has expired (relative to the given "now").
-func (n *Notice) expired(now time.Time) bool {
+// Expired reports whether this notice has expired (relative to the given "now").
+func (n *Notice) Expired(now time.Time) bool {
 	return n.lastOccurred.Add(n.expireAfter).Before(now)
 }
 
@@ -484,7 +499,7 @@ func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	var toRemove []noticeKey
 	var notices []*Notice
 	for k, n := range s.notices {
-		if n.expired(now) || !filter.matches(n) {
+		if n.Expired(now) || !filter.matches(n) {
 			continue
 		}
 		toRemove = append(toRemove, k)
@@ -534,7 +549,7 @@ func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
 	now := time.Now()
 	var notices []*Notice
 	for _, n := range s.notices {
-		if n.expired(now) || !filter.matches(n) {
+		if n.Expired(now) || !filter.matches(n) {
 			continue
 		}
 		notices = append(notices, n)
@@ -546,7 +561,7 @@ func (s *State) unflattenNotices(flat []*Notice) {
 	now := time.Now()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
-		if n.expired(now) {
+		if n.Expired(now) {
 			continue
 		}
 		userID, hasUserID := n.UserID()

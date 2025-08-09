@@ -209,6 +209,20 @@ func prefixFromID(id string) (prefix string, ok bool) {
 	return "", false
 }
 
+// DrainNotices finds all notices in the state that have the given type,
+// removes them from the state, and returns them, ordered by the last-repeated
+// time.
+//
+// This should only be immediately after registering a new notice backend, if
+// that backend is taking over notices of the given type which were previously
+// handled by the state.
+func (nm *NoticeManager) DrainNotices(noticeType state.NoticeType) []*state.Notice {
+	nm.state.Lock()
+	defer nm.state.Unlock()
+	filter := &state.NoticeFilter{Types: []state.NoticeType{noticeType}}
+	return nm.state.DrainNotices(filter)
+}
+
 // NextNoticeTimestamp returns a timestamp which is guaranteed to be after the
 // previous notice timestamp, and updates the last notice timestamp in the
 // state.
