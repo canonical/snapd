@@ -659,12 +659,21 @@ func sbNewSealedKeyDataImpl(k *sb.KeyData) (MaybeSealedKeyData, error) {
 
 var sbNewSealedKeyData = sbNewSealedKeyDataImpl
 
-// ResealKeys updates the PCR protection policy for the sealed encryption keys
+type resealKeysWithTPMParams struct {
+	// The snap model parameters
+	PCRProfile SerializedPCRProfile
+	// The locations to the key data
+	Keys []KeyDataLocation
+	// The primary key
+	PrimaryKey []byte
+}
+
+// resealKeysWithTPMImpl updates the PCR protection policy for the sealed encryption keys
 // according to the specified parameters.
 // If newPCRPolicyVersion is true, the keys will use a new policy version
 // so that the policy counter can be incremented. The function will
 // then also return the updated keys in order to increase the counter.
-func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
+func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
 	numSealedKeyObjects := len(params.Keys)
 	if numSealedKeyObjects < 1 {
 		return nil, fmt.Errorf("at least one key file is required")
@@ -760,6 +769,8 @@ func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys
 
 	return updatedKeys, nil
 }
+
+var resealKeysWithTPM = resealKeysWithTPMImpl
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
