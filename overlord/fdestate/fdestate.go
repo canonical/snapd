@@ -321,28 +321,28 @@ func updateParameters(st *state.State, role string, containerRole string, bootMo
 	return nil
 }
 
-func (s *FdeState) getParameters(role string, containerRole string) (hasParamters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, err error) {
+func (s *FdeState) getParameters(role string, containerRole string) (hasParameters bool, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, primaryKeyID int, policyCounterHandle uint32, err error) {
 	roleInfo, hasRole := s.KeyslotRoles[role]
 	if !hasRole {
-		return false, nil, nil, nil, fmt.Errorf("cannot find keyslot role %s", role)
+		return false, nil, nil, nil, 0, 0, fmt.Errorf("cannot find keyslot role %s", role)
 	}
 
 	if roleInfo.Parameters == nil {
-		return false, nil, nil, nil, nil
+		return false, nil, nil, nil, roleInfo.PrimaryKeyID, roleInfo.TPM2PCRPolicyRevocationCounter, nil
 	}
 	parameters, hasContainerRole := roleInfo.Parameters[containerRole]
 	if !hasContainerRole {
 		parameters, hasContainerRole = roleInfo.Parameters["all"]
 	}
 	if !hasContainerRole {
-		return false, nil, nil, nil, nil
+		return false, nil, nil, nil, roleInfo.PrimaryKeyID, roleInfo.TPM2PCRPolicyRevocationCounter, nil
 	}
 
 	for _, model := range parameters.Models {
 		models = append(models, model)
 	}
 
-	return true, parameters.BootModes, models, parameters.TPM2PCRProfile, nil
+	return true, parameters.BootModes, models, parameters.TPM2PCRProfile, roleInfo.PrimaryKeyID, roleInfo.TPM2PCRPolicyRevocationCounter, nil
 }
 
 func withFdeState(st *state.State, op func(fdeSt *FdeState) (modified bool, err error)) error {

@@ -98,12 +98,15 @@ type EncryptedContainer interface {
 type FDEStateManager interface {
 	// Update will update the sealing parameters for a give role.
 	Update(role string, containerRole string, parameters *SealingParameters) error
-	// Get returns the current parameters for a given role. If parameters exist for that role, it will return nil without error.
-	Get(role string, containerRole string) (parameters *SealingParameters, err error)
+	// Get returns the current parameters for a given role as well as policy counter and primary key id. If role exists but there is no parameters, it will return nil parameters without error.
+	Get(role string, containerRole string) (parameters *SealingParameters, primaryKeyID int, policyCounterHandle uint32, err error)
 	// Unlock notifies the manager that the state can be unlocked and returns a function to relock it.
 	Unlock() (relock func())
 	// GetEncryptedContainers returns the list of encrypted disks for the device
 	GetEncryptedContainers() ([]EncryptedContainer, error)
+	// VerifyPrimaryKey verifies that a raw primary key matches
+	// the digest of primary key indexed by its state ID.
+	VerifyPrimaryKey(primaryKeyID int, primaryKey []byte) bool
 }
 
 // comparableModel is just a representation of secboot.ModelForSealing
@@ -149,13 +152,23 @@ type resealParamsAndLocation struct {
 	location secboot.KeyDataLocation
 }
 
+func secbootPCRPolicyCounterHandlesImpl(uk secboot.UpdatedKeys) []uint32 {
+	return uk.PCRPolicyCounterHandles()
+}
+
+var secbootPCRPolicyCounterHandles = secbootPCRPolicyCounterHandlesImpl
+
 func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir string, revokeOldKeys bool) error {
 	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
 	}
 
+	primaryKeyIDs := make(map[int]bool)
+	// In theory the sets of keys should be split by
+	// primaryKey. But for now we expect only one primary key.
 	var keys []resealParamsAndLocation
+	var policyCounters []uint32
 
 	var devices []string
 
@@ -165,7 +178,8 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 
 		switch container.ContainerRole() {
 		case "system-data":
-			parameters, err := manager.Get("run+recover", container.ContainerRole())
+			parameters, primaryKeyID, policyCounter, err := manager.Get("run+recover", container.ContainerRole())
+			primaryKeyIDs[primaryKeyID] = true
 			if err != nil {
 				return err
 			}
@@ -195,12 +209,14 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 					params:   parameters,
 					location: runKey,
 				})
+				policyCounters = append(policyCounters, policyCounter)
 			}
 		}
 
 		switch container.ContainerRole() {
 		case "system-save", "system-data":
-			parameters, err := manager.Get("recover", container.ContainerRole())
+			parameters, primaryKeyID, policyCounter, err := manager.Get("recover", container.ContainerRole())
+			primaryKeyIDs[primaryKeyID] = true
 			if err != nil {
 				return err
 			}
@@ -232,8 +248,16 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 					params:   parameters,
 					location: fallbackKey,
 				})
+				policyCounters = append(policyCounters, policyCounter)
 			}
 		}
+	}
+
+	var primaryKeyID int
+	hasPrimaryKeyID := false
+	for id := range primaryKeyIDs {
+		hasPrimaryKeyID = true
+		primaryKeyID = id
 	}
 
 	switch method {
@@ -242,8 +266,18 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		primaryKeyFile := filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 		// All devices should have the same primary key
 		primaryKeyGetter := func() ([]byte, error) {
-			return secbootGetPrimaryKey(devices, primaryKeyFile)
+			primaryKey, err := secbootGetPrimaryKey(devices, primaryKeyFile)
+			if err != nil {
+				return nil, err
+			}
+			if hasPrimaryKeyID {
+				if !manager.VerifyPrimaryKey(primaryKeyID, primaryKey) {
+					logger.Noticef("WARNING: primary key is not matching the FDE state")
+				}
+			}
+			return primaryKey, nil
 		}
+
 		for _, key := range keys {
 			if err := secbootResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key.location}, primaryKeyGetter, key.params.Models, key.params.BootModes); err != nil {
 				return err
@@ -258,8 +292,16 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 		if err != nil {
 			return err
 		}
+		if hasPrimaryKeyID {
+			if !manager.VerifyPrimaryKey(primaryKeyID, primaryKey) {
+				logger.Noticef("WARNING: primary key is not matching the FDE state")
+			}
+		}
+
 		var allResealedKeys secboot.UpdatedKeys
-		for _, key := range keys {
+		for i, key := range keys {
+			policyCounter := policyCounters[i]
+
 			keyParams := &secboot.ResealKeysParams{
 				PCRProfile: key.params.TpmPCRProfile,
 				Keys:       []secboot.KeyDataLocation{key.location},
@@ -270,9 +312,18 @@ func doReseal(manager FDEStateManager, method device.SealingMethod, rootdir stri
 			if err != nil {
 				return fmt.Errorf("cannot reseal the encryption key: %v", err)
 			}
-			if revokeOldKeys {
-				allResealedKeys = append(allResealedKeys, resealedKeys...)
+			usedHandles := secbootPCRPolicyCounterHandles(resealedKeys)
+			if len(usedHandles) == 1 {
+				if usedHandles[0] != policyCounter {
+					logger.Noticef("WARNING: policy counter handle is not matching the FDE state")
+				}
+			} else if len(usedHandles) > 1 {
+				if usedHandles[0] != policyCounter {
+					logger.Noticef("WARNING: multiple policy counter handles were used for the same parameters")
+				}
 			}
+
+			allResealedKeys = append(allResealedKeys, resealedKeys...)
 		}
 		if revokeOldKeys {
 			if err := secbootRevokeOldKeys(&allResealedKeys, primaryKey); err != nil {
