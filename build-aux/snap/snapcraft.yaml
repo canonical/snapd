@@ -397,23 +397,8 @@ parts:
         # triggers testing specific build tags which produce binaries that are
         # insecure for use in production systems
         case "${cmd}" in
-          bin/snap)
+          bin/snap|lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
-            ;;
-          lib/snapd/snap-bootstrap)
-            TAGS+=(nomanagers)
-            case "${CRAFT_ARCH_BUILD_FOR}" in
-              arm64|armhf)
-                TAGS+=(withoptee)
-                ;;
-            esac
-            ;;
-          lib/snapd/snapd)
-            case "${CRAFT_ARCH_BUILD_FOR}" in
-              arm64|armhf)
-                TAGS+=(withoptee)
-                ;;
-            esac
             ;;
         esac
 
@@ -429,6 +414,17 @@ parts:
             esac
             ;;
         esac
+
+        # include optee on arm64 and armhf
+         case "${CRAFT_ARCH_BUILD_FOR}" in
+           arm64|armhf)
+               case "${cmd}" in
+                 lib/snapd/snapd|lib/snapd/snap-bootstrap)
+                   TAGS+=(optee)
+                   ;;
+               esac
+             ;;
+         esac
 
         # FIPS specific build tags
         if [ -f fips-build ]; then

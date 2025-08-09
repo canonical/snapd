@@ -8,7 +8,8 @@ Build-Depends: debhelper-compat (= 13), dh-python,
                fonts-ubuntu,
                libblkid-dev,
                golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
-               pkgconf
+               pkgconf,
+               optee-client-dev [arm64 armhf]
 Standards-Version: 4.4.1
 Homepage: https://launchpad.net/ubuntu-core-initramfs
 
@@ -48,7 +49,7 @@ Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          util-linux,
          amd64-microcode [amd64],
          intel-microcode [amd64],
-         optee-client-dev [arm64 armhf]
+         libteec1 [arm64 armhf]
 Description: standard embedded initrd
  Standard embedded initrd implementation to be used with Ubuntu Core
  systems. Currently targeting creating BLS Type2 like binaries.

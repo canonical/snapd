@@ -109,13 +109,6 @@ else
 	_SNAP_TAGS=nomanagers
 endif
 
-# Decision to not support optee (arm64, armhf only) on debs because focal build
-# fails due to missing build time dependency optee-client-dev.
-# TODO: The intention is to split control files for different releases, after
-# which point this build dependency can be enabled where its available.
-_TAGS := $(_TAGS),nooptee
-_SNAP_TAGS := $(_SNAP_TAGS),nooptee
-
 ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
 	_TAGS := $(_TAGS),goexperiment.opensslcrypto,snapdfips
