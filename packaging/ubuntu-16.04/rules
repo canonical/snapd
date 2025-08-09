@@ -109,11 +109,6 @@ else
 	_SNAP_TAGS=nomanagers
 endif
 
-# Decision to not support optee (arm64, armhf only) on debs because this
-# dependency is only relevant for the snapd snap.
-_TAGS := $(_TAGS),nooptee
-_SNAP_TAGS := $(_SNAP_TAGS),nooptee
-
 ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
 	_TAGS := $(_TAGS),goexperiment.opensslcrypto,snapdfips
@@ -238,7 +233,7 @@ endif
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor -tags nooptee $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build

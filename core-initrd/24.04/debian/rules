@@ -23,6 +23,10 @@ else
 _SNAP_TAGS:=nomanagers
 endif
 
+ifneq (,$(filter arm64 armhf,$(DEB_HOST_ARCH)))
+_SNAP_TAGS:=$(_SNAP_TAGS),optee
+endif
+
 ifeq (${FIPSBUILD},1)
 _SNAP_TAGS:=$(_SNAP_TAGS),goexperiment.opensslcrypto,snapdfips
 endif
