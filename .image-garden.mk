@@ -74,3 +74,6 @@ opensuse-cloud-tumbleweed-selinux.x86_64.user-data: export USER_DATA = $(call $(
 opensuse-cloud-tumbleweed-selinux.x86_64.user-data: $(MAKEFILE_LIST) $(wildcard $(GARDEN_PROJECT_DIR)/.image-garden.mk)
 	echo "$${USER_DATA}" | tee $@
 	touch --reference=$(shell stat $^ -c '%Y %n' | sort -nr | cut -d ' ' -f 2 | head -n 1) $@
+
+# include local overrides if present
+-include $(GARDEN_PROJECT_DIR)/.image-garden.local.mk
