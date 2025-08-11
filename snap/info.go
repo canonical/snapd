@@ -1454,6 +1454,25 @@ func (app *AppInfo) DesktopFile() string {
 	if err != nil || len(desktopFileIDs) == 0 {
 		return app.fallbackDesktopFile()
 	}
+
+	if app.CommonID != "" {
+		desktopID := strings.TrimSuffix(app.CommonID, ".desktop")
+
+		// TODO: replace this with !slices.Contains(desktopFileIDs, desktopID) once we're on go 1.21+.
+		found := false
+		for _, id := range desktopFileIDs {
+			if id == desktopID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return app.fallbackDesktopFile()
+		}
+
+		desktopFileIDs = []string{desktopID}
+	}
+
 	// Loop through desktop-file-ids desktop interface plug attribute in order to
 	// have deterministic output
 	for _, desktopFileID := range desktopFileIDs {
