@@ -1226,6 +1226,9 @@ nested_start_core_vm_unit() {
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
+    elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ]; then
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1292,7 +1295,7 @@ nested_start_core_vm_unit() {
     PARAM_REEXEC_ON_FAILURE=""
 
     if nested_is_core_lt 20; then
-        if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
+        if [[ "$SPREAD_BACKEND" = google-nested* ]] || [[ "$SPREAD_BACKEND" = openstack* ]]; then
             PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
         elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
             # check if we have nested kvm
@@ -1458,6 +1461,35 @@ nested_start_core_vm_unit() {
                 fi
             fi
         fi
+        nested_setup_vm
+    fi
+}
+
+nested_setup_vm(){
+    remote.exec "sudo snap set system journal.persistent=true"
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        # Add proxy configuration in /etc/environment
+        remote.exec "echo HTTPS_PROXY=$HTTPS_PROXY | sudo tee -a /etc/environment"
+        remote.exec "echo https_proxy=$HTTPS_PROXY | sudo tee -a /etc/environment"
+        remote.exec "echo HTTP_PROXY=$HTTP_PROXY | sudo tee -a /etc/environment"
+        remote.exec "echo http_proxy=$HTTP_PROXY | sudo tee -a /etc/environment"
+        remote.exec "echo NO_PROXY=$NO_PROXY | sudo tee -a /etc/environment"
+        remote.exec "echo no_proxy=$NO_PROXY | sudo tee -a /etc/environment"
+
+        # Configure snapd to use the proxy
+        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+        remote.exec "echo [Service] | sudo tee /etc/systemd/system/snapd.service.d/proxy.conf"
+        remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
+        remote.exec "sudo systemctl daemon-reload"
+        remote.exec "sudo systemctl restart snapd"
+    fi
+    if [ -n "${NTP_SERVER:-}" ]; then
+        # Configure systemd-timesyncd to use the predefined ntp server
+        CONF_FILE="/etc/systemd/timesyncd.conf"
+        remote.exec "sudo sed -i -e '/^NTP=/d' -e '/^FallbackNTP=/d' \"$CONF_FILE\""
+        remote.exec "sudo sed -i '/^\[Time\]/a NTP='\"$NTP_SERVER\" \"$CONF_FILE\""
+        remote.exec "sudo sed -i '/^\[Time\]/a FallbackNTP=' \"$CONF_FILE\""
+        remote.exec "sudo systemctl restart systemd-timesyncd"
     fi
 }
 
@@ -1620,6 +1652,9 @@ nested_start_classic_vm() {
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
+    elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ]; then
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"        
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1648,7 +1683,7 @@ nested_start_classic_vm() {
     fi
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]] || [[ "$SPREAD_BACKEND" = openstack* ]]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
@@ -1725,6 +1760,7 @@ nested_start_classic_vm() {
 
     # Copy tools to be used on tests
     nested_prepare_tools
+    nested_setup_vm
 }
 
 nested_destroy_vm() {
