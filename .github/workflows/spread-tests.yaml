@@ -410,15 +410,6 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          USE_ALTERNATIVE_BACKEND="$(curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/use_alternative_backend.json)"
-          SPREAD_BACKEND="${{ inputs.backend }}"
-          if [ -n "${{ inputs.alternative-backend }}" ] && [ $(jq -r ".\"${{ inputs.group }}\"" <<< "$USE_ALTERNATIVE_BACKEND") == true ]; then
-              SPREAD_BACKEND="${{ inputs.alternative-backend }}"
-          fi
-          RUN_TESTS=""
-          for SYSTEM in ${{ inputs.systems }}; do
-            RUN_TESTS="$RUN_TESTS $SPREAD_BACKEND:$SYSTEM:tests/main/alias"
-          done
           echo "Running command: $SPREAD $RUN_TESTS"
           (
             set -o pipefail 
