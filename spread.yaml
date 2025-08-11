@@ -1431,7 +1431,7 @@ suites:
             distro_purge_package snapd-xdg-open || true
     tests/cross/:
         summary: Cross-compile tests
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+        systems: [ubuntu-24.04-64]
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)

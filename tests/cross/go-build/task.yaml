@@ -25,6 +25,11 @@ environment:
     X_GCC/ppc64el: gcc-powerpc64le-linux-gnu
     X_CC/ppc64el: powerpc64le-linux-gnu-gcc
 
+    X_DEBARCH/riscv64: riscv64
+    X_GOARCH/riscv64: riscv64
+    X_GCC/riscv64: gcc-riscv64-linux-gnu
+    X_CC/riscv64: riscv64-linux-gnu-gcc
+
 prepare: |
     . /etc/os-release
     mkdir -p /tmp/cross-build/src/github.com/snapcore
@@ -36,17 +41,18 @@ prepare: |
         UBUNTU_ARCHIVE="http://$(cloud-id -l | cut -f2).gce.archive.ubuntu.com/ubuntu/"
     fi
 
+    mv /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.orig
     mv /etc/apt/sources.list /etc/apt/sources.list.orig
     cat > /etc/apt/sources.list <<-EOF
-          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME           main universe
-          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-updates   main universe
-          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-backports main universe
-          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-security  main universe
+          deb [arch=amd64] $UBUNTU_ARCHIVE $UBUNTU_CODENAME           main universe
+          deb [arch=amd64] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-updates   main universe
+          deb [arch=amd64] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-backports main universe
+          deb [arch=amd64] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-security  main universe
 
-          deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ $UBUNTU_CODENAME           main universe
-          deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ $UBUNTU_CODENAME-updates   main universe
-          deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ $UBUNTU_CODENAME-backports main universe
-          deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ $UBUNTU_CODENAME-security  main universe
+          deb [arch=armhf,arm64,ppc64el,s390x,riscv64] http://ports.ubuntu.com/ $UBUNTU_CODENAME           main universe
+          deb [arch=armhf,arm64,ppc64el,s390x,riscv64] http://ports.ubuntu.com/ $UBUNTU_CODENAME-updates   main universe
+          deb [arch=armhf,arm64,ppc64el,s390x,riscv64] http://ports.ubuntu.com/ $UBUNTU_CODENAME-backports main universe
+          deb [arch=armhf,arm64,ppc64el,s390x,riscv64] http://ports.ubuntu.com/ $UBUNTU_CODENAME-security  main universe
     EOF
     dpkg --add-architecture "$X_DEBARCH"
     apt --quiet -o Dpkg::Progress-Fancy=false update
@@ -54,8 +60,9 @@ prepare: |
 
 restore: |
     rm -rf /tmp/cross-build
-    dpkg -l | awk "/^ii.*$X_DEBARCH/{print \$2}" | xargs apt --yes --quiet -o Dpkg::Progress-Fancy=false autoremove --purge
+    dpkg -l | awk "/^ii.*$X_DEBARCH/{print \$2}" | xargs apt --yes --quiet --allow-remove-essential -o Dpkg::Progress-Fancy=false autoremove --purge
     dpkg --remove-architecture "$X_DEBARCH"
+    mv /etc/apt/sources.list.d/ubuntu.sources.orig /etc/apt/sources.list.d/ubuntu.sources
     mv /etc/apt/sources.list.orig /etc/apt/sources.list
     apt --quiet -o Dpkg::Progress-Fancy=false update
 
