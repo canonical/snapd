@@ -7,8 +7,12 @@ on:
         description: 'A json list of tags to indicate which runner to use'
         required: true
         type: string
-      build-repo:
-        description: 'The repository name in osc to build'
+      image-name:
+        description: 'The name of the docker image to build'
+        required: true
+        type: string
+      image-tag:
+        description: 'The tag of the docker image to build'
         required: true
         type: string
       pkg-dir:
@@ -33,60 +37,46 @@ jobs:
         name: vendor-pkgs
         path: /tmp/pkg
 
-    - name: Install dependencies
-      run: |
-        curl https://build.opensuse.org/projects/openSUSE:Tools/signing_keys/download?kind=gpg -o openSUSE_Tools.gpg
-        sudo gpg --dearmor -o /etc/apt/keyrings/openSUSE_Tools.gpg openSUSE_Tools.gpg
-        echo 'deb [signed-by=/etc/apt/keyrings/openSUSE_Tools.gpg] https://download.opensuse.org/repositories/openSUSE:/Tools/xUbuntu_22.10/ ./' | sudo tee /etc/apt/sources.list.d/openBuildService.list
-        sudo apt update
-        sudo apt install -y osc
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Setup osc
-      run: |
-        mkdir ${{ github.workspace }}/.osc-cache
-        cat <<EOF > oscrc
-        [general]
-        apiurl=https://api.opensuse.org
-        packagecachedir = ${{ github.workspace }}/.osc-cache
-        [https://api.opensuse.org]
-        user=${{ secrets.OSC_USER }}
-        pass=${{ secrets.OSC_PASSWORD }}
-        credentials_mgr_class=osc.credentials.PlaintextConfigFileCredentialsManager
-        EOF
-        osc co --config oscrc system:snappy snapd
-
-    - name: Create cache key
-      # Force a cache refresh once a week by using the year and week number as part of the cache key
-      run: echo "CACHE_KEY=osc-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
-
-    - name: Cache rpm dependencies
-      uses: actions/cache@v4
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
       with:
-        path: .osc-cache
-        key: ${{ env.CACHE_KEY }}
+        context: .
+        push: false
+        load: true
+        file: tests/lib/packaging/opensuse.dockerfile
+        tags: ${{ inputs.image-name }}-base:latest
+        build-args: |
+          IMAGE=${{ inputs.image-name }}
+          TAG=${{ inputs.image-tag }}
+          PACKAGING_DIR=${{ inputs.pkg-dir }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Set version in spec
+      run: |
+        version=$(cat /tmp/pkg/version)
+        sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
 
     - name: Build rpm
       run: |
-        cp packaging/${{ inputs.pkg-dir }}/snapd.spec system:snappy/snapd/
-        cp /tmp/pkg/* system:snappy/snapd
-        cd system:snappy/snapd
-        sed -i -e "s/^Version:.*$/Version: $(cat /tmp/pkg/version)/g" snapd.spec
-        osc build \
-          --config ${{ github.workspace }}/oscrc \
-          --with testkeys \
-          --buildtool-opt=--noclean \
-          --no-checks \
-          --no-service \
-          --trust-all-projects \
-          --keep-pkgs \
-          /tmp/builds ${{ inputs.build-repo }} x86_64
-
-        mkdir /tmp/uploads
-        sudo find /tmp/builds/* -type f \
-          ! -name '*debug*' \
-          ! -name '*.src.rpm' \
-          -name '*.rpm' \
-          -exec mv {} /tmp/uploads \;
+        chmod -R 777 .
+        mkdir -p /tmp/uploads
+        chmod -R 777 /tmp/uploads
+        docker run --privileged --rm \
+          --mount type=bind,src=$(pwd),dst=/root/snapd \
+          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
+          --mount type=bind,src=/tmp/uploads,dst=/tmp/uploads \
+          ${{ inputs.image-name }}-base:latest \
+          bash -c "
+            cd /root/snapd && \
+            tests/lib/packaging/build-opensuse.sh \
+              --pkg-dir ${{ inputs.pkg-dir }} \
+              --vendor-tar-dir /tmp/pkg \
+              --build-dir /tmp/uploads
+          "
 
     - name: Upload packages
       uses: actions/upload-artifact@v4

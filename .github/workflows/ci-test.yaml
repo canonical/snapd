@@ -109,15 +109,16 @@ jobs:
     name: Package ${{ matrix.build-config.system }}
     with:
       runs-on: '["ubuntu-latest"]'
-      build-repo: ${{ matrix.build-config.build-repo }}
       pkg-dir: ${{ matrix.build-config.pkg-dir }}
       system: ${{ matrix.build-config.system }}
+      image-name: ${{ matrix.build-config.image-name }}
+      image-tag: ${{ matrix.build-config.image-tag }}
     strategy:
       fail-fast: false
       matrix:
         build-config:
-          - { system: "opensuse-tumbleweed-64", build-repo: "openSUSE_Tumbleweed", pkg-dir: "opensuse-tumbleweed" }
-          - { system: "opensuse-15.6-64",       build-repo: "openSUSE_Leap_15.6",  pkg-dir: "opensuse-15.6"       }
+          - { system: "opensuse-tumbleweed-64", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
+          - { system: "opensuse-15.6-64",       image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
 
   package-snapd-arch:
     needs: create-vendor-dir
