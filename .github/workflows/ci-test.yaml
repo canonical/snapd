@@ -83,9 +83,9 @@ jobs:
           name: vendor-pkgs
           path: /tmp/pkg
 
-  package-snapd-rpm:
+  package-snapd-rpm-mock:
     needs: create-vendor-dir
-    uses: ./.github/workflows/rpm-builds.yaml
+    uses: ./.github/workflows/rpm-mock-builds.yaml
     name: Package ${{ matrix.build-config.system }}
     with:
       runs-on: '["ubuntu-latest"]'
@@ -102,9 +102,9 @@ jobs:
           - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
           - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
 
-  package-snapd-opensuse-rpm:
+  package-snapd-rpm-rpmbuild:
     needs: create-vendor-dir
-    uses: ./.github/workflows/opensuse-builds.yaml
+    uses: ./.github/workflows/rpm-rpmbuild-builds.yaml
     secrets: inherit
     name: Package ${{ matrix.build-config.system }}
     with:
