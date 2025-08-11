@@ -104,15 +104,15 @@ execute: |
   remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
 
   # Check that encryption is available for the targeted system
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"].support' | MATCH "available"
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
 
   # Cause an error by configuring bogus shim
   remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/bootx64.efi"
 
   # Check that encryption is not available for the targeted system and provides reason with error-kind
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"].support' | MATCH "unavailable"
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
   cat <<EOF > availability-check-errors.reference
   [
@@ -133,4 +133,4 @@ execute: |
 
   # Check that the basic availability check that do not consider shim, grub and kernel still works
   remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.04/' /etc/os-release"
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | jq '.result["storage-encryption"].support' | MATCH "available"
+  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
