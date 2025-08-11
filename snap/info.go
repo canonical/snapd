@@ -1455,6 +1455,17 @@ func (app *AppInfo) DesktopFile() string {
 	if err != nil || len(desktopFileIDs) == 0 {
 		return app.fallbackDesktopFile()
 	}
+
+	if app.CommonID != "" {
+		desktopID := strings.TrimSuffix(app.CommonID, ".desktop")
+
+		if !strutil.ListContains(desktopFileIDs, desktopID) {
+			return app.fallbackDesktopFile()
+		}
+
+		desktopFileIDs = []string{desktopID}
+	}
+
 	// Loop through desktop-file-ids desktop interface plug attribute in order to
 	// have deterministic output
 	for _, desktopFileID := range desktopFileIDs {
