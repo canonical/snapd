@@ -107,7 +107,7 @@ slots:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`content interface: compatibility label "foo@-0": bad string "foo@"`)
+		`compatibility label "foo@-0": bad string "foo@"`)
 	c.Assert(slot.Attrs["content"], IsNil)
 }
 
@@ -125,7 +125,7 @@ slots:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`content interface: cannot have both content and compatibility labels`)
+		`cannot have both content and compatibility labels`)
 }
 
 func (s *ContentSuite) TestSanitizeSlotNoPaths(c *C) {
@@ -247,7 +247,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content-plug"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`content interface: compatibility label "foo@-0": bad string "foo@"`)
+		`compatibility label "foo@-0": bad string "foo@"`)
 	c.Assert(plug.Attrs["content"], IsNil)
 }
 
@@ -264,7 +264,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content-plug"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`content interface: cannot have both content and compatibility labels`)
+		`cannot have both content and compatibility labels`)
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleNoTarget(c *C) {

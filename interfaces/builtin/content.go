@@ -117,7 +117,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		slot.Attrs = make(map[string]any)
 	}
 	if err := checkLabelAttributes(slot.Attrs, slot.Name); err != nil {
-		return fmt.Errorf("content interface: %w", err)
+		return err
 	}
 
 	// Error if "read" or "write" are present alongside "source".
@@ -153,7 +153,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		plug.Attrs = make(map[string]any)
 	}
 	if err := checkLabelAttributes(plug.Attrs, plug.Name); err != nil {
-		return fmt.Errorf("content interface: %w", err)
+		return err
 	}
 
 	target, ok := plug.Attrs["target"].(string)
