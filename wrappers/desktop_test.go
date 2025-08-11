@@ -126,22 +126,26 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesMangledDuplicate(c *C) {
 	c.Assert(files, HasLen, 1)
 }
 
-func (s *desktopSuite) testEnsurePackageDesktopFilesWithDesktopInterface(c *C, hasDesktopFileIDs bool) {
+func (s *desktopSuite) testEnsurePackageDesktopFilesWithDesktopInterface(c *C, desktopFileID string) {
 	var desktopAppYaml = `
 name: foo
 version: 1.0
 plugs:
   desktop:
 `
-	if hasDesktopFileIDs {
-		desktopAppYaml += "\n    desktop-file-ids: [org.example.Foo]"
+	if desktopFileID != "" {
+		desktopAppYaml += fmt.Sprintf("\n    desktop-file-ids: [%s]", desktopFileID)
 	}
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 	c.Assert(info.Plugs["desktop"], NotNil)
 
 	expectedDesktopFilePath1 := filepath.Join(dirs.SnapDesktopFilesDir, "foo_org.example.Foo.desktop")
-	if hasDesktopFileIDs {
-		expectedDesktopFilePath1 = filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")
+	if desktopFileID != "" {
+		expectedDesktopID := desktopFileID
+		if !strings.HasSuffix(expectedDesktopID, ".desktop") {
+			expectedDesktopID += ".desktop"
+		}
+		expectedDesktopFilePath1 = filepath.Join(dirs.SnapDesktopFilesDir, expectedDesktopID)
 	}
 	c.Assert(osutil.FileExists(expectedDesktopFilePath1), Equals, false)
 	expectedDesktopFilePath2 := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
@@ -170,13 +174,18 @@ plugs:
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopInterface(c *C) {
-	const hasDesktopFileIDs = false
-	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, hasDesktopFileIDs)
+	const desktopFileID = ""
+	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopFileIDs(c *C) {
-	const hasDesktopFileIDs = true
-	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, hasDesktopFileIDs)
+	const desktopFileID = "org.example.Foo.desktop"
+	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
+}
+
+func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopFileName(c *C) {
+	const desktopFileID = "org.example.Foo"
+	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithBadDesktopFileIDs(c *C) {
