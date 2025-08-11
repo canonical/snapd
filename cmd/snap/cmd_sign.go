@@ -50,7 +50,7 @@ type cmdSign struct {
 }
 
 func init() {
-	cmd := addCommand("sign", shortSignHelp, longSignHelp, func() flags.Commander {
+	addCommand("sign", shortSignHelp, longSignHelp, func() flags.Commander {
 		return &cmdSign{}
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -65,8 +65,6 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("File to sign (defaults to stdin)"),
 	}})
-	cmd.hidden = true
-	cmd.completeHidden = true
 }
 
 func (x *cmdSign) Execute(args []string) error {
