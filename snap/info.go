@@ -1480,6 +1480,20 @@ func (app *AppInfo) DesktopFile() string {
 	if err != nil || len(desktopFileIDs) == 0 {
 		return app.fallbackDesktopFile()
 	}
+
+	if app.CommonID != "" {
+		desktopID := app.CommonID + ".desktop"
+
+		if !strutil.ListContains(desktopFileIDs, desktopID) {
+			// In case the common ID is not one of the snap (and store-approved)
+			// desktop-file-ids, we should not use it as the app desktop file,
+			// but rather fallback to the default.
+			return app.fallbackDesktopFile()
+		}
+
+		desktopFileIDs = []string{desktopID}
+	}
+
 	// Loop through desktop-file-ids desktop interface plug attribute in order to
 	// have deterministic output
 	for _, desktopFileID := range desktopFileIDs {
