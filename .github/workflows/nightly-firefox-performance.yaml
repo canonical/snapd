@@ -1,0 +1,122 @@
+name: Nightly Firefox peformance tests
+
+on:
+  schedule:
+  - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+
+  test-firefox-snap:
+    name: Test Firefox snap performance
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        wget https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+        sudo snap install snapd_master_amd64.snap --dangerous
+        sudo snap install firefox
+        sudo apt install xvfb
+
+    - name: Run Firefox performance tests
+      uses: ./.github/actions/run-firefox-performance-tests
+      with:
+        firefox-exec: firefox
+        results-file: /tmp/snap-results.json
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: snap-results
+        path: /tmp/snap-results.json
+
+  test-firefox-binary:
+    name: Test Firefox snap binary performance
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo snap install firefox
+        sudo apt install xvfb
+
+    - name: Run Firefox performance tests
+      uses: ./.github/actions/run-firefox-performance-tests
+      with:
+        firefox-exec: /snap/firefox/current/usr/lib/firefox/firefox
+        results-file: /tmp/bin-results.json
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: bin-results
+        path: /tmp/bin-results.json
+
+  compare-results:
+    needs:
+      - test-firefox-snap
+      - test-firefox-binary
+    name: Compare snap vs. binary results
+    runs-on: [self-hosted, spread-enabled]
+    steps:
+    - name: Download snap results
+      uses: actions/download-artifact@v4
+      with:
+        name: snap-results
+    
+    - name: Download bin results
+      uses: actions/download-artifact@v4
+      with:
+        name: bin-results
+
+    - name: Compare and report results
+      run: |
+          cat <<EOF > comparison.py
+          import json
+          from statistics import geometric_mean
+
+          def log_scores(snap_json, bin_json, log_file):
+              with open(log_file, 'w') as f:
+                  snap_scores = []
+                  bin_scores = []
+                  for metric, data in snap_json.items():
+                      s = data['metrics']['Score']['current'][0]
+                      b = bin_json[metric]['metrics']['Score']['current'][0]
+                      snap_scores.append(s)
+                      bin_scores.append(b)
+
+                      f.write(f'metric {metric}: snap = {s:.3f}\n')
+                      f.write(f'metric {metric}: bin = {b:.3f}\n')
+                      f.write(f'metric {metric}: diff = {b - s:.3f}\n')
+
+                  snap_score = geometric_mean(snap_scores)
+                  bin_score = geometric_mean(bin_scores)
+                  f.write(f'overall: snap = {snap_score:.3f}\n')
+                  f.write(f'overall: bin = {bin_score:.3f}\n')
+                  f.write(f'overall: diff = {bin_score - snap_score:.3f}\n')
+
+                  return snap_score, bin_score
+
+          with open("snap-results.json", 'r') as f:
+              snap = json.load(f)["JetStream2.0"]["tests"]
+          with open("bin-results.json", 'r') as f:
+              bin = json.load(f)["JetStream2.0"]["tests"]
+
+          snap_score, bin_score = log_scores(snap, bin, "firefox-metrics.log")
+
+          # The bigger the overall score is, the better it is; see https://browserbench.org/JetStream2.2/index.html
+          # The choice of threshold is somewhat arbitrary. After various iterations,
+          # the numbers remain fairly close within 5 of each other. Use 10 as a threshold
+          # to ensure this fails if something drastic happens.
+          if bin_score - snap_score > 10:
+            print(f'The binary ({bin_score}) is better than the snap ({snap_score}) by more than 10: {bin_score - snap_score}')
+            exit(1)
+          EOF
+
+          python3 comparison.py
+          cat firefox-metrics.log
