@@ -72,13 +72,6 @@ execute: |
     export SKIP_MODERNIZE_LINT=y
 
     if not os.query is-trusty; then
-        # TODO: skip building optee for now on arm, since this doesn't impact
-        # any unit tests. once optee build is fully fixed, consider removing
-        # this.
-        build_tags=''
-        if os.query is-arm64; then
-          build_tags='nooptee'
-        fi
         if [ "$VARIANT" = "static" ] ; then
             tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
                 PATH=$PATH \
@@ -87,7 +80,6 @@ execute: |
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
                 IGNORE_MISSING=1 \
-                GO_BUILD_TAGS=${build_tags} \
                 ./run-checks --static"
         else
             tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
@@ -97,7 +89,6 @@ execute: |
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
                 IGNORE_MISSING=1 \
-                GO_BUILD_TAGS=${build_tags} \
                 ./run-checks --unit"
         fi
     else

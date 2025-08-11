@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -79,6 +80,12 @@ func LockSealedKeys() error {
 	if fdeHasRevealKey() {
 		return fde.LockSealedKeys()
 	}
+
+	client := optee.NewFDETAClient()
+	if client.Present() {
+		return client.Lock()
+	}
+
 	return lockTPMSealedKeys()
 }
 
@@ -145,10 +152,9 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	res.PartDevice = partDevice
 
-	hintExpectFDEHook := fdeHasRevealKey()
-
+	expectFDEHook := fdeHasRevealKey()
 	loadedKey := &defaultKeyLoader{}
-	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, hintExpectFDEHook); err != nil {
+	if err := readKeyFile(sealedEncryptionKeyFile, loadedKey, expectFDEHook); err != nil {
 		if !os.IsNotExist(err) {
 			logger.Noticef("WARNING: there was an error loading key %s: %v", sealedEncryptionKeyFile, err)
 		}
@@ -171,6 +177,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 	sbSetBootMode(opts.BootMode)
 	defer sbSetBootMode("")
+
 	sbSetKeyRevealer(&keyRevealerV3{})
 	defer sbSetKeyRevealer(nil)
 

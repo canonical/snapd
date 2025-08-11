@@ -162,7 +162,11 @@ func sealFallbackObjectKeys(key, saveKey secboot.BootstrappedContainer, pbc boot
 	return nil
 }
 
-func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+	if method != device.SealingMethodFDESetupHook {
+		return fmt.Errorf("internal error: sealKeyForBootChainsHook called with unsupported method %q", method)
+	}
+
 	sealingParams := secboot.SealKeysWithFDESetupHookParams{
 		PrimaryKey: params.PrimaryKey,
 	}
@@ -181,7 +185,7 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 		return err
 	}
 
-	if err := device.StampSealedKeys(params.InstallHostWritableDir, device.SealingMethodFDESetupHook); err != nil {
+	if err := device.StampSealedKeys(params.InstallHostWritableDir, method); err != nil {
 		return err
 	}
 
@@ -202,8 +206,8 @@ func sealKeyForBootChainsHook(key, saveKey secboot.BootstrappedContainer, params
 
 func sealKeyForBootChainsBackend(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, params *boot.SealKeyForBootChainsParams) error {
 	if method == device.SealingMethodFDESetupHook {
-		// volumes authentication is not supported for FDE hooks
-		return sealKeyForBootChainsHook(key, saveKey, params)
+		// volumes authentication is not supported when using secboot hooks
+		return sealKeyForBootChainsHook(method, key, saveKey, params)
 	}
 
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChains...))

@@ -304,7 +304,9 @@ func hookKeyProtectorFactory(kernelInfo *snap.Info) (secboot.KeyProtectorFactory
 		return secboot.FDESetupHookKeyProtectorFactory(runFDESetupHook), nil
 	}
 
-	// TODO: add OPTEE support here when available
+	if secboot.FDEOpteeTAPresent() {
+		return secboot.OPTEEKeyProtectorFactory(), nil
+	}
 
 	return nil, secboot.ErrNoKeyProtector
 }
@@ -362,7 +364,13 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err != nil {
 		return err
 	}
-	encryptionSupport, err := install.CheckEncryptionSupport(model, secboot.TPMProvisionFull, kernelSnap, gadgetInfo, runFDESetupHook)
+
+	encryptionSupport, err := install.CheckEncryptionSupport(install.EncryptionConstraints{
+		Model:   model,
+		Kernel:  kernelSnap,
+		Gadget:  gadgetInfo,
+		TPMMode: secboot.TPMProvisionFull,
+	}, runFDESetupHook)
 	if err != nil {
 		return err
 	}

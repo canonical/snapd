@@ -346,6 +346,7 @@ func MockDeleteLUKS2ContainerKey(f func(devicePath string, keyslotName string) e
 }
 
 type KeyRevealerV3 = keyRevealerV3
+type TaggedHandle = taggedHandle
 
 func MockAddLUKS2ContainerUnlockKey(f func(devicePath string, keyslotName string, existingKey sb.DiskUnlockKey, newKey sb.DiskUnlockKey) error) (restore func()) {
 	old := sbAddLUKS2ContainerUnlockKey

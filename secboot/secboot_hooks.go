@@ -32,6 +32,7 @@ import (
 	sb_hooks "github.com/snapcore/secboot/hooks"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -42,6 +43,15 @@ var sbSetBootMode = sb_scope.SetBootMode
 var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
 const legacyFdeHooksPlatformName = "fde-hook-v2"
+
+// taggedHandle wraps a raw handle from a secboot hook and adds a method field.
+// This field is used to route the handle to the correct [sb_hooks.KeyRevealer].
+// Note that this is currently only used for OPTEE at the moment to preserve
+// backwards compatibility.
+type taggedHandle struct {
+	Method string          `json:"method"`
+	Handle json.RawMessage `json:"handle"`
+}
 
 func init() {
 	v2Handler := &fdeHookV2DataHandler{}
@@ -99,7 +109,44 @@ func FDESetupHookKeyProtectorFactory(runHook fde.RunSetupHookFunc) KeyProtectorF
 	return &fdeKeyProtectorFactory{runHook: runHook}
 }
 
-// TODO: add an OPTEE key protector and factory
+// OPTEEKeyProtectorFactory returns a [KeyProtectorFactory] that will use
+// the system's OPTEE trusted application to protect the key.
+func OPTEEKeyProtectorFactory() KeyProtectorFactory {
+	return &opteeKeyProtectorFactory{}
+}
+
+type opteeKeyProtectorFactory struct{}
+
+func (o *opteeKeyProtectorFactory) ForKeyName(name string) KeyProtector {
+	return &opteeKeyProtector{}
+}
+
+type opteeKeyProtector struct{}
+
+func (o *opteeKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []byte) (ciphertext []byte, handle []byte, err error) {
+	client := optee.NewFDETAClient()
+	rawHandle, sealed, err := client.EncryptKey(cleartext)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parsed, err := json.Marshal(rawHandle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tagged := taggedHandle{
+		Method: "optee",
+		Handle: parsed,
+	}
+
+	handleJSON, err := json.Marshal(tagged)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sealed, handleJSON, nil
+}
 
 func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	var primaryKey sb.PrimaryKey
@@ -108,12 +155,18 @@ func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, param
 		primaryKey = params.PrimaryKey
 	}
 
+	// if we have any keys, then we'll be replacing the singleton key protector
+	// in sb_hooks. make sure we reset it before leaving this function.
+	if len(keys) > 0 {
+		defer sb_hooks.SetKeyProtector(nil, 0)
+	}
+
 	for _, skr := range keys {
 		protector := kpf.ForKeyName(skr.KeyName)
+
 		// TODO:FDEM: add support for AEAD (consider OP-TEE work)
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
-		defer sb_hooks.SetKeyProtector(nil, 0)
 
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
 			PrimaryKey: primaryKey,
@@ -276,15 +329,45 @@ func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData,
 	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
 
-type keyRevealerV3 struct {
-}
+type keyRevealerV3 struct{}
 
 func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []byte, err error) {
 	logger.Noticef("Called reveal key")
+
+	// try to parse as new tagged format first. if that fails, assume this is
+	// the older handle format that isn't inside of a JSON object.
+	//
+	// NOTE: if the handle happens to be a JSON object, it must have the
+	// "method" field set for us to consider the method. otherwise, the handle
+	// is not unwrapped and we pass along the full JSON blob.
+	var tagged taggedHandle
+	if len(data) == 0 || json.Unmarshal(data, &tagged) != nil || tagged.Method == "" {
+		logger.Debug("cannot parse handle as JSON object, using fde-setup hook revealer")
+		return revealWithHooks(data, ciphertext)
+	}
+
+	switch tagged.Method {
+	case "optee":
+		return revealWithOPTEE(tagged.Handle, ciphertext)
+	default:
+		return nil, fmt.Errorf("unknown key revealer method: %s", tagged.Method)
+	}
+}
+
+func revealWithOPTEE(handleJSON []byte, ciphertext []byte) ([]byte, error) {
+	var handle []byte
+	if err := json.Unmarshal(handleJSON, &handle); err != nil {
+		return nil, err
+	}
+	client := optee.NewFDETAClient()
+	return client.DecryptKey(ciphertext, handle)
+}
+
+func revealWithHooks(handleJSON []byte, ciphertext []byte) ([]byte, error) {
 	var handle *json.RawMessage
-	if len(data) != 0 {
-		rawHandle := json.RawMessage(data)
-		handle = &rawHandle
+	if len(handleJSON) != 0 {
+		tmp := json.RawMessage(handleJSON)
+		handle = &tmp
 	}
 	p := fde.RevealParams{
 		SealedKey: ciphertext,
@@ -292,4 +375,10 @@ func (kr *keyRevealerV3) RevealKey(data, ciphertext, aad []byte) (plaintext []by
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
+}
+
+// FDEOpteeTAPresent returns true if we detect that the expected OPTEE TA that
+// enables FDE is present.
+func FDEOpteeTAPresent() bool {
+	return optee.NewFDETAClient().Present()
 }

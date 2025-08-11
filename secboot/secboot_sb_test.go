@@ -40,6 +40,7 @@ import (
 	"github.com/canonical/go-tpm2/linux"
 	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
+	sb_scope "github.com/snapcore/secboot/bootscope"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_hooks "github.com/snapcore/secboot/hooks"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -52,6 +53,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/kernel/fde/optee"
+	"github.com/snapcore/snapd/kernel/fde/optee/opteetest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -1850,6 +1853,143 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
+type mockTPMDevice struct{}
+
+func (m *mockTPMDevice) Open() (tpm2.Transport, error) {
+	return &mockTPMTransport{}, nil
+}
+
+func (m *mockTPMDevice) String() string {
+	return "mock TPM"
+}
+
+type mockTPMTransport struct{}
+
+func (*mockTPMTransport) Read(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (*mockTPMTransport) Write(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (*mockTPMTransport) Close() error {
+	return nil
+}
+
+func (s *secbootSuite) TestLockSealedKeysUsesTPM(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	client := opteetest.MockClient{
+		PresentFn: func() bool {
+			return false
+		},
+	}
+
+	restore = optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		ctx, err := tpm2.OpenTPMDevice(&mockTPMDevice{})
+		if err != nil {
+			return nil, err
+		}
+
+		return &sb_tpm2.Connection{
+			TPMContext: ctx,
+		}, nil
+	})
+	defer restore()
+
+	var called bool
+	restore = secboot.MockSbBlockPCRProtectionPolicies(func(*sb_tpm2.Connection, []int) error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+
+	c.Check(called, Equals, true)
+}
+
+func (s *secbootSuite) TestLockSealedReturnsNonMissingTPMError(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	expected := errors.New("tpm error, but not sb_tpm2.ErrNoTPM2Device")
+	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		return nil, expected
+	})
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, ErrorMatches, fmt.Sprintf(".*: %s", expected.Error()))
+}
+
+func (s *secbootSuite) TestLockSealedKeysUsesOPTEE(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	var called bool
+	client := opteetest.MockClient{
+		PresentFn: func() bool {
+			return true
+		},
+		LockFn: func() error {
+			called = true
+			return nil
+		},
+	}
+
+	restore = optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+
+	c.Assert(called, Equals, true)
+}
+
+func (s *secbootSuite) TestLockSealedKeysUsesNothing(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		return nil, sb_tpm2.ErrNoTPM2Device
+	})
+	defer restore()
+
+	var called bool
+	client := opteetest.MockClient{
+		PresentFn: func() bool {
+			return false
+		},
+		LockFn: func() error {
+			called = true
+			return nil
+		},
+	}
+
+	restore = optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	err := secboot.LockSealedKeys()
+	c.Assert(err, IsNil)
+
+	c.Assert(called, Equals, false)
+}
+
 func (s *secbootSuite) testSealKeysWithProtectorHappy(c *C, useKeyFiles bool) {
 	n := 0
 	sealedPrefix := []byte("SEALED:")
@@ -1886,9 +2026,11 @@ func (s *secbootSuite) testSealKeysWithProtectorHappy(c *C, useKeyFiles bool) {
 		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
 		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 	}
+
 	factory := secboot.FDESetupHookKeyProtectorFactory(runFDESetupHook)
 	err := secboot.SealKeysWithProtector(factory, myKeys, &params)
 	c.Assert(err, IsNil)
+
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, HasLen, 2)
 	c.Check(runFDESetupHookReqs[0].Op, Equals, "initial-setup")
@@ -1991,6 +2133,112 @@ var fakeModel = assertstest.FakeAssertion(map[string]any{
 			"default-channel": "20",
 		}},
 }).(*asserts.Model)
+
+func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
+	prefix := []byte("SEALED:")
+
+	client := opteetest.MockClient{
+		EncryptKeyFn: func(input []byte) (handle []byte, sealed []byte, err error) {
+			key = make([]byte, len(input))
+			copy(key, input)
+			return nil, append(prefix, input...), nil
+		},
+	}
+	restore := optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	root := c.MkDir()
+	params := secboot.SealKeysWithFDESetupHookParams{
+		Model:      fakeModel,
+		AuxKeyFile: filepath.Join(root, "aux-key"),
+	}
+	container := secboot.CreateMockBootstrappedContainer()
+	keys := []secboot.SealKeyRequest{{
+		BootstrappedContainer: container,
+		KeyName:               "key",
+		SlotName:              "one",
+		KeyFile:               filepath.Join(root, "key-file"),
+	}}
+
+	err := secboot.SealKeysWithProtector(secboot.OPTEEKeyProtectorFactory(), keys, &params)
+	c.Assert(err, IsNil)
+	_, ok := container.Slots["one"]
+	c.Check(ok, Equals, true)
+
+	c.Check(container.Tokens, HasLen, 0)
+
+	keyFile := filepath.Join(root, "key-file")
+	c.Check(osutil.FileExists(keyFile), Equals, true)
+
+	return key, keyFile
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyWithOPTEE(c *C) {
+	expectedKey, keyPath := s.sealKeysWithOPTEE(c)
+
+	client := opteetest.MockClient{
+		DecryptKeyFn: func(input []byte, handle []byte) ([]byte, error) {
+			unsealed := bytes.TrimPrefix(input, []byte("SEALED:"))
+			c.Check(unsealed, DeepEquals, expectedKey)
+			return unsealed, nil
+		},
+		PresentFn: func() bool {
+			return true
+		},
+	}
+	restore := optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
+	})
+	defer restore()
+
+	// we can use the real ones for this test
+	restore = secboot.MockSbSetModel(sb_scope.SetModel)
+	defer restore()
+	restore = secboot.MockSbSetKeyRevealer(sb_hooks.SetKeyRevealer)
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "device-name-enc",
+				FilesystemUUID:  "enc-dev-uuid",
+				PartitionUUID:   "enc-dev-partuuid",
+			},
+		},
+	}
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
+		c.Assert(keys, HasLen, 1)
+		keyData := keys[0]
+
+		activated++
+		c.Check(options.RecoveryKeyTries, Equals, 0)
+
+		// XXX: this is what the real MockSbActivateVolumeWithKeyData will do
+		_, _, err := keyData.RecoverKeys()
+		return err
+	})
+	defer restore()
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, "device-name", keyPath, opts)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		UnlockMethod: secboot.UnlockedWithSealedKey,
+		IsEncrypted:  true,
+		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+	})
+	c.Check(activated, Equals, 1)
+}
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c *C) {
 	var reqs []*fde.RevealKeyRequest
@@ -2481,8 +2729,6 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 }
 
 func (s *secbootSuite) TestHookKeyRevealV3(c *C) {
-	k := &secboot.KeyRevealerV3{}
-
 	encryptedKey := []byte{1, 2, 3, 4}
 	decryptedKey := []byte{5, 6, 7, 8}
 
@@ -2495,14 +2741,13 @@ func (s *secbootSuite) TestHookKeyRevealV3(c *C) {
 	})
 	defer restore()
 
+	var k secboot.KeyRevealerV3
 	plain, err := k.RevealKey([]byte("the-handle"), encryptedKey, []byte{})
 	c.Assert(err, IsNil)
 	c.Check(plain, DeepEquals, decryptedKey)
 }
 
 func (s *secbootSuite) TestHookKeyRevealV3Error(c *C) {
-	k := &secboot.KeyRevealerV3{}
-
 	encryptedKey := []byte{1, 2, 3, 4}
 
 	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
@@ -2514,8 +2759,240 @@ func (s *secbootSuite) TestHookKeyRevealV3Error(c *C) {
 	})
 	defer restore()
 
+	var k secboot.KeyRevealerV3
 	_, err := k.RevealKey([]byte("the-handle"), encryptedKey, []byte{})
 	c.Assert(err, ErrorMatches, `some error`)
+}
+
+func (s *secbootSuite) TestKeyRevealerV3OpteeTagged(c *C) {
+	encryptedKey := []byte{1, 2, 3, 4}
+	decryptedKey := []byte{5, 6, 7, 8}
+
+	handleData := []byte("optee-handle-data")
+	handleJSON, err := json.Marshal(handleData)
+	c.Assert(err, IsNil)
+
+	client := opteetest.MockClient{
+		DecryptKeyFn: func(ciphertext, handle []byte) ([]byte, error) {
+			c.Check(ciphertext, DeepEquals, encryptedKey)
+			c.Check(handle, DeepEquals, handleData)
+			return decryptedKey, nil
+		},
+	}
+
+	restore := optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	// create tagged handle in the new format
+	taggedHandle := secboot.TaggedHandle{
+		Method: "optee",
+		Handle: json.RawMessage(handleJSON),
+	}
+	taggedJSON, err := json.Marshal(taggedHandle)
+	c.Assert(err, IsNil)
+
+	var k secboot.KeyRevealerV3
+	plain, err := k.RevealKey(taggedJSON, encryptedKey, []byte{})
+	c.Assert(err, IsNil)
+	c.Check(plain, DeepEquals, decryptedKey)
+}
+
+func (s *secbootSuite) TestKeyRevealerV3Legacy(c *C) {
+	encryptedKey := []byte{1, 2, 3, 4}
+	decryptedKey := []byte{5, 6, 7, 8}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, encryptedKey)
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte("legacy-handle")))
+		return decryptedKey, nil
+	})
+	defer restore()
+
+	// test with legacy format (raw JSON, no method field)
+	var k secboot.KeyRevealerV3
+	plain, err := k.RevealKey([]byte("legacy-handle"), encryptedKey, []byte{})
+	c.Assert(err, IsNil)
+	c.Check(plain, DeepEquals, decryptedKey)
+}
+
+func (s *secbootSuite) TestKeyRevealerV3UnknownMethod(c *C) {
+	encryptedKey := []byte{1, 2, 3, 4}
+
+	// create tagged handle with unknown method
+	taggedHandle := secboot.TaggedHandle{
+		Method: "unknown-method",
+		Handle: json.RawMessage([]byte(`"some-handle"`)),
+	}
+	taggedJSON, err := json.Marshal(taggedHandle)
+	c.Assert(err, IsNil)
+
+	var k secboot.KeyRevealerV3
+	_, err = k.RevealKey(taggedJSON, encryptedKey, []byte{})
+	c.Assert(err, ErrorMatches, `unknown key revealer method: unknown-method`)
+}
+
+func (s *secbootSuite) TestKeyRevealerV3InvalidJSON(c *C) {
+	encryptedKey := []byte{1, 2, 3, 4}
+	decryptedKey := []byte{5, 6, 7, 8}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, encryptedKey)
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte("invalid-json-{}")))
+		return decryptedKey, nil
+	})
+	defer restore()
+
+	// test with invalid JSON - should fall back to legacy behavior
+	var k secboot.KeyRevealerV3
+	plain, err := k.RevealKey([]byte("invalid-json-{}"), encryptedKey, []byte{})
+	c.Assert(err, IsNil)
+	c.Check(plain, DeepEquals, decryptedKey)
+}
+
+func (s *secbootSuite) TestKeyRevealerV3JSONObjectWithoutMethod(c *C) {
+	encryptedKey := []byte{1, 2, 3, 4}
+	decryptedKey := []byte{5, 6, 7, 8}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, encryptedKey)
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, json.RawMessage([]byte(`{"some": "data"}`)))
+		return decryptedKey, nil
+	})
+	defer restore()
+
+	// test with JSON that does not have a method set
+	var k secboot.KeyRevealerV3
+	plain, err := k.RevealKey([]byte(`{"some": "data"}`), encryptedKey, []byte{})
+	c.Assert(err, IsNil)
+	c.Check(plain, DeepEquals, decryptedKey)
+}
+
+func (s *secbootSuite) TestHookKeyProtectorTaggedHandle(c *C) {
+	cleartext := []byte{1, 2, 3, 4}
+	expectedHandle := json.RawMessage([]byte(`"fde-hook-handle"`))
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "initial-setup")
+		c.Check(req.Key, DeepEquals, cleartext)
+		c.Check(req.KeyName, Equals, "test-key")
+
+		result := &fde.InitialSetupResult{
+			EncryptedKey: []byte{5, 6, 7, 8},
+			Handle:       &expectedHandle,
+		}
+		return json.Marshal(result)
+	}
+
+	protector := secboot.FDESetupHookKeyProtectorFactory(runSetupHook).ForKeyName("test-key")
+
+	ciphertext, handle, err := protector.ProtectKey(nil, cleartext, nil)
+	c.Assert(err, IsNil)
+	c.Check(ciphertext, DeepEquals, []byte{5, 6, 7, 8})
+
+	// verify handle is in NOT in the tagged format, just a JSON string
+	c.Check(json.RawMessage(handle), DeepEquals, expectedHandle)
+}
+
+func (s *secbootSuite) TestOpteeKeyProtectorTaggedHandle(c *C) {
+	cleartext := []byte{1, 2, 3, 4}
+	rawHandleData := []byte{0xde, 0xad, 0xbe, 0xef}
+
+	client := opteetest.MockClient{
+		EncryptKeyFn: func(input []byte) (handle []byte, sealed []byte, err error) {
+			c.Check(input, DeepEquals, cleartext)
+			return rawHandleData, []byte{5, 6, 7, 8}, nil
+		},
+	}
+
+	restore := optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	protector := secboot.OPTEEKeyProtectorFactory().ForKeyName("key")
+	ciphertext, handle, err := protector.ProtectKey(nil, cleartext, nil)
+	c.Assert(err, IsNil)
+	c.Check(ciphertext, DeepEquals, []byte{5, 6, 7, 8})
+
+	var tagged secboot.TaggedHandle
+	err = json.Unmarshal(handle, &tagged)
+	c.Assert(err, IsNil)
+	c.Check(tagged.Method, Equals, "optee")
+
+	var unmarshaledHandle []byte
+	err = json.Unmarshal(tagged.Handle, &unmarshaledHandle)
+	c.Assert(err, IsNil)
+	c.Check(unmarshaledHandle, DeepEquals, rawHandleData)
+}
+
+func (s *secbootSuite) TestRoundTripHooksProtectReveal(c *C) {
+	cleartext := []byte{1, 2, 3, 4}
+	const keyName = "test-key"
+	handleData := json.RawMessage([]byte(`"round-trip-handle"`))
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "initial-setup")
+		c.Check(req.KeyName, Equals, keyName)
+		c.Check(req.Key, DeepEquals, cleartext)
+
+		result := &fde.InitialSetupResult{
+			EncryptedKey: []byte{5, 6, 7, 8},
+			Handle:       &handleData,
+		}
+		return json.Marshal(result)
+	}
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Op, Equals, "reveal")
+		c.Check(req.SealedKey, DeepEquals, []byte{5, 6, 7, 8})
+		c.Assert(req.Handle, NotNil)
+		c.Check(*req.Handle, DeepEquals, handleData)
+		return cleartext, nil
+	})
+	defer restore()
+
+	protector := secboot.FDESetupHookKeyProtectorFactory(runSetupHook).ForKeyName(keyName)
+	ciphertext, handle, err := protector.ProtectKey(nil, cleartext, nil)
+	c.Assert(err, IsNil)
+
+	var revealer secboot.KeyRevealerV3
+	revealed, err := revealer.RevealKey(handle, ciphertext, nil)
+	c.Assert(err, IsNil)
+	c.Check(revealed, DeepEquals, cleartext)
+}
+
+func (s *secbootSuite) TestRoundTripOpteeProtectReveal(c *C) {
+	cleartext := []byte{1, 2, 3, 4}
+	handleData := []byte("optee-handle-data")
+
+	client := opteetest.MockClient{
+		EncryptKeyFn: func(input []byte) (handle []byte, sealed []byte, err error) {
+			c.Check(input, DeepEquals, cleartext)
+			return handleData, []byte{5, 6, 7, 8}, nil
+		},
+		DecryptKeyFn: func(ciphertext, handle []byte) ([]byte, error) {
+			c.Check(ciphertext, DeepEquals, []byte{5, 6, 7, 8})
+			c.Check(handle, DeepEquals, handleData)
+			return cleartext, nil
+		},
+	}
+
+	restore := optee.MockNewFDETAClient(&client)
+	defer restore()
+
+	// protect with OPTEE key protector
+	protector := secboot.OPTEEKeyProtectorFactory().ForKeyName("key")
+	ciphertext, handle, err := protector.ProtectKey(nil, cleartext, nil)
+	c.Assert(err, IsNil)
+
+	var revealer secboot.KeyRevealerV3
+	revealed, err := revealer.RevealKey(handle, ciphertext, nil)
+	c.Assert(err, IsNil)
+	c.Check(revealed, DeepEquals, cleartext)
 }
 
 func (s *secbootSuite) TestAddBootstrapKeyOnExistingDisk(c *C) {

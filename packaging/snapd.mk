@@ -56,8 +56,6 @@ endif
 go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
 
 GO_TAGS = nosecboot
-# optee integration is only relevant for snapd managed FDE
-GO_TAGS += nooptee
 ifeq ($(with_testkeys),1)
 GO_TAGS += withtestkeys
 GO_TAGS += structuredlogging

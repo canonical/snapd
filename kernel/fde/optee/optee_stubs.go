@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !linux || (!arm && !arm64) || nooptee
+//go:build !optee || !linux || (!arm && !arm64)
 
 /*
  * Copyright (C) Canonical Ltd
@@ -44,8 +44,8 @@ func (c *unsupportedClient) Lock() error {
 	return ErrUnsupportedPlatform
 }
 
-func (c *unsupportedClient) Version() (string, error) {
-	return "", ErrUnsupportedPlatform
+func (c *unsupportedClient) Version() (int, error) {
+	return 0, ErrUnsupportedPlatform
 }
 
 func newFDETAClient() FDETAClient {
