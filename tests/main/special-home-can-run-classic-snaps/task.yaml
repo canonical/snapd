@@ -7,7 +7,11 @@ details: |
 systems: [ubuntu-2*]
 
 environment:
-    SPECIAL_USER_NAME/jenkins: jenkins
+    # the test used to install jenkins from https://pkg.jenkins.io, which kept
+    # the package archive on a number of mirrors, this no longer works longer
+    # works in PS7
+    # SPECIAL_USER_NAME/jenkins: jenkins
+
     SPECIAL_USER_NAME/postgres: postgres
 
 prepare: |
@@ -17,14 +21,6 @@ prepare: |
     echo "Install the corresponding package that brings the special user account."
     # Specialize the code as required for a particular user.
     case "$SPECIAL_USER_NAME" in
-        jenkins)
-            # Jenkins depends on java but not in the Debian sense.
-            apt-get install -y default-jre-headless
-            curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
-            echo 'deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian binary/' | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-            apt update
-            apt install -y jenkins
-            ;;
         postgres)
             apt install -y postgresql
             ;;
@@ -35,12 +31,6 @@ restore: |
     
     # Remove the package we installed above.
     case "$SPECIAL_USER_NAME" in
-        jenkins)
-            apt autoremove --purge -y jenkins default-jre-headless
-            rm -f /etc/apt/sources.list.d/jenkins.list
-            apt-get update
-            # TODO: remove the apt key added above, but how?
-            ;;
         postgres)
             apt autoremove --purge -y postgresql
             ;;
