@@ -286,10 +286,10 @@ main() {
                 recovery_key_out="${2}"
                 shift 2
                 ;;
-	    --exit-at-preinstall)
+            --exit-at-preinstall)
                 exit_at_preinstall="true"
-		shift 1
-		;;
+                shift 1
+                ;;
             --extra-muinstaller-arg)
                 extra_muinstaller_args+=("${2}")
                 shift 2
