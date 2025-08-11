@@ -44,11 +44,6 @@ mkdir -p "$rpm_dir/SOURCES"
 mv "packaging/$pkg_dir"/* "$rpm_dir/SOURCES/"
 mv "$vendor_tar_dir"/* "$rpm_dir/SOURCES/"
 
-# Build our source package
-unshare -n -- \
-        rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
-
-# And now build our binary package
 unshare -n -- \
         rpmbuild \
         --with testkeys \

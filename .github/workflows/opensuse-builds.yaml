@@ -62,6 +62,9 @@ jobs:
 
     - name: Build rpm
       run: |
+        # Here we use rpmbuild instead of osc because osc
+        # requires authentication to build packages
+
         chmod -R 777 .
         mkdir -p /tmp/uploads
         chmod -R 777 /tmp/uploads
@@ -72,7 +75,7 @@ jobs:
           ${{ inputs.image-name }}-base:latest \
           bash -c "
             cd /root/snapd && \
-            tests/lib/packaging/build-opensuse.sh \
+            tests/lib/packaging/build-rpm-rpmbuild.sh \
               --pkg-dir ${{ inputs.pkg-dir }} \
               --vendor-tar-dir /tmp/pkg \
               --build-dir /tmp/uploads
