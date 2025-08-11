@@ -92,7 +92,8 @@ execute: |
     test -f "$VARIANT.json"
 
     # Create unique tmpdir and copy the script to it.
-    TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="/home/test/integration-tests"')"
+    # XXX: pipe into `head -1` because sometimes "inactive" is appended to the output on a new line
+    TEST_DIR="$(tests.session -u test exec sh -c 'mktemp --directory --tmpdir="/home/test/integration-tests"' | head -1)"
     cp "${VARIANT}.sh" "${TEST_DIR}/${VARIANT}.sh"
     chown test "${TEST_DIR}/${VARIANT}.sh"
     cp "${VARIANT}.json" "${TEST_DIR}/script.json"
