@@ -61,10 +61,6 @@ jobs:
       run: |
         version=$(cat /tmp/pkg/version)
         sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
-        if [ "${{ inputs.system }}" = "centos-9-64" ]; then
-          # centos 9 is missing the fakeroot package in mock
-          sed -i -e "s/^BuildRequires:.*fakeroot/# BuildRequires: fakeroot/" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
-        fi
 
     - name: Run mock inside container
       run: |
