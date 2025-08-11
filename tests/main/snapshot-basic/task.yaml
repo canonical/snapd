@@ -131,7 +131,8 @@ execute: |
 
     # check automatic snapshot can be disabled
     snap set core snapshots.automatic.retention=no
-    snap remove test-snapd-sh
+    snap remove test-snapd-sh > remove-snapshot-disabled.out
+    MATCH 'test-snapd-sh removed$' < remove-snapshot-disabled.out
     if snap saved | MATCH "test-snapd-sh"; then
         echo "did not expect a snapshot for test-snapd-sh"
         exit 1
@@ -140,7 +141,8 @@ execute: |
     # re-enable snapshots, check automatic snapshot is created on snap remove
     snap install test-snapd-sh
     snap set core snapshots.automatic.retention=30h
-    snap remove test-snapd-sh
+    snap remove test-snapd-sh > remove-snapshot-auto.out
+    MATCH 'test-snapd-sh removed \(snap data snapshot saved\)$' < remove-snapshot-auto.out
     snap saved test-snapd-sh | MATCH "auto"
     SET_ID=$( snap saved test-snapd-sh | cut -d\  -f1 | tail -n1 )
     snap forget "$SET_ID"
@@ -148,7 +150,8 @@ execute: |
     # removing with --purge doesn't create automatic snapshot
     snap set core snapshots.automatic.retention=30h
     snap install test-snapd-sh
-    snap remove --purge test-snapd-sh
+    snap remove --purge test-snapd-sh > remove-purge.out
+    MATCH 'test-snapd-sh removed$' < remove-purge.out
     if snap saved test-snapd-sh | MATCH "auto" ; then
         echo "automatic snapshot is not expected"
         exit 1

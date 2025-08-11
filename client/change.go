@@ -65,6 +65,53 @@ type Task struct {
 
 	SpawnTime time.Time `json:"spawn-time,omitzero"`
 	ReadyTime time.Time `json:"ready-time,omitzero"`
+
+	data map[string]*json.RawMessage
+}
+
+func (t *Task) UnmarshalJSON(data []byte) error {
+	var taskAndData struct {
+		ID       string       `json:"id"`
+		Kind     string       `json:"kind"`
+		Summary  string       `json:"summary"`
+		Status   string       `json:"status"`
+		Log      []string     `json:"log,omitempty"`
+		Progress TaskProgress `json:"progress"`
+
+		SpawnTime time.Time `json:"spawn-time,omitzero"`
+		ReadyTime time.Time `json:"ready-time,omitzero"`
+
+		Data map[string]*json.RawMessage `json:"data"`
+	}
+
+	if err := json.Unmarshal(data, &taskAndData); err != nil {
+		return err
+	}
+
+	*t = Task{
+		ID:       taskAndData.ID,
+		Kind:     taskAndData.Kind,
+		Summary:  taskAndData.Summary,
+		Status:   taskAndData.Status,
+		Log:      taskAndData.Log,
+		Progress: taskAndData.Progress,
+
+		SpawnTime: taskAndData.SpawnTime,
+		ReadyTime: taskAndData.ReadyTime,
+
+		data: taskAndData.Data,
+	}
+
+	return nil
+}
+
+// Get unmarshals task's additional data identified with the provided key.
+func (t *Task) Get(key string, value any) error {
+	raw := t.data[key]
+	if raw == nil {
+		return ErrNoData
+	}
+	return json.Unmarshal([]byte(*raw), value)
 }
 
 type TaskProgress struct {
