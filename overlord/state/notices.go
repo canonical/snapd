@@ -357,6 +357,8 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	}
 
 	s.writing()
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 
 	now := options.Time
 	if now.IsZero() {
@@ -494,6 +496,8 @@ func (f *NoticeFilter) futureNoticesPossible(now time.Time) bool {
 // from state to another notice backend.
 func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	s.writing()
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 
 	now := time.Now()
 	var toRemove []noticeKey
@@ -523,8 +527,7 @@ func SortNotices(notices []*Notice) {
 // Notices returns the list of notices that match the filter (if any),
 // ordered by the last-repeated time.
 func (s *State) Notices(filter *NoticeFilter) []*Notice {
-	s.reading()
-
+	// flattenNotices acquires noticesMu, so we don't have to here.
 	notices := s.flattenNotices(filter)
 	SortNotices(notices)
 	return notices
@@ -532,7 +535,8 @@ func (s *State) Notices(filter *NoticeFilter) []*Notice {
 
 // Notice returns a single notice by ID, or nil if not found.
 func (s *State) Notice(id string) *Notice {
-	s.reading()
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
 
 	// Could use another map for lookup, but the number of notices will likely
 	// be small, and this function is probably only used rarely, so performance
@@ -545,7 +549,14 @@ func (s *State) Notice(id string) *Notice {
 	return nil
 }
 
+// flattenNotices loops over the notices map and returns all non-expired notices
+// therein which match the filter.
+//
+// State lock does not need to be held, as the notices mutex ensures existing
+// notices can be safely read.
 func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
 	now := time.Now()
 	var notices []*Notice
 	for _, n := range s.notices {
@@ -557,7 +568,13 @@ func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
 	return notices
 }
 
+// unflattenNotices takes a flat list of notices and replaces the notices map
+// with them, ignoring expired notices in the process.
+//
+// Call with the state lock held. Acquires the notices lock for writing.
 func (s *State) unflattenNotices(flat []*Notice) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 	now := time.Now()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
@@ -580,12 +597,12 @@ func (s *State) unflattenNotices(flat []*Notice) {
 // nonzero). If there are existing notices that match the filter, WaitNotices
 // will return them immediately.
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
-	s.reading()
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
 
 	// If there are existing notices, return them right away.
 	//
-	// State is already locked here by the caller, so notices won't be added
-	// concurrently.
+	// noticesMu is already locked here, so notices won't be added concurrently.
 	notices := s.Notices(filter)
 	if len(notices) > 0 {
 		return notices, nil
@@ -607,17 +624,20 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	defer stop()
 
 	for {
-		// Since the state lock is held for the duration of AddNotice, there
-		// can be no notices currently in-flight which have timestamps before
-		// now but have not yet been added to the notices map. Therefore, if
-		// the current time is after the BeforeOrAt filter, we know there can
-		// be no new notices which match the filter.
+		// Since the noticesMu is held for writing for the duration of
+		// AddNotice, there can be no notices destined for the state notices
+		// map currently in-flight which have timestamps before now but have
+		// not yet been added to the notices map. Therefore, if the current
+		// time is after the BeforeOrAt filter, we know there can be no new
+		// notices which match the filter.
 		now := time.Now()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
 		}
 
 		// Wait till a new notice occurs or a context is cancelled.
+		// This unlocks noticeCond.L, so it must be the lock we are currently
+		// holding.
 		s.noticeCond.Wait()
 
 		// If this context is cancelled, return the error.
