@@ -5,7 +5,6 @@ ConditionPathExists=!/sysroot/etc/system-image/writable-paths
 After=snap-initramfs-mounts.service
 RequiresMountsFor=/sysroot/run
 Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
 
 [Mount]
 Where=/sysroot/run/mnt/kernel

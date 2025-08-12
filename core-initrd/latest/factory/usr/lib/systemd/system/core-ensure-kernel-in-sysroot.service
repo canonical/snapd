@@ -1,0 +1,10 @@
+[Unit]
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=initrd-root-fs.target initrd-parse-etc.target shutdown.target
+After=snap-initramfs-mounts.service
+ConditionPathIsMountPoint=/run/mnt/kernel
+ConditionPathExists=!/sysroot/etc/system-image/writable-paths
+
+[Service]
+ExecStart=systemctl start sysroot-run-mnt-kernel.service
