@@ -1537,10 +1537,13 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		return nil
 	})()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.volumesAuth, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
+	checkContext := &secboot.PreinstallCheckContext{}
+
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.volumesAuth, opts.encryptType, checkContext, model, gadgetRoot, "", timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	c.Assert(encryptSetup.VolumesAuth(), Equals, opts.volumesAuth)
+	c.Assert(encryptSetup.PreinstallCheckContext(), Equals, checkContext)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
 		"ubuntu-save": "/dev/mapper/ubuntu-save",
 		"ubuntu-data": "/dev/mapper/ubuntu-data",
@@ -1574,7 +1577,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, nil, model, gadgetRoot, "", timings.New(nil))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)

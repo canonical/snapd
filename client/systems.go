@@ -359,3 +359,10 @@ type QualityCheckOptions struct {
 	Passphrase string `json:"passphrase,omitempty"`
 	PIN        string `json:"pin,omitempty"`
 }
+
+// FixEncryptionSupportOptions specifies an action to perform along with its
+// associated arguments.
+type FixEncryptionSupportOptions struct {
+	FixAction string                     `json:"fix-action"`
+	Args      map[string]json.RawMessage `json:"args,omitempty"`
+}
