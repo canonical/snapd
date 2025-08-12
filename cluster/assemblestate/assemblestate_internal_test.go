@@ -58,6 +58,7 @@ type selector struct {
 	VerifyRoutesFunc          func()
 	SelectFunc                func(to DeviceToken, count int) (routes Routes, ack func(), ok bool)
 	RoutesFunc                func() Routes
+	CompleteFunc              func(size int) (bool, error)
 }
 
 func (s *selector) AddAuthoritativeRoute(r DeviceToken, via string) {
@@ -93,6 +94,13 @@ func (s *selector) Routes() Routes {
 		panic("unexpected call")
 	}
 	return s.RoutesFunc()
+}
+
+func (s *selector) Complete(size int) (bool, error) {
+	if s.CompleteFunc == nil {
+		panic("unexpected call")
+	}
+	return s.CompleteFunc(size)
 }
 
 type testClient struct {
@@ -202,6 +210,9 @@ func statelessSelector() *selector {
 			return Routes{}, nil, false
 		},
 		RoutesFunc: func() Routes { return Routes{} },
+		CompleteFunc: func(size int) (bool, error) {
+			return false, nil
+		},
 	}
 }
 
@@ -485,21 +496,12 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		rdt DeviceToken
 		via string
 	}
-	sel := &selector{
-		AddAuthoritativeRouteFunc: func(rdt DeviceToken, via string) {
-			authoritative = append(authoritative, struct {
-				rdt DeviceToken
-				via string
-			}{rdt, via})
-		},
-		RecordRoutesFunc: func(r DeviceToken, ro Routes) (int, int, error) {
-			return 0, 0, nil
-		},
-		VerifyRoutesFunc: func() {},
-		SelectFunc: func(to DeviceToken, count int) (Routes, func(), bool) {
-			return Routes{}, nil, false
-		},
-		RoutesFunc: func() Routes { return Routes{} },
+	sel := statelessSelector()
+	sel.AddAuthoritativeRouteFunc = func(rdt DeviceToken, via string) {
+		authoritative = append(authoritative, struct {
+			rdt DeviceToken
+			via string
+		}{rdt, via})
 	}
 
 	as, cm, _ := assembleStateWithTestKeys(c, sel, AssembleConfig{
@@ -1057,6 +1059,9 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		RoutesFunc: func() Routes {
 			return routes
 		},
+		CompleteFunc: func(size int) (bool, error) {
+			return false, nil
+		},
 	}
 
 	cfg := AssembleConfig{
@@ -1372,7 +1377,7 @@ func (s *ClusterSuite) TestRunTimeout(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// when Run is called, the clock will return a time past the 1-hour limit
-	_, err = as.Run(context.Background(), transport, discover)
+	_, err = as.Run(context.Background(), transport, discover, RunOptions{})
 	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
 }
 
@@ -1412,8 +1417,162 @@ func (s *ClusterSuite) TestRunServerError(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// run should return the server error wrapped with "server failed: "
-	_, err = as.Run(context.Background(), transport, discover)
+	_, err = as.Run(context.Background(), transport, discover, RunOptions{})
 	c.Assert(err, testutil.ErrorIs, serverError)
+}
+
+func (s *ClusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	cfg := AssembleConfig{
+		Secret:       "secret",
+		RDT:          "rdt1",
+		IP:           ip,
+		Port:         8001,
+		TLSCert:      certPEM,
+		TLSKey:       keyPEM,
+		ExpectedSize: 2,
+	}
+
+	// create a mock selector that immediately reports that the graph is fully
+	// connected
+	selector := statelessSelector()
+	selector.CompleteFunc = func(size int) (bool, error) {
+		c.Assert(size, check.Equals, cfg.ExpectedSize)
+		return true, nil
+	}
+
+	transport := &testTransport{
+		ServeFunc: func(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		NewClientFunc: func(cert tls.Certificate) Client {
+			return &testClient{}
+		},
+	}
+
+	discover := func(ctx context.Context) ([]string, error) {
+		return []string{}, nil
+	}
+
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return selector, nil
+	}, func(AssembleSession) {})
+	c.Assert(err, check.IsNil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err = as.Run(ctx, transport, discover, RunOptions{})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *ClusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	cfg := AssembleConfig{
+		Secret:       "secret",
+		RDT:          "rdt1",
+		IP:           ip,
+		Port:         8001,
+		TLSCert:      certPEM,
+		TLSKey:       keyPEM,
+		ExpectedSize: 2,
+	}
+
+	// create a mock selector that reports that the graph is fully
+	// connected after the first call
+	selector := statelessSelector()
+	called := 0
+	selector.CompleteFunc = func(size int) (bool, error) {
+		c.Assert(size, check.Equals, cfg.ExpectedSize)
+		called++
+		return called > 1, nil
+	}
+
+	transport := &testTransport{
+		ServeFunc: func(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		NewClientFunc: func(cert tls.Certificate) Client {
+			return &testClient{}
+		},
+	}
+
+	discover := func(ctx context.Context) ([]string, error) {
+		return []string{}, nil
+	}
+
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return selector, nil
+	}, func(AssembleSession) {})
+	c.Assert(err, check.IsNil)
+
+	h, _, _ := trustedAndDiscoveredPeer(c, as, "peer")
+	h.CommitDevices(Devices{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err = as.Run(ctx, transport, discover, RunOptions{})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *ClusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	cfg := AssembleConfig{
+		Secret:       "secret",
+		RDT:          "rdt1",
+		IP:           ip,
+		Port:         8001,
+		TLSCert:      certPEM,
+		TLSKey:       keyPEM,
+		ExpectedSize: 2,
+	}
+
+	// create a mock selector that reports that the graph is fully
+	// connected after the first call
+	selector := statelessSelector()
+	called := 0
+	selector.CompleteFunc = func(size int) (bool, error) {
+		c.Assert(size, check.Equals, cfg.ExpectedSize)
+		called++
+		return called > 1, nil
+	}
+
+	transport := &testTransport{
+		ServeFunc: func(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		NewClientFunc: func(cert tls.Certificate) Client {
+			return &testClient{}
+		},
+	}
+
+	discover := func(ctx context.Context) ([]string, error) {
+		return []string{}, nil
+	}
+
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return selector, nil
+	}, func(AssembleSession) {})
+	c.Assert(err, check.IsNil)
+
+	h, _, _ := trustedAndDiscoveredPeer(c, as, "peer")
+	h.CommitRoutes(Routes{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err = as.Run(ctx, transport, discover, RunOptions{})
+	c.Assert(err, check.IsNil)
 }
 
 func encodeCertAsFP(fingerprint []byte) string {
