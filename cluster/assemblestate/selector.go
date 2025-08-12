@@ -120,6 +120,8 @@ type PrioritySelector struct {
 	authoritative map[DeviceToken]edgeID
 }
 
+type Identifier = func(DeviceToken) bool
+
 func NewPrioritySelector(
 	self DeviceToken,
 	source randutil.Source,

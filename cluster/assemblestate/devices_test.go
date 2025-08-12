@@ -36,8 +36,8 @@ var _ = check.Suite(&deviceTrackerSuite{})
 func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT: self,
+		IDs: []assemblestate.Identity{
+			self,
 		},
 	}
 	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
@@ -65,8 +65,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT: self,
+		IDs: []assemblestate.Identity{
+			self,
 		},
 	}
 	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
@@ -108,11 +108,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerDropUnknownQuery(c *check.C) {
 	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
 	// query should not be recorded at all
-	c.Assert(dt.Export(), check.DeepEquals, assemblestate.DeviceQueryTrackerData{
-		Queries: make(map[assemblestate.DeviceToken][]assemblestate.DeviceToken),
-		Known:   make(map[assemblestate.DeviceToken][]assemblestate.DeviceToken),
-		IDs:     make(map[assemblestate.DeviceToken]assemblestate.Identity),
-	})
+	c.Assert(dt.Export(), check.DeepEquals, assemblestate.DeviceQueryTrackerData{})
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
@@ -220,9 +216,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	one := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-1")}
 
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
+		IDs: []assemblestate.Identity{
+			self,
+			one,
 		},
 	}
 
@@ -314,10 +310,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededIDs(c *check.C) {
 	two := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-2")}
 
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			self,
+			one,
+			two,
 		},
 	}
 
@@ -349,10 +345,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 	two := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-2")}
 
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			self,
+			one,
+			two,
 		},
 		Queries: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
 			"peer-1": {"device-1", "device-2"},
@@ -429,8 +425,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
 	}
 
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT: self,
+		IDs: []assemblestate.Identity{
+			self,
 		},
 	}
 	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
@@ -446,10 +442,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
 	normalizeDeviceExport(exported)
 
 	expected := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			"self":     self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			one,  // device-1
+			two,  // device-2
+			self, // self
 		},
 		Queries: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
 			"peer-1": {"device-1", "device-2"},
@@ -480,10 +476,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExportRoundtrip(c *check.C) {
 	}
 
 	initial := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			one,  // device-1
+			two,  // device-2
+			self, // self
 		},
 		Queries: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
 			"peer-1": {"device-1", "device-2"},
@@ -516,6 +512,9 @@ func normalizeDeviceExport(d assemblestate.DeviceQueryTrackerData) {
 			return devices[i] < devices[j]
 		})
 	}
+	sort.Slice(d.IDs, func(i, j int) bool {
+		return d.IDs[i].RDT < d.IDs[j].RDT
+	})
 }
 
 func hasSignal(ch <-chan struct{}) bool {
