@@ -35,32 +35,6 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
-// Transport provides an abstraction for defining how incoming and outgoing
-// messages are handled in an assembly session.
-type Transport interface {
-	// Serve starts a server that handles incoming requests and routes them to
-	// the provided [AssembleState].
-	Serve(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error
-
-	// NewClient creates a client for sending outbound messages compatible with
-	// this [Transport].
-	NewClient(cert tls.Certificate) Client
-
-	// Stats returns the sent and received byte counts for this assembly
-	// session.
-	Stats() (sent, received, tx, rx int64)
-}
-
-// Client is used to communicate with our peers.
-type Client interface {
-	// Trusted sends a message to a trusted peer. Implementations must verify
-	// that the peer is using the given certificate.
-	Trusted(ctx context.Context, addr string, cert []byte, kind string, message any) error
-	// Untrusted sends a message to a peer that we do not yet trust. The
-	// certificate that the peer used to communicate is returned.
-	Untrusted(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
-}
-
 // AssembleState contains this device's knowledge of the state of an assembly
 // session.
 type AssembleState struct {
@@ -163,10 +137,6 @@ type AssembleConfig struct {
 	// RDT is this device's random device token used to uniquely identity this
 	// device.
 	RDT DeviceToken
-	// IP is the IP address to bind the assembly server to.
-	IP net.IP
-	// Port is the port number to bind the assembly server to.
-	Port int
 	// TLSCert is the PEM-encoded TLS certificate for this device.
 	TLSCert []byte
 	// TLSKey is the PEM-encoded private key corresponding to TLSCert.
@@ -506,14 +476,14 @@ func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
 	return nil
 }
 
-// VerifyPeer checks if the given certificate is trusted and maps to a known RDT.
-// If it is, then a [PeerHandle] is returned that can be used to modify the state
-// of the cluster on this peer's behalf.
+// VerifyPeer checks if the given certificate is trusted and maps to a known
+// RDT. If it is, then a [VerifiedPeer] is returned that can be used to modify
+// the state of the cluster on this peer's behalf.
 //
 // An error is returned if the certificate isn't trusted.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
+func (as *AssembleState) VerifyPeer(cert []byte) (VerifiedPeer, error) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -524,13 +494,13 @@ func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
 		return nil, errors.New("given TLS certificate is not associated with a trusted RDT")
 	}
 
-	return &PeerHandle{
+	return &peerHandle{
 		as:   as,
 		peer: p.RDT,
 	}, nil
 }
 
-type PublicationOptions struct {
+type RunOptions struct {
 	Period time.Duration
 }
 
@@ -538,9 +508,10 @@ type PublicationOptions struct {
 // It returns when the context is cancelled, returning the final routes discovered.
 func (as *AssembleState) Run(
 	ctx context.Context,
+	ln net.Listener,
 	transport Transport,
 	discoveries <-chan []string,
-	opts PublicationOptions,
+	opts RunOptions,
 ) (Routes, error) {
 	if as.initiated.IsZero() {
 		as.initiated = as.clock()
@@ -550,7 +521,7 @@ func (as *AssembleState) Run(
 		return Routes{}, errors.New("cannot resume an assembly session that began more than an hour ago")
 	}
 
-	addr := fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
+	addr := ln.Addr().String()
 	client := transport.NewClient(as.cert)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -566,7 +537,7 @@ func (as *AssembleState) Run(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := transport.Serve(ctx, addr, as.cert, as); err != nil {
+		if err := transport.Serve(ctx, ln, as.cert, as); err != nil {
 			// only propagate non-context.Canceled errors
 			if !errors.Is(err, context.Canceled) {
 				logger.Debugf("server error: %v", err)
@@ -669,10 +640,10 @@ func (as *AssembleState) Run(
 		}
 	}
 
-	sent, received, tx, rx := transport.Stats()
+	stats := transport.Stats()
 	logger.Debugf(
 		"assemble stopped after %d rounds, sent: %d messages (%d bytes), received: %d messages (%d bytes)",
-		rounds, sent, tx, received, rx,
+		rounds, stats.Sent, stats.Tx, stats.Received, stats.Rx,
 	)
 
 	return as.selector.Routes(), nil
@@ -694,15 +665,15 @@ func periodic(
 	}
 }
 
-// PeerHandle is a wrapper over [AssembleState] that enables an authenticated
+// peerHandle is a wrapper over [AssembleState] that enables an authenticated
 // peer report its knowledge of the state of the cluster.
-type PeerHandle struct {
+type peerHandle struct {
 	as   *AssembleState
 	peer DeviceToken
 }
 
-// RDT returns the RDT of the device that this [PeerHandle] represents.
-func (h *PeerHandle) RDT() DeviceToken {
+// RDT returns the RDT of the device that this [peerHandle] represents.
+func (h *peerHandle) RDT() DeviceToken {
 	return h.peer
 }
 
@@ -712,7 +683,7 @@ func (h *PeerHandle) RDT() DeviceToken {
 // know, either this local node or the requesting peer has a bug.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
+func (h *peerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -727,7 +698,7 @@ func (h *PeerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 // CommitRoutes updates the state of the cluster with the given routes.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) CommitRoutes(routes Routes) error {
+func (h *peerHandle) CommitRoutes(routes Routes) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -781,7 +752,7 @@ func (as *AssembleState) shutdownAtExpectedSize() error {
 // This method is to be called by an implementation of the [Transport] interface.
 //
 // This method calls AssembleState.commit with the current state.
-func (h *PeerHandle) CommitDevices(devices Devices) error {
+func (h *peerHandle) CommitDevices(devices Devices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
