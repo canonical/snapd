@@ -42,7 +42,7 @@ prepare: |
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget pc-kernel-from-store.* pc-kernel-repacked.snap classic.model disk.img pc-kernel core*
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
@@ -124,6 +124,7 @@ execute: |
      --kernel-assertion pc-kernel-from-store.assert \
      $kmods_arg \
      --disk disk.img
+  rm -f disk.img
 
   # basic things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
@@ -277,6 +278,7 @@ execute: |
   mv gadget.yaml.tmp.2 pc-gadget/meta/gadget.yaml
   nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
+  rm -rf pc-gadget
 
   # Make sure we installed the new grub
   if os.query is-ubuntu-ge 24.04 && [ "$PARTIAL_GADGET" = false ]; then
@@ -294,6 +296,7 @@ execute: |
   original_pc_kernel_version="$(gojq '.version' -r --yaml-input pc-kernel/meta/snap.yaml)"
   sed -i 's#\(version: .*\)+.*#\1#' pc-kernel/meta/snap.yaml
   refresh_rebooting_snap pc-kernel pc-kernel-from-store.snap ./pc-kernel
+  rm -rf pc-kernel
 
   # test that core22+ refreshes fine and does not revert after a reboot
   # (see https://github.com/snapcore/snapd/pull/12532)
@@ -305,6 +308,7 @@ execute: |
   echo "modified" >> ./"core${version}"/etc/motd
   snap pack --filename="core${version}".snap ./"core${version}"
   fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob "core${version}.snap.orig" --snap-blob "./core${version}" "core${version}"
+  rm -rf "core${version}"
 
   remote.exec sudo snap refresh --amend --channel="edge" "core${version}"
   remote.exec snap list "core${version}" > "core${version}".before-boot
