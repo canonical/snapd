@@ -1,0 +1,89 @@
+summary: Check that services with success-exit-status have SuccessExitStatus directive
+
+details: |
+    Verifies that a snap service with SuccessExitStatus=42 250 is considered active or successfully terminated by systemd when it exits with status 42 or 250.
+
+    The test uses a shell script that sets up trap handlers to intercept specific signals and exit with predetermined status codes:
+    - trap USR1: exits with status 42 (configured as success)
+    - trap USR2: exits with status 250 (configured as success)
+    - trap TRAP: exits with status 1 (failure, triggering restart)
+
+    Each trap handler removes the marker file and exits with the appropriate code, allowing the test to verify that systemd correctly interprets the exit statuses according to the SuccessExitStatus directive.
+
+environment:
+    MARKER: /var/snap/test-snapd-success-exit-status/common/ready
+    SERVICE_NAME: snap.test-snapd-success-exit-status.test-snapd-success-exit-status.service
+
+restore: |
+    snap remove --purge test-snapd-success-exit-status || true
+
+execute: |
+    echo "Given a service snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-success-exit-status
+
+    echo "When the service state is reported as active"
+    retry -n 100 --wait 1 systemctl is-active "$SERVICE_NAME"
+
+    echo "The service contains the SuccessExitStatus= directive"
+    systemctl show -p SuccessExitStatus "$SERVICE_NAME" | MATCH "SuccessExitStatus=42 235 250"
+
+    echo "When the service initialization is completed"
+    retry -n 20 --wait 1 stat "$MARKER"
+
+    echo "Terminate the service with success exit status 42 sending USR1 signal"
+    systemctl kill -s USR1 --wait "$SERVICE_NAME"
+
+    echo "When the signal is propagated to the service"
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
+
+    echo "Then systemctl reports the status of the service as terminated"
+    systemctl show -p ExecMainStatus "$SERVICE_NAME" | MATCH "ExecMainStatus=42"
+
+    echo "And the marker file is removed indicating the trap handler executed"
+    retry -n 20 --wait 1 not stat "$MARKER"
+
+    # ==========
+
+    echo "Restart the service for another test"
+    systemctl restart "$SERVICE_NAME"
+
+    echo "When the service state is reported as active"
+    retry -n 100 --wait 1 systemctl is-active "$SERVICE_NAME"
+
+    echo "When the service initialization is completed"
+    retry -n 20 --wait 1 stat "$MARKER"
+
+    echo "Terminate the service with success exit status 250 sending USR2 signal"
+    systemctl kill -s USR2 --wait "$SERVICE_NAME"
+
+    echo "When the signal is propagated to the service"
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
+
+    echo "Then systemctl reports the status of the service as terminated"
+    systemctl show -p ExecMainStatus "$SERVICE_NAME" | MATCH "ExecMainStatus=250"
+
+    echo "And the marker file is removed indicating the trap handler executed"
+    retry -n 20 --wait 1 not stat "$MARKER"
+
+    # ==========
+
+    echo "Restart the service for another test"
+    systemctl restart "$SERVICE_NAME"
+
+    echo "When the service state is reported as active"
+    retry -n 100 --wait 1 systemctl is-active "$SERVICE_NAME"
+
+    echo "When the service initialization is completed"
+    retry -n 20 --wait 1 stat "$MARKER"
+
+    echo "Terminate the service with failure exit status sending TRAP signal"
+    systemctl kill -s TRAP --wait "$SERVICE_NAME"
+
+    echo "When the signal is propagated to the service"
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=active'"
+
+    echo "Then systemctl reports the status of the service as running due to 'restart on-failure'"
+    systemctl show -p SubState "$SERVICE_NAME" | MATCH "SubState=running"
+
+    echo "And the marker file is recreated after the service restarts"
+    retry -n 20 --wait 1 stat "$MARKER"
