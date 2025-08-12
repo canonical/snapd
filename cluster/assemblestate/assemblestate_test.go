@@ -1,0 +1,722 @@
+package assemblestate
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"math/big"
+	"net"
+	"time"
+
+	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
+)
+
+type ClusterSuite struct{}
+
+var _ = check.Suite(&ClusterSuite{})
+
+type selector struct {
+	AddAuthoritativeRouteFunc func(r DeviceToken, via string)
+	RecordRoutesFunc          func(r DeviceToken, ro Routes) (int, int, error)
+	VerifyRoutesFunc          func()
+	SelectFunc                func(to DeviceToken, count int) (routes Routes, ack func(), ok bool)
+	RoutesFunc                func() Routes
+}
+
+func (s *selector) AddAuthoritativeRoute(r DeviceToken, via string) {
+	if s.AddAuthoritativeRouteFunc == nil {
+		panic("unexpected call")
+	}
+	s.AddAuthoritativeRouteFunc(r, via)
+}
+
+func (s *selector) RecordRoutes(r DeviceToken, ro Routes) (int, int, error) {
+	if s.RecordRoutesFunc == nil {
+		panic("unexpected call")
+	}
+	return s.RecordRoutesFunc(r, ro)
+}
+
+func (s *selector) VerifyRoutes() {
+	if s.VerifyRoutesFunc == nil {
+		panic("unexpected call")
+	}
+	s.VerifyRoutesFunc()
+}
+
+func (s *selector) Select(to DeviceToken, count int) (Routes, func(), bool) {
+	if s.SelectFunc == nil {
+		panic("unexpected call")
+	}
+	return s.SelectFunc(to, count)
+}
+
+func (s *selector) Routes() Routes {
+	if s.RoutesFunc == nil {
+		panic("unexpected call")
+	}
+	return s.RoutesFunc()
+}
+
+type testClient struct {
+	TrustedFunc   func(ctx context.Context, addr string, cert []byte, kind string, message any) error
+	UntrustedFunc func(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
+}
+
+func (m *testClient) Trusted(ctx context.Context, addr string, cert []byte, kind string, msg any) error {
+	if m.TrustedFunc == nil {
+		panic("unexpected call")
+	}
+	return m.TrustedFunc(ctx, addr, cert, kind, msg)
+}
+
+func (m *testClient) Untrusted(ctx context.Context, addr, kind string, msg any) ([]byte, error) {
+	if m.UntrustedFunc == nil {
+		panic("unexpected call")
+	}
+	return m.UntrustedFunc(ctx, addr, kind, msg)
+}
+
+type testTransport struct {
+	ServeFunc     func(context.Context, string, tls.Certificate, *AssembleState) error
+	NewClientFunc func(tls.Certificate) Client
+	StatsFunc     func() (int64, int64, int64, int64)
+}
+
+func (t *testTransport) Serve(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+	if t.ServeFunc == nil {
+		panic("unexpected call")
+	}
+	return t.ServeFunc(ctx, addr, cert, as)
+}
+
+func (t *testTransport) NewClient(cert tls.Certificate) Client {
+	if t.NewClientFunc == nil {
+		panic("unexpected call")
+	}
+	return t.NewClientFunc(cert)
+}
+
+func (t *testTransport) Stats() (int64, int64, int64, int64) {
+	if t.StatsFunc == nil {
+		return 0, 0, 0, 0
+	}
+	return t.StatsFunc()
+}
+
+func createTestCertAndKey(c *check.C, ip net.IP) (certPEM []byte, keyPEM []byte) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	c.Assert(err, check.IsNil)
+
+	serial, err := rand.Int(rand.Reader, big.NewInt(1<<62))
+	c.Assert(err, check.IsNil)
+
+	// TODO: rotation, renewal? don't worry about it? for now make it last until
+	// the next century, when i'll be gone
+	now := time.Now()
+	template := x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: "localhost-ed25519"},
+		NotBefore:    now,
+		NotAfter:     now.AddDate(100, 0, 0),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  []net.IP{ip},
+	}
+
+	cert, err := x509.CreateCertificate(rand.Reader, &template, &template, pub, priv)
+	c.Assert(err, check.IsNil)
+
+	der, err := x509.MarshalPKCS8PrivateKey(priv)
+	c.Assert(err, check.IsNil)
+
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+
+	return certPEM, keyPEM
+}
+
+func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg AssembleConfig) (*AssembleState, tls.Certificate) {
+	certPEM, keyPEM := createTestCertAndKey(c, cfg.IP)
+
+	cfg.TLSCert = certPEM
+	cfg.TLSKey = keyPEM
+
+	st.Lock()
+	st.Set("assemble-config", cfg)
+	st.Unlock()
+
+	commit := func(AssembleSession) {}
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return sel, nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))
+	c.Assert(err, check.IsNil)
+
+	return as, cert
+}
+
+func statelessSelector() *selector {
+	return &selector{
+		AddAuthoritativeRouteFunc: func(r DeviceToken, via string) {},
+		RecordRoutesFunc: func(r DeviceToken, ro Routes) (int, int, error) {
+			return 0, 0, nil
+		},
+		VerifyRoutesFunc: func() {},
+		SelectFunc: func(to DeviceToken, count int) (Routes, func(), bool) {
+			return Routes{}, nil, false
+		},
+		RoutesFunc: func() Routes { return Routes{} },
+	}
+}
+
+func (s *ClusterSuite) TestPublishAuth(c *check.C) {
+	as, tlsCert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	var called int
+	client := testClient{
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (cert []byte, err error) {
+			called++
+
+			c.Assert(addr, check.Equals, "127.0.0.1:8002")
+			c.Assert(kind, check.Equals, "auth")
+
+			auth := message.(Auth)
+
+			expectedHMAC := CalculateHMAC("rdt", CalculateFP(tlsCert.Certificate[0]), "secret")
+			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
+			c.Assert(auth.RDT, check.Equals, DeviceToken("rdt"))
+
+			return []byte("peer-certificate"), nil
+		},
+	}
+
+	err := as.publishAuth(context.Background(), []string{"127.0.0.1:8002"}, &client)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(called, check.Equals, 1)
+
+	// the second time around we shouldn't publish anything, since we already
+	// have delivered an auth message to this peer
+	called = 0
+	err = as.publishAuth(context.Background(), []string{"127.0.0.1:8002"}, &client)
+	c.Assert(err, check.IsNil)
+	c.Assert(called, check.Equals, 0)
+}
+
+func (s *ClusterSuite) TestAuthenticate(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerCert := []byte("peer-certificate")
+	peerFP := CalculateFP(peerCert)
+	peerRDT := DeviceToken("peer-rdt")
+
+	// wrong RDT in HMAC
+	auth := Auth{
+		HMAC: CalculateHMAC("wrong-rdt", peerFP, "secret"),
+		RDT:  peerRDT,
+	}
+	err := as.Authenticate(auth, peerCert)
+	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+
+	// wrong RDT in message
+	auth = Auth{
+		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+		RDT:  "wrong-rdt",
+	}
+	err = as.Authenticate(auth, peerCert)
+	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+
+	// wrong FP in HMAC
+	auth = Auth{
+		HMAC: CalculateHMAC(peerRDT, CalculateFP([]byte("wrong-cert")), "secret"),
+		RDT:  peerRDT,
+	}
+	err = as.Authenticate(auth, peerCert)
+	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+
+	// wrong cert from transport layer
+	auth = Auth{
+		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+		RDT:  peerRDT,
+	}
+	err = as.Authenticate(auth, []byte("wrong-cert"))
+	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+
+	// wrong secret
+	auth = Auth{
+		HMAC: CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
+		RDT:  peerRDT,
+	}
+	err = as.Authenticate(auth, peerCert)
+	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+
+	// valid case
+	auth = Auth{
+		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+		RDT:  peerRDT,
+	}
+	err = as.Authenticate(auth, peerCert)
+	c.Assert(err, check.IsNil)
+
+}
+
+func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerRDT := DeviceToken("peer-rdt")
+
+	// first, add a device identity with a specific fingerprint
+	correctCert := []byte("correct-certificate")
+	correctFP := CalculateFP(correctCert)
+	as.devices.RecordIdentity(Identity{
+		RDT: peerRDT,
+		FP:  correctFP,
+	})
+
+	// now try to authenticate with the same RDT but different certificate
+	wrongCert := []byte("wrong-certificate")
+	wrongFP := CalculateFP(wrongCert)
+
+	auth := Auth{
+		HMAC: CalculateHMAC(peerRDT, wrongFP, "secret"),
+		RDT:  peerRDT,
+	}
+
+	err := as.Authenticate(auth, wrongCert)
+	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
+}
+
+func (s *ClusterSuite) TestTrusted(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerCert := []byte("peer-certificate")
+	peerFP := CalculateFP(peerCert)
+	peerRDT := DeviceToken("peer-rdt")
+
+	err := as.Authenticate(Auth{
+		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+		RDT:  peerRDT,
+	}, peerCert)
+	c.Assert(err, check.IsNil)
+
+	handle, err := as.VerifyPeer(peerCert)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(handle.RDT(), check.Equals, peerRDT)
+}
+
+func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, address string, cert []byte) {
+	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
+	peerFP := CalculateFP(peerCert)
+
+	err := as.Authenticate(Auth{
+		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
+		RDT:  rdt,
+	}, peerCert)
+	c.Assert(err, check.IsNil)
+
+	handle, err := as.VerifyPeer(peerCert)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(handle.RDT(), check.Equals, rdt)
+
+	peerAddr := fmt.Sprintf("%s-addr", rdt)
+	client := testClient{
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (cert []byte, err error) {
+			c.Assert(addr, check.Equals, peerAddr)
+			c.Assert(kind, check.Equals, "auth")
+			return peerCert, nil
+		},
+	}
+
+	err = as.publishAuth(context.Background(), []string{peerAddr}, &client)
+	c.Assert(err, check.IsNil)
+
+	return handle, peerAddr, peerCert
+}
+
+func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, cert []byte) {
+	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
+	peerFP := CalculateFP(peerCert)
+
+	err := as.Authenticate(Auth{
+		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
+		RDT:  rdt,
+	}, peerCert)
+	c.Assert(err, check.IsNil)
+
+	handle, err := as.VerifyPeer(peerCert)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(handle.RDT(), check.Equals, rdt)
+
+	return handle, peerCert
+}
+
+func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerRDT := DeviceToken("peer")
+	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, peerRDT)
+
+	// this tells us that this peer has knowledge of one and two.
+	err := peer.RecordRoutes(Routes{
+		Devices: []DeviceToken{"one", "two"},
+	})
+	c.Assert(err, check.IsNil)
+
+	client := testClient{
+		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+			c.Assert(addr, check.Equals, peerAddr)
+			c.Assert(cert, check.DeepEquals, peerCert)
+			c.Assert(kind, check.Equals, "unknown")
+
+			unknown := message.(UnknownDevices)
+			c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []DeviceToken{"one", "two"})
+			return nil
+		},
+	}
+	as.publishDeviceQueries(context.Background(), &client)
+
+	// act as if the peer responded for only one of the devices
+	err = peer.RecordDevices(Devices{
+		Devices: []Identity{{
+			RDT: "one",
+			FP:  CalculateFP([]byte("one-certificate")),
+		}},
+	})
+	c.Assert(err, check.IsNil)
+
+	// now, we should expect to see a query for just "two"
+	client.TrustedFunc = func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		c.Assert(addr, check.Equals, peerAddr)
+		c.Assert(cert, check.DeepEquals, peerCert)
+		c.Assert(kind, check.Equals, "unknown")
+
+		unknown := message.(UnknownDevices)
+		c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []DeviceToken{"two"})
+		return nil
+	}
+	as.publishDeviceQueries(context.Background(), &client)
+}
+
+func (s *ClusterSuite) TestPublishDevices(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	oneRDT := DeviceToken("one")
+	one, _, _ := trustedAndDiscoveredPeer(c, as, oneRDT)
+
+	// inform us of devices one and two
+	err := one.RecordDevices(Devices{
+		Devices: []Identity{
+			{
+				RDT: "one",
+				FP:  CalculateFP([]byte("one-certificate")),
+			},
+			{
+				RDT: "two",
+				FP:  CalculateFP([]byte("two-certificate")),
+			},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	threeRDT := DeviceToken("three")
+	three, threeAddr, threeCert := trustedAndDiscoveredPeer(c, as, threeRDT)
+
+	// nothing should be published, since we don't have anything that someone
+	// has asked for
+	as.publishDevices(context.Background(), &testClient{})
+
+	// three asks us for information about two
+	three.RecordDeviceQueries(UnknownDevices{
+		Devices: []DeviceToken{"two"},
+	})
+
+	var called int
+	client := testClient{
+		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+			called++
+			c.Assert(addr, check.Equals, threeAddr)
+			c.Assert(cert, check.DeepEquals, threeCert)
+			c.Assert(kind, check.Equals, "devices")
+
+			devices := message.(Devices)
+			c.Assert(devices.Devices, testutil.DeepUnsortedMatches, []Identity{{
+				RDT: "two",
+				FP:  CalculateFP([]byte("two-certificate")),
+			}})
+			return nil
+		},
+	}
+	as.publishDevices(context.Background(), &client)
+	c.Assert(called, check.Equals, 1)
+
+	// since we successfully published the response to the query, we don't send
+	// anything
+	as.publishDevices(context.Background(), &testClient{})
+}
+
+func (s *ClusterSuite) TestAddDevicesFingerprintMismatch(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	peerRDT := DeviceToken("peer-rdt")
+	peer, _, _ := trustedAndDiscoveredPeer(c, as, peerRDT)
+
+	// try to add a device identity with the peer's RDT but wrong fingerprint
+	wrongFP := CalculateFP([]byte("wrong-certificate"))
+
+	err := peer.RecordDevices(Devices{
+		Devices: []Identity{{
+			RDT: peerRDT,
+			FP:  wrongFP,
+		}},
+	})
+
+	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
+}
+
+func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
+	selector := statelessSelector()
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), selector, AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	oneRDT := DeviceToken("one")
+	_, oneAddr, oneCert := trustedAndDiscoveredPeer(c, as, oneRDT)
+
+	twoRDT := DeviceToken("two")
+	_, twoAddr, twoCert := trustedAndDiscoveredPeer(c, as, twoRDT)
+
+	threeRDT := DeviceToken("three")
+	trustedPeer(c, as, threeRDT)
+
+	var msg testClient
+	var called int
+	acked := make(map[DeviceToken]int)
+
+	selector.SelectFunc = func(to DeviceToken, count int) (Routes, func(), bool) {
+		called++
+		return Routes{}, func() {
+			acked[to]++
+		}, true
+	}
+
+	msg.TrustedFunc = func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		switch addr {
+		case oneAddr:
+			c.Assert(cert, check.DeepEquals, oneCert)
+		case twoAddr:
+			c.Assert(cert, check.DeepEquals, twoCert)
+		default:
+			c.Fatalf("unexpected address: %s", addr)
+		}
+		c.Assert(kind, check.Equals, "routes")
+		_ = message.(Routes)
+		return nil
+	}
+
+	as.publishRoutes(context.Background(), &msg, 5, 100)
+	c.Assert(called, check.Equals, 2)
+
+	// since peer three isn't discovered, we should have only acked our
+	// publications to peer one and two (each called once)
+	c.Assert(acked, check.DeepEquals, map[DeviceToken]int{
+		oneRDT: 1,
+		twoRDT: 1,
+	})
+}
+
+func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	// use a fixed time for testing
+	now := time.Now()
+	clock := func() time.Time {
+		return now
+	}
+
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     "rdt",
+		IP:      ip,
+		Port:    8001,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Clock:   clock,
+	}
+
+	commit := func(AssembleSession) {}
+
+	// test with no initiated time (new session)
+	_, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	// test with recent session still within the timeout (30 minutes old)
+	recent := AssembleSession{
+		Initiated: now.Add(-30 * time.Minute),
+	}
+	_, err = NewAssembleState(cfg, recent, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	// test with expired session (2 hours old)
+	expired := AssembleSession{
+		Initiated: now.Add(-2 * time.Hour),
+	}
+	_, err = NewAssembleState(cfg, expired, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
+}
+
+func (s *ClusterSuite) TestRunTimeout(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	// mock clock that advances time on each call
+	started := time.Now()
+	called := false
+	clock := func() time.Time {
+		// first call during NewAssembleState: return current time
+		if !called {
+			called = true
+			return started
+		}
+
+		// subsequent calls: return time that's past the 1-hour limit
+		return started.Add(time.Hour + time.Second)
+	}
+
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     "rdt",
+		IP:      ip,
+		Port:    8001,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Clock:   clock,
+	}
+
+	commit := func(AssembleSession) {}
+
+	transport := &testTransport{
+		ServeFunc: func(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		NewClientFunc: func(cert tls.Certificate) Client {
+			return &testClient{}
+		},
+	}
+
+	discover := func(ctx context.Context) ([]string, error) {
+		return []string{}, nil
+	}
+
+	session := AssembleSession{
+		Initiated: started,
+	}
+	as, err := NewAssembleState(cfg, session, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	// when Run is called, the clock will return a time past the 1-hour limit
+	_, err = as.Run(context.Background(), transport, discover)
+	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
+}
+
+func (s *ClusterSuite) TestRunServerError(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     "rdt",
+		IP:      ip,
+		Port:    8001,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+	}
+
+	commit := func(AssembleSession) {}
+
+	// create a transport that returns a non-context.Canceled error
+	serverError := errors.New("bind failed")
+	transport := &testTransport{
+		ServeFunc: func(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error {
+			return serverError
+		},
+		NewClientFunc: func(cert tls.Certificate) Client {
+			return &testClient{}
+		},
+	}
+
+	discover := func(ctx context.Context) ([]string, error) {
+		return []string{}, nil
+	}
+
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	// run should return the server error wrapped with "server failed: "
+	_, err = as.Run(context.Background(), transport, discover)
+	c.Assert(err, testutil.ErrorIs, serverError)
+}
