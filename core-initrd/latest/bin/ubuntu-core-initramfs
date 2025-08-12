@@ -15,6 +15,10 @@ from collections import namedtuple
 from enum import Enum, auto
 import json
 
+def gettempdir():
+    if os.path.exists('/var/tmp'):
+        return '/var/tmp'
+    return tempfile.gettempdir()
 
 class ModTable:
 
@@ -769,7 +773,7 @@ def create_initrd(parser, args):
         rootfs = args.root
     if args.kernelver:
         args.output = "-".join([args.output, args.kernelver])
-    with tempfile.TemporaryDirectory(suffix=".ubuntu-core-initramfs") as d:
+    with tempfile.TemporaryDirectory(suffix=".ubuntu-core-initramfs", dir=gettempdir()) as d:
         deb_arch = dpkg_architecture(rootfs, "DEB_HOST_MULTIARCH")
         ubuntu_release = get_ubuntu_release(rootfs)
 
@@ -851,7 +855,7 @@ def create_initrd(parser, args):
         # Finally, write it
         with open(args.output, "wb") as output:
             if arch == "amd64":
-                with tempfile.TemporaryDirectory(suffix='ubuntu-core-initramfs') as d:
+                with tempfile.TemporaryDirectory(suffix='ubuntu-core-initramfs', dir=gettempdir()) as d:
                     microcode_dir = os.path.join(d, 'kernel/x86/microcode')
                     os.makedirs(microcode_dir)
                     with open(os.path.join(microcode_dir, 'AuthenticAMD.bin'), 'wb') as f:
@@ -883,7 +887,7 @@ def create_efi(parser, args):
 
         if platform.machine() == "aarch64":
             import gzip
-            raw_kernel = tempfile.NamedTemporaryFile(mode='wb')
+            raw_kernel = tempfile.NamedTemporaryFile(mode='wb', dir=gettempdir())
             try:
                 with gzip.open(args.kernel, 'rb') as comp_kernel:
                     shutil.copyfileobj(comp_kernel, raw_kernel)
