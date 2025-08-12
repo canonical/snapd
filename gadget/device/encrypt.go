@@ -97,9 +97,14 @@ func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key.factory-reset")
 }
 
-// TpmLockoutAuthUnder return the path of the tpm lockout authority key.
+// TpmLockoutAuthUnder returns the path of the tpm lockout authority key.
 func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
+}
+
+// PreinstallCheckResultUnder returns the path of the preinstall check result.
+func PreinstallCheckResultUnder(deviceFDEDir string) string {
+	return filepath.Join(deviceFDEDir, "preinstall-check-result")
 }
 
 // ErrNoSealedKeys error if there are no sealed keys

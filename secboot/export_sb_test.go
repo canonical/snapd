@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+type ResealKeysWithTPMParams = resealKeysWithTPMParams
+
 var (
 	UnwrapPreinstallCheckError         = unwrapPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
@@ -49,7 +51,13 @@ var (
 	ResealKeysWithFDESetupHook = resealKeysWithFDESetupHook
 )
 
-type ResealKeysWithTPMParams = resealKeysWithTPMParams
+func ExtractSbRunChecksContext(checkContext *PreinstallCheckContext) *sb_preinstall.RunChecksContext {
+	return checkContext.sbRunChecksContext
+}
+
+func NewPreinstallChecksContext(sbRunChecksContext *sb_preinstall.RunChecksContext) *PreinstallCheckContext {
+	return &PreinstallCheckContext{sbRunChecksContext}
+}
 
 func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext) (restore func()) {
 	old := sbPreinstallNewRunChecksContext

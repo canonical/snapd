@@ -24,6 +24,16 @@ import (
 	"context"
 )
 
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
+type PreinstallCheckContext struct{}
+
+func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+	return nil, nil, errBuildWithoutSecboot
+}
+
+func (c *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, action *PreinstallAction) ([]PreinstallErrorDetails, error) {
 	return nil, errBuildWithoutSecboot
+}
+
+func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
+	return errBuildWithoutSecboot
 }

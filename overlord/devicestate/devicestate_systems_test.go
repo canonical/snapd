@@ -2965,6 +2965,9 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 	},
 }
 
+// preinstall check context returned by preinstall check
+var preinstallCheckContext = &secboot.PreinstallCheckContext{}
+
 type suiteWithAddCleanup interface {
 	AddCleanup(func())
 }
@@ -3011,13 +3014,13 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		}
 	}
 
-	restore1 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) ([]secboot.PreinstallErrorDetails, error) {
+	restore1 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		c.Assert(bootImagePaths, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		if hasTPM {
-			return nil, nil
+			return preinstallCheckContext, nil, nil
 		} else {
-			return preinstallErrorDetails[:1], nil
+			return preinstallCheckContext, preinstallErrorDetails[:1], nil
 		}
 	})
 	s.AddCleanup(restore1)
@@ -3142,12 +3145,15 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupport
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedHybridHappy(c *C) {
 	// supported hybrid system uses specialized encryption availability check
 	const isSupportedHybrid = true
-	s.testSystemAndGadgetAndEncryptionInfoHappy(c, isSupportedHybrid, install.EncryptionSupportInfo{
+	encInfo := install.EncryptionSupportInfo{
 		Available:               false,
 		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning:      "not encrypting device storage as checking TPM gave: error with TPM2 device: one or more of the TPM hierarchies is already owned",
 		AvailabilityCheckErrors: preinstallErrorDetails[:1],
-	})
+	}
+
+	encInfo.SetAvailabilityCheckContext(preinstallCheckContext)
+	s.testSystemAndGadgetAndEncryptionInfoHappy(c, isSupportedHybrid, encInfo)
 }
 
 func (s *modelAndGadgetInfoSuite) TestLoadSeedSetsRevisionForLocalContainers(c *C) {
