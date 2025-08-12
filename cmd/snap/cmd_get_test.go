@@ -647,7 +647,7 @@ func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
-		case 0, 2, 4, 6:
+		case 0, 2, 4, 6, 8:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
@@ -658,7 +658,7 @@ func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
 
-		case 1, 3, 5, 7:
+		case 1, 3, 5, 7, 9:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"error": {"message": "some error, no data", "kind": "option-not-found"}}}}`)
@@ -680,6 +680,7 @@ func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
 
 	tcs := []testcase{
 		{
+			// if default isn't JSON, we fallback to treating it as a string (unless -t is on)
 			flags:  []string{"--default", "baz"},
 			output: "baz\n",
 		},
@@ -695,6 +696,10 @@ func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
 			output: `Key         Value
 foo[0].bar  baz
 `,
+		},
+		{
+			flags:  []string{"-t", "--default", `"1"`},
+			output: "\"1\"\n",
 		},
 		{
 			flags:  []string{"-t", "--default", `"foo"`},
@@ -732,6 +737,45 @@ func (s *confdbSuite) TestConfdbGetForbidDefaultWithMultiKeys(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "--default", "defVal", "foo", "bar"})
 	c.Assert(err, ErrorMatches, "cannot use --default with more than one confdb request")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *confdbSuite) TestConfdbGetDefaultUnmarshalNoFallbackIfTyped(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"foo"})
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"error": {"message": "some error, no data", "kind": "option-not-found"}}}}`)
+
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "--default", "defVal", "-t", "foo"})
+	c.Assert(err, ErrorMatches, "cannot unmarshal strictly typed default value")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }

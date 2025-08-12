@@ -58,7 +58,7 @@ func (s *snapSetSuite) TestSnapSetIntegrationString(c *check.C) {
 	s.mockSetConfigServer(c, "value")
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=value"})
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "key=\"value\""})
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }

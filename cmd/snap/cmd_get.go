@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 var shortGetHelp = i18n.G("Print configuration options")
@@ -70,7 +71,7 @@ type cmdGet struct {
 	Typed    bool   `short:"t"`
 	Document bool   `short:"d"`
 	List     bool   `short:"l"`
-	Default  string `long:"default"`
+	Default  string `long:"default" unquote:"false"`
 }
 
 func init() {
@@ -326,7 +327,7 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 
 		if errData["kind"] == string(client.ErrorKindConfigNoSuchOption) && x.Default != "" {
 			// we don't allow --default with multiple keys so we know there's only one
-			return buildDefaultOutput(confKeys[0], x.Default)
+			return x.buildDefaultOutput(confKeys[0])
 		}
 
 		errMsg, ok := errData["message"]
@@ -340,17 +341,21 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 	return conf, nil
 }
 
-func buildDefaultOutput(request string, defaultRaw string) (map[string]any, error) {
+func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	var defaultVal any
-	if err := json.Unmarshal([]byte(defaultRaw), &defaultVal); err != nil {
+	if err := jsonutil.DecodeWithNumber(strings.NewReader(x.Default), &defaultVal); err != nil {
 		var merr *json.SyntaxError
 		if !errors.As(err, &merr) {
 			// shouldn't happen as we treat unmarshable values as strings
 			return nil, fmt.Errorf("internal error: cannot unmarshal --default value: %v", err)
 		}
 
+		if x.Typed {
+			return nil, fmt.Errorf("cannot unmarshal strictly typed default value")
+		}
+
 		// the value isn't typed, use it as is
-		defaultVal = defaultRaw
+		defaultVal = x.Default
 	}
 
 	return map[string]any{request: defaultVal}, nil
