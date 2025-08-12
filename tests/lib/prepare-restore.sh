@@ -534,9 +534,6 @@ prepare_project() {
                     quiet apt install -y golang-1.23
                     ;;
             esac
-            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control >deps.txt
-            quiet xargs -r eatmydata apt-get install -y < deps.txt
             # The go 1.18 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
@@ -545,14 +542,6 @@ prepare_project() {
             fi
             ;;
     esac
-
-    # Retry go mod vendor to minimize the number of connection errors during the sync
-    retry -n 10 go mod vendor
-    # Update C dependencies
-    ( cd c-vendor && retry -n 10 ./vendor.sh )
-
-    # go mod runs as root and will leave strange permissions
-    chown test:test -R "$SPREAD_PATH"
 
     # We are testing snapd snap on top of snapd from the archive
     # of the tested distribution. Download snapd and snap-confine
@@ -578,8 +567,19 @@ prepare_project() {
                 ;;
         esac
     else
+        # Retry go mod vendor to minimize the number of connection errors during the sync
+        retry -n 10 go mod vendor
+        # Update C dependencies
+        ( cd c-vendor && retry -n 10 ./vendor.sh )
+
+        # go mod runs as root and will leave strange permissions
+        chown test:test -R "$SPREAD_PATH"
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
+                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
+                gdebi --quiet --apt-line ./debian/control >deps.txt
+                quiet xargs -r eatmydata apt-get install -y < deps.txt
+                
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)
