@@ -572,3 +572,166 @@ func (s *confdbSuite) TestConfdbGetInternalError(c *check.C) {
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "foo"})
 	c.Assert(err, ErrorMatches, "internal error: something went wrong")
 }
+
+func (s *confdbSuite) TestConfdbDefaultMultipleTypes(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0, 2, 4, 6, 8:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"foo"})
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1, 3, 5, 7, 9:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"error": {"message": "some error, no data", "kind": "option-not-found"}}}}`)
+		default:
+			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	type testcase struct {
+		input  any
+		output string
+	}
+
+	tcs := []testcase{
+		{
+			input:  "\"bar\"",
+			output: "bar",
+		},
+		{
+			input:  1,
+			output: "1",
+		},
+		{
+			input: `[1, 2]`,
+			output: `[
+	1,
+	2
+]`,
+		},
+		{
+			input:  "unquoted",
+			output: "unquoted",
+		},
+	}
+
+	for _, tc := range tcs {
+		s.stdout.Reset()
+		rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", fmt.Sprintf("--default=%v", tc.input), "foo"})
+		c.Assert(err, IsNil)
+		c.Assert(rest, HasLen, 0)
+		c.Check(s.Stdout(), Equals, fmt.Sprintf("%v\n", tc.output))
+	}
+}
+
+func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0, 2, 4, 6:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
+
+			q := r.URL.Query()
+			keys := strutil.CommaSeparatedList(q.Get("keys"))
+			c.Check(keys, DeepEquals, []string{"foo[0].bar"})
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+
+		case 1, 3, 5, 7:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"error": {"message": "some error, no data", "kind": "option-not-found"}}}}`)
+
+		default:
+			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	type testcase struct {
+		flags  []string
+		output string
+	}
+
+	tcs := []testcase{
+		{
+			flags:  []string{"--default", "baz"},
+			output: "baz\n",
+		},
+		{
+			flags: []string{"-d", "--default", "baz"},
+			output: `{
+	"foo[0].bar": "baz"
+}
+`,
+		},
+		{
+			flags: []string{"-l", "--default", "baz"},
+			output: `Key         Value
+foo[0].bar  baz
+`,
+		},
+		{
+			flags:  []string{"-t", "--default", `"foo"`},
+			output: "\"foo\"\n",
+		},
+	}
+
+	for _, tc := range tcs {
+		args := append([]string{"get", "foo/bar/baz", "foo[0].bar"}, tc.flags...)
+		rest, err := snapset.Parser(snapset.Client()).ParseArgs(args)
+		c.Assert(err, IsNil)
+		c.Assert(rest, HasLen, 0)
+		c.Check(s.Stdout(), Equals, tc.output)
+		c.Check(s.Stderr(), Equals, "")
+		s.stdout.Reset()
+	}
+}
+
+func (s *confdbSuite) TestConfdbGetForbidDefaultWithMultiKeys(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "--default", "defVal", "foo", "bar"})
+	c.Assert(err, ErrorMatches, "cannot use --default with more than one confdb request")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}

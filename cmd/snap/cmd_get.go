@@ -67,9 +67,10 @@ type cmdGet struct {
 		Keys []string
 	} `positional-args:"yes"`
 
-	Typed    bool `short:"t"`
-	Document bool `short:"d"`
-	List     bool `short:"l"`
+	Typed    bool   `short:"t"`
+	Document bool   `short:"d"`
+	List     bool   `short:"l"`
+	Default  string `long:"default"`
 }
 
 func init() {
@@ -89,6 +90,8 @@ func init() {
 			"l": i18n.G("Always return list, even with single key"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"default": i18n.G("A strictly typed default value to be used when none is found"),
 		}, []argDesc{
 			{
 				name: "<snap>",
@@ -292,6 +295,12 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, err
 	}
 
+	if x.Default != "" && len(confKeys) > 1 {
+		// TODO: what if some keys are fulfilled and others aren't? Do we fill in
+		// just the ones that are missing or none?
+		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
+	}
+
 	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys)
 	if err != nil {
 		return nil, err
@@ -315,6 +324,11 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 			return nil, err
 		}
 
+		if errData["kind"] == string(client.ErrorKindConfigNoSuchOption) && x.Default != "" {
+			// we don't allow --default with multiple keys so we know there's only one
+			return buildDefaultOutput(confKeys[0], x.Default)
+		}
+
 		errMsg, ok := errData["message"]
 		if !ok {
 			return nil, fmt.Errorf(`internal error: expected "message" field under "error" in change result`)
@@ -324,6 +338,22 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 	}
 
 	return conf, nil
+}
+
+func buildDefaultOutput(request string, defaultRaw string) (map[string]any, error) {
+	var defaultVal any
+	if err := json.Unmarshal([]byte(defaultRaw), &defaultVal); err != nil {
+		var merr *json.SyntaxError
+		if !errors.As(err, &merr) {
+			// shouldn't happen as we treat unmarshable values as strings
+			return nil, fmt.Errorf("internal error: cannot unmarshal --default value: %v", err)
+		}
+
+		// the value isn't typed, use it as is
+		defaultVal = defaultRaw
+	}
+
+	return map[string]any{request: defaultVal}, nil
 }
 
 func validateConfdbFeatureFlag() error {
