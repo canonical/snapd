@@ -87,20 +87,14 @@ type stateBackend struct {
 }
 
 func (sb stateBackend) BackendNotices(filter *state.NoticeFilter) []*state.Notice {
-	sb.Lock()
-	defer sb.Unlock()
 	return sb.Notices(filter)
 }
 
 func (sb stateBackend) BackendNotice(id string) *state.Notice {
-	sb.Lock()
-	defer sb.Unlock()
 	return sb.Notice(id)
 }
 
 func (sb stateBackend) BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
-	sb.Lock()
-	defer sb.Unlock()
 	return sb.WaitNotices(ctx, filter)
 }
 
