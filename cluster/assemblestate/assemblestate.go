@@ -103,6 +103,11 @@ type AssembleState struct {
 	// selector keeps track of our routes and decides the strategy for
 	// publishing routes to our peers.
 	selector RouteSelector
+
+	// completed is used to signal to the [AssembleState.Run] method that we
+	// have assembled a fully connected graph of the expected number of devices.
+	// This is only relevant when an expected size is provided.
+	completed chan struct{}
 }
 
 // AssembleSession provides a method for serializing our current state of
@@ -179,6 +184,9 @@ type AssembleConfig struct {
 	// Clock is an optional function to retrieve the current time. If nil,
 	// defaults to time.Now.
 	Clock func() time.Time
+	// ExpectedSize is the expected size of the cluster. If unset, cluster
+	// assembly will not terminate automatically.
+	ExpectedSize int
 }
 
 const AssembleSessionLength = time.Hour
@@ -257,6 +265,13 @@ func NewAssembleState(
 		discovered:   validated.discovered,
 		devices:      devices,
 		selector:     sel,
+		completed:    make(chan struct{}, 1),
+	}
+
+	// there is a chance that we resume an assemble session that was already
+	// finished. make sure to mark it as complete in that case.
+	if err := as.shutdownAtExpectedSize(); err != nil {
+		return nil, err
 	}
 
 	return &as, nil
@@ -527,6 +542,13 @@ func (as *AssembleState) verifyPeer(cert []byte) (*peerHandle, error) {
 	}, nil
 }
 
+// RunOptions carries some options relevant to [AssembleState.Run]. These should
+// be only runtime-relevant parameters.
+type RunOptions struct {
+	// Period is how often we publish route information.
+	Period time.Duration
+}
+
 // Run starts the assembly process, managing both the server and periodic client operations.
 // It returns when the context is cancelled, returning the final routes discovered.
 //
@@ -536,6 +558,7 @@ func (as *AssembleState) Run(
 	ctx context.Context,
 	transport Transport,
 	discover Discoverer,
+	opts RunOptions,
 ) (Routes, error) {
 	if as.initiated.IsZero() {
 		as.initiated = as.clock()
@@ -554,6 +577,7 @@ func (as *AssembleState) Run(
 	var wg sync.WaitGroup
 
 	// channel to receive server errors that should cause the process to fail
+	// TODO: replace with [context.Cause] when we're on go >= 1.20
 	serverError := make(chan error, 1)
 
 	// start the server that handles incoming requests
@@ -604,11 +628,10 @@ func (as *AssembleState) Run(
 	go func() {
 		defer wg.Done()
 		const (
-			period = time.Second * 5
 			peers  = 5
 			routes = 5000
 		)
-		periodic(ctx, period, func(ctx context.Context) {
+		periodic(ctx, opts.Period, func(ctx context.Context) {
 			as.publishRoutes(ctx, client, peers, routes)
 			rounds++
 		})
@@ -628,6 +651,19 @@ func (as *AssembleState) Run(
 			case <-ctx.Done():
 				return
 			}
+		}
+	}()
+
+	// wait for a completion signal
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		select {
+		case <-as.completed:
+			logger.Debug("assembly complete: discovered all devices with full connectivity")
+			cancel()
+		case <-ctx.Done():
 		}
 	}()
 
@@ -721,12 +757,36 @@ func (h *peerHandle) CommitRoutes(routes Routes) error {
 		return err
 	}
 
+	if err := h.as.shutdownAtExpectedSize(); err != nil {
+		return err
+	}
+
 	h.as.commit(h.as.export())
 
 	// routes are represented by an array of triplets, refer to the doc comment
 	// on [Routes] for more information
 	received := len(routes.Routes) / 3
 	logger.Debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
+
+	return nil
+}
+
+func (as *AssembleState) shutdownAtExpectedSize() error {
+	if as.config.ExpectedSize == 0 {
+		return nil
+	}
+
+	complete, err := as.selector.Complete(as.config.ExpectedSize)
+	if err != nil {
+		return err
+	}
+
+	if complete {
+		select {
+		case as.completed <- struct{}{}:
+		default:
+		}
+	}
 
 	return nil
 }
@@ -765,6 +825,10 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 	// since we got new device info, we have to recalculate which routes are
 	// valid to send to our peers
 	h.as.selector.VerifyRoutes()
+
+	if err := h.as.shutdownAtExpectedSize(); err != nil {
+		return err
+	}
 
 	h.as.commit(h.as.export())
 

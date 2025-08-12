@@ -491,3 +491,125 @@ func (s *SelectorSuite) TestRoutesNoDuplicates(c *check.C) {
 	}
 	c.Assert(routes.Routes, check.DeepEquals, expected)
 }
+
+func (s *SelectorSuite) TestCompletePartiallyConnected(c *check.C) {
+	sel := assemblestate.NewPrioritySelector("self", nil, func(assemblestate.DeviceToken) bool { return true })
+
+	r := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"a", "b"},
+		Addresses: []string{"addr"},
+		Routes:    []int{0, 1, 0}, // a -> b
+	}
+
+	_, _, err := sel.RecordRoutes("peer", r)
+	c.Assert(err, check.IsNil)
+
+	complete, err := sel.Complete(2)
+	c.Assert(err, check.IsNil)
+	c.Assert(complete, check.Equals, false)
+}
+
+func (s *SelectorSuite) TestCompleteFullyConnected(c *check.C) {
+	sel := assemblestate.NewPrioritySelector("self", nil, func(assemblestate.DeviceToken) bool { return true })
+
+	devices := []assemblestate.DeviceToken{"a", "b", "c"}
+	addresses := []string{"addr"}
+	routes := []int{
+		0, 1, 0, // a -> b
+		0, 2, 0, // a -> c
+		1, 0, 0, // b -> a
+		1, 2, 0, // b -> c
+		2, 0, 0, // c -> a
+		2, 1, 0, // c -> b
+	}
+
+	r := assemblestate.Routes{
+		Devices:   devices,
+		Addresses: addresses,
+		Routes:    routes,
+	}
+
+	_, _, err := sel.RecordRoutes("peer", r)
+	c.Assert(err, check.IsNil)
+
+	complete, err := sel.Complete(3)
+	c.Assert(err, check.IsNil)
+	c.Assert(complete, check.Equals, true)
+}
+
+func (s *SelectorSuite) TestCompleteTooManyEdges(c *check.C) {
+	sel := assemblestate.NewPrioritySelector("self", nil, func(assemblestate.DeviceToken) bool { return true })
+
+	devices := []assemblestate.DeviceToken{"a", "b", "c"}
+	addresses := []string{"addr"}
+	routes := []int{
+		0, 1, 0, // a -> b
+		0, 2, 0, // a -> c
+		1, 0, 0, // b -> a
+		1, 2, 0, // b -> c
+		2, 0, 0, // c -> a
+		2, 1, 0, // c -> b
+	}
+
+	r := assemblestate.Routes{
+		Devices:   devices,
+		Addresses: addresses,
+		Routes:    routes,
+	}
+
+	_, _, err := sel.RecordRoutes("peer", r)
+	c.Assert(err, check.IsNil)
+
+	complete, err := sel.Complete(2)
+	c.Assert(err, check.ErrorMatches, "number of devices in the cluster is greater than expected")
+	c.Assert(complete, check.Equals, false)
+}
+
+func (s *SelectorSuite) TestCompleteUnverifiedEdges(c *check.C) {
+	identified := make(map[assemblestate.DeviceToken]bool)
+	sel := assemblestate.NewPrioritySelector("self", nil, func(dt assemblestate.DeviceToken) bool {
+		return identified[dt]
+	})
+
+	// initially only a is identified
+	identified["a"] = true
+
+	r := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"a", "b", "c"},
+		Addresses: []string{"addr"},
+		Routes: []int{
+			0, 1, 0, // a -> b
+			0, 2, 0, // a -> c
+			1, 0, 0, // b -> a
+			1, 2, 0, // b -> c
+			2, 0, 0, // c -> a
+			2, 1, 0, // c -> b
+		},
+	}
+
+	_, _, err := sel.RecordRoutes("peer", r)
+	c.Assert(err, check.IsNil)
+
+	// no edges should be verified yet
+	complete, err := sel.Complete(3)
+	c.Assert(err, check.IsNil)
+	c.Assert(complete, check.Equals, false)
+
+	// now identify b
+	identified["b"] = true
+	sel.VerifyRoutes()
+
+	// still, most of the graph is not verified
+	complete, err = sel.Complete(3)
+	c.Assert(err, check.IsNil)
+	c.Assert(complete, check.Equals, false)
+
+	// now identify c
+	identified["c"] = true
+	sel.VerifyRoutes()
+
+	// full graph is connected and verified
+	complete, err = sel.Complete(3)
+	c.Assert(err, check.IsNil)
+	c.Assert(complete, check.Equals, true)
+}
