@@ -22,7 +22,8 @@ run_muinstaller() {
     local kern_mods_comp="${9}"
     local passphrase="${10}"
     local recovery_key_out="${11}"
-    shift 11
+    local exit_at_preinstall="${12}"
+    shift 12
     local extra_muinstaller_args=("${@}")
 
     # ack the needed assertions
@@ -145,6 +146,12 @@ run_muinstaller() {
     # bind mount new seed
     remote.exec "sudo mkdir -p /var/lib/snapd/seed"
     remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
+
+    # when only interested in preinstall environment exit here
+    if [ "$exit_at_preinstall" = "true" ]; then
+        return 0
+    fi
+
     # push and install muinstaller
     remote.push "${muinstaller_snap}"
     remote.exec "sudo snap install --classic --dangerous $(basename "${muinstaller_snap}")"
@@ -230,6 +237,7 @@ main() {
     local kern_mods_comp=""
     local passphrase=""
     local recovery_key_out=""
+    local exit_at_preinstall=""
     local extra_muinstaller_args=()
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -277,6 +285,10 @@ main() {
             --recovery-key-out)
                 recovery_key_out="${2}"
                 shift 2
+                ;;
+            --exit-at-preinstall)
+                exit_at_preinstall="true"
+                shift 1
                 ;;
             --extra-muinstaller-arg)
                 extra_muinstaller_args+=("${2}")
@@ -373,6 +385,7 @@ main() {
         run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
                         "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
                         "${disk}" "${kern_mods_comp}" "${passphrase}" "${recovery_key_out}" \
+			"${exit_at_preinstall}" \
                         "${extra_muinstaller_args[@]}"
     )
 }
