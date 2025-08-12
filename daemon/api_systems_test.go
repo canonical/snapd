@@ -56,7 +56,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -71,35 +70,6 @@ type systemsSuite struct {
 	apiBaseSuite
 
 	seedModelForLabel20191119 *asserts.Model
-}
-
-func (s *systemsSuite) mockHybridSystem() {
-	restore := release.MockReleaseInfo(&release.OS{
-		ID:        "ubuntu",
-		VersionID: "25.10",
-	})
-	s.AddCleanup(restore)
-
-	model := s.Brands.Model("can0nical", "pc-new", map[string]any{
-		"classic":      "true",
-		"distribution": "ubuntu",
-		"architecture": "amd64",
-		"base":         "core24",
-		"snaps": []any{
-			map[string]any{
-				"name": "pc-kernel",
-				"id":   snaptest.AssertedSnapID("pc-kernel"),
-				"type": "kernel",
-			},
-			map[string]any{
-				"name": "pc",
-				"id":   snaptest.AssertedSnapID("pc"),
-				"type": "gadget",
-			},
-		},
-	})
-	restore = snapstatetest.MockDeviceModel(model)
-	s.AddCleanup(restore)
 }
 
 func (s *systemsSuite) SetUpTest(c *check.C) {
@@ -955,11 +925,19 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			StorageSafety:           tc.storageSafety,
 			UnavailableErr:          errors.New(tc.unavailableErr),
 			UnavailableWarning:      tc.unavailableWarning,
+			AvailabilityCheckErrors: tc.availabilityCheckErrs,
 			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
 		}
 
-		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+			mgr *devicestate.DeviceManager,
+			label string,
+			checkAction *secboot.PreinstallAction,
+			encInfoFromCache bool,
+		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 			c.Check(label, check.Equals, "20191119")
+			c.Check(checkAction, check.IsNil)
+			c.Check(encInfoFromCache, check.Equals, false)
 			sys := &devicestate.System{
 				Model: s.seedModelForLabel20191119,
 				Label: "20191119",
@@ -989,10 +967,11 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				Validation:  "unproven",
 			},
 			StorageEncryption: &client.StorageEncryption{
-				Support:           tc.expectedSupport,
-				Features:          tc.expectedEncryptionFeatures,
-				StorageSafety:     tc.expectedStorageSafety,
-				UnavailableReason: tc.expectedUnavailableReason,
+				Support:                 tc.expectedSupport,
+				Features:                tc.expectedEncryptionFeatures,
+				StorageSafety:           tc.expectedStorageSafety,
+				UnavailableReason:       tc.expectedUnavailableReason,
+				AvailabilityCheckErrors: tc.availabilityCheckErrs,
 			},
 			Volumes: mockGadgetInfo.Volumes,
 			AvailableOptional: client.AvailableForInstall{
@@ -1010,7 +989,12 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		mgr *devicestate.DeviceManager,
+		label string,
+		checkAction *secboot.PreinstallAction,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		return nil, nil, nil, fmt.Errorf("boom")
 	})
 	defer r()
@@ -1024,9 +1008,6 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.daemon(c)
 	s.expectRootAccess()
 
@@ -1038,20 +1019,25 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C
 }
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	d := s.daemon(c)
 	s.expectRootAccess()
 	deviceMgr := d.Overlord().DeviceManager()
 
-	restore = s.mockSystemSeeds(c)
+	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		mgr *devicestate.DeviceManager,
+		label string,
+		checkAction *secboot.PreinstallAction,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Check(label, check.Equals, "20191119")
+		c.Check(checkAction, check.IsNil)
+		c.Check(encInfoFromCache, check.Equals, false)
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
-		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label)
+		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label, checkAction, encInfoFromCache)
 		c.Assert(err, check.IsNil)
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
@@ -1382,7 +1368,6 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 	}
 
 	s.daemon(c)
-	s.mockHybridSystem()
 
 	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
 		c.Check(label, check.Equals, "20250529")
@@ -1410,7 +1395,6 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKey(c *check.C) {
 
 func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.C) {
 	s.daemon(c)
-	s.mockHybridSystem()
 
 	defer daemon.MockDevicestateGeneratePreInstallRecoveryKey(func(st *state.State, label string) (rkey keys.RecoveryKey, err error) {
 		c.Check(label, check.Equals, "20250529")
@@ -1524,7 +1508,6 @@ func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	s.daemon(c)
-	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1541,7 +1524,13 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 	})
 	defer restore()
 
-	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		dm *devicestate.DeviceManager, s string,
+		checkAction *secboot.PreinstallAction,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Assert(checkAction, check.IsNil)
+		c.Assert(encInfoFromCache, check.Equals, true)
 		return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: true}, nil
 	})
 	defer restore()
@@ -1584,8 +1573,7 @@ func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
-	d := s.daemon(c)
-	s.mockHybridSystem()
+	s.daemon(c)
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1641,7 +1629,14 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 			route = "/v2/systems"
 		}
 
-		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+			dm *devicestate.DeviceManager,
+			s string,
+			checkAction *secboot.PreinstallAction,
+			encInfoFromCache bool,
+		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			c.Assert(checkAction, check.IsNil)
+			c.Assert(encInfoFromCache, check.Equals, true)
 			return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: !tc.unavailable}, tc.mockSupportErr
 		})
 		defer restore()
@@ -1659,11 +1654,6 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		})
 		defer restore()
 
-		st := d.Overlord().State()
-		st.Lock()
-		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
-		st.Unlock()
-
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
 		buf := bytes.NewBuffer(b)
@@ -1680,7 +1670,6 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	s.daemon(c)
-	s.mockHybridSystem()
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1697,7 +1686,14 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	})
 	defer restore()
 
-	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		dm *devicestate.DeviceManager,
+		s string,
+		checkAction *secboot.PreinstallAction,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Assert(checkAction, check.IsNil)
+		c.Assert(encInfoFromCache, check.Equals, true)
 		return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: true}, nil
 	})
 	defer restore()
@@ -1723,8 +1719,7 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
-	d := s.daemon(c)
-	s.mockHybridSystem()
+	s.daemon(c)
 
 	// just mock values for output matching
 	const expectedEntropy = uint32(10)
@@ -1780,12 +1775,14 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 			route = "/v2/systems"
 		}
 
-		st := d.Overlord().State()
-
-		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-			// Lock and unlock to make sure caching logic doesn't go into deadlock with encryption info retrieval
-			st.Lock()
-			st.Unlock()
+		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+			dm *devicestate.DeviceManager,
+			s string,
+			checkAction *secboot.PreinstallAction,
+			encInfoFromCache bool,
+		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			c.Assert(checkAction, check.IsNil)
+			c.Assert(encInfoFromCache, check.Equals, true)
 			return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: !tc.unavailable}, tc.mockSupportErr
 		})
 		defer restore()
@@ -1803,10 +1800,6 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		})
 		defer restore()
 
-		st.Lock()
-		daemon.ClearCachedEncryptionSupportInfoForLabel(d.Overlord().State(), "20250122")
-		st.Unlock()
-
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
 		buf := bytes.NewBuffer(b)
@@ -1821,59 +1814,469 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	}
 }
 
-func (s *systemsSuite) TestSystemActionCheckPassphraseOrPINCacheEncryptionInfo(c *check.C) {
-	if !secboot.WithSecbootSupport {
-		c.Skip("secboot is not available")
+func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
+	s.mockSystemSeeds(c)
+	s.daemon(c)
+	s.expectRootAccess()
+
+	mockGadgetInfo := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{
+						VolumeName: "foo",
+					},
+				},
+			},
+		},
 	}
 
-	d := s.daemon(c)
-	s.mockHybridSystem()
+	for _, tc := range []struct {
+		available, passphraseAuthAvailable bool
+		storageSafety                      asserts.StorageSafety
+		typ                                device.EncryptionType
+		unavailableErr, unavailableWarning string
+		availabilityCheckErrs              []secboot.PreinstallErrorDetails
 
-	called := 0
-	restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(dm *devicestate.DeviceManager, s string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-		called++
-		// Lock and unlock to make sure caching logic doesn't go into deadlock with encryption info retrieval
-		st := d.Overlord().State()
-		st.Lock()
-		st.Unlock()
-		return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: true, PINAuthAvailable: true}, nil
-	})
+		expectedSupport                                  client.StorageEncryptionSupport
+		expectedStorageSafety, expectedUnavailableReason string
+		expectedAvailabilityCheckErrs                    []secboot.PreinstallErrorDetails
+		expectedEncryptionFeatures                       []client.StorageEncryptionFeature
+	}{
+		{
+			storageSafety:      asserts.StorageSafetyPreferEncrypted,
+			unavailableWarning: "unavailable-warn",
+
+			expectedSupport:           client.StorageEncryptionSupportUnavailable,
+			expectedStorageSafety:     "prefer-encrypted",
+			expectedUnavailableReason: "unavailable-warn",
+		},
+		{
+			available:     true,
+			storageSafety: asserts.StorageSafetyPreferEncrypted,
+			typ:           "cryptsetup",
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "prefer-encrypted",
+		},
+		{
+			available:     true,
+			storageSafety: asserts.StorageSafetyPreferUnencrypted,
+			typ:           "cryptsetup",
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "prefer-unencrypted",
+		},
+		{
+			storageSafety:         asserts.StorageSafetyEncrypted,
+			unavailableErr:        unavailableWarning,
+			availabilityCheckErrs: availabilityCheckErrors,
+
+			expectedSupport:               client.StorageEncryptionSupportDefective,
+			expectedStorageSafety:         "encrypted",
+			expectedUnavailableReason:     unavailableWarning,
+			expectedAvailabilityCheckErrs: availabilityCheckErrors,
+		},
+		{
+			available:               true,
+			passphraseAuthAvailable: true,
+			storageSafety:           asserts.StorageSafetyEncrypted,
+
+			expectedSupport:            client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety:      "encrypted",
+			expectedEncryptionFeatures: []client.StorageEncryptionFeature{client.StorageEncryptionFeaturePassphraseAuth},
+		},
+	} {
+		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
+			Available:               tc.available,
+			Disabled:                false,
+			StorageSafety:           tc.storageSafety,
+			UnavailableErr:          errors.New(tc.unavailableErr),
+			UnavailableWarning:      tc.unavailableWarning,
+			AvailabilityCheckErrors: tc.availabilityCheckErrs,
+			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
+		}
+
+		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+			mgr *devicestate.DeviceManager,
+			label string,
+			checkAction *secboot.PreinstallAction,
+			encInfoFromCache bool,
+		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			c.Check(label, check.Equals, "20191119")
+			c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
+				Action: "action-1",
+				Args: map[string]json.RawMessage{
+					"argn":  json.RawMessage(`"valuen"`),
+					"args1": json.RawMessage(`"value1"`),
+				},
+			})
+			c.Check(encInfoFromCache, check.Equals, false)
+			sys := &devicestate.System{
+				Model: s.seedModelForLabel20191119,
+				Label: "20191119",
+				Brand: s.Brands.Account("my-brand"),
+				OptionalContainers: devicestate.OptionalContainers{
+					Snaps:      []string{"snap1", "snap2"},
+					Components: map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
+				},
+			}
+			return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
+		})
+		defer r()
+
+		body := map[string]any{
+			"action":     "fix-encryption-support",
+			"fix-action": "action-1",
+			"args": map[string]json.RawMessage{
+				"argn":  json.RawMessage(`"valuen"`),
+				"args1": json.RawMessage(`"value1"`),
+			},
+		}
+
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		c.Assert(err, check.IsNil)
+		rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+		c.Assert(rsp.Status, check.Equals, 200)
+		sys := rsp.Result.(client.SystemDetails)
+		c.Check(sys, check.DeepEquals, client.SystemDetails{
+			Label: "20191119",
+			Model: s.seedModelForLabel20191119.Headers(),
+			Brand: snap.StoreAccount{
+				ID:          "my-brand",
+				Username:    "my-brand",
+				DisplayName: "My-brand",
+				Validation:  "unproven",
+			},
+			StorageEncryption: &client.StorageEncryption{
+				Support:                 tc.expectedSupport,
+				Features:                tc.expectedEncryptionFeatures,
+				StorageSafety:           tc.expectedStorageSafety,
+				UnavailableReason:       tc.expectedUnavailableReason,
+				AvailabilityCheckErrors: tc.availabilityCheckErrs,
+			},
+			Volumes: mockGadgetInfo.Volumes,
+			AvailableOptional: client.AvailableForInstall{
+				Snaps: []string{"snap1", "snap2"},
+				Components: map[string][]string{
+					"snap1": {"comp1"},
+					"snap2": {"comp2"},
+				},
+			},
+		}, check.Commentf("%v", tc))
+	}
+}
+
+func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
+	s.daemon(c)
+
+	for _, tc := range []struct {
+		noLabel        bool
+		fixAction      string
+		args           map[string]json.RawMessage
+		mockSupportErr error
+
+		expectedStatus int
+		expectedErrMsg string
+	}{
+		{
+			noLabel:        true,
+			expectedStatus: 400, expectedErrMsg: "system action requires the system label to be provided",
+		},
+		{
+			fixAction:      "",
+			expectedStatus: 400, expectedErrMsg: "fix action must be provided in request body for action \"fix-encryption-support\"",
+		},
+		{
+			fixAction:      "action-1",
+			args:           nil,
+			expectedStatus: 400, expectedErrMsg: "fix action args must be provided in request body for action \"fix-encryption-support\"",
+		},
+		{
+			fixAction: "action-1",
+			args: map[string]json.RawMessage{
+				"argn":  json.RawMessage(`"valuen"`),
+				"args1": json.RawMessage(`"value1"`),
+			},
+			mockSupportErr: errors.New("error"),
+			expectedStatus: 500, expectedErrMsg: "error",
+		},
+	} {
+		body := map[string]any{
+			"action":     "fix-encryption-support",
+			"fix-action": tc.fixAction,
+			"args":       tc.args,
+		}
+
+		route := "/v2/systems/20191119"
+		if tc.noLabel {
+			route = "/v2/systems"
+		}
+
+		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+			dm *devicestate.DeviceManager,
+			label string,
+			checkAction *secboot.PreinstallAction,
+			encInfoFromCache bool,
+		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+			c.Check(label, check.Equals, "20191119")
+			c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
+				Action: tc.fixAction,
+				Args:   tc.args,
+			})
+			c.Check(encInfoFromCache, check.Equals, false)
+			return nil, nil, &install.EncryptionSupportInfo{}, tc.mockSupportErr
+		})
+		defer restore()
+
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", route, buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil, actionExpectedBool(!tc.noLabel))
+		c.Assert(rspe.Status, check.Equals, tc.expectedStatus)
+		c.Assert(rspe.Message, check.Matches, tc.expectedErrMsg)
+	}
+}
+
+func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegrationErrors(c *check.C) {
+	d := s.daemon(c)
+	s.expectRootAccess()
+	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	body := map[string]string{
-		"action":     "check-passphrase",
-		"passphrase": "this is a good passphrase",
+	body := map[string]any{
+		"action":     "fix-encryption-support",
+		"fix-action": "action-1",
+		"args": map[string]json.RawMessage{
+			"argn":  json.RawMessage(`"valuen"`),
+			"args1": json.RawMessage(`"value1"`),
+		},
 	}
 
-	for i := 0; i < 10; i++ {
-		b, err := json.Marshal(body)
-		c.Assert(err, check.IsNil)
-		buf := bytes.NewBuffer(b)
-		req, err := http.NewRequest("POST", "/v2/systems/20250122", buf)
-		c.Assert(err, check.IsNil)
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/unknown-label", buf)
+	c.Assert(err, check.IsNil)
 
-		rsp := s.syncReq(c, req, nil, actionIsExpected)
-		c.Assert(rsp.Status, check.Equals, 200)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, `cannot load assertions for label "unknown-label": no seed assertions`)
+
+	buf = bytes.NewBuffer(b)
+	req, err = http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, "cannot use check action without cached encryption information")
+
+	deviceMgr := d.Overlord().DeviceManager()
+	deviceMgr.RefreshCacheEncryptionSupportInfoUnlocked("20191119", &install.EncryptionSupportInfo{})
+	buf = bytes.NewBuffer(b)
+	req, err = http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, "cannot use check action without cached check context")
+}
+
+func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegration(c *check.C) {
+	d := s.daemon(c)
+	s.expectRootAccess()
+	deviceMgr := d.Overlord().DeviceManager()
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		mgr *devicestate.DeviceManager,
+		label string,
+		checkAction *secboot.PreinstallAction,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Check(label, check.Equals, "20191119")
+		c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
+			Action: "action-1",
+			Args: map[string]json.RawMessage{
+				"argn":  json.RawMessage(`"valuen"`),
+				"args1": json.RawMessage(`"value1"`),
+			},
+		})
+		c.Check(encInfoFromCache, check.Equals, false)
+
+		// populate the cache with encryption support information that
+		// includes a check context similar to having performed an
+		// initial preinstall check
+		encInfo := &install.EncryptionSupportInfo{}
+		encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
+		deviceMgr.RefreshCacheEncryptionSupportInfoUnlocked(label, encInfo)
+
+		// mockSystemSeed will ensure everything here is coming from
+		// the mocked seed except the encryption information
+		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label, checkAction, encInfoFromCache)
+		c.Assert(err, check.IsNil)
+		// encryptionInfo needs get overridden here to get reliable tests
+		encInfo.Available = false
+		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
+		encInfo.UnavailableWarning = unavailableWarning
+		encInfo.AvailabilityCheckErrors = availabilityCheckErrors
+
+		return sys, gadgetInfo, encInfo, err
+	})
+	defer r()
+
+	body := map[string]any{
+		"action":     "fix-encryption-support",
+		"fix-action": "action-1",
+		"args": map[string]json.RawMessage{
+			"argn":  json.RawMessage(`"valuen"`),
+			"args1": json.RawMessage(`"value1"`),
+		},
 	}
 
-	body = map[string]string{
-		"action": "check-pin",
-		"pin":    "20250619",
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+	c.Assert(rsp.Status, check.Equals, 200)
+	sys := rsp.Result.(client.SystemDetails)
+
+	sd := client.SystemDetails{
+		Label: "20191119",
+		Model: s.seedModelForLabel20191119.Headers(),
+		Actions: []client.SystemAction{
+			{Title: "Install", Mode: "install"},
+			{Title: "Recover", Mode: "recover"},
+			{Title: "Factory reset", Mode: "factory-reset"},
+		},
+
+		Brand: snap.StoreAccount{
+			ID:          "my-brand",
+			Username:    "my-brand",
+			DisplayName: "My-brand",
+			Validation:  "unproven",
+		},
+		StorageEncryption: &client.StorageEncryption{
+			Support:                 "unavailable",
+			StorageSafety:           "prefer-encrypted",
+			UnavailableReason:       unavailableWarning,
+			AvailabilityCheckErrors: availabilityCheckErrors,
+		},
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Name:       "pc",
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{
+						Name:       "mbr",
+						VolumeName: "pc",
+						Type:       "mbr",
+						Role:       "mbr",
+						Offset:     asOffsetPtr(0),
+						MinSize:    440,
+						Size:       440,
+						Content: []gadget.VolumeContent{
+							{
+								Image: "pc-boot.img",
+							},
+						},
+						YamlIndex: 0,
+					},
+					{
+						Name:       "BIOS Boot",
+						VolumeName: "pc",
+						Type:       "DA,21686148-6449-6E6F-744E-656564454649",
+						MinSize:    1 * quantity.SizeMiB,
+						Size:       1 * quantity.SizeMiB,
+						Offset:     asOffsetPtr(1 * quantity.OffsetMiB),
+						OffsetWrite: &gadget.RelativeOffset{
+							RelativeTo: "mbr",
+							Offset:     92,
+						},
+						Content: []gadget.VolumeContent{
+							{
+								Image: "pc-core.img",
+							},
+						},
+						YamlIndex: 1,
+					},
+					{
+						Name:       "ubuntu-seed",
+						Label:      "ubuntu-seed",
+						Role:       "system-seed",
+						VolumeName: "pc",
+						Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+						Offset:     asOffsetPtr(2 * quantity.OffsetMiB),
+						MinSize:    1200 * quantity.SizeMiB,
+						Size:       1200 * quantity.SizeMiB,
+						Filesystem: "vfat",
+						Content: []gadget.VolumeContent{
+							{
+								UnresolvedSource: "grubx64.efi",
+								Target:           "EFI/boot/grubx64.efi",
+							},
+							{
+								UnresolvedSource: "shim.efi.signed",
+								Target:           "EFI/boot/bootx64.efi",
+							},
+						},
+						YamlIndex: 2,
+					},
+					{
+						Name:       "ubuntu-boot",
+						Label:      "ubuntu-boot",
+						Role:       "system-boot",
+						VolumeName: "pc",
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Offset:     asOffsetPtr(1202 * quantity.OffsetMiB),
+						MinSize:    750 * quantity.SizeMiB,
+						Size:       750 * quantity.SizeMiB,
+						Filesystem: "ext4",
+						YamlIndex:  3,
+					},
+					{
+						Name:       "ubuntu-save",
+						Label:      "ubuntu-save",
+						Role:       "system-save",
+						VolumeName: "pc",
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Offset:     asOffsetPtr(1952 * quantity.OffsetMiB),
+						MinSize:    16 * quantity.SizeMiB,
+						Size:       16 * quantity.SizeMiB,
+						Filesystem: "ext4",
+						YamlIndex:  4,
+					},
+					{
+						Name:       "ubuntu-data",
+						Label:      "ubuntu-data",
+						Role:       "system-data",
+						VolumeName: "pc",
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Offset:     asOffsetPtr(1968 * quantity.OffsetMiB),
+						MinSize:    1 * quantity.SizeGiB,
+						Size:       1 * quantity.SizeGiB,
+						Filesystem: "ext4",
+						YamlIndex:  5,
+					},
+				},
+			},
+		},
 	}
-
-	for i := 0; i < 10; i++ {
-		b, err := json.Marshal(body)
-		c.Assert(err, check.IsNil)
-		buf := bytes.NewBuffer(b)
-		req, err := http.NewRequest("POST", "/v2/systems/20250122", buf)
-		c.Assert(err, check.IsNil)
-
-		rsp := s.syncReq(c, req, nil, actionIsExpected)
-		c.Assert(rsp.Status, check.Equals, 200)
-	}
-
-	// Verify that encryption info calculation is called once and retrieved from cache otherwise.
-	c.Check(called, check.Equals, 1)
+	gadget.SetEnclosingVolumeInStructs(sd.Volumes)
+	c.Assert(sys, check.DeepEquals, sd)
 }
 
 var _ = check.Suite(&systemsCreateSuite{})

@@ -441,7 +441,16 @@ func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetu
 	}
 }
 
-func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
+func MockInstallEncryptPartitions(f func(
+	onVolumes map[string]*gadget.Volume,
+	volumesAuth *device.VolumesAuthOptions,
+	encryptionType device.EncryptionType,
+	checkContext *secboot.PreinstallCheckContext,
+	model *asserts.Model,
+	gadgetRoot,
+	kernelRoot string,
+	perfTimings timings.Measurer,
+) (*install.EncryptionSetupData, error)) (restore func()) {
 	old := installEncryptPartitions
 	installEncryptPartitions = f
 	return func() {
@@ -576,7 +585,13 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	return restore
 }
 
-func MockEncryptionSetupDataInCache(st *state.State, label string, recoveryKeyID string, volumesAuth *device.VolumesAuthOptions) (restore func()) {
+func MockEncryptionSetupDataInCache(
+	st *state.State,
+	label string,
+	recoveryKeyID string,
+	volumesAuth *device.VolumesAuthOptions,
+	checkContext *secboot.PreinstallCheckContext,
+) (restore func()) {
 	st.Lock()
 	defer st.Unlock()
 	var esd *install.EncryptionSetupData
@@ -590,7 +605,7 @@ func MockEncryptionSetupDataInCache(st *state.State, label string, recoveryKeyID
 			EncryptedDevice: "/dev/mapper/ubuntu-data",
 		},
 	}
-	esd = install.MockEncryptionSetupData(labelToEncData, recoveryKeyID, volumesAuth)
+	esd = install.MockEncryptionSetupData(labelToEncData, recoveryKeyID, volumesAuth, checkContext)
 	st.Cache(encryptionSetupDataKey{label}, esd)
 	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
 }

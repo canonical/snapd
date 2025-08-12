@@ -2290,7 +2290,11 @@ func (m *DeviceManager) systems() ([]*System, error) {
 // SystemAndGadgetAndEncryptionInfo return the system details
 // including the model assertion, gadget details and encryption info
 // for the given system label.
-func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(
+	wantedSystemLabel string,
+	checkAction *secboot.PreinstallAction,
+	encInfoFromCache bool,
+) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 	// TODO check that the system is not a classic boot one when the
 	// installer is not anymore.
 
@@ -2311,13 +2315,15 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	}
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(install.EncryptionConstraints{
+	encInfo, err := m.encryptionSupportInfoUnlocked(install.EncryptionConstraints{
+		SystemLabel:   wantedSystemLabel,
 		Model:         systemAndSnaps.Model,
 		Kernel:        systemAndSnaps.InfosByType[snap.TypeKernel],
 		Gadget:        gadgetInfo,
 		TPMMode:       secboot.TPMProvisionFull,
 		SnapdVersions: systemAndSnaps.SystemSnapdVersions,
-	})
+		CheckAction:   checkAction,
+	}, encInfoFromCache)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2330,7 +2336,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
 	}
 
-	return systemAndSnaps.System, gadgetInfo, &encInfo, err
+	return systemAndSnaps.System, gadgetInfo, encInfo, err
 }
 
 type systemAndEssentialSnaps struct {
@@ -2983,6 +2989,97 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	}, m.runFDESetupHook)
 }
 
-func (m *DeviceManager) encryptionSupportInfo(constraints install.EncryptionConstraints) (install.EncryptionSupportInfo, error) {
-	return install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
+// encryptionSupportInfoUnlocked is the refreshCacheEncryptionSupport variant to use when the state is not locked.
+func (m *DeviceManager) encryptionSupportInfoUnlocked(constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
+	return m.encryptionSupportInfo(
+		constraints,
+		encInfoFromCache,
+		m.readCacheEncryptionSupportInfoUnlocked,
+		m.refreshCacheEncryptionSupportInfoUnlocked,
+	)
+}
+
+// encryptionSupportInfoLocked is the refreshCacheEncryptionSupport variant to use when the state is locked.
+func (m *DeviceManager) encryptionSupportInfoLocked(constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
+	return m.encryptionSupportInfo(
+		constraints, encInfoFromCache,
+		m.readCacheEncryptionSupportInfoLocked,
+		m.refreshCacheEncryptionSupportInfoLocked,
+	)
+}
+
+func (m *DeviceManager) encryptionSupportInfo(
+	constraints install.EncryptionConstraints,
+	encInfoFromCache bool,
+	readCache func(systemLabel string) *install.EncryptionSupportInfo,
+	refreshCache func(systemLabel string, info *install.EncryptionSupportInfo),
+) (*install.EncryptionSupportInfo, error) {
+
+	if constraints.CheckAction != nil && encInfoFromCache {
+		return nil, errors.New("internal error: cannot apply check action and use cached encryption information")
+	}
+
+	cachedEncryptionSupportInfo := readCache(constraints.SystemLabel)
+
+	if constraints.CheckAction != nil {
+		// a check action requires only the check context from the cache
+		// and need to run the check
+		if cachedEncryptionSupportInfo == nil {
+			return nil, errors.New("cannot use check action without cached encryption information")
+		}
+		checkContext := cachedEncryptionSupportInfo.CheckContext()
+		if checkContext == nil {
+			return nil, errors.New("cannot use check action without cached check context")
+		}
+		constraints.CheckContext = checkContext
+	} else if encInfoFromCache && cachedEncryptionSupportInfo != nil {
+		// in case of no check action use encryption support info from the
+		// cache when requested and available
+		return cachedEncryptionSupportInfo, nil
+	}
+
+	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
+	if err == nil {
+		refreshCache(constraints.SystemLabel, &encInfo)
+	}
+	return &encInfo, err
+}
+
+type encryptionSupportInfoKey struct{ systemLabel string }
+
+// RefreshCacheEncryptionSupportInfoUnlocked is a test only helper for populating EncryptionSupportInfo in cache.
+func (m *DeviceManager) RefreshCacheEncryptionSupportInfoUnlocked(systemLabel string, encryptionInfo *install.EncryptionSupportInfo) {
+	osutil.MustBeTestBinary("RefreshCacheEncryptionSupportInfoUnlocked can only be used tests")
+	m.refreshCacheEncryptionSupportInfoUnlocked(systemLabel, encryptionInfo)
+}
+
+// refreshCacheEncryptionSupportUnlocked is the refreshCacheEncryptionSupport variant to use when the state is not locked.
+func (m *DeviceManager) refreshCacheEncryptionSupportInfoUnlocked(systemLabel string, encryptionInfo *install.EncryptionSupportInfo) {
+	m.state.Lock()
+	defer m.state.Unlock()
+	m.refreshCacheEncryptionSupportInfoLocked(systemLabel, encryptionInfo)
+}
+
+// refreshCacheEncryptionSupportLocked is the refreshCacheEncryptionSupport variant to use when the state is locked.
+func (m *DeviceManager) refreshCacheEncryptionSupportInfoLocked(systemLabel string, encryptionInfo *install.EncryptionSupportInfo) {
+	m.state.Cache(encryptionSupportInfoKey{systemLabel}, encryptionInfo)
+}
+
+// readCacheEncryptionSupportInfoStateUnlocked is the readCacheEncryptionSupportInfoState variant that does not lock state.
+func (m *DeviceManager) readCacheEncryptionSupportInfoUnlocked(systemLabel string) *install.EncryptionSupportInfo {
+	m.state.Lock()
+	defer m.state.Unlock()
+	return m.readCacheEncryptionSupportInfoLocked(systemLabel)
+}
+
+// readCacheEncryptionSupportInfoStateLocked is the readCacheEncryptionSupportInfoState variant that locks state.
+func (m *DeviceManager) readCacheEncryptionSupportInfoLocked(systemLabel string) *install.EncryptionSupportInfo {
+	cached := m.state.Cached(encryptionSupportInfoKey{systemLabel})
+	if cached != nil {
+		encryptionSupportInfo, ok := cached.(*install.EncryptionSupportInfo)
+		if ok {
+			return encryptionSupportInfo
+		}
+	}
+	return nil
 }

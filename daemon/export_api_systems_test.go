@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -41,7 +42,12 @@ type (
 	SystemsResponse = systemsResponse
 )
 
-func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(*devicestate.DeviceManager, string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+	string,
+	*secboot.PreinstallAction,
+	bool,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
 	restore = testutil.Backup(&deviceManagerSystemAndGadgetAndEncryptionInfo)
 	deviceManagerSystemAndGadgetAndEncryptionInfo = f
 	return restore
@@ -77,8 +83,4 @@ func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label 
 
 func MockDeviceValidatePassphrase(f func(mode device.AuthMode, passphrase string) (device.AuthQuality, error)) (restore func()) {
 	return testutil.Mock(&deviceValidatePassphrase, f)
-}
-
-func ClearCachedEncryptionSupportInfoForLabel(st *state.State, systemLabel string) {
-	st.Cache(encryptionSupportInfoKey{systemLabel}, nil)
 }

@@ -51,9 +51,14 @@ func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encry
 }
 
 func EncryptPartitions(
-	onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions,
-	encryptionType device.EncryptionType, model *asserts.Model,
-	gadgetRoot, kernelRoot string, perfTimings timings.Measurer,
+	onVolumes map[string]*gadget.Volume,
+	volumesAuth *device.VolumesAuthOptions,
+	encryptionType device.EncryptionType,
+	checkContext *secboot.PreinstallCheckContext,
+	model *asserts.Model,
+	gadgetRoot,
+	kernelRoot string,
+	perfTimings timings.Measurer,
 ) (*EncryptionSetupData, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }

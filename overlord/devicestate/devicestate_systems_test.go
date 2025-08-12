@@ -2968,8 +2968,23 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 // preinstall check context returned by preinstall check
 var preinstallCheckContext = &secboot.PreinstallCheckContext{}
 
+// representative preinstall action
+var preinstallAction = &secboot.PreinstallAction{
+	Action: "SecbootAction",
+	Args: map[string]json.RawMessage{
+		"arg1": json.RawMessage(`1`),
+		"argn": json.RawMessage(`"n"`),
+	},
+}
+
 type suiteWithAddCleanup interface {
 	AddCleanup(func())
+}
+
+type callCounter struct {
+	checkCnt            int
+	checkActionCnt      int
+	sealingSupportedCnt int
 }
 
 // mockHelperForEncryptionAvailabilityCheck simplifies controlling availability check error details returned by
@@ -2979,7 +2994,9 @@ type suiteWithAddCleanup interface {
 //
 // isSupportedUbuntuHybrid: modify system release information and place current boot images to simulate supported Ubuntu hybrid install
 // hasTPM: indicates if we should simulate having a TPM (no error detected) or no TPM (some representative error)
-func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSupportedUbuntuHybrid, hasTPM bool) {
+func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSupportedUbuntuHybrid, hasTPM bool) *callCounter {
+	callCnt := &callCounter{}
+
 	releaseInfo := &release.OS{
 		ID:        "ubuntu*",
 		VersionID: "24.04",
@@ -3014,7 +3031,8 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		}
 	}
 
-	restore1 := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		callCnt.checkCnt++
 		c.Assert(bootImagePaths, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		if hasTPM {
@@ -3023,9 +3041,25 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 			return preinstallCheckContext, preinstallErrorDetails[:1], nil
 		}
 	})
-	s.AddCleanup(restore1)
+	s.AddCleanup(restore)
 
-	restore2 := install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+	restore = install.MockSecbootPreinstallCheckAction(func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error) {
+		callCnt.checkActionCnt++
+		c.Assert(pcc, NotNil)
+		c.Assert(ctx, NotNil)
+		c.Assert(action, DeepEquals, preinstallAction)
+		c.Assert(isSupportedUbuntuHybrid, Equals, true)
+
+		if hasTPM {
+			return nil, nil
+		} else {
+			return preinstallErrorDetails[:1], nil
+		}
+	})
+	s.AddCleanup(restore)
+
+	restore = install.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		callCnt.sealingSupportedCnt++
 		c.Assert(tpmMode != secboot.TPMProvisionNone, Equals, true)
 		if hasTPM {
 			return nil
@@ -3033,8 +3067,9 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 			return fmt.Errorf("cannot connect to TPM device")
 		}
 	})
+	s.AddCleanup(restore)
 
-	s.AddCleanup(restore2)
+	return callCnt
 }
 
 func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, label, gadgetYaml string, snapdVersionByType map[snap.Type]string) *asserts.Model {
@@ -3109,15 +3144,24 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, labe
 	})
 }
 
-func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoHappy(c *C, isSupportedHybrid bool, info install.EncryptionSupportInfo) {
-	isClassic := isSupportedHybrid
-	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic, nil)
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupportedHybridHappy(c *C) {
+	const isSupportedHybrid = false
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isSupportedHybrid, nil)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false)
+	expectedEncInfo := &install.EncryptionSupportInfo{
+		Available:          false,
+		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: cannot connect to TPM device",
+	}
 
-	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false)
+
+	// basic availability check - fill empty info cache
+	encInfoFromCache := false
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
 		Label:   "some-label",
@@ -3129,31 +3173,92 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoHappy(c *C
 		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
-	c.Check(encInfo, DeepEquals, &info)
-}
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupportedHybridHappy(c *C) {
-	// unsupported hybrid system uses general encryption availability check
-	const isSupportedHybrid = false
-	s.testSystemAndGadgetAndEncryptionInfoHappy(c, isSupportedHybrid, install.EncryptionSupportInfo{
-		Available:          false,
-		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
-		UnavailableWarning: "not encrypting device storage as checking TPM gave: cannot connect to TPM device",
+	// basic availability check - get info from cache
+	encInfoFromCache = true
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
 	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedHybridHappy(c *C) {
-	// supported hybrid system uses specialized encryption availability check
 	const isSupportedHybrid = true
-	encInfo := install.EncryptionSupportInfo{
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isSupportedHybrid, nil)
+	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
+	c.Assert(err, IsNil)
+
+	expectedEncInfo := &install.EncryptionSupportInfo{
 		Available:               false,
 		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning:      "not encrypting device storage as checking TPM gave: error with TPM2 device: one or more of the TPM hierarchies is already owned",
 		AvailabilityCheckErrors: preinstallErrorDetails[:1],
 	}
+	expectedEncInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 
-	encInfo.SetAvailabilityCheckContext(preinstallCheckContext)
-	s.testSystemAndGadgetAndEncryptionInfoHappy(c, isSupportedHybrid, encInfo)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false)
+
+	// comprehensive preinstall check - fill empty info cache
+	encInfoFromCache := false
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
+
+	// comprehensive preinstall check - get info from cache
+	encInfoFromCache = true
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	c.Assert(err, IsNil)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
+
+	// comprehensive preinstall check with action - not allowed to get info from cache
+	encInfoFromCache = false
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", preinstallAction, encInfoFromCache)
+	c.Assert(err, IsNil)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 1, sealingSupportedCnt: 0})
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
 }
 
 func (s *modelAndGadgetInfoSuite) TestLoadSeedSetsRevisionForLocalContainers(c *C) {
@@ -3173,11 +3278,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphrase
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
-
-	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
-	c.Assert(err, IsNil)
-	c.Check(system, DeepEquals, &devicestate.System{
+	expectedSystem := &devicestate.System{
 		Label:   "some-label",
 		Model:   fakeModel,
 		Brand:   s.brands.Account("my-brand"),
@@ -3185,14 +3286,34 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphrase
 		OptionalContainers: devicestate.OptionalContainers{
 			Snaps: []string{"optional-snap"},
 		},
-	})
-	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
-	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
+	}
+
+	expectedEncInfo := &install.EncryptionSupportInfo{
 		Available:               true,
 		Type:                    "cryptsetup",
 		StorageSafety:           asserts.StorageSafetyPreferEncrypted,
 		PassphraseAuthAvailable: hasPassphraseSupport,
-	})
+	}
+
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
+
+	// refresh empty cache
+	encInfoFromCache := false
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, expectedSystem)
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
+
+	// get info from cache
+	encInfoFromCache = true
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, expectedSystem)
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphraseSupportOldSnapd(c *C) {
@@ -3223,12 +3344,12 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphrase
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label", nil, false)
 	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed", nil, false)
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
 }
 
@@ -3239,7 +3360,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
 	c.Assert(err, IsNil)
 
-	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
 	c.Assert(err, ErrorMatches, "cannot load essential snaps metadata: cannot stat snap:.*: no such file or directory")
 }
 
@@ -3250,7 +3371,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) 
 	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
 
-	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
 	c.Assert(err, ErrorMatches, `cannot load essential snaps metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
 }
 
@@ -3258,7 +3379,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic, nil)
 
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
 	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
 }
 
@@ -3270,7 +3391,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
 	c.Assert(err, IsNil)
 
-	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
 }
 
@@ -3280,9 +3401,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 	isClassic := true
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic, nil)
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
 
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
 	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
 }
 
