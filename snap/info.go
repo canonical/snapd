@@ -1322,20 +1322,21 @@ type AppInfo struct {
 	CommandChain  []string
 	CommonID      string
 
-	Daemon          string
-	DaemonScope     DaemonScope
-	StopTimeout     timeout.Timeout
-	StartTimeout    timeout.Timeout
-	WatchdogTimeout timeout.Timeout
-	StopCommand     string
-	ReloadCommand   string
-	PostStopCommand string
-	RestartCond     RestartCondition
-	RestartDelay    timeout.Timeout
-	Completer       string
-	RefreshMode     string
-	StopMode        StopModeType
-	InstallMode     string
+	Daemon            string
+	DaemonScope       DaemonScope
+	StopTimeout       timeout.Timeout
+	StartTimeout      timeout.Timeout
+	WatchdogTimeout   timeout.Timeout
+	StopCommand       string
+	ReloadCommand     string
+	PostStopCommand   string
+	RestartCond       RestartCondition
+	RestartDelay      timeout.Timeout
+	SuccessExitStatus []string
+	Completer         string
+	RefreshMode       string
+	StopMode          StopModeType
+	InstallMode       string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

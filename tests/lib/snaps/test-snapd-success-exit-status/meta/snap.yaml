@@ -1,0 +1,18 @@
+name: test-snapd-success-exit-status
+version: 1.0
+summary: Test snap for success-exit-status functionality
+description: |
+  This snap contains a daemon configuration to test the success-exit-status
+  functionality in snapd. It includes a service that exit with different codes
+  and demonstrates how systemd should handle them based on the success-exit-status
+  configuration.
+
+apps:
+  test-snapd-success-exit-status:
+    command: bin/service-exit-code
+    daemon: simple
+    restart-condition: on-failure
+    success-exit-status:
+      - 42  # magic number
+      - 250 # nothing in particular
+      - 235 # EXIT_CHOWN
