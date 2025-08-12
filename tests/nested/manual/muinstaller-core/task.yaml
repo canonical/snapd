@@ -26,7 +26,6 @@ environment:
   # ensure we use our latest code
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: true
-  NESTED_ENABLE_OVMF: true
   # image
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 

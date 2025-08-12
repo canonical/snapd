@@ -14,7 +14,6 @@ environment:
 
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_REPACK_GADGET_SNAP: false
-    NESTED_ENABLE_OVMF: true
 
 prepare: |
     # Get the snakeoil key and cert for signing gadget assets (shim)
