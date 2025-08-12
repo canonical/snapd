@@ -54,7 +54,7 @@ func systemVolumesAPISupported(st *state.State) (bool, *apiError) {
 		return false, InternalError(err.Error())
 	}
 
-	supported, err := install.CheckHybridPluckyRelease(deviceCtx.Model())
+	supported, err := install.CheckHybridQuestingRelease(deviceCtx.Model())
 	if err != nil {
 		return false, InternalError(err.Error())
 	}

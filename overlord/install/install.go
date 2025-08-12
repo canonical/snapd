@@ -382,13 +382,13 @@ func preinstallCheckSupportedWithEnvFallback(model *asserts.Model) (bool, error)
 		return false, nil
 	}
 
-	return CheckHybridPluckyRelease(model)
+	return CheckHybridQuestingRelease(model)
 }
 
-// CheckHybridPluckyRelease returns true if the given model and runtime release
+// CheckHybridQuestingRelease returns true if the given model and runtime release
 // information indicates that this is a hybrid Ubuntu system with a version of
 // 25.10 or higher.
-func CheckHybridPluckyRelease(model *asserts.Model) (bool, error) {
+func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 	if !model.HybridClassic() {
 		return false, nil
 	}
