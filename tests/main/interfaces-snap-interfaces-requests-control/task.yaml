@@ -23,7 +23,7 @@ prepare: |
     if os.query is-ubuntu 20.04; then
         tests.exec skip-test "Ubuntu 20.04 kernel doesn't support prompting" && exit 0
     fi
-    if os.query is-ubuntu 22.04 && not [[ "$SPREAD_BACKEND" =~ google ]]; then
+    if os.query is-ubuntu 22.04 && ! [[ "$SPREAD_BACKEND" =~ google ]]; then
         tests.exec skip-test "Ubuntu 22.04 kernel doesn't support prompting (except on google)" && exit 0
     fi
     if os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use; then

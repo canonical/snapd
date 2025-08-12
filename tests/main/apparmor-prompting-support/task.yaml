@@ -36,7 +36,7 @@ execute: |
     # not supported on jammy. This can occur because reexec is manually
     # disabled, or if the native snapd package on the system is of equal
     # version or newer than the tracked snapd snap.
-    elif not os.query is-ubuntu || os.query is-ubuntu-le 20.04 || ( os.query is-ubuntu 22.04 && ( not tests.info is-reexec-in-use || not [[ "$SPREAD_BACKEND" =~ google ]] ) ); then
+    elif not os.query is-ubuntu || os.query is-ubuntu-le 20.04 || ( os.query is-ubuntu 22.04 && ( not tests.info is-reexec-in-use || ! [[ "$SPREAD_BACKEND" =~ google ]] ) ); then
         not snap set system experimental.apparmor-prompting=true >& err.out
         MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
 
