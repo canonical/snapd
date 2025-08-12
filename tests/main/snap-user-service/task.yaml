@@ -7,8 +7,15 @@ details: |
 systems:
     # Ubuntu 14.04's systemd doesn't have user@.service
     - -ubuntu-14.04-*
-    # Amazon Linux 2 gives error "Unit user@12345.service not loaded."
+    # Ubuntu 16 is too old for the user services
+    - -ubuntu-16.04-*
+    # The following distros do not the user agent running
     - -amazon-linux-2-*
+    - -amazon-linux-2023-*
+    - -opensuse-15.6-*
+    - -arch-linux-*
+    - -centos-9-*
+    - -fedora-42-*
 
 kill-timeout: 10m
 
