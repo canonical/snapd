@@ -488,7 +488,18 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 	return s.getParameters(role, containerRole)
 }
 
-func (m *FDEManager) ensureParametersLoaded(role, containerRole string) error {
+// ensureParametersLoadedWithMaybeReseal will force a reseal if the
+// passed key role and container role do not have their parameters
+// loaded in the FDE state.
+//
+// This is needed because the FDE state is only partially initialized
+// until a reseal affecting all key roles occurs. This helper
+// effectively does its job once and then is considered a no-op when
+// called with a valid key role and container role because it checks
+// if the parameters are loaded first before forcing the reseal.
+//
+// Note: The state will be unlocked/relocked if a reseal is attempted.
+func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole string) error {
 	hasParameters, _, _, _, err := m.GetParameters(role, containerRole)
 	if err != nil {
 		return err

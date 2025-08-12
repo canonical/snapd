@@ -323,10 +323,10 @@ func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error)
 		}
 		role := roles[0]
 
-		// NOTE: this is safe to call here even through internall the state is unlocked
+		// NOTE: this is safe to call here even though internally the state is unlocked
 		// because there is conflict detection enforced to prevent other tasks that might
 		// cause a reseal from running (e.g. a kernel refresh).
-		if err := m.ensureParametersLoaded(role, ref.ContainerRole); err != nil {
+		if err := m.ensureParametersLoadedWithMaybeReseal(role, ref.ContainerRole); err != nil {
 			return fmt.Errorf("internal error: cannot load FDE state parameters: %v", err)
 		}
 
