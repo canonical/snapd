@@ -93,8 +93,6 @@ type InterfacesRequestsManager struct {
 	// would be a race between the method calls unblocking and the manager
 	// actually getting the chance to handle the request.
 	ready chan struct{}
-
-	notices *noticeBackend
 }
 
 func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr error) {
@@ -102,7 +100,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 	// prompting managers to record notices. Don't register the notice backends
 	// with the state until we're sure initialization was successful and
 	// prompting will be enabled.
-	noticesBackend, err := initializeNoticeBackends(noticeMgr)
+	noticeBackends, err := initializeNoticeBackends(noticeMgr)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize prompting notice backend: %w", err)
 	}
@@ -117,7 +115,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	promptsBackend, err := requestprompts.New(noticesBackend.promptBackend.addNotice)
+	promptsBackend, err := requestprompts.New(noticeBackends.promptBackend.addNotice)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request prompts backend: %w", err)
 	}
@@ -127,7 +125,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(noticesBackend.ruleBackend.addNotice)
+	rulesBackend, err := requestrules.New(noticeBackends.ruleBackend.addNotice)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}
@@ -139,7 +137,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 
 	// Now that all prompting managers were successfully initialized, register
 	// the notice backends with the state as notice providers.
-	if err = noticesBackend.registerWithManager(noticeMgr); err != nil {
+	if err = noticeBackends.registerWithManager(noticeMgr); err != nil {
 		// This should never occur
 		return nil, fmt.Errorf("cannot register notice backends for prompting manager: %w", err)
 	}
@@ -149,7 +147,6 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		prompts:  promptsBackend,
 		rules:    rulesBackend,
 		ready:    make(chan struct{}),
-		notices:  noticesBackend,
 	}
 
 	m.tomb.Go(m.run)
