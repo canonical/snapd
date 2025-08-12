@@ -74,24 +74,16 @@ func initializeNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackend,
 }
 
 func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) error {
-	// we don't use the validation closure, since notices are derived directly
-	// to satisfy validation
-	_, err := noticeMgr.RegisterBackend(&nb.promptBackend, state.InterfacesRequestsPromptNotice, promptNoticeNamespace)
-	if err != nil {
-		// This should never occur
-		return fmt.Errorf("cannot register prompting manager as a prompt notice backend")
-	}
-	_, err = noticeMgr.RegisterBackend(&nb.ruleBackend, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace)
-	if err != nil {
-		// This should never occur (if it were to, we would need to unregister the prompt backend)
-		return fmt.Errorf("cannot register prompting manager as a rule notice backend")
-	}
-
-	// Migrate notices from state into these backends, as state will no longer
-	// produce prompting notices.
+	drainNotices := true
 	for _, bknd := range []*noticeTypeBackend{&nb.promptBackend, &nb.ruleBackend} {
-		notices := noticeMgr.DrainNotices(bknd.noticeType)
-		for _, notice := range notices {
+		// We don't use the validation closure, since notices are produced
+		// directly to satisfy validation.
+		_, drainedNotices, err := noticeMgr.RegisterBackend(bknd, bknd.noticeType, bknd.namespace, drainNotices)
+		if err != nil {
+			// This should never occur
+			return fmt.Errorf("cannot register prompting manager as a %s notice backend", bknd.namespace)
+		}
+		for _, notice := range drainedNotices {
 			// Re-create each notice in the backend, so no data is lost before
 			// a client can receive it. The ID will be different, but the key
 			// will be the same.
@@ -105,7 +97,6 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 			bknd.addNotice(userID, promptingID, notice.LastData())
 		}
 	}
-
 	return nil
 }
 
