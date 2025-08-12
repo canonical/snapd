@@ -219,7 +219,8 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 
 	for _, t := range []test{
 		{name: "no assertion", err: notFoundErr, status: 400, kind: client.ErrorKindAssertionNotFound},
-		{name: "no view", err: &confdbstate.NoViewError{}, status: 400, kind: client.ErrorKindConfdbViewNotFound},
+		{name: "no view", err: &confdbstate.NoViewError{}, status: 400, kind: client.ErrorKindOptionNotAvailable},
+		{name: "no match", err: confdb.NewNoMatchError(s.schema.View("wifi-setup"), "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
 		restore := daemon.MockConfdbstateGetView(func(_ *state.State, _, _, _ string) (*confdb.View, error) {
@@ -263,7 +264,8 @@ func (s *confdbSuite) TestGetTxError(c *C) {
 
 	for _, t := range []test{
 		{name: "no data", err: confdb.NewNoDataError(view, nil), status: 400, kind: client.ErrorKindConfigNoSuchOption},
-		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindConfdbNoMatchingRule},
+		{name: "no view", err: &confdbstate.NoViewError{}, status: 400, kind: client.ErrorKindOptionNotAvailable},
+		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
 		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string) (string, error) {
@@ -439,7 +441,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 	view := s.schema.View("wifi-setup")
 	for _, t := range []test{
 		{name: "no data", err: confdb.NewNoDataError(view, nil), status: 400, kind: client.ErrorKindConfigNoSuchOption},
-		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindConfdbNoMatchingRule},
+		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "internal", err: errors.New("internal"), status: 500},
 		{name: "bad query", err: &confdb.BadRequestError{}, status: 400},
 	} {

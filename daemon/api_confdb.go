@@ -135,11 +135,13 @@ func toAPIError(err error) *apiError {
 			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   err,
 		}
+	case errors.Is(err, &confdbstate.NoViewError{}):
+		fallthrough
 	case errors.Is(err, &confdb.NoMatchError{}):
 		return &apiError{
 			Status:  400,
 			Message: err.Error(),
-			Kind:    client.ErrorKindConfdbNoMatchingRule,
+			Kind:    client.ErrorKindOptionNotAvailable,
 			Value:   err,
 		}
 	case errors.Is(err, &confdb.NoDataError{}):
@@ -147,13 +149,6 @@ func toAPIError(err error) *apiError {
 			Status:  400,
 			Message: err.Error(),
 			Kind:    client.ErrorKindConfigNoSuchOption,
-			Value:   err,
-		}
-	case errors.Is(err, &confdbstate.NoViewError{}):
-		return &apiError{
-			Status:  400,
-			Message: err.Error(),
-			Kind:    client.ErrorKindConfdbViewNotFound,
 			Value:   err,
 		}
 	case errors.Is(err, &confdb.BadRequestError{}):
