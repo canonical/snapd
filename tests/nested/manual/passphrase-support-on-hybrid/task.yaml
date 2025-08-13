@@ -59,7 +59,7 @@ prepare: |
   snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
 
   # Retrieve kernel.
-  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
+  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/edge" pc-kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
@@ -90,6 +90,14 @@ prepare: |
 
   export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
 
+  # 25.10 models require much larger disks
+  # https://github.com/canonical/pc-gadget/commit/814d80acbcc0de4ac799b3bcb67f7ec625d6c53a
+  if [ "${MODEL_VERSION}" == "25.10" ]; then
+    truncate --size=10G disk.img
+  else
+    truncate --size=6G disk.img
+  fi
+
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid system.
   if [[ "$KDF_TYPE" == "default" ]]; then
     "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
@@ -99,6 +107,7 @@ prepare: |
       --gadget-assertion pc.assert \
       --kernel pc-kernel.snap \
       --kernel-assertion pc-kernel.assert \
+      --disk disk.img \
       --passphrase "ubuntu test"
   else
     "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
@@ -108,6 +117,7 @@ prepare: |
       --gadget-assertion pc.assert \
       --kernel pc-kernel.snap \
       --kernel-assertion pc-kernel.assert \
+      --disk disk.img \
       --passphrase "ubuntu test" \
       --extra-muinstaller-arg "-kdf-type $KDF_TYPE"
   fi

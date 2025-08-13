@@ -60,7 +60,7 @@ prepare: |
   snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
 
   # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
+  snap download --basename=pc-kernel-from-store --channel="$KERNEL_VERSION/edge" pc-kernel
   # the fakestore needs this assertion
   snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
@@ -94,6 +94,14 @@ prepare: |
 
   gendeveloper1 sign-model < classic.json > classic.model
 
+  # 25.10 models require much larger disks
+  # https://github.com/canonical/pc-gadget/commit/814d80acbcc0de4ac799b3bcb67f7ec625d6c53a
+  if [ "${MODEL_VERSION}" == "25.10" ]; then
+    truncate --size=10G disk.img
+  else
+    truncate --size=6G disk.img
+  fi
+
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
   # shellcheck disable=SC2086
@@ -104,6 +112,7 @@ prepare: |
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
      --kernel-assertion pc-kernel-from-store.assert \
+     --disk disk.img \
      --recovery-key-out "$(pwd)"/rkey-pre-install.out
 
   echo "Check recovery key is generated and stored"
