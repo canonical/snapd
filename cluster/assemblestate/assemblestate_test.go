@@ -468,7 +468,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 	c.Assert(authoritative[0].via, check.Equals, peerAddr)
 }
 
-func (s *ClusterSuite) TestTrusted(c *check.C) {
+func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
@@ -668,7 +668,7 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 	as.publishDevices(context.Background(), &testClient{})
 }
 
-func (s *ClusterSuite) TestAddDevicesFingerprintMismatch(c *check.C) {
+func (s *ClusterSuite) TestRecordDevicesFingerprintMismatch(c *check.C) {
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
