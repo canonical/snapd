@@ -3749,3 +3749,209 @@ func (s *infoSuite) TestSnapInstancesAndComponentsFromNames(c *check.C) {
 		}
 	}
 }
+
+func (s *SnapOpSuite) TestInstallProgressReporting(c *check.C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+				"action":      "install",
+				"transaction": string(client.TransactionPerSnap),
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Do", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 3:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 4:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 5:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one"] }}}`)
+
+		case 6:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable"}]}\n`)
+
+		default:
+			c.Fatalf("unexpected request number %d", n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(meter.Labels, check.DeepEquals, []string{
+		"Fetch assertions (one)",
+		"Download (one base)",
+		"Download (one)",
+		"Auto-connect plugs slots of (one)",
+	})
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 7)
+}
+
+func (s *SnapOpSuite) TestRefreshProgressReporting(c *check.C) {
+	// refresh change has a re-refresh task which we intelligently skip from
+	// progress reporting, unless it's the only running task left
+
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+				"action":      "refresh",
+				"transaction": string(client.TransactionPerSnap),
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 3:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Do", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 4:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Doing", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 5:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync",
+"result": {"status": "Doing", "tasks": [
+{"id": "1", "kind": "validate-snap", "summary": "Fetch assertions (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "2", "kind": "download-snap", "summary": "Download (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "3", "kind": "auto-connect", "summary": "Auto-connect plugs slots of (one)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "4", "kind": "download-snap", "summary": "Download (one base)", "status": "Done", "progress": {"done": 1, "total": 1}},
+{"id": "5", "kind": "check-rerefresh", "summary": "Monitor for re-refresh", "status": "Doing", "progress": {"done": 1, "total": 1}}
+]
+}}`)
+		case 6:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one"] }}}`)
+
+		case 7:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable"}]}\n`)
+
+		default:
+			c.Fatalf("unexpected request number %d", n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "one"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(meter.Labels, check.DeepEquals, []string{
+		"Fetch assertions (one)",
+		"Download (one base)",
+		"Download (one)",
+		"Auto-connect plugs slots of (one)",
+		"Monitor for re-refresh",
+	})
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 8)
+}
