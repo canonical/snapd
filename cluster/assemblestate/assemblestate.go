@@ -541,7 +541,7 @@ func (as *AssembleState) Run(
 		}
 	}()
 
-	// start periodic discovery of peers.
+	// start periodic discovery of peers
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -716,6 +716,8 @@ func (h *PeerHandle) RecordRoutes(routes Routes) error {
 
 	h.as.commit(h.as.export())
 
+	// routes are represented by an array of triplets, refer to the doc comment
+	// on [Routes] for more information
 	received := len(routes.Routes) / 3
 	h.as.debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
 
