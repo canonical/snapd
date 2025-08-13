@@ -213,7 +213,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		Changes:  s.changes,
 		Tasks:    s.tasks,
 		Warnings: s.flattenWarnings(),
-		Notices:  s.flattenNotices(nil),
+		Notices:  s.flattenNotices(),
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
