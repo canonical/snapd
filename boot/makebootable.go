@@ -606,13 +606,15 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		if err != nil {
 			return fmt.Errorf("cannot compose the candidate command line: %v", err)
 		}
-		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
 
 		// Look at gadget default values for system.kernel.*cmdline-append options
 		cmdlineAppend, err := buildOptionalKernelCommandLine(model, bootWith.UnpackedGadgetDir)
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
+
+		modeenv.CurrentKernelCommandLines = bootCommandLines{
+			strutil.JoinNonEmpty([]string{cmdline, cmdlineAppend}, " ")}
 
 		candidate := false
 		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
