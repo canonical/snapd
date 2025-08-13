@@ -82,8 +82,8 @@ func (s *DiscordRichPresenceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{tag})
 
 	snippet := apparmorSpec.SnippetForTag(tag)
-	c.Check(snippet, testutil.Contains, "owner /{,var/}run/user/[0-9]*/discord-ipc-* rw,")
-	c.Check(snippet, testutil.Contains, "owner /{,var/}run/user/[0-9]*/snap.discord/discord-ipc-* rw,")
+	c.Check(snippet, testutil.Contains, "owner /{,var/}run/user/[0-9]*/discord-ipc-[0-9] rw,")
+	c.Check(snippet, testutil.Contains, "owner /{,var/}run/user/[0-9]*/snap.discord/discord-ipc-[0-9] rw,")
 }
 
 func (s *DiscordRichPresenceInterfaceSuite) TestInterfaces(c *C) {
