@@ -26,7 +26,9 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -57,10 +59,38 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	if err := slot.Attr("source", &libDirs); err != nil {
 		return err
 	}
-	expandedDirs := make([]string, 0, len(libDirs))
-	for _, dir := range libDirs {
-		expandedDirs = append(expandedDirs, filepath.Clean(slot.Snap().ExpandSnapVariables(
-			filepath.Join(dirs.GlobalRootDir, dir))))
+	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariables(libDirs))
+}
+
+// addConfigfilesSourcePaths adds a file containing a list with the sources for
+// an interface to the /var/lib/snapd/export directory. These files are used by
+// snap-confine on classic for snaps connected to the opengl interface.
+func addConfigfilesSourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
+	libDirs := []string{}
+	if err := slot.Attr("source", &libDirs); err != nil {
+		return err
 	}
-	return spec.AddLibDirs(expandedDirs)
+	sourcePath := filepath.Join(dirs.SnapExportDirUnder("/"), fmt.Sprintf(
+		"%s_%s_%s.source", slot.Snap().InstanceName(), slot.Name(), iface))
+	content := strings.Join(slot.Snap().ExpandSliceSnapVariables(libDirs), "\n") + "\n"
+	return spec.AddPathContent(sourcePath,
+		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
+}
+
+// filePathInLibDirs returns the path of the first occurrence of file in the
+// list of library directories of the slot. snapPath is the path where the snap
+// is mounted.
+func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string, error) {
+	libDirs := []string{}
+	if err := slot.Attr("source", &libDirs); err != nil {
+		return "", err
+	}
+	for _, dir := range libDirs {
+		path := filepath.Join(dirs.GlobalRootDir,
+			slot.AppSet().Info().ExpandSnapVariables(dir), fileName)
+		if osutil.FileExists(path) {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("%q not found in the source directories", fileName)
 }
