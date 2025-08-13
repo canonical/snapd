@@ -527,8 +527,16 @@ func SortNotices(notices []*Notice) {
 // Notices returns the list of notices that match the filter (if any),
 // ordered by the last-repeated time.
 func (s *State) Notices(filter *NoticeFilter) []*Notice {
-	// flattenNotices acquires noticesMu, so we don't have to here.
-	notices := s.flattenNotices(filter)
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	return s.doNotices(filter)
+}
+
+// doNotices returns the list of notices that match the filter (if any),
+// ordered by the last-repeated time. The caller must hold the noticesMu for
+// reading.
+func (s *State) doNotices(filter *NoticeFilter) []*Notice {
+	notices := s.filterNotices(filter)
 	SortNotices(notices)
 	return notices
 }
@@ -550,13 +558,19 @@ func (s *State) Notice(id string) *Notice {
 }
 
 // flattenNotices loops over the notices map and returns all non-expired notices
-// therein which match the filter.
+// so that they can be marshalled to disk. The notices are not sorted.
 //
-// State lock does not need to be held, as the notices mutex ensures existing
-// notices can be safely read.
-func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
+// State lock does not need to be held, and this method acquires noticesMu for
+// reading, so noticesMu must not be held for writing by the caller.
+func (s *State) flattenNotices() []*Notice {
 	s.noticesMu.RLock()
 	defer s.noticesMu.RUnlock()
+	return s.filterNotices(nil)
+}
+
+// filterNotices returns the list of notices that match the filter (if any),
+// without sorting them. The caller must hold the noticesMu for reading.
+func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 	now := time.Now()
 	var notices []*Notice
 	for _, n := range s.notices {
@@ -600,10 +614,16 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	s.noticesMu.RLock()
 	defer s.noticesMu.RUnlock()
 
+	// It's important that we do not attempt to lock noticesMu for reading again
+	// during the rest of the function call, since any attempt to lock it for
+	// writing (either within the context timeout callback or externally) will
+	// block any attempted call to RLock in this function, and thus prevent us
+	// from releasing the RLock we already hold, and lead to deadlock.
+
 	// If there are existing notices, return them right away.
 	//
 	// noticesMu is already locked here, so notices won't be added concurrently.
-	notices := s.Notices(filter)
+	notices := s.doNotices(filter)
 	if len(notices) > 0 {
 		return notices, nil
 	}
@@ -650,7 +670,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		}
 
 		// Otherwise check if there are now matching notices.
-		notices = s.Notices(filter)
+		notices = s.doNotices(filter)
 		if len(notices) > 0 {
 			return notices, nil
 		}
