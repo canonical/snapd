@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -313,6 +314,59 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 }
 
+func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	cert := []byte("certificate")
+	fp := CalculateFP(cert)
+
+	// first peer authenticates successfully
+	err := as.Authenticate(Auth{
+		HMAC: CalculateHMAC("peer-one", fp, "secret"),
+		RDT:  "peer-one",
+	}, cert)
+	c.Assert(err, check.IsNil)
+
+	// second peer tries to use the same certificate - should fail
+	err = as.Authenticate(Auth{
+		HMAC: CalculateHMAC("peer-two", fp, "secret"),
+		RDT:  "peer-two",
+	}, cert)
+	c.Assert(err, check.ErrorMatches, `peer "peer-one" and "peer-two" are using the same TLS certificate`)
+}
+
+func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	// first authentication with first certificate
+	cert := []byte("certificate-one")
+	fp := CalculateFP(cert)
+	err := as.Authenticate(Auth{
+		HMAC: CalculateHMAC("peer", fp, "secret"),
+		RDT:  "peer",
+	}, cert)
+	c.Assert(err, check.IsNil)
+
+	// second authentication with different certificate - should fail
+	cert = []byte("certificate-two")
+	fp = CalculateFP(cert)
+	err = as.Authenticate(Auth{
+		HMAC: CalculateHMAC("peer", fp, "secret"),
+		RDT:  "peer",
+	}, cert)
+	c.Assert(err, check.ErrorMatches, `peer "peer" is using a new TLS certificate`)
+}
+
 func (s *ClusterSuite) TestTrusted(c *check.C) {
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
@@ -523,6 +577,41 @@ func (s *ClusterSuite) TestAddDevicesFingerprintMismatch(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 }
 
+func (s *ClusterSuite) TestRecordDevicesInconsistentIdentity(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	one, _, _ := trustedAndDiscoveredPeer(c, as, "peer-one")
+	two, _, _ := trustedAndDiscoveredPeer(c, as, "peer-two")
+
+	// first peer records an identity for a third device
+	id := Identity{
+		RDT: "peer-three",
+		FP:  CalculateFP([]byte("original-certificate")),
+	}
+
+	err := one.RecordDevices(Devices{
+		Devices: []Identity{id},
+	})
+	c.Assert(err, check.IsNil)
+
+	// second peer tries to record a different identity for the same device
+	conflicting := Identity{
+		RDT: "peer-three",
+		FP:  CalculateFP([]byte("different-certificate")),
+	}
+
+	err = two.RecordDevices(Devices{
+		Devices: []Identity{conflicting},
+	})
+
+	c.Assert(err, check.ErrorMatches, "got inconsistent device identity")
+}
+
 func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 	selector := statelessSelector()
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), selector, AssembleConfig{
@@ -622,6 +711,373 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 		return statelessSelector(), nil
 	}, nil, commit)
 	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
+}
+
+func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
+	type peer struct {
+		rdt  DeviceToken
+		cert []byte
+		fp   Fingerprint
+	}
+
+	ip := net.IPv4(127, 0, 0, 1)
+	certPEM, keyPEM := createTestCertAndKey(c, ip)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	c.Assert(err, check.IsNil)
+
+	local := peer{
+		rdt:  "local-rdt",
+		cert: certPEM,
+		fp:   CalculateFP(cert.Certificate[0]),
+	}
+
+	var peers []peer
+	for i, rdt := range []string{"peer-one-rdt", "peer-two-rdt", "peer-three-rdt"} {
+		certPEM, keyPEM := createTestCertAndKey(c, net.IPv4(127, 0, 0, byte(2+i)))
+		cert, err := tls.X509KeyPair(certPEM, keyPEM)
+		c.Assert(err, check.IsNil)
+
+		peers = append(peers, peer{
+			rdt:  DeviceToken(rdt),
+			cert: certPEM,
+			fp:   CalculateFP(cert.Certificate[0]),
+		})
+	}
+
+	now := time.Now()
+	clock := func() time.Time {
+		return now
+	}
+
+	// create pre-populated session with various data
+	session := AssembleSession{
+		Initiated: now.Add(-30 * time.Minute),
+		Trusted: map[string]Peer{
+			base64.StdEncoding.EncodeToString(peers[0].fp[:]): {
+				RDT:  peers[0].rdt,
+				Cert: peers[0].cert,
+			},
+			base64.StdEncoding.EncodeToString(peers[1].fp[:]): {
+				RDT:  peers[1].rdt,
+				Cert: peers[1].cert,
+			},
+		},
+		Addresses: map[string]string{
+			base64.StdEncoding.EncodeToString(peers[0].fp[:]): "127.0.0.2:8001",
+			base64.StdEncoding.EncodeToString(peers[1].fp[:]): "127.0.0.3:8001",
+			base64.StdEncoding.EncodeToString(peers[2].fp[:]): "127.0.0.4:8001",
+		},
+		Discovered: []string{
+			"127.0.0.2:8001",
+		},
+		Routes: Routes{
+			Devices:   []DeviceToken{local.rdt, peers[0].rdt, peers[1].rdt},
+			Addresses: []string{"127.0.0.1:8001", "127.0.0.2:8001", "127.0.0.3:8001"},
+			Routes: []int{
+				0, 1, 1, // local->peer-one via addr[1]
+				0, 2, 2, // local->peer-two via addr[2]
+			},
+		},
+		Devices: DeviceQueryTrackerData{
+			IDs: []Identity{
+				{
+					RDT: peers[0].rdt,
+					FP:  peers[0].fp,
+				},
+				{
+					RDT: peers[1].rdt,
+					FP:  peers[1].fp,
+				},
+			},
+			Queries: map[DeviceToken][]DeviceToken{
+				peers[0].rdt: {local.rdt},
+			},
+			Known: map[DeviceToken][]DeviceToken{
+				peers[0].rdt: {"unknown-rdt"},
+			},
+		},
+	}
+
+	// track selector calls
+	var routes Routes
+	var authoritative []struct {
+		to  DeviceToken
+		via string
+	}
+
+	selector := &selector{
+		AddAuthoritativeRouteFunc: func(to DeviceToken, via string) {
+			authoritative = append(authoritative, struct {
+				to  DeviceToken
+				via string
+			}{to, via})
+		},
+		RecordRoutesFunc: func(from DeviceToken, r Routes) (int, int, error) {
+			routes = r
+			return len(r.Routes) / 3, len(r.Routes) / 3, nil
+		},
+		VerifyRoutesFunc: func() {},
+		SelectFunc: func(to DeviceToken, count int) (Routes, func(), bool) {
+			return Routes{
+				Devices:   []DeviceToken{local.rdt, to},
+				Addresses: []string{"127.0.0.1:8001"},
+				Routes:    []int{0, 1, 0},
+			}, func() {}, true
+		},
+		RoutesFunc: func() Routes {
+			return routes
+		},
+	}
+
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     local.rdt,
+		IP:      ip,
+		Port:    8001,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Clock:   clock,
+	}
+
+	commit := func(s AssembleSession) {}
+
+	// create AssembleState with imported session
+	as, err := NewAssembleState(cfg, session, func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error) {
+		c.Assert(self, check.Equals, local.rdt)
+		return selector, nil
+	}, nil, commit)
+	c.Assert(err, check.IsNil)
+
+	// verify imported routes were recorded in selector
+	c.Assert(routes, check.DeepEquals, session.Routes)
+
+	// verify authoritative routes were added for trusted peers with addresses
+	c.Assert(len(authoritative), check.Equals, 2) // peer-one and peer-two
+	found := make(map[DeviceToken]bool)
+	for _, route := range authoritative {
+		found[route.to] = true
+		switch route.to {
+		case peers[0].rdt:
+			c.Assert(route.via, check.Equals, "127.0.0.2:8001")
+		case peers[1].rdt:
+			c.Assert(route.via, check.Equals, "127.0.0.3:8001")
+		}
+	}
+	c.Assert(found[peers[0].rdt], check.Equals, true)
+	c.Assert(found[peers[1].rdt], check.Equals, true)
+
+	// test publishing auth messages; should skip already discovered address
+	var publications []string
+	client := &testClient{
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+			publications = append(publications, addr)
+			switch addr {
+			case "127.0.0.3:8001":
+				return peers[1].cert, nil
+			case "127.0.0.5:8001":
+				return []byte("new-peer-cert"), nil
+			}
+			return nil, errors.New("unexpected address")
+		},
+	}
+
+	// try to publish auth to discovered and undiscovered addresses
+	err = as.publishAuth(context.Background(), []string{
+		"127.0.0.2:8001", // already discovered, should skip
+		"127.0.0.3:8001", // not discovered yet
+		"127.0.0.5:8001", // completely new
+	}, client)
+	c.Assert(err, check.IsNil)
+	c.Assert(publications, check.DeepEquals, []string{"127.0.0.3:8001", "127.0.0.5:8001"})
+
+	// test publishing routes - should only send to trusted peers with addresses
+	publications = nil
+	client = &testClient{
+		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+			publications = append(publications, addr)
+			// verify we're using the correct certificate
+			switch addr {
+			case "127.0.0.2:8001":
+				c.Assert(cert, check.DeepEquals, peers[0].cert)
+			case "127.0.0.3:8001":
+				c.Assert(cert, check.DeepEquals, peers[1].cert)
+			}
+			return nil
+		},
+	}
+
+	as.publishRoutes(context.Background(), client, 10, 100)
+	c.Assert(publications, testutil.DeepUnsortedMatches, []string{"127.0.0.2:8001", "127.0.0.3:8001"})
+
+	// test publishing devices - respond to device queries that were imported
+	publications = nil
+	client = &testClient{
+		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+			publications = append(publications, addr)
+			devices := message.(Devices)
+			c.Check(devices.Devices, check.DeepEquals, []Identity{{
+				RDT: local.rdt,
+				FP:  local.fp,
+			}})
+			return nil
+		},
+	}
+
+	as.publishDevices(context.Background(), client)
+	c.Assert(publications, check.DeepEquals, []string{"127.0.0.2:8001"})
+
+	publications = nil
+	client = &testClient{
+		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+			publications = append(publications, addr)
+			unknowns := message.(UnknownDevices)
+			c.Assert(unknowns.Devices, check.DeepEquals, []DeviceToken{"unknown-rdt"})
+			return nil
+		},
+	}
+
+	as.publishDeviceQueries(context.Background(), client)
+	c.Assert(publications, check.DeepEquals, []string{"127.0.0.2:8001"})
+}
+
+func (s *ClusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
+	ip := net.IPv4(127, 0, 0, 1)
+	cert, key := createTestCertAndKey(c, ip)
+
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     "local-rdt",
+		IP:      ip,
+		Port:    8001,
+		TLSCert: cert,
+		TLSKey:  key,
+	}
+
+	commit := func(AssembleSession) {}
+
+	testCases := []struct {
+		name    string
+		session AssembleSession
+		err     string
+	}{
+		{
+			name: "invalid base64 fingerprint in trusted peers",
+			session: AssembleSession{
+				Trusted: map[string]Peer{
+					"not-valid-base64!!!": {
+						RDT:  "peer-rdt",
+						Cert: []byte("cert"),
+					},
+				},
+			},
+			err: "invalid session data: .*illegal base64.*",
+		},
+		{
+			name: "invalid base64 fingerprint in addresses",
+			session: AssembleSession{
+				Addresses: map[string]string{
+					"not-valid-base64!!!": "127.0.0.2:8001",
+				},
+			},
+			err: "invalid session data: .*illegal base64.*",
+		},
+		{
+			name: "wrong size fingerprint in trusted peers",
+			session: AssembleSession{
+				Trusted: map[string]Peer{
+					base64.StdEncoding.EncodeToString([]byte("too-short")): {
+						RDT:  "peer-rdt",
+						Cert: []byte("cert"),
+					},
+				},
+			},
+			err: "invalid session data: invalid fingerprint in trusted peers: certificate fingerprint expected to be 64 bytes",
+		},
+		{
+			name: "wrong size fingerprint in addresses",
+			session: AssembleSession{
+				Addresses: map[string]string{
+					base64.StdEncoding.EncodeToString([]byte("too-short")): "127.0.0.2:8001",
+				},
+			},
+			err: "invalid session data: invalid fingerprint in addresses: certificate fingerprint expected to be 64 bytes",
+		},
+		{
+			name: "routes array not multiple of 3",
+			session: AssembleSession{
+				Routes: Routes{
+					Devices:   []DeviceToken{"device1", "device2"},
+					Addresses: []string{"addr1", "addr2"},
+					Routes:    []int{0, 1}, // incomplete route
+				},
+			},
+			err: "invalid session data: routes array length must be multiple of 3",
+		},
+		{
+			name: "invalid device index in routes",
+			session: AssembleSession{
+				Routes: Routes{
+					Devices:   []DeviceToken{"device1"},
+					Addresses: []string{"addr1"},
+					Routes:    []int{0, 5, 0}, // device index 5 doesn't exist
+				},
+			},
+			err: "invalid session data: invalid destination device index 5 in routes",
+		},
+		{
+			name: "invalid address index in routes",
+			session: AssembleSession{
+				Routes: Routes{
+					Devices:   []DeviceToken{"device1", "device2"},
+					Addresses: []string{"addr1"},
+					Routes:    []int{0, 1, 5}, // address index 5 doesn't exist
+				},
+			},
+			err: "invalid session data: invalid address index 5 in routes",
+		},
+		{
+			name: "discovered address not in addresses map",
+			session: func() AssembleSession {
+				fp := CalculateFP([]byte("cert"))
+				return AssembleSession{
+					Addresses: map[string]string{
+						base64.StdEncoding.EncodeToString(fp[:]): "127.0.0.1:8001",
+					},
+					Discovered: []string{
+						"127.0.0.2:8001", // not in addresses
+					},
+				}
+			}(),
+			err: "invalid session data: discovered address \"127.0.0.2:8001\" not found in addresses map",
+		},
+		{
+			name: "local device fingerprint mismatch",
+			session: func() AssembleSession {
+				// use a different fingerprint than what the test cert would generate
+				wrongFP := CalculateFP([]byte("wrong-cert"))
+				return AssembleSession{
+					Devices: DeviceQueryTrackerData{
+						IDs: []Identity{
+							{
+								RDT: "local-rdt", // matches cfg.RDT in the test
+								FP:  wrongFP,     // different from actual cert fingerprint
+							},
+						},
+					},
+				}
+			}(),
+			err: "fingerprint mismatch for local device.*",
+		},
+	}
+
+	for _, tc := range testCases {
+		_, err := NewAssembleState(cfg, tc.session, func(DeviceToken, func(DeviceToken) bool) (RouteSelector, error) {
+			return statelessSelector(), nil
+		}, nil, commit)
+
+		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
+		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
+	}
 }
 
 func (s *ClusterSuite) TestRunTimeout(c *check.C) {
