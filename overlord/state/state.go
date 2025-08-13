@@ -655,7 +655,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 		return nil, fmt.Errorf("cannot read state: %s", err)
 	}
 	s.backend = backend
-	s.noticeCond = sync.NewCond(s)
+	s.noticeCond = sync.NewCond(s.noticesMu.RLocker())
 	s.modified = false
 	s.cache = make(map[any]any)
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
