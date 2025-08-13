@@ -138,6 +138,9 @@ execute: |
   remote.exec "sudo cat /proc/cmdline" | MATCH "foo=1 foo=2"
   remote.exec cat /var/lib/snapd/modeenv | MATCH "foo=1 foo=2"
 
+  echo "No errors in snap change 1"
+  remote.exec snap change 1 | NOMATCH ERROR
+
   cmdlineOptDang="extradang.val=1 extradang.flag"
   remoteCmd="sudo snap set system system.kernel.dangerous-cmdline-append=\"$cmdlineOptDang\""
   remote.exec "$remoteCmd"
