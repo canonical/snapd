@@ -221,6 +221,42 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 	c.Assert(called, check.Equals, 0)
 }
 
+func (s *ClusterSuite) TestPublishAuthCertificateAddressMismatch(c *check.C) {
+	as, cert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	var calls int
+	client := testClient{
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+			calls++
+
+			c.Assert(kind, check.Equals, "auth")
+
+			auth := message.(Auth)
+			expectedHMAC := CalculateHMAC("rdt", CalculateFP(cert.Certificate[0]), "secret")
+			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
+			c.Assert(auth.RDT, check.Equals, DeviceToken("rdt"))
+
+			// return the same certificate regardless of address
+			return []byte("peer-certificate"), nil
+		},
+	}
+
+	// first call should succeed and register the certificate with first address
+	err := as.publishAuth(context.Background(), []string{"127.0.0.1:8001"}, &client)
+	c.Assert(err, check.IsNil)
+	c.Assert(calls, check.Equals, 1)
+
+	// second call with same certificate but different address should fail
+	err = as.publishAuth(context.Background(), []string{"127.0.0.1:8002"}, &client)
+	c.Assert(err, check.ErrorMatches, "found new address 127.0.0.1:8002 using same certificate as other address 127.0.0.1:8001")
+	c.Assert(calls, check.Equals, 2)
+}
+
 func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
@@ -367,6 +403,71 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `peer "peer" is using a new TLS certificate`)
 }
 
+func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
+	var authoritative []struct {
+		rdt DeviceToken
+		via string
+	}
+	sel := &selector{
+		AddAuthoritativeRouteFunc: func(rdt DeviceToken, via string) {
+			authoritative = append(authoritative, struct {
+				rdt DeviceToken
+				via string
+			}{rdt, via})
+		},
+		RecordRoutesFunc: func(r DeviceToken, ro Routes) (int, int, error) {
+			return 0, 0, nil
+		},
+		VerifyRoutesFunc: func() {},
+		SelectFunc: func(to DeviceToken, count int) (Routes, func(), bool) {
+			return Routes{}, nil, false
+		},
+		RoutesFunc: func() Routes { return Routes{} },
+	}
+
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), sel, AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	const peerRDT = DeviceToken("peer")
+	const peerAddr = "127.0.0.1:8002"
+	peerCert := []byte("peer-certificate")
+
+	// first, use publishAuth to discover the peer's address
+	client := &testClient{
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
+			c.Assert(addr, check.Equals, peerAddr)
+			c.Assert(kind, check.Equals, "auth")
+			return peerCert, nil
+		},
+	}
+
+	err := as.publishAuth(context.Background(), []string{peerAddr}, client)
+	c.Assert(err, check.IsNil)
+
+	// verify no authoritative routes added yet
+	c.Assert(len(authoritative), check.Equals, 0)
+
+	// now authenticate the peer
+	peerFP := CalculateFP(peerCert)
+	auth := Auth{
+		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+		RDT:  peerRDT,
+	}
+
+	err = as.Authenticate(auth, peerCert)
+	c.Assert(err, check.IsNil)
+
+	// since we have discovered the route from us to the peer and the peer has
+	// authenticated, then AddAuthoritativeRoute should have been called
+	c.Assert(len(authoritative), check.Equals, 1)
+	c.Assert(authoritative[0].rdt, check.Equals, peerRDT)
+	c.Assert(authoritative[0].via, check.Equals, peerAddr)
+}
+
 func (s *ClusterSuite) TestTrusted(c *check.C) {
 	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
@@ -389,6 +490,20 @@ func (s *ClusterSuite) TestTrusted(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, peerRDT)
+}
+
+func (s *ClusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
+	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+		IP:     net.IPv4(127, 0, 0, 1),
+		Port:   8001,
+	})
+
+	// try to verify a certificate that was never authenticated
+	handle, err := as.VerifyPeer([]byte("untrusted-certificate"))
+	c.Assert(err, check.ErrorMatches, "given TLS certificate is not associated with a trusted RDT")
+	c.Assert(handle, check.IsNil)
 }
 
 func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, address string, cert []byte) {
