@@ -134,6 +134,10 @@ execute: |
   echo "Check we have the right model from snap model"
   remote.exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
 
+  echo "Check that gadget kernel command line defaults have been respected"
+  remote.exec "sudo cat /proc/cmdline" | MATCH "foo=1 foo=2"
+  remote.exec cat /var/lib/snapd/modeenv | MATCH "foo=1 foo=2"
+
   cmdlineOptDang="extradang.val=1 extradang.flag"
   remoteCmd="sudo snap set system system.kernel.dangerous-cmdline-append=\"$cmdlineOptDang\""
   remote.exec "$remoteCmd"
