@@ -140,6 +140,9 @@ func (ntb *noticeTypeBackend) initialize(now time.Time, nextNoticeTimestamp func
 	ntb.filepath = path
 	ntb.noticeType = noticeType
 	ntb.namespace = namespace
+	// Use ntb.lock.RLocker() as the cond lock, since that is the lock which
+	// is held during BackendWaitNotices(), and thus calling ntb.cond.Wait()
+	// will be able to release the lock.
 	ntb.cond = sync.NewCond(ntb.lock.RLocker())
 	if err := ntb.load(now); err != nil {
 		return err
@@ -495,11 +498,13 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 	//
 	// TODO: replace this with context.AfterFunc once we're on Go 1.21.
 	stop := contextAfterFunc(ctx, func() {
-		// We need to acquire the cond lock here to be sure that the Broadcast
-		// below won't occur before the call to Wait, which would result in a
-		// missed signal.
-		ntb.cond.L.Lock()
-		defer ntb.cond.L.Unlock()
+		// We need to acquire a lock mutually exclusive with the cond lock here
+		// to be sure that the Broadcast below won't occur before the call to
+		// Wait, which would result in a missed signal (and deadlock). Since
+		// the cond lock is ntb.lock.RLocker(), we need to acquire ntb.lock
+		// for *writing*, rather than locking ntb.cond.L.
+		ntb.lock.Lock()
+		defer ntb.lock.Unlock()
 
 		ntb.cond.Broadcast()
 	})
