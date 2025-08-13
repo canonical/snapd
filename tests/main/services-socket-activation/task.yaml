@@ -4,13 +4,37 @@ details: |
     This installs a snap which define sockets for systemd socket activation, and verifies
     that basic start/stop works as intended for services that have socket activation.
 
+environment:
+    CONFINEMENT/strict: strict
+    CONFINEMENT/classic: classic
+
 prepare: |
-    "$TESTSTOOLS"/snaps-state install-local socket-activation
+    case "$CONFINEMENT" in
+        classic)
+            if os.query is-core; then
+               # cannot install classic snaps on core
+               exit 0
+            fi
+            "$TESTSTOOLS"/snaps-state install-local socket-activation-classic --classic
+            ;;
+        strict)
+            "$TESTSTOOLS"/snaps-state install-local socket-activation
+            ;;
+    esac
 
 restore: |
     systemctl daemon-reload
 
 execute: |
+    case "$CONFINEMENT" in
+        classic)
+            if os.query is-core; then
+               # cannot install classic snaps on core
+               exit 0
+            fi
+            ;;
+    esac
+
     [ -f /etc/systemd/system/snap.socket-activation.sleep-daemon.sock.socket ]
     [ -S /var/snap/socket-activation/common/socket ]
 
