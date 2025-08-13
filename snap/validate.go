@@ -813,6 +813,9 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
+var isValidStatusCode = regexp.MustCompile("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$").MatchString
+var isValidStatusName = regexp.MustCompile("^[A-Z_]{3,}$").MatchString
+
 func validateAppSuccessExitStatus(app *AppInfo) error {
 	if len(app.SuccessExitStatus) == 0 {
 		return nil
@@ -825,6 +828,10 @@ func validateAppSuccessExitStatus(app *AppInfo) error {
 	for _, status := range app.SuccessExitStatus {
 		if status == "" {
 			return errors.New("success-exit-status cannot contain empty values")
+		}
+
+		if !isValidStatusCode(status) && !isValidStatusName(status) {
+			return errors.New("success exit status must be a number (0-255) or uppercase symbolic name")
 		}
 	}
 

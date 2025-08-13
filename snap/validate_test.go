@@ -2030,6 +2030,18 @@ apps:
     daemon: simple
     success-exit-status: [""]
 `)
+	fooSuccessExitStatusCodeOutOfRange := []byte(`
+apps:
+  foo:
+    daemon: simple
+    success-exit-status: [400]
+`)
+	fooSuccessExitStatusWrongName := []byte(`
+apps:
+  foo:
+    daemon: simple
+    success-exit-status: [bar]
+`)
 
 	tcs := []struct {
 		name string
@@ -2046,6 +2058,14 @@ apps:
 		name: "foo success-exit-status with empty value",
 		desc: fooSuccessExitStatusEmpty,
 		err:  `success-exit-status cannot contain empty values`,
+	}, {
+		name: "foo success-exit-status with status code out of range",
+		desc: fooSuccessExitStatusCodeOutOfRange,
+		err:  `success exit status must be a number \(0-255\) or uppercase symbolic name`,
+	}, {
+		name: "foo success-exit-status with wrong status name",
+		desc: fooSuccessExitStatusWrongName,
+		err:  `success exit status must be a number \(0-255\) or uppercase symbolic name`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
