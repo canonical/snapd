@@ -311,7 +311,9 @@ func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, e
 			// since most key slot operations under assume that the mapping
 			// from container-role to volume is unique.
 			if foundDisks[i].ContainerRole() == foundDisks[j].ContainerRole() {
-				state.Warnf("container roles should map to one volume only: container role %q maps to %s and %s", foundDisks[i].ContainerRole(), foundDisks[i].DevPath(), foundDisks[j].DevPath())
+				msg := fmt.Sprintf("unexpected system state detected, container roles for disk volumes should map to one volume only: container role %q maps to %s and %s", foundDisks[i].ContainerRole(), foundDisks[i].DevPath(), foundDisks[j].DevPath())
+				state.Warnf(msg)
+				logger.Noticef(msg)
 			}
 		}
 	}
