@@ -11,7 +11,6 @@ environment:
     FAULT/kernel_panic_prepare_kernel_components: panic
 
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-    NESTED_ENABLE_OVMF: true
 
 prepare: |
     # Modify kernel and create a component

@@ -10,7 +10,6 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: true
-  NESTED_ENABLE_OVMF: true
   # store related setup
   STORE_ADDR: localhost:11028
   STORE_DIR: $(pwd)/fake-store-blobdir

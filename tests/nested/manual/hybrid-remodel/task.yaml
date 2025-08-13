@@ -9,7 +9,6 @@ systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: true
-  NESTED_ENABLE_OVMF: true
 
   NESTED_SIGN_SNAPS_FAKESTORE: true
   # for the fake store

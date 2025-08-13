@@ -16,7 +16,6 @@ environment:
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-    NESTED_ENABLE_OVMF: true
     NESTED_REPACK_KERNEL_SNAP: true
     # store related setup
     STORE_ADDR: localhost:11028

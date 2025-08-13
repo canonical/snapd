@@ -11,7 +11,6 @@ environment:
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-    NESTED_ENABLE_OVMF: true
 
     NESTED_EXTRA_CMDLINE/tokens: ubuntu-core.force-experimental-tokens=1
     NESTED_EXTRA_CMDLINE/files: ubuntu-core.force-experimental-tokens=0
