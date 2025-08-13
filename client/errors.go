@@ -129,11 +129,8 @@ const (
 	// ErrorKindAssertionNotFound: assertion can not be found.
 	ErrorKindAssertionNotFound ErrorKind = "assertion-not-found"
 
-	// ErrorKindConfdbViewNotFound: the confdb view can not be found.
-	ErrorKindConfdbViewNotFound ErrorKind = "confdb-view-not-found"
-
-	// ErrorKindConfdbNoMatchingRule: no view rule matches the request.
-	ErrorKindConfdbNoMatchingRule ErrorKind = "confdb-no-matching-rule"
+	// ErrorKindOptionNotAvailable: the configuration option cannot be requested.
+	ErrorKindOptionNotAvailable ErrorKind = "option-not-available"
 
 	// ErrorKindUnsuccessful: snapctl command was unsuccessful.
 	ErrorKindUnsuccessful ErrorKind = "unsuccessful"

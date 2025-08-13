@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 var shortGetHelp = i18n.G("Print configuration options")
@@ -67,9 +68,10 @@ type cmdGet struct {
 		Keys []string
 	} `positional-args:"yes"`
 
-	Typed    bool `short:"t"`
-	Document bool `short:"d"`
-	List     bool `short:"l"`
+	Typed    bool   `short:"t"`
+	Document bool   `short:"d"`
+	List     bool   `short:"l"`
+	Default  string `long:"default" unquote:"false"`
 }
 
 func init() {
@@ -89,6 +91,8 @@ func init() {
 			"l": i18n.G("Always return list, even with single key"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"default": i18n.G("A strictly typed default value to be used when none is found"),
 		}, []argDesc{
 			{
 				name: "<snap>",
@@ -292,6 +296,12 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, err
 	}
 
+	if x.Default != "" && len(confKeys) > 1 {
+		// TODO: what if some keys are fulfilled and others aren't? Do we fill in
+		// just the ones that are missing or none?
+		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
+	}
+
 	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys)
 	if err != nil {
 		return nil, err
@@ -315,6 +325,11 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 			return nil, err
 		}
 
+		if errData["kind"] == string(client.ErrorKindConfigNoSuchOption) && x.Default != "" {
+			// we don't allow --default with multiple keys so we know there's only one
+			return x.buildDefaultOutput(confKeys[0])
+		}
+
 		errMsg, ok := errData["message"]
 		if !ok {
 			return nil, fmt.Errorf(`internal error: expected "message" field under "error" in change result`)
@@ -324,6 +339,26 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 	}
 
 	return conf, nil
+}
+
+func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
+	var defaultVal any
+	if err := jsonutil.DecodeWithNumber(strings.NewReader(x.Default), &defaultVal); err != nil {
+		var merr *json.SyntaxError
+		if !errors.As(err, &merr) {
+			// shouldn't happen as we other errors are due to programmer error
+			return nil, fmt.Errorf("internal error: cannot unmarshal --default value: %v", err)
+		}
+
+		if x.Typed {
+			return nil, fmt.Errorf("cannot unmarshal default value as strictly typed")
+		}
+
+		// the value isn't typed, use it as is
+		defaultVal = x.Default
+	}
+
+	return map[string]any{request: defaultVal}, nil
 }
 
 func validateConfdbFeatureFlag() error {
