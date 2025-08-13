@@ -613,11 +613,13 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	//
 	// TODO: replace this with context.AfterFunc once we're on Go 1.21.
 	stop := contextAfterFunc(ctx, func() {
-		// We need to acquire the cond lock here to be sure that the Broadcast
-		// below won't occur before the call to Wait, which would result in a
-		// missed signal (and deadlock).
-		s.noticeCond.L.Lock()
-		defer s.noticeCond.L.Unlock()
+		// We need to acquire a lock mutually exclusive with the cond lock here
+		// to be sure that the Broadcast below won't occur before the call to
+		// Wait, which would result in a missed signal (and deadlock). Since
+		// the cond lock is noticesMu.RLocker(), we need to acquire the lock
+		// for writing.
+		s.noticesMu.Lock()
+		defer s.noticesMu.Unlock()
 
 		s.noticeCond.Broadcast()
 	})
@@ -636,8 +638,9 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		}
 
 		// Wait till a new notice occurs or a context is cancelled.
-		// This unlocks noticeCond.L, so it must be the lock we are currently
-		// holding.
+		// This unlocks noticeCond.L, so for this reason, it is essential that
+		// noticeCond.L is notices.Mu.RLocker, since that is what we hold
+		// during this function call.
 		s.noticeCond.Wait()
 
 		// If this context is cancelled, return the error.

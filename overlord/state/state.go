@@ -148,6 +148,8 @@ func New(backend Backend) *State {
 		taskHandlers:        make(map[int]func(t *Task, old Status, new Status) bool),
 		changeHandlers:      make(map[int]func(chg *Change, old Status, new Status)),
 	}
+	// The noticeCond.L must be the same as the lock which is held during
+	// WaitNotices, since noticeCond.Wait() will unlock noticeCond.L.
 	st.noticeCond = sync.NewCond(st.noticesMu.RLocker())
 	return st
 }
