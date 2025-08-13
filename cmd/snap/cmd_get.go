@@ -346,12 +346,12 @@ func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	if err := jsonutil.DecodeWithNumber(strings.NewReader(x.Default), &defaultVal); err != nil {
 		var merr *json.SyntaxError
 		if !errors.As(err, &merr) {
-			// shouldn't happen as we treat unmarshable values as strings
+			// shouldn't happen as we other errors are due to programmer error
 			return nil, fmt.Errorf("internal error: cannot unmarshal --default value: %v", err)
 		}
 
 		if x.Typed {
-			return nil, fmt.Errorf("cannot unmarshal strictly typed default value")
+			return nil, fmt.Errorf("cannot unmarshal default value as strictly typed")
 		}
 
 		// the value isn't typed, use it as is

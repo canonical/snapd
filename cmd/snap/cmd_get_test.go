@@ -641,13 +641,16 @@ func (s *confdbSuite) TestConfdbDefaultMultipleTypes(c *check.C) {
 }
 
 func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
-	restore := s.mockConfdbFlag(c)
+	restore := snapset.MockIsStdoutTTY(true)
+	defer restore()
+
+	restore = s.mockConfdbFlag(c)
 	defer restore()
 
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
-		case 0, 2, 4, 6, 8:
+		case 0, 2, 4, 6, 8, 10, 12:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/confdb/foo/bar/baz")
 
@@ -658,7 +661,7 @@ func (s *confdbSuite) TestConfdbGetDefaultWithOtherFlags(c *check.C) {
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
 
-		case 1, 3, 5, 7, 9:
+		case 1, 3, 5, 7, 9, 11, 13:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"error": {"message": "some error, no data", "kind": "option-not-found"}}}}`)
@@ -704,6 +707,16 @@ foo[0].bar  baz
 		{
 			flags:  []string{"-t", "--default", `"foo"`},
 			output: "\"foo\"\n",
+		},
+		{
+			flags: []string{"-t", "--default", `{"baz":1}`},
+			output: `Key             Value
+foo[0].bar.baz  1
+`,
+		},
+		{
+			flags:  []string{"-t", "--default", "123"},
+			output: "123\n",
 		},
 	}
 
@@ -775,7 +788,7 @@ func (s *confdbSuite) TestConfdbGetDefaultUnmarshalNoFallbackIfTyped(c *check.C)
 	})
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "--default", "defVal", "-t", "foo"})
-	c.Assert(err, ErrorMatches, "cannot unmarshal strictly typed default value")
+	c.Assert(err, ErrorMatches, "cannot unmarshal default value as strictly typed")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
