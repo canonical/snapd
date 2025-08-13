@@ -265,7 +265,7 @@ func (d *DeviceQueryTracker) RecordIdentity(id Identity) {
 type DeviceQueryTrackerData struct {
 	Queries map[DeviceToken][]DeviceToken `json:"unknowns,omitempty"`
 	Known   map[DeviceToken][]DeviceToken `json:"sources,omitempty"`
-	IDs     map[DeviceToken]Identity      `json:"ids,omitempty"`
+	IDs     []Identity                    `json:"ids,omitempty"`
 }
 
 // Export returns the serializable state of the DeviceQueryTracker.
@@ -273,7 +273,7 @@ func (d *DeviceQueryTracker) Export() DeviceQueryTrackerData {
 	data := DeviceQueryTrackerData{
 		Queries: make(map[DeviceToken][]DeviceToken),
 		Known:   make(map[DeviceToken][]DeviceToken),
-		IDs:     d.ids,
+		IDs:     make([]Identity, 0, len(d.ids)),
 	}
 
 	for peer, devices := range d.queries {
@@ -286,6 +286,10 @@ func (d *DeviceQueryTracker) Export() DeviceQueryTrackerData {
 		for device := range devices {
 			data.Known[peer] = append(data.Known[peer], device)
 		}
+	}
+
+	for _, identity := range d.ids {
+		data.IDs = append(data.IDs, identity)
 	}
 
 	return data

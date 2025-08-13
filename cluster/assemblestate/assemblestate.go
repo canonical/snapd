@@ -62,7 +62,7 @@ type AssembleState struct {
 	lock sync.Mutex
 
 	// trusted keeps track of all trusted peers.
-	trusted map[Fingerprint]peer
+	trusted map[Fingerprint]Peer
 
 	// fingerprints keeps track of the TLS certificate fingerprints we know and
 	// the RDTs that they are is associated with.
@@ -90,17 +90,16 @@ type AssembleState struct {
 // AssembleSession provides a method for serializing our current state of
 // assembly to JSON.
 type AssembleSession struct {
-	Initiated    time.Time                   `json:"initiated"`
-	Trusted      map[string]peer             `json:"trusted"`
-	Fingerprints map[DeviceToken]Fingerprint `json:"fingerprints"`
-	Addresses    map[string]string           `json:"addresses"`
-	Discovered   map[string]bool             `json:"discovered"`
-	Routes       Routes                      `json:"routes"`
-	Devices      DeviceQueryTrackerData      `json:"devices"`
+	Initiated  time.Time              `json:"initiated"`
+	Trusted    map[string]Peer        `json:"trusted"`
+	Addresses  map[string]string      `json:"addresses"`
+	Discovered []string               `json:"discovered"`
+	Routes     Routes                 `json:"routes"`
+	Devices    DeviceQueryTrackerData `json:"devices"`
 }
 
 func (as *AssembleState) export() AssembleSession {
-	trusted := make(map[string]peer, len(as.trusted))
+	trusted := make(map[string]Peer, len(as.trusted))
 	for fp, p := range as.trusted {
 		trusted[base64.StdEncoding.EncodeToString(fp[:])] = p
 	}
@@ -110,18 +109,22 @@ func (as *AssembleState) export() AssembleSession {
 		addresses[base64.StdEncoding.EncodeToString(fp[:])] = addr
 	}
 
+	discovered := make([]string, 0, len(as.discovered))
+	for addr := range as.discovered {
+		discovered = append(discovered, addr)
+	}
+
 	return AssembleSession{
-		Initiated:    as.initiated,
-		Trusted:      trusted,
-		Fingerprints: as.fingerprints,
-		Addresses:    addresses,
-		Discovered:   as.discovered,
-		Routes:       Routes{},
-		Devices:      as.devices.Export(),
+		Initiated:  as.initiated,
+		Trusted:    trusted,
+		Addresses:  addresses,
+		Discovered: discovered,
+		Routes:     as.selector.Routes(),
+		Devices:    as.devices.Export(),
 	}
 }
 
-type peer struct {
+type Peer struct {
 	RDT  DeviceToken `json:"rdt"`
 	Cert []byte      `json:"cert"`
 }
@@ -146,6 +149,12 @@ func NewAssembleState(
 		return nil, errors.New("cannot resume an assembly session that began more than an hour ago")
 	}
 
+	// validate the given session parse it into more useful data structures
+	validated, err := validateSession(session)
+	if err != nil {
+		return nil, fmt.Errorf("invalid session data: %w", err)
+	}
+
 	if log == nil {
 		log = logger.NullLogger
 	}
@@ -155,46 +164,11 @@ func NewAssembleState(
 		return nil, err
 	}
 
-	trusted := make(map[Fingerprint]peer, len(session.Trusted))
-	for strFP, peer := range session.Trusted {
-		rawFP, err := base64.StdEncoding.DecodeString(strFP)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(rawFP) != 64 {
-			return nil, errors.New("certificate fingerprint expected to be 64 bytes")
-		}
-
-		var fp Fingerprint
-		copy(fp[:], rawFP)
-		trusted[fp] = peer
-	}
-
-	addresses := make(map[Fingerprint]string, len(session.Addresses))
-	for strFP, addr := range session.Addresses {
-		rawFP, err := base64.StdEncoding.DecodeString(strFP)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(rawFP) != 64 {
-			return nil, errors.New("certificate fingerprint expected to be 64 bytes")
-		}
-
-		var fp Fingerprint
-		copy(fp[:], rawFP)
-		addresses[fp] = addr
-	}
-
-	if session.Devices.IDs == nil {
-		session.Devices.IDs = make(map[DeviceToken]Identity)
-	}
-
-	// preseed the device tracking structure with ourself
-	session.Devices.IDs[config.RDT] = Identity{
+	if err := ensureLocalDevicePresent(&session.Devices, Identity{
 		RDT: config.RDT,
 		FP:  CalculateFP(cert.Certificate[0]),
+	}); err != nil {
+		return nil, err
 	}
 
 	devices := NewDeviceQueryTracker(session.Devices, time.Minute*5, config.Clock)
@@ -212,26 +186,16 @@ func NewAssembleState(
 		return nil, err
 	}
 
-	// for any peers that we trust and we know their address, we can safely
+	// for any peers that we already trust and know their address, we can safely
 	// inform the selector that the route from our local node to that peer can
 	// be published
-	for fp, peer := range trusted {
-		addr, ok := addresses[fp]
+	for fp, peer := range validated.trusted {
+		addr, ok := validated.addresses[fp]
 		if !ok {
 			continue
 		}
 
 		sel.AddAuthoritativeRoute(peer.RDT, addr)
-	}
-
-	fingerprints := session.Fingerprints
-	if fingerprints == nil {
-		fingerprints = make(map[DeviceToken]Fingerprint)
-	}
-
-	discovered := session.Discovered
-	if discovered == nil {
-		discovered = make(map[string]bool)
 	}
 
 	// calculate the HMAC once for this device's authentication
@@ -245,10 +209,10 @@ func NewAssembleState(
 		clock:        config.Clock,
 		cert:         cert,
 		authHMAC:     authHMAC,
-		trusted:      trusted,
-		fingerprints: fingerprints,
-		addresses:    addresses,
-		discovered:   discovered,
+		trusted:      validated.trusted,
+		fingerprints: validated.fingerprints,
+		addresses:    validated.addresses,
+		discovered:   validated.discovered,
 		devices:      devices,
 		selector:     sel,
 	}
@@ -397,7 +361,7 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 	defer as.lock.Unlock()
 
 	// collect all trusted peers that have also addresses
-	var available []peer
+	var available []Peer
 	for fp, p := range as.trusted {
 		if _, ok := as.addresses[fp]; ok {
 			available = append(available, p)
@@ -477,16 +441,22 @@ func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
 
 	if _, ok := as.trusted[fp]; ok {
 		if as.trusted[fp].RDT != auth.RDT {
-			return fmt.Errorf("peer with rdt %v is using a new TLS certificate", auth.RDT)
+			return fmt.Errorf("peer %q and %q are using the same TLS certificate", as.trusted[fp].RDT, auth.RDT)
 		}
 	} else {
-		as.trusted[fp] = peer{
+		as.trusted[fp] = Peer{
 			RDT:  auth.RDT,
 			Cert: cert,
 		}
 	}
 
-	as.fingerprints[auth.RDT] = fp
+	if existing, ok := as.fingerprints[auth.RDT]; ok {
+		if existing != fp {
+			return fmt.Errorf("peer %q is using a new TLS certificate", auth.RDT)
+		}
+	} else {
+		as.fingerprints[auth.RDT] = fp
+	}
 
 	// check fingerprint consistency if we already have an identity for this peer
 	if id, ok := as.devices.Lookup(auth.RDT); ok && id.FP != fp {
@@ -644,10 +614,10 @@ func (as *AssembleState) Run(
 
 	// perform final fingerprint consistency check
 	devices := as.devices.Export()
-	for rdt, identity := range devices.IDs {
-		if fp, ok := as.fingerprints[rdt]; ok {
+	for _, identity := range devices.IDs {
+		if fp, ok := as.fingerprints[identity.RDT]; ok {
 			if fp != identity.FP {
-				return Routes{}, fmt.Errorf("consistency check failed: fingerprint mismatch for device %s", rdt)
+				return Routes{}, fmt.Errorf("consistency check failed: fingerprint mismatch for device %s", identity.RDT)
 			}
 		}
 	}
@@ -801,4 +771,108 @@ func CalculateHMAC(rdt DeviceToken, fp Fingerprint, secret string) []byte {
 
 func CalculateFP(cert []byte) Fingerprint {
 	return sha512.Sum512(cert)
+}
+
+// ensureLocalDevicePresent adds the local device identity to the IDs slice if not present,
+// or validates consistency if already present.
+func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error {
+	for _, existing := range data.IDs {
+		if existing.RDT == self.RDT {
+			if existing.FP != self.FP {
+				return fmt.Errorf("fingerprint mismatch for local device %q", self.RDT)
+			}
+
+			return nil
+		}
+	}
+
+	data.IDs = append(data.IDs, self)
+
+	return nil
+}
+
+// parseAndValidateFingerprint parses a base64-encoded fingerprint and validates its length
+func parseAndValidateFingerprint(strFP string) (Fingerprint, error) {
+	rawFP, err := base64.StdEncoding.DecodeString(strFP)
+	if err != nil {
+		return Fingerprint{}, err
+	}
+	if len(rawFP) != 64 {
+		return Fingerprint{}, errors.New("certificate fingerprint expected to be 64 bytes")
+	}
+	var fp Fingerprint
+	copy(fp[:], rawFP)
+	return fp, nil
+}
+
+// validatedSession contains pre-parsed session data with field names matching AssembleState
+type validatedSession struct {
+	trusted      map[Fingerprint]Peer        // matches AssembleState.trusted
+	fingerprints map[DeviceToken]Fingerprint // matches AssembleState.fingerprints
+	addresses    map[Fingerprint]string      // matches AssembleState.addresses
+	discovered   map[string]bool             // matches AssembleState.discovered
+}
+
+// validateSession checks that the given session maintains internal consistency
+// invariants that should be preserved between export and import, and returns
+// all parsed data for use by NewAssembleState.
+func validateSession(session AssembleSession) (validatedSession, error) {
+	if len(session.Routes.Routes)%3 != 0 {
+		return validatedSession{}, errors.New("routes array length must be multiple of 3")
+	}
+
+	for i := 0; i < len(session.Routes.Routes); i += 3 {
+		src := session.Routes.Routes[i]
+		dest := session.Routes.Routes[i+1]
+		addr := session.Routes.Routes[i+2]
+
+		if src < 0 || src >= len(session.Routes.Devices) {
+			return validatedSession{}, fmt.Errorf("invalid source device index %d in routes", src)
+		}
+		if dest < 0 || dest >= len(session.Routes.Devices) {
+			return validatedSession{}, fmt.Errorf("invalid destination device index %d in routes", dest)
+		}
+		if addr < 0 || addr >= len(session.Routes.Addresses) {
+			return validatedSession{}, fmt.Errorf("invalid address index %d in routes", addr)
+		}
+	}
+
+	trusted := make(map[Fingerprint]Peer, len(session.Trusted))
+	fingerprints := make(map[DeviceToken]Fingerprint, len(session.Trusted))
+	for strFP, peer := range session.Trusted {
+		fp, err := parseAndValidateFingerprint(strFP)
+		if err != nil {
+			return validatedSession{}, fmt.Errorf("invalid fingerprint in trusted peers: %w", err)
+		}
+
+		trusted[fp] = peer
+		fingerprints[peer.RDT] = fp
+	}
+
+	addresses := make(map[Fingerprint]string, len(session.Addresses))
+	addressSet := make(map[string]bool, len(session.Addresses))
+	for strFP, addr := range session.Addresses {
+		fp, err := parseAndValidateFingerprint(strFP)
+		if err != nil {
+			return validatedSession{}, fmt.Errorf("invalid fingerprint in addresses: %w", err)
+		}
+
+		addresses[fp] = addr
+		addressSet[addr] = true
+	}
+
+	discovered := make(map[string]bool)
+	for _, addr := range session.Discovered {
+		if !addressSet[addr] {
+			return validatedSession{}, fmt.Errorf("discovered address %q not found in addresses map", addr)
+		}
+		discovered[addr] = true
+	}
+
+	return validatedSession{
+		trusted:      trusted,
+		fingerprints: fingerprints,
+		addresses:    addresses,
+		discovered:   discovered,
+	}, nil
 }
