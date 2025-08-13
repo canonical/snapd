@@ -59,7 +59,7 @@ prepare: |
   snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
 
   # Retrieve kernel.
-  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/edge" pc-kernel
+  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
   uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
@@ -90,7 +90,7 @@ prepare: |
 
   export HYBRID_SYSTEM_MK_ROOT_FS="${PWD}/prepare-rootfs.sh"
 
-  # 25.10 models require much larger disks
+  # 25.10 gadget require much larger disks
   # https://github.com/canonical/pc-gadget/commit/814d80acbcc0de4ac799b3bcb67f7ec625d6c53a
   if [ "${MODEL_VERSION}" == "25.10" ]; then
     truncate --size=10G disk.img
