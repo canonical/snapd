@@ -1265,3 +1265,62 @@ func FindFreeHandle() (uint32, error) {
 
 	return 0, fmt.Errorf("no free handle on TPM")
 }
+
+// AddContainerRecoveryKey adds a new TPM protected key to specified device.
+//
+// Note: The unlock and primary keys are implicitly obtained from the kernel
+// keyring so this will not work if the disk was unlocked with a recovery key
+// during boot.
+func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) (err error) {
+	var pcrProfile sb_tpm2.PCRProtectionProfile
+	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
+		return fmt.Errorf("cannot unmarshal PCR profile: %v", err)
+	}
+
+	// this will fail if the disk was unlocked with a recovery key during boot.
+	primaryKey, err := sbGetPrimaryKeyFromKernel(defaultKeyringPrefix, devicePath, false)
+	if err != nil {
+		return fmt.Errorf("cannot get primary key from kernel keyring for unlocked disk %s: %v", devicePath, err)
+	}
+
+	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultKeyringPrefix, devicePath, false)
+	if err != nil {
+		return fmt.Errorf("cannot get unlock key from kernel keyring for unlocked disk %s: %v", devicePath, err)
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return errors.New("TPM device is not enabled")
+	}
+
+	creationParams := &sb_tpm2.ProtectKeyParams{
+		PCRProfile:             &pcrProfile,
+		Role:                   params.KeyRole,
+		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
+		PrimaryKey:             primaryKey,
+	}
+
+	protectedKey, _, newKey, err := newTPMProtectedKey(tpm, creationParams, params.VolumesAuth)
+	if err != nil {
+		return fmt.Errorf("cannot seal key: %v", err)
+	}
+
+	if err := sbAddLUKS2ContainerUnlockKey(devicePath, slotName, unlockKey, newKey); err != nil {
+		return fmt.Errorf("cannot add key: %v", err)
+	}
+
+	defer func() {
+		if err != nil {
+			if deleteErr := sbDeleteLUKS2ContainerKey(devicePath, slotName); deleteErr != nil {
+				logger.Noticef("cannot remove added key %s:%s during cleanup", devicePath, slotName)
+			}
+		}
+	}()
+
+	keyData := keyData{kd: protectedKey}
+	return keyData.WriteTokenAtomic(devicePath, slotName)
+}

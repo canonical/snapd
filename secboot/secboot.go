@@ -194,7 +194,7 @@ type KeyData interface {
 type SerializedPCRProfile []byte
 
 type ResealKeysParams struct {
-	// The snap model parameters
+	// The serialized PCR profile
 	PCRProfile SerializedPCRProfile
 	// The locations to the key data
 	Keys []KeyDataLocation
@@ -253,6 +253,17 @@ type UnlockResult struct {
 	// - UnlockedWithSealedKey
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
+}
+
+type ProtectKeyParams struct {
+	// The serialized PCR profile
+	PCRProfile SerializedPCRProfile
+	// The handle at which to create a NV index for dynamic authorization policy revocation support
+	PCRPolicyCounterHandle uint32
+	// The key role (run, run+recover, recover)
+	KeyRole string
+	// Optional volume authentication options
+	VolumesAuth *device.VolumesAuthOptions
 }
 
 // EncryptedPartitionName returns the name/label used by an encrypted partition

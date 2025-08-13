@@ -4563,3 +4563,139 @@ func (s *secbootSuite) TestKeyDataWriteTokenAtomicError(c *C) {
 	err := kd.WriteTokenAtomic("/dev/foo", "bar")
 	c.Assert(err, ErrorMatches, "boom!")
 }
+
+func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
+	mockErr := errors.New("some error")
+
+	for idx, tc := range []struct {
+		tpmEnabled          bool
+		volumesAuth         *device.VolumesAuthOptions
+		tpmErr              error
+		sealErr             error
+		addErr              error
+		primaryKeyErr       error
+		unlockKeyErr        error
+		keydataWriteErr     error
+		sealCalls           int
+		passphraseSealCalls int
+		deleteCalls         int
+		expectedErr         string
+	}{
+		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
+		{tpmEnabled: true, sealCalls: 1},
+		{tpmEnabled: true, primaryKeyErr: mockErr, expectedErr: "cannot get primary key from kernel keyring for unlocked disk /dev/foo: some error"},
+		{tpmEnabled: true, unlockKeyErr: mockErr, expectedErr: "cannot get unlock key from kernel keyring for unlocked disk /dev/foo: some error"},
+		{tpmEnabled: true, tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
+		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "cannot seal key: some error"},
+		{tpmEnabled: true, addErr: mockErr, sealCalls: 1, expectedErr: "cannot add key: some error"},
+		{tpmEnabled: true, keydataWriteErr: mockErr, sealCalls: 1, deleteCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", "argon2i"), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", "argon2id"), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", "pbkdf2"), expectedErr: ""},
+	} {
+		c.Logf("tc: %v", idx)
+
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, false)
+		c.Assert(err, IsNil)
+
+		defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.PrimaryKey, error) {
+			c.Check(prefix, Equals, "ubuntu-fde")
+			c.Check(devicePath, Equals, "/dev/foo")
+			c.Check(remove, Equals, false)
+			return sb.PrimaryKey{'p', 'r', 'i', 'm', 'a', 'r', 'y'}, tc.primaryKeyErr
+		})()
+
+		defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+			c.Check(prefix, Equals, "ubuntu-fde")
+			c.Check(devicePath, Equals, "/dev/foo")
+			c.Check(remove, Equals, false)
+			return sb.DiskUnlockKey{'u', 'n', 'l', 'o', 'c', 'k', '-', '1'}, tc.unlockKeyErr
+		})()
+
+		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		defer secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+			return tc.tpmEnabled
+		})()
+
+		sealCalls := 0
+		defer secboot.MockSbNewTPMProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+			sealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(12))
+			c.Check(params.Role, Equals, "somerole")
+			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{'u', 'n', 'l', 'o', 'c', 'k', '-', '2'}, tc.sealErr
+		})()
+
+		passphraseSealCalls := 0
+		defer secboot.MockSbNewTPMPassphraseProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PassphraseProtectKeyParams, passphrase string) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+			passphraseSealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(12))
+			c.Check(params.Role, Equals, "somerole")
+			var expectedKDFOptions sb.KDFOptions
+			switch tc.volumesAuth.KDFType {
+			case "argon2id":
+				expectedKDFOptions = &sb.Argon2Options{Mode: sb.Argon2id, TargetDuration: tc.volumesAuth.KDFTime}
+			case "argon2i":
+				expectedKDFOptions = &sb.Argon2Options{Mode: sb.Argon2i, TargetDuration: tc.volumesAuth.KDFTime}
+			case "pbkdf2":
+				expectedKDFOptions = &sb.PBKDF2Options{TargetDuration: tc.volumesAuth.KDFTime}
+			}
+			c.Assert(params.KDFOptions, DeepEquals, expectedKDFOptions)
+			c.Assert(passphrase, Equals, tc.volumesAuth.Passphrase)
+			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{'u', 'n', 'l', 'o', 'c', 'k', '-', '2'}, tc.sealErr
+		})()
+
+		defer secboot.MockAddLUKS2ContainerUnlockKey(func(devicePath, keyslotName string, existingKey, newKey sb.DiskUnlockKey) error {
+			c.Check(devicePath, Equals, "/dev/foo")
+			c.Check(keyslotName, Equals, "bar")
+			c.Check(existingKey, DeepEquals, sb.DiskUnlockKey{'u', 'n', 'l', 'o', 'c', 'k', '-', '1'})
+			c.Check(newKey, DeepEquals, sb.DiskUnlockKey{'u', 'n', 'l', 'o', 'c', 'k', '-', '2'})
+			return tc.addErr
+		})()
+
+		deleteCalls := 0
+		defer secboot.MockDeleteLUKS2ContainerKey(func(devicePath, keyslotName string) error {
+			deleteCalls++
+			c.Check(devicePath, Equals, "/dev/foo")
+			c.Check(keyslotName, Equals, "bar")
+			return nil
+		})()
+
+		keyDataWriter := &myKeyDataWriter{}
+		tokenWritten := 0
+		restore = secboot.MockNewLUKS2KeyDataWriter(func(devicePath string, name string) (secboot.KeyDataWriter, error) {
+			tokenWritten++
+			c.Check(devicePath, Equals, "/dev/foo")
+			c.Check(name, Equals, "bar")
+			return keyDataWriter, tc.keydataWriteErr
+		})
+		defer restore()
+
+		params := secboot.ProtectKeyParams{
+			PCRProfile:             pcrProfile,
+			PCRPolicyCounterHandle: 12,
+			KeyRole:                "somerole",
+			VolumesAuth:            tc.volumesAuth,
+		}
+		err = secboot.AddContainerTPMProtectedKey("/dev/foo", "bar", &params)
+
+		if tc.expectedErr == "" {
+			c.Check(tokenWritten, Equals, 1)
+			c.Assert(err, IsNil)
+		} else {
+			if tc.keydataWriteErr != nil {
+				c.Check(tokenWritten, Equals, 1)
+			} else {
+				c.Check(tokenWritten, Equals, 0)
+			}
+			c.Assert(err, ErrorMatches, tc.expectedErr)
+		}
+		c.Check(sealCalls, Equals, tc.sealCalls)
+		c.Check(passphraseSealCalls, Equals, tc.passphraseSealCalls)
+		c.Check(deleteCalls, Equals, tc.deleteCalls)
+	}
+}

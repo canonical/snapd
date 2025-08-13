@@ -198,3 +198,7 @@ func DeleteContainerKey(devicePath, slotName string) error {
 func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.RecoveryKey) error {
 	return errBuildWithoutSecboot
 }
+
+func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) error {
+	return errBuildWithoutSecboot
+}
