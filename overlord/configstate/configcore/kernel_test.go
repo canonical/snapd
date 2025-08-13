@@ -257,13 +257,19 @@ type cmdlineOption struct {
 }
 
 func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOption, modelGrade string, isClassic bool) {
+	var seeded bool
+	s.state.Lock()
+	err := s.state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
 	s.mockModelWithModeenv(modelGrade, isClassic)
 	s.mockGadget(c)
 	doHandlerCalls := 0
 	extraChange := true
 	expectedHandlerCalls := 1
 	expectedChanges := 2
-	if modelGrade != "dangerous" && len(option) == 1 && option[0].name == "system.kernel.dangerous-cmdline-append" {
+	if (modelGrade != "dangerous" && len(option) == 1 && option[0].name == "system.kernel.dangerous-cmdline-append") || !seeded {
 		extraChange = false
 		expectedHandlerCalls = 0
 		expectedChanges = 1
@@ -305,8 +311,6 @@ func (s *kernelSuite) testConfigureKernelCmdlineHappy(c *C, option []cmdlineOpti
 			return nil
 		},
 		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
-
-	var err error
 
 	s.state.Lock()
 	ts := s.state.NewTask("run-hook", "system hook task")
@@ -438,6 +442,19 @@ func (s *kernelSuite) TestConfigureKernelCmdlineSignedGradeDangerousCmdline(c *C
 			name:    "system.kernel.dangerous-cmdline-append",
 			cmdline: "par=val param"}},
 		"signed", isClassic)
+}
+
+func (s *kernelSuite) TestConfigureKernelCmdlineNotSeeded(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded", false)
+	s.state.Unlock()
+
+	const isClassic = false
+	s.testConfigureKernelCmdlineHappy(c,
+		[]cmdlineOption{{
+			name:    "system.kernel.dangerous-cmdline-append",
+			cmdline: "par=val param"}},
+		"dangerous", isClassic)
 }
 
 func (s *kernelSuite) TestConfigureKernelCmdlineConflict(c *C) {

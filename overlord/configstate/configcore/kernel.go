@@ -192,6 +192,23 @@ func handleCmdlineAppend(c RunTransaction, opts *fsOnlyContext) error {
 	logger.Debugf("handling %v", kernelOpts)
 
 	st := c.State()
+	// If not seeded yet, this is coming from the gadget defaults and it is
+	// already applied to the kernel command line, do not create another
+	// change for this.
+	// TODO we should introduce better checking as there is a possibility
+	// that the change is happening from a service that has already started
+	// while seeding has not finished yet. We need information about the
+	// task that is doing this. This could happen for other optons that
+	// check seeding state too (netplan).
+	seeded, err := alreadySeeded(c)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		logger.Debugf("kernel command line defaults already applied, no cmdline change needed")
+		return nil
+	}
+
 	isDangModel, err := isDangerousModel(st)
 	if err != nil {
 		return err
