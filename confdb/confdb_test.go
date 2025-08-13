@@ -2454,40 +2454,86 @@ func (*viewSuite) TestViewContentRule(c *C) {
 	c.Assert(val, Equals, "other")
 }
 
-func (*viewSuite) TestViewWriteContentRuleNestedInRead(c *C) {
-	views := map[string]any{
-		"bar": map[string]any{
-			"rules": []any{
-				map[string]any{
-					"request": "a",
-					"storage": "c",
-					"access":  "read",
-					"content": []any{
-						map[string]any{
-							"request": "b",
-							"storage": "d",
-							"access":  "write",
-						},
-					},
+func (*viewSuite) TestContentInheritsAccess(c *C) {
+	for _, t := range []struct {
+		access string
+		getErr string
+		setErr string
+	}{
+		{
+			access: "read-write",
+		},
+		{
+			// defaults to "read-write"
+			access: "",
+		},
+		{
+			access: "read",
+			// non-access control error, access ok
+			getErr: `cannot get "foo.bar" through acc/confdb/foo: no data`,
+			setErr: `cannot set "foo.bar" through acc/confdb/foo: no matching rule`,
+		},
+		{
+			access: "write",
+			getErr: `cannot get "foo.bar" through acc/confdb/foo: no matching rule`,
+		},
+	} {
+		cmt := Commentf("sub-test with %q access failed", t.access)
+		databag := confdb.NewJSONDatabag()
+		schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+			"foo": map[string]any{
+				"rules": []any{
+					map[string]any{
+						"request": "foo",
+						"storage": "foo",
+						"access":  t.access,
+						"content": []any{
+							map[string]any{
+								"storage": "bar",
+							}}},
 				},
 			},
-		},
+		}, confdb.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		view := schema.View("foo")
+		err = view.Set(databag, "foo.bar", "thing")
+		if t.setErr != "" {
+			c.Assert(err, NotNil)
+			c.Assert(err.Error(), Equals, t.setErr, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
+
+		_, err = view.Get(databag, "foo.bar")
+		if t.getErr != "" {
+			c.Assert(err, NotNil)
+			c.Assert(err.Error(), Equals, t.getErr, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
 	}
+}
 
-	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
-	c.Assert(err, IsNil)
-
-	databag := confdb.NewJSONDatabag()
-	view := schema.View("bar")
-	err = view.Set(databag, "a.b", "value")
-	c.Assert(err, IsNil)
-
-	_, err = view.Get(databag, "a.b")
-	c.Assert(err, ErrorMatches, `.*: no matching rule`)
-
-	val, err := view.Get(databag, "a")
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, map[string]any{"d": "value"})
+func (*viewSuite) TestContentForbidsOverridingAccess(c *C) {
+	for _, acc := range []string{"", "read-write", "read", "write"} {
+		_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+			"foo": map[string]any{
+				"rules": []any{
+					map[string]any{
+						"request": "foo",
+						"storage": "foo",
+						"access":  acc,
+						"content": []any{
+							map[string]any{
+								"storage": "bar",
+								"access":  "read",
+							}}},
+				},
+			},
+		}, confdb.NewJSONSchema())
+		c.Assert(err, ErrorMatches, `cannot define view "foo": cannot override "access" in nested "content" rule: "content" rules inherit parent "access"`)
+	}
 }
 
 func (*viewSuite) TestViewInvalidContentRules(c *C) {
