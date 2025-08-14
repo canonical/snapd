@@ -2515,6 +2515,36 @@ func (*viewSuite) TestContentInheritsAccess(c *C) {
 	}
 }
 
+func (*viewSuite) TestInheritedAccessInSeveralNestedContents(c *C) {
+	databag := confdb.NewJSONDatabag()
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{
+					"storage": "foo",
+					"access":  "read",
+					"content": []any{
+						map[string]any{
+							"storage": "bar",
+							"content": []any{
+								map[string]any{
+									"storage": "baz",
+								}}}}}}},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	err = databag.Set(parsePath(c, "foo.bar.baz"), "abc")
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(databag, "foo.bar.baz")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "abc")
+
+	err = view.Set(databag, "foo.bar.baz", "abc")
+	c.Assert(err, ErrorMatches, `cannot set "foo.bar.baz" through acc/confdb/foo: no matching rule`)
+}
+
 func (*viewSuite) TestContentForbidsOverridingAccess(c *C) {
 	for _, acc := range []string{"", "read-write", "read", "write"} {
 		_, err := confdb.NewSchema("acc", "confdb", map[string]any{
