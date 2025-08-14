@@ -1,7 +1,7 @@
 name: Remove Run-only-one-system label and trigger read-systems job
 
 on:
-  pull_request:
+  pull_request_target:
     types: [ready_for_review]
 
 jobs:
