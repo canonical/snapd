@@ -42,6 +42,12 @@ var _ = Suite(&mkfsSuite{})
 
 func (m *mkfsSuite) SetUpTest(c *C) {
 	m.BaseTest.SetUpTest(c)
+	
+	// The tests are set up to test the non-root code paths with fakeroot.
+	// If we are root, just skip.
+	if os.Getuid() == 0 {
+		c.Skip("requires running as non-root user")
+	}
 
 	// fakeroot, mkfs.ext4, mkfs.vfat and mcopy are commonly installed in
 	// the host system, set up some overrides so that we avoid calling the
