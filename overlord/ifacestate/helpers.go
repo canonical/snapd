@@ -807,10 +807,7 @@ func isContentCompatLabelEnabled(st *state.State) bool {
 }
 
 func allowCompatLabel(featureEnabled bool, interfaceName string) bool {
-	if !featureEnabled && interfaceName == "content" {
-		return false
-	}
-	return true
+	return featureEnabled || interfaceName != "content"
 }
 
 // DebugAutoConnectCheck is a hook that can be set to debug auto-connection
