@@ -22,11 +22,13 @@ package builtin
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/osutil"
@@ -78,6 +80,20 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	if strings.ContainsRune(clientDriver, os.PathSeparator) {
 		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
 	}
+	var compatField string
+	if err := slot.Attr("compatibility", &compatField); err != nil {
+		return err
+	}
+	// Validate format of compatibility field - we don't actually need to
+	// do anything else with it until we start to support regular snaps.
+	_, err := compatibility.DecodeCompatField(compatField,
+		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
+			{Tag: "egl", Values: []compatibility.CompatRange{{Min: 1, Max: 1}, {Min: 5, Max: 5}}},
+			{Tag: "ubuntu", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
+		}})
+	if err != nil {
+		return err
+	}
 	// Validate directories
 	return validateLdconfigLibDirs(slot)
 }
@@ -127,6 +143,8 @@ func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.
 }
 
 func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 

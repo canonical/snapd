@@ -67,6 +67,7 @@ version: 0
 slots:
   egl-driver-libs:
     priority: 10
+    compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
     source:
       - $SNAP/lib1
@@ -104,6 +105,7 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 10
+    compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
     source:
       - /snap/egl-provider/current/lib1
@@ -116,6 +118,7 @@ version: 0
 slots:
   egl:
     priority: 10
+    compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
     interface: egl-driver-libs
 `, nil, "egl")
@@ -128,6 +131,7 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 10
+    compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
     source: $SNAP/lib1
 `, nil, "egl")
@@ -139,6 +143,7 @@ version: 0
 slots:
   egl:
     interface: egl-driver-libs
+    compatibility: egl-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -150,6 +155,7 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 10
+    compatibility: egl-1-5-ubuntu-2404
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`invalid client-driver: snap "egl-provider" does not have attribute "client-driver" for interface "egl-driver-libs"`)
@@ -160,6 +166,7 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 0
+    compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -171,6 +178,7 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 15
+    compatibility: egl-1-5-ubuntu-2404
     client-driver: /abs/path/libEGL_nvidia.so.0
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -182,11 +190,35 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 15
+    compatibility: egl-ubuntu-2404
     client-driver:
       - libEGL_nvidia.so.0
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`invalid client-driver: snap "egl-provider" has interface "egl-driver-libs" with invalid value type \[\]interface {} for "client-driver" attribute: \*string`)
+
+	slot = MockSlot(c, `name: egl-provider
+version: 0
+slots:
+  egl:
+    interface: egl-driver-libs
+    priority: 15
+    compatibility: ubuntu
+    client-driver: libEGL_nvidia.so.0
+`, nil, "egl")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`compatibility label "ubuntu": unexpected number of strings \(should be 2\)`)
+
+	slot = MockSlot(c, `name: egl-provider
+version: 0
+slots:
+  egl:
+    interface: egl-driver-libs
+    priority: 15
+    client-driver: libEGL_nvidia.so.0
+`, nil, "egl")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`snap "egl-provider" does not have attribute "compatibility" for interface "egl-driver-libs"`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
