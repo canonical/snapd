@@ -140,6 +140,7 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 		{devices, "devices:\n  - ab\n", "cannot parse device at position 1: invalid device id: ab"},
 		{devices, "devices:\n  - a#3.b.c\n", `cannot parse device at position 1: invalid brand-id: a#3`},
 		{devices, "devices:\n  - abc.x3#4.y\n", `cannot parse device at position 1: invalid model: x3#4`},
+		{"assumes:\n  - snapd2.70\n", "assumes: \n", `"assumes" header must be a list of strings`},
 		{"assumes:\n  - snapd2.70\n", "assumes:\n  - 345345\n", `invalid assumes: unsupported features: 345345`},
 		{"valid-since: 2025-01-08T13:31:20+00:00\n", "", `"valid-since" header is mandatory`},
 		{"valid-until: 2025-01-15T13:31:20+00:00\n", "", `"valid-until" header is mandatory`},

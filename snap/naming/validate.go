@@ -329,6 +329,7 @@ func ValidateAssumes(assumes []string) error {
 		if strings.HasPrefix(flag, "snapd") {
 			validVersion, err := validateSnapdVersion(flag[5:])
 			if err != nil {
+				// error not possible unless someone has messed up the regex
 				return err
 			}
 
