@@ -81,7 +81,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
 		switch {
 		case t.restart != "":
-			fmt.Fprintln(w, fmt.Sprintf(`{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is %sing", "value": {"op": %q}}}}`, t.restart, t.restart))
+			fmt.Fprintf(w, `{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is %sing", "value": {"op": %q}}}}\n`, t.restart, t.restart)
 		case t.chgInWaitStatus:
 			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Wait", "id":"42"}}`)
 		default:
