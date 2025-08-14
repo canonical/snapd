@@ -7,11 +7,9 @@ details: |
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
-  # Defaults
-  MODEL_VERSION: "25.10"
-  GADGET_VERSION: "classic-25.10"
-  KERNEL_VERSION: "25.10"
-  KDF_TYPE: default
+  MODEL_VERSION/2510: "25.10"
+  GADGET_VERSION/2510: "classic-25.10"
+  KERNEL_VERSION/2510: "25.10"
 
   MODEL_VERSION/2404: "24.04"
   GADGET_VERSION/2404: classic-24.04
@@ -21,6 +19,7 @@ environment:
   GADGET_VERSION/2504: "classic-25.04"
   KERNEL_VERSION/2504: "25.04"
 
+  KDF_TYPE: default
   KDF_TYPE/pbkdf2: pbkdf2
   KDF_TYPE/argon2i: argon2i
   KDF_TYPE/argon2id: argon2id
