@@ -21,7 +21,6 @@
 package configcore
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -185,18 +184,6 @@ func isDangerousModel(st *state.State) (bool, error) {
 	return devCtx.Model().Grade() == asserts.ModelDangerous, nil
 }
 
-func isSeeded(st *state.State) (bool, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	var seeded bool
-	err := st.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return false, err
-	}
-	return seeded, nil
-}
-
 func handleCmdlineAppend(c RunTransaction, opts *fsOnlyContext) error {
 	kernelOpts := changedKernelConfigs(c)
 	if len(kernelOpts) == 0 {
@@ -208,7 +195,7 @@ func handleCmdlineAppend(c RunTransaction, opts *fsOnlyContext) error {
 	// If not seeded yet, this is coming from the gadget defaults and it is
 	// already applied to the kernel command line, do not create another
 	// change for this.
-	seeded, err := isSeeded(st)
+	seeded, err := alreadySeeded(c)
 	if err != nil {
 		return err
 	}
