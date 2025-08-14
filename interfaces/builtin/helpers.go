@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -63,4 +64,21 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 			filepath.Join(dirs.GlobalRootDir, dir))))
 	}
 	return spec.AddLibDirs(expandedDirs)
+}
+
+// filePathInLibDirs returns the path of the first occurrence of fileName in the
+// list of library directories of the slot.
+func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string, error) {
+	libDirs := []string{}
+	if err := slot.Attr("source", &libDirs); err != nil {
+		return "", err
+	}
+	for _, dir := range libDirs {
+		path := filepath.Join(dirs.GlobalRootDir,
+			slot.AppSet().Info().ExpandSnapVariables(dir), fileName)
+		if osutil.FileExists(path) {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("%q not found in the source directories", fileName)
 }
