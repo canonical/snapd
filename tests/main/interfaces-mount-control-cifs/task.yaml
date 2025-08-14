@@ -114,7 +114,7 @@ execute: |
 
     echo "Same thing works through snapctl"
     # note using 'localhost' occasionally fails, let's use the IP address
-    test-snapd-mount-control-cifs.cmd snapctl mount -t cifs -o rw,user=guest //127.0.0.1/var-cifs-share /media/mounted
+    test-snapd-mount-control-cifs.cmd snapctl mount -t cifs -o rw,guest //127.0.0.1/var-cifs-share /media/mounted
     test-snapd-mount-control-cifs.cmd cat /media/mounted/hello | MATCH 'hello from CIFS share'
     test-snapd-mount-control-cifs.cmd snapctl umount /media/mounted
 
