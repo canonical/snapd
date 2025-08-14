@@ -424,7 +424,9 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		if parent != nil {
 			// overriding parent "access" in sub-rules creates odd situations e.g., if the
 			// parent is read-write (default) and the nested rule is write, it would be readable
-			// through the parent anyway (having a nested read-only rule would be similarly odd)
+			// through the parent anyway (having a nested read-only rule would be similarly odd).
+			// We might relax this check in the case where the parent has no explicit "access", which
+			// would require a format bump to the confdb-schema assertion
 			return nil, errors.New(`cannot override "access" in nested "content" rule: "content" rules inherit parent "access"`)
 		}
 
