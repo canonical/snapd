@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -386,5 +387,135 @@ func (s *ValidateSuite) TestValidateProvenance(c *C) {
 	for _, prov := range invalid {
 		err := naming.ValidateProvenance(prov)
 		c.Check(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("invalid provenance: %q", prov)))
+	}
+}
+
+func (s *ValidateSuite) TestValidateAssumes(c *C) {
+	var assumesTests = []struct {
+		version string
+		assumes []string
+		err     string
+	}{{
+		assumes: []string{"common-data-dir"},
+	}, {
+		assumes: []string{"f1", "f2"},
+		err:     `unsupported features: f1, f2`,
+	}, {
+		assumes: []string{"f1", "f2"},
+		err:     `unsupported features: f1, f2`,
+	}, {
+		assumes: []string{"snapd2.15"},
+		version: "unknown",
+	}, {
+		assumes: []string{"snapdnono"},
+		version: "unknown",
+		err:     `unsupported features: snapdnono`,
+	}, {
+		assumes: []string{"snapd2.15nono"},
+		version: "unknown",
+		err:     `unsupported features: snapd2.15nono`,
+	}, {
+		assumes: []string{"snapd2.15~pre1"},
+		version: "unknown",
+		err:     `unsupported features: snapd2.15~pre1`,
+	}, {
+		assumes: []string{"snapd2.15"},
+		version: "2.15",
+	}, {
+		assumes: []string{"snapd2.15"},
+		version: "2.15.1",
+	}, {
+		assumes: []string{"snapd2.15"},
+		version: "2.15+git",
+	}, {
+		assumes: []string{"snapd2.15"},
+		version: "2.16",
+	}, {
+		assumes: []string{"snapd2.15.1"},
+		version: "2.16",
+	}, {
+		assumes: []string{"snapd2.15.1"},
+		version: "2.15.1",
+	}, {
+		assumes: []string{"snapd2.15.1.2"},
+		version: "2.15.1.2",
+	}, {
+		assumes: []string{"snapd2.15.1.2"},
+		version: "2.15.1.3",
+	}, {
+		// the horror the horror!
+		assumes: []string{"snapd2.15.1.2.4.5.6.7.8.8"},
+		version: "2.15.1.2.4.5.6.7.8.8",
+	}, {
+		assumes: []string{"snapd2.15.1.2.4.5.6.7.8.8"},
+		version: "2.15.1.2.4.5.6.7.8.9",
+	}, {
+		assumes: []string{"snapd2.15.1.2"},
+		version: "2.15.1.3",
+	}, {
+		assumes: []string{"snapd2.15.2"},
+		version: "2.16.1",
+	}, {
+		assumes: []string{"snapd2.1000"},
+		version: "3.1",
+	}, {
+		assumes: []string{"snapd3"},
+		version: "3.1",
+	}, {
+		assumes: []string{"snapd2"},
+		version: "3.1",
+	}, {
+		assumes: []string{"snapd3"},
+		version: "2.48",
+		err:     `unsupported features: snapd3`,
+	}, {
+		assumes: []string{"snapd2.15.1.2"},
+		version: "2.15.1.1",
+		err:     `unsupported features: snapd2\.15\.1\.2`,
+	}, {
+		assumes: []string{"snapd2.15.1.2.4.5.6.7.8.8"},
+		version: "2.15.1.2.4.5.6.7.8.1",
+		err:     `unsupported features: snapd2\.15\.1\.2\.4\.5\.6\.7\.8\.8`,
+	}, {
+		assumes: []string{"snapd2.16"},
+		version: "2.15",
+		err:     `unsupported features: snapd2\.16`,
+	}, {
+		assumes: []string{"snapd2.15.1"},
+		version: "2.15",
+		err:     `unsupported features: snapd2\.15\.1`,
+	}, {
+		assumes: []string{"snapd2.15.1"},
+		version: "2.15.0",
+		err:     `unsupported features: snapd2\.15\.1`,
+	}, {
+		// Note that this is different from how strconv.VersionCompare
+		// (dpkg version numbering) would behave - it would error here
+		assumes: []string{"snapd2.15"},
+		version: "2.15~pre1",
+	}, {
+		assumes: []string{"command-chain"},
+	}, {
+		assumes: []string{"kernel-assets"},
+	}, {
+		assumes: []string{"snap-uid-envvars"},
+	},
+	}
+
+	restore := snapdtool.MockVersion("2.15")
+	defer restore()
+
+	for _, test := range assumesTests {
+		snapdtool.Version = test.version
+		if snapdtool.Version == "" {
+			snapdtool.Version = "2.15"
+		}
+
+		err := naming.ValidateAssumes(test.assumes)
+		if test.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, test.err)
+		}
 	}
 }
