@@ -125,10 +125,8 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
 	go func() {
-		select {
-		case <-signalChan:
-			inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "done"))
-		}
+		<-signalChan
+		inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "done"))
 	}()
 	c.Assert(err, IsNil)
 	restore = dbusutil.MockOnlySessionBusAvailable(conn)
@@ -742,10 +740,8 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
 	go func() {
-		select {
-		case <-signalChan:
-			inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "failed"))
-		}
+		<-signalChan
+		inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "failed"))
 	}()
 
 	c.Assert(err, IsNil)
@@ -824,10 +820,8 @@ func (s *trackingSuite) TestDoCreateTransientScopeHappyCgroupV2(c *C) {
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
 	go func() {
-		select {
-		case <-signalChan:
-			inject(mockJobRemovedSignal("foo.scope", "done"))
-		}
+		<-signalChan
+		inject(mockJobRemovedSignal("foo.scope", "done"))
 	}()
 
 	c.Assert(err, IsNil)
