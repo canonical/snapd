@@ -328,7 +328,7 @@ var assumesFeatureSet = map[string]bool{
 // ValidateAssumes checks if `assumes` lists features that are all supported
 // by snapd.
 func ValidateAssumes(assumes []string) error {
-	missing := ([]string)(nil)
+	var missing []string
 	for _, flag := range assumes {
 		if strings.HasPrefix(flag, "snapd") {
 			validVersion, err := validateAssumedSnapdVersion(flag[5:])
