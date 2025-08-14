@@ -23,7 +23,10 @@ package naming
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // almostValidNameRegexString is part of snap and socket name validation. The
@@ -241,5 +244,107 @@ func ValidateProvenance(prov string) error {
 	if !ValidProvenance.MatchString(prov) {
 		return fmt.Errorf("invalid provenance: %q", prov)
 	}
+	return nil
+}
+
+// regular expression which matches a version expressed as groups of digits
+// separated with dots, with optional non-numbers afterwards
+var snapdVersionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
+
+func validateSnapdVersion(version string) (bool, error) {
+	// double check that the input looks like a snapd version
+	reqVersionNumMatch := snapdVersionExp.FindStringSubmatch(version)
+	if reqVersionNumMatch == nil {
+		return false, nil
+	}
+	// this check ensures that no one can use an assumes like snapd2.48.3~pre2
+	// or snapd2.48.5+20.10, as modifiers past the version number are not meant
+	// to be relied on for snaps via assumes, however the check against the real
+	// snapd version number below allows such non-numeric modifiers since real
+	// snapds do have versions like that (for example debian pkg of snapd)
+	if reqVersionNumMatch[0] != version {
+		return false, nil
+	}
+
+	req := strings.Split(reqVersionNumMatch[0], ".")
+
+	if snapdtool.Version == "unknown" {
+		return true, nil // Development tree.
+	}
+
+	// We could (should?) use strutil.VersionCompare here and simplify
+	// this code (see PR#7344). However this would change current
+	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
+	// (which the code below does).
+	curVersionNumMatch := snapdVersionExp.FindStringSubmatch(snapdtool.Version)
+	if curVersionNumMatch == nil {
+		return false, nil
+	}
+	cur := strings.Split(curVersionNumMatch[0], ".")
+
+	for i := range req {
+		if i == len(cur) {
+			// we hit the end of the elements of the current version number and have
+			// more required version numbers left, so this doesn't match, if the
+			// previous element was higher we would have broken out already, so the
+			// only case left here is where we have version requirements that are
+			// not met
+			return false, nil
+		}
+		reqN, err1 := strconv.Atoi(req[i])
+		curN, err2 := strconv.Atoi(cur[i])
+		if err1 != nil || err2 != nil {
+			// error not possible unless someone has messed up the regex
+			return false, fmt.Errorf("version regexp is broken")
+		}
+		if curN != reqN {
+			return curN > reqN, nil
+		}
+	}
+
+	return true, nil
+}
+
+// assumesFeatureSet contains the flag values that can be listed in assumes entries
+// that this ubuntu-core actually provides.
+var assumesFeatureSet = map[string]bool{
+	// Support for common data directory across revisions of a snap.
+	"common-data-dir": true,
+	// Support for the "Environment:" feature in snap.yaml
+	"snap-env": true,
+	// Support for the "command-chain" feature for apps and hooks in snap.yaml
+	"command-chain": true,
+	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
+	// content of the style $kernel:ref`
+	"kernel-assets": true,
+	// Support for "refresh-mode: ignore-running" in snap.yaml
+	"app-refresh-mode": true,
+	// Support for "SNAP_UID" and "SNAP_EUID" environment variables
+	"snap-uid-envvars": true,
+}
+
+func ValidateAssumes(assumes []string) error {
+	missing := ([]string)(nil)
+	for _, flag := range assumes {
+		if strings.HasPrefix(flag, "snapd") {
+			validVersion, err := validateSnapdVersion(flag[5:])
+			if err != nil {
+				return err
+			}
+
+			if validVersion {
+				continue
+			}
+		}
+
+		if !assumesFeatureSet[flag] {
+			missing = append(missing, flag)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("unsupported features: %s", strings.Join(missing, ", "))
+	}
+
 	return nil
 }
