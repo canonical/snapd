@@ -42,12 +42,6 @@ var _ = Suite(&mkfsSuite{})
 
 func (m *mkfsSuite) SetUpTest(c *C) {
 	m.BaseTest.SetUpTest(c)
-	
-	// The tests are set up to test the non-root code paths with fakeroot.
-	// If we are root, just skip.
-	if os.Getuid() == 0 {
-		c.Skip("requires running as non-root user")
-	}
 
 	// fakeroot, mkfs.ext4, mkfs.vfat and mcopy are commonly installed in
 	// the host system, set up some overrides so that we avoid calling the
@@ -66,6 +60,10 @@ func (m *mkfsSuite) SetUpTest(c *C) {
 }
 
 func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("test assumes use of fakeroot")
+	}
+
 	cmd := testutil.MockCommand(c, "fakeroot", "")
 	defer cmd.Restore()
 
@@ -112,6 +110,10 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 }
 
 func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("test assumes use of fakeroot")
+	}
+
 	cmd := testutil.MockCommand(c, "fakeroot", "")
 	defer cmd.Restore()
 
@@ -177,6 +179,10 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 }
 
 func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("test assumes use of fakeroot")
+	}
+
 	cmd := testutil.MockCommand(c, "fakeroot", "echo 'command failed'; exit 1")
 	defer cmd.Restore()
 
