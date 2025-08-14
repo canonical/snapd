@@ -738,6 +738,8 @@ pkg_dependencies_fedora_centos_common(){
         xdg-utils
         strace
         zsh
+        glibc-static
+        libcap-devel
         "
 }
 
@@ -788,6 +790,7 @@ pkg_dependencies_amazon(){
         xdg-utils
         udisks2
         zsh
+        glibc-static
         "
 }
 
@@ -831,6 +834,7 @@ pkg_dependencies_opensuse(){
         xdg-utils
         zsh
         libcap-progs
+        glibc-static
         "
     if os.query is-opensuse tumbleweed; then
         echo "
