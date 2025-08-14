@@ -401,9 +401,6 @@ func (s *ValidateSuite) TestValidateAssumes(c *C) {
 		assumes: []string{"f1", "f2"},
 		err:     `unsupported features: f1, f2`,
 	}, {
-		assumes: []string{"f1", "f2"},
-		err:     `unsupported features: f1, f2`,
-	}, {
 		assumes: []string{"snapd2.15"},
 		version: "unknown",
 	}, {
