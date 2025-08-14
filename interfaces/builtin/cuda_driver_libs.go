@@ -20,13 +20,12 @@
 package builtin
 
 import (
-	"fmt"
-	"strings"
+	"math"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const cudaDriverLibsSummary = `allows exposing CUDA driver libraries to the system`
@@ -57,70 +56,20 @@ type cudaDriverLibsInterface struct {
 	commonInterface
 }
 
-func (iface *cudaDriverLibsInterface) validateVersion(version string) error {
-	// Only latin-1 expected. We expect numbers and dots, see
-	// https://developer.nvidia.com/cuda-toolkit-archive.
-	numChars := len(version)
-	for i := 0; i < numChars; i++ {
-		if version[i] >= '0' && version[i] <= '9' {
-			continue
-		}
-		if version[i] == '.' && i > 0 && i < numChars-1 {
-			continue
-		}
-		return fmt.Errorf("invalid CUDA version: %q", version)
-	}
-	return nil
-}
-
-// validateVersionsRange makes sure that the "api-version" attribute
-// has the right format, which can be either a version or a version
-// range, with valid formats:
-// <version>
-// <version_1> .. <version_1>
-// The versions are dot separated digits like 1.2 or 2.3.1.
-func (iface *cudaDriverLibsInterface) validateVersionsRange(versRange string) error {
-	fields := strings.Fields(versRange)
-	if len(fields) != 1 && len(fields) != 3 {
-		return fmt.Errorf("wrong format for api-version: %q", versRange)
-	}
-	switch len(fields) {
-	case 1:
-		if err := iface.validateVersion(fields[0]); err != nil {
-			return err
-		}
-	case 3:
-		if fields[1] != ".." {
-			return fmt.Errorf("invalid separator in api-version: %q", fields[1])
-		}
-		for _, f := range []int{0, 2} {
-			if err := iface.validateVersion(fields[f]); err != nil {
-				return err
-			}
-		}
-		// Reuse version comparison for debian packages, it should work
-		// fine for our subset of characters.
-		cmpRes, err := strutil.VersionCompare(fields[0], fields[2])
-		if err != nil {
-			return fmt.Errorf("while comparing range in api-version: %v", err)
-		}
-		if cmpRes > 0 {
-			return fmt.Errorf("%q should not be bigger than %q", fields[0], fields[2])
-		}
-	default:
-		return fmt.Errorf("wrong format for api-version: %q", versRange)
-	}
-	return nil
-}
-
 func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	// Validate format of API version - we don't actually need to do
+	var compatField string
+	if err := slot.Attr("compatibility", &compatField); err != nil {
+		return err
+	}
+	// Validate format of compatibility field - we don't actually need to do
 	// anything else with it until we start to support regular snaps.
-	var versions string
-	if err := slot.Attr("api-version", &versions); err == nil {
-		if err := iface.validateVersionsRange(versions); err != nil {
-			return err
-		}
+	_, err := compatibility.DecodeCompatField(compatField,
+		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
+			{Tag: "cuda", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
+			{Tag: "ubuntu", Values: []compatibility.CompatRange{{Min: 2404, Max: math.MaxUint}}},
+		}})
+	if err != nil {
+		return err
 	}
 	// Validate directories
 	return validateLdconfigLibDirs(slot)
@@ -132,6 +81,8 @@ func (iface *cudaDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Speci
 }
 
 func (iface *cudaDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 
