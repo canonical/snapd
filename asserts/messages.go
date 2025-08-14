@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -195,11 +197,18 @@ func parseDevices(headers map[string]any) ([]DeviceID, error) {
 	return deviceIDs, nil
 }
 
-// TODO: Update after refactoring overlord.snapstate.checkAssumes for reuse
-// Currently matches snapd<version> or some[-feature]*
 func checkAssumes(headers map[string]any) ([]string, error) {
-	var validAssumesHeuristic = regexp.MustCompile(`^(?:snapd[1-9]\d*(?:\.\d+)*|[a-z]+(?:-[a-z]+)*)$`)
-	return checkStringListMatches(headers, "assumes", validAssumesHeuristic)
+	assumes, err := checkStringList(headers, "assumes")
+	if err != nil {
+		return nil, err
+	}
+
+	err = naming.ValidateAssumes(assumes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid assumes: %w", err)
+	}
+
+	return assumes, nil
 }
 
 func checkValidSinceUntilWhat(m map[string]any, what string) (*sinceUntil, error) {
