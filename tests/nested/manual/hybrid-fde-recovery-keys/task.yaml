@@ -137,7 +137,7 @@ execute: |
   gojq '.keyslots | length' < container.out | MATCH "^0$"
 
   # system-seed is also not encrypted
-  gojq '.result."by-container-role"."system-seed-null"' < containers.out > container.out
+  gojq '.result."by-container-role"."system-seed"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^false$"
   gojq '.keyslots | length' < container.out | MATCH "^0$"
 
