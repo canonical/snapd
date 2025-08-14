@@ -1,8 +1,8 @@
 summary: Ensure that compatibility labels for the content interface work.
 
 details: |
-  The content interface interface supports now compatibility labels as an
-  alternative to the content tags. This test checks its behavior.
+  The content interface supports compatibility labels as an alternative to the
+  content tags. This test checks its behavior.
 
 environment:
   STORE_DIR: $(pwd)/fake-store-blobdir
@@ -52,7 +52,7 @@ execute: |
   # Now use a label compatible with the consumer
   sed -i 's/foo-3/foo-2/' prod/meta/snap.yaml
   snap pack prod
-  # The script only considers the revision if the snao ID is provided
+  # The script only considers the revision if the snap ID is provided
   "$TESTSTOOLS"/store-state make-snap-installable --revision 2 "$STORE_DIR" test-prod_*.snap test-prod-id
   snap refresh test-prod
 
