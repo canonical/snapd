@@ -6,7 +6,7 @@ details: |
     properly.
 
 prepare: |
-    TODO: revert this once cloud-init v25.1.4 is landed for arm
+    # TODO: revert this once cloud-init v25.1.4 is landed for arm
     if os.query is-arm && os.query is-core && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
         tests.exec skip-test "Openstack metadata service for configuration data cannot be accessed on arm64" && exit 0
     fi
