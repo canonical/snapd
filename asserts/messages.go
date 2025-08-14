@@ -160,19 +160,17 @@ func parseMessageID(rawID string) (string, int, error) {
 		return "", 0, fmt.Errorf("invalid message-id: %s", rawID)
 	}
 
-	id := rawID
-	var seqNum int
-	dashIdx := strings.LastIndex(rawID, "-")
-	if dashIdx != -1 {
-		id = rawID[:dashIdx]
-		seqNum, _ = strconv.Atoi(rawID[dashIdx+1:])
-
-		if seqNum == 0 {
-			return "", 0, errors.New("invalid message-id: sequence number must be greater than 0")
-		}
+	parts := strings.SplitN(rawID, "-", 2)
+	if len(parts) == 1 {
+		return parts[0], 0, nil
 	}
 
-	return id, seqNum, nil
+	seqNum, _ := strconv.Atoi(parts[1])
+	if seqNum <= 0 {
+		return "", 0, fmt.Errorf("invalid message-id: sequence number must be greater than 0")
+	}
+
+	return parts[0], seqNum, nil
 }
 
 func parseDevices(headers map[string]any) ([]DeviceID, error) {
