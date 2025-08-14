@@ -68,5 +68,13 @@ runs:
         ./server.py &
         ./kill.sh &
 
+        echo "Make sure the server is up and running"
+        for i in $(seq 10); do
+          if curl -I 'http://localhost:8000' -o /dev/null 2>/dev/null; then
+            break
+          fi
+          sleep 1
+        done
+
         echo "Running firefox performance tests"
         xvfb-run ${{ inputs.firefox-exec }} 'http://localhost:8000/?startDelay=1&report=true' || true
