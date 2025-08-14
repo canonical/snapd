@@ -545,6 +545,7 @@ prepare_project() {
             fi
             ;;
     esac
+    
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     retry -n 10 go mod vendor
