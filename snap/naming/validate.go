@@ -236,7 +236,7 @@ var ValidProvenance = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 // DefaultProvenance is the default value for provenance, i.e the provenance for snaps uplodaded through the global store pipeline.
 const DefaultProvenance = "global-upload"
 
-// ValidateProvenance checks fi the given string is valid non-empty provenance value.
+// ValidateProvenance checks if the given string is valid non-empty provenance value.
 func ValidateProvenance(prov string) error {
 	if prov == "" {
 		return fmt.Errorf("invalid provenance: must not be empty")
@@ -251,7 +251,9 @@ func ValidateProvenance(prov string) error {
 // separated with dots, with optional non-numbers afterwards
 var snapdVersionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
 
-func validateSnapdVersion(version string) (bool, error) {
+// validateAssumedSnapdVersion checks if the assumed snapd version is valid
+// and satisfied by the current snapd version.
+func validateAssumedSnapdVersion(version string) (bool, error) {
 	// double check that the input looks like a snapd version
 	reqVersionNumMatch := snapdVersionExp.FindStringSubmatch(version)
 	if reqVersionNumMatch == nil {
@@ -323,11 +325,13 @@ var assumesFeatureSet = map[string]bool{
 	"snap-uid-envvars": true,
 }
 
+// ValidateAssumes checks if `assumes` lists features that are all supported
+// by snapd.
 func ValidateAssumes(assumes []string) error {
 	missing := ([]string)(nil)
 	for _, flag := range assumes {
 		if strings.HasPrefix(flag, "snapd") {
-			validVersion, err := validateSnapdVersion(flag[5:])
+			validVersion, err := validateAssumedSnapdVersion(flag[5:])
 			if err != nil {
 				// error not possible unless someone has messed up the regex
 				return err
