@@ -94,42 +94,24 @@ architectures:
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
-var assumesTests = []struct {
-	version string
-	assumes string
-	classic bool
-	error   string
-}{{
-	assumes: "[common-data-dir]",
-}, {
-	assumes: "[f1, f2]",
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
-}, {
-	assumes: "[f1, f2]",
-	classic: true,
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
-}, {
-	assumes: "[snapd2.15]",
-	version: "unknown",
-}, {
-	assumes: "[snapdnono]",
-	version: "unknown",
-	error:   `.* unsupported features: snapdnono .*`,
-}, {
-	assumes: "[snapd2.15nono]",
-	version: "unknown",
-	error:   `.* unsupported features: snapd2.15nono .*`,
-}, {
-	assumes: "[snapd2.15~pre1]",
-	version: "unknown",
-	error:   `.* unsupported features: snapd2.15~pre1 .*`,
-}, {
-	assumes: "[snapd2.15]",
-	version: "2.15",
-},
-}
-
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
+	var assumesTests = []struct {
+		version string
+		assumes string
+		classic bool
+		error   string
+	}{{
+		assumes: "[common-data-dir]",
+	}, {
+		assumes: "[f1, f2]",
+		error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
+	}, {
+		assumes: "[f1, f2]",
+		classic: true,
+		error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
+	},
+	}
+
 	restore := snapdtool.MockVersion("2.15")
 	defer restore()
 
@@ -137,7 +119,6 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 	defer restore()
 
 	for _, test := range assumesTests {
-
 		snapdtool.Version = test.version
 		if snapdtool.Version == "" {
 			snapdtool.Version = "2.15"
