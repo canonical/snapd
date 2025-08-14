@@ -251,7 +251,7 @@ func ValidateProvenance(prov string) error {
 // separated with dots, with optional non-numbers afterwards
 var snapdVersionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
 
-// validateAssumedSnapdVersion checks if the assumed snapd version is valid
+// validateAssumedSnapdVersion checks if the snapd version requirement is valid
 // and satisfied by the current snapd version.
 func validateAssumedSnapdVersion(version string) (bool, error) {
 	// double check that the input looks like a snapd version
