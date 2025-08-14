@@ -1,0 +1,36 @@
+summary: Test interfaces exposing nvidia libraries on classic userspace
+
+details: Test interfaces exposing nvidia libraries on classic userspace
+
+systems: [ubuntu-24*]
+
+environment:
+  NVIDIA_TEST_SNAP: test-nvidia-interfaces
+
+prepare: |
+  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
+  (cd "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP" && snapcraft)
+
+restore: |
+  snap remove --purge snapcraft || true
+  rm -f "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
+
+execute: |
+  snap install --dangerous "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
+
+  SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
+  for iface in cuda egl gbm opengl opengles; do
+      snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
+      cat "$SNAP_LDCONF_P" | MATCH "$iface"
+  done
+
+  EGL_VENDOR_P=/usr/share/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl.json
+  cat "$EGL_VENDOR_P" | MATCH libEGL_nvidia.so.0
+  ARCH_TRIPLET=$(gcc -dumpmachine)
+  GBM_LIB_P=$(realpath /usr/lib/"$ARCH_TRIPLET"/gbm/nvidia-drm_gbm.so)
+  [[ "$GBM_LIB_P" = /snap/"$NVIDIA_TEST_SNAP"/x1/usr/lib/"$ARCH_TRIPLET"/libnvidia-allocator.* ]]
+
+  snap remove --purge "$NVIDIA_TEST_SNAP"
+  not test -f "$SNAP_LDCONF_P"
+  not test -f "$EGL_VENDOR_P"
+  not test -h "$GBM_LIB_P"
