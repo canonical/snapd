@@ -177,6 +177,14 @@ type KeyDataLocation struct {
 	SlotName string
 }
 
+const (
+	PlatformTpm2       = "tpm2"
+	PlatformTpm2Legacy = "tpm2-legacy"
+	PlatformPlainkey   = "plainkey"
+	PlatformFdeHookV2  = "fde-hook-v2"
+	PlatformFdeHooksV3 = "fde-hooks-v3"
+)
+
 // KeyData represents a disk unlock key protected by a platform's secure device.
 type KeyData interface {
 	PlatformName() string
