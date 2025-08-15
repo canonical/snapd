@@ -7,6 +7,10 @@ details: |
 environment:
     KEYSDIR: "/$HOME/.ssh"
     TESTKEY: "/$HOME/.ssh/testkey"
+    TESTKEY_HOST_ECDSA: "/etc/ssh/ssh_host_ecdsa_key"
+    TESTKEY_HOST_RSA: "/etc/ssh/ssh_host_rsa_key"
+    TESTKEY_HOST_ED25519: "/etc/ssh/ssh_host_ed25519_key"
+
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -14,6 +18,13 @@ prepare: |
     "$TESTSTOOLS"/fs-state mock-dir "$KEYSDIR"
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY"
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY".pub
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_ECDSA"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_ECDSA".pub
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_RSA"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_RSA".pub
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_ED25519"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_ED25519".pub
+
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-dir "$KEYSDIR"
@@ -31,6 +42,11 @@ execute: |
     echo "And the snap is able to read a public key"
     test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY.pub"
 
+    echo "And the snap is able to read public host keys"
+    test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY_HOST_ECDSA.pub"
+    test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY_HOST_RSA.pub"
+    test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY_HOST_ED25519.pub"
+
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
@@ -41,6 +57,11 @@ execute: |
         exit 1
     fi
     MATCH "Permission denied" < call.error
+
+    echo "Then the snap is not able to access the ssh private host keys"
+    not test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY_HOST_ECDSA"
+    not test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY_HOST_RSA"
+    not test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY_HOST_ED25519"
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:ssh-public-keys
