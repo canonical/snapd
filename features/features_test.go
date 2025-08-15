@@ -64,6 +64,7 @@ func (*featureSuite) TestName(c *C) {
 	check(features.Confdb, "confdb")
 	check(features.ConfdbControl, "confdb-control")
 	check(features.AppArmorPrompting, "apparmor-prompting")
+	check(features.ContentCompatLabel, "content-compatibility-label")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
@@ -104,6 +105,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.Confdb, true)
 	check(features.ConfdbControl, false)
 	check(features.AppArmorPrompting, true)
+	check(features.ContentCompatLabel, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -229,6 +231,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
 	check(features.ConfdbControl, false)
+	check(features.ContentCompatLabel, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
