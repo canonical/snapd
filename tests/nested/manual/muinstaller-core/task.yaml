@@ -53,7 +53,7 @@ prepare: |
   fi
 
 restore: |
-  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget snap-with-comps.snap snap-with-comps+comp1.comp core-seed fake-disk.img
 
 execute: |
   # shellcheck source=tests/lib/prepare.sh
@@ -95,6 +95,7 @@ execute: |
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
+  rm -rf pc-gadget
 
   # Retrieve kernel
   snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
@@ -110,6 +111,7 @@ execute: |
   EOF
   rm pc-kernel.snap
   snap pack tmp-pc-kernel
+  rm -rf tmp-pc-kernel
   mv pc-kernel_*.snap pc-kernel.snap
   # HACK ENDS
 
