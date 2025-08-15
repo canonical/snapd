@@ -263,7 +263,7 @@ func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error)
 		return err
 	}
 	if unlockedWithRecoveryKey {
-		// primary key will be missing from kernel keyring if disk was
+		// primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
 		return errors.New("cannot add protected keys if the system was unlocked with a recovery key during boot")
 	}
@@ -344,6 +344,7 @@ func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error)
 			KeyRole:                role,
 			VolumesAuth:            volumesAuth,
 		}
+		// TODO:FDEM: support FDE hook setup
 		if err := secbootAddContainerTPMProtectedKey(devicePath, ref.Name, &params); err != nil {
 			return fmt.Errorf("cannot add protected key slot %s: %v", ref.String(), err)
 		}

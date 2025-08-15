@@ -685,7 +685,7 @@ func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions
 		return nil, err
 	}
 	if unlockedWithRecoveryKey {
-		// primary key will be missing from kernel keyring if disk was
+		// primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
 		return nil, errors.New("system was unlocked with a recovery key during boot: reboot required")
 	}
@@ -721,6 +721,11 @@ func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions
 		kd, err := keyslot.KeyData()
 		if err != nil {
 			return nil, fmt.Errorf("cannot read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+
+		// TODO:FDEM: support FDE hook setup
+		if kd.PlatformName() != secboot.PlatformTpm2 {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported platform %q, expected %q", keyslot.Ref().String(), kd.PlatformName(), secboot.PlatformTpm2)
 		}
 
 		tmpKeyslotRef := tmpKeyslotRef(keyslot.Ref())

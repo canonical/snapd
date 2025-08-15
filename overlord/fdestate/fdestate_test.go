@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	sb "github.com/snapcore/secboot"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -506,7 +507,7 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 		case "/dev/disk/by-uuid/data:default",
 			"/dev/disk/by-uuid/data:default-fallback",
 			"/dev/disk/by-uuid/save:default-fallback":
-			return &mockKeyData{authMode: device.AuthModePassphrase, roles: []string{"run"}}, nil
+			return &mockKeyData{authMode: device.AuthModePassphrase, roles: []string{"run"}, platformName: "tpm2"}, nil
 		default:
 			panic("unexpected container")
 		}
@@ -738,7 +739,7 @@ type: base
 
 func (s *fdeMgrSuite) TestReplaceProtectedKeyConflictSnaps(c *C) {
 	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
-		return &mockKeyData{authMode: device.AuthModeNone}, nil
+		return &mockKeyData{authMode: device.AuthModeNone, platformName: "tpm2"}, nil
 	})()
 
 	// initialize fde manager
@@ -757,6 +758,7 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeyConflictSnaps(c *C) {
 
 	// mock change in progress
 	ts, err := fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	c.Assert(err, IsNil)
 	chg := s.st.NewChange("fde-change", "")
 	chg.AddAll(ts)
 	c.Assert(err, IsNil)
@@ -803,6 +805,40 @@ type: app
 			c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q has "fde-change" change in progress`, sn.name))
 		} else {
 			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *fdeMgrSuite) TestReplaceProtectedKeySecbootPlatforms(c *C) {
+	// initialize fde manager
+	onClassic := true
+	s.startedManager(c, onClassic)
+
+	s.mockCurrentKeys(c, nil, nil)
+
+	model := s.mockBootAssetsStateForModeenv(c)
+	s.mockDeviceInState(model, "run")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.st.Set("seeded", true)
+
+	for _, platform := range sb.ListRegisteredKeyDataPlatforms() {
+		defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+			return &mockKeyData{authMode: device.AuthModeNone, platformName: platform}, nil
+		})()
+
+		ts, err := fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}})
+		switch platform {
+		case "tpm2":
+			// only supported platform currently is "tpm2"
+			c.Assert(err, IsNil)
+			c.Assert(ts.Tasks(), HasLen, 3)
+		default:
+			errMsg := fmt.Sprintf(`invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported platform "%s", expected "tpm2"`, platform)
+			c.Assert(err, ErrorMatches, errMsg)
+			c.Assert(ts, IsNil)
 		}
 	}
 }
