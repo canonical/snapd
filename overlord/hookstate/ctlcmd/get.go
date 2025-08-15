@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -57,8 +58,9 @@ type getCommand struct {
 		Keys           []string `positional-arg-name:"<keys>" description:"option keys"`
 	} `positional-args:"yes"`
 
-	Document bool `short:"d" description:"always return document, even with single key"`
-	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
+	Document bool   `short:"d" description:"always return document, even with single key"`
+	Typed    bool   `short:"t" description:"strict typing with nulls and quoted strings"`
+	Default  string `long:"default" unquote:"false" description:"a default value to be used when none is found"`
 }
 
 var shortGetHelp = i18n.G("Print either configuration options or interface connection settings")
@@ -164,6 +166,7 @@ func (c *getCommand) Execute(args []string) error {
 	if c.Typed && c.Document {
 		return fmt.Errorf("cannot use -d and -t together")
 	}
+
 	if c.Previous {
 		if !c.View {
 			return fmt.Errorf("cannot use --previous without --view")
@@ -174,6 +177,10 @@ func (c *getCommand) Execute(args []string) error {
 			hookPref("change-view-") || hookPref("observe-view-")) {
 			return fmt.Errorf(`cannot use --previous outside of save-view, change-view or observe-view hooks`)
 		}
+	}
+
+	if c.Default != "" && !c.View {
+		return fmt.Errorf(`cannot use --default with non-confdb read (missing --view)`)
 	}
 
 	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
@@ -192,6 +199,12 @@ func (c *getCommand) Execute(args []string) error {
 			}
 
 			requests := c.Positional.Keys
+			if c.Default != "" && len(requests) > 1 {
+				// TODO: what if some keys are fulfilled and others aren't? Do we fill in
+				// just the ones that are missing or none?
+				return fmt.Errorf("cannot use --default with more than one confdb request")
+			}
+
 			return c.getConfdbValues(context, name, requests, c.Previous)
 		}
 
@@ -412,10 +425,38 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 
 	res, err := confdbstate.GetViaView(bag, view, requests)
 	if err != nil {
-		return err
+		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
+			return err
+		}
+
+		// we don't allow --default with multiple keys so we know there's only one
+		res, err = c.buildDefaultOutput(requests[0])
+		if err != nil {
+			return err
+		}
 	}
 
 	return c.printPatch(res)
+}
+
+func (c *getCommand) buildDefaultOutput(request string) (map[string]any, error) {
+	var defaultVal any
+	if err := jsonutil.DecodeWithNumber(strings.NewReader(c.Default), &defaultVal); err != nil {
+		var merr *json.SyntaxError
+		if !errors.As(err, &merr) {
+			// shouldn't happen as other errors are due to programmer error
+			return nil, fmt.Errorf("internal error: cannot unmarshal --default value: %v", err)
+		}
+
+		if c.Typed {
+			return nil, fmt.Errorf("cannot unmarshal default value as strictly typed")
+		}
+
+		// the value isn't typed, fallback to using it as is
+		defaultVal = c.Default
+	}
+
+	return map[string]any{request: defaultVal}, nil
 }
 
 func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.PlugInfo, error) {

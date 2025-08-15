@@ -792,3 +792,26 @@ func (s *confdbSuite) TestConfdbGetDefaultUnmarshalNoFallbackIfTyped(c *check.C)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
+
+func (s *confdbSuite) TestForbidDefaultWithNonConfdbGet(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", ":foo", "--default", "def", "bar"})
+	c.Assert(err, ErrorMatches, "cannot use --default in non-confdb read")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}

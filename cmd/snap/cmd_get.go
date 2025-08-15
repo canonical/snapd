@@ -270,6 +270,10 @@ func (x *cmdGet) Execute(args []string) error {
 		// first argument is a confdbViewID, use the confdb API
 		conf, err = x.getConfdb(snapName, confKeys)
 	} else {
+		if x.Default != "" {
+			return fmt.Errorf(`cannot use --default in non-confdb read`)
+		}
+
 		conf, err = x.client.Conf(snapName, confKeys)
 	}
 
@@ -346,7 +350,7 @@ func (x *cmdGet) buildDefaultOutput(request string) (map[string]any, error) {
 	if err := jsonutil.DecodeWithNumber(strings.NewReader(x.Default), &defaultVal); err != nil {
 		var merr *json.SyntaxError
 		if !errors.As(err, &merr) {
-			// shouldn't happen as we other errors are due to programmer error
+			// shouldn't happen as other errors are due to programmer error
 			return nil, fmt.Errorf("internal error: cannot unmarshal --default value: %v", err)
 		}
 
