@@ -677,12 +677,6 @@ func periodic(
 		case <-time.After(delay()):
 		}
 
-		// even if the timer won the select, we should still check if the
-		// context has been cancelled
-		if ctx.Err() != nil {
-			return
-		}
-
 		work(ctx)
 	}
 }
