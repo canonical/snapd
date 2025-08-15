@@ -1482,7 +1482,7 @@ func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 
 func (s *RunSuite) TestSnapRunErrorForUnavailableApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "not-there"})
-	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`snap "not-there" is not installed`))
+	c.Assert(err, check.ErrorMatches, `snap "not-there" is not installed`)
 }
 
 func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {

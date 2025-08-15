@@ -61,7 +61,7 @@ func parsePids(reader io.Reader) ([]int, error) {
 // parsePid parses a string as a process identifier.
 func parsePid(text string) (int, error) {
 	pid, err := strconv.Atoi(text)
-	if err != nil || (err == nil && pid <= 0) {
+	if err != nil || pid <= 0 {
 		return 0, fmt.Errorf("cannot parse pid %q", text)
 	}
 	return pid, err
