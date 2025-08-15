@@ -61,6 +61,7 @@ var (
 	disksDevlinks                   = disks.Devlinks
 
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
+	sbKeyDataPlatformName     = (*sb.KeyData).PlatformName
 )
 
 func init() {
@@ -71,6 +72,12 @@ func init() {
 
 type DiskUnlockKey sb.DiskUnlockKey
 type ActivateVolumeOptions sb.ActivateVolumeOptions
+
+const platformTpm2 = "tpm2"
+const platformTpm2Legacy = "tpm2-legacy"
+const platformPlainkey = "plainkey"
+const platformFdeHookV2 = "fde-hook-v2"
+const platformFdeHooksV3 = "fde-hooks-v3"
 
 // LockSealedKeys manually locks access to the sealed keys. Meant to be
 // called in place of passing lockKeysOnFinish as true to
@@ -239,7 +246,7 @@ func deviceHasPlainKey(device string) (bool, error) {
 			logger.Noticef("WARNING: keyslot %s has an invalid key data: %v", slot, err)
 			continue
 		}
-		if keyData.PlatformName() == "plainkey" {
+		if keyData.PlatformName() == platformPlainkey {
 			return true, nil
 		}
 	}
@@ -557,7 +564,7 @@ var sbCopyAndRemoveLUKS2ContainerKey = sbCopyAndRemoveLUKS2ContainerKeyImpl
 // GetPrimaryKey finds the primary from the keyring based on the path of
 // encrypted devices. If it does not find any primary in the keyring,
 // it then tries to read the key from a fallback key file.
-func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
+func GetPrimaryKey(devices []string, fallbackKeyFiles []string) ([]byte, error) {
 	for _, device := range devices {
 		primaryKey, err := findPrimaryKey(device)
 		if err == nil {
@@ -568,11 +575,17 @@ func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
 		}
 	}
 
-	primaryKey, err := os.ReadFile(fallbackKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key file %s: %w", fallbackKeyFile, err)
+	var fallbackErrors []string
+
+	for _, fallbackKeyFile := range fallbackKeyFiles {
+		primaryKey, err := os.ReadFile(fallbackKeyFile)
+		if err == nil {
+			return primaryKey, nil
+		}
+		fallbackErrors = append(fallbackErrors, fmt.Sprintf("cannot read %s: %v", fallbackKeyFile, err))
 	}
-	return primaryKey, nil
+
+	return nil, fmt.Errorf("could not find primary in keyring and cannot read fallback primary key files: %s", strings.Join(fallbackErrors, ", "))
 }
 
 // CheckRecoveryKey tests that the specified recovery key unlocks the
@@ -675,4 +688,73 @@ func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.Recov
 		return fmt.Errorf("cannot get key from kernel keyring for unlocked disk %s: %v", devicePath, err)
 	}
 	return sbAddLUKS2ContainerRecoveryKey(devicePath, slotName, unlockKey, sb.RecoveryKey(rkey))
+}
+
+type resealKind int
+
+const (
+	tpmResealKind resealKind = iota
+	hookResealKind
+	noResealKind
+)
+
+// ResealKey reads a key and dispatch the reseal depending on the
+// platform used by the key.
+func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error) {
+	loadedKey := &defaultKeyLoader{}
+	keyData, err := readKeyToken(key.DevicePath, key.SlotName)
+	if err != nil {
+		if err := readKeyFile(key.KeyFile, loadedKey, params.HintExpectFDEHook); err != nil {
+			return nil, err
+		}
+		keyData = loadedKey.KeyData
+
+	}
+
+	resealKind := tpmResealKind
+	switch {
+	case loadedKey.SealedKeyObject != nil:
+	case loadedKey.FDEHookKeyV1 != nil:
+		resealKind = noResealKind
+	case keyData != nil:
+		switch sbKeyDataPlatformName(keyData) {
+		case platformTpm2:
+		case platformTpm2Legacy:
+			// This one should not happen but instead have a SealedKeyObject
+		case platformPlainkey:
+			resealKind = noResealKind
+		case platformFdeHooksV3:
+			resealKind = hookResealKind
+		case platformFdeHookV2:
+			resealKind = hookResealKind
+		default:
+			logger.Noticef("unknown platform %s, assuming it is TPM", sbKeyDataPlatformName(keyData))
+		}
+	default:
+		return nil, fmt.Errorf("internal error: missing key data from key loader")
+	}
+
+	switch resealKind {
+	case tpmResealKind:
+		primaryKey, err := GetPrimaryKey(params.PrimaryKeyDevices, params.FallbackPrimaryKeyFiles)
+		if err != nil {
+			return nil, err
+		}
+		keyParams := &resealKeysWithTPMParams{
+			PCRProfile: params.TpmPCRProfile,
+			Keys:       []KeyDataLocation{key},
+			PrimaryKey: primaryKey,
+		}
+
+		return resealKeysWithTPM(keyParams, params.NewPCRPolicyVersion)
+
+	case hookResealKind:
+		err = resealKeysWithFDESetupHook([]KeyDataLocation{key}, params.PrimaryKeyDevices, params.FallbackPrimaryKeyFiles, params.Models, params.BootModes)
+		return nil, err
+
+	case noResealKind:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("internal error: unknown reseal kind")
+	}
 }

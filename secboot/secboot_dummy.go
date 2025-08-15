@@ -82,10 +82,6 @@ func (d *placeholderKeyProtector) ProtectKey(rand io.Reader, cleartext, aad []by
 	return nil, nil, errBuildWithoutSecboot
 }
 
-func ResealKeys(params *ResealKeysParams, newPCRPolicyVersion bool) (UpdatedKeys, error) {
-	return nil, errBuildWithoutSecboot
-}
-
 func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
@@ -129,10 +125,6 @@ func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, dig
 	return false, errBuildWithoutSecboot
 }
 
-func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []ModelForSealing, bootModes []string) error {
-	return errBuildWithoutSecboot
-}
-
 type HashAlg crypto.Hash
 
 func (ha HashAlg) MarshalJSON() ([]byte, error) {
@@ -163,7 +155,7 @@ func DeleteOldKeys(devicePath string) error {
 	return errBuildWithoutSecboot
 }
 
-func GetPrimaryKey(devices []string, fallbackKeyFile string) ([]byte, error) {
+func GetPrimaryKey(devices []string, fallbackKeyFiles []string) ([]byte, error) {
 	return nil, errBuildWithoutSecboot
 }
 
@@ -201,4 +193,8 @@ func AddContainerRecoveryKey(devicePath string, slotName string, rkey keys.Recov
 
 func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) error {
 	return errBuildWithoutSecboot
+}
+
+func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error) {
+	return nil, errBuildWithoutSecboot
 }
