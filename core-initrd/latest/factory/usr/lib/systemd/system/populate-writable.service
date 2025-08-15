@@ -1,4 +1,5 @@
 [Unit]
+ConditionPathExists=/sysroot/etc/system-image/writable-paths
 OnFailure=emergency.target
 OnFailureJobMode=replace-irreversibly
 DefaultDependencies=no
