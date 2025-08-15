@@ -1148,7 +1148,18 @@ func (s *ClusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 			err: "invalid session data: routes array length must be multiple of 3",
 		},
 		{
-			name: "invalid device index in routes",
+			name: "invalid source device index in routes",
+			session: AssembleSession{
+				Routes: Routes{
+					Devices:   []DeviceToken{"device1"},
+					Addresses: []string{"addr1"},
+					Routes:    []int{5, 0, 0}, // device index 5 doesn't exist
+				},
+			},
+			err: "invalid session data: invalid source device index 5 in routes",
+		},
+		{
+			name: "invalid destination device index in routes",
 			session: AssembleSession{
 				Routes: Routes{
 					Devices:   []DeviceToken{"device1"},
