@@ -91,6 +91,8 @@ type commonInterface struct {
 	controlsDeviceCgroup bool
 
 	serviceSnippets []interfaces.PlugServicesSnippet
+
+	exclusiveConnectedInterfaces []string
 }
 
 // Name returns the interface name.
@@ -218,4 +220,8 @@ func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 	}
 
 	return nil
+}
+
+func (iface *commonInterface) ExclusiveConnectedInterfaces() []string {
+	return iface.exclusiveConnectedInterfaces
 }

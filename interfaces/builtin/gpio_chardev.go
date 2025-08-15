@@ -203,11 +203,12 @@ func (iface *gpioChardevInterface) UDevConnectedPlug(spec *udev.Specification, p
 func init() {
 	registerIface(&gpioChardevInterface{
 		commonInterface{
-			name:                     "gpio-chardev",
-			summary:                  gpioChardevSummary,
-			baseDeclarationSlots:     gpioChardevBaseDeclarationSlots,
-			connectedSlotKModModules: gpioChardevConnectedSlotKmod,
-			serviceSnippets:          gpioChardevPlugServiceSnippets,
+			name:                         "gpio-chardev",
+			summary:                      gpioChardevSummary,
+			baseDeclarationSlots:         gpioChardevBaseDeclarationSlots,
+			connectedSlotKModModules:     gpioChardevConnectedSlotKmod,
+			serviceSnippets:              gpioChardevPlugServiceSnippets,
+			exclusiveConnectedInterfaces: []string{"gpio"},
 		},
 	})
 }
