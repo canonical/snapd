@@ -281,7 +281,7 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 		_, err := asserts.CompileAttributeConstraints(map[string]any{
 			"foo": wrong,
 		})
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\)/\$PLUG_PUBLISHER_ID/\$SLOT_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\)/\$SLOT_COMPAT\(\)/\$PLUG_COMPAT\(\)/\$PLUG_PUBLISHER_ID/\$SLOT_PUBLISHER_ID constraint`, regexp.QuoteMeta(wrong)))
 
 	}
 }
@@ -306,6 +306,10 @@ func (ca testEvalAttr) PlugPublisherID() string {
 
 func (ca testEvalAttr) SlotPublisherID() string {
 	return ca.slotPublisherID
+}
+
+func (ca testEvalAttr) CompatLabelsEnabled() bool {
+	return true
 }
 
 func (s *attrConstraintsSuite) TestEvalCheck(c *C) {
@@ -366,6 +370,47 @@ foo: foo
 bar: bar.baz
 `), testEvalAttr{comp: comp3})
 	c.Check(err, ErrorMatches, `attribute "foo" does not match \$SLOT\(foo\): foo != other-value`)
+}
+
+func (s *attrConstraintsSuite) TestEvalCheckSlotCompat(c *C) {
+	s.testEvalCheckCompat(c, "SLOT_COMPAT")
+}
+
+func (s *attrConstraintsSuite) TestEvalCheckPlugCompat(c *C) {
+	s.testEvalCheckCompat(c, "PLUG_COMPAT")
+}
+
+func (s *attrConstraintsSuite) testEvalCheckCompat(c *C, compatOper string) {
+	m, err := asserts.ParseHeaders([]byte(fmt.Sprintf(`attrs:
+  foo: $%s(foo)`, compatOper)))
+	c.Assert(err, IsNil)
+
+	// No context
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
+	c.Assert(err, IsNil)
+	c.Check(asserts.RuleFeature(cstrs, "dollar-attr-constraints"), Equals, true)
+	err = cstrs.Check(attrs(`
+foo: libx-3
+`), nil)
+	c.Check(err, ErrorMatches, `attribute "foo" cannot be matched without context`)
+
+	// Context, but no match
+	comp1 := func(op string, arg string) (any, error) {
+		return "libx-1", nil
+	}
+	err = cstrs.Check(attrs(`
+foo: libx
+`), testEvalAttr{comp: comp1})
+	c.Check(err, ErrorMatches, fmt.Sprintf(`attribute "foo" does not match \$%s\(foo\): libx != libx-1`, compatOper))
+
+	// Success case
+	comp2 := func(op string, arg string) (any, error) {
+		return "libx-1", nil
+	}
+	err = cstrs.Check(attrs(`
+foo: libx-(0..2)
+`), testEvalAttr{comp: comp2})
+	c.Check(err, IsNil)
 }
 
 func (s *attrConstraintsSuite) TestCheckWithAttrPlugPublisherID(c *C) {
