@@ -518,7 +518,7 @@ backends:
                 image: snapd-spread/ubuntu-22.04-arm-64
                 workers: 8
             - ubuntu-24.04-arm-64:
-                image: snapd-spread/ubuntu-20.04-arm-64
+                image: snapd-spread/ubuntu-24.04-arm-64
                 workers: 8
 
             - ubuntu-core-22-arm-64:

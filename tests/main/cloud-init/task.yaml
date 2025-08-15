@@ -6,6 +6,11 @@ details: |
     properly.
 
 prepare: |
+    # TODO: revert this once cloud-init v25.1.4 is landed for arm
+    if os.query is-arm && os.query is-core && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+        tests.exec skip-test "Openstack metadata service for configuration data cannot be accessed on arm64" && exit 0
+    fi
+
     cat <<EOF > /etc/systemd/system/snapd.service.d/http-debug.conf
     [Service]
     Environment=SNAPD_DEBUG_HTTP=7
@@ -13,10 +18,12 @@ prepare: |
     systemctl restart snapd.service
 
 restore: |
+    tests.exec is-skipped && exit 0
     rm /etc/systemd/system/snapd.service.d/http-debug.conf
     systemctl restart snapd.service
 
 execute: |
+    tests.exec is-skipped && exit 0
     if ! [[ "$SPREAD_BACKEND" =~ google ]] && ! [[ "$SPREAD_BACKEND" =~ openstack ]]; then
         tests.exec skip-test "This test is only valid for google and openstack backends that provide cloud info" && exit 0
     fi

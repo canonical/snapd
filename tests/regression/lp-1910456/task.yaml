@@ -10,7 +10,8 @@ systems: [-ubuntu-14.04-64]
 
 
 environment:
-  IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04.tar
+  IMAGE_URL_X86: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04.tar
+  IMAGE_URL_ARM: https://storage.googleapis.com/snapd-spread-tests/images/docker/ubuntu-24.04-arm64.tar
 
 prepare: |
     # build and install the strict test snap
@@ -144,7 +145,12 @@ execute: |
         if ! command -v curl; then
             snap install --devmode --edge test-snapd-curl
             snap alias test-snapd-curl.curl curl
-        fi    
+        fi  
+        if os.query is-arm; then
+            IMAGE_URL=$IMAGE_URL_ARM
+        else
+            IMAGE_URL=$IMAGE_URL_X86
+        fi  
         curl -sL "$IMAGE_URL" -o ubuntu-24.04.tar
         retry -n 30 --wait 1 docker load -i ubuntu-24.04.tar
     fi
