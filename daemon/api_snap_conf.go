@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -157,6 +158,15 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return InternalError(err.Error())
+	}
+	if !seeded {
+		return SystemNotSeeded("no change of configuration allowed while seeding")
+	}
 
 	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
 	if err != nil {
