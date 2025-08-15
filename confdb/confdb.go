@@ -399,6 +399,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		return nil, errors.New(`"request" must be a string`)
 	}
 
+	var access accessType
 	// content sub-rules are shorthands for paths that include the parent's path
 	if parent != nil {
 		if request[0] != '[' {
@@ -410,6 +411,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 			storage = "." + storage
 		}
 		storage = parent.originalStorage + storage
+		access = parent.access
 	}
 
 	reqAccessors, storageAccessors, err := validateRequestStoragePair(request, storage)
@@ -418,11 +420,24 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 	}
 
 	accessRaw, ok := ruleMap["access"]
-	var access string
 	if ok {
-		access, ok = accessRaw.(string)
+		if parent != nil {
+			// overriding parent "access" in sub-rules creates odd situations e.g., if the
+			// parent is read-write (default) and the nested rule is write, it would be readable
+			// through the parent anyway (having a nested read-only rule would be similarly odd).
+			// We might relax this check in the case where the parent has no explicit "access", which
+			// would require a format bump to the confdb-schema assertion
+			return nil, errors.New(`cannot override "access" in nested "content" rule: "content" rules inherit parent "access"`)
+		}
+
+		accessStr, ok := accessRaw.(string)
 		if !ok {
 			return nil, errors.New(`"access" must be a string`)
+		}
+
+		access, err = newAccessType(accessStr)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create view rule: %w", err)
 		}
 	}
 
@@ -1609,12 +1624,7 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
-func newViewRule(request, storage []Accessor, accesstype string) (*viewRule, error) {
-	accType, err := newAccessType(accesstype)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create view rule: %w", err)
-	}
-
+func newViewRule(request, storage []Accessor, access accessType) (*viewRule, error) {
 	requestMatchers := make([]requestMatcher, 0, len(request))
 	for _, acc := range request {
 		matcher, ok := acc.(requestMatcher)
@@ -1629,7 +1639,7 @@ func newViewRule(request, storage []Accessor, accesstype string) (*viewRule, err
 		originalStorage: JoinAccessors(storage),
 		request:         requestMatchers,
 		storage:         storage,
-		access:          accType,
+		access:          access,
 	}, nil
 }
 
