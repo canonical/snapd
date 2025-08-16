@@ -631,6 +631,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/stty ixr,
   /{,usr/}bin/sync ixr,
   /{,usr/}bin/systemd-cat ixr,
+  /{,usr/}bin/systemd-creds ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
