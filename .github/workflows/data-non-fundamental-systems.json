@@ -2,7 +2,7 @@
     "include": [
       {
         "group": "amazon-linux",
-        "backend": "google-distro-1",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-distro-1",
         "systems": "amazon-linux-2-64 amazon-linux-2023-64",
         "tasks": "tests/...",
@@ -10,7 +10,7 @@
       },
       {
         "group": "arch-linux",
-        "backend": "google-distro-2",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-distro-2",
         "systems": "arch-linux-64",
         "tasks": "tests/...",

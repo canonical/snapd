@@ -751,7 +751,7 @@ pkg_dependencies_fedora(){
 }
 
 pkg_dependencies_amazon(){
-    if os.query is-amazon-linux 2 || os.query is-centos 7; then
+    if os.query is-amazon-linux 2; then
         echo "
             fish
             fwupd

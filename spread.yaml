@@ -486,6 +486,19 @@ backends:
                 image: snapd-spread/debian-12-64
                 workers: 6
 
+            - amazon-linux-2-64:
+                image: snapd-spread/amazon-linux-2-64
+                workers: 6
+                storage: 50G
+            - amazon-linux-2023-64:
+                image: snapd-spread/amazon-linux-2023-64
+                workers: 6
+                storage: 50G
+
+            - arch-linux-64:
+                image: snapd-spread/arch-linux-64
+                workers: 6
+
     openstack-dev-ps7:
         type: openstack
         key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
