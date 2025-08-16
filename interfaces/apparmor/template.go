@@ -491,8 +491,9 @@ var templateCommon = `
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 
-  # Allow reading systemd-provided credentials.
+  # Allow listing and reading systemd-provided credentials.
   /run/credentials/ r,
+  /run/credentials/snap.@{SNAP_INSTANCE_NAME}.*.service/ r,
   /run/credentials/snap.@{SNAP_INSTANCE_NAME}.*.service/** r,
   
   ###DEVMODE_SNAP_CONFINE###
