@@ -475,6 +475,13 @@ func deviceMgr(st *state.State) *DeviceManager {
 	return mgr.(*DeviceManager)
 }
 
+// DeviceMgr returns the device manager from state.
+// TODO: This is a temporary exported function for cluster assembly, should be
+// removed once proper device manager access patterns are established.
+func DeviceMgr(st *state.State) *DeviceManager {
+	return deviceMgr(st)
+}
+
 func (m *DeviceManager) CanStandby() bool {
 	var seeded bool
 	if err := m.state.Get("seeded", &seeded); err != nil {
@@ -2117,6 +2124,17 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+// SignWithDeviceKey signs an arbitrary piece of data with the device's current
+// private key.
+func (m *DeviceManager) SignWithDeviceKey(data []byte) ([]byte, error) {
+	pk, err := m.keyPair()
+	if err != nil {
+		return nil, err
+	}
+
+	return asserts.SignWithKey(data, pk)
 }
 
 // ConfdbControl returns the device's confdb-control assertion.
