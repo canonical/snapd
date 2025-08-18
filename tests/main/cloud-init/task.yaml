@@ -73,6 +73,8 @@ execute: |
     snap_cloud_avzone=$(snap get core cloud.availability-zone)
     test "$cloud_avzone" = "$snap_cloud_avzone"
 
+    cloud_region=$(get_conf region)
+
     if os.query is-core; then
         # TODO: is there a race here with snapd restricting cloud-init and us
         # checking that it was restricted?
@@ -97,20 +99,18 @@ execute: |
         #      "region": "us-east1"
         #      ...
         #   }
-        # }
-
-        cloud_region=$(get_conf region)
+        # }        
         snap_cloud_region=$(snap get core cloud.region)
         test "$cloud_region" = "$snap_cloud_region"
 
         # verify that the region and availability zone is set in HTTP requests
-        journalctl -b -u snapd | MATCH -E "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+        journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
 
     elif [[ "$SPREAD_BACKEND" =~ openstack ]]; then
         # Openstack sets the following in Ubuntu images:
         # {
         #    ...
-        #    "v1": {
+        #    "v1": {    
         #      "availability-zone": "availability-zone-1",
         #      "availability_zone": "availability-zone-1",
         #      "cloud-name": "openstack",
@@ -120,5 +120,9 @@ execute: |
         #   }
         # }
         # verify that the availability zone is set in HTTP requests
-        journalctl -b -u snapd | MATCH -E "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+        if [ "$cloud_region" == null ]; then
+            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=\\\\\"${cloud_name}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+        else
+            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=\\\\\"${cloud_name}\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+        fi
     fi

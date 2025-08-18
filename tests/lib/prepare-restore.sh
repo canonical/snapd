@@ -301,9 +301,20 @@ prepare_project() {
     if os.query is-amazon-linux 2023; then
         # perform system upgrade to the latest release
         if [[ "$SPREAD_REBOOT" == 0 ]]; then
+            # Save snapd ntp configuration in case it was already configured
+            if [ -f "/etc/chrony.d/snapd-ntp-pool.sources" ]; then
+                cp /etc/chrony.d/snapd-ntp-pool.sources "$PWD"
+            fi
             if distro_upgrade | MATCH "reboot"; then
+                if [ -f "$PWD"/snapd-ntp-pool.sources ]; then
+                    mv "$PWD"/snapd-ntp-pool.sources /etc/chrony.d/snapd-ntp-pool.sources
+                fi
                 echo "system upgraded, reboot required"
                 REBOOT
+            else
+                if [ -f "$PWD"/snapd-ntp-pool.sources ]; then
+                    mv "$PWD"/snapd-ntp-pool.sources /etc/chrony.d/snapd-ntp-pool.sources
+                fi
             fi
         fi
     fi

@@ -420,6 +420,14 @@ prepare_classic() {
                 systemctl restart restorecond.service
             fi
             ;;
+        amazon-linux-2*)
+            # Cloud init service fails in openstack depending on the environment
+            # being used when the metadata retrieved does not contain the proper
+            # networking information
+            if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+                systemctl restart cloud-init.service
+            fi
+            ;;
     esac
 
     if snap --version |MATCH unknown; then
