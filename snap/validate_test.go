@@ -2053,15 +2053,15 @@ apps:
 	}, {
 		name: "foo success-exit-status but not a service",
 		desc: fooSuccessExitStatusNotADaemon,
-		err:  `success-exit-status is only applicable to services`,
+		err:  `success exit status is only applicable to services`,
 	}, {
 		name: "foo success-exit-status with empty value",
 		desc: fooSuccessExitStatusEmpty,
-		err:  `success-exit-status cannot contain empty values`,
+		err:  `success exit status cannot contain empty values`,
 	}, {
 		name: "foo success-exit-status with status code out of range",
 		desc: fooSuccessExitStatusCodeOutOfRange,
-		err:  `success exit status must be a number \(0-255\) or uppercase symbolic name`,
+		err:  `exit code 400 is out of range. Exit codes must be between 0 and 255`,
 	}, {
 		name: "foo success-exit-status with wrong status name",
 		desc: fooSuccessExitStatusWrongName,
