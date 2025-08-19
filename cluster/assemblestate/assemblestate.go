@@ -68,7 +68,6 @@ type Discoverer = func(context.Context) ([]string, error)
 // session.
 type AssembleState struct {
 	config    AssembleConfig
-	logger    logger.Logger
 	commit    func(AssembleSession)
 	initiated time.Time
 	clock     func() time.Time
@@ -165,7 +164,6 @@ func NewAssembleState(
 	config AssembleConfig,
 	session AssembleSession,
 	selector func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error),
-	log logger.Logger,
 	commit func(AssembleSession),
 ) (*AssembleState, error) {
 	// default clock to time.Now if not provided
@@ -177,10 +175,6 @@ func NewAssembleState(
 	validated, err := validateSession(session, config.Clock)
 	if err != nil {
 		return nil, fmt.Errorf("invalid session data: %w", err)
-	}
-
-	if log == nil {
-		log = logger.NullLogger
 	}
 
 	cert, err := tls.X509KeyPair([]byte(config.TLSCert), []byte(config.TLSKey))
@@ -228,7 +222,6 @@ func NewAssembleState(
 	as := AssembleState{
 		initiated:    validated.initiated,
 		config:       config,
-		logger:       log,
 		commit:       commit,
 		clock:        config.Clock,
 		cert:         cert,
@@ -278,11 +271,11 @@ func (as *AssembleState) publishAuthAndCommit(ctx context.Context, addresses []s
 			RDT:  as.config.RDT,
 		})
 		if err != nil {
-			as.debugf("cannot send auth message: %v", err)
+			logger.Debugf("cannot send auth message: %v", err)
 			continue
 		}
 
-		as.debugf("sent auth message to %s", addr)
+		logger.Debugf("sent auth message to %s", addr)
 
 		fp := CalculateFP(cert)
 
@@ -327,11 +320,11 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 		})
 		ack(err == nil)
 		if err != nil {
-			as.debugf("cannot publish device query: %v", err)
+			logger.Debugf("cannot publish device query: %v", err)
 			continue
 		}
 
-		as.debugf("sent device queries to %s at %s, count: %d", p.RDT, addr, len(queries))
+		logger.Debugf("sent device queries to %s at %s, count: %d", p.RDT, addr, len(queries))
 	}
 
 	// nothing new to commit here
@@ -361,11 +354,11 @@ func (as *AssembleState) publishDevicesAndCommit(ctx context.Context, client Cli
 		})
 		ack(err == nil)
 		if err != nil {
-			as.debugf("cannot publish device identities: %v", err)
+			logger.Debugf("cannot publish device identities: %v", err)
 			continue
 		}
 
-		as.debugf("sent device information to %s at %s, count: %d", p.RDT, addr, len(ids))
+		logger.Debugf("sent device information to %s at %s, count: %d", p.RDT, addr, len(ids))
 	}
 
 	as.commit(as.export())
@@ -413,12 +406,12 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 		}
 
 		if err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "routes", routes); err != nil {
-			as.debugf("cannot publish routes: %v", err)
+			logger.Debugf("cannot publish routes: %v", err)
 			continue
 		}
 
 		ack()
-		as.debugf("sent routes to %s at %s, count: %d", p.RDT, addr, len(routes.Routes)/3)
+		logger.Debugf("sent routes to %s at %s, count: %d", p.RDT, addr, len(routes.Routes)/3)
 	}
 
 	// we don't commit on route publishes since we don't keep track of which
@@ -488,7 +481,7 @@ func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
 
 	as.commit(as.export())
 
-	as.debugf("got valid auth message from %s", auth.RDT)
+	logger.Debugf("got valid auth message from %s", auth.RDT)
 
 	return nil
 }
@@ -550,7 +543,7 @@ func (as *AssembleState) Run(
 		if err := transport.Serve(ctx, addr, as.cert, as); err != nil {
 			// only propagate non-context.Canceled errors
 			if !errors.Is(err, context.Canceled) {
-				as.debugf("server error: %v", err)
+				logger.Debugf("server error: %v", err)
 				cancel()
 				serverError <- err
 			}
@@ -564,7 +557,7 @@ func (as *AssembleState) Run(
 		periodic(ctx, time.Second*5, func(ctx context.Context) {
 			discoveries, err := discover(ctx)
 			if err != nil {
-				as.debugf("error discovering peers: %v", err)
+				logger.Debugf("error discovering peers: %v", err)
 				return
 			}
 
@@ -578,7 +571,7 @@ func (as *AssembleState) Run(
 			}
 
 			if err := as.publishAuthAndCommit(ctx, addrs, client); err != nil {
-				as.debugf("error publishing auth messages: %v", err)
+				logger.Debugf("error publishing auth messages: %v", err)
 				return
 			}
 		})
@@ -638,16 +631,12 @@ func (as *AssembleState) Run(
 	}
 
 	sent, received, tx, rx := transport.Stats()
-	as.debugf(
+	logger.Debugf(
 		"assemble stopped after %d rounds, sent: %d messages (%d bytes), received: %d messages (%d bytes)",
 		rounds, sent, tx, received, rx,
 	)
 
 	return as.selector.Routes(), nil
-}
-
-func (as *AssembleState) debugf(format string, a ...any) {
-	as.logger.Debug(fmt.Sprintf(format, a...))
 }
 
 func periodic(
@@ -691,7 +680,7 @@ func (h *PeerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 	h.as.devices.RecordIncomingQuery(h.peer, unknown.Devices)
 
 	h.as.commit(h.as.export())
-	h.as.debugf("got device queries from %q", h.peer)
+	logger.Debugf("got device queries from %q", h.peer)
 
 	return nil
 }
@@ -717,7 +706,7 @@ func (h *PeerHandle) CommitRoutes(routes Routes) error {
 	// routes are represented by an array of triplets, refer to the doc comment
 	// on [Routes] for more information
 	received := len(routes.Routes) / 3
-	h.as.debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
+	logger.Debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
 
 	return nil
 }
@@ -759,7 +748,7 @@ func (h *PeerHandle) CommitDevices(devices Devices) error {
 
 	h.as.commit(h.as.export())
 
-	h.as.debugf("got unknown device information from %s, count: %d", h.peer, len(devices.Devices))
+	logger.Debugf("got unknown device information from %s, count: %d", h.peer, len(devices.Devices))
 
 	return nil
 }
