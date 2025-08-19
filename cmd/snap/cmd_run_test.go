@@ -239,7 +239,7 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
@@ -309,7 +309,7 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRefreshInhibitionLock(c *check.C) {
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, 1)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
@@ -418,7 +418,7 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, true)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1"})
 	// Check snap-confine points to latest revision
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x3")
 
@@ -567,7 +567,7 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc"})
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, 1)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.svc"})
+	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "snap.snapname.svc",
@@ -662,7 +662,7 @@ func (s *RunSuite) TestSnapRunAppHintLockedUntilTrackingCgroupIsCreated(c *check
 
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
@@ -1099,7 +1099,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "--classic",
@@ -1135,7 +1135,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) 
 	defer restorer()
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(mountedCoreLibExecPath, "snap-confine"), "--classic",
 		"snap.snapname.app",
@@ -1168,7 +1168,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromSnapd(c *check.C)
 	defer restorer()
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(mountedSnapdLibExecPath, "snap-confine"), "--classic",
 		"snap.snapname.app",
@@ -1477,7 +1477,7 @@ func (s *RunSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
 
 func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--command=shell"})
-	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
+	c.Assert(err, check.ErrorMatches, "the required argument `<NAME-OF-SNAP>\\.<NAME-OF-APP> \\[<SNAP-APP-ARG>\\.\\.\\.\\]` was not provided")
 }
 
 func (s *RunSuite) TestSnapRunErrorForUnavailableApp(c *check.C) {
@@ -1513,7 +1513,7 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	// and ensure those SNAP_ vars get overridden
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_NAME=something-else")
 	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_ARCH=PDP-7")
@@ -1593,7 +1593,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
@@ -1632,7 +1632,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/snapd/222", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/snapd/222", dirs.CoreLibExecDir, "snap-confine"),
@@ -1800,7 +1800,7 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app"})
+	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
@@ -1923,7 +1923,7 @@ echo "stdout output 2"
 	// and run it under strace
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
 			"sudo", "-E",
@@ -1946,7 +1946,7 @@ echo "stdout output 2"
 	// try again without filtering
 	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
 			"sudo", "-E",
@@ -1987,7 +1987,7 @@ and more
 			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
 		})
 		c.Assert(err, check.IsNil)
-		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+		c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 			append(append([]string{
 				"sudo", "-E",
@@ -2032,7 +2032,7 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	// and run it under strace
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--strace=-tt --raw -o "file with spaces"`, "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
 			"sudo", "-E",
@@ -2074,7 +2074,7 @@ func (s *RunSuite) TestSnapRunShellIntegration(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--shell", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
@@ -2114,7 +2114,7 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 	// pretend we are outside of timer range
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Assert(execCalled, check.Equals, false)
 
 	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(`%s: attempted to run "snapname.app" timer outside of scheduled time "mon,10:00~12:00,,fri,13:00"
@@ -2435,7 +2435,7 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
@@ -2491,7 +2491,7 @@ func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook", "configure", "-r", "x2", "snapname"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname"})
+	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
@@ -2545,7 +2545,7 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
@@ -2603,7 +2603,7 @@ func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
 	// invoked as: snap run -- snapname.svc --arg1 arg2
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
@@ -2670,7 +2670,7 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	// and run it!
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
