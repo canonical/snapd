@@ -54,7 +54,7 @@ imported by other systems.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			desc: i18n.G("Name of key to export"),
 		}})
-	cmd.hidden = true
+	cmd.completeHidden = true
 }
 
 func (x *cmdExportKey) Execute(args []string) error {
