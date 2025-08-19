@@ -1,0 +1,283 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2025 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package asserts
+
+import (
+	"errors"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+var (
+	validMessageID   = regexp.MustCompile(`^([a-zA-Z0-9]{4,16})(?:-(\d+))?$`)
+	validMessageKind = regexp.MustCompile(`^[a-z]+(?:-[a-z]+)*$`)
+)
+
+type DeviceID struct {
+	BrandID string
+	Model   string
+	Serial  string
+}
+
+type RequestMessage struct {
+	assertionBase
+
+	id     string
+	seqNum *int
+
+	devices []DeviceID
+
+	assumes []string
+
+	sinceUntil
+	timestamp time.Time
+}
+
+func (req *RequestMessage) AccountID() string {
+	return req.HeaderString("account-id")
+}
+
+func (req *RequestMessage) ID() string {
+	return req.id
+}
+
+func (req *RequestMessage) SeqNum() *int {
+	return req.seqNum
+}
+
+func (req *RequestMessage) Kind() string {
+	return req.HeaderString("message-kind")
+}
+
+func (req *RequestMessage) Devices() []DeviceID {
+	return req.devices
+}
+
+func (req *RequestMessage) Assumes() []string {
+	return req.assumes
+}
+
+func assembleRequestMessage(assert assertionBase) (Assertion, error) {
+	accountID := assert.HeaderString("account-id")
+	if !validAccountID.MatchString(accountID) {
+		return nil, fmt.Errorf("invalid account id: %s", accountID)
+	}
+
+	rawID, err := checkStringMatches(assert.headers, "message-id", validMessageID)
+	if err != nil {
+		return nil, err
+	}
+
+	id := rawID
+	var seqNum *int
+	dashIdx := strings.LastIndex(rawID, "-")
+	if dashIdx != -1 {
+		id = rawID[:dashIdx]
+		seq, _ := strconv.Atoi(rawID[dashIdx+1:])
+		seqNum = &seq
+	}
+
+	_, err = checkStringMatches(assert.headers, "message-kind", validMessageKind)
+	if err != nil {
+		return nil, err
+	}
+
+	validDeviceID := regexp.MustCompile(`^[^.]+\.[^.]+\.[^.]+$`)
+	devices, err := checkStringListMatches(assert.headers, "devices", validDeviceID)
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) == 0 {
+		return nil, errors.New(`"devices" header must not be empty`)
+	}
+
+	var deviceIDs []DeviceID
+	for i, device := range devices {
+		errPrefix := fmt.Sprintf("cannot parse device at position %d", i+1)
+		parts := strings.Split(device, ".")
+
+		if !validAccountID.MatchString(parts[0]) {
+			return nil, fmt.Errorf("%s: invalid brand-id: %s", errPrefix, parts[0])
+		}
+
+		if !validModel.MatchString(parts[1]) {
+			return nil, fmt.Errorf("%s: invalid model: %s", errPrefix, parts[1])
+		}
+
+		deviceID := DeviceID{BrandID: parts[0], Model: parts[1], Serial: parts[2]}
+		deviceIDs = append(deviceIDs, deviceID)
+	}
+
+	// TODO: Update after refactoring overlord.snapstate.checkAssumes for reuse
+	// Currently matches snapd<version> or some[-feature]*
+	var validAssumesHeuristic = regexp.MustCompile(`^(?:snapd[1-9]\d*(?:\.\d+)*|[a-z]+(?:-[a-z]+)*)$`)
+	assumes, err := checkStringListMatches(assert.headers, "assumes", validAssumesHeuristic)
+	if err != nil {
+		return nil, err
+	}
+
+	sinceUntil, err := checkValidSinceUntilWhat(assert.headers, "header")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	if len(assert.body) == 0 {
+		return nil, errors.New("body must not be empty")
+	}
+
+	return &RequestMessage{
+		assertionBase: assert,
+		id:            id,
+		seqNum:        seqNum,
+		devices:       deviceIDs,
+		assumes:       assumes,
+		sinceUntil:    *sinceUntil,
+		timestamp:     timestamp,
+	}, nil
+}
+
+// MessageStatus represents the response message's status after processing.
+type MessageStatus string
+
+const (
+	// MessageStatusSuccess indicates the message payload was applied successfully.
+	MessageStatusSuccess MessageStatus = "success"
+	// MessageStatusError indicates an error occurred while applying the message.
+	MessageStatusError MessageStatus = "error"
+	// MessageStatusUnauthorized indicates the action is not allowed for the account.
+	MessageStatusUnauthorized MessageStatus = "unauthorized"
+	// MessageStatusRejected indicates the message failed initial validation by snapd.
+	MessageStatusRejected MessageStatus = "rejected"
+)
+
+func newMessageStatus(status string) (*MessageStatus, error) {
+	ms := MessageStatus(status)
+	switch ms {
+	case MessageStatusSuccess, MessageStatusError, MessageStatusUnauthorized, MessageStatusRejected:
+		return &ms, nil
+	default:
+		return nil, fmt.Errorf(`expected "status" to be one of [success, error, unauthorized, rejected] but was %q`, status)
+	}
+}
+
+// ResponseMessage represents a response message assertion generated by snapd
+// for every processed request message. It contains the processing outcome
+// and any payload data in the assertion body.
+type ResponseMessage struct {
+	assertionBase
+
+	id     string
+	seqNum *int
+
+	device DeviceID
+
+	status MessageStatus
+
+	timestamp time.Time
+}
+
+// AccountID returns the account identifier that sent the original request message.
+func (res *ResponseMessage) AccountID() string {
+	return res.HeaderString("account-id")
+}
+
+// ID returns the message identifier of the original request message.
+func (res *ResponseMessage) ID() string {
+	return res.id
+}
+
+// SeqNum returns the original message's number within the sequence.
+func (res *ResponseMessage) SeqNum() *int {
+	return res.seqNum
+}
+
+// Status returns the response message's status.
+func (res *ResponseMessage) Status() MessageStatus {
+	return res.status
+}
+
+// Device returns the ID of the device that generated and signed this assertion.
+func (res *ResponseMessage) Device() DeviceID {
+	return res.device
+}
+
+func assembleResponseMessage(assert assertionBase) (Assertion, error) {
+	accountID := assert.HeaderString("account-id")
+	if !validAccountID.MatchString(accountID) {
+		return nil, fmt.Errorf("invalid account id: %s", accountID)
+	}
+
+	rawID, err := checkStringMatches(assert.headers, "message-id", validMessageID)
+	if err != nil {
+		return nil, err
+	}
+
+	id := rawID
+	var seqNum *int
+	dashIdx := strings.LastIndex(rawID, "-")
+	if dashIdx != -1 {
+		id = rawID[:dashIdx]
+		seq, _ := strconv.Atoi(rawID[dashIdx+1:])
+		seqNum = &seq
+	}
+
+	rawDeviceID := assert.HeaderString("device")
+	parts := strings.Split(rawDeviceID, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid device id: %s", rawDeviceID)
+	}
+
+	if !validAccountID.MatchString(parts[0]) {
+		return nil, fmt.Errorf("invalid brand-id in device id: %s", parts[0])
+	}
+
+	if !validModel.MatchString(parts[1]) {
+		return nil, fmt.Errorf("invalid model in device id: %s", parts[1])
+	}
+
+	deviceID := DeviceID{BrandID: parts[0], Model: parts[1], Serial: parts[2]}
+
+	status, err := newMessageStatus(assert.HeaderString("status"))
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ResponseMessage{
+		assertionBase: assert,
+		id:            id,
+		seqNum:        seqNum,
+		device:        deviceID,
+		status:        *status,
+		timestamp:     timestamp,
+	}, nil
+}
