@@ -60,7 +60,7 @@ type getCommand struct {
 
 	Document bool   `short:"d" description:"always return document, even with single key"`
 	Typed    bool   `short:"t" description:"strict typing with nulls and quoted strings"`
-	Default  string `long:"default" unquote:"false" description:"a default value to be used when none is found"`
+	Default  string `long:"default" unquote:"false" description:"a default value to be used when no value is set"`
 }
 
 var shortGetHelp = i18n.G("Print either configuration options or interface connection settings")
