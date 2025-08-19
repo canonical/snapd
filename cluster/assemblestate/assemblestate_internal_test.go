@@ -187,7 +187,7 @@ func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg A
 	cm := &committer{}
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return sel, nil
-	}, nil, cm.commit)
+	}, cm.commit)
 	c.Assert(err, check.IsNil)
 
 	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))
@@ -926,7 +926,7 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	// test with no initiated time (new session)
 	_, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, nil, commit)
+	}, commit)
 	c.Assert(err, check.IsNil)
 
 	// test with recent session still within the timeout (30 minutes old)
@@ -935,7 +935,7 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	}
 	_, err = NewAssembleState(cfg, recent, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, nil, commit)
+	}, commit)
 	c.Assert(err, check.IsNil)
 
 	// test with expired session (2 hours old)
@@ -944,7 +944,7 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	}
 	_, err = NewAssembleState(cfg, expired, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, nil, commit)
+	}, commit)
 	c.Assert(err, check.ErrorMatches, "invalid session data: cannot resume an assembly session that began more than an hour ago")
 }
 
@@ -1078,7 +1078,7 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	as, err := NewAssembleState(cfg, session, func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error) {
 		c.Assert(self, check.Equals, local.rdt)
 		return selector, nil
-	}, nil, func(AssembleSession) {})
+	}, func(AssembleSession) {})
 	c.Assert(err, check.IsNil)
 
 	// verify imported routes were recorded in selector
@@ -1317,7 +1317,7 @@ func (s *ClusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 	for _, tc := range testCases {
 		_, err := NewAssembleState(cfg, tc.session, func(DeviceToken, func(DeviceToken) bool) (RouteSelector, error) {
 			return statelessSelector(), nil
-		}, nil, commit)
+		}, commit)
 
 		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
 		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
@@ -1373,7 +1373,7 @@ func (s *ClusterSuite) TestRunTimeout(c *check.C) {
 	}
 	as, err := NewAssembleState(cfg, session, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, nil, commit)
+	}, commit)
 	c.Assert(err, check.IsNil)
 
 	// when Run is called, the clock will return a time past the 1-hour limit
@@ -1413,7 +1413,7 @@ func (s *ClusterSuite) TestRunServerError(c *check.C) {
 
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, nil, commit)
+	}, commit)
 	c.Assert(err, check.IsNil)
 
 	// run should return the server error wrapped with "server failed: "
