@@ -45,6 +45,21 @@ type CompatField struct {
 	Dimensions []CompatDimension
 }
 
+func (cf *CompatField) String() string {
+	s := ""
+	for _, d := range cf.Dimensions {
+		s += d.Tag
+		for _, vals := range d.Values {
+			if vals.Min == vals.Max {
+				s += fmt.Sprintf("-%d", vals.Min)
+			} else {
+				s += fmt.Sprintf("-(%d..%d)", vals.Min, vals.Max)
+			}
+		}
+	}
+	return s
+}
+
 // CompatSpec specifies valid values for a compatibility field, this can be
 // used to further restrict these fields for a given interface. The number of
 // dimensions, tags, and number of values per dimension must match the ones in
