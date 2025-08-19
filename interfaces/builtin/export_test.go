@@ -32,14 +32,19 @@ import (
 )
 
 var (
-	DecodeCompatField           = decodeCompatField
-	CheckCompatibility          = checkCompatibility
 	RegisterIface               = registerIface
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
 )
+
+type GbmDriverLibsInterface gbmDriverLibsInterface
+
+func SymlinksUserIfaceFromGbmIface(iface interfaces.Interface) interfaces.SymlinksUser {
+	gbmIface := iface.(*gbmDriverLibsInterface)
+	return interfaces.SymlinksUser(gbmIface)
+}
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]any) (string, error) {
 	return iface.(*mprisInterface).getName(attribs)
