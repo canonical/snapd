@@ -1,0 +1,80 @@
+name: 'Run Firefox preformance tests'
+description: 'Run Firefox preformance tests using JetStream 2.2'
+inputs:
+  firefox-exec:
+    description: 'The Firefox command to run (e.g. "firefox" or a path to an executable)'
+    required: true
+    type: string
+  results-file:
+    description: 'The file name under which to save results'
+    required: true
+    type: string
+  
+runs:
+  using: "composite"
+  steps:
+  - name: Get JetStream2.2
+    shell: bash
+    run: |
+        git clone https://github.com/WebKit/JetStream.git
+        cd JetStream
+        git checkout JetStream2.2
+  
+  - name: Write server script
+    shell: bash
+    run: |
+        cat <<EOF > ${{ github.workspace }}/JetStream/server.py
+        #!/usr/bin/env python3
+        from http.server import HTTPServer, SimpleHTTPRequestHandler
+        import json
+
+        class CustomHandler(SimpleHTTPRequestHandler):
+            def do_POST(self):
+                if self.path == '/report':
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    body = self.rfile.read(content_length)
+                    with open("${{ inputs.results-file }}", 'w', encoding='utf-8') as f:
+                        json.dump(json.loads(body.decode('utf-8')), f)
+                    self.send_response(200)
+                else:
+                    super().do_POST()
+
+        if __name__ == '__main__':
+            httpd = HTTPServer(('localhost', 8000), CustomHandler)
+            httpd.serve_forever()
+        EOF
+        chmod +x ${{ github.workspace }}/JetStream/server.py
+
+  - name: Write kill script
+    shell: bash
+    run: |
+        cat <<EOF > ${{ github.workspace }}/JetStream/kill.sh
+        #!/bin/bash
+        while true; do
+          if [ -f "${{ inputs.results-file }}" ]; then
+            break
+          fi
+          sleep 5
+        done
+        ps aux | grep -i xvfb | head -1 | tr -s ' ' | cut -d ' ' -f 2 | xargs -I {} kill {}
+        EOF
+        chmod +x ${{ github.workspace }}/JetStream/kill.sh
+
+  - name: Run firefox performance tests
+    shell: bash
+    run: |
+        cd JetStream
+
+        ./server.py &
+        ./kill.sh &
+
+        echo "Make sure the server is up and running"
+        for i in $(seq 10); do
+          if curl -I 'http://localhost:8000' -o /dev/null 2>/dev/null; then
+            break
+          fi
+          sleep 1
+        done
+
+        echo "Running firefox performance tests"
+        xvfb-run ${{ inputs.firefox-exec }} 'http://localhost:8000/?startDelay=1&report=true' || true

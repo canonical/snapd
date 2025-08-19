@@ -39,7 +39,7 @@ func (s *SnapSuite) TestCmdWaitHappy(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/snaps/system/conf")
 
-		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"seed.loaded":%v}}`, n > 1))
+		fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {"seed.loaded":%v}}\n`, n > 1)
 		n++
 	})
 
@@ -149,7 +149,7 @@ func (s *SnapSuite) TestCmdWaitIntegration(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/snaps/system/conf")
 
-		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"test.value":%v}}`, testValue))
+		fmt.Fprintf(w, `{"type":"sync", "status-code": 200, "result": {"test.value":%v}}\n`, testValue)
 		n++
 	})
 

@@ -42,8 +42,6 @@ var sbSetModel = sb_scope.SetModel
 var sbSetBootMode = sb_scope.SetBootMode
 var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 
-const legacyFdeHooksPlatformName = "fde-hook-v2"
-
 // taggedHandle wraps a raw handle from a secboot hook and adds a method field.
 // This field is used to route the handle to the correct [sb_hooks.KeyRevealer].
 // Note that this is currently only used for OPTEE at the moment to preserve
@@ -56,7 +54,7 @@ type taggedHandle struct {
 func init() {
 	v2Handler := &fdeHookV2DataHandler{}
 	flags := sb.PlatformKeyDataHandlerFlags(0)
-	sb.RegisterPlatformKeyDataHandler(legacyFdeHooksPlatformName, v2Handler, flags)
+	sb.RegisterPlatformKeyDataHandler(platformFdeHookV2, v2Handler, flags)
 }
 
 type hookKeyProtector struct {
@@ -224,9 +222,9 @@ func setAuthorizedBootModesOnHooksKeydataImpl(kd *sb_hooks.KeyData, rand io.Read
 
 var setAuthorizedBootModesOnHooksKeydata = setAuthorizedBootModesOnHooksKeydataImpl
 
-// ResealKeysWithFDESetupHook updates hook based keydatas for given
+// resealKeysWithFDESetupHookImpl updates hook based keydatas for given
 // files with a specific list of models
-func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyGetter func() ([]byte, error), models []ModelForSealing, bootModes []string) error {
+func resealKeysWithFDESetupHookImpl(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, models []ModelForSealing, bootModes []string) error {
 	var sbModels []sb.SnapModel
 	for _, model := range models {
 		sbModels = append(sbModels, model)
@@ -262,7 +260,7 @@ func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyGetter func() 
 		}
 
 		if primaryKey == nil {
-			pk, err := primaryKeyGetter()
+			pk, err := GetPrimaryKey(primaryKeyDevices, fallbackPrimaryKeyFiles)
 			if err != nil {
 				return err
 			}
@@ -292,6 +290,8 @@ func ResealKeysWithFDESetupHook(keys []KeyDataLocation, primaryKeyGetter func() 
 
 	return nil
 }
+
+var resealKeysWithFDESetupHook = resealKeysWithFDESetupHookImpl
 
 func unlockDiskWithHookV1Key(mapperName, sourceDevice string, sealed []byte) error {
 	p := fde.RevealParams{

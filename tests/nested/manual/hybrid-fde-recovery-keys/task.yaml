@@ -11,9 +11,9 @@ details: |
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
-  MODEL_VERSION: "25.10"
-  GADGET_VERSION: "classic-25.10"
-  KERNEL_VERSION: "25.10"
+  MODEL_VERSION/2510: "25.10"
+  GADGET_VERSION/2510: "classic-25.10"
+  KERNEL_VERSION/2510: "25.10"
 
   # Only 25.10+ systems (including core) should be able to
   # use the new TPM FDE recovery key APIs, so keep those systems

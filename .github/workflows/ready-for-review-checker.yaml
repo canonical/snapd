@@ -1,0 +1,53 @@
+name: Remove Run-only-one-system label and trigger read-systems job
+
+on:
+  pull_request_target:
+    types: [ready_for_review]
+
+jobs:
+  check-label-and-trigger:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for "Run only one system" label
+        id: check_label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          LABEL="Run only one system"
+          LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name')
+          echo "Labels on this PR: $LABELS"
+
+          if grep -q "$LABEL" <<<"$LABELS"; then
+            echo "label_present=true" >> $GITHUB_OUTPUT
+            echo "Removing label..."
+            gh pr edit $PR_NUMBER --remove-label "$LABEL"
+          else
+            echo "label_present=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Tests workflow for read-systems job
+        if: steps.check_label.outputs.label_present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ref_head=$(gh pr view $PR_NUMBER --json headRefName --jq .headRefName)
+          run_id=$(gh run list --workflow .github/workflows/ci-test.yaml --branch "$ref_head" --limit 1 --json databaseId -q '.[0].databaseId')
+          status=$(gh run view "$run_id" --json status -q .status)
+          if [ "$status" = "in_progress" ]; then
+            message="## Unable to automatically rerun workflow - manually rerun at least the read-systems job to trigger spread tests on all systems"
+            if ! gh pr comment "$PR_NUMBER" --body "$message" --edit-last; then
+              gh pr comment "$PR_NUMBER" --body "$message"
+            fi
+            exit 0
+          fi
+          job_id=$(gh run view "$run_id" --json jobs --jq '.jobs[] | select(.name == "read-systems") | .databaseId')
+          echo "Rerunning the read-systems job in run https://github.com/canonical/snapd/actions/runs/$run_id"
+          gh run rerun "$run_id" --job "$job_id"

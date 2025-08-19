@@ -10,7 +10,8 @@ environment:
   # downloading docker snap occasionally triggers OOM
   SNAPD_NO_MEMORY_LIMIT: 1
   CHANNEL: "latest/stable"
-  IMAGE_URL: https://storage.googleapis.com/snapd-spread-tests/images/docker/hello-world.tar
+  IMAGE_URL_X86: https://storage.googleapis.com/snapd-spread-tests/images/docker/hello-world.tar
+  IMAGE_URL_ARM: https://storage.googleapis.com/snapd-spread-tests/images/docker/hello-world-arm64.tar
 
 prepare: |
   if ! snap install --channel="$CHANNEL" docker; then
@@ -22,7 +23,12 @@ prepare: |
     if ! command -v curl; then
         snap install --devmode --edge test-snapd-curl
         snap alias test-snapd-curl.curl curl
-    fi    
+    fi
+    if os.query is-arm; then
+      IMAGE_URL=$IMAGE_URL_ARM
+    else
+      IMAGE_URL=$IMAGE_URL_X86
+    fi
     curl -sL "$IMAGE_URL" -o hello-world.tar
     # retry until docker is ready lo load images
     retry -n 30 --wait 1 docker load -i hello-world.tar  

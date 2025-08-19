@@ -491,8 +491,9 @@ var templateCommon = `
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 
-  # Allow reading systemd-provided credentials.
+  # Allow listing and reading systemd-provided credentials.
   /run/credentials/ r,
+  /run/credentials/snap.@{SNAP_INSTANCE_NAME}.*.service/ r,
   /run/credentials/snap.@{SNAP_INSTANCE_NAME}.*.service/** r,
   
   ###DEVMODE_SNAP_CONFINE###
@@ -631,6 +632,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/stty ixr,
   /{,usr/}bin/sync ixr,
   /{,usr/}bin/systemd-cat ixr,
+  /{,usr/}bin/systemd-creds ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,

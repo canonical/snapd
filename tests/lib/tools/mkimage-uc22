@@ -89,7 +89,7 @@ get_assets() {
         cp "$BASE_IMAGE_PATH" "$CACHE"
     else
         echo "mkimage-uc22: downloading the ubuntu classic base"
-        wget -c -P "$CACHE" "$BASE_IMAGE_URL"
+        wget -q -c -P "$CACHE" "$BASE_IMAGE_URL"
     fi    
 
     echo "mkimage-uc22: image assets ready"
@@ -149,9 +149,14 @@ install_data_partition() {
     [ -e "$DESTDIR"/dev/random ] || sudo mknod -m 666 "$DESTDIR"/dev/random c 1 8
     [ -e "$DESTDIR"/dev/urandom ] || sudo mknod -m 666 "$DESTDIR"/dev/urandom c 1 9
 
-    # ensure resolving works inside the chroot
-    echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
-    
+    # ensure the proxy and resolv configuration is set inside the chroot
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        cp /etc/resolv.conf "$DESTDIR"/etc/resolv.conf
+        cp /etc/environment "$DESTDIR"/etc/environment
+    else
+        echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
+    fi
+
     local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq update-notifier-common"
     echo "mkimage-uc22: installing additional packages: $pkgs"
     sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt -qq update"    
