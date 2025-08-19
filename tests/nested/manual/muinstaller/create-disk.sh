@@ -1,4 +1,4 @@
-set -eu
+set -eux
 
 loop_device=$(losetup --show -f ./fake-disk.img)
 mounts=()
