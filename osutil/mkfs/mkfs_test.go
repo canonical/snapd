@@ -60,118 +60,142 @@ func (m *mkfsSuite) SetUpTest(c *C) {
 }
 
 func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
-	cmd := testutil.MockCommand(c, "fakeroot", "")
+	useFakeroot := os.Getuid() != 0
+	var cmd *testutil.MockCmd
+	if useFakeroot {
+		cmd = testutil.MockCommand(c, "fakeroot", "")
+	} else {
+		cmd = testutil.MockCommand(c, "mkfs.ext4", "")
+	}
 	defer cmd.Restore()
 
 	err := mkfs.MakeWithContent("ext4", "foo.img", "my-label", "contents", 0, 0)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-d", "contents",
-			"-L", "my-label",
-			"foo.img",
-		},
-	})
+	expectedCall := []string{
+		"mkfs.ext4",
+		"-d", "contents",
+		"-L", "my-label",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
 
 	// empty label
 	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 0, 0)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-d", "contents",
-			"foo.img",
-		},
-	})
+	expectedCall = []string{
+		"mkfs.ext4",
+		"-d", "contents",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
 
 	// no content
 	err = mkfs.Make("ext4", "foo.img", "my-label", 0, 0)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-L", "my-label",
-			"foo.img",
-		},
-	})
-
+	expectedCall = []string{
+		"mkfs.ext4",
+		"-L", "my-label",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 }
 
 func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
-	cmd := testutil.MockCommand(c, "fakeroot", "")
+	useFakeroot := os.Getuid() != 0
+	var cmd *testutil.MockCmd
+	if useFakeroot {
+		cmd = testutil.MockCommand(c, "fakeroot", "")
+	} else {
+		cmd = testutil.MockCommand(c, "mkfs.ext4", "")
+	}
 	defer cmd.Restore()
 
 	err := mkfs.MakeWithContent("ext4", "foo.img", "my-label", "contents", 250*1024*1024, 0)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-d", "contents",
-			"-L", "my-label",
-			"foo.img",
-		},
-	})
+	expectedCall := []string{
+		"mkfs.ext4",
+		"-d", "contents",
+		"-L", "my-label",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
 
 	// empty label
 	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 32*1024*1024, 0)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-b", "1024",
-			"-d", "contents",
-			"foo.img",
-		},
-	})
+	expectedCall = []string{
+		"mkfs.ext4",
+		"-b", "1024",
+		"-d", "contents",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
 
 	// with sector size of 512
 	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 32*1024*1024, 512)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-b", "1024",
-			"-d", "contents",
-			"foo.img",
-		},
-	})
+	expectedCall = []string{
+		"mkfs.ext4",
+		"-b", "1024",
+		"-d", "contents",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
 
 	// with sector size of 4096
 	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 32*1024*1024, 4096)
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-b", "4096",
-			"-d", "contents",
-			"foo.img",
-		},
-	})
+	expectedCall = []string{
+		"mkfs.ext4",
+		"-b", "4096",
+		"-d", "contents",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
 
 }
 
 func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
-	cmd := testutil.MockCommand(c, "fakeroot", "echo 'command failed'; exit 1")
+	useFakeroot := os.Getuid() != 0
+	var cmd *testutil.MockCmd
+	if useFakeroot {
+		cmd = testutil.MockCommand(c, "fakeroot", "echo 'command failed'; exit 1")
+	} else {
+		cmd = testutil.MockCommand(c, "mkfs.ext4", "echo 'command failed'; exit 1")
+	}
 	defer cmd.Restore()
 
 	err := mkfs.MakeWithContent("ext4", "foo.img", "my-label", "contents", 0, 0)
