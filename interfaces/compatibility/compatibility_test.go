@@ -77,6 +77,8 @@ func (s *CompatSuite) TestValidCompatFields(c *C) {
 		cfield, err := compatibility.DecodeCompatField(tc.compat, nil)
 		c.Assert(err, IsNil)
 		c.Check(cfield, DeepEquals, tc.cfield)
+		cfield, err = compatibility.DecodeCompatField(cfield.String(), nil)
+		c.Check(cfield, DeepEquals, tc.cfield)
 	}
 }
 
