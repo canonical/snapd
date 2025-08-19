@@ -27,13 +27,13 @@ import (
 
 // export for tests
 var (
-	TaskCreateClusterSetup = taskCreateClusterSetup
+	TaskAssembleClusterSetup = taskAssembleClusterSetup
 )
 
-// CreateClusterSetup is exported for tests
-type CreateClusterSetup = createClusterSetup
+// AssembleClusterSetup is exported for tests
+type AssembleClusterSetup = assembleClusterSetup
 
-// DoCreateCluster is exported for tests
-func (m *ClusterManager) DoCreateCluster(t *state.Task, tb *tomb.Tomb) error {
-	return m.doCreateCluster(t, tb)
+// DoAssembleCluster is exported for tests
+func (m *ClusterManager) DoAssembleCluster(t *state.Task, tb *tomb.Tomb) error {
+	return m.doAssembleCluster(t, tb)
 }

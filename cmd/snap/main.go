@@ -102,6 +102,9 @@ var commands []*cmdInfo
 // debugCommands holds information about all debug commands.
 var debugCommands []*cmdInfo
 
+// clusterCommands holds information about all cluster commands.
+var clusterCommands []*cmdInfo
+
 // routineCommands holds information about all internal commands.
 var routineCommands []*cmdInfo
 
@@ -133,6 +136,22 @@ func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Comm
 		argDescs:  argDescs,
 	}
 	debugCommands = append(debugCommands, info)
+	return info
+}
+
+// addClusterCommand replaces parser.addCommand() in a way that is
+// compatible with re-constructing a pristine parser. It is meant for
+// adding cluster commands.
+func addClusterCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
+	info := &cmdInfo{
+		name:      name,
+		shortHelp: shortHelp,
+		longHelp:  longHelp,
+		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
+	}
+	clusterCommands = append(clusterCommands, info)
 	return info
 }
 
@@ -334,7 +353,7 @@ func Parser(cli *client.Client) *flags.Parser {
 	// add --help like what go-flags would do for us, but hidden
 	addHelp(parser)
 
-	seen := make(map[string]bool, len(commands)+len(debugCommands)+len(routineCommands))
+	seen := make(map[string]bool, len(commands)+len(debugCommands)+len(clusterCommands)+len(routineCommands))
 	checkUnique := func(ci *cmdInfo, kind string) {
 		if seen[ci.shortHelp] && ci.shortHelp != "Internal" && ci.shortHelp != "Deprecated (hidden)" {
 			logger.Panicf(`%scommand %q has an already employed description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
@@ -354,6 +373,15 @@ func Parser(cli *client.Client) *flags.Parser {
 	// Add all the sub-commands of the debug command
 	registerCommands(cli, parser, debugCommand, debugCommands, func(ci *cmdInfo) {
 		checkUnique(ci, "debug ")
+	})
+	// Add the cluster command
+	clusterCommand, err := parser.AddCommand("cluster", shortClusterHelp, longClusterHelp, &cmdCluster{})
+	if err != nil {
+		logger.Panicf("cannot add command %q: %v", "cluster", err)
+	}
+	// Add all the sub-commands of the cluster command
+	registerCommands(cli, parser, clusterCommand, clusterCommands, func(ci *cmdInfo) {
+		checkUnique(ci, "cluster ")
 	})
 	// Add the internal command
 	routineCommand, err := parser.AddCommand("routine", shortRoutineHelp, longRoutineHelp, &cmdRoutine{})

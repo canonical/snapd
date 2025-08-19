@@ -257,7 +257,7 @@ var helpCategories = []helpCategory{
 		Other:           true,
 		Description:     i18n.G("introspection and debugging of snapd"),
 		Commands:        []string{"version"},
-		AllOnlyCommands: []string{"debug"},
+		AllOnlyCommands: []string{"debug", "cluster"},
 	}, {
 		Label:           i18n.G("Development"),
 		Description:     i18n.G("developer-oriented features"),

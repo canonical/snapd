@@ -17,32 +17,18 @@
  *
  */
 
-package clusterstate
+package main
 
 import (
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/i18n"
 )
 
-// ClusterManager is responsible for managing cluster assembly operations.
-type ClusterManager struct {
-	state  *state.State
-	runner *state.TaskRunner
-}
+type cmdCluster struct{}
 
-// Manager returns a new cluster manager.
-func Manager(s *state.State, runner *state.TaskRunner) (*ClusterManager, error) {
-	m := &ClusterManager{
-		state:  s,
-		runner: runner,
-	}
+var shortClusterHelp = i18n.G("Cluster management")
+var longClusterHelp = i18n.G(`
+The cluster command contains a selection of cluster management sub-commands.
 
-	// register task handlers
-	runner.AddHandler("assemble-cluster", m.doAssembleCluster, nil)
-
-	return m, nil
-}
-
-// Ensure implements StateManager.Ensure.
-func (m *ClusterManager) Ensure() error {
-	return nil
-}
+Available subcommands:
+  assemble    Assemble a cluster with other devices
+`)

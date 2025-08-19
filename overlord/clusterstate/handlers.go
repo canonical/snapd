@@ -21,71 +21,96 @@ package clusterstate
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cluster/assemblestate"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/randutil"
 )
 
-// taskCreateClusterSetup extracts the create-cluster-setup from the task.
-func taskCreateClusterSetup(t *state.Task) (*createClusterSetup, error) {
-	var setup createClusterSetup
-	if err := t.Get("create-cluster-setup", &setup); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get create-cluster-setup from task: %v", err)
+// taskAssembleClusterSetup extracts the assemble-cluster-setup from the task.
+func taskAssembleClusterSetup(t *state.Task) (assembleClusterSetup, error) {
+	var setup assembleClusterSetup
+	if err := t.Get("assemble-cluster-setup", &setup); err != nil {
+		return assembleClusterSetup{}, fmt.Errorf("internal error: cannot get assemble-cluster-setup from task: %v", err)
 	}
-	return &setup, nil
+	return setup, nil
 }
 
-// doCreateCluster handles the "create-cluster" task by using assemblestate
+// interfaceWithIP finds the network interface that has the given IP address
+func interfaceWithIP(ip net.IP) (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ifaceIP net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ifaceIP = v.IP
+			case *net.IPAddr:
+				ifaceIP = v.IP
+			}
+
+			if ifaceIP != nil && ifaceIP.Equal(ip) {
+				return iface.Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no interface found with IP %s", ip)
+}
+
+// doAssembleCluster handles the "assemble-cluster" task by using assemblestate
 // to perform the actual cluster assembly process.
-func (m *ClusterManager) doCreateCluster(t *state.Task, tomb *tomb.Tomb) error {
+func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	// get configuration from task
-	setup, err := taskCreateClusterSetup(t)
+	setup, err := taskAssembleClusterSetup(t)
 	if err != nil {
 		return err
 	}
 
-	// parse ip address
 	ip := net.ParseIP(setup.IP)
 	if ip == nil {
 		return fmt.Errorf("invalid IP address: %s", setup.IP)
 	}
 
-	// create tls certificate
-	_, err = tls.X509KeyPair(setup.TLSCert, setup.TLSKey)
-	if err != nil {
-		return fmt.Errorf("cannot load TLS certificate: %v", err)
-	}
+	// TODO: get device serial/private key in some more reasonable way? could
+	// maybe be passed into the task?
 
-	// get device manager for system credentials
 	deviceMgr := devicestate.DeviceMgr(st)
 
-	// get device serial assertion
 	serial, err := deviceMgr.Serial()
 	if err != nil {
 		return fmt.Errorf("cannot get device serial: %v", err)
 	}
 
-	// get device private key
-	privateKey, err := deviceMgr.DeviceKey()
+	key, err := deviceMgr.DeviceKey()
 	if err != nil {
 		return fmt.Errorf("cannot get device private key: %v", err)
 	}
 
-	// create assemblestate configuration
-	assembleConfig := assemblestate.AssembleConfig{
+	config := assemblestate.AssembleConfig{
 		Secret:       setup.Secret,
 		RDT:          assemblestate.DeviceToken(setup.RDT),
 		IP:           ip,
@@ -94,90 +119,158 @@ func (m *ClusterManager) doCreateCluster(t *state.Task, tomb *tomb.Tomb) error {
 		TLSKey:       setup.TLSKey,
 		ExpectedSize: setup.ExpectedSize,
 		Serial:       serial,
-		PrivateKey:   privateKey,
+		PrivateKey:   key,
 	}
 
-	// get assertion database
+	ctx := tomb.Context(context.Background())
+	devices, routes, err := assemble(ctx, t, setup.Domain, config)
+	if err != nil {
+		return err
+	}
+
+	clusterID, err := randutil.RandomKernelUUID()
+	if err != nil {
+		return fmt.Errorf("cannot generate cluster ID: %v", err)
+	}
+
+	devs := make([]asserts.ClusterDevice, 0, len(devices))
+	ids := make([]int, 0, len(devices))
+	for i, dev := range devices {
+		devs = append(devs, asserts.ClusterDevice{
+			ID:        i + 1,
+			BrandID:   dev.BrandID,
+			Model:     dev.Model,
+			Serial:    dev.Serial,
+			Addresses: dev.Addresses,
+		})
+		ids = append(ids, i+1)
+	}
+
+	uncommitted := UncommittedClusterState{
+		ClusterID: clusterID,
+		Devices:   devs,
+		Subclusters: []asserts.ClusterSubcluster{
+			// TODO: handle non-default clusters
+			{
+				Name:    "default",
+				Devices: ids,
+				Snaps:   []asserts.ClusterSnap{},
+			},
+		},
+		CompletedAt: time.Now(),
+	}
+
+	st.Set("uncommitted-cluster-state", uncommitted)
+
+	t.Logf(
+		"Cluster assembly completed successfully with %d devices and %d routes",
+		len(devices),
+		len(routes.Routes)/3,
+	)
+
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func assemble(
+	ctx context.Context,
+	t *state.Task,
+	domain string,
+	config assemblestate.AssembleConfig,
+) ([]assemblestate.ClusterDevice, assemblestate.Routes, error) {
+	st := t.State()
 	assertDB := assertstate.DB(st)
 
-	// create initial session (empty for new cluster)
+	// TODO: create initial session, eventually attempt to detect a resumed
+	// session
 	session := assemblestate.AssembleSession{}
 
 	// unlock state before long-running operations
 	st.Unlock()
+	defer st.Lock()
 
-	// create assemblestate instance
-	selector := func(self assemblestate.DeviceToken, identified func(assemblestate.DeviceToken) bool) (assemblestate.RouteSelector, error) {
-		// use priority selector as default - pass nil for default random source
+	meter := progress.Meter(progress.Null)
+	if config.ExpectedSize > 0 {
+		meter = snapstate.NewTaskProgressAdapterUnlocked(t)
+	}
+
+	selector := func(
+		self assemblestate.DeviceToken,
+		identified func(assemblestate.DeviceToken) bool,
+	) (assemblestate.RouteSelector, error) {
 		return assemblestate.NewPrioritySelector(self, nil, identified), nil
 	}
 
-	// commit function to persist session state
+	// commit function to persist session state and report progress
+	prev := assemblestate.AssembleSession{}
+	message := func(devs, routes int) string {
+		var b strings.Builder
+		b.WriteString("Assembling cluster: discovered %d ")
+		if devs != 1 {
+			b.WriteString("devices and %d ")
+		} else {
+			b.WriteString("device and %d ")
+		}
+		if routes != 1 {
+			b.WriteString("routes")
+		} else {
+			b.WriteString("route")
+		}
+		return fmt.Sprintf(b.String(), devs, routes)
+	}
+
 	commit := func(session assemblestate.AssembleSession) {
-		// TODO: persist session to task state for resumption
-		logger.Debugf("cluster assembly session updated: %d trusted peers", len(session.Trusted))
+		// persist session to task state for resumption
+		st.Lock()
+		t.Set("assemble-session", session)
+		st.Unlock()
+
+		if len(prev.Devices.IDs) != len(session.Devices.IDs) || len(prev.Routes.Routes) != len(session.Routes.Routes) {
+			meter.Notify(message(len(session.Devices.IDs), len(session.Routes.Routes)/3))
+		}
+		prev = session
 	}
 
 	as, err := assemblestate.NewAssembleState(
-		assembleConfig,
+		config,
 		session,
 		selector,
-		logger.New(nil, 0, &logger.LoggerOptions{}),
 		commit,
 		assertDB,
 	)
 	if err != nil {
-		st.Lock()
-		return fmt.Errorf("cannot create assembly state: %v", err)
+		return nil, assemblestate.Routes{}, fmt.Errorf("cannot create assembly state: %v", err)
 	}
 
-	// create transport for communication
-	transport := assemblestate.NewHTTPTransport(logger.New(nil, 0, &logger.LoggerOptions{}))
+	transport := assemblestate.NewHTTPSTransport()
 
-	// create discovery channel
-	discoveries := make(chan []string, 1)
-
-	// send initial discovery addresses if provided
-	if len(setup.Addresses) > 0 {
-		go func() {
-			discoveries <- setup.Addresses
-		}()
-	}
-
-	// create context that respects tomb cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// monitor tomb for cancellation
-	go func() {
-		select {
-		case <-tomb.Dying():
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-
-	// run cluster assembly
-	opts := assemblestate.PublicationOptions{
-		Period: 30 * time.Second,
-		Jitter: 5 * time.Second,
-	}
-
-	routes, err := as.Run(ctx, transport, discoveries, opts)
-	st.Lock()
-
+	iface, err := interfaceWithIP(config.IP)
 	if err != nil {
-		if ctx.Err() != nil {
-			// cancellation is not an error for us
-			return nil
-		}
-		return fmt.Errorf("cluster assembly failed: %v", err)
+		return nil, assemblestate.Routes{}, fmt.Errorf("cannot find network interface for IP %s: %v", config.IP, err)
 	}
 
-	// store results in task state
-	t.Set("cluster-routes", routes)
-	t.Logf("Cluster assembly completed successfully with %d devices and %d routes",
-		len(routes.Devices), len(routes.Routes)/3)
+	discoveries, stop, err := assemblestate.MulticastDiscovery(
+		ctx,
+		iface,
+		config.IP,
+		config.Port,
+		assemblestate.DeviceToken(config.RDT),
+		domain,
+		false,
+	)
+	if err != nil {
+		return nil, assemblestate.Routes{}, fmt.Errorf("cannot start multicast discovery: %v", err)
+	}
+	defer stop()
 
-	return nil
+	opts := assemblestate.PublicationOptions{
+		Period: 5 * time.Second,
+	}
+	devices, routes, err := as.Run(ctx, transport, discoveries, opts)
+	if err != nil {
+		return nil, assemblestate.Routes{}, fmt.Errorf("cluster assembly failed: %v", err)
+	}
+
+	return devices, routes, nil
 }

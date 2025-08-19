@@ -93,6 +93,8 @@ var api = []*Command{
 	requestsRuleCmd,
 	systemSecurebootCmd,
 	systemVolumesCmd,
+	clusterCmd,
+	clusterUncommittedCmd,
 }
 
 type featureEndpoint struct {
