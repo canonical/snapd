@@ -229,15 +229,7 @@ func matchCompatLabels(v1, v2 any) bool {
 	// Note that decoding errors should not happen as interfaces are
 	// expected to check the format of the labels before this can even be
 	// called.
-	c1, err := compatibility.DecodeCompatField(v1.(string), nil)
-	if err != nil {
-		return false
-	}
-	c2, err := compatibility.DecodeCompatField(v2.(string), nil)
-	if err != nil {
-		return false
-	}
-	return compatibility.CheckCompatibility(*c1, *c2)
+	return compatibility.CheckCompatibility(v1.(string), v2.(string))
 }
 
 func compileEvalOrRefAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
