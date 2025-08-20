@@ -290,14 +290,13 @@ jobs:
       run: |
         echo KEEP_INSTANCES=true >> $GITHUB_ENV
         backend="${{ inputs.backend }}"
+        spread_lib_dir=tests/lib/spread
         for system in ${{ inputs.systems }}; do
             workers=$(yq '.backends["$backend"].systems[] | select(has("$system"))[].workers' < spread.yaml)
-            if [ "$workers" != null ]; then
-                cd tests/lib/spread
-                cp spread."$backend".yaml spread.yaml
-                spread -gc -collect "$workers"
-                rm spread.yaml
-                rm .spread-reuse.*.yaml
+            if [[ "$workers" =~ ^[0-9]+$ ]] && (( workers > 0 )); then
+                cp "$spread_lib_dir"/spread."$backend".yaml "$spread_lib_dir"/spread.yaml
+                ( cd "$spread_lib_dir" && spread -gc -collect "$workers" )
+                rm -f "$spread_lib_dir"/spread.yaml "$spread_lib_dir"/.spread-reuse.*.yaml
             fi
         done
 
