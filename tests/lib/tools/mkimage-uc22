@@ -157,7 +157,7 @@ install_data_partition() {
         echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
     fi
 
-    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq update-notifier-common"
+    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq update-notifier-common systemd-timesyncd"
     echo "mkimage-uc22: installing additional packages: $pkgs"
     sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt -qq update"    
     sudo chroot "$DESTDIR" /usr/bin/sh -c \

@@ -1467,18 +1467,21 @@ nested_start_core_vm_unit() {
 nested_setup_vm(){
     remote.exec "sudo snap set system journal.persistent=true"
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        nested_no_proxy="${NO_PROXY},10.0.2.2"
+
         # Add proxy configuration in /etc/environment
         remote.exec "echo HTTPS_PROXY=$HTTPS_PROXY | sudo tee -a /etc/environment"
         remote.exec "echo https_proxy=$HTTPS_PROXY | sudo tee -a /etc/environment"
         remote.exec "echo HTTP_PROXY=$HTTP_PROXY | sudo tee -a /etc/environment"
         remote.exec "echo http_proxy=$HTTP_PROXY | sudo tee -a /etc/environment"
-        remote.exec "echo NO_PROXY=$NO_PROXY | sudo tee -a /etc/environment"
-        remote.exec "echo no_proxy=$NO_PROXY | sudo tee -a /etc/environment"
+        remote.exec "echo NO_PROXY=$nested_no_proxy | sudo tee -a /etc/environment"
+        remote.exec "echo no_proxy=$nested_no_proxy | sudo tee -a /etc/environment"
+        remote.exec "echo SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/environment"
 
         # Configure snapd to use the proxy
         remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
         remote.exec "echo [Service] | sudo tee /etc/systemd/system/snapd.service.d/proxy.conf"
-        remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
+        remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$nested_no_proxy no_proxy=$nested_no_proxy SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
         remote.exec "sudo systemctl daemon-reload"
         remote.exec "sudo systemctl restart snapd"
     fi
