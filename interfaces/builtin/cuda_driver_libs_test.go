@@ -140,7 +140,7 @@ func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlotAPIversion(c *C) {
 		{"cuda-9", `compatibility label "cuda-9": unexpected number of strings \(should be 2\)`},
 		{"other-9", `compatibility label "other-9": unexpected number of strings \(should be 2\)`},
 		{"cuda-10-2-ubuntu-2510", `compatibility label "cuda-10-2-ubuntu-2510": unexpected number of integers \(should be 1 for "cuda"\)`},
-		{"cuda 5", `compatibility label "cuda 5": bad string "cuda 5"`},
+		{"cuda 5", `compatibility label "cuda 5": while parsing: unexpected rune: 5`},
 	} {
 		slot := MockSlot(c, fmt.Sprintf(`name: cuda-provider
 version: 0
