@@ -21,9 +21,6 @@ package compatibility
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // CompatRange is a range of unsigned integers, with Min <= Max.
@@ -74,62 +71,6 @@ const (
 	absoluteMaxIntegers   = 3
 )
 
-var (
-	tagRegexp = regexp.MustCompile(`^[a-z][a-z0-9]{0,31}$`)
-	// 0 or a number that starts with 1-9 with a maximum of 8 digits
-	intRegexp      = regexp.MustCompile(`^(0|[1-9][0-9]{0,7})$`)
-	intRangeRegexp = regexp.MustCompile(`^\((0|[1-9][0-9]{0,7})\.\.(0|[1-9][0-9]{0,7})\)$`)
-)
-
-func appendDimension(dimensions []CompatDimension, dimension *CompatDimension) ([]CompatDimension, error) {
-	if dimension != nil {
-		for _, d := range dimensions {
-			if d.Tag == dimension.Tag {
-				return nil, fmt.Errorf("string %q appears more than once",
-					dimension.Tag)
-			}
-		}
-		if len(dimension.Values) == 0 {
-			// If we have just a tag, that is equivalent to <tag>-0
-			dimension.Values = []CompatRange{{0, 0}}
-		}
-		dimensions = append(dimensions, *dimension)
-	}
-	return dimensions, nil
-}
-
-func parseIntegerRange(token string) (rg *CompatRange, err error) {
-	if intRegexp.MatchString(token) {
-		// 8 decimals fit 32 bits
-		min, err := strconv.ParseUint(token, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		// Integers are stored as ranges where min==max
-		rg = &CompatRange{uint(min), uint(min)}
-	} else {
-		matches := intRangeRegexp.FindStringSubmatch(token)
-		// Not a tag, integer or integer range
-		if len(matches) == 0 {
-			return nil, fmt.Errorf("%q is not a valid string", token)
-		}
-		// 8 decimals fit 32 bits
-		min, err := strconv.ParseUint(matches[1], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		max, err := strconv.ParseUint(matches[2], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		if min > max {
-			return nil, fmt.Errorf("invalid range %q", token)
-		}
-		rg = &CompatRange{uint(min), uint(max)}
-	}
-	return rg, nil
-}
-
 // decodeCompatField decodes a compatibility string, which is a sequence of
 // dimensions separated by dashes. Each dimension consist of an alphanumerical
 // descriptor followed by a dash-separated series of integer or integer ranges.
@@ -137,61 +78,40 @@ func parseIntegerRange(token string) (rg *CompatRange, err error) {
 // This spec must strictly follow the convention that there must be at least an
 // integer field per string (that is, "foo" must be specified as "foo-0").
 func DecodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
-	// TODO we want to consider these limits when doing snap pack but relax
-	// in run time.
-	maxNumDim := absoluteMaxDimensions
-	maxNumInt := absoluteMaxIntegers
-	tokens := strings.Split(compat, "-")
-	dimensions := []CompatDimension{}
 	compatError := func(msg string) error { return fmt.Errorf("compatibility label %q: %s", compat, msg) }
-	var currentDimension *CompatDimension
-	var err error
-	for _, t := range tokens {
-		if tagRegexp.MatchString(t) {
-			dimIdx := len(dimensions) + 1
-			if currentDimension == nil {
-				dimIdx = 0
-			}
-			if dimIdx == maxNumDim {
-				return nil, compatError(fmt.Sprintf("only %d strings allowed",
-					maxNumDim))
-			}
-			dimensions, err = appendDimension(dimensions, currentDimension)
-			if err != nil {
-				return nil, compatError(err.Error())
-			}
-			currentDimension = &CompatDimension{Tag: t}
-			continue
-		}
-		if currentDimension == nil {
-			return nil, compatError(fmt.Sprintf("bad string %q", t))
-		}
-
-		rg, err := parseIntegerRange(t)
-		if err != nil {
-			return nil, compatError(err.Error())
-		}
-		currNumVal := len(currentDimension.Values)
-		if currNumVal == maxNumInt {
-			return nil, compatError(fmt.Sprintf(
-				"only %d integer/integer ranges allowed per string", maxNumInt))
-		}
-		currentDimension.Values = append(currentDimension.Values, *rg)
-	}
-
-	// Add last dimension found
-	dimensions, err = appendDimension(dimensions, currentDimension)
+	_, labels, err := parse(compat)
 	if err != nil {
 		return nil, compatError(err.Error())
 	}
 
-	// Are we compliant with the interface restrictions?
-	compatField := &CompatField{Dimensions: dimensions}
-	if err := checkCompatAgainstSpec(compatField, spec); err != nil {
-		return nil, compatError(err.Error())
+	// Additional high level check on number of strings/integers
+	// TODO we want to consider these limits when doing snap pack but relax
+	// in run time.
+	maxNumDim := absoluteMaxDimensions
+	maxNumInt := absoluteMaxIntegers
+	for _, lab := range labels {
+		if len(lab.Dimensions) > maxNumDim {
+			return nil, compatError(fmt.Sprintf("only %d strings allowed", maxNumDim))
+		}
+		for _, dim := range lab.Dimensions {
+			if len(dim.Values) > maxNumInt {
+				return nil, compatError(fmt.Sprintf(
+					"only %d integer/integer ranges allowed per string", maxNumInt))
+			}
+		}
 	}
 
-	return compatField, nil
+	// Are we compliant with the interface restrictions?
+	for _, l := range labels {
+		if err := checkCompatAgainstSpec(&l, spec); err != nil {
+			return nil, compatError(err.Error())
+		}
+	}
+
+	if len(labels) == 0 {
+		return nil, nil
+	}
+	return &labels[0], nil
 }
 
 func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
@@ -226,6 +146,7 @@ func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
 
 // checkCompatibility checks if two compatibility fields are compatible by
 // looking at the tags and at the intersection of the defined integer ranges.
+// TODO consider now compatibility expressions
 func CheckCompatibility(compat1, compat2 CompatField) bool {
 	if len(compat1.Dimensions) != len(compat2.Dimensions) {
 		return false
