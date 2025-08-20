@@ -2109,7 +2109,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 
 		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(osutil.CanStat(p), Equals, true)
 
 		channel := "stable"
 		switch name {
@@ -2263,7 +2263,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 
 		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(osutil.CanStat(p), Equals, true)
 
 		channel := ""
 		if !unasserted {

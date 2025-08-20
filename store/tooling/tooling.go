@@ -311,7 +311,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 	redirectChannel := sar.RedirectChannel
 
 	// check if we already have the right file
-	if osutil.FileExists(targetFn) {
+	if osutil.CanStat(targetFn) {
 		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
 		if err == nil && size == uint64(snap.DownloadInfo.Size) && fmt.Sprintf("%x", sha3_384Dgst) == snap.DownloadInfo.Sha3_384 {
 			logger.Debugf("not downloading, using existing file %s", targetFn)
@@ -560,7 +560,7 @@ func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, sr
 	cref := naming.NewComponentRef(snapName, srr.Name)
 
 	// check if we already have the right file
-	if osutil.FileExists(targetFn) {
+	if osutil.CanStat(targetFn) {
 		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
 		if err == nil && size == uint64(srr.DownloadInfo.Size) &&
 			fmt.Sprintf("%x", sha3_384Dgst) == srr.DownloadInfo.Sha3_384 {

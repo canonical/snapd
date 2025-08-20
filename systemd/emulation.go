@@ -187,7 +187,7 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
-	if !osutil.FileExists(unit) {
+	if !osutil.CanStat(unit) {
 		return nil
 	}
 

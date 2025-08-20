@@ -935,7 +935,7 @@ func (lc *LoadChain) loadEvent() (sb_efi.ImageLoadActivity, error) {
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if b.Snap == "" {
-		if !osutil.FileExists(b.Path) {
+		if !osutil.CanStat(b.Path) {
 			return nil, fmt.Errorf("file %s does not exist", b.Path)
 		}
 		return sb_efi.FileImage(b.Path), nil

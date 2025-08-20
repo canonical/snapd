@@ -322,7 +322,7 @@ func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMappin
 
 func resolveName(deviceName string) (string, error) {
 	resolve := func(p string) (string, error) {
-		if !osutil.FileExists(p) {
+		if !osutil.CanStat(p) {
 			return "", nil
 		}
 		if osutil.IsSymlink(p) {

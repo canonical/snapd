@@ -154,7 +154,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 			// on a classic system allow falling back to snapd from
 			// core if it is present
 			snapdPath = snapdFromCurrentCorePath
-			if !osutil.FileExists(snapdPath) {
+			if !osutil.CanStat(snapdPath) {
 				snapdPath = snapdFromCurrentSnapdPath
 			}
 		}
@@ -208,7 +208,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 			}
 			isActiveCmd := runCmd("systemctl", []string{"is-active", "snapd.socket", "snapd.service"}, nil)
 			err := isActiveCmd.Run()
-			if err == nil && osutil.FileExists(dirs.SnapdSocket) && osutil.FileExists(dirs.SnapSocket) {
+			if err == nil && osutil.CanStat(dirs.SnapdSocket) && osutil.CanStat(dirs.SnapSocket) {
 				logger.Noticef("snapd is active again, sockets are available, nothing more to do")
 				return nil
 			}

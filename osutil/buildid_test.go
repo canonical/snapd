@@ -89,7 +89,7 @@ func (s *buildIDSuite) TestReadBuildIDNoID(c *C) {
 }
 
 func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
-	if !osutil.FileExists(gccPath) {
+	if !osutil.CanStat(gccPath) {
 		c.Skip("No gcc found")
 	}
 
@@ -106,7 +106,7 @@ func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
 }
 
 func (s *buildIDSuite) TestReadBuildIDFixedELF(c *C) {
-	if !osutil.FileExists(gccPath) {
+	if !osutil.CanStat(gccPath) {
 		c.Skip("No gcc found")
 	}
 

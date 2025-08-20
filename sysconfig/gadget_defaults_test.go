@@ -120,7 +120,7 @@ defaults:
 	sshDontRunFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
 	// validity
-	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
+	c.Check(osutil.CanStat(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
@@ -130,7 +130,7 @@ defaults:
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
+	c.Check(osutil.CanStat(sshDontRunFile), Equals, true)
 	exists, _, _ = osutil.DirExists(journalPath)
 	c.Check(exists, Equals, true)
 
@@ -190,7 +190,7 @@ defaults:
 	sshDontRunFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
 	// validity
-	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
+	c.Check(osutil.CanStat(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
@@ -200,7 +200,7 @@ defaults:
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
+	c.Check(osutil.CanStat(sshDontRunFile), Equals, true)
 	exists, _, _ = osutil.DirExists(journalPath)
 	c.Check(exists, Equals, true)
 

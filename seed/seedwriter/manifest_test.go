@@ -125,7 +125,7 @@ func (s *manifestSuite) testWriteManifest(c *C, revisions map[string]*seedwriter
 
 func (s *manifestSuite) TestWriteManifestNoFile(c *C) {
 	filePath := s.testWriteManifest(c, nil, nil)
-	c.Check(osutil.FileExists(filePath), Equals, false)
+	c.Check(osutil.CanStat(filePath), Equals, false)
 }
 
 func (s *manifestSuite) TestWriteManifest(c *C) {

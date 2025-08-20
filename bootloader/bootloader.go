@@ -452,7 +452,7 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 		bl := blNew(rootDir, opts)
 		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
 		// do we have a marker file?
-		if osutil.FileExists(markerConf) {
+		if osutil.CanStat(markerConf) {
 			return bl, nil
 		}
 	}

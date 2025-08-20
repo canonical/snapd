@@ -182,7 +182,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	c.Check(user.Expiration.Equal(expectedExpiration), check.Equals, true)
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
-	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	c.Check(osutil.CanStat(outfile), check.Equals, true)
 	c.Check(outfile, testutil.FileEquals,
 		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
 			1, expectedUsername, s.userInfoExpectedEmail, user.Macaroon))

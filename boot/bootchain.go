@@ -296,7 +296,7 @@ func bootAssetsToLoadChains(assets []BootAsset, kernelBootFile bootloader.BootFi
 		p := filepath.Join(
 			dirs.SnapBootAssetsDir,
 			trustedAssetCacheRelPath(blName, thisAsset.Name, hash))
-		if !osutil.FileExists(p) {
+		if !osutil.CanStat(p) {
 			return nil, fmt.Errorf("file %s not found in boot assets cache", p)
 		}
 		bf = bootloader.NewBootFile(

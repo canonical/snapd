@@ -91,7 +91,7 @@ func autoImportCandidates() ([]string, error) {
 		}
 
 		cand := filepath.Join(mountPoint, autoImportsName)
-		if osutil.FileExists(cand) {
+		if osutil.CanStat(cand) {
 			cands = append(cands, cand)
 		}
 	}

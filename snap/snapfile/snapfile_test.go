@@ -76,7 +76,7 @@ func (s *snapFileTestSuite) TestOpenSquashfs(c *C) {
 	didNothing, err := sn.Install(targetPath, mountDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(didNothing, Equals, false)
-	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(osutil.CanStat(targetPath), Equals, true)
 
 	r, err := sn.RandomAccessFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
@@ -109,7 +109,7 @@ func (s *snapFileTestSuite) TestOpenSnapdir(c *C) {
 	didNothing, err := sn.Install(targetPath, mountDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(didNothing, Equals, false)
-	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(osutil.CanStat(targetPath), Equals, true)
 
 	r, err := sn.RandomAccessFile("meta/snap.yaml")
 	c.Assert(err, IsNil)

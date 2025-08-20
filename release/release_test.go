@@ -105,7 +105,7 @@ func mockWSLsetup(c *C, settings mockWsl) func() {
 		if s == "/run/WSL" {
 			return settings.ExistsRunWSL
 		}
-		return osutil.FileExists(s)
+		return osutil.CanStat(s)
 	})
 
 	restoreFilesystemRootType := MockFilesystemRootType(c, settings.FsType)

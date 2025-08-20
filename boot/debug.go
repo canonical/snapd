@@ -45,7 +45,7 @@ func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 	}
 	if !opts.NoSlashBoot && !uc20 {
 		// this may still be a UC20 system
-		if osutil.FileExists(dirs.SnapModeenvFile) {
+		if osutil.CanStat(dirs.SnapModeenvFile) {
 			uc20 = true
 		}
 	}
@@ -97,7 +97,7 @@ func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) er
 	opts := &bootloader.Options{
 		NoSlashBoot: dir != "" && dir != "/",
 	}
-	if opts.NoSlashBoot || osutil.FileExists(dirs.SnapModeenvFile) {
+	if opts.NoSlashBoot || osutil.CanStat(dirs.SnapModeenvFile) {
 		// implied UC20 bootloader
 		opts.Role = bootloader.RoleRunMode
 	}

@@ -1412,7 +1412,7 @@ func (ovs *overlordSuite) TestAllStateManagersHaveEnsureLoggingTest(c *C) {
 		testPath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
 		prefix := strings.TrimSuffix(entry.Name(), "state")
 		mgrPath := filepath.Join(entry.Name(), prefix+"mgr.go")
-		if !osutil.FileExists(testPath) || !osutil.FileExists(mgrPath) {
+		if !osutil.CanStat(testPath) || !osutil.CanStat(mgrPath) {
 			continue
 		}
 		content, err := os.ReadFile(testPath)

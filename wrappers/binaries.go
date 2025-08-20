@@ -50,7 +50,7 @@ const (
 func detectCompletion(base string) (string, completionMode) {
 	completeSh := dirs.CompleteShPath(base)
 
-	if !osutil.FileExists(completeSh) {
+	if !osutil.CanStat(completeSh) {
 		return "", noCompletion
 	}
 
@@ -115,7 +115,7 @@ func findExistingCompleters(s *snap.Info, dir string) (existingCompleters []stri
 			return nil, err
 		}
 		for _, completer := range completers {
-			if osutil.FileExists(completer) && !dirs.IsCompleteShSymlink(completer) {
+			if osutil.CanStat(completer) && !dirs.IsCompleteShSymlink(completer) {
 				existingCompleters = append(existingCompleters, filepath.Base(completer))
 			}
 		}

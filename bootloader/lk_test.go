@@ -323,7 +323,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 
 	// boot-2.img is there
 	bootimg := filepath.Join(s.rootdir, "boot", "lk", "boot-2.img")
-	c.Assert(osutil.FileExists(bootimg), Equals, true)
+	c.Assert(osutil.CanStat(bootimg), Equals, true)
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C) {

@@ -397,7 +397,7 @@ func (s *preseedSuite) TestReset(c *C) {
 				if art.symlinkTarget != "" {
 					c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
 				} else {
-					c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+					c.Check(osutil.CanStat(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
 				}
 			}
 		}

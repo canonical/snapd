@@ -203,8 +203,8 @@ func (s *aliasesSuite) TestUpdateAliasesAddWithLegacyCompleterMigrate(c *C) {
 	c.Check(matchingAs, DeepEquals, aliases)
 	c.Check(matchingCs, DeepEquals, aliases)
 
-	c.Check(osutil.FileExists(filepath.Join(dirs.LegacyCompletersDir, "x.foo")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.LegacyCompletersDir, "x.bar")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.LegacyCompletersDir, "x.foo")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.LegacyCompletersDir, "x.bar")), Equals, false)
 }
 
 func (s *aliasesSuite) TestUpdateAliasesAddIdempot(c *C) {
@@ -300,8 +300,8 @@ func (s *aliasesSuite) TestUpdateAliasesWithLegacyCompleterRemove(c *C) {
 	err = s.be.UpdateAliases(nil, aliases)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(filepath.Join(dirs.LegacyCompletersDir, "x.foo")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.LegacyCompletersDir, "x.bar")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.LegacyCompletersDir, "x.foo")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.LegacyCompletersDir, "x.bar")), Equals, false)
 }
 
 func (s *aliasesSuite) TestUpdateAliasesRemoveIdempot(c *C) {

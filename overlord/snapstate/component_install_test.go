@@ -389,7 +389,7 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallUnassertedComponentFailsWithAssertedSnap(c *C) {
@@ -511,7 +511,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	verifyComponentInstallTasks(c, compOptIsLocal, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 
 	var snapsup snapstate.SnapSetup
 	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
@@ -568,7 +568,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// Temporary file is deleted as component file is already in the system
-	c.Assert(osutil.FileExists(compPath), Equals, false)
+	c.Assert(osutil.CanStat(compPath), Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRev(c *C) {
@@ -610,7 +610,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// Temporary file is deleted as component file is already in the system
-	c.Assert(osutil.FileExists(compPath), Equals, false)
+	c.Assert(osutil.CanStat(compPath), Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
@@ -635,7 +635,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive|compCurrentIsDiscarded, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
@@ -664,7 +664,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 		snapstate.Options{})
 	c.Assert(err.Error(), Equals, `cannot install component "mysnap+mycomp" for disabled snap "mysnap"`)
 	c.Assert(ts, IsNil)
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathRemodelConflict(c *C) {
@@ -861,7 +861,7 @@ func (s *snapmgrTestSuite) TestInstallKernelModulesComponentPath(c *C) {
 	verifyComponentInstallTasks(c, compOptIsLocal|compTypeIsKernMods, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentInTwoSeqPts(c *C) {
@@ -904,7 +904,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentInTwoSeqPt
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathRun(c *C) {
@@ -931,7 +931,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathRun(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 
 	chg := s.state.NewChange("install component", "...")
 	chg.AddAll(ts)

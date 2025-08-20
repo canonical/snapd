@@ -49,7 +49,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	info := &snap.Info{SuggestedName: "some-snap"}
 	info.SnapID = "some-id"
 	filename := backend.AuxStoreInfoFilename(info.SnapID)
-	c.Assert(osutil.FileExists(filename), check.Equals, false)
+	c.Assert(osutil.CanStat(filename), check.Equals, false)
 	c.Check(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
 	c.Check(info.Website(), check.Equals, "")
@@ -61,7 +61,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 		StoreURL: "https://snapcraft.io/some-snap",
 	}
 	c.Assert(backend.KeepAuxStoreInfo(info.SnapID, aux), check.IsNil)
-	c.Check(osutil.FileExists(filename), check.Equals, true)
+	c.Check(osutil.CanStat(filename), check.Equals, true)
 
 	c.Assert(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 1)
@@ -87,7 +87,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	info.StoreURL = ""
 
 	c.Assert(backend.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
-	c.Assert(osutil.FileExists(filename), check.Equals, false)
+	c.Assert(osutil.CanStat(filename), check.Equals, false)
 
 	c.Check(backend.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)

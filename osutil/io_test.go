@@ -232,9 +232,9 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	fn := aw.File.Name()
-	c.Check(osutil.FileExists(fn), Equals, true)
+	c.Check(osutil.CanStat(fn), Equals, true)
 	c.Check(aw.Cancel(), IsNil)
-	c.Check(osutil.FileExists(fn), Equals, false)
+	c.Check(osutil.CanStat(fn), Equals, false)
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicFileModTime(c *C) {
@@ -261,7 +261,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
 	c.Assert(err, IsNil)
 	defer aw.Cancel()
 	fn := aw.File.Name()
-	c.Check(osutil.FileExists(fn), Equals, true)
+	c.Check(osutil.CanStat(fn), Equals, true)
 	c.Check(strings.HasPrefix(fn, initialTarget), Equals, true, Commentf("unexpected temporary file name prefix: %q", fn))
 	_, err = aw.WriteString("this is test data")
 	c.Assert(err, IsNil)

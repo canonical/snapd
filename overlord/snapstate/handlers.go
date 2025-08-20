@@ -1987,7 +1987,7 @@ func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) 
 	}
 
 	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
-	if osutil.FileExists(seqFile) {
+	if osutil.CanStat(seqFile) {
 		// might've written migration status to seq file in the change; update it
 		// after undo
 		return writeSeqFile(snapName, snapst)

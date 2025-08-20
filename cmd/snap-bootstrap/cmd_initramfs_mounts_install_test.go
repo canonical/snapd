@@ -668,8 +668,8 @@ grade=signed
 	c.Check(cloudInitDisable, testutil.FilePresent)
 
 	// check that everything from the gadget defaults was setup
-	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
 	exists, _, _ := osutil.DirExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/log/journal"))
 	c.Assert(exists, Equals, true)
 

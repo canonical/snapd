@@ -138,7 +138,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 			return nil
 		}
 
-		hasDisabledFile := osutil.FileExists(filepath.Join(dirs.GlobalRootDir, consoleConfDisabled))
+		hasDisabledFile := osutil.CanStat(filepath.Join(dirs.GlobalRootDir, consoleConfDisabled))
 		if disabled != hasDisabledFile {
 			return fmt.Errorf("cannot toggle console-conf at runtime, but only initially via gadget defaults")
 		}

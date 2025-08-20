@@ -127,7 +127,7 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		// bump on the actual path
 		iw.pathList[fullPath]++
 
-		if !osutil.FileExists(fullPath) {
+		if !osutil.CanStat(fullPath) {
 			// the path is gone by now
 			delete(newWatch.folders, fullPath)
 			iw.removePath(fullPath)

@@ -84,7 +84,7 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 		"other-snap": nil})
 	staleCookieFile := filepath.Join(dirs.SnapCookieDir, "snap.stale-cookie-snap")
 	c.Assert(os.WriteFile(staleCookieFile, nil, 0644), IsNil)
-	c.Assert(osutil.FileExists(staleCookieFile), Equals, true)
+	c.Assert(osutil.CanStat(staleCookieFile), Equals, true)
 
 	// some-snap doesn't have cookie
 	cookies := map[string]string{
@@ -98,7 +98,7 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 	for i := 0; i < 2; i++ {
 		s.snapmgr.SyncCookies(s.st)
 
-		c.Assert(osutil.FileExists(staleCookieFile), Equals, false)
+		c.Assert(osutil.CanStat(staleCookieFile), Equals, false)
 
 		var newCookies map[string]string
 		err := s.st.Get("snap-cookies", &newCookies)
@@ -106,14 +106,14 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 		c.Assert(newCookies, HasLen, 2)
 
 		cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
-		c.Assert(osutil.FileExists(cookieFile), Equals, true)
+		c.Assert(osutil.CanStat(cookieFile), Equals, true)
 		data, err := os.ReadFile(cookieFile)
 		c.Assert(err, IsNil)
 		c.Assert(newCookies[string(data)], NotNil)
 		c.Assert(newCookies[string(data)], Equals, "some-snap")
 
 		cookieFile = filepath.Join(dirs.SnapCookieDir, "snap.other-snap")
-		c.Assert(osutil.FileExists(cookieFile), Equals, true)
+		c.Assert(osutil.CanStat(cookieFile), Equals, true)
 		data, err = os.ReadFile(cookieFile)
 		c.Assert(err, IsNil)
 		c.Assert(newCookies[string(data)], NotNil)
@@ -141,14 +141,14 @@ func (s *cookiesSuite) TestRemoveSnapCookie(c *C) {
 
 	// remove should not fail if cookie is not there
 	c.Assert(s.snapmgr.removeSnapCookie(s.st, "bar"), IsNil)
-	c.Assert(osutil.FileExists(cookieFile), Equals, false)
+	c.Assert(osutil.CanStat(cookieFile), Equals, false)
 
 	c.Assert(s.snapmgr.createSnapCookie(s.st, "foo"), IsNil)
 	c.Assert(s.snapmgr.createSnapCookie(s.st, "bar"), IsNil)
-	c.Assert(osutil.FileExists(cookieFile), Equals, true)
+	c.Assert(osutil.CanStat(cookieFile), Equals, true)
 
 	c.Assert(s.snapmgr.removeSnapCookie(s.st, "bar"), IsNil)
-	c.Assert(osutil.FileExists(cookieFile), Equals, false)
+	c.Assert(osutil.CanStat(cookieFile), Equals, false)
 
 	var cookies map[string]string
 	c.Assert(s.st.Get("snap-cookies", &cookies), IsNil)

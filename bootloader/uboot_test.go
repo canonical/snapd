@@ -180,7 +180,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	err = u.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+	c.Check(osutil.CanStat(kernelAssetsDir), Equals, false)
 }
 
 func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {

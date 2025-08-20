@@ -1187,7 +1187,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
-			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
+			c.Assert(osutil.CanStat(myParams.TPMPolicyAuthKeyFile), Equals, true)
 
 			_, aHasSlot := containerA.Slots["foo1"]
 			c.Check(aHasSlot, Equals, true)
@@ -1196,11 +1196,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			if tc.saveToFile {
 				c.Check(containerA.Tokens, HasLen, 0)
 				c.Check(containerB.Tokens, HasLen, 0)
-				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
-				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+				c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+				c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-2")), Equals, true)
 			} else {
-				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
-				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+				c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+				c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-2")), Equals, false)
 				_, aHasToken := containerA.Tokens["foo1"]
 				c.Check(aHasToken, Equals, true)
 				_, bHasToken := containerB.Tokens["foo2"]
@@ -2044,11 +2044,11 @@ func (s *secbootSuite) testSealKeysWithProtectorHappy(c *C, useKeyFiles bool) {
 	if useKeyFiles {
 		c.Check(containerA.Tokens, HasLen, 0)
 		c.Check(containerB.Tokens, HasLen, 0)
-		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
-		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
+		c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+		c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-2")), Equals, true)
 	} else {
-		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
-		c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
+		c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+		c.Check(osutil.CanStat(filepath.Join(tmpDir, "key-file-2")), Equals, false)
 		_, aHasToken := containerA.Tokens["foo1"]
 		c.Check(aHasToken, Equals, true)
 		_, bHasToken := containerB.Tokens["foo2"]
@@ -2168,7 +2168,7 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 	c.Check(container.Tokens, HasLen, 0)
 
 	keyFile := filepath.Join(root, "key-file")
-	c.Check(osutil.FileExists(keyFile), Equals, true)
+	c.Check(osutil.CanStat(keyFile), Equals, true)
 
 	return key, keyFile
 }

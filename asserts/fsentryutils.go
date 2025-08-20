@@ -60,7 +60,7 @@ func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) e
 
 func entryExists(top string, subpath ...string) bool {
 	fpath := filepath.Join(top, filepath.Join(subpath...))
-	return osutil.FileExists(fpath)
+	return osutil.CanStat(fpath)
 }
 
 func readEntry(top string, subpath ...string) ([]byte, error) {

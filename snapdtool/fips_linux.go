@@ -53,7 +53,7 @@ func findFIPSLibsAndModules(snapRoot string) (opensslLib, module string) {
 	for _, bundle := range fipsLibAndModulePathInSnapdSnap {
 		lib := filepath.Join(snapRoot, bundle.opensslLib)
 		module := filepath.Join(snapRoot, bundle.moduleFile)
-		if osutil.FileExists(lib) && osutil.FileExists(module) {
+		if osutil.CanStat(lib) && osutil.CanStat(module) {
 			return lib, module
 		}
 	}

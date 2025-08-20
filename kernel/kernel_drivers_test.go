@@ -143,7 +143,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTree(c *C) {
 	// Now remove and check
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
 	kernel.RemoveKernelDriversTree(treeRoot)
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeWithUpdates(c *C) {
@@ -152,7 +152,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeWithUpdates(c *C) {
 	// Now remove and check
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
 	kernel.RemoveKernelDriversTree(treeRoot)
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 type expectInode struct {
@@ -382,7 +382,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversAbsFwSymlink(c *C) {
 
 	// Make sure the tree has been deleted
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCleanup(c *C) {
@@ -406,7 +406,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCleanup(c *C) {
 
 	// Make sure the tree has been deleted
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversBadFileType(c *C) {
@@ -429,7 +429,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversBadFileType(c *C) {
 
 	// Make sure the tree has been deleted
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 func createKernelModulesCompFiles(c *C, kversion, compdir, filePrefix string) {
@@ -455,7 +455,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeWithKernelAndComps(c 
 	// Now remove and check
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
 	kernel.RemoveKernelDriversTree(treeRoot)
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernelInstall(c *C) {
@@ -469,11 +469,11 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernelInstall(
 	// Now remove and check
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
 	kernel.RemoveKernelDriversTree(treeRoot)
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 
 	// No _tmp folder should be around
 	treeRoot = filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1_tmp")
-	c.Assert(osutil.FileExists(treeRoot), Equals, false)
+	c.Assert(osutil.CanStat(treeRoot), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {

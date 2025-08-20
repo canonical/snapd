@@ -125,7 +125,7 @@ func readOSReleaseFromRoot(rootdir string) OS {
 	return osRelease
 }
 
-// Note that osutil.FileExists cannot be used here as an osutil import will create a cyclic import
+// Note that osutil.CanStat cannot be used here as an osutil import will create a cyclic import
 var fileExists = func(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil

@@ -556,7 +556,7 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 	})
 
 	// make sure the socket file was deleted
-	c.Assert(osutil.FileExists(dirs.SnapdSocket), Equals, false)
+	c.Assert(osutil.CanStat(dirs.SnapdSocket), Equals, false)
 }
 
 func (r *failureSuite) testNoReexec(c *C) {

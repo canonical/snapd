@@ -616,9 +616,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	c.Assert(chg.Err(), IsNil)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "local", "x1", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapMountDir, "local", "x1", "meta", "snap.yaml")), Equals, true)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
@@ -812,10 +812,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "bar", "65", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapMountDir, "bar", "65", "meta", "snap.yaml")), Equals, true)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
@@ -953,7 +953,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
@@ -1079,7 +1079,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)

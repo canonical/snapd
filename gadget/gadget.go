@@ -819,7 +819,7 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	var mapping map[string]DiskVolumeDeviceTraits
 
 	filename := filepath.Join(dir, "disk-mapping.json")
-	if !osutil.FileExists(filename) {
+	if !osutil.CanStat(filename) {
 		return nil, nil
 	}
 

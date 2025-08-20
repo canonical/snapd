@@ -569,8 +569,8 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 
 	// precondition check: the 20 dirs don't exist yet (but 10 do)
 	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
-		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
-		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
+		c.Assert(osutil.CanStat(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
+		c.Assert(osutil.CanStat(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
 	}
 
 	c.Assert(os.Chmod(filepath.Join(homedir2, "hello", "10", "canary.home"), 0), IsNil)
@@ -581,8 +581,8 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 
 	// the copy data failed, so check it cleaned up after itself (but not too much!)
 	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
-		c.Check(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
-		c.Check(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
+		c.Check(osutil.CanStat(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
+		c.Check(osutil.CanStat(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
 	}
 }
 
@@ -603,7 +603,7 @@ func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
-		c.Assert(osutil.FileExists(fn), Equals, true, Commentf(fn))
+		c.Assert(osutil.CanStat(fn), Equals, true, Commentf(fn))
 	}
 
 	// copy data works
@@ -617,7 +617,7 @@ func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
-		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
+		c.Check(osutil.CanStat(fn), Equals, true, Commentf(fn))
 	}
 
 }
@@ -639,7 +639,7 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
-		c.Assert(osutil.FileExists(fn), Equals, true, Commentf(fn))
+		c.Assert(osutil.CanStat(fn), Equals, true, Commentf(fn))
 	}
 
 	// undo copy data works
@@ -653,7 +653,7 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
-		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
+		c.Check(osutil.CanStat(fn), Equals, true, Commentf(fn))
 	}
 }
 
@@ -721,14 +721,14 @@ func (s *copydataSuite) TestSetupCommonSaveDataSameRevision(c *C) {
 
 	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
-	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 
 	// setup snap save data works
 	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 
 	// assert data still is there
-	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 }
 
 func (s *copydataSuite) TestUndoSetupCommonSaveDataClassic(c *C) {
@@ -736,13 +736,13 @@ func (s *copydataSuite) TestUndoSetupCommonSaveDataClassic(c *C) {
 
 	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
-	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 
 	// make sure that undo doesn't do anything on a classic system
 	err := s.be.UndoSetupSnapSaveData(v1, v1, mockClassicDev, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 }
 
 func (s *copydataSuite) TestUndoSetupCommonSaveDataSameRevision(c *C) {
@@ -750,13 +750,13 @@ func (s *copydataSuite) TestUndoSetupCommonSaveDataSameRevision(c *C) {
 
 	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
-	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 
 	// make sure that undo doesn't do anything with a previous version present
 	err := s.be.UndoSetupSnapSaveData(v1, v1, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 }
 
 func (s *copydataSuite) TestHideSnapData(c *C) {
@@ -1077,7 +1077,7 @@ func (s *copydataSuite) TestRemoveIfEmpty(c *C) {
 
 	// dir is empty, should be removed
 	c.Assert(backend.RemoveIfEmpty(dirs.GlobalRootDir), IsNil)
-	c.Assert(osutil.FileExists(file), Equals, false)
+	c.Assert(osutil.CanStat(file), Equals, false)
 }
 
 func (s *copydataSuite) TestUndoHideKeepGoingPreserveFirstErr(c *C) {

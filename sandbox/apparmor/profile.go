@@ -273,7 +273,7 @@ var SnapConfineDistroProfilePath = func() string {
 		"usr.libexec.snapd.snap-confine",
 	} {
 		maybeProfilePath := filepath.Join(ConfDir, profileName)
-		if osutil.FileExists(maybeProfilePath) {
+		if osutil.CanStat(maybeProfilePath) {
 			return maybeProfilePath
 		}
 	}

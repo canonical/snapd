@@ -1404,7 +1404,7 @@ func ExistingMountUnitPath(mountPointDir string) string {
 	lifetimes := []UnitLifetime{Persistent, Transient}
 	for _, lifetime := range lifetimes {
 		unit := mountUnitPathWithLifetime(lifetime, mountPointDir, "")
-		if osutil.FileExists(unit) {
+		if osutil.CanStat(unit) {
 			return unit
 		}
 	}
@@ -1457,7 +1457,7 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 
 	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
 
-	if osutil.FileExists(mu) {
+	if osutil.CanStat(mu) {
 		modified = MountUpdated
 	} else {
 		modified = MountCreated
