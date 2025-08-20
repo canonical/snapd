@@ -77,7 +77,7 @@ jobs:
 
     - name: Unit tests (Go)
       run: |
-        su test-user sh -c "SKIP_DIRTY_CHECK=1 ./run-checks --unit"
+        su test-user sh -c "AUTO_INSTALL=0 IGNORE_MISSING=1 SKIP_DIRTY_CHECK=1 ./run-checks --unit"
 
     - name: Unit tests (C)
       run: |
