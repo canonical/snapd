@@ -88,7 +88,7 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	var validCompat bool
 	// TODO maybe we should support regular expressions in the CompatSpec tags
 	for _, arch := range []string{"arch32", "arch64"} {
-		_, err := compatibility.DecodeCompatField(compatField,
+		err := compatibility.IsValidExpression(compatField,
 			&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
 				{Tag: "gbmbackend", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
 				{Tag: arch, Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
