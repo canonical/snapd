@@ -369,7 +369,7 @@ jobs:
           if [ "${KEEP_INSTANCES:-}" = true ]; then
             # Instances are not discarded when the KEEP_INSTANCES is true
             # This is done to avoid lack of resources during the following runs
-            SPREAD_FLAGS="$SPREAD_FLAGS -reuse"
+            SPREAD_FLAGS="$SPREAD_FLAGS -reuse -resend"
           fi
 
           # Run spread tests
