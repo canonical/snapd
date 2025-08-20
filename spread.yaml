@@ -394,6 +394,7 @@ backends:
         halt-timeout: 2h
         wait-timeout: 5m
         groups: [default]
+        volume-auto-delete: true
         environment:
             HTTP_PROXY: "http://squid.internal:3128"
             HTTPS_PROXY: "http://squid.internal:3128"

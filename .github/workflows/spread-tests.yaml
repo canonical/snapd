@@ -285,6 +285,22 @@ jobs:
           mv -v "${snap}" "${snap}.keep"
         done
 
+    - name: Collect required instances
+      if: ${{ inputs.backend == 'openstack' }}
+      run: |
+        echo KEEP_INSTANCES=true >> $GITHUB_ENV
+        backend="${{ inputs.backend }}"
+        for system in ${{ inputs.systems }}; do
+            workers=$(yq '.backends["$backend"].systems[] | select(has("$system"))[].workers' < spread.yaml)
+            if [ "$workers" != null ]; then
+                cd tests/lib/spread
+                cp spread."$backend".yaml spread.yaml
+                spread -gc -collect "$workers"
+                rm spread.yaml
+                rm .spread-reuse.*.yaml
+            fi
+        done
+
     - name: Run spread tests
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
       env:
@@ -351,6 +367,12 @@ jobs:
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
           fi
 
+          if [ "${KEEP_INSTANCES:-}" = true ]; then
+            # Instances are not discarded when the KEEP_INSTANCES is true
+            # This is done to avoid lack of resources during the following runs
+            SPREAD_FLAGS="$SPREAD_FLAGS -reuse"
+          fi
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
@@ -366,6 +388,11 @@ jobs:
     - name: Discard spread workers
       if: always()
       run: |
+        # Workers are not discarded when KEEP_INSTANCES is true
+        if [ "${KEEP_INSTANCES:-}" = true ]; then
+          exit
+        fi
+
         # Make sure there is not spread process running which locks the .spread-reuse.*.yaml files
         killall -s SIGQUIT spread || true
         shopt -s nullglob;
