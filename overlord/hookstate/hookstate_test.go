@@ -1451,8 +1451,6 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 		"snap", "run", "--hook", "install", "-r", "1", "test-snap_instance+standard-component",
 	}})
 
-	fmt.Println(s.change.Err())
-
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
