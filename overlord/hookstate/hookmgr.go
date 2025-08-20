@@ -131,6 +131,10 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 		return false
 	})
 
+	// ensure hooks can't run concurrently with snap unlinking (can happen during
+	// confdb operations that trigger hooks)
+	runner.AddBlocked(snapIsInactive)
+
 	manager := &HookManager{
 		state:      s,
 		repository: newRepository(),
@@ -152,6 +156,20 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	snapstate.RegisterAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
 
 	return manager, nil
+}
+
+// snapIsInactive returns true if the hook's snap is inactive.
+func snapIsInactive(cand *state.Task, running []*state.Task) bool {
+	if cand.Kind() != "run-hook" {
+		return false
+	}
+
+	_, snapst, err := hookSetup(cand, "hook-setup")
+	if err != nil || !snapst.IsInstalled() {
+		return false
+	}
+
+	return !snapst.Active
 }
 
 // Register registers a function to create Handler values whenever hooks

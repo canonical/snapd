@@ -979,6 +979,38 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	c.Assert(atomic.LoadInt32(&Executing), Equals, int32(0))
 }
 
+func (s *hookManagerSuite) TestHookTasksWaitForActiveSnap(c *C) {
+	setActive := func(active bool) {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, "test-snap", &snapst)
+		c.Assert(err, IsNil)
+		snapst.Active = active
+		snapstate.Set(s.state, "test-snap", &snapst)
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	setActive(false)
+
+	s.state.Unlock()
+	err := s.o.TaskRunner().Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	task := s.state.Task(s.task.ID())
+	c.Assert(task.Status(), Equals, state.DoStatus)
+
+	setActive(true)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	task = s.state.Task(s.task.ID())
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+}
+
 type MockConcurrentHandler struct {
 	onDone func()
 }
