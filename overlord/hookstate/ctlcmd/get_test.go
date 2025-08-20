@@ -1030,3 +1030,139 @@ func (s *confdbSuite) TestConfdbAccessUnconnectedPlug(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 }
+
+func (s *confdbSuite) TestConfdbDefaultMultipleKeys(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "foo", ":write-wifi", "ssid", "password"}, 0)
+	c.Assert(err, ErrorMatches, "cannot use --default with more than one confdb request")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
+
+func (s *confdbSuite) TestDefaultNonConfdbRead(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+	mockHandler := hooktest.NewMockHandler()
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
+	s.state.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"get", "--default", "foo", "key"}, 0)
+	c.Assert(err, ErrorMatches, `cannot use --default with non-confdb read \(missing --view\)`)
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
+
+func (s *confdbSuite) TestConfdbDefaultIfNoData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
+	c.Assert(err, IsNil)
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+		return tx, nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "bar", ":read-wifi", "password"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), DeepEquals, "bar\n")
+	c.Check(stderr, IsNil)
+}
+
+func (s *confdbSuite) TestConfdbDefaultNoFallbackIfTyped(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
+	c.Assert(err, IsNil)
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+		return tx, nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "--view", "--default", "bar", "-t", ":read-wifi", "password"}, 0)
+	c.Assert(err, ErrorMatches, "cannot unmarshal default value as strictly typed")
+	c.Check(stdout, IsNil)
+	c.Check(stderr, IsNil)
+}
+
+func (s *confdbSuite) TestConfdbDefaultWithOtherFlags(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	restore := ctlcmd.MockConfdbstateTransactionForGet(func(*hookstate.Context, *confdb.View, []string) (*confdbstate.Transaction, error) {
+		return tx, nil
+	})
+	defer restore()
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	type testcase struct {
+		flags  []string
+		output string
+	}
+
+	tcs := []testcase{
+		{
+			// if default isn't JSON, we fallback to treating it as a string (unless -t is on)
+			flags:  []string{"--default", "foo"},
+			output: "foo\n",
+		},
+		{
+			flags: []string{"-d", "--default", "foo"},
+			output: `{
+	"ssid": "foo"
+}
+`,
+		},
+		{
+			flags:  []string{"-t", "--default", `"1"`},
+			output: "\"1\"\n",
+		},
+		{
+			flags:  []string{"-t", "--default", `"foo"`},
+			output: "\"foo\"\n",
+		},
+		{
+			flags: []string{"-t", "--default", `{"baz":1}`},
+			output: `{
+	"baz": 1
+}
+`,
+		},
+		{
+			flags: []string{"-d", "--default", `{"baz":1}`},
+			output: `{
+	"ssid": {
+		"baz": 1
+	}
+}
+`,
+		},
+		{
+			flags:  []string{"-t", "--default", "123"},
+			output: "123\n",
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d", i+1)
+		stdout, stderr, err := ctlcmd.Run(s.mockContext, append([]string{"get", "--view", ":read-wifi", "ssid"}, tc.flags...), 0)
+		c.Assert(err, IsNil, cmt)
+		c.Check(string(stdout), DeepEquals, tc.output, cmt)
+		c.Check(stderr, IsNil, cmt)
+	}
+}
