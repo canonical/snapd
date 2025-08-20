@@ -22,6 +22,8 @@ package compatibility
 import (
 	"fmt"
 	"strings"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // CompatRange is a range of unsigned integers, with Min <= Max.
@@ -75,7 +77,7 @@ const (
 	absoluteMaxIntegers   = 3
 )
 
-// decodeCompatField decodes a compatibility string, which is a sequence of
+// DecodeCompatField decodes a compatibility string, which is a sequence of
 // dimensions separated by dashes. Each dimension consist of an alphanumerical
 // descriptor followed by a dash-separated series of integer or integer ranges.
 // An optional spec can be provided to restrict the valid compatibility fields.
@@ -148,10 +150,27 @@ func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
 	return nil
 }
 
-// checkCompatibility checks if two compatibility fields are compatible by
-// looking at the tags and at the intersection of the defined integer ranges.
-// TODO consider now compatibility expressions
-func CheckCompatibility(compat1, compat2 CompatField) bool {
+// CheckCompatibility checks the compatibility of two compatibility expressions.
+func CheckCompatibility(compat1, compat2 string) bool {
+	expr1, labels1, err := parse(compat1)
+	if err != nil {
+		return false
+	}
+	expr2, labels2, err := parse(compat2)
+	if err != nil {
+		return false
+	}
+
+	// Check cross-compatibility
+	if !checkExpressionCompatibility(expr1, labels2) {
+		return false
+	}
+	return checkExpressionCompatibility(expr2, labels1)
+}
+
+// areLabelsCompatible checks if two compatibility labels are compatible by
+// looking at the strings and at the intersection of the defined integer ranges.
+func areLabelsCompatible(compat1, compat2 CompatField) bool {
 	if len(compat1.Dimensions) != len(compat2.Dimensions) {
 		return false
 	}
@@ -171,4 +190,46 @@ func CheckCompatibility(compat1, compat2 CompatField) bool {
 		}
 	}
 	return true
+}
+
+// checkExpressionCompatibility check if the provided labels fulfill the
+// conditions expressed in the abstract syntz tree root.
+func checkExpressionCompatibility(node *Node, labels []CompatField) bool {
+	if (node.Left == nil && node.Right != nil) || node.Left != nil && node.Right == nil {
+		logger.Noticef("internal error: both nodes must be filled or both must be nil")
+		return false
+	}
+	if node.Left == nil && node.Right == nil {
+		// Must be a label
+		nodeLabel, ok := node.Exp.(*CompatField)
+		if !ok {
+			logger.Noticef("internal error: leaf node is not a label: %s", node.Exp)
+			return false
+		}
+		for _, l := range labels {
+			if areLabelsCompatible(l, *nodeLabel) {
+				return true
+			}
+		}
+		return false
+	}
+
+	oper, ok := node.Exp.(*Operator)
+	if !ok {
+		logger.Noticef("internal error: internal node is not an operation: %s", node.Exp)
+		return false
+	}
+
+	resLeft := checkExpressionCompatibility(node.Left, labels)
+	if oper.Oper.Typ == ItemOR {
+		if resLeft {
+			return true
+		}
+		return checkExpressionCompatibility(node.Right, labels)
+	}
+	// Must be the AND operator
+	if !resLeft {
+		return false
+	}
+	return checkExpressionCompatibility(node.Right, labels)
 }

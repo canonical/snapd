@@ -247,12 +247,30 @@ func (s *CompatSuite) TestCompatibility(c *C) {
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
-		field1, err := compatibility.DecodeCompatField(tc.compat1, nil)
-		c.Assert(err, IsNil)
-		field2, err := compatibility.DecodeCompatField(tc.compat2, nil)
-		c.Assert(err, IsNil)
-		c.Check(compatibility.CheckCompatibility(*field1, *field2), Equals, tc.result)
-		// Must be symmetric
-		c.Check(compatibility.CheckCompatibility(*field2, *field1), Equals, tc.result)
+		c.Check(compatibility.CheckCompatibility(tc.compat1, tc.compat2), Equals, tc.result)
+	}
+}
+
+func (s *CompatSuite) TestCompatibilityExpressions(c *C) {
+	for i, tc := range []struct {
+		compat1, compat2 string
+		result           bool
+	}{
+		{"foo", "foo OR bar", true},
+		{"foo", "foo AND bar", false},
+		{"foo OR bar", "foo AND bar", true},
+		{"foo AND bar", "foo AND bar", true},
+		{"foo AND bar", "foo AND bar AND baz", false},
+		{"foo OR bar", "foo AND bar AND baz", false},
+		{"foo AND bar", "foo OR bar OR baz", true},
+		{"(foo AND bar) OR (oof AND rab)", "foo OR bar", true},
+		{"(foo AND bar) OR (oof AND rab)", "foo OR oof", false},
+		{"(foo AND bar) OR (oof AND rab)", "foo AND oof", false},
+		{"foo-3 OR bar-rab-6", "foo-(1..3) AND bar-rab-(6..99)", true},
+		{"foo-3 OR bar-rab-6", "foo-(1..3) AND bar-rab-1", false},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+
+		c.Check(compatibility.CheckCompatibility(tc.compat1, tc.compat2), Equals, tc.result)
 	}
 }
