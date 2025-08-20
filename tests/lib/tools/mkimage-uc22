@@ -411,7 +411,7 @@ replace_images_files() {
 
     # when no snapd deb package provided, the prebuilt one from master is used
     if [ -z "$SNAPD_DEB" ]; then
-        wget -c -P "$CACHE" "$DEFAULT_SNAPD_DEB_URL"
+        wget -q -c -P "$CACHE" "$DEFAULT_SNAPD_DEB_URL"
         tar -xvf "$CACHE"/"$(basename "$DEFAULT_SNAPD_DEB_URL")" -C "$CACHE"
         SNAPD_DEB="$CACHE"/"$(find "$CACHE" -maxdepth 1 -name "snapd_*.deb" -printf "%f\n")"
     fi

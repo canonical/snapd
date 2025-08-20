@@ -1465,7 +1465,9 @@ nested_start_core_vm_unit() {
 }
 
 nested_setup_vm(){
-    remote.exec "sudo snap set system journal.persistent=true"
+    if nested_is_core_ge 20; then
+        remote.exec "sudo snap set system journal.persistent=true"
+    fi
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
         nested_no_proxy="${NO_PROXY},10.0.2.2"
 
