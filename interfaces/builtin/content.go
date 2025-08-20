@@ -102,8 +102,7 @@ func checkLabelAttributes(attrs map[string]any, nameDef string) error {
 		return errors.New("cannot have both content and compatibility labels")
 	}
 	if hasCompat {
-		_, err := compatibility.DecodeCompatField(compat, nil)
-		return err
+		return compatibility.IsValidExpression(compat, nil)
 	}
 	if hasContent {
 		return nil

@@ -84,12 +84,11 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	}
 	// Validate format of compatibility field - we don't actually need to
 	// do anything else with it until we start to support regular snaps.
-	_, err := compatibility.DecodeCompatField(compatField,
+	if err := compatibility.IsValidExpression(compatField,
 		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
 			{Tag: "egl", Values: []compatibility.CompatRange{{Min: 1, Max: 1}, {Min: 5, Max: 5}}},
 			{Tag: "ubuntu", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
-		}})
-	if err != nil {
+		}}); err != nil {
 		return err
 	}
 

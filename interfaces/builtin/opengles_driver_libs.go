@@ -63,14 +63,13 @@ func (iface *openglesDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo)
 	}
 	// Validate format of compatibility field - we don't actually need to
 	// do anything else with it until we start to support regular snaps.
-	_, err := compatibility.DecodeCompatField(compatField,
+	if err := compatibility.IsValidExpression(compatField,
 		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
 			{Tag: "opengles", Values: []compatibility.CompatRange{
 				{Min: 0, Max: math.MaxUint}, {Min: 0, Max: math.MaxUint}}},
 			{Tag: "ubuntu", Values: []compatibility.CompatRange{
 				{Min: 0, Max: math.MaxUint}}},
-		}})
-	if err != nil {
+		}}); err != nil {
 		return err
 	}
 	// Validate directories

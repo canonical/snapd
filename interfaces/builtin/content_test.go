@@ -107,7 +107,7 @@ slots:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`compatibility label "foo@-0": bad string "foo@"`)
+		`compatibility label "foo@-0": while parsing: unexpected rune: @`)
 	c.Assert(slot.Attrs["content"], IsNil)
 }
 
@@ -247,7 +247,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content-plug"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`compatibility label "foo@-0": bad string "foo@"`)
+		`compatibility label "foo@-0": while parsing: unexpected rune: @`)
 	c.Assert(plug.Attrs["content"], IsNil)
 }
 
