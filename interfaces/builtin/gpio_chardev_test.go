@@ -245,9 +245,9 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedPlug(c *C) {
 	})
 }
 
-func (s *GpioChardevInterfaceSuite) TestKModConnectedSlot(c *C) {
+func (s *GpioChardevInterfaceSuite) TestKModPermanentPlug(c *C) {
 	spec := &kmod.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"gpio-aggregator": true,
 	})
