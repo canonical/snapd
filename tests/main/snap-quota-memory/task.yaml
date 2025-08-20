@@ -184,7 +184,7 @@ execute: |
   # in reporting it's memory usage on old systemd versions
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
-  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-five | gojq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(snap debug api /v2/quotas/group-five | gojq -r '.result.current.memory')"
   # both 0 and up to 12KiB values are expected here, 0 is for older systemd/kernels 
   # where an empty cgroup has exactly 0, but on newer systems there is some 
   # minimum amount of accounting memory for an empty cgroup, which is observed
@@ -198,12 +198,20 @@ execute: |
           exit 1
   esac
 
-  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-four | gojq -r '.result.current.memory')"
-  case "$snapdSaysMemUsage" in
-      null|0|4096|8192|16384|12288)
-          # expected
-          ;; 
-      *)
+  # Sporadically the system could take a while to adjust the memory usage like it happens in Arch-linux
+  for iter in $(seq 8); do
+      snapdSaysMemUsage="$(snap debug api /v2/quotas/group-four | gojq -r '.result.current.memory')"
+      case "$snapdSaysMemUsage" in
+          null|0|4096|8192|16384|12288)
+              break
+              ;; 
+          *)
+              sleep 5
+              ;;
+      esac
+      if [ "$iter" = 8 ]; then
           echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
           exit 1
-  esac
+      fi
+  done
+  

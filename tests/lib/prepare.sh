@@ -95,7 +95,7 @@ setup_snapd_proxy() {
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
-Environment="HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY"
+Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY
 EOF
 
     # We change the service configuration so reload and restart
@@ -418,6 +418,14 @@ prepare_classic() {
             # new module, done at runtime
             if systemctl is-active restorecond.service; then
                 systemctl restart restorecond.service
+            fi
+            ;;
+        amazon-linux-2*)
+            # Cloud init service fails in openstack depending on the environment
+            # being used when the metadata retrieved does not contain the proper
+            # networking information
+            if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+                systemctl restart cloud-init.service
             fi
             ;;
     esac
