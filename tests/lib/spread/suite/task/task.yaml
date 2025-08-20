@@ -1,2 +1,3 @@
 summary: fake task
+details: fake task
 execute: exit 0
