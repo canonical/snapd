@@ -68,6 +68,10 @@ func printVersions(cli *client.Client) error {
 		fmt.Fprintf(w, "kernel\t%s\n", sv.KernelVersion)
 	}
 
+	if sv.Architecture != "" {
+		fmt.Fprintf(w, "architecture\t%s\n", sv.Architecture)
+	}
+
 	w.Flush()
 
 	return nil
