@@ -23,12 +23,12 @@ var (
 	ReadOSReleaseFromRoot = readOSReleaseFromRoot
 )
 
-func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
+func MockCanStat(mockCanStat func(string) bool) (restorer func()) {
 	// Cannot use testutil.Backup due to import loop
-	old := fileExists
-	fileExists = mockFileExists
+	old := canStat
+	canStat = mockCanStat
 	return func() {
-		fileExists = old
+		canStat = old
 	}
 }
 
