@@ -31,4 +31,5 @@ The cluster command contains a selection of cluster management sub-commands.
 
 Available subcommands:
   assemble    Assemble a cluster with other devices
+  commit      Commit a signed cluster assertion
 `)
