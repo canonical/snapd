@@ -1471,6 +1471,15 @@ nested_setup_vm(){
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
         nested_no_proxy="${NO_PROXY},10.0.2.2"
 
+        # Ensure the nameservers used are the same than the host vm
+        net_interface="$(ip route show default | awk '{print $5}')"
+        nameservers="$(resolvectl status "$net_interface" | grep "DNS Servers:" | cut -d: -f2)"
+        if [ -n "$nameservers" ]; then
+            for nameserver in $nameservers; do
+                remote.exec "echo nameserver $nameserver | sudo tee -a /etc/resolv.conf"
+            done
+        fi
+
         # Add proxy configuration in /etc/environment
         remote.exec "echo HTTPS_PROXY=$HTTPS_PROXY | sudo tee -a /etc/environment"
         remote.exec "echo https_proxy=$HTTPS_PROXY | sudo tee -a /etc/environment"
