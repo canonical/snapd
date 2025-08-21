@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -762,6 +763,9 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
 
 	// If there is a user session dir, expect some non-zero user ID
 	origID, err := rdb.ReadOrAssignUserSessionID(1000)
+	if errors.Is(err, syscall.EOPNOTSUPP) {
+		c.Skip("xattrs are not supported on this system")
+	}
 	c.Assert(err, IsNil)
 	c.Assert(origID, Not(Equals), prompting.IDType(0))
 
@@ -840,14 +844,18 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
 	var startWG sync.WaitGroup
 	startWG.Add(count)
 	resultChan := make(chan prompting.IDType, count)
+	errChan := make(chan error, count)
 	for i := 0; i < count; i++ {
 		go func() {
 			startWG.Done()
 			<-startChan // wait for broadcast
 			sessionID, err := rdb.ReadOrAssignUserSessionID(5000)
-			c.Assert(err, IsNil)
-			c.Assert(sessionID, Not(Equals), prompting.IDType(0))
-			resultChan <- sessionID
+			if err != nil {
+				errChan <- err
+			} else {
+				c.Assert(sessionID, Not(Equals), prompting.IDType(0))
+				resultChan <- sessionID
+			}
 		}()
 	}
 	startWG.Wait()
@@ -861,6 +869,11 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
 	case firstID = <-resultChan:
 		c.Assert(firstID, NotNil)
 		c.Assert(firstID, Not(Equals), prompting.IDType(0))
+	case err := <-errChan:
+		if errors.Is(err, syscall.EOPNOTSUPP) {
+			c.Skip("xattrs are not supported on this system")
+		}
+		c.Assert(err, IsNil)
 	case <-time.NewTimer(time.Second).C:
 		c.Fatal("timed out waiting for first user ID")
 	}
