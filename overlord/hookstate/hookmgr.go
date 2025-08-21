@@ -161,7 +161,7 @@ func snapIsRunningHook(cand *state.Task, running []*state.Task) bool {
 	return false
 }
 
-// snapIsInactive returns true if the hook's snap is inactive.
+// snapIsInactive returns true if the snap referenced by the given hook is inactive.
 func snapIsInactive(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() != "run-hook" {
 		return false
