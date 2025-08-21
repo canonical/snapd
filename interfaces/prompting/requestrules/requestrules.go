@@ -962,8 +962,8 @@ func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompti
 		// User session tmpfs does not exist
 		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
 	} else if !errors.Is(err, unix.ENODATA) {
-		return 0, err
 		// Something else went wrong
+		return 0, fmt.Errorf("cannot get user session ID xattr: %w", err)
 	}
 
 	// No existing ID
@@ -979,7 +979,7 @@ func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompti
 		// still correctly return an error wrapping errNoUserSession.
 		return 0, fmt.Errorf("%w: %d", errNoUserSession, user)
 	} else if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("cannot set user session ID xattr: %w", err)
 	}
 	return newID, nil
 }
