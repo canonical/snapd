@@ -104,3 +104,64 @@ func (cs *clientSuite) TestClientClusterAssembleError(c *check.C) {
 	_, err := cs.cli.ClusterAssemble(opts)
 	c.Assert(err, check.ErrorMatches, "invalid address format")
 }
+
+func (cs *clientSuite) TestClientGetClusterUncommittedHeaders(c *check.C) {
+	cs.status = 200
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+			"type": "cluster",
+			"cluster-id": "test-cluster-123",
+			"sequence": "1",
+			"devices": [
+				{
+					"id": "1",
+					"brand-id": "canonical",
+					"model": "ubuntu-core-24-amd64",
+					"serial": "device-1",
+					"addresses": ["192.168.1.10"]
+				}
+			],
+			"subclusters": [
+				{
+					"name": "default",
+					"devices": ["1"]
+				}
+			],
+			"timestamp": "2024-01-15T10:30:00Z"
+		}
+	}`
+
+	headers, err := cs.cli.GetClusterUncommittedHeaders()
+	c.Assert(err, check.IsNil)
+	c.Check(headers["type"], check.Equals, "cluster")
+	c.Check(headers["cluster-id"], check.Equals, "test-cluster-123")
+	c.Check(headers["sequence"], check.Equals, "1")
+	c.Check(headers["timestamp"], check.Equals, "2024-01-15T10:30:00Z")
+
+	// verify the request
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/cluster/uncommitted")
+}
+
+func (cs *clientSuite) TestClientCommitClusterAssertion(c *check.C) {
+	cs.status = 200
+	cs.rsp = `{
+		"type": "sync",
+		"result": null
+	}`
+
+	// test the commit with cluster ID
+	err := cs.cli.CommitClusterAssertion("test-cluster-456")
+	c.Assert(err, check.IsNil)
+
+	// verify the request
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/cluster/uncommitted")
+	c.Check(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
+
+	var reqBody map[string]interface{}
+	err = json.NewDecoder(cs.req.Body).Decode(&reqBody)
+	c.Assert(err, check.IsNil)
+	c.Check(reqBody["cluster-id"], check.Equals, "test-cluster-456")
+}
