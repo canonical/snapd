@@ -59,7 +59,7 @@ const gpioChardevBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-var gpioChardevPermanentPlugKmod = []string{
+var gpioChardevPermanentSlotKmod = []string{
 	"gpio-aggregator",
 }
 
@@ -206,7 +206,7 @@ func init() {
 			name:                     "gpio-chardev",
 			summary:                  gpioChardevSummary,
 			baseDeclarationSlots:     gpioChardevBaseDeclarationSlots,
-			permanentPlugKModModules: gpioChardevPermanentPlugKmod,
+			permanentSlotKModModules: gpioChardevPermanentSlotKmod,
 			serviceSnippets:          gpioChardevPlugServiceSnippets,
 		},
 	})
