@@ -290,6 +290,7 @@ type testEvalAttr struct {
 	comp            func(side string, arg string) (any, error)
 	plugPublisherID string
 	slotPublisherID string
+	compatLabels    bool
 }
 
 func (ca testEvalAttr) SlotAttr(arg string) (any, error) {
@@ -309,7 +310,7 @@ func (ca testEvalAttr) SlotPublisherID() string {
 }
 
 func (ca testEvalAttr) CompatLabelsEnabled() bool {
-	return true
+	return ca.compatLabels
 }
 
 func (s *attrConstraintsSuite) TestEvalCheck(c *C) {
@@ -400,7 +401,7 @@ foo: libx-3
 	}
 	err = cstrs.Check(attrs(`
 foo: libx
-`), testEvalAttr{comp: comp1})
+`), testEvalAttr{comp: comp1, compatLabels: true})
 	c.Check(err, ErrorMatches, fmt.Sprintf(`attribute "foo" does not match \$%s\(foo\): libx != libx-1`, compatOper))
 
 	// Success case
@@ -409,8 +410,14 @@ foo: libx
 	}
 	err = cstrs.Check(attrs(`
 foo: libx-(0..2)
-`), testEvalAttr{comp: comp2})
+`), testEvalAttr{comp: comp2, compatLabels: true})
 	c.Check(err, IsNil)
+
+	// Now disabling labels produces an error
+	err = cstrs.Check(attrs(`
+foo: libx-(0..2)
+`), testEvalAttr{comp: comp2, compatLabels: false})
+	c.Check(err, ErrorMatches, fmt.Sprintf(`attribute "foo" constraint \$%s\(foo\) not evaluated: compatibility labels are disabled`, compatOper))
 }
 
 func (s *attrConstraintsSuite) TestCheckWithAttrPlugPublisherID(c *C) {
