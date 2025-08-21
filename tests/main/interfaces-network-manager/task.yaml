@@ -14,12 +14,9 @@ details: |
 # there and when n-m gets installed/removed it will hang when
 # trying to deconfigure the wifi network which is already owned.
 systems:
-    - ubuntu-core-16-64
-    - ubuntu-core-16-32
-    - ubuntu-core-18-64
-    - ubuntu-core-18-32
-    - ubuntu-core-20-64
-    - ubuntu-core-22-64
+    - ubuntu-core-16-*
+    - ubuntu-core-18-*
+    - ubuntu-core-2*
 
 prepare: |
     echo "Given a network-manager snap is installed"

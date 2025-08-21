@@ -635,14 +635,13 @@ build_snapd_snap() {
     TARGET="${1}"
 
     snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
-    mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
             if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
                 if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
-                    wget -q "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
+                    wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
                 else
-                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
                 fi
             else
                 # This is not reliable across classic releases so only allow on
@@ -662,12 +661,32 @@ build_snapd_snap() {
                 chmod -R go+r "${PROJECT_PATH}/tests"
                 # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
-                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
+                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "/tmp/snapd_from_snapcraft.snap"
             fi
         fi
         break
     done
 
+    # TODO set up a trap to clean this up properly?
+    local UNPACK_DIR
+    UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
+
+    # add gpio and iio slots required for the tests
+    cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
+
+    mkdir -p "${snapd_snap_cache}"
+    snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
+    rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
 }
 
@@ -772,6 +791,18 @@ fi
 touch /root/spread-setup-done
 EOF
     chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+
+    # add gpio and iio slots required for the tests
+    cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
 
     mkdir -p "${snapd_snap_cache}"
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"

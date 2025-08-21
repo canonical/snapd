@@ -17,10 +17,7 @@ details: |
 systems:
   - ubuntu-core-16-64
   - ubuntu-core-18-64
-  - ubuntu-core-20-64
-  # TODO: auto-import is broken on jammy
-  # see https://bugs.launchpad.net/snapd/+bug/1964596
-  # - ubuntu-core-22-64
+  - ubuntu-core-2*-64
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
