@@ -65,4 +65,4 @@ h1 "SNAPD.SERVICE STATUS"; sudo systemctl --no-pager status snapd
 h1 "UPTIME"; uptime
 h1 "DATE (IN UTC)"; date --utc
 h1 "DISK SPACE"; df -h
-h1 "DENIED MESSAGES"; sudo journalctl --no-pager | grep DENIED
+h1 "DENIED MESSAGES"; sudo journalctl --no-pager | grep DENIED || true
