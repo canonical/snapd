@@ -123,7 +123,7 @@ func (s *CompatSuite) TestValidCompatFieldsWithSpec(c *C) {
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
-		cfield, err := compatibility.DecodeCompatField(tc.compat, nil)
+		cfield, err := compatibility.DecodeCompatField(tc.compat, tc.spec)
 		c.Assert(err, IsNil)
 		c.Check(cfield, DeepEquals, tc.cfield)
 	}
