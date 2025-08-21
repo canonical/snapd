@@ -43,7 +43,7 @@ var gpioExportGadgetChardevChip = gpio.ExportGadgetChardevChip
 
 func (c *cmdExportChardev) Execute(args []string) error {
 	chipLabels := strings.Split(c.Args.ChipLabels, ",")
-	lines, err := strutil.ParseRange(c.Args.Lines)
+	sortedLines, err := strutil.ParseRange(c.Args.Lines)
 	if err != nil {
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
@@ -51,5 +51,5 @@ func (c *cmdExportChardev) Execute(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	return gpioExportGadgetChardevChip(ctx, chipLabels, lines, c.Args.Gadget, c.Args.Slot)
+	return gpioExportGadgetChardevChip(ctx, chipLabels, sortedLines, c.Args.Gadget, c.Args.Slot)
 }

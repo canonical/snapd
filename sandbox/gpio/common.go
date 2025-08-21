@@ -27,32 +27,31 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/strutil"
 )
 
-// ChardevChip describes a gpio chardev device.
-type ChardevChip struct {
-	Path string
-	// Name is an identifier for the chip in the kernel (e.g. gpiochip3).
-	Name string
-	// Label is the name given to the chip through its driver used for matching (e.g. pinctrl-bcm2711).
-	Label string
-	// NumLines is the number of lines available on the gpio chip
-	NumLines uint
+// chardevChip describes a gpio chardev device.
+type chardevChip struct {
+	path string
+	// name is an identifier for the chip in the kernel (e.g. gpiochip3).
+	name string
+	// label is the name given to the chip through its driver used for matching (e.g. pinctrl-bcm2711).
+	label string
+	// numLines is the number of lines available on the gpio chip
+	numLines uint
 }
 
-func (c *ChardevChip) String() string {
-	return fmt.Sprintf("(name: %s, label: %s, lines: %d)", c.Name, c.Label, c.NumLines)
+func (c *chardevChip) String() string {
+	return fmt.Sprintf("(name: %s, label: %s, lines: %d)", c.name, c.label, c.numLines)
 }
 
 // This has to match the memory layout of `struct gpiochip_info` found
@@ -89,85 +88,83 @@ var ioctlGetChipInfo = func(path string) (*kernelChipInfo, error) {
 	return kci, err
 }
 
-var chardevChipInfo = func(path string) (*ChardevChip, error) {
+var getChardevChipInfo = func(path string) (*chardevChip, error) {
 	kci, err := ioctlGetChipInfo(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read gpio chip info from %q: %w", path, err)
 	}
 
-	chip := &ChardevChip{
-		Path:     path,
-		Name:     string(bytes.TrimRight(kci.name[:], "\x00")),
-		Label:    string(bytes.TrimRight(kci.label[:], "\x00")),
-		NumLines: uint(kci.lines),
+	chip := &chardevChip{
+		path:     path,
+		name:     string(bytes.TrimRight(kci.name[:], "\x00")),
+		label:    string(bytes.TrimRight(kci.label[:], "\x00")),
+		numLines: uint(kci.lines),
 	}
 	return chip, nil
 }
 
 const (
-	aggregatorDriverDir        = "/sys/bus/platform/drivers/gpio-aggregator"
-	aggregatorNewDevicePath    = "/sys/bus/platform/drivers/gpio-aggregator/new_device"
-	aggregatorDeleteDevicePath = "/sys/bus/platform/drivers/gpio-aggregator/delete_device"
-	ephemeralUdevRulesDir      = "/run/udev/rules.d"
+	aggregatorDriverDir   = "/sys/bus/platform/drivers/gpio-aggregator"
+	aggregatorConfigfsDir = "/sys/kernel/config/gpio-aggregator"
+	ephemeralUdevRulesDir = "/run/udev/rules.d"
 )
 
-var lockAggregator = func() (unlocker func(), err error) {
-	flock, err := osutil.OpenExistingLockForReading(filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir))
-	if err != nil {
-		return nil, err
-	}
-	if err := flock.Lock(); err != nil {
-		return nil, err
-	}
-	return func() {
-		// we don't care about the error, this is best-effort.
-		_ = flock.Close()
-	}, nil
+func snapConfigfsDir(instanceName, slotName string) string {
+	return filepath.Join(dirs.GlobalRootDir, aggregatorConfigfsDir, fmt.Sprintf("snap.%s.%s", instanceName, slotName))
 }
 
-var aggregatorCreationTimeout = 120 * time.Second
+var osMkdir = os.Mkdir
+var osStat = os.Stat
+var osChmod = os.Chmod
+var osChown = os.Chown
+var osWriteFile = os.WriteFile
+var syscallMknod = syscall.Mknod
 
-func addAggregatedChip(ctx context.Context, sourceChip *ChardevChip, lines strutil.Range) (chip *ChardevChip, err error) {
-	// synchronize gpio helpers' access to the aggregator interface
-	unlocker, err := lockAggregator()
+func addAggregatedChip(sourceChipLabel string, lines strutil.Range, instanceName, slotName string) (chipName string, err error) {
+	configfsBaseDir := snapConfigfsDir(instanceName, slotName)
+	if err = osMkdir(configfsBaseDir, 0755); err != nil {
+		return "", err
+	}
+	devName, err := os.ReadFile(filepath.Join(configfsBaseDir, "dev_name"))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	defer unlocker()
+	devNameCleaned := strings.ReplaceAll(string(devName), "\n", "")
 
-	watcher, err := inotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
-	defer watcher.Close()
-
-	err = watcher.AddWatch(dirs.DevDir, inotify.InCreate)
-	if err != nil {
-		return nil, err
-	}
-
-	// <label> <lines>
-	cmd := fmt.Sprintf("%s %s", sourceChip.Label, lines.String())
-	if err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, aggregatorNewDevicePath), []byte(cmd), 0644); err != nil {
-		return nil, err
-	}
-
-	timeoutTimer := time.NewTimer(aggregatorCreationTimeout)
-	defer timeoutTimer.Stop()
-	for {
-		select {
-		case event := <-watcher.Event:
-			path := event.Name
-			// check prefix /dev/gpiochipX
-			if strings.HasPrefix(path, filepath.Join(dirs.DevDir, "gpiochip")) {
-				return chardevChipInfo(path)
+	// this assumes lines are sorted
+	lineNum := 0
+	for _, span := range lines {
+		for line := span.Start; line <= span.End; line++ {
+			lineDir := filepath.Join(configfsBaseDir, fmt.Sprintf("line%d", lineNum))
+			if err = os.Mkdir(lineDir, 0755); err != nil {
+				return "", err
 			}
-		case <-timeoutTimer.C:
-			return nil, errors.New("timeout waiting for aggregator device to appear")
-		case <-ctx.Done():
-			return nil, ctx.Err()
+			if err = os.WriteFile(filepath.Join(lineDir, "key"), []byte(sourceChipLabel), 0644); err != nil {
+				return "", err
+			}
+			if err = os.WriteFile(filepath.Join(lineDir, "offset"), []byte(strconv.FormatUint(uint64(line), 10)), 0644); err != nil {
+				return "", err
+			}
+			lineNum++
 		}
 	}
+
+	if err = os.WriteFile(filepath.Join(configfsBaseDir, "live"), []byte("1"), 0644); err != nil {
+		return "", err
+	}
+
+	sysfsBaseDir := filepath.Join(dirs.GlobalRootDir, "/sys/devices/platform", devNameCleaned)
+	entries, err := os.ReadDir(sysfsBaseDir)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), "gpiochip") {
+			return entry.Name(), nil
+		}
+	}
+
+	return "", fmt.Errorf("cannot find aggregated gpio chip device under %s", sysfsBaseDir)
 }
 
 func aggregatedChipUdevRulePath(instanceName, slotName string) string {
@@ -175,13 +172,13 @@ func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), fname)
 }
 
-func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanceName, slotName string) error {
+func addEphemeralUdevTaggingRule(ctx context.Context, chipName string, instanceName, slotName string) error {
 	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), 0755); err != nil {
 		return err
 	}
 
 	tag := fmt.Sprintf("snap_%s_interface_gpio_chardev_%s", instanceName, slotName)
-	rule := fmt.Sprintf(`SUBSYSTEM=="gpio", KERNEL=="%s", TAG+="%s"`+"\n", chip.Name, tag)
+	rule := fmt.Sprintf(`SUBSYSTEM=="gpio", KERNEL=="%s", TAG+="%s"`+"\n", chipName, tag)
 
 	path := aggregatedChipUdevRulePath(instanceName, slotName)
 	if err := os.WriteFile(path, []byte(rule), 0644); err != nil {
@@ -195,7 +192,7 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanc
 		return fmt.Errorf("cannot reload udev rules: %w", osutil.OutputErr(output, err))
 	}
 	// trigger the tagging rule
-	output, err = exec.CommandContext(ctx, "udevadm", "trigger", "--name-match", chip.Name).CombinedOutput()
+	output, err = exec.CommandContext(ctx, "udevadm", "trigger", "--name-match", chipName).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot trigger udev rules: %w", osutil.OutputErr(output, err))
 	}
@@ -203,13 +200,8 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chip *ChardevChip, instanc
 	return nil
 }
 
-var osStat = os.Stat
-var osChmod = os.Chmod
-var osChown = os.Chown
-var syscallMknod = syscall.Mknod
-
-func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) (err error) {
-	fi, err := osStat(chip.Path)
+func addGadgetSlotDevice(chipName, instanceName, slotName string) (err error) {
+	fi, err := osStat(filepath.Join(dirs.DevDir, chipName))
 	if err != nil {
 		return err
 	}
@@ -246,35 +238,44 @@ func addGadgetSlotDevice(chip *ChardevChip, instanceName, slotName string) (err 
 	return osChmod(devPath, fi.Mode())
 }
 
-func removeGadgetSlotDevice(instanceName, slotName string) (aggregatedChip *ChardevChip, err error) {
-	devPath := SnapChardevPath(instanceName, slotName)
-	aggregatedChip, err = chardevChipInfo(devPath)
-	if err != nil {
-		return nil, err
-	}
-	return aggregatedChip, os.RemoveAll(devPath)
+func removeGadgetSlotDevice(instanceName, slotName string) (err error) {
+	return os.RemoveAll(SnapChardevPath(instanceName, slotName))
 }
 
-func removeEphemeralUdevTaggingRule(gadget, slot string) error {
-	path := aggregatedChipUdevRulePath(gadget, slot)
+func removeEphemeralUdevTaggingRule(instanceName, slotName string) error {
+	path := aggregatedChipUdevRulePath(instanceName, slotName)
 	return os.RemoveAll(path)
 }
 
-func removeAggregatedChip(aggregatedChip *ChardevChip) error {
-	// synchronize gpio helpers' access to the aggregator interface
-	unlocker, err := lockAggregator()
+func removeAggregatedChip(instanceName, slotName string) error {
+	configfsBaseDir := snapConfigfsDir(instanceName, slotName)
+
+	if err := osWriteFile(filepath.Join(configfsBaseDir, "live"), []byte("0"), 0644); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(configfsBaseDir)
 	if err != nil {
 		return err
 	}
-	defer unlocker()
 
-	return os.WriteFile(filepath.Join(dirs.GlobalRootDir, aggregatorDeleteDevicePath), []byte(aggregatedChip.Label), 0644)
+	// remove line directories
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if err := os.Remove(filepath.Join(configfsBaseDir, entry.Name())); err != nil {
+			return err
+		}
+	}
+
+	return os.Remove(configfsBaseDir)
 }
 
-func validateLines(chip *ChardevChip, lines strutil.Range) error {
+func validateLines(chip *chardevChip, lines strutil.Range) error {
 	for _, span := range lines {
-		if uint(span.End) >= chip.NumLines {
-			return fmt.Errorf("invalid line offset %d: line does not exist in %q", span.End, chip.Name)
+		if uint(span.End) >= chip.numLines {
+			return fmt.Errorf("invalid line offset %d: line does not exist in %q", span.End, chip.name)
 		}
 	}
 
@@ -299,13 +300,13 @@ func isAggregatedChip(path string) (bool, error) {
 	return driverDir == filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir), err
 }
 
-func findChips(filter func(chip *ChardevChip) bool) ([]*ChardevChip, error) {
+func findChips(filter func(chip *chardevChip) bool) ([]*chardevChip, error) {
 	allPaths, err := filepath.Glob(filepath.Join(dirs.DevDir, "/gpiochip*"))
 	if err != nil {
 		return nil, err
 	}
 
-	var matched []*ChardevChip
+	var matched []*chardevChip
 	for _, path := range allPaths {
 		isAggregated, err := isAggregatedChip(path)
 		if err != nil {
@@ -314,7 +315,7 @@ func findChips(filter func(chip *ChardevChip) bool) ([]*ChardevChip, error) {
 		if isAggregated {
 			continue
 		}
-		chip, err := chardevChipInfo(path)
+		chip, err := getChardevChipInfo(path)
 		if err != nil {
 			return nil, err
 		}
