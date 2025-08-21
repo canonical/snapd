@@ -91,8 +91,9 @@ func validatePath(path string) error {
 }
 
 func checkLabelAttributes(attrs map[string]any, nameDef string) error {
-	// TODO we should check the ContentCompatLabel feature, but here we do
-	// not have access to the state.
+	// The ContentCompatLabel feature is checked only at matching time,
+	// here we allow the compatibility labels to exist in any case as it
+	// has no further side effect.
 	content, okContent := attrs["content"].(string)
 	compat, okCompat := attrs["compatibility"].(string)
 	hasContent := okContent && len(content) > 0
