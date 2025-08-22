@@ -1775,6 +1775,7 @@ nested_start_classic_vm() {
     fi
 
     # Copy tools to be used on tests
+    nested_wait_for_ssh
     nested_prepare_tools
     nested_setup_vm
 }
