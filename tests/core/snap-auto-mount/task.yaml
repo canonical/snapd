@@ -19,20 +19,14 @@ systems:
   - ubuntu-core-18-64
   - ubuntu-core-20-64
   - ubuntu-core-22-64
-# we cannot test this on core 24 because it does not support auto-import
-# from ram: https://github.com/canonical/core-base/blob/core24/static/usr/lib/udev/rules.d/66-snapd-autoimport.rules
+# does not work on core24
+#  - ubuntu-core-24-64
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    # enable debug logging
-    mkdir -p /etc/systemd/system/systemd-udevd.service.d
-    echo -e "[Service]\nEnvironment=SYSTEMD_LOG_LEVEL=debug\n" > /etc/systemd/system/systemd-udevd.service.d/99-debug.conf
-    systemctl daemon-reload
-    systemctl restart systemd-udevd
 
     echo "Install dmsetup"
     snap install --devmode --edge dmsetup
