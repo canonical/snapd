@@ -164,12 +164,8 @@ func NewAssembleState(
 		config.Clock = time.Now
 	}
 
-	if !session.Initiated.IsZero() && config.Clock().Sub(session.Initiated) > AssembleSessionLength {
-		return nil, errors.New("cannot resume an assembly session that began more than an hour ago")
-	}
-
 	// validate the given session parse it into more useful data structures
-	validated, err := validateSession(session)
+	validated, err := validateSession(session, config.Clock)
 	if err != nil {
 		return nil, fmt.Errorf("invalid session data: %w", err)
 	}
@@ -183,14 +179,14 @@ func NewAssembleState(
 		return nil, err
 	}
 
-	if err := ensureLocalDevicePresent(&session.Devices, Identity{
+	if err := ensureLocalDevicePresent(&validated.devices, Identity{
 		RDT: config.RDT,
 		FP:  CalculateFP(cert.Certificate[0]),
 	}); err != nil {
 		return nil, err
 	}
 
-	devices := NewDeviceQueryTracker(session.Devices, time.Minute*5, config.Clock)
+	devices := NewDeviceQueryTracker(validated.devices, time.Minute*5, config.Clock)
 
 	sel, err := selector(config.RDT, devices.Identified)
 	if err != nil {
@@ -201,7 +197,7 @@ func NewAssembleState(
 	// their provenance is this local node, since we don't persist which routes
 	// came from which peer. this will lead to our local node doing some wasted
 	// publications, but that is okay.
-	if _, _, err := sel.RecordRoutes(config.RDT, session.Routes); err != nil {
+	if _, _, err := sel.RecordRoutes(config.RDT, validated.routes); err != nil {
 		return nil, err
 	}
 
@@ -221,7 +217,7 @@ func NewAssembleState(
 	authHMAC := CalculateHMAC(config.RDT, CalculateFP(cert.Certificate[0]), config.Secret)
 
 	as := AssembleState{
-		initiated:    session.Initiated,
+		initiated:    validated.initiated,
 		config:       config,
 		logger:       log,
 		commit:       commit,
@@ -823,18 +819,26 @@ func parseAndValidateFingerprint(strFP string) (Fingerprint, error) {
 	return fp, nil
 }
 
-// validatedSession contains pre-parsed session data with field names matching AssembleState
+// validatedSession contains pre-parsed session data with field names matching
+// [AssembleState].
 type validatedSession struct {
-	trusted      map[Fingerprint]Peer        // matches AssembleState.trusted
-	fingerprints map[DeviceToken]Fingerprint // matches AssembleState.fingerprints
-	addresses    map[Fingerprint]string      // matches AssembleState.addresses
-	discovered   map[string]bool             // matches AssembleState.discovered
+	trusted      map[Fingerprint]Peer
+	fingerprints map[DeviceToken]Fingerprint
+	addresses    map[Fingerprint]string
+	discovered   map[string]bool
+	routes       Routes
+	devices      DeviceQueryTrackerData
+	initiated    time.Time
 }
 
 // validateSession checks that the given session maintains internal consistency
 // invariants that should be preserved between export and import, and returns
 // all parsed data for use by NewAssembleState.
-func validateSession(session AssembleSession) (validatedSession, error) {
+func validateSession(session AssembleSession, clock func() time.Time) (validatedSession, error) {
+	if !session.Initiated.IsZero() && clock().Sub(session.Initiated) > AssembleSessionLength {
+		return validatedSession{}, errors.New("cannot resume an assembly session that began more than an hour ago")
+	}
+
 	if len(session.Routes.Routes)%3 != 0 {
 		return validatedSession{}, errors.New("routes array length must be multiple of 3")
 	}
@@ -888,6 +892,9 @@ func validateSession(session AssembleSession) (validatedSession, error) {
 	}
 
 	return validatedSession{
+		routes:       session.Routes,
+		devices:      session.Devices,
+		initiated:    session.Initiated,
 		trusted:      trusted,
 		fingerprints: fingerprints,
 		addresses:    addresses,
