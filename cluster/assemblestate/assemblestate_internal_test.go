@@ -44,6 +44,15 @@ type ClusterSuite struct{}
 
 var _ = check.Suite(&ClusterSuite{})
 
+// committer tracks commit calls and the session data that was committed
+type committer struct {
+	commits []AssembleSession
+}
+
+func (c *committer) commit(as AssembleSession) {
+	c.commits = append(c.commits, as)
+}
+
 type selector struct {
 	AddAuthoritativeRouteFunc func(r DeviceToken, via string)
 	RecordRoutesFunc          func(r DeviceToken, ro Routes) (int, int, error)
@@ -165,7 +174,7 @@ func createTestCertAndKey(c *check.C, ip net.IP) (certPEM []byte, keyPEM []byte)
 	return certPEM, keyPEM
 }
 
-func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg AssembleConfig) (*AssembleState, tls.Certificate) {
+func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, tls.Certificate) {
 	certPEM, keyPEM := createTestCertAndKey(c, cfg.IP)
 
 	cfg.TLSCert = certPEM
@@ -175,16 +184,16 @@ func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg A
 	st.Set("assemble-config", cfg)
 	st.Unlock()
 
-	commit := func(AssembleSession) {}
+	cm := &committer{}
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return sel, nil
-	}, nil, commit)
+	}, nil, cm.commit)
 	c.Assert(err, check.IsNil)
 
 	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))
 	c.Assert(err, check.IsNil)
 
-	return as, cert
+	return as, cm, cert
 }
 
 func statelessSelector() *selector {
@@ -201,8 +210,8 @@ func statelessSelector() *selector {
 	}
 }
 
-func (s *ClusterSuite) TestPublishAuth(c *check.C) {
-	as, tlsCert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+func (s *ClusterSuite) TestPublishAuthAndCommit(c *check.C) {
+	as, cm, tlsCert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -229,8 +238,13 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 
 	err := as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8002"}, &client)
 	c.Assert(err, check.IsNil)
-
 	c.Assert(called, check.Equals, 1)
+
+	c.Assert(len(cm.commits), check.Equals, 1)
+	c.Assert(cm.commits[0].Addresses, check.DeepEquals, map[string]string{
+		encodeCertAsFP([]byte("peer-certificate")): "127.0.0.1:8002",
+	})
+	c.Assert(cm.commits[0].Discovered, check.DeepEquals, []string{"127.0.0.1:8002"})
 
 	// the second time around we shouldn't publish anything, since we already
 	// have delivered an auth message to this peer
@@ -238,10 +252,16 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 	err = as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8002"}, &client)
 	c.Assert(err, check.IsNil)
 	c.Assert(called, check.Equals, 0)
+
+	c.Assert(len(cm.commits), check.Equals, 2)
+	c.Assert(cm.commits[1].Addresses, check.DeepEquals, map[string]string{
+		encodeCertAsFP([]byte("peer-certificate")): "127.0.0.1:8002",
+	})
+	c.Assert(cm.commits[1].Discovered, check.DeepEquals, []string{"127.0.0.1:8002"})
 }
 
-func (s *ClusterSuite) TestPublishAuthCertificateAddressMismatch(c *check.C) {
-	as, cert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+func (s *ClusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *check.C) {
+	as, cm, cert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -270,14 +290,22 @@ func (s *ClusterSuite) TestPublishAuthCertificateAddressMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(calls, check.Equals, 1)
 
+	c.Assert(len(cm.commits), check.Equals, 1)
+	c.Assert(cm.commits[0].Addresses, check.DeepEquals, map[string]string{
+		encodeCertAsFP([]byte("peer-certificate")): "127.0.0.1:8001",
+	})
+	c.Assert(cm.commits[0].Discovered, check.DeepEquals, []string{"127.0.0.1:8001"})
+
 	// second call with same certificate but different address should fail
 	err = as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8002"}, &client)
 	c.Assert(err, check.ErrorMatches, "found new address 127.0.0.1:8002 using same certificate as other address 127.0.0.1:8001")
 	c.Assert(calls, check.Equals, 2)
+
+	c.Assert(len(cm.commits), check.Equals, 1)
 }
 
 func (s *ClusterSuite) TestAuthenticate(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -295,6 +323,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	}
 	err := as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
 	// wrong RDT in message
 	auth = Auth{
@@ -303,6 +332,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	}
 	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
 	// wrong FP in HMAC
 	auth = Auth{
@@ -311,6 +341,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	}
 	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
 	// wrong cert from transport layer
 	auth = Auth{
@@ -319,6 +350,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	}
 	err = as.AuthenticateAndCommit(auth, []byte("wrong-cert"))
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
 	// wrong secret
 	auth = Auth{
@@ -327,6 +359,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	}
 	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
+	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
 	// valid case
 	auth = Auth{
@@ -336,10 +369,17 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
+	c.Assert(len(cm.commits), check.Equals, 1)
+	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]Peer{
+		encodeCertAsFP(peerCert): {
+			RDT:  peerRDT,
+			Cert: peerCert,
+		},
+	})
 }
 
 func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -367,10 +407,13 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 
 	err := as.AuthenticateAndCommit(auth, wrongCert)
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
+
+	// verify commit was not called on fingerprint mismatch
+	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on fingerprint mismatch"))
 }
 
 func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -387,16 +430,26 @@ func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 	}, cert)
 	c.Assert(err, check.IsNil)
 
+	c.Assert(len(cm.commits), check.Equals, 1)
+	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]Peer{
+		encodeCertAsFP(cert): {
+			RDT:  "peer-one",
+			Cert: cert,
+		},
+	})
+
 	// second peer tries to use the same certificate - should fail
 	err = as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-two", fp, "secret"),
 		RDT:  "peer-two",
 	}, cert)
 	c.Assert(err, check.ErrorMatches, `peer "peer-one" and "peer-two" are using the same TLS certificate`)
+
+	c.Assert(len(cm.commits), check.Equals, 1)
 }
 
 func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -412,6 +465,14 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	}, cert)
 	c.Assert(err, check.IsNil)
 
+	c.Assert(len(cm.commits), check.Equals, 1)
+	c.Assert(cm.commits[0].Trusted, check.DeepEquals, map[string]Peer{
+		encodeCertAsFP(cert): {
+			RDT:  "peer",
+			Cert: cert,
+		},
+	})
+
 	// second authentication with different certificate - should fail
 	cert = []byte("certificate-two")
 	fp = CalculateFP(cert)
@@ -420,6 +481,8 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 		RDT:  "peer",
 	}, cert)
 	c.Assert(err, check.ErrorMatches, `peer "peer" is using a new TLS certificate`)
+
+	c.Assert(len(cm.commits), check.Equals, 1)
 }
 
 func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
@@ -444,7 +507,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		RoutesFunc: func() Routes { return Routes{} },
 	}
 
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), sel, AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), sel, AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -454,6 +517,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 	const peerRDT = DeviceToken("peer")
 	const peerAddr = "127.0.0.1:8002"
 	peerCert := []byte("peer-certificate")
+	peerFP := CalculateFP(peerCert)
 
 	// first, use publishAuth to discover the peer's address
 	client := &testClient{
@@ -467,11 +531,16 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 	err := as.publishAuthAndCommit(context.Background(), []string{peerAddr}, client)
 	c.Assert(err, check.IsNil)
 
+	c.Assert(len(cm.commits), check.Equals, 1)
+	c.Assert(cm.commits[0].Addresses, check.DeepEquals, map[string]string{
+		encodeCertAsFP(peerCert): peerAddr,
+	})
+	c.Assert(cm.commits[0].Discovered, check.DeepEquals, []string{peerAddr})
+
 	// verify no authoritative routes added yet
 	c.Assert(len(authoritative), check.Equals, 0)
 
 	// now authenticate the peer
-	peerFP := CalculateFP(peerCert)
 	auth := Auth{
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
@@ -479,6 +548,17 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 
 	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
+
+	c.Assert(len(cm.commits), check.Equals, 2)
+	c.Assert(cm.commits[1].Trusted, check.DeepEquals, map[string]Peer{
+		encodeCertAsFP(peerCert): {
+			RDT:  peerRDT,
+			Cert: peerCert,
+		},
+	})
+	c.Assert(cm.commits[1].Addresses, check.DeepEquals, map[string]string{
+		encodeCertAsFP(peerCert): peerAddr,
+	})
 
 	// since we have discovered the route from us to the peer and the peer has
 	// authenticated, then AddAuthoritativeRoute should have been called
@@ -488,7 +568,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 }
 
 func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, _, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -512,7 +592,7 @@ func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
 }
 
 func (s *ClusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, _, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -574,7 +654,7 @@ func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle,
 }
 
 func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -601,7 +681,10 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 			return nil
 		},
 	}
+	baseline := len(cm.commits)
 	as.publishDeviceQueries(context.Background(), &client)
+	// publishing device queries does not commit
+	c.Assert(len(cm.commits), check.Equals, baseline)
 
 	// act as if the peer responded for only one of the devices
 	err = peer.CommitDevices(Devices{
@@ -622,11 +705,14 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 		c.Assert(unknown.Devices, testutil.DeepUnsortedMatches, []DeviceToken{"two"})
 		return nil
 	}
+	baseline = len(cm.commits)
 	as.publishDeviceQueries(context.Background(), &client)
+	// publishing device queries does not commit
+	c.Assert(len(cm.commits), check.Equals, baseline)
 }
 
-func (s *ClusterSuite) TestPublishDevices(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+func (s *ClusterSuite) TestPublishDevicesAndCommit(c *check.C) {
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -654,9 +740,9 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 	threeRDT := DeviceToken("three")
 	three, threeAddr, threeCert := trustedAndDiscoveredPeer(c, as, threeRDT)
 
-	// nothing should be published, since we don't have anything that someone
-	// has asked for
+	baseline := len(cm.commits)
 	as.publishDevicesAndCommit(context.Background(), &testClient{})
+	c.Assert(len(cm.commits), check.Equals, baseline+1)
 
 	// three asks us for information about two
 	three.CommitDeviceQueries(UnknownDevices{
@@ -679,16 +765,20 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 			return nil
 		},
 	}
+	baseline = len(cm.commits)
 	as.publishDevicesAndCommit(context.Background(), &client)
 	c.Assert(called, check.Equals, 1)
+	c.Assert(len(cm.commits), check.Equals, baseline+1)
 
 	// since we successfully published the response to the query, we don't send
 	// anything
+	baseline = len(cm.commits)
 	as.publishDevicesAndCommit(context.Background(), &testClient{})
+	c.Assert(len(cm.commits), check.Equals, baseline+1)
 }
 
-func (s *ClusterSuite) TestRecordDevicesFingerprintMismatch(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+func (s *ClusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -697,6 +787,8 @@ func (s *ClusterSuite) TestRecordDevicesFingerprintMismatch(c *check.C) {
 
 	peerRDT := DeviceToken("peer-rdt")
 	peer, _, _ := trustedAndDiscoveredPeer(c, as, peerRDT)
+
+	baseline := len(cm.commits)
 
 	// try to add a device identity with the peer's RDT but wrong fingerprint
 	wrongFP := CalculateFP([]byte("wrong-certificate"))
@@ -709,10 +801,11 @@ func (s *ClusterSuite) TestRecordDevicesFingerprintMismatch(c *check.C) {
 	})
 
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
+	c.Assert(len(cm.commits), check.Equals, baseline, check.Commentf("commit should not be called on fingerprint mismatch"))
 }
 
-func (s *ClusterSuite) TestRecordDevicesInconsistentIdentity(c *check.C) {
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+func (s *ClusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -733,6 +826,8 @@ func (s *ClusterSuite) TestRecordDevicesInconsistentIdentity(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
+	baseline := len(cm.commits)
+
 	// second peer tries to record a different identity for the same device
 	conflicting := Identity{
 		RDT: "peer-three",
@@ -744,11 +839,12 @@ func (s *ClusterSuite) TestRecordDevicesInconsistentIdentity(c *check.C) {
 	})
 
 	c.Assert(err, check.ErrorMatches, "got inconsistent device identity")
+	c.Assert(len(cm.commits), check.Equals, baseline, check.Commentf("commit should not be called on identity inconsistency"))
 }
 
 func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 	selector := statelessSelector()
-	as, _ := assembleStateWithTestKeys(c, state.New(nil), selector, AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), selector, AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -763,6 +859,8 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 
 	threeRDT := DeviceToken("three")
 	trustedPeer(c, as, threeRDT)
+
+	baseline := len(cm.commits)
 
 	var msg testClient
 	var called int
@@ -798,6 +896,9 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 		oneRDT: 1,
 		twoRDT: 1,
 	})
+
+	// publishing routes doesn't commit anything
+	c.Assert(len(cm.commits), check.Equals, baseline)
 }
 
 func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
@@ -973,13 +1074,11 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		Clock:   clock,
 	}
 
-	commit := func(s AssembleSession) {}
-
 	// create AssembleState with imported session
 	as, err := NewAssembleState(cfg, session, func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error) {
 		c.Assert(self, check.Equals, local.rdt)
 		return selector, nil
-	}, nil, commit)
+	}, nil, func(AssembleSession) {})
 	c.Assert(err, check.IsNil)
 
 	// verify imported routes were recorded in selector
@@ -1320,4 +1419,9 @@ func (s *ClusterSuite) TestRunServerError(c *check.C) {
 	// run should return the server error wrapped with "server failed: "
 	_, err = as.Run(context.Background(), transport, discover)
 	c.Assert(err, testutil.ErrorIs, serverError)
+}
+
+func encodeCertAsFP(fingerprint []byte) string {
+	fp := CalculateFP(fingerprint)
+	return base64.StdEncoding.EncodeToString(fp[:])
 }

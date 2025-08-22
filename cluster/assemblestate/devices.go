@@ -292,5 +292,16 @@ func (d *DeviceQueryTracker) Export() DeviceQueryTrackerData {
 		data.IDs = append(data.IDs, identity)
 	}
 
+	// if anything is empty, just clear it out. makes testing easier.
+	if len(data.Queries) == 0 {
+		data.Queries = nil
+	}
+	if len(data.Known) == 0 {
+		data.Known = nil
+	}
+	if len(data.IDs) == 0 {
+		data.IDs = nil
+	}
+
 	return data
 }
