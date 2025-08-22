@@ -87,8 +87,7 @@ var ErrNoIntegrityDataFoundInRevision = errors.New("no integrity data found in r
 // NewIntegrityDataParamsFromRevision will parse a revision for integrity data and return them as
 // a new IntegrityDataParams object.
 //
-// A DmVerityDataNotFoundError error will be returned if there is no integrity data in the revision.
-// An UnsupportedIntegrityDataError error will be returned if the integrity data found are not supported.
+// An ErrNoIntegrityDataFoundInRevision error will be returned if there is no integrity data in the revision.
 func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDataParams, error) {
 	snapIntegrityData := rev.SnapIntegrityData()
 
