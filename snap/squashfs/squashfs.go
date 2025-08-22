@@ -88,6 +88,7 @@ func New(snapPath string) *Snap {
 }
 
 var osLink = os.Link
+var osRemove = os.Remove
 var snapdtoolCommandFromSystemSnap = snapdtool.CommandFromSystemSnap
 
 // Install installs a squashfs snap file through an appropriate method.
@@ -139,7 +140,24 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// link(2) returns EPERM on filesystems that don't support
 		// hard links (like vfat), so checking the error here doesn't
 		// make sense vs just trying to copy it.
-		if err := osLink(s.path, targetPath); err == nil {
+		err1 := osLink(s.path, targetPath)
+
+		// try to link the verity data as well
+		var err2 error
+		if opts != nil && len(opts.IntegrityRootHash) > 0 {
+			err2 = osLink(srcVerityPath, destVerityPath)
+		}
+
+		// if for some reason linking the verity data has failed while the snap
+		// has succeeded, unlink the snap before continuing trying to copy it
+		if err1 == nil && err2 != nil {
+			err := osRemove(targetPath)
+			if err != nil {
+				return false, err
+			}
+		}
+
+		if err1 == nil && err2 == nil {
 			return false, nil
 		}
 	}
@@ -175,6 +193,13 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 			if err1 == nil && err2 == nil {
 				return false, nil
 			}
+		}
+	}
+
+	if opts != nil && len(opts.IntegrityRootHash) > 0 {
+		err = osutil.CopyFile(srcVerityPath, destVerityPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+		if err != nil {
+			return false, err
 		}
 	}
 
