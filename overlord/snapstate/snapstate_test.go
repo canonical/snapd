@@ -10869,6 +10869,82 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
 }
 
+func (s *snapmgrTestSuite) TestDownloadWithIntegrity(c *C) {
+	integrityDataSize := 5
+	restore := snapstate.MockOsutilCheckFreeSpace(func(rootDir string, totalSize uint64) error {
+		// from safetyMarginDiskSpace
+		size := 5 * 1024 * 1024
+		// size of the snap
+		size += 5
+		size += integrityDataSize
+		c.Check(totalSize, Equals, uint64(size))
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+			},
+			DownloadInfo: snap.DownloadInfo{
+				Size: int64(integrityDataSize),
+			},
+		}
+		return nil
+	}
+
+	prqt := testPrereqTracker{}
+	ts, info, err := snapstate.Download(
+		context.Background(),
+		s.state,
+		"foo",
+		nil,
+		c.MkDir(),
+		snapstate.RevisionOptions{},
+		snapstate.Options{
+			PrereqTracker:        &prqt,
+			RequestIntegrityData: true,
+		})
+	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+		SnapID:   "foo-id",
+		Channel:  "stable",
+	})
+
+	c.Check(ts.Tasks(), HasLen, 3)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+	c.Check(downloadSnap, DeepEquals, ts.MaybeEdge(snapstate.SnapSetupEdge))
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	downloadIntegrityData := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(downloadIntegrityData, NotNil)
+	c.Check(downloadIntegrityData.Kind(), Equals, "download-integrity-data")
+
+	var snapsupTaskID string
+	err = downloadIntegrityData.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+
+	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
+}
+
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

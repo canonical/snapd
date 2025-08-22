@@ -8151,3 +8151,259 @@ epoch: 1
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(11))
 }
+
+type testInstallIntegrityRunThroughOpts struct {
+	snapName            string
+	expectIntegrityData bool
+}
+
+func (s *snapmgrTestSuite) testInstallWithIntegrityDataRunThrough(c *C, opts testInstallIntegrityRunThroughOpts) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
+	defer r()
+
+	snapID := opts.snapName + "-id"
+	snapRevision := snap.R(11)
+	const channel = "channel-with-integrity-data"
+
+	instanceName := snap.InstanceName(opts.snapName, "")
+
+	// we start without the auxiliary store info
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
+
+	var snst snapstate.SnapState
+	snapstate.Get(s.state, instanceName, &snst)
+
+	target := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: instanceName,
+		RevOpts:      snapstate.RevisionOptions{Channel: channel},
+	})
+
+	info, ts, err := snapstate.InstallOne(context.Background(), s.state, target, snapstate.Options{
+		UserID:               1,
+		RequestIntegrityData: true,
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, instanceName)
+	c.Check(info.Channel, Equals, channel)
+	c.Check(info.Revision, Equals, snapRevision)
+
+	// Mock update-gadget-cmdline action to allow the state to settle
+	s.o.TaskRunner().AddHandler("update-gadget-cmdline",
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil },
+		func(task *state.Task, tomb *tomb.Tomb) error { return nil })
+
+	chg := s.state.NewChange("install", "install a snap")
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+
+	c.Assert(chg.IsReady(), Equals, true, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+	c.Check(snapstate.Installing(s.state), Equals, false)
+
+	downloads := []fakeDownload{{
+		macaroon: s.user.StoreMacaroon,
+		name:     opts.snapName,
+		target:   filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, snapRevision)),
+	}}
+
+	if opts.expectIntegrityData {
+		downloads = append(downloads, fakeDownload{
+			macaroon: s.user.StoreMacaroon,
+			name:     opts.snapName,
+			target:   filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap.dmverity_digest1", instanceName, snapRevision)),
+		})
+	}
+
+	c.Check(s.fakeStore.downloads, DeepEquals, downloads)
+
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true, Commentf("salts seen: %v", s.fakeStore.seenPrivacyKeys))
+
+	snapFileName := fmt.Sprintf("%s_%v.snap", instanceName, snapRevision)
+
+	// ops that happens before component tasks
+	expected := fakeOps{{
+		op:     "storesvc-snap-action",
+		userID: 1,
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "install",
+			InstanceName: instanceName,
+			Channel:      channel,
+		},
+		revno:  snapRevision,
+		userID: 1,
+	}, {
+		op:   "storesvc-download",
+		name: opts.snapName,
+	}, {
+		op:    "validate-snap:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}}
+
+	if opts.expectIntegrityData {
+		expected = append(expected, []fakeOp{{
+			op:   "storesvc-download",
+			name: opts.snapName,
+		}}...)
+	}
+
+	expected = append(expected, []fakeOp{{
+		op:  "current",
+		old: "<no-current>",
+	}, {
+		op:   "open-snap-file",
+		path: filepath.Join(dirs.SnapBlobDir, snapFileName),
+		sinfo: snap.SideInfo{
+			RealName: opts.snapName,
+			SnapID:   snapID,
+			Channel:  channel,
+			Revision: snapRevision,
+		},
+	}}...)
+	fop := &fakeOp{
+		op:    "setup-snap",
+		name:  instanceName,
+		path:  filepath.Join(dirs.SnapBlobDir, snapFileName),
+		revno: snapRevision,
+	}
+
+	if opts.expectIntegrityData {
+		fop.integrityDigest = "digest"
+	}
+
+	expected = append(expected, *fop)
+
+	if opts.snapName == "some-gadget" {
+		expected = append(expected, []fakeOp{{
+			op:    "update-gadget-assets:Doing",
+			name:  instanceName,
+			revno: snapRevision,
+		}}...)
+	}
+
+	if opts.snapName == "some-kernel" {
+		expected = append(expected, []fakeOp{{
+			op: "prepare-kernel-snap",
+		}, {
+			op:    "update-gadget-assets:Doing",
+			name:  instanceName,
+			revno: snapRevision,
+		}}...)
+	}
+
+	expected = append(expected, []fakeOp{{
+		op:   "copy-data",
+		path: filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
+		old:  "<no-old>",
+	}, {
+		op:   "setup-snap-save-data",
+		path: filepath.Join(dirs.SnapDataSaveDir, instanceName),
+	}, {
+		op:    "setup-profiles:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
+		op: "candidate",
+		sinfo: snap.SideInfo{
+			RealName: opts.snapName,
+			SnapID:   snapID,
+			Channel:  channel,
+			Revision: snapRevision,
+		},
+	}, {
+		op:                  "link-snap",
+		path:                filepath.Join(dirs.SnapMountDir, filepath.Join(instanceName, snapRevision.String())),
+		requireSnapdTooling: true,
+	}}...)
+
+	expected = append(expected, fakeOp{
+		op: "maybe-set-next-boot",
+	})
+
+	expected = append(expected, []fakeOp{{
+		op:    "auto-connect:Doing",
+		name:  instanceName,
+		revno: snapRevision,
+	}, {
+		op: "update-aliases",
+	}}...)
+
+	if opts.snapName == "some-snapd" {
+		expected = append(expected, []fakeOp{{
+			op:    "update-managed-boot-config:Doing",
+			name:  instanceName,
+			revno: snapRevision,
+		}}...)
+	}
+
+	expected = append(expected, fakeOp{
+		op:    "cleanup-trash",
+		name:  instanceName,
+		revno: snapRevision,
+	})
+
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, instanceName, &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.TrackingChannel, Equals, fmt.Sprintf("%s/stable", channel))
+	c.Check(snapst.Required, Equals, false)
+
+	c.Check(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
+		RealName: opts.snapName,
+		Channel:  channel,
+		Revision: snapRevision,
+		SnapID:   snapID,
+	})
+
+	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FilePresent)
+
+}
+
+func (s *snapmgrTestSuite) TestInstallWithIntegrityDataRunThroughBaseSnap(c *C) {
+	s.testInstallWithIntegrityDataRunThrough(c, testInstallIntegrityRunThroughOpts{
+		snapName:            "some-base",
+		expectIntegrityData: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallWithIntegrityDataRunThroughGadgetSnap(c *C) {
+	s.testInstallWithIntegrityDataRunThrough(c, testInstallIntegrityRunThroughOpts{
+		snapName:            "some-gadget",
+		expectIntegrityData: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallWithIntegrityDataRunThroughKernelSnap(c *C) {
+	s.testInstallWithIntegrityDataRunThrough(c, testInstallIntegrityRunThroughOpts{
+		snapName:            "some-kernel",
+		expectIntegrityData: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallWithIntegrityDataRunThroughSnapdSnap(c *C) {
+	s.testInstallWithIntegrityDataRunThrough(c, testInstallIntegrityRunThroughOpts{
+		snapName:            "some-snapd",
+		expectIntegrityData: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallWithIntegrityDataRunThroughApplicationSnap(c *C) {
+	s.testInstallWithIntegrityDataRunThrough(c, testInstallIntegrityRunThroughOpts{
+		snapName:            "test",
+		expectIntegrityData: false,
+	})
+}
