@@ -5,7 +5,6 @@ Before=initrd-root-fs.target
 After=sysroot.mount
 After=run-mnt-data.mount
 After=run-mnt-base.mount
-After=writable.mount
 After=snap-initramfs-mounts.service
 
 ConditionPathIsDirectory=/run/mnt/data/system-data
