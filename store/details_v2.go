@@ -58,6 +58,7 @@ type storeSnap struct {
 	Website       string              `json:"website"`
 	StoreURL      string              `json:"store-url"`
 	Resources     []storeResource     `json:"resources"`
+	IntegrityData []storeIntegrity    `json:"integrity"`
 
 	// TODO: not yet defined: channel map
 
@@ -128,6 +129,17 @@ type storeInfo struct {
 	Snap       storeSnap               `json:"snap"`
 	Name       string                  `json:"name"`
 	SnapID     string                  `json:"snap-id"`
+}
+
+type storeIntegrity struct {
+	Type          string        `json:"type"`
+	Version       string        `json:"version"`
+	HashAlg       string        `json:"hash-algorithm"`
+	DataBlockSize uint          `json:"data-block-size"`
+	HashBlockSize uint          `json:"hash-block-size"`
+	Digest        string        `json:"digest"`
+	Salt          string        `json:"salt"`
+	Download      storeDownload `json:"download"`
 }
 
 func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
@@ -280,6 +292,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if len(src.Resources) > 0 {
 		dst.Resources = src.Resources
 	}
+	if len(src.IntegrityData) > 0 {
+		dst.IntegrityData = src.IntegrityData
+	}
 }
 
 func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
@@ -351,6 +366,10 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 
 	addCategories(info, d.Categories)
 
+	if err := addIntegrityData(info, d.IntegrityData); err != nil {
+		return nil, err
+	}
+
 	return info, nil
 }
 
@@ -391,6 +410,41 @@ func addComponents(info *snap.Info, resources []storeResource) {
 
 		info.Components[comp.Name] = comp
 	}
+}
+
+func addIntegrityData(info *snap.Info, integrityData []storeIntegrity) error {
+	if len(integrityData) == 0 {
+		return nil
+	}
+
+	// TODO: Currently there can only be one entry of integrity data therefore it is the one selected.
+	// In the future, an entry will be selected from the list to be downloaded based on extra information
+	// gathered from the system (such as preferred algorithm, preferred block size etc.)
+	i := integrityData[0]
+
+	version, err := strconv.Atoi(i.Version)
+	if err != nil {
+		return err
+	}
+
+	integrity := &snap.IntegrityData{
+		Type:          i.Type,
+		Version:       uint(version),
+		HashAlg:       i.HashAlg,
+		DataBlockSize: i.DataBlockSize,
+		HashBlockSize: i.HashBlockSize,
+		Digest:        i.Digest,
+		Salt:          i.Salt,
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: i.Download.URL,
+			Size:        i.Download.Size,
+			Sha3_384:    i.Download.Sha3_384,
+		},
+	}
+
+	info.IntegrityData = integrity
+
+	return nil
 }
 
 func downloadInfoFromStoreDownload(d storeDownload) snap.DownloadInfo {
