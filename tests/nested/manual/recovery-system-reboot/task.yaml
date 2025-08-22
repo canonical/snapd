@@ -126,6 +126,9 @@ execute: |
   remote.wait-for reboot "${boot_id}"
   boot_id="$(tests.nested boot-id)"
 
+  # configure the proxy in the recovered vm if required
+  tests.nested setup-vm
+
   remote.wait-for snap-command
 
   remote.exec snap watch "${change_id}"
@@ -139,6 +142,9 @@ execute: |
 
   remote.exec "sudo snap reboot --${MODE}" || true
   remote.wait-for reboot "${boot_id}"
+
+  # configure the proxy in the recovered vm if required
+  tests.nested setup-vm
 
   remote.wait-for snap-command
 
