@@ -1475,6 +1475,8 @@ nested_setup_vm(){
         net_interface="$(ip route show default | awk '{print $5}')"
         nameservers="$(resolvectl status "$net_interface" | grep "DNS Servers:" | cut -d: -f2)"
         if [ -n "$nameservers" ]; then
+            remote.exec "grep -v '^nameserver' /etc/resolv.conf > /tmp/resolv.conf"
+            remote.exec "sudo cp /tmp/resolv.conf /etc/resolv.conf"
             for nameserver in $nameservers; do
                 remote.exec "echo nameserver $nameserver | sudo tee -a /etc/resolv.conf"
             done
@@ -1490,6 +1492,7 @@ nested_setup_vm(){
         remote.exec "echo SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/environment"
 
         # Configure snapd to use the proxy
+        remote.retry -n 10 --wait 3 "systemctl is-enabled snapd"
         remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
         remote.exec "echo [Service] | sudo tee /etc/systemd/system/snapd.service.d/proxy.conf"
         remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$nested_no_proxy no_proxy=$nested_no_proxy SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
