@@ -108,11 +108,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerDropUnknownQuery(c *check.C) {
 	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
 	// query should not be recorded at all
-	c.Assert(dt.Export(), check.DeepEquals, assemblestate.DeviceQueryTrackerData{
-		Queries: make(map[assemblestate.DeviceToken][]assemblestate.DeviceToken),
-		Known:   make(map[assemblestate.DeviceToken][]assemblestate.DeviceToken),
-		IDs:     []assemblestate.Identity{},
-	})
+	c.Assert(dt.Export(), check.DeepEquals, assemblestate.DeviceQueryTrackerData{})
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {

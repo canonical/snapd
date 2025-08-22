@@ -118,19 +118,28 @@ type AssembleSession struct {
 }
 
 func (as *AssembleState) export() AssembleSession {
-	trusted := make(map[string]Peer, len(as.trusted))
-	for fp, p := range as.trusted {
-		trusted[base64.StdEncoding.EncodeToString(fp[:])] = p
+	var trusted map[string]Peer
+	if len(as.trusted) > 0 {
+		trusted = make(map[string]Peer, len(as.trusted))
+		for fp, p := range as.trusted {
+			trusted[base64.StdEncoding.EncodeToString(fp[:])] = p
+		}
 	}
 
-	addresses := make(map[string]string, len(as.addresses))
-	for fp, addr := range as.addresses {
-		addresses[base64.StdEncoding.EncodeToString(fp[:])] = addr
+	var addresses map[string]string
+	if len(as.addresses) > 0 {
+		addresses = make(map[string]string, len(as.addresses))
+		for fp, addr := range as.addresses {
+			addresses[base64.StdEncoding.EncodeToString(fp[:])] = addr
+		}
 	}
 
-	discovered := make([]string, 0, len(as.discovered))
-	for addr := range as.discovered {
-		discovered = append(discovered, addr)
+	var discovered []string
+	if len(as.discovered) > 0 {
+		discovered = make([]string, 0, len(as.discovered))
+		for addr := range as.discovered {
+			discovered = append(discovered, addr)
+		}
 	}
 
 	return AssembleSession{
