@@ -48,8 +48,14 @@ type InstallRecord struct {
 	TargetSnapExisted bool `json:"target-snap-existed,omitempty"`
 }
 
+type IntegrityData struct {
+	Type              string
+	IntegrityRootHash string
+}
+
 type SetupSnapOptions struct {
 	SkipKernelExtraction bool
+	IntegrityData
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
@@ -100,6 +106,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		opts.MustNotCrossDevices = true
 	}
 
+	opts.IntegrityRootHash = setupOpts.IntegrityRootHash
+
 	didNothing, err := snapf.Install(s.MountFile(), instdir, opts)
 	if err != nil {
 		return snapType, nil, err
@@ -107,13 +115,23 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	// generate the mount unit for the squashfs
 	t := s.Type()
-	mountFlags := systemd.EnsureMountUnitFlags{
+	mountFlags := MountUnitFlags{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
 	}
-	if err := addMountUnit(s, mountFlags, newSystemd(b.preseed, meter)); err != nil {
+
+	// we also fill the bare minimum info that we need to discover the
+	// dm-verity data when calling DmVerityInfo().
+	if setupOpts.IntegrityRootHash != "" {
+		s.IntegrityData = &snap.IntegrityData{
+			Type:   "dm-verity",
+			Digest: setupOpts.IntegrityRootHash,
+		}
+	}
+
+	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountFlags); err != nil {
 		return snapType, nil, err
 	}
 
@@ -190,13 +208,13 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// generate the mount unit for the squashfs
-	mountFlags := systemd.EnsureMountUnitFlags{
+	mountFlags := MountUnitFlags{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: compInfo.Type == snap.KernelModulesComponent && dev.HasModeenv(),
 	}
-	if err := addMountUnit(compPi, mountFlags, newSystemd(b.preseed, meter)); err != nil {
+	if err := addMountUnit(compPi, newSystemd(b.preseed, meter), mountFlags); err != nil {
 		return nil, err
 	}
 

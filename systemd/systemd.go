@@ -359,18 +359,6 @@ const (
 	MountCreated
 )
 
-// EnsureMountUnitFlags contains flags that modify behavior of EnsureMountUnitFile
-// TODO should we call directly EnsureMountUnitFileWithOptions and
-// remove this type instead?
-type EnsureMountUnitFlags struct {
-	// PreventRestartIfModified is set if we do not want to restart the
-	// mount unit if even though it was modified
-	PreventRestartIfModified bool
-	// StartBeforeDriversLoad is set if the unit is needed before
-	// udevd starts to run rules
-	StartBeforeDriversLoad bool
-}
-
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -425,8 +413,8 @@ type Systemd interface {
 	// If namespaces is set to true, the log reader will include journal namespace
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
-	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error)
+	// MountUnitOptions configures the options of the mount unit
+	MountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -1508,25 +1496,19 @@ func HostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
+func (s *systemd) MountUnitOptions(what string, fstype string, startBeforeDrivers bool) (string, []string, MountUnitType) {
 	hostFsType, options := HostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	mountOptions := &MountUnitOptions{
-		Lifetime:                 Persistent,
-		Description:              description,
-		What:                     what,
-		Where:                    where,
-		Fstype:                   hostFsType,
-		Options:                  options,
-		PreventRestartIfModified: flags.PreventRestartIfModified,
+
+	mountUnitType := RegularMountUnit
+	if startBeforeDrivers {
+		mountUnitType = BeforeDriversLoadMountUnit
 	}
-	if flags.StartBeforeDriversLoad {
-		mountOptions.MountUnitType = BeforeDriversLoadMountUnit
-	}
-	return s.EnsureMountUnitFileWithOptions(mountOptions)
+
+	return hostFsType, options, mountUnitType
 }
 
 func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
