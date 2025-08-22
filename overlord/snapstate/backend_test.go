@@ -104,6 +104,8 @@ type fakeOp struct {
 
 	snapLocked bool
 	isUndo     bool
+
+	integrityDigest string
 }
 
 type fakeOps []fakeOp
@@ -1124,14 +1126,21 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	if si != nil {
 		revno = si.Revision
 	}
-	f.appendOp(&fakeOp{
+	fop := &fakeOp{
 		op:    "setup-snap",
 		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
 
 		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
-	})
+	}
+
+	if opts != nil {
+		fop.integrityDigest = opts.IntegrityRootHash
+	}
+
+	f.appendOp(fop)
+
 	snapType := snap.TypeApp
 	switch si.RealName {
 	case "core":

@@ -76,6 +76,11 @@ type InstallOptions struct {
 	// an installation on ubuntu-data that does not depend or reference
 	// ubuntu-seed at all.
 	MustNotCrossDevices bool
+	// IntegrityRootHash indicates that the snap file contains integrity data
+	// that also need to be linked/copied over to the install location. Since
+	// the root hash that is part of the file name cannot be retrieved from
+	// the info.yaml, this needs to be passed by the setup operation.
+	IntegrityRootHash string
 }
 
 var (
