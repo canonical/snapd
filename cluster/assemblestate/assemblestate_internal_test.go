@@ -227,7 +227,7 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 		},
 	}
 
-	err := as.publishAuth(context.Background(), []string{"127.0.0.1:8002"}, &client)
+	err := as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8002"}, &client)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(called, check.Equals, 1)
@@ -235,7 +235,7 @@ func (s *ClusterSuite) TestPublishAuth(c *check.C) {
 	// the second time around we shouldn't publish anything, since we already
 	// have delivered an auth message to this peer
 	called = 0
-	err = as.publishAuth(context.Background(), []string{"127.0.0.1:8002"}, &client)
+	err = as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8002"}, &client)
 	c.Assert(err, check.IsNil)
 	c.Assert(called, check.Equals, 0)
 }
@@ -266,12 +266,12 @@ func (s *ClusterSuite) TestPublishAuthCertificateAddressMismatch(c *check.C) {
 	}
 
 	// first call should succeed and register the certificate with first address
-	err := as.publishAuth(context.Background(), []string{"127.0.0.1:8001"}, &client)
+	err := as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8001"}, &client)
 	c.Assert(err, check.IsNil)
 	c.Assert(calls, check.Equals, 1)
 
 	// second call with same certificate but different address should fail
-	err = as.publishAuth(context.Background(), []string{"127.0.0.1:8002"}, &client)
+	err = as.publishAuthAndCommit(context.Background(), []string{"127.0.0.1:8002"}, &client)
 	c.Assert(err, check.ErrorMatches, "found new address 127.0.0.1:8002 using same certificate as other address 127.0.0.1:8001")
 	c.Assert(calls, check.Equals, 2)
 }
@@ -293,7 +293,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC("wrong-rdt", peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err := as.Authenticate(auth, peerCert)
+	err := as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong RDT in message
@@ -301,7 +301,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  "wrong-rdt",
 	}
-	err = as.Authenticate(auth, peerCert)
+	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong FP in HMAC
@@ -309,7 +309,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, CalculateFP([]byte("wrong-cert")), "secret"),
 		RDT:  peerRDT,
 	}
-	err = as.Authenticate(auth, peerCert)
+	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong cert from transport layer
@@ -317,7 +317,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err = as.Authenticate(auth, []byte("wrong-cert"))
+	err = as.AuthenticateAndCommit(auth, []byte("wrong-cert"))
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// wrong secret
@@ -325,7 +325,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
 		RDT:  peerRDT,
 	}
-	err = as.Authenticate(auth, peerCert)
+	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 
 	// valid case
@@ -333,7 +333,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err = as.Authenticate(auth, peerCert)
+	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
 }
@@ -365,7 +365,7 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 		RDT:  peerRDT,
 	}
 
-	err := as.Authenticate(auth, wrongCert)
+	err := as.AuthenticateAndCommit(auth, wrongCert)
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 }
 
@@ -381,14 +381,14 @@ func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 	fp := CalculateFP(cert)
 
 	// first peer authenticates successfully
-	err := as.Authenticate(Auth{
+	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-one", fp, "secret"),
 		RDT:  "peer-one",
 	}, cert)
 	c.Assert(err, check.IsNil)
 
 	// second peer tries to use the same certificate - should fail
-	err = as.Authenticate(Auth{
+	err = as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-two", fp, "secret"),
 		RDT:  "peer-two",
 	}, cert)
@@ -406,7 +406,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	// first authentication with first certificate
 	cert := []byte("certificate-one")
 	fp := CalculateFP(cert)
-	err := as.Authenticate(Auth{
+	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer", fp, "secret"),
 		RDT:  "peer",
 	}, cert)
@@ -415,7 +415,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	// second authentication with different certificate - should fail
 	cert = []byte("certificate-two")
 	fp = CalculateFP(cert)
-	err = as.Authenticate(Auth{
+	err = as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer", fp, "secret"),
 		RDT:  "peer",
 	}, cert)
@@ -464,7 +464,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		},
 	}
 
-	err := as.publishAuth(context.Background(), []string{peerAddr}, client)
+	err := as.publishAuthAndCommit(context.Background(), []string{peerAddr}, client)
 	c.Assert(err, check.IsNil)
 
 	// verify no authoritative routes added yet
@@ -477,7 +477,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		RDT:  peerRDT,
 	}
 
-	err = as.Authenticate(auth, peerCert)
+	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
 	// since we have discovered the route from us to the peer and the peer has
@@ -499,7 +499,7 @@ func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
 	peerFP := CalculateFP(peerCert)
 	peerRDT := DeviceToken("peer-rdt")
 
-	err := as.Authenticate(Auth{
+	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}, peerCert)
@@ -529,7 +529,7 @@ func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
 	peerFP := CalculateFP(peerCert)
 
-	err := as.Authenticate(Auth{
+	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
 	}, peerCert)
@@ -549,7 +549,7 @@ func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h
 		},
 	}
 
-	err = as.publishAuth(context.Background(), []string{peerAddr}, &client)
+	err = as.publishAuthAndCommit(context.Background(), []string{peerAddr}, &client)
 	c.Assert(err, check.IsNil)
 
 	return handle, peerAddr, peerCert
@@ -559,7 +559,7 @@ func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle,
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
 	peerFP := CalculateFP(peerCert)
 
-	err := as.Authenticate(Auth{
+	err := as.AuthenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
 	}, peerCert)
@@ -585,7 +585,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, peerRDT)
 
 	// this tells us that this peer has knowledge of one and two.
-	err := peer.RecordRoutes(Routes{
+	err := peer.CommitRoutes(Routes{
 		Devices: []DeviceToken{"one", "two"},
 	})
 	c.Assert(err, check.IsNil)
@@ -604,7 +604,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 	as.publishDeviceQueries(context.Background(), &client)
 
 	// act as if the peer responded for only one of the devices
-	err = peer.RecordDevices(Devices{
+	err = peer.CommitDevices(Devices{
 		Devices: []Identity{{
 			RDT: "one",
 			FP:  CalculateFP([]byte("one-certificate")),
@@ -637,7 +637,7 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 	one, _, _ := trustedAndDiscoveredPeer(c, as, oneRDT)
 
 	// inform us of devices one and two
-	err := one.RecordDevices(Devices{
+	err := one.CommitDevices(Devices{
 		Devices: []Identity{
 			{
 				RDT: "one",
@@ -656,10 +656,10 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 
 	// nothing should be published, since we don't have anything that someone
 	// has asked for
-	as.publishDevices(context.Background(), &testClient{})
+	as.publishDevicesAndCommit(context.Background(), &testClient{})
 
 	// three asks us for information about two
-	three.RecordDeviceQueries(UnknownDevices{
+	three.CommitDeviceQueries(UnknownDevices{
 		Devices: []DeviceToken{"two"},
 	})
 
@@ -679,12 +679,12 @@ func (s *ClusterSuite) TestPublishDevices(c *check.C) {
 			return nil
 		},
 	}
-	as.publishDevices(context.Background(), &client)
+	as.publishDevicesAndCommit(context.Background(), &client)
 	c.Assert(called, check.Equals, 1)
 
 	// since we successfully published the response to the query, we don't send
 	// anything
-	as.publishDevices(context.Background(), &testClient{})
+	as.publishDevicesAndCommit(context.Background(), &testClient{})
 }
 
 func (s *ClusterSuite) TestRecordDevicesFingerprintMismatch(c *check.C) {
@@ -701,7 +701,7 @@ func (s *ClusterSuite) TestRecordDevicesFingerprintMismatch(c *check.C) {
 	// try to add a device identity with the peer's RDT but wrong fingerprint
 	wrongFP := CalculateFP([]byte("wrong-certificate"))
 
-	err := peer.RecordDevices(Devices{
+	err := peer.CommitDevices(Devices{
 		Devices: []Identity{{
 			RDT: peerRDT,
 			FP:  wrongFP,
@@ -728,7 +728,7 @@ func (s *ClusterSuite) TestRecordDevicesInconsistentIdentity(c *check.C) {
 		FP:  CalculateFP([]byte("original-certificate")),
 	}
 
-	err := one.RecordDevices(Devices{
+	err := one.CommitDevices(Devices{
 		Devices: []Identity{id},
 	})
 	c.Assert(err, check.IsNil)
@@ -739,7 +739,7 @@ func (s *ClusterSuite) TestRecordDevicesInconsistentIdentity(c *check.C) {
 		FP:  CalculateFP([]byte("different-certificate")),
 	}
 
-	err = two.RecordDevices(Devices{
+	err = two.CommitDevices(Devices{
 		Devices: []Identity{conflicting},
 	})
 
@@ -844,7 +844,7 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	_, err = NewAssembleState(cfg, expired, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
 	}, nil, commit)
-	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
+	c.Assert(err, check.ErrorMatches, "invalid session data: cannot resume an assembly session that began more than an hour ago")
 }
 
 func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
@@ -1016,7 +1016,7 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	}
 
 	// try to publish auth to discovered and undiscovered addresses
-	err = as.publishAuth(context.Background(), []string{
+	err = as.publishAuthAndCommit(context.Background(), []string{
 		"127.0.0.2:8001", // already discovered, should skip
 		"127.0.0.3:8001", // not discovered yet
 		"127.0.0.5:8001", // completely new
@@ -1057,7 +1057,7 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		},
 	}
 
-	as.publishDevices(context.Background(), client)
+	as.publishDevicesAndCommit(context.Background(), client)
 	c.Assert(publications, check.DeepEquals, []string{"127.0.0.2:8001"})
 
 	publications = nil
