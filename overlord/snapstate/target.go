@@ -65,6 +65,9 @@ type Options struct {
 	// pre-existing behavior of calling InstallMany with one snap vs calling
 	// Install.
 	ExpectOneSnap bool
+	// RequestIntegrityData is set to true to indicate that dm-verity data should be
+	// requested.
+	RequestIntegrityData bool
 }
 
 func (opts *Options) setDefaultLane(st *state.State) error {
