@@ -139,7 +139,13 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// link(2) returns EPERM on filesystems that don't support
 		// hard links (like vfat), so checking the error here doesn't
 		// make sense vs just trying to copy it.
-		if err := osLink(s.path, targetPath); err == nil {
+		err := osLink(s.path, targetPath)
+
+		if opts != nil && len(opts.IntegrityRootHash) > 0 {
+			err = osLink(srcVerityPath, destVerityPath)
+		}
+
+		if err == nil {
 			return false, nil
 		}
 	}
@@ -164,6 +170,13 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 			if err == nil {
 				return false, nil
 			}
+		}
+	}
+
+	if opts != nil && len(opts.IntegrityRootHash) > 0 {
+		err = osutil.CopyFile(srcVerityPath, destVerityPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+		if err != nil {
+			return false, err
 		}
 	}
 
