@@ -266,15 +266,12 @@ func (as *AssembleState) publishAuth(ctx context.Context, addresses []string, cl
 			continue
 		}
 
-		as.lock.Unlock()
-		cert, err := client.Untrusted(ctx, addr, "auth", Auth{
+		cert, err := untrustedSend(ctx, &as.lock, client, addr, "auth", Auth{
 			HMAC: as.authHMAC,
 			RDT:  as.config.RDT,
 		})
-		as.lock.Lock()
-
 		if err != nil {
-			as.debugf("cannot send message to peer: %v", err)
+			as.debugf("cannot send auth message: %v", err)
 			continue
 		}
 
@@ -318,15 +315,12 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 			continue
 		}
 
-		as.lock.Unlock()
-		err := client.Trusted(ctx, addr, p.Cert, "unknown", UnknownDevices{
+		err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "unknown", UnknownDevices{
 			Devices: queries,
 		})
-		as.lock.Lock()
-
 		ack(err == nil)
-
 		if err != nil {
+			as.debugf("cannot publish device query: %v", err)
 			continue
 		}
 
@@ -351,15 +345,12 @@ func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 			continue
 		}
 
-		as.lock.Unlock()
-		err := client.Trusted(ctx, addr, p.Cert, "devices", Devices{
+		err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "devices", Devices{
 			Devices: ids,
 		})
-		as.lock.Lock()
-
 		ack(err == nil)
-		// skip acking if this publication failed
 		if err != nil {
+			as.debugf("cannot publish device identities: %v", err)
 			continue
 		}
 
@@ -413,13 +404,8 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 			continue
 		}
 
-		// unlock for the duration of the send. this is safe, since all of the
-		// data that is passed in here is owned.
-		as.lock.Unlock()
-		err := client.Trusted(ctx, addr, p.Cert, "routes", routes)
-		as.lock.Lock()
-
-		if err != nil {
+		if err := trustedSend(ctx, &as.lock, client, addr, p.Cert, "routes", routes); err != nil {
+			as.debugf("cannot publish routes: %v", err)
 			continue
 		}
 
@@ -786,6 +772,26 @@ func CalculateHMAC(rdt DeviceToken, fp Fingerprint, secret string) []byte {
 
 func CalculateFP(cert []byte) Fingerprint {
 	return sha512.Sum512(cert)
+}
+
+// trustedSend releases the given lock and calls client.Trusted.
+func trustedSend(
+	ctx context.Context, lock *sync.Mutex, client Client,
+	addr string, cert []byte, kind string, data any,
+) error {
+	lock.Unlock()
+	defer lock.Lock()
+	return client.Trusted(ctx, addr, cert, kind, data)
+}
+
+// untrustedSend releases the given lock and calls client.Untrusted.
+func untrustedSend(
+	ctx context.Context, lock *sync.Mutex, client Client,
+	addr string, kind string, data any,
+) ([]byte, error) {
+	lock.Unlock()
+	defer lock.Lock()
+	return client.Untrusted(ctx, addr, kind, data)
 }
 
 // ensureLocalDevicePresent adds the local device identity to the IDs slice if not present,
