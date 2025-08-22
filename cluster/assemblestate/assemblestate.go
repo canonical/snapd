@@ -249,15 +249,17 @@ type AssembleConfig struct {
 	Clock   func() time.Time `json:"-"`
 }
 
-// publishAuth uses the given [Client] to publish to each device. If publication
-// succeeds, then the certificate returned by [Client.Untrusted] (the
-// certificate that the peer used to communicate with us) is associated with the
-// address that we reached them at.
+// publishAuthAndCommit uses the given [Client] to publish to each device. If
+// publication succeeds, then the certificate returned by [Client.Untrusted]
+// (the certificate that the peer used to communicate with us) is associated
+// with the address that we reached them at.
 //
 // If the certificate the peer used is already trusted (they've already
 // published their auth message to us), then we verify the route from this local
 // node to that peer.
-func (as *AssembleState) publishAuth(ctx context.Context, addresses []string, client Client) error {
+//
+// This method calls AssembleState.commit with the current state.
+func (as *AssembleState) publishAuthAndCommit(ctx context.Context, addresses []string, client Client) error {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -326,11 +328,15 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 
 		as.debugf("sent device queries to %s at %s, count: %d", p.RDT, addr, len(queries))
 	}
+
+	// nothing new to commit here
 }
 
-// publishDevices responds to queries for device information that our peers
-// have sent us.
-func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
+// publishDevicesAndCommit responds to queries for device information that our
+// peers have sent us.
+//
+// This method calls AssembleState.commit with the current state.
+func (as *AssembleState) publishDevicesAndCommit(ctx context.Context, client Client) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -357,9 +363,6 @@ func (as *AssembleState) publishDevices(ctx context.Context, client Client) {
 		as.debugf("sent device information to %s at %s, count: %d", p.RDT, addr, len(ids))
 	}
 
-	// committing here prevents us from responding to requests more than once
-	// after something like a reboot. not really a big real to remove this if we
-	// need to reduce writes.
 	as.commit(as.export())
 }
 
@@ -413,8 +416,9 @@ func (as *AssembleState) publishRoutes(ctx context.Context, client Client, maxPe
 		as.debugf("sent routes to %s at %s, count: %d", p.RDT, addr, len(routes.Routes)/3)
 	}
 
-	// we don't commit on route publishes, since we don't keep track of which
-	// routes we've sent to our peers in the state.
+	// we don't commit on route publishes since we don't keep track of which
+	// routes we've sent to our peers in the state. at worst, we send routes
+	// to a peer again after resuming a session.
 }
 
 func shuffle[T any](available []T) {
@@ -424,7 +428,7 @@ func shuffle[T any](available []T) {
 	}
 }
 
-// Authenticate checks that the given [Auth] message is valid and proves
+// AuthenticateAndCommit checks that the given [Auth] message is valid and proves
 // knowledge of the shared secret. If this check is passed, we allow mutation of
 // this [AssembleState] via future calls to [AssembleState.VerifyPeer] with the same
 // certificate.
@@ -433,7 +437,9 @@ func shuffle[T any](available []T) {
 // the shared secret.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (as *AssembleState) Authenticate(auth Auth, cert []byte) error {
+//
+// This method calls AssembleState.commit with the current state.
+func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -566,7 +572,7 @@ func (as *AssembleState) Run(
 				addrs = append(addrs, d)
 			}
 
-			if err := as.publishAuth(ctx, addrs, client); err != nil {
+			if err := as.publishAuthAndCommit(ctx, addrs, client); err != nil {
 				as.debugf("error publishing auth messages: %v", err)
 				return
 			}
@@ -598,7 +604,7 @@ func (as *AssembleState) Run(
 		for {
 			select {
 			case <-as.devices.PendingResponses():
-				as.publishDevices(ctx, client)
+				as.publishDevicesAndCommit(ctx, client)
 			case <-as.devices.PendingOutgoingQueries():
 				as.publishDeviceQueries(ctx, client)
 			case <-ctx.Done():
@@ -667,13 +673,13 @@ func (h *PeerHandle) RDT() DeviceToken {
 	return h.peer
 }
 
-// RecordDeviceQueries adds the given devices to the queue of queries for this
+// CommitDeviceQueries adds the given devices to the queue of queries for this
 // peer. If any devices are unknown, no devices are added to the queue and an
 // error is returned. If this local node is queried for devices that we do not
 // know, either this local node or the requesting peer has a bug.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) RecordDeviceQueries(unknown UnknownDevices) error {
+func (h *PeerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -685,10 +691,10 @@ func (h *PeerHandle) RecordDeviceQueries(unknown UnknownDevices) error {
 	return nil
 }
 
-// RecordRoutes updates the state of the cluster with the given routes.
+// CommitRoutes updates the state of the cluster with the given routes.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) RecordRoutes(routes Routes) error {
+func (h *PeerHandle) CommitRoutes(routes Routes) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -711,12 +717,14 @@ func (h *PeerHandle) RecordRoutes(routes Routes) error {
 	return nil
 }
 
-// RecordDevices records the given device identities. All new device identities are
-// recorded. For any devices that we are already aware of, we check that our
+// CommitDevices records the given device identities. All new device identities
+// are recorded. For any devices that we are already aware of, we check that our
 // view of the device's identity is consistent with the new data.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) RecordDevices(devices Devices) error {
+//
+// This method calls AssembleState.commit with the current state.
+func (h *PeerHandle) CommitDevices(devices Devices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -782,8 +790,8 @@ func untrustedSend(
 	return client.Untrusted(ctx, addr, kind, data)
 }
 
-// ensureLocalDevicePresent adds the local device identity to the IDs slice if not present,
-// or validates consistency if already present.
+// ensureLocalDevicePresent adds the local device identity to the IDs slice if
+// not present, or validates consistency if already present.
 func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error {
 	for _, existing := range data.IDs {
 		if existing.RDT == self.RDT {
@@ -800,7 +808,8 @@ func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error
 	return nil
 }
 
-// parseAndValidateFingerprint parses a base64-encoded fingerprint and validates its length
+// parseAndValidateFingerprint parses a base64-encoded fingerprint and validates
+// its length
 func parseAndValidateFingerprint(strFP string) (Fingerprint, error) {
 	rawFP, err := base64.StdEncoding.DecodeString(strFP)
 	if err != nil {
