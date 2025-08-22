@@ -550,7 +550,7 @@ func (as *AssembleState) Run(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		periodic(ctx, time.Second*5, time.Second*1, func(ctx context.Context) {
+		periodic(ctx, time.Second*5, func(ctx context.Context) {
 			discoveries, err := discover(ctx)
 			if err != nil {
 				as.debugf("error discovering peers: %v", err)
@@ -581,11 +581,10 @@ func (as *AssembleState) Run(
 		defer wg.Done()
 		const (
 			period = time.Second * 5
-			jitter = time.Second
 			peers  = 5
 			routes = 5000
 		)
-		periodic(ctx, period, jitter, func(ctx context.Context) {
+		periodic(ctx, period, func(ctx context.Context) {
 			as.publishRoutes(ctx, client, peers, routes)
 			rounds++
 		})
@@ -643,24 +642,13 @@ func (as *AssembleState) debugf(format string, a ...any) {
 func periodic(
 	ctx context.Context,
 	interval time.Duration,
-	jitter time.Duration,
 	work func(ctx context.Context),
 ) {
-	delay := func() time.Duration {
-		if jitter <= 0 {
-			return interval
-		}
-
-		// +- jitter from the given interval
-		j := time.Duration(randutil.Int63n(int64(jitter)*2)) - jitter
-		return interval + j
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(delay()):
+		case <-time.After(interval):
 		}
 
 		work(ctx)
