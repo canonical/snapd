@@ -183,6 +183,22 @@ const (
      {"type": "screenshot", "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
      {"type": "screenshot", "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", "width": 600, "height": 200}
   ],
+  "integrity": [
+    {
+      "type": "dm-verity",
+      "digest": "b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+      "version": "1",
+      "salt": "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
+      "hash-algorithm": "sha256",
+      "hash-block-size": 4096,
+      "data-block-size": 4096,
+      "download": {
+        "sha3-384": "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
+        "size": 73728,
+        "url": "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101.dmverity_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a"
+      }
+    }
+  ],
   "resources": [
     {
       "download": {
@@ -365,6 +381,20 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		SystemUsernames: map[string]*snap.SystemUsernameInfo{},
 		OriginalLinks:   map[string][]string{},
 		LegacyAliases:   map[string]*snap.AppInfo{},
+		IntegrityData: &snap.IntegrityData{
+			Type:          "dm-verity",
+			Digest:        "b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+			Version:       1,
+			Salt:          "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
+			HashAlg:       "sha256",
+			HashBlockSize: 4096,
+			DataBlockSize: 4096,
+			DownloadInfo: snap.DownloadInfo{
+				Sha3_384:    "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
+				Size:        73728,
+				DownloadURL: "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101.dmverity_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+			},
+		},
 	})
 
 	// validate the plugs/slots
@@ -428,8 +458,6 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"LegacyWebsite",
-		// TODO: We expect this field to be empty until the store changes have landed.
-		"IntegrityData",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -531,6 +559,21 @@ func fillStruct(a any, c *C) {
 				},
 				Name:     "some-component",
 				Revision: 1,
+			}}
+		case []storeIntegrity:
+			x = []storeIntegrity{{
+				Type:          "dm-verity",
+				Digest:        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Version:       "1",
+				Salt:          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				HashAlg:       "sha256",
+				HashBlockSize: 4096,
+				DataBlockSize: 4096,
+				Download: storeDownload{
+					URL:      "http://example.com/dm-verity/",
+					Size:     42,
+					Sha3_384: "sha",
+				},
 			}}
 		default:
 			c.Fatalf("unhandled field type %T", field.Interface())
