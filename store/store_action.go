@@ -51,6 +51,10 @@ type RefreshOptions struct {
 	// IncludeResources indicates to the store that resources should be included
 	// in the response.
 	IncludeResources bool
+
+	// IncludeIntegrity indicates to the store that integrity objects should be included
+	// in the response if available.
+	IncludeIntegrity bool
 }
 
 // snap action: install/refresh
@@ -571,6 +575,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	copy(fields, snapActionFields)
 	if opts.IncludeResources {
 		fields = append(fields, "resources")
+	}
+
+	if opts.IncludeIntegrity {
+		fields = append(fields, "integrity")
 	}
 
 	// build input for the install/refresh endpoint

@@ -75,14 +75,18 @@ func init() {
 const helloCohortKey = "this is a very short cohort key, as cohort keys go, because those are *long*"
 
 func (s *storeActionSuite) TestSnapAction(c *C) {
-	s.testSnapAction(c, nil)
+	s.testSnapAction(c, nil, nil)
 }
 
 func (s *storeActionSuite) TestSnapActionResources(c *C) {
-	s.testSnapAction(c, []string{"component"})
+	s.testSnapAction(c, []string{"component"}, nil)
 }
 
-func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
+func (s *storeActionSuite) TestSnapActionIntegrity(c *C) {
+	s.testSnapAction(c, nil, []string{"integrity"})
+}
+
+func (s *storeActionSuite) testSnapAction(c *C, resources []string, integrity []string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -136,6 +140,9 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 		if len(resources) > 0 {
 			expectedFields = append(expectedFields, "resources")
 		}
+		if len(integrity) > 0 {
+			expectedFields = append(expectedFields, "integrity")
+		}
 
 		c.Check(req.Fields, DeepEquals, expectedFields)
 
@@ -180,6 +187,25 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 			}
 		}
 
+		if len(integrity) > 0 {
+			res["results"].([]map[string]any)[0]["snap"].(map[string]any)["integrity"] = []map[string]any{
+				{
+					"type":            "dm-verity",
+					"version":         "1",
+					"hash-algorithm":  "sha256",
+					"data-block-size": 4096,
+					"hash-block-size": 4096,
+					"digest":          "aaa",
+					"salt":            "aaa",
+					"download": map[string]any{
+						"sha3-384": "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07",
+						"size":     73728,
+						"url":      "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101.dmverity_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+					},
+				},
+			}
+		}
+
 		json.NewEncoder(w).Encode(res)
 	}))
 
@@ -208,7 +234,7 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 			InstanceName: "hello-world",
 			CohortKey:    helloCohortKey,
 		},
-	}, nil, nil, &store.RefreshOptions{IncludeResources: len(resources) > 0})
+	}, nil, nil, &store.RefreshOptions{IncludeResources: len(resources) > 0, IncludeIntegrity: len(integrity) > 0})
 	c.Assert(err, IsNil)
 	c.Assert(aresults, HasLen, 0)
 	c.Assert(results, HasLen, 1)
@@ -225,6 +251,19 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 		c.Assert(results[0].Resources[0].Type, Equals, "component/standard-component")
 		c.Assert(results[0].Resources[0].Revision, Equals, 3)
 		c.Assert(results[0].Resources[0].Version, Equals, "1")
+	}
+	if len(integrity) > 0 {
+		c.Assert(results[0].IntegrityData.Type, Equals, "dm-verity")
+		c.Assert(results[0].IntegrityData.Version, Equals, uint(1))
+		c.Assert(results[0].IntegrityData.HashAlg, Equals, "sha256")
+		c.Assert(results[0].IntegrityData.DataBlockSize, Equals, uint64(4096))
+		c.Assert(results[0].IntegrityData.HashBlockSize, Equals, uint64(4096))
+		c.Assert(results[0].IntegrityData.Digest, Equals, "aaa")
+		c.Assert(results[0].IntegrityData.Salt, Equals, "aaa")
+		c.Assert(results[0].IntegrityData.DownloadURL, Equals, "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101.dmverity_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a")
+		c.Assert(results[0].IntegrityData.Size, Equals, int64(73728))
+		c.Assert(results[0].IntegrityData.Sha3_384, Equals, "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07")
+		c.Assert(results[0].IntegrityData.Deltas, IsNil)
 	}
 }
 
