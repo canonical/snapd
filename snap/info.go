@@ -437,6 +437,9 @@ type Info struct {
 
 	// Categories this snap is in.
 	Categories []CategoryInfo
+
+	// IntegrityData available for this snap
+	IntegrityData *IntegrityData
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -2118,4 +2121,18 @@ type RefreshFailuresInfo struct {
 	// LastFailureSeverity identifies how severe the last failure was.
 	// This allows for more aggressive backoff delay for snaps that fail after a reboot.
 	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
+}
+
+// IntegrityData contains all the integrity metadata associated with a snap.
+type IntegrityData struct {
+	// add json tags in this struct
+	Type          string `json:"type"`
+	Version       uint   `json:"version"`
+	HashAlg       string `json:"hash-algorithm"`
+	DataBlockSize uint   `json:"data-block-size"`
+	HashBlockSize uint   `json:"hash-block-size"`
+	Digest        string `json:"digest"`
+	Salt          string `json:"salt"`
+
+	DownloadInfo `json:"download-info,omitempty"`
 }

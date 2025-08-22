@@ -428,6 +428,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"LegacyWebsite",
+		// TODO: We expect this field to be empty until the store changes have landed.
+		"IntegrityData",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
