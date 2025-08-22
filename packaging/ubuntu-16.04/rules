@@ -223,7 +223,6 @@ override_dh_clean:
 	# XXX: hacky^2
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
-override_dh_auto_build: export SNAPD_DEFINES_MK=$(snapd_defines_mk)
 override_dh_auto_build:
 	# very ugly test for FIPS variant of a toolchain
 	# see https://warthogs.atlassian.net/browse/FR-8860
@@ -245,7 +244,7 @@ endif
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
-	echo "$$SNAPD_DEFINES_MK" > _build/snapd.defines.mk
+	$(file >_build/snapd.defines.mk,$(snapd_defines_mk))
 
 	# this is the main go build
 
