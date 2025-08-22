@@ -74,6 +74,9 @@ type RouteSelector interface {
 	// Complete returns true if the number of verified edges in the graph matches a
 	// fully connected graph of the given number of devices.
 	Complete(size int) (bool, error)
+
+	// Addresses returns the list of addresses used as edges in the graph.
+	Addresses() []string
 }
 
 // PrioritySelector implements [RouteSelector].
@@ -454,6 +457,11 @@ func (p *PrioritySelector) Complete(size int) (bool, error) {
 	default:
 		return false, errors.New("number of devices in the cluster is greater than expected")
 	}
+}
+
+// Addresses returns the list of addresses used as edges in the graph.
+func (p *PrioritySelector) Addresses() []string {
+	return p.addresses.Values()
 }
 
 func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {

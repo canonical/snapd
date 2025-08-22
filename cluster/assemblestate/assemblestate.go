@@ -639,8 +639,29 @@ func (as *AssembleState) Run(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
 			select {
+			case <-ticker.C:
+				// TODO: this is nasty, fix this
+				as.lock.Lock()
+				discoveries := as.selector.Addresses()
+				as.lock.Unlock()
+
+				// filter out our address
+				addrs := make([]string, 0, len(discoveries))
+				for _, d := range discoveries {
+					if d == addr {
+						continue
+					}
+
+					addrs = append(addrs, d)
+				}
+
+				if err := as.publishAuthAndCommit(ctx, addrs, client); err != nil {
+					logger.Debugf("error: %s", err.Error())
+				}
 			case discovery, ok := <-discoveries:
 				if !ok {
 					return
