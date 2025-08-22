@@ -38,7 +38,7 @@ type Service struct {
 }
 
 func (s *Service) unitSectionNeeded() bool {
-	return s.Description != "" || s.Wants != "" || s.WantedBy != "" || s.After != "" || s.Before != ""
+	return s.Description != "" || s.Wants != "" || s.After != "" || s.Before != ""
 }
 
 func (s *Service) String() string {
@@ -51,9 +51,6 @@ func (s *Service) String() string {
 	}
 	if s.Wants != "" {
 		fmt.Fprintf(&buf, "Wants=%s\n", s.Wants)
-	}
-	if s.WantedBy != "" {
-		fmt.Fprintf(&buf, "WantedBy=%s\n", s.WantedBy)
 	}
 	if s.After != "" {
 		fmt.Fprintf(&buf, "After=%s\n", s.After)
@@ -76,5 +73,8 @@ func (s *Service) String() string {
 		fmt.Fprintf(&buf, "ExecStop=%s\n", s.ExecStop)
 	}
 	fmt.Fprintf(&buf, "\n[Install]\nWantedBy=multi-user.target\n")
+	if s.WantedBy != "" {
+		fmt.Fprintf(&buf, "WantedBy=%s\n", s.WantedBy)
+	}
 	return buf.String()
 }
