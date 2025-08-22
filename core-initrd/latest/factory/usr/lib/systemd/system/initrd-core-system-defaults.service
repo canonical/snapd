@@ -1,5 +1,5 @@
 [Unit]
-Description=Set gadget default configuration
+Description=Set base defaults
 ConditionPathExists=!/sysroot/etc/system-image/writable-paths
 ConditionPathExists=!/sysroot/writable/_writable_defaults/.done
 ConditionPathExists=/sysroot/writable/system-data/_writable_defaults
