@@ -2552,6 +2552,9 @@ func (s *snapsSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate
 		c.Assert(ok, check.Equals, true, check.Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, check.HasLen, 1)
 
+		// Check that integrity data are requested for installation tasks
+		c.Check(opts.RequestIntegrityData, check.Equals, true)
+
 		calledFlags = opts.Flags
 		installQueue = append(installQueue, goal.snaps[0].InstanceName)
 		c.Check(revision, check.Equals, goal.snaps[0].RevOpts.Revision)
