@@ -36,7 +36,6 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -174,15 +173,11 @@ func createTestCertAndKey(c *check.C, ip net.IP) (certPEM []byte, keyPEM []byte)
 	return certPEM, keyPEM
 }
 
-func assembleStateWithTestKeys(c *check.C, st *state.State, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, tls.Certificate) {
+func assembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, tls.Certificate) {
 	certPEM, keyPEM := createTestCertAndKey(c, cfg.IP)
 
 	cfg.TLSCert = certPEM
 	cfg.TLSKey = keyPEM
-
-	st.Lock()
-	st.Set("assemble-config", cfg)
-	st.Unlock()
 
 	cm := &committer{}
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
@@ -211,7 +206,7 @@ func statelessSelector() *selector {
 }
 
 func (s *ClusterSuite) TestPublishAuthAndCommit(c *check.C) {
-	as, cm, tlsCert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, tlsCert := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -261,7 +256,7 @@ func (s *ClusterSuite) TestPublishAuthAndCommit(c *check.C) {
 }
 
 func (s *ClusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *check.C) {
-	as, cm, cert := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, cert := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -305,7 +300,7 @@ func (s *ClusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *che
 }
 
 func (s *ClusterSuite) TestAuthenticate(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -379,7 +374,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 }
 
 func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -413,7 +408,7 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 }
 
 func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -449,7 +444,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 }
 
 func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -507,7 +502,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		RoutesFunc: func() Routes { return Routes{} },
 	}
 
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), sel, AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, sel, AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -568,7 +563,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 }
 
 func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
-	as, _, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, _, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -592,7 +587,7 @@ func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
 }
 
 func (s *ClusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
-	as, _, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, _, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -654,7 +649,7 @@ func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle,
 }
 
 func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -712,7 +707,7 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 }
 
 func (s *ClusterSuite) TestPublishDevicesAndCommit(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -778,7 +773,7 @@ func (s *ClusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 }
 
 func (s *ClusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -805,7 +800,7 @@ func (s *ClusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
 }
 
 func (s *ClusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), statelessSelector(), AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
@@ -844,7 +839,7 @@ func (s *ClusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
 
 func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 	selector := statelessSelector()
-	as, cm, _ := assembleStateWithTestKeys(c, state.New(nil), selector, AssembleConfig{
+	as, cm, _ := assembleStateWithTestKeys(c, selector, AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 		IP:     net.IPv4(127, 0, 0, 1),
