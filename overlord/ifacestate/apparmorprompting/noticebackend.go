@@ -94,7 +94,12 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 				// promptID.String() or ruleID.String()
 				continue
 			}
-			bknd.addNotice(userID, promptingID, notice.LastData())
+			if err = bknd.addNotice(userID, promptingID, notice.LastData()); err != nil {
+				// Should never occur, only error would be if two notices with
+				// the same key (prompt/rule ID) existed for different users,
+				// which should never happen. Or if there's an error saving.
+				continue
+			}
 		}
 	}
 	return nil
@@ -124,12 +129,9 @@ type noticeTypeBackend struct {
 	// one user at a time, with the most recent notices being the ones most
 	// likely to re-occur.
 	userNotices map[uint32][]*state.Notice
-	// idToNotice maps from notice ID to an entry containing the notice and its
-	// index in the userNotices map for its associated user ID. This is used
-	// to efficiently look up the notice associated with a particular ID, to
-	// ensure that no two notices for different users can have the same ID,
-	// and to shift notices forward in the userNotices slice when a notice is
-	// re-recorded.
+	// idToNotice maps from notice ID to the notice itself. This is used to
+	// efficiently look up the notice associated with a particular ID, and to
+	// ensure that no two notices for different users can have the same ID.
 	idToNotice map[string]*state.Notice
 }
 
