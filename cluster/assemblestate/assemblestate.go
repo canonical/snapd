@@ -156,6 +156,27 @@ type Peer struct {
 	Cert []byte      `json:"cert"`
 }
 
+// AssembleConfig contains the configuration parameters required to initialize
+// an AssembleState and participate in an assembly session.
+type AssembleConfig struct {
+	// Secret is the shared secret used for HMAC-based peer authentication.
+	Secret string
+	// RDT is this device's random device token used to uniquely identity this
+	// device.
+	RDT DeviceToken
+	// IP is the IP address to bind the assembly server to.
+	IP net.IP
+	// Port is the port number to bind the assembly server to.
+	Port int
+	// TLSCert is the PEM-encoded TLS certificate for this device.
+	TLSCert []byte
+	// TLSKey is the PEM-encoded private key corresponding to TLSCert.
+	TLSKey []byte
+	// Clock is an optional function to retrieve the current time. If nil,
+	// defaults to time.Now.
+	Clock func() time.Time
+}
+
 const AssembleSessionLength = time.Hour
 
 // NewAssembleState creates a new [AssembleState] from the given configuration
@@ -235,16 +256,6 @@ func NewAssembleState(
 	}
 
 	return &as, nil
-}
-
-type AssembleConfig struct {
-	Secret  string           `json:"secret"`
-	RDT     DeviceToken      `json:"rdt"`
-	IP      net.IP           `json:"ip"`
-	Port    int              `json:"port"`
-	TLSCert []byte           `json:"cert"`
-	TLSKey  []byte           `json:"key"`
-	Clock   func() time.Time `json:"-"`
 }
 
 // publishAuthAndCommit uses the given [Client] to publish to each device. If
