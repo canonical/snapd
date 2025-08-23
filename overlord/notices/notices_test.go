@@ -874,10 +874,11 @@ func (s *noticesSuite) TestNotice(c *C) {
 	// other channels are populated with notices.
 	bknd3.noticeChan <- notice
 
-	// Hold state lock so we know state isn't checked (else it would block)
-	s.st.Lock()
+	// Previously, calling state.Notice() would require state lock, so we could
+	// hold state lock while querying nm.Notice() to make sure state was not
+	// checked, but since nm.Notice no longer requires state lock, we can't
+	// test this as easily anymore.
 	result := nm.Notice(queryID)
-	s.st.Unlock()
 	c.Check(result, Equals, notice)
 
 	// Now query for the notice which was previously added to state. If other
@@ -887,12 +888,10 @@ func (s *noticesSuite) TestNotice(c *C) {
 	c.Check(result.Type(), Equals, state.ChangeUpdateNotice)
 
 	// Now query notice with ID namespace which no backend has registered.
-	// Since it is namespaced, state cannot be asked either. Hold state lock
-	// to test this. And since no backends have been fed notices, querying them
-	// would block too. So test that nothing blocks.
-	s.st.Lock()
+	// Since it is namespaced, state cannot be asked either. And since no
+	// backends have been fed notices, querying them would block too.
+	// So test that nothing blocks.
 	result = nm.Notice("unregistered-1234")
-	s.st.Unlock()
 	c.Check(result, IsNil)
 }
 
