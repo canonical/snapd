@@ -524,7 +524,27 @@ backends:
         cidr-port-rel: [10.151.96.0/21:5000]
         volume-auto-delete: true
         environment: *openstack-ps7-env
-        systems: *openstack-ps7-systems
+        systems:
+            - ubuntu-16.04-64:
+                  image: snapd-spread/ubuntu-16.04-64
+                  storage: 20G
+                  workers: 4
+            - ubuntu-18.04-64:
+                  image: snapd-spread/ubuntu-18.04-64
+                  storage: 20G
+                  workers: 4
+            - ubuntu-20.04-64:
+                  image: snapd-spread/ubuntu-20.04-64
+                  storage: 20G
+                  workers: 12
+            - ubuntu-22.04-64:
+                  image: snapd-spread/ubuntu-22.04-64
+                  storage: 25G
+                  workers: 12
+            - ubuntu-24.04-64:
+                  image: snapd-spread/ubuntu-24.04-64
+                  storage: 25G
+                  workers: 12
 
     openstack-arm-ps7:
         type: openstack
