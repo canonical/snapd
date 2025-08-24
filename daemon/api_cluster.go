@@ -22,6 +22,7 @@ package daemon
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/clusterstate"
@@ -38,11 +39,12 @@ var clusterCmd = &Command{
 }
 
 type clusterActionRequest struct {
-	Action       string `json:"action"`
-	Secret       string `json:"secret,omitempty"`
-	Address      string `json:"address,omitempty"`
-	ExpectedSize int    `json:"expected-size,omitempty"`
-	Domain       string `json:"domain,omitempty"`
+	Action       string        `json:"action"`
+	Secret       string        `json:"secret,omitempty"`
+	Address      string        `json:"address,omitempty"`
+	ExpectedSize int           `json:"expected-size,omitempty"`
+	Domain       string        `json:"domain,omitempty"`
+	Period       time.Duration `json:"period,omitempty"`
 }
 
 func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -75,6 +77,7 @@ func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Respon
 			Address:      req.Address,
 			ExpectedSize: req.ExpectedSize,
 			Domain:       req.Domain,
+			Period:       req.Period,
 		}
 
 		// Create the task set using clusterstate.Assemble

@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -34,6 +35,7 @@ type cmdClusterAssemble struct {
 	Address      string `long:"address" required:"yes"`
 	ExpectedSize int    `long:"expected-size"`
 	Domain       string `long:"domain"`
+	Period       string `long:"period"`
 }
 
 var shortClusterAssembleHelp = i18n.G("Assemble a cluster with other devices")
@@ -68,6 +70,8 @@ func init() {
 		"expected-size": i18n.G("Expected number of devices in cluster (0 for indefinite)"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"domain": i18n.G("Domain used with mDNS device discovery (default: local)"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"period": i18n.G("Route publication period (e.g., '10s', '1m', '500ms'; default: 5s)"),
 	}), nil)
 }
 
@@ -76,11 +80,21 @@ func (x *cmdClusterAssemble) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	var period time.Duration
+	if x.Period != "" {
+		var err error
+		period, err = time.ParseDuration(x.Period)
+		if err != nil {
+			return fmt.Errorf("invalid period duration: %v", err)
+		}
+	}
+
 	opts := client.ClusterAssembleOptions{
 		Secret:       x.Secret,
 		Address:      x.Address,
 		ExpectedSize: x.ExpectedSize,
 		Domain:       x.Domain,
+		Period:       period,
 	}
 
 	changeID, err := x.client.ClusterAssemble(opts)

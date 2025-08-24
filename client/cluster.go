@@ -22,6 +22,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"time"
 )
 
 // ClusterAssembleOptions holds the options for cluster assembly
@@ -35,22 +36,27 @@ type ClusterAssembleOptions struct {
 	ExpectedSize int
 	// Domain is the mDNS domain for device discovery. Defaults to "local" if empty.
 	Domain string
+	// Period is the route publication period duration.
+	// Defaults to 5 seconds if zero value.
+	Period time.Duration
 }
 
 // ClusterAssemble initiates cluster assembly with the given options
 func (client *Client) ClusterAssemble(opts ClusterAssembleOptions) (changeID string, err error) {
 	req := struct {
-		Action       string `json:"action"`
-		Secret       string `json:"secret"`
-		Address      string `json:"address"`
-		ExpectedSize int    `json:"expected-size,omitempty"`
-		Domain       string `json:"domain,omitempty"`
+		Action       string        `json:"action"`
+		Secret       string        `json:"secret"`
+		Address      string        `json:"address"`
+		ExpectedSize int           `json:"expected-size,omitempty"`
+		Domain       string        `json:"domain,omitempty"`
+		Period       time.Duration `json:"period,omitempty"`
 	}{
 		Action:       "assemble",
 		Secret:       opts.Secret,
 		Address:      opts.Address,
 		ExpectedSize: opts.ExpectedSize,
 		Domain:       opts.Domain,
+		Period:       opts.Period,
 	}
 
 	var body bytes.Buffer

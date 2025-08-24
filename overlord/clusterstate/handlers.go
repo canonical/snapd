@@ -123,7 +123,7 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 	}
 
 	ctx := tomb.Context(context.Background())
-	devices, routes, err := assemble(ctx, t, setup.Domain, config)
+	devices, routes, err := assemble(ctx, t, setup.Domain, config, setup.Period)
 	if err != nil {
 		return err
 	}
@@ -178,6 +178,7 @@ func assemble(
 	t *state.Task,
 	domain string,
 	config assemblestate.AssembleConfig,
+	period time.Duration,
 ) ([]assemblestate.ClusterDevice, assemblestate.Routes, error) {
 	st := t.State()
 	assertDB := assertstate.DB(st)
@@ -264,8 +265,11 @@ func assemble(
 	}
 	defer stop()
 
+	if period == 0 {
+		period = 5 * time.Second
+	}
 	opts := assemblestate.PublicationOptions{
-		Period: 5 * time.Second,
+		Period: period,
 	}
 	devices, routes, err := as.Run(ctx, transport, discoveries, opts)
 	if err != nil {
