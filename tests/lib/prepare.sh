@@ -682,6 +682,7 @@ build_snapd_snap_with_tweaks() {
     build_snapd_snap "${snapd_snap_cache}/tmp"
     
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    # shellcheck disable=SC2064 # want to capture the value of UNPACK_DIR now
     trap "rm -rf $UNPACK_DIR" EXIT RETURN
 
     unsquashfs -no-progress -f -d "$UNPACK_DIR" "${snapd_snap_cache}"/tmp/snapd_*.snap
@@ -732,6 +733,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
     local UNPACK_DIR
 
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    # shellcheck disable=SC2064 # want to capture the value of UNPACK_DIR now
     trap "rm -rf $UNPACK_DIR" EXIT RETURN
     
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
