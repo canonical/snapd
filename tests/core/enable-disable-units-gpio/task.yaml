@@ -22,7 +22,7 @@ prepare: |
     fi
 
     echo "Create/enable fake gpio"
-    tests.systemd create-and-start-unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.core.interface.gpio-100.service\\n[Service]\\nType=notify"
+    tests.systemd create-and-start-unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.snapd.interface.gpio-100.service\\n[Service]\\nType=notify"
 
     echo "Given a snap declaring a plug on gpio is installed"
     "$TESTSTOOLS"/snaps-state install-local gpio-consumer
@@ -52,7 +52,7 @@ execute: |
     fi
 
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
-    expected="Started snap.core.interface.gpio-100.service"
+    expected="Started|Finished snap.snapd.interface.gpio-100.service"
     "$TESTSTOOLS"/journal-state match-log -n 60 --wait 1 "$expected"
 
     if [ "$SPREAD_REBOOT" = "0" ]; then
