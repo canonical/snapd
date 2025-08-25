@@ -694,15 +694,13 @@ build_snapd_snap_with_tweaks() {
             cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
         fi
     else
+        touch "${PROJECT_PATH}"/test-build
         chmod -R go+r "${PROJECT_PATH}/tests"
         run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
         mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
     fi
 
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
-    # shellcheck disable=SC2064 # want to capture the value of UNPACK_DIR now
-    trap "rm -rf $UNPACK_DIR" EXIT RETURN
-
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # add gpio and iio slots required for the tests
@@ -718,6 +716,7 @@ slots:
 EOF
 
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
+    rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
 }
 
@@ -751,9 +750,6 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
     local UNPACK_DIR
 
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
-    # shellcheck disable=SC2064 # want to capture the value of UNPACK_DIR now
-    trap "rm -rf $UNPACK_DIR" EXIT RETURN
-    
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # now install a unit that sets up enough so that we can connect
@@ -840,6 +836,7 @@ EOF
 
     mkdir -p "${snapd_snap_cache}"
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
+    rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
 }
 
