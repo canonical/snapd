@@ -1463,6 +1463,37 @@ version: 1.0
 	c.Assert(info.Confinement, Equals, snap.StrictConfinement)
 }
 
+func (s *YamlSuite) TestSnapYamlGradeComplete(c *C) {
+	const (
+		str = `
+name: snap
+version: '0.1.0'
+grade: %q
+`
+		invalidGrade = "invalid"
+	)
+
+	yStable := []byte(fmt.Sprintf(str, "stable"))
+	infoStable, err := snap.InfoFromSnapYaml(yStable)
+	c.Assert(infoStable.Grade, Equals, snap.StableGrade)
+	c.Assert(err, IsNil)
+
+	yDevel := []byte(fmt.Sprintf(str, "devel"))
+	infoDevel, err := snap.InfoFromSnapYaml(yDevel)
+	c.Assert(infoDevel.Grade, Equals, snap.DevelGrade)
+	c.Assert(err, IsNil)
+
+	yEmpty := []byte(fmt.Sprintf(str, ""))
+	infoEmpty, err := snap.InfoFromSnapYaml(yEmpty)
+	c.Assert(infoEmpty.Grade, Equals, snap.EmptyGrade)
+	c.Assert(err, IsNil)
+
+	yInvalid := []byte(fmt.Sprintf(str, invalidGrade))
+	infoInvalid, err := snap.InfoFromSnapYaml(yInvalid)
+	c.Assert(infoInvalid, IsNil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^.*unknown grade type: %q", invalidGrade))
+}
+
 func (s *YamlSuite) TestSnapYamlMultipleArchitecturesParsing(c *C) {
 	y := []byte(`name: binary
 version: 1.0
