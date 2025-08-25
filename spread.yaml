@@ -1237,6 +1237,36 @@ prepare: |
         systemctl restart ssh
     fi
 
+    # LSM correctness check
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*|arch-*)
+            # Ubuntu, Debian, Arch use AppArmor
+            aa-enabled
+            ;;
+        fedora-*|centos-*|opensuse-*-selinux-*)
+            # Fedora, CentOS use SELinux
+            # Variants openSUSE use selinux
+            selinuxenabled
+            ;;
+        opensuse-*)
+            # Non-SELinux variants of openSUSE use AppArmor
+            aa-enabled
+            ;;
+        amazon-*-2023-*)
+            # Amazon Linux 2023 uses SELinux
+            selinuxenabled
+            ;;
+        amazon-*-2-*)
+            # Amazon Linux 2 uses neither
+            ! selinuxenabled
+            ! aa-enabled
+            ;;
+        *)
+            echo "unsupported system for LSM check"
+            exit 1
+            ;;
+    esac
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
