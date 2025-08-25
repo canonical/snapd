@@ -25,12 +25,17 @@ prepare_classic_rootfs() {
     [ -e "$DESTDIR"/dev/urandom ] || sudo mknod -m 666 "$DESTDIR"/dev/urandom c 1 9
 
     if [ "$ROLE" = spread ]; then
-        # ensure resolving works inside the chroot
-        echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
+    # ensure the proxy and resolv configuration is set inside the chroot
+        if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+            cp /etc/resolv.conf "$DESTDIR"/etc/resolv.conf
+            cp /etc/environment "$DESTDIR"/etc/environment
+        else
+            echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
+        fi
 
         # install additional packages
         sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-        local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init cryptsetup"
+        local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init cryptsetup systemd-timesyncd"
         sudo chroot "$DESTDIR" /usr/bin/sh -c \
              "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
         # netplan config

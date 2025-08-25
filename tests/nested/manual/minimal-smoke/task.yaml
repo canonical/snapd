@@ -35,4 +35,9 @@ execute: |
     echo "Run spread smoke tests using mem: $MINIMAL_MEM"
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+    export SPREAD_HTTP_PROXY="$HTTP_PROXY"
+    export SPREAD_HTTPS_PROXY="$HTTPS_PROXY"
+    export SPREAD_NO_PROXY="$NO_PROXY"
+    export SPREAD_SNAPD_USE_PROXY="$SNAPD_USE_PROXY"
+
     "$SPREAD" -v "external:$NESTED_SPREAD_SYSTEM:tests/smoke/..."

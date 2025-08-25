@@ -1,13 +1,8 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: network-state get-default-iface"
-    echo "       network-state wait-listen-port <PORT>"
+    echo "usage: network-state wait-listen-port <PORT>"
     echo "       network-state make-network-service <SERVICE_NAME> <PORT>"
-}
-
-get_default_iface(){
-    ip route get 8.8.8.8 | awk '{ print $5; exit }'
 }
 
 wait_listen_port(){

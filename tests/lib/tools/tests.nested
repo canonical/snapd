@@ -172,6 +172,10 @@ create_vm() {
     unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_PASSPHRASE
 }
 
+setup_vm() {
+    nested_setup_vm
+}
+
 is_nested() {
     if [ $# -eq 0 ]; then
         nested_is_nested_system
