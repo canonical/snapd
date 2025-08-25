@@ -89,7 +89,7 @@ jobs:
           killall -s SIGQUIT spread || true
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
@@ -251,7 +251,7 @@ jobs:
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
     - name: Download built snap (amd64)
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
@@ -261,7 +261,7 @@ jobs:
 
     - name: Download built snap (arm64)
       if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: snap-files-arm64-default-test
         pattern: snapd_1337.*.snap
@@ -269,7 +269,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built FIPS snap (amd64)
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       # eg. ubuntu-fips
       if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
       with:

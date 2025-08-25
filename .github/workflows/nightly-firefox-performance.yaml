@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install dependencies
       run: |
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install dependencies
       run: |
@@ -65,12 +65,12 @@ jobs:
     runs-on: [self-hosted, spread-enabled]
     steps:
     - name: Download snap results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: snap-results
     
     - name: Download bin results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: bin-results
 
