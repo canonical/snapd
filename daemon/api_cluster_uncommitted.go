@@ -42,37 +42,31 @@ func getClusterUncommitted(c *Command, r *http.Request, user *auth.UserState) Re
 	st.Lock()
 	defer st.Unlock()
 
-	headers, err := clusterstate.GetUncommittedClusterHeaders(st)
+	uncommitted, err := clusterstate.GetUncommittedClusterState(st)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return NotFound("no uncommitted cluster state")
 		}
-		return InternalError("cannot get uncommitted cluster headers: %v", err)
+		return InternalError("cannot get uncommitted cluster state: %v", err)
 	}
 
-	return SyncResponse(headers)
-}
+	// TODO: this should convert uncommitted to the type defined in client
 
-type clusterCommitRequest struct {
-	ClusterID string `json:"cluster-id"`
+	return SyncResponse(uncommitted)
 }
 
 func postClusterUncommitted(c *Command, r *http.Request, user *auth.UserState) Response {
-	var req clusterCommitRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var cs clusterstate.UncommittedClusterState
+	if err := json.NewDecoder(r.Body).Decode(&cs); err != nil {
 		return BadRequest("cannot decode request body: %v", err)
-	}
-
-	if req.ClusterID == "" {
-		return BadRequest("cluster-id is required")
 	}
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	if err := clusterstate.CommitClusterAssertion(st, req.ClusterID); err != nil {
-		return InternalError("cannot commit cluster assertion: %v", err)
+	if err := clusterstate.UpdateUncommittedClusterState(st, cs); err != nil {
+		return InternalError("cannot update uncommitted cluster state: %v", err)
 	}
 
 	return SyncResponse(nil)

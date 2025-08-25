@@ -103,9 +103,33 @@ func (s *clusterCommitSuite) TestClusterCommitClientInteraction(c *check.C) {
 		case "/v2/cluster/uncommitted":
 			if r.Method == "GET" {
 				getCalled = true
-				// return the uncommitted headers
-				fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync","result":%s}`, jsonMarshal(c, headers)))
-			} else if r.Method == "POST" {
+				// return the uncommitted state
+				stateResponse := map[string]any{
+					"cluster-id": "test-cluster-123",
+					"devices": []any{
+						map[string]any{
+							"id":        1,
+							"brand-id":  "canonical",
+							"model":     "ubuntu-core-24-amd64",
+							"serial":    "device-1",
+							"addresses": []any{"192.168.1.10"},
+						},
+					},
+					"subclusters": []any{
+						map[string]any{
+							"name":    "default",
+							"devices": []any{1},
+							"snaps":   []any{},
+						},
+					},
+					"completed-at": headers["timestamp"],
+				}
+				fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync","result":%s}`, jsonMarshal(c, stateResponse)))
+			} else {
+				c.Fatalf("unexpected method %q", r.Method)
+			}
+		case "/v2/cluster/commit":
+			if r.Method == "POST" {
 				commitCalled = true
 				// verify we got a cluster ID
 				var req map[string]string
@@ -143,11 +167,11 @@ func (s *clusterCommitSuite) TestClusterCommitClientInteraction(c *check.C) {
 	// note: we can't easily test the full command because it requires GPG setup
 	// but we can verify the client methods work correctly
 
-	// test GetClusterUncommittedHeaders
+	// test GetClusterUncommittedState
 	client := snap.Client()
-	gotHeaders, err := client.GetClusterUncommittedHeaders()
+	gotState, err := client.GetClusterUncommittedState()
 	c.Assert(err, check.IsNil)
-	c.Check(gotHeaders["cluster-id"], check.Equals, "test-cluster-123")
+	c.Check(gotState.ClusterID, check.Equals, "test-cluster-123")
 	c.Check(getCalled, check.Equals, true)
 
 	// test Ack with the cluster assertion

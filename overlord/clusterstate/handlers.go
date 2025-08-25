@@ -136,10 +136,10 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 		return fmt.Errorf("cannot generate cluster ID: %v", err)
 	}
 
-	devs := make([]asserts.ClusterDevice, 0, len(devices))
+	devs := make([]ClusterDevice, 0, len(devices))
 	ids := make([]int, 0, len(devices))
 	for i, dev := range devices {
-		devs = append(devs, asserts.ClusterDevice{
+		devs = append(devs, ClusterDevice{
 			ID:        i + 1,
 			BrandID:   dev.BrandID,
 			Model:     dev.Model,
@@ -149,15 +149,15 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 		ids = append(ids, i+1)
 	}
 
+	// TODO: handle non-default clusters
 	uncommitted := UncommittedClusterState{
 		ClusterID: clusterID,
 		Devices:   devs,
-		Subclusters: []asserts.ClusterSubcluster{
-			// TODO: handle non-default clusters
+		Subclusters: []ClusterSubcluster{
 			{
 				Name:    "default",
 				Devices: ids,
-				Snaps:   []asserts.ClusterSnap{},
+				Snaps:   []ClusterSnap{},
 			},
 		},
 		CompletedAt: time.Now(),

@@ -22,6 +22,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -71,15 +72,50 @@ func (client *Client) ClusterAssemble(opts ClusterAssembleOptions) (changeID str
 	return client.doAsync("POST", "/v2/cluster", nil, headers, &body)
 }
 
-// GetClusterUncommittedHeaders retrieves the uncommitted cluster state headers
-// that are ready to be signed into a cluster assertion.
-func (client *Client) GetClusterUncommittedHeaders() (map[string]any, error) {
-	var headers map[string]any
-	_, err := client.doSync("GET", "/v2/cluster/uncommitted", nil, nil, nil, &headers)
+// ClusterDevice represents a device in the cluster
+type ClusterDevice struct {
+	ID        int      `json:"id"`
+	BrandID   string   `json:"brand-id"`
+	Model     string   `json:"model"`
+	Serial    string   `json:"serial"`
+	Addresses []string `json:"addresses"`
+}
+
+// ClusterSnap represents a snap in a subcluster
+type ClusterSnap struct {
+	State    string `json:"state"`
+	Instance string `json:"instance"`
+	Channel  string `json:"channel"`
+}
+
+// ClusterSubcluster represents a logical grouping of devices
+type ClusterSubcluster struct {
+	Name    string        `json:"name"`
+	Devices []int         `json:"devices"`
+	Snaps   []ClusterSnap `json:"snaps"`
+}
+
+// UncommittedClusterState holds the cluster configuration after assembly
+// but before it has been signed and committed as an assertion.
+type UncommittedClusterState struct {
+	// ClusterID is the unique identifier for this cluster
+	ClusterID string `json:"cluster-id"`
+	// Devices is the list of devices that are part of the cluster
+	Devices []ClusterDevice `json:"devices"`
+	// Subclusters defines the logical groupings of devices
+	Subclusters []ClusterSubcluster `json:"subclusters"`
+	// CompletedAt records when the assembly process completed
+	CompletedAt time.Time `json:"completed-at"`
+}
+
+// GetClusterUncommittedState retrieves the uncommitted cluster state.
+func (client *Client) GetClusterUncommittedState() (UncommittedClusterState, error) {
+	var state UncommittedClusterState
+	_, err := client.doSync("GET", "/v2/cluster/uncommitted", nil, nil, nil, &state)
 	if err != nil {
-		return nil, err
+		return UncommittedClusterState{}, err
 	}
-	return headers, nil
+	return state, nil
 }
 
 func (client *Client) CommitClusterAssertion(clusterID string) error {
@@ -98,6 +134,54 @@ func (client *Client) CommitClusterAssertion(clusterID string) error {
 		"Content-Type": "application/json",
 	}
 
-	_, err := client.doSync("POST", "/v2/cluster/uncommitted", nil, headers, &body, nil)
+	_, err := client.doSync("POST", "/v2/cluster/commit", nil, headers, &body, nil)
+	return err
+}
+
+// ClusterInstall adds a snap to the uncommitted cluster state.
+// TODO: support non-default subclusters
+func (client *Client) ClusterInstall(snapName string) error {
+	// first, get the current uncommitted state
+	state, err := client.GetClusterUncommittedState()
+	if err != nil {
+		return err
+	}
+
+	var sc *ClusterSubcluster
+	for i := range state.Subclusters {
+		if state.Subclusters[i].Name == "default" {
+			sc = &state.Subclusters[i]
+			break
+		}
+	}
+
+	if sc == nil {
+		return errors.New("missing default subcluster")
+	}
+
+	// check if snap already exists in the default subcluster
+	for _, snap := range sc.Snaps {
+		if snap.Instance == snapName {
+			return nil // snap already in cluster state
+		}
+	}
+
+	sc.Snaps = append(sc.Snaps, ClusterSnap{
+		State:    "clustered",
+		Instance: snapName,
+		Channel:  "stable",
+	})
+
+	// send the updated state back
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&state); err != nil {
+		return err
+	}
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	_, err = client.doSync("POST", "/v2/cluster/uncommitted", nil, headers, &body, nil)
 	return err
 }

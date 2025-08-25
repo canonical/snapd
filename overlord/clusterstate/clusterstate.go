@@ -81,17 +81,31 @@ type AssembleConfig struct {
 	Period time.Duration
 }
 
-// UncommittedClusterState holds the cluster configuration after assembly
-// but before it has been signed and committed as an assertion.
 type UncommittedClusterState struct {
-	// ClusterID is the unique identifier for this cluster
-	ClusterID string `json:"cluster-id"`
-	// Devices is the list of devices that are part of the cluster
-	Devices []asserts.ClusterDevice `json:"devices"`
-	// Subclusters defines the logical groupings of devices
-	Subclusters []asserts.ClusterSubcluster `json:"subclusters"`
-	// CompletedAt records when the assembly process completed
-	CompletedAt time.Time `json:"completed-at"`
+	ClusterID   string              `json:"cluster-id"`
+	Devices     []ClusterDevice     `json:"devices"`
+	Subclusters []ClusterSubcluster `json:"subclusters"`
+	CompletedAt time.Time           `json:"completed-at"`
+}
+
+type ClusterDevice struct {
+	ID        int      `json:"id"`
+	BrandID   string   `json:"brand-id"`
+	Model     string   `json:"model"`
+	Serial    string   `json:"serial"`
+	Addresses []string `json:"addresses"`
+}
+
+type ClusterSnap struct {
+	State    string `json:"state"`
+	Instance string `json:"instance"`
+	Channel  string `json:"channel"`
+}
+
+type ClusterSubcluster struct {
+	Name    string        `json:"name"`
+	Devices []int         `json:"devices"`
+	Snaps   []ClusterSnap `json:"snaps"`
 }
 
 // Assemble creates a new task to assemble a cluster using the given configuration.
@@ -150,73 +164,13 @@ func Assemble(st *state.State, config AssembleConfig) (*state.TaskSet, error) {
 	return ts, nil
 }
 
-// GetUncommittedClusterHeaders retrieves the uncommitted cluster state and
-// returns headers formatted for signing.
-func GetUncommittedClusterHeaders(st *state.State) (map[string]any, error) {
+// GetUncommittedClusterState retrieves the uncommitted cluster state.
+func GetUncommittedClusterState(st *state.State) (UncommittedClusterState, error) {
 	var uncommitted UncommittedClusterState
 	if err := st.Get("uncommitted-cluster-state", &uncommitted); err != nil {
-		return nil, err
+		return UncommittedClusterState{}, err
 	}
-
-	// TODO: is there a better way of doing this conversion?
-
-	var devices []any
-	if len(uncommitted.Devices) > 0 {
-		devices = make([]any, 0, len(uncommitted.Devices))
-		for _, d := range uncommitted.Devices {
-			addresses := make([]any, 0, len(d.Addresses))
-			for _, addr := range d.Addresses {
-				addresses = append(addresses, addr)
-			}
-
-			devices = append(devices, map[string]any{
-				"id":        strconv.Itoa(d.ID),
-				"brand-id":  d.BrandID,
-				"model":     d.Model,
-				"serial":    d.Serial,
-				"addresses": addresses,
-			})
-		}
-	}
-
-	var subclusters []any
-	if len(uncommitted.Subclusters) > 0 {
-		subclusters = make([]any, 0, len(uncommitted.Subclusters))
-		for _, sc := range uncommitted.Subclusters {
-			ids := make([]any, 0, len(sc.Devices))
-			for _, id := range sc.Devices {
-				ids = append(ids, strconv.Itoa(id))
-			}
-
-			subcluster := map[string]any{
-				"name":    sc.Name,
-				"devices": ids,
-			}
-
-			if len(sc.Snaps) > 0 {
-				snaps := make([]any, 0, len(sc.Snaps))
-				for _, snap := range sc.Snaps {
-					snaps = append(snaps, map[string]any{
-						"state":    snap.State,
-						"instance": snap.Instance,
-						"channel":  snap.Channel,
-					})
-				}
-				subcluster["snaps"] = snaps
-			}
-
-			subclusters = append(subclusters, subcluster)
-		}
-	}
-
-	return map[string]any{
-		"type":        "cluster",
-		"cluster-id":  uncommitted.ClusterID,
-		"sequence":    "1", // TODO: handle sequences properly
-		"devices":     devices,
-		"subclusters": subclusters,
-		"timestamp":   uncommitted.CompletedAt.Format(time.RFC3339),
-	}, nil
+	return uncommitted, nil
 }
 
 // CommitClusterAssertion validates that a cluster assertion exists in the database
@@ -302,6 +256,19 @@ func CommitClusterAssertion(st *state.State, clusterID string) error {
 
 	// clear the uncommitted state
 	st.Set("uncommitted-cluster-state", nil)
+
+	return nil
+}
+
+// UpdateUncommittedClusterState updates the uncommitted cluster state in the state store.
+func UpdateUncommittedClusterState(st *state.State, cs UncommittedClusterState) error {
+	// validate the new state
+	if cs.ClusterID == "" {
+		return errors.New("cluster-id is required")
+	}
+
+	// store the updated state
+	st.Set("uncommitted-cluster-state", cs)
 
 	return nil
 }

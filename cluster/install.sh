@@ -1,4 +1,4 @@
-set -ex
+set -e
 
 hosts="$(seq 8 | xargs -L1 printf 'host-%d\n')"
 

@@ -95,6 +95,7 @@ var api = []*Command{
 	systemVolumesCmd,
 	clusterCmd,
 	clusterUncommittedCmd,
+	clusterCommitCmd,
 }
 
 type featureEndpoint struct {

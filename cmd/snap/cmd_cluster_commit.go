@@ -23,11 +23,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -63,11 +66,14 @@ func (x *cmdClusterCommit) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	// get uncommitted cluster headers
-	headers, err := x.client.GetClusterUncommittedHeaders()
+	// get uncommitted cluster state
+	state, err := x.client.GetClusterUncommittedState()
 	if err != nil {
-		return fmt.Errorf("cannot get uncommitted cluster headers: %v", err)
+		return fmt.Errorf("cannot get uncommitted cluster state: %v", err)
 	}
+
+	// convert state to headers for signing
+	headers := convertStateToHeaders(state)
 
 	// get the keypair manager
 	keypairMgr, err := signtool.GetKeypairManager()
@@ -148,11 +154,72 @@ func (x *cmdClusterCommit) Execute(args []string) error {
 		return fmt.Errorf("cannot submit cluster assertion: %v", err)
 	}
 
-	// commit the cluster state by ID
+	// commit the cluster state by ID (using the new /v2/cluster/commit endpoint)
 	if err := x.client.CommitClusterAssertion(cluster.ClusterID()); err != nil {
 		return fmt.Errorf("cannot commit cluster state: %v", err)
 	}
 
 	fmt.Fprintf(Stdout, i18n.G("Cluster assertion committed successfully.\n"))
 	return nil
+}
+
+// convertStateToHeaders converts UncommittedClusterState to assertion headers
+func convertStateToHeaders(state client.UncommittedClusterState) map[string]any {
+	var devices []any
+	if len(state.Devices) > 0 {
+		devices = make([]any, 0, len(state.Devices))
+		for _, d := range state.Devices {
+			addresses := make([]any, 0, len(d.Addresses))
+			for _, addr := range d.Addresses {
+				addresses = append(addresses, addr)
+			}
+
+			devices = append(devices, map[string]any{
+				"id":        strconv.Itoa(d.ID),
+				"brand-id":  d.BrandID,
+				"model":     d.Model,
+				"serial":    d.Serial,
+				"addresses": addresses,
+			})
+		}
+	}
+
+	var subclusters []any
+	if len(state.Subclusters) > 0 {
+		subclusters = make([]any, 0, len(state.Subclusters))
+		for _, sc := range state.Subclusters {
+			ids := make([]any, 0, len(sc.Devices))
+			for _, id := range sc.Devices {
+				ids = append(ids, strconv.Itoa(id))
+			}
+
+			subcluster := map[string]any{
+				"name":    sc.Name,
+				"devices": ids,
+			}
+
+			if len(sc.Snaps) > 0 {
+				snaps := make([]any, 0, len(sc.Snaps))
+				for _, snap := range sc.Snaps {
+					snaps = append(snaps, map[string]any{
+						"state":    snap.State,
+						"instance": snap.Instance,
+						"channel":  snap.Channel,
+					})
+				}
+				subcluster["snaps"] = snaps
+			}
+
+			subclusters = append(subclusters, subcluster)
+		}
+	}
+
+	return map[string]any{
+		"type":        "cluster",
+		"cluster-id":  state.ClusterID,
+		"sequence":    "1", // TODO: handle sequences properly
+		"devices":     devices,
+		"subclusters": subclusters,
+		"timestamp":   state.CompletedAt.Format(time.RFC3339),
+	}
 }

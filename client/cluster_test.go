@@ -105,17 +105,15 @@ func (cs *clientSuite) TestClientClusterAssembleError(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "invalid address format")
 }
 
-func (cs *clientSuite) TestClientGetClusterUncommittedHeaders(c *check.C) {
+func (cs *clientSuite) TestClientGetClusterUncommittedState(c *check.C) {
 	cs.status = 200
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-			"type": "cluster",
 			"cluster-id": "test-cluster-123",
-			"sequence": "1",
 			"devices": [
 				{
-					"id": "1",
+					"id": 1,
 					"brand-id": "canonical",
 					"model": "ubuntu-core-24-amd64",
 					"serial": "device-1",
@@ -125,19 +123,22 @@ func (cs *clientSuite) TestClientGetClusterUncommittedHeaders(c *check.C) {
 			"subclusters": [
 				{
 					"name": "default",
-					"devices": ["1"]
+					"devices": [1],
+					"snaps": []
 				}
 			],
-			"timestamp": "2024-01-15T10:30:00Z"
+			"completed-at": "2024-01-15T10:30:00Z"
 		}
 	}`
 
-	headers, err := cs.cli.GetClusterUncommittedHeaders()
+	state, err := cs.cli.GetClusterUncommittedState()
 	c.Assert(err, check.IsNil)
-	c.Check(headers["type"], check.Equals, "cluster")
-	c.Check(headers["cluster-id"], check.Equals, "test-cluster-123")
-	c.Check(headers["sequence"], check.Equals, "1")
-	c.Check(headers["timestamp"], check.Equals, "2024-01-15T10:30:00Z")
+	c.Check(state.ClusterID, check.Equals, "test-cluster-123")
+	c.Check(len(state.Devices), check.Equals, 1)
+	c.Check(state.Devices[0].ID, check.Equals, 1)
+	c.Check(state.Devices[0].BrandID, check.Equals, "canonical")
+	c.Check(len(state.Subclusters), check.Equals, 1)
+	c.Check(state.Subclusters[0].Name, check.Equals, "default")
 
 	// verify the request
 	c.Check(cs.req.Method, check.Equals, "GET")
@@ -157,7 +158,7 @@ func (cs *clientSuite) TestClientCommitClusterAssertion(c *check.C) {
 
 	// verify the request
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/cluster/uncommitted")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/cluster/commit")
 	c.Check(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
 
 	var reqBody map[string]interface{}
