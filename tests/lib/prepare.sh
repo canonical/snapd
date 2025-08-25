@@ -684,7 +684,7 @@ build_snapd_snap_with_tweaks() {
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
     trap "rm -rf $UNPACK_DIR" EXIT RETURN
 
-    unsquashfs -no-progress -f -d "$UNPACK_DIR" "${snapd_snap_cache}/tmp/snapd_*.snap"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" "${snapd_snap_cache}"/tmp/snapd_*.snap
 
     # add gpio and iio slots required for the tests
     cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
