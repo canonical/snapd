@@ -50,10 +50,11 @@ var (
 // TCG-compliant PCR profile generation options to evaluate whether the host
 // environment is an EFI system suitable for TPM-based Full Disk Encryption. The
 // caller must supply the current boot images in boot order via bootImagePaths.
-// On success, it returns a list with details on all errors identified by secboot
-// or nil if no errors were found. Any warnings contained in the secboot result
-// are logged. On failure, it returns the error encountered while interpreting
-// the secboot error.
+// On success, it returns the preinstall check context required for follow-up
+// preinstall checks with actions, and a list with details on all errors
+// identified by secboot (or nil if no errors were found). Any warnings
+// contained in the secboot result are logged. On failure, it returns the error
+// encountered while interpreting the secboot error.
 //
 // To support testing, when the system is running in a Virtual Machine, the check
 // configuration is modified to permit this to avoid an error.
