@@ -472,3 +472,26 @@ func (s *AllSuite) TestPrioritizedSnippets(c *C) {
 	c.Assert(len(keys), Equals, 1)
 	c.Assert(keys, testutil.Contains, "desktop-file-access")
 }
+
+type conflictsWithOtherConnectedInterfacesDefiner interface {
+	ConflictsWithOtherConnectedInterfaces() []string
+}
+
+func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
+	// Check that all expected connection conflicts are defined.
+	//
+	// Note: Conflicting connection relations are bi-directional, it
+	// is okay to define one-side of the relation only.
+	expected := map[string][]string{
+		"gpio-chardev": {"gpio"},
+	}
+
+	found := make(map[string][]string, len(expected))
+	for _, i := range builtin.Interfaces() {
+		if iface, ok := i.(conflictsWithOtherConnectedInterfacesDefiner); ok {
+			found[i.Name()] = iface.ConflictsWithOtherConnectedInterfaces()
+		}
+	}
+
+	c.Assert(found, DeepEquals, found)
+}
