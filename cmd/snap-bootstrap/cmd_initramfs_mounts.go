@@ -2575,6 +2575,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]
 			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
+
+			// TODO: verity data for the mount should be passed here instead of nil
+			// once support for verity data in run mode is added
 			if err := writeSysrootMountUnit(what, "squashfs", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
 			}
