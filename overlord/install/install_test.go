@@ -401,17 +401,15 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 func (s *installSuite) TestCheckContext(c *C) {
 	expectedCheckContext := &secboot.PreinstallCheckContext{}
 
-	// error check context unavailable
+	// unavailable
 	encSupportInfo := install.EncryptionSupportInfo{}
-	checkContext, err := encSupportInfo.CheckContext()
+	checkContext := encSupportInfo.CheckContext()
 	c.Assert(checkContext, IsNil)
-	c.Assert(err, ErrorMatches, "internal error: preinstall check context unavailable")
 
-	// happy
+	// available
 	encSupportInfo.SetAvailabilityCheckContext(expectedCheckContext)
-	checkContext, err = encSupportInfo.CheckContext()
+	checkContext = encSupportInfo.CheckContext()
 	c.Assert(checkContext, Equals, expectedCheckContext)
-	c.Assert(err, IsNil)
 }
 
 func (s *installSuite) TestPreinstallCheckSupported(c *C) {

@@ -103,13 +103,9 @@ type EncryptionSupportInfo struct {
 	PINAuthAvailable bool
 }
 
-// CheckContext returns the underlying preinstall check context. If not
-// available, it returns an internal error.
-func (esi *EncryptionSupportInfo) CheckContext() (*secboot.PreinstallCheckContext, error) {
-	if esi.availabilityCheckContext == nil {
-		return nil, fmt.Errorf("internal error: preinstall check context unavailable")
-	}
-	return esi.availabilityCheckContext, nil
+// CheckContext returns the underlying preinstall check context.
+func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext {
+	return esi.availabilityCheckContext
 }
 
 // ComponentSeedInfo contains information for a component from the seed and
