@@ -66,6 +66,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"iter"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -81,6 +82,9 @@ var (
 // MountID is a 64 bit identifier of a mount.
 type MountID int64
 
+// GroupID is a 64 bit identifier of a mount peer group.
+type GroupID int64
+
 // RootMountID is the mount ID of the root file system in any VFS.
 const RootMountID MountID = -1 // LSMT_ROOT
 
@@ -91,6 +95,15 @@ const RootMountID MountID = -1 // LSMT_ROOT
 // may be empty if the attachment point is directly shadowing its parent. Such
 // attachment chains may more than one mount, if many mounts are made with the
 // same path.
+//
+// A mount may be a part of a peer group and may, independently, be a slave to
+// a master mount.  The initial member of a peer group is created by "mount
+// --make-shared" operation. The membership is retained across a "mount --bind"
+// operation. Separately any shared mount (that is, with shared != 0) may
+// converted to a slave mount with "mount --make-slave". Shared mounts
+// propagate mount and unmount changes to all the peers and all the slaves.
+// Slave mounts only receive notifications from their peers.  A single mount
+// may be both a slave and a peer in an unrelated group.
 type mount struct {
 	mountID    MountID
 	parentID   MountID
@@ -98,6 +111,9 @@ type mount struct {
 	rootDir    string // Path of fsFS that is actually mounted.
 	isDir      bool   // Mount is attached to a directory.
 	fsFS       fs.StatFS
+	shared     GroupID // ID of the shared peer group, or zero for private mounts.
+	master     GroupID // ID of the peer group that is the master, or zero for mounts that are not slaves.
+	unbindable bool    // The mount cannot be used as source.
 
 	mountPointCache *string
 
@@ -107,6 +123,32 @@ type mount struct {
 	lastChild   *mount
 	nextSibling *mount
 	prevSibling *mount
+}
+
+// ancestors returns an iterator from the node through all of its parents.
+//
+// The iteration starts at m and continues until the rootfs is reached.
+func (m *mount) ancestors() iter.Seq[*mount] {
+	return func(yield func(*mount) bool) {
+		for ; m != nil; m = m.parent {
+			if !yield(m) {
+				return
+			}
+		}
+	}
+}
+
+// children returns an iterator over the children of the given mount.
+//
+// Internally the order of iteration is from the first child.
+func (m *mount) children() iter.Seq[*mount] {
+	return func(yield func(*mount) bool) {
+		for m = m.firstChild; m != nil; m = m.nextSibling {
+			if !yield(m) {
+				return
+			}
+		}
+	}
 }
 
 func (m *mount) mountPoint() string {
@@ -149,6 +191,7 @@ type VFS struct {
 	mu          sync.RWMutex
 	mounts      []*mount
 	nextMountID MountID
+	lastGroupID GroupID // Groups IDs start with 1 so that zero value is not a valid group.
 }
 
 // NewVFS returns a VFS with the given root file system mounted.
@@ -229,6 +272,14 @@ func (v *VFS) allocateMountID() MountID {
 	return id
 }
 
+// allocateGroupID returns a new group ID.
+func (v *VFS) allocateGroupID() GroupID {
+	// Groups IDs start with 1
+	v.lastGroupID++
+	id := v.lastGroupID
+	return id
+}
+
 // pathDominator returns information about the mount that dominates a given path.
 //
 // Out of all the mounts in the VFS, the last one that dominates a given path,
@@ -303,6 +354,19 @@ func (m *mount) isDom(path string) (domSuffix, fsPath string, ok bool) {
 	fsPath = filepath.Join(m.rootDir, domSuffix)
 
 	return domSuffix, fsPath, true
+}
+
+// hasAncestor returns true if the mount's parent (recursively) has the given [id].
+func (m *mount) hasAncestor(id MountID) bool {
+	if m.parentID == id {
+		return true
+	}
+
+	if m.parent == nil {
+		return false
+	}
+
+	return m.parent.hasAncestor(id)
 }
 
 // combinedRootDir returns the combination of [mount.rootDir] and [pathDominator.suffix]
@@ -387,8 +451,18 @@ func (m *mount) String() string {
 		sbOpts    = "rw"
 		fsType    = "(fstype)"
 	)
-	// TODO: propagation flags here
 	fmt.Fprintf(&sb, "%-2d %d %d:%d /%s /%s %s", m.mountID, m.parentID, major, minor, m.rootDir, m.mountPoint(), mountOpts)
+	if m.shared != 0 {
+		fmt.Fprintf(&sb, " shared:%d", m.shared)
+	}
+	if m.master != 0 {
+		fmt.Fprintf(&sb, " master:%d", m.master)
+	}
+	// TODO: propagate_from:nnn if master is invisible (not possible yet, needs pivot or chroot or namespaces).
+	if m.unbindable {
+		fmt.Fprintf(&sb, " unbindable")
+	}
+
 	fmt.Fprintf(&sb, " - %s %s %s", fsType, source, sbOpts)
 	return sb.String()
 }
