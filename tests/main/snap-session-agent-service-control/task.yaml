@@ -47,25 +47,24 @@ execute: |
     EOF
 
     echo "The session agent can reload the user mode systemd instance"
-    curl --unix-socket /run/user/12345/snapd-session-agent.socket \
-        -D- -X POST -H "Content-Type: application/json" \
-        -d '{"action": "daemon-reload"}' \
-        http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
-
+    echo '{"action": "daemon-reload"}' | snap debug api --fail \
+        --session-agent-uid=12345 \
+        -X POST -H "Content-Type: application/json" \
+        /v1/service-control
     echo "The service is now visible but not active"
     tests.session -u test exec systemctl --user show --property=LoadState snap.test-service.service | MATCH LoadState=loaded
     tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
 
     echo "The session agent can start user mode services"
-    curl --unix-socket /run/user/12345/snapd-session-agent.socket \
-        -D- -X POST -H "Content-Type: application/json" \
-        -d '{"action": "start", "services": ["snap.test-service.service"]}' \
-        http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
+    echo '{"action": "start", "services": ["snap.test-service.service"]}' | snap debug api \
+        --fail --session-agent-uid=12345 \
+         -X POST -H "Content-Type: application/json" \
+        /v1/service-control
     tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=active
 
     echo "The session agent can stop user mode services"
-    curl --unix-socket /run/user/12345/snapd-session-agent.socket \
-        -D- -X POST -H "Content-Type: application/json" \
-        -d '{"action": "stop", "services": ["snap.test-service.service"]}' \
-        http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
+    echo '{"action": "stop", "services": ["snap.test-service.service"]}' | snap debug api \
+        --fail --session-agent-uid=12345 \
+        -X POST -H "Content-Type: application/json" \
+        /v1/service-control
     tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
