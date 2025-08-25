@@ -1173,6 +1173,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encryptSetupData)
 		if trustedInstallObserver != nil {
+			// TODO:FDEM: pass preinstall check context that we get from encryptSetupData that is cached during install step install-setup-storage-encryption
 			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, bootstrappedContainersForRole, encryptSetupData.VolumesAuth(), nil, trustedInstallObserver); err != nil {
 				return err
 			}
