@@ -225,6 +225,12 @@ volumes:
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1G
 `
+const gadgetCmdlineDefaults = `
+defaults:
+  system:
+    system:
+      kernel.dangerous-cmdline-append: defarg1 defarg2
+`
 
 func (s *makeBootable20Suite) TestMakeBootableImage20(c *C) {
 	bootloader.Force(nil)
@@ -570,13 +576,14 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 }
 
 type testMakeSystemRunnable20Opts struct {
-	standalone    bool
-	factoryReset  bool
-	classic       bool
-	fromInitrd    bool
-	withKComps    bool
-	oldCryptsetup bool
-	forceTokens   string
+	standalone           bool
+	factoryReset         bool
+	classic              bool
+	fromInitrd           bool
+	withKComps           bool
+	oldCryptsetup        bool
+	forceTokens          string
+	withCustomKernelArgs bool
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystemRunnable20Opts) {
@@ -652,13 +659,17 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, opts testMakeSystem
 	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
+	testGadgetYaml := gadgetYaml
+	if opts.withCustomKernelArgs {
+		testGadgetYaml += gadgetCmdlineDefaults
+	}
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
 		{"grub-recovery.conf", string(grubRecoveryCfg)},
 		{"grub.conf", string(grubCfg)},
 		{"bootx64.efi", "shim content"},
 		{"grubx64.efi", "grub content"},
 		{"meta/snap.yaml", gadgetSnapYaml},
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", testGadgetYaml},
 	})
 	restore = assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
 	defer restore()
@@ -910,6 +921,10 @@ version: 5.0
 		base = "\nbase=core20_3.snap"
 		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	}
+	appendedArgs := ""
+	if opts.withCustomKernelArgs {
+		appendedArgs += " defarg1 defarg2"
+	}
 	expectedModeenv := fmt.Sprintf(`mode=run
 recovery_system=20191216
 current_recovery_systems=20191216
@@ -921,8 +936,8 @@ grade=dangerous
 model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
-current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
-`, base, classicLine)
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1%s"]
+`, base, classicLine, appendedArgs)
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, expectedModeenv)
 	copiedGrubBin := filepath.Join(
 		dirs.SnapBootAssetsDirUnder(installHostWritableDir),
@@ -963,6 +978,17 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 		classic:      false,
 		fromInitrd:   false,
 		withKComps:   false,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKernelArgs(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:           false,
+		factoryReset:         false,
+		classic:              false,
+		fromInitrd:           false,
+		withKComps:           false,
+		withCustomKernelArgs: true,
 	})
 }
 

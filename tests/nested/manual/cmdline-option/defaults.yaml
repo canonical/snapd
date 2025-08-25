@@ -4,3 +4,5 @@ defaults:
       hold: "@HOLD-TIME@"
     journal:
       persistent: true
+    system:
+      kernel.cmdline-append: foo=1 foo=2

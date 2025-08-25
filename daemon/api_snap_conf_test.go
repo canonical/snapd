@@ -343,6 +343,11 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 	s.daemonWithOverlordMockAndStore()
 
+	st := s.d.Overlord().State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
+
 	text, err := json.Marshal(map[string]any{"key": "value"})
 	c.Assert(err, check.IsNil)
 
@@ -364,6 +369,38 @@ func (s *snapConfSuite) TestSetConfBadSnap(c *check.C) {
 			"message": `snap "config-snap" is not installed`,
 			"kind":    "snap-not-found",
 			"value":   "config-snap",
+		},
+		"type": "error"})
+}
+
+func (s *snapConfSuite) TestSetConfNotSeeded(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	st.Set("seeded", false)
+	st.Unlock()
+
+	text, err := json.Marshal(map[string]any{"key": "value"})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/conf", buffer)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 409)
+
+	var body map[string]any
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Assert(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]any{
+		"status-code": 409.,
+		"status":      "Conflict",
+		"result": map[string]any{
+			"message": `no change of configuration allowed while seeding`,
+			"kind":    "snap-change-conflict",
 		},
 		"type": "error"})
 }
