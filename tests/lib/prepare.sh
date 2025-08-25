@@ -680,9 +680,10 @@ build_snapd_snap_with_tweaks() {
     snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
     
     build_snapd_snap "${snapd_snap_cache}/tmp"
-
-    # TODO set up a trap to clean this up properly?
+    
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    trap "rm -rf $UNPACK_DIR" EXIT RETURN
+
     unsquashfs -no-progress -f -d "$UNPACK_DIR" "${snapd_snap_cache}/tmp/snapd_*.snap"
 
     # add gpio and iio slots required for the tests
@@ -698,7 +699,6 @@ slots:
 EOF
 
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
-    rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
 }
 
@@ -729,9 +729,11 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
         mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
     fi
 
-    # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
+
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    trap "rm -rf $UNPACK_DIR" EXIT RETURN
+    
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # now install a unit that sets up enough so that we can connect
@@ -818,7 +820,6 @@ EOF
 
     mkdir -p "${snapd_snap_cache}"
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
-    rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
 }
 
