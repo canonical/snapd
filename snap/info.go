@@ -381,6 +381,7 @@ type Info struct {
 	Epoch            Epoch
 	Base             string
 	Confinement      ConfinementType
+	Grade            GradeType
 	Apps             map[string]*AppInfo
 	LegacyAliases    map[string]*AppInfo // FIXME: eventually drop this
 	Hooks            map[string]*HookInfo
