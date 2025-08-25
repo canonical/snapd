@@ -1481,29 +1481,14 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop the list of excluded systems.
         systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-secboot-*]
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            # FIXME: this should really use prepare-restore.sh --prepare-suite-each
-            # like other suites, needs more investigation
-
-            # shellcheck source=tests/lib/state.sh
-            . "$TESTSLIB"/state.sh
-            mkdir -p "$RUNTIME_STATE_PATH"
-            # save the job which is going to be executed in the system
-            echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-        restore: |
-            if [ "$REMOTE_STORE" = staging ]; then
-                echo "skip upgrade tests while talking to the staging store"
-                exit 0
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
-            if [ "$REMOTE_STORE" = staging ]; then
-                echo "skip upgrade tests while talking to the staging store"
-                exit 0
-            fi
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package snapd
-            distro_purge_package snapd-xdg-open || true
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
     tests/cross/:
         summary: Cross-compile tests
         systems: [ubuntu-24.04-64]
