@@ -95,6 +95,15 @@ const RootMountID MountID = -1 // LSMT_ROOT
 // may be empty if the attachment point is directly shadowing its parent. Such
 // attachment chains may more than one mount, if many mounts are made with the
 // same path.
+//
+// A mount may be a part of a peer group and may, independently, be a slave to
+// a master mount.  The initial member of a peer group is created by "mount
+// --make-shared" operation. The membership is retained across a "mount --bind"
+// operation. Separately any shared mount (that is, with shared != 0) may
+// converted to a slave mount with "mount --make-slave". Shared mounts
+// propagate mount and unmount changes to all the peers and all the slaves.
+// Slave mounts only receive notifications from their peers.  A single mount
+// may be both a slave and a peer in an unrelated group.
 type mount struct {
 	mountID    MountID
 	parentID   MountID
@@ -102,8 +111,8 @@ type mount struct {
 	rootDir    string // Path of fsFS that is actually mounted.
 	isDir      bool   // Mount is attached to a directory.
 	fsFS       fs.StatFS
-	shared     GroupID // ID of the shared peer group, zero is invalid.
-	master     GroupID // ID of the peer group that is the master, zero is invalid.
+	shared     GroupID // ID of the shared peer group, or zero for private mounts.
+	master     GroupID // ID of the peer group that is the master, or zero for mounts that are not slaves.
 	unbindable bool    // The mount cannot be used as source.
 
 	mountPointCache *string
