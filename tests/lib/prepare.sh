@@ -677,15 +677,33 @@ build_snapd_snap_with_tweaks() {
     local UNPACK_DIR
     
     TARGET="${1}"
-    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
     
-    build_snapd_snap "${snapd_snap_cache}/tmp"
-    
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
+    mkdir -p "${snapd_snap_cache}"
+    for snap in "${snapd_snap_cache}"/snapd_*.snap; do
+        if [ -f "${snap}" ]; then
+            cp "${snap}" "${TARGET}/"
+            return
+        fi
+    done
+
+    if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+        if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
+            wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
+        else
+            cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+        fi
+    else
+        chmod -R go+r "${PROJECT_PATH}/tests"
+        run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
+        mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
+    fi
+
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
     # shellcheck disable=SC2064 # want to capture the value of UNPACK_DIR now
     trap "rm -rf $UNPACK_DIR" EXIT RETURN
 
-    unsquashfs -no-progress -f -d "$UNPACK_DIR" "${snapd_snap_cache}"/tmp/snapd_*.snap
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # add gpio and iio slots required for the tests
     cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
