@@ -853,6 +853,40 @@ func (s *downloadSuite) TestActualDownloadIconCopyError(c *C) {
 	c.Check(buf.buf[:15], DeepEquals, []byte{'a', 'a', 'a', 'a', 'a', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 }
 
+func (s *downloadSuite) TestDownloadIconTimeout(c *C) {
+	const fakeTimeout = 50 * time.Millisecond
+	const fakeDelay = 10 * fakeTimeout
+	restore := store.MockDownloadIconTimeout(fakeTimeout)
+	defer restore()
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		// wait longer than the client timeout
+		time.Sleep(fakeDelay)
+		// response should never actually be received
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	startTime := time.Now()
+	var buf SillyBuffer
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	endTime := time.Now()
+
+	// XXX: timeout error will trigger a retry, which maybe isn't what we actually want
+	c.Check(n, Equals, 5)
+	// XXX: context deadline detection is racy, see httputil/retry_test.go in
+	// TestRetryRequestTimeoutHandling
+	c.Check(err, ErrorMatches, `.* (request canceled|context deadline exceeded) \(Client.Timeout exceeded while awaiting headers\)`)
+	c.Check(receivedEtag, Equals, "")
+	// Check that the timeout duration elapsed before the response returned
+	c.Check(endTime.After(startTime.Add(fakeTimeout)), Equals, true)
+	// Check that the response returned before waiting for the full response delay
+	c.Check(endTime.Before(startTime.Add(fakeDelay)), Equals, true)
+}
+
 func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
 	ctx, cancel := context.WithCancel(context.Background())
 
