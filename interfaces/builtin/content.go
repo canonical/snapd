@@ -21,12 +21,14 @@ package builtin
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
@@ -44,12 +46,18 @@ const contentBaseDeclarationSlots = `
         - kernel
     allow-connection:
       plug-attributes:
-        content: $SLOT(content)
+        -
+          content: $SLOT(content)
+        -
+          compatibility: $SLOT_COMPAT(compatibility)
     allow-auto-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
       plug-attributes:
-        content: $SLOT(content)
+        -
+          content: $SLOT(content)
+        -
+          compatibility: $SLOT_COMPAT(compatibility)
 `
 
 // contentInterface allows sharing content between snaps
@@ -82,14 +90,35 @@ func validatePath(path string) error {
 	return nil
 }
 
+func checkLabelAttributes(attrs map[string]any, nameDef string) error {
+	// The ContentCompatLabel feature is checked only at matching time,
+	// here we allow the compatibility labels to exist in any case as it
+	// has no further side effect.
+	content, okContent := attrs["content"].(string)
+	compat, okCompat := attrs["compatibility"].(string)
+	hasContent := okContent && len(content) > 0
+	hasCompat := okCompat && len(compat) > 0
+	if hasCompat && hasContent {
+		return errors.New("cannot have both content and compatibility labels")
+	}
+	if hasCompat {
+		_, err := compatibility.DecodeCompatField(compat, nil)
+		return err
+	}
+	if hasContent {
+		return nil
+	}
+	// content defaults to nameDef if unspecified and no compatibility label either
+	attrs["content"] = nameDef
+	return nil
+}
+
 func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	content, ok := slot.Attrs["content"].(string)
-	if !ok || len(content) == 0 {
-		if slot.Attrs == nil {
-			slot.Attrs = make(map[string]any)
-		}
-		// content defaults to "slot" name if unspecified
-		slot.Attrs["content"] = slot.Name
+	if slot.Attrs == nil {
+		slot.Attrs = make(map[string]any)
+	}
+	if err := checkLabelAttributes(slot.Attrs, slot.Name); err != nil {
+		return err
 	}
 
 	// Error if "read" or "write" are present alongside "source".
@@ -121,14 +150,13 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	content, ok := plug.Attrs["content"].(string)
-	if !ok || len(content) == 0 {
-		if plug.Attrs == nil {
-			plug.Attrs = make(map[string]any)
-		}
-		// content defaults to "plug" name if unspecified
-		plug.Attrs["content"] = plug.Name
+	if plug.Attrs == nil {
+		plug.Attrs = make(map[string]any)
 	}
+	if err := checkLabelAttributes(plug.Attrs, plug.Name); err != nil {
+		return err
+	}
+
 	target, ok := plug.Attrs["target"].(string)
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
