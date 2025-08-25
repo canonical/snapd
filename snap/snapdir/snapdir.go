@@ -32,7 +32,7 @@ import (
 
 func IsSnapDir(path string) bool {
 	if osutil.IsDirectory(path) {
-		if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
+		if osutil.CanStat(filepath.Join(path, "meta", "snap.yaml")) {
 			return true
 		}
 	}

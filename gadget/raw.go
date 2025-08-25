@@ -144,7 +144,7 @@ func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 	backupName := backupPath + ".backup"
 	sameName := backupPath + ".same"
 
-	if osutil.FileExists(backupName) || osutil.FileExists(sameName) {
+	if osutil.CanStat(backupName) || osutil.CanStat(sameName) {
 		// already have a backup or the image was found to be identical
 		// before
 		return nil
@@ -244,7 +244,7 @@ func (r *rawStructureUpdater) Backup() error {
 func (r *rawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutContent) error {
 	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
 
-	if osutil.FileExists(backupPath + ".same") {
+	if osutil.CanStat(backupPath + ".same") {
 		// content the same, no update needed
 		return nil
 	}
@@ -359,12 +359,12 @@ func (r *rawStructureUpdater) Rollback() error {
 func (r *rawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutContent) error {
 	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
 
-	if osutil.FileExists(backupPath + ".same") {
+	if osutil.CanStat(backupPath + ".same") {
 		// content the same, no update needed
 		return ErrNoUpdate
 	}
 
-	if !osutil.FileExists(backupPath + ".backup") {
+	if !osutil.CanStat(backupPath + ".backup") {
 		// not the same, but a backup file is missing, error out just in
 		// case
 		return fmt.Errorf("missing backup file")

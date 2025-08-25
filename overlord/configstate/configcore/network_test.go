@@ -75,7 +75,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(s.mockNetworkSysctlPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockNetworkSysctlPath), Equals, false)
 	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
 		{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=0"},
 	})
@@ -101,7 +101,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
 
 	// the file is not there and was not there before, nothing changed
 	// and no sysctl call is generated
-	c.Check(osutil.FileExists(s.mockNetworkSysctlPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockNetworkSysctlPath), Equals, false)
 	c.Check(s.mockSysctl.Calls(), HasLen, 0)
 }
 

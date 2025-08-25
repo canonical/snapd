@@ -38,7 +38,7 @@ func mountNsPath(snapName string) string {
 // Run an internal tool on a given snap namespace, if one exists.
 func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
-	if osutil.FileExists(mntFile) {
+	if osutil.CanStat(mntFile) {
 		toolPath, err := snapdtool.InternalToolPath(toolName)
 		if err != nil {
 			return nil, err

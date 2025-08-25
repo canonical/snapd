@@ -67,7 +67,7 @@ func checkChroot(preseedChroot string) error {
 		return fmt.Errorf("cannot verify %q: is not a directory", preseedChroot)
 	}
 
-	if osutil.FileExists(filepath.Join(preseedChroot, dirs.SnapStateFile)) {
+	if osutil.CanStat(filepath.Join(preseedChroot, dirs.SnapStateFile)) {
 		return fmt.Errorf("the system at %q appears to be preseeded, pass --reset flag to clean it up", preseedChroot)
 	}
 
@@ -98,7 +98,7 @@ func checkChroot(preseedChroot string) error {
 	}
 
 	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
-	if exists := osutil.FileExists(path); !exists {
+	if exists := osutil.CanStat(path); !exists {
 		return fmt.Errorf("cannot preseed without access to %q", path)
 	}
 
@@ -551,7 +551,7 @@ func prepareClassicChroot(preseedChroot string, reset bool) (*targetSnapdInfo, f
 
 	// The best would have been to check if /proc is a mountpoint.
 	// But we would need /proc/self/mountinfo for that.
-	if !osutil.FileExists(filepath.Join(rootDir, "/proc/self/cmdline")) {
+	if !osutil.CanStat(filepath.Join(rootDir, "/proc/self/cmdline")) {
 		cmd := exec.Command("mount", "-t", "proc", "none", filepath.Join(rootDir, "/proc"))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return nil, nil, fmt.Errorf("Cannot mount proc and /proc is not available: %s\nOutput: %s", err, out)
@@ -565,7 +565,7 @@ func prepareClassicChroot(preseedChroot string, reset bool) (*targetSnapdInfo, f
 	}
 
 	// We need loop devices to work to be able to mount the snap.
-	if !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
+	if !osutil.CanStat(filepath.Join(rootDir, "/dev/loop-control")) {
 		cmd := exec.Command("mount", "-t", "devtmpfs", "none", filepath.Join(rootDir, "/dev"))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available: %s\nOutput: %s", err, out)

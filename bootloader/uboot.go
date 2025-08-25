@@ -153,7 +153,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 }
 
 func (u *uboot) Present() (bool, error) {
-	return osutil.FileExists(u.envFile()), nil
+	return osutil.CanStat(u.envFile()), nil
 }
 
 func (u *uboot) envFile() string {

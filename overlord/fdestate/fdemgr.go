@@ -273,11 +273,11 @@ func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, e
 		} else {
 			legacyKeys := make(map[string]string)
 			defaultPath := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
-			if osutil.FileExists(defaultPath) {
+			if osutil.CanStat(defaultPath) {
 				legacyKeys["default"] = defaultPath
 			}
 			defaultFallbackPath := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-			if osutil.FileExists(defaultFallbackPath) {
+			if osutil.CanStat(defaultFallbackPath) {
 				legacyKeys["default-fallback"] = defaultFallbackPath
 			}
 
@@ -295,9 +295,9 @@ func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, e
 		legacyKeys := make(map[string]string)
 		defaultFactoryResetFallbackPath := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 		defaultFallbackPath := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-		if osutil.FileExists(defaultFactoryResetFallbackPath) {
+		if osutil.CanStat(defaultFactoryResetFallbackPath) {
 			legacyKeys["default-fallback"] = defaultFactoryResetFallbackPath
-		} else if osutil.FileExists(defaultFallbackPath) {
+		} else if osutil.CanStat(defaultFallbackPath) {
 			legacyKeys["default-fallback"] = defaultFallbackPath
 		}
 		foundDisks = append(foundDisks, &encryptedContainer{uuid: uuid, containerRole: "system-save", legacyKeys: legacyKeys})

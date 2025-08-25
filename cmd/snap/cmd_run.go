@@ -592,7 +592,7 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// - Or, A refresh was started and finished
 	// Let's retry to avoid either existing with an error due to missing current
 	// symlink or worse starting with the wrong revision.
-	if osutil.FileExists(runinhibit.HintFile(snapName)) {
+	if osutil.CanStat(runinhibit.HintFile(snapName)) {
 		// errSnapRefreshConflict should trigger a retry
 		return errSnapRefreshConflict
 	}
@@ -799,12 +799,12 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// If our target directory (XDG_RUNTIME_DIR) doesn't exist we
 	// don't attempt to create it.
 	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
-	if !osutil.FileExists(baseTargetDir) {
+	if !osutil.CanStat(baseTargetDir) {
 		return "", nil
 	}
 
 	xauthPath := osGetenv("XAUTHORITY")
-	if len(xauthPath) == 0 || !osutil.FileExists(xauthPath) {
+	if len(xauthPath) == 0 || !osutil.CanStat(xauthPath) {
 		// Nothing to do for us. Most likely running outside of any
 		// graphical X11 session.
 		return "", nil
@@ -873,7 +873,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	// This is ok to do here because we aren't trying to protect against
 	// the user changing the Xauthority file in XDG_RUNTIME_DIR outside
 	// of snapd.
-	if osutil.FileExists(targetPath) {
+	if osutil.CanStat(targetPath) {
 		var fout *os.File
 		if fout, err = os.Open(targetPath); err != nil {
 			return "", err
@@ -981,7 +981,7 @@ func activateXdgDocumentPortal(runner runnable) error {
 	}
 
 	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".portals-unavailable")
-	if osutil.FileExists(portalsUnavailableFile) {
+	if osutil.CanStat(portalsUnavailableFile) {
 		return nil
 	}
 
@@ -1379,7 +1379,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	if err != nil {
 		return err
 	}
-	if !osutil.FileExists(snapConfine) {
+	if !osutil.CanStat(snapConfine) {
 		if runner.IsHook() {
 			logger.Noticef("WARNING: skipping running hook %q of %q: missing snap-confine", runner.Hook().Name, runner.Target())
 			return nil

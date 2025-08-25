@@ -300,8 +300,8 @@ version: 1.0
 	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
-	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+	c.Check(osutil.CanStat(currentActiveSymlink), Equals, false)
+	c.Check(osutil.CanStat(currentDataSymlink), Equals, false)
 
 }
 
@@ -347,8 +347,8 @@ version: 1.0
 		}, progress.Null)
 		c.Assert(err, IsNil)
 
-		c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
-		c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+		c.Check(osutil.CanStat(currentActiveSymlink), Equals, false)
+		c.Check(osutil.CanStat(currentDataSymlink), Equals, false)
 
 		fi, err = os.Stat(snap.BaseDir("hello"))
 		c.Assert(err, IsNil)
@@ -530,8 +530,8 @@ apps:
 	// no symlinks
 	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
 	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
-	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
-	c.Check(osutil.FileExists(currentDataSymlink), Equals, false)
+	c.Check(osutil.CanStat(currentActiveSymlink), Equals, false)
+	c.Check(osutil.CanStat(currentDataSymlink), Equals, false)
 
 	// no inhibition lock
 	c.Check(filepath.Join(runinhibit.InhibitDir, "hello.lock"), testutil.FileAbsent)

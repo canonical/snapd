@@ -975,7 +975,7 @@ func (s *runnerSuite) testNext(c *C, redirectFirst bool) {
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 	c.Check(rpr.RepairID(), Equals, 1)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapRepairAssertsDir, "canonical", "1", "r0.repair")), Equals, true)
 
 	rpr, err = runner.Next("canonical")
 	c.Assert(err, IsNil)
@@ -2142,7 +2142,7 @@ func (s *shared1620RunnerSuite) TestTLSTime(c *C) {
 func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	// validity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions
 	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r()
@@ -2154,7 +2154,7 @@ func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	runner := repair.NewRunner()
 	err := runner.LoadState()
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, true)
+	c.Check(osutil.CanStat(dirs.SnapRepairStateFile), Equals, true)
 
 	brand, model := runner.BrandModel()
 	c.Check(brand, Equals, "my-brand")
@@ -2211,7 +2211,7 @@ func (s *runner16Suite) rmSeedAssert16(c *C, fname string) {
 func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
 	// validity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions
 	r := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r()

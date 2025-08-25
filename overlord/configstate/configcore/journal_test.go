@@ -91,7 +91,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
@@ -110,7 +110,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
@@ -131,7 +131,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 	c.Check(exists, Equals, true)
 
 	// marker was not created
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, false)
 }
 
 func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) {

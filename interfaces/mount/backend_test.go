@@ -108,9 +108,9 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = s.Backend.Remove("hello-world")
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
-	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
-	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
+	c.Assert(osutil.CanStat(snapCanaryToGo), Equals, false)
+	c.Assert(osutil.CanStat(appCanaryToGo), Equals, false)
+	c.Assert(osutil.CanStat(hookCanaryToGo), Equals, false)
 	c.Assert(appCanaryToStay, testutil.FileEquals, "stay!")
 	c.Assert(snapCanaryToStay, testutil.FileEquals, "stay!")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "hello-world"}})

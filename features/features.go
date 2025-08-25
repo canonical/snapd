@@ -244,7 +244,7 @@ func (f SnapdFeature) IsEnabled() bool {
 
 	// TODO: this returns false on errors != ErrNotExist.
 	// Consider using os.Stat and handling other errors
-	return osutil.FileExists(f.ControlFile())
+	return osutil.CanStat(f.ControlFile())
 }
 
 type confGetter interface {

@@ -478,7 +478,7 @@ func (s *ubootSuite) forceUbootBootloader(c *C) {
 	s.forceBootloader(bloader)
 
 	fn := filepath.Join(s.bootdir, "/uboot/uboot.env")
-	c.Assert(osutil.FileExists(fn), Equals, true)
+	c.Assert(osutil.CanStat(fn), Equals, true)
 }
 
 // forceUbootBootloader sets up a uboot bootloader, in the uc20 style where we
@@ -508,7 +508,7 @@ func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
 	// at "/uboot/ubuntu" as "/boot/uboot/"
 
 	fn := filepath.Join(dirs.GlobalRootDir, "/uboot/ubuntu/boot.sel")
-	c.Assert(osutil.FileExists(fn), Equals, true)
+	c.Assert(osutil.CanStat(fn), Equals, true)
 
 	targetFile := filepath.Join(s.bootdir, "uboot", "boot.sel")
 	err = os.MkdirAll(filepath.Dir(targetFile), 0755)
@@ -581,7 +581,7 @@ func (s *ubootSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 		// remove
 		err = bp.RemoveKernelAssets()
 		c.Assert(err, IsNil)
-		c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+		c.Check(osutil.CanStat(kernelAssetsDir), Equals, false)
 
 		// it's idempotent
 		err = bp.RemoveKernelAssets()
@@ -622,7 +622,7 @@ func (s *grubSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	s.forceBootloader(bloader)
 
 	fn := filepath.Join(s.bootdir, "/grub/grub.cfg")
-	c.Assert(osutil.FileExists(fn), Equals, true)
+	c.Assert(osutil.CanStat(fn), Equals, true)
 	return bloader
 }
 
@@ -649,7 +649,7 @@ func (s *grubSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 
 	// kernel is *not* here
 	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
-	c.Assert(osutil.FileExists(kernimg), Equals, false)
+	c.Assert(osutil.CanStat(kernimg), Equals, false)
 
 	// it's idempotent
 	err = bp.ExtractKernelAssets(snapf)
@@ -680,10 +680,10 @@ func (s *grubSuite) TestExtractKernelForceWorks(c *C) {
 
 	// kernel is extracted
 	kernimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/kernel.img")
-	c.Assert(osutil.FileExists(kernimg), Equals, true)
+	c.Assert(osutil.CanStat(kernimg), Equals, true)
 	// initrd
 	initrdimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/initrd.img")
-	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+	c.Assert(osutil.CanStat(initrdimg), Equals, true)
 
 	// it's idempotent
 	err = bp.ExtractKernelAssets(snapf)

@@ -227,7 +227,7 @@ func (s *seed16) loadYaml() error {
 	}
 
 	seedYamlFile := filepath.Join(s.seedDir, "seed.yaml")
-	if !osutil.FileExists(seedYamlFile) {
+	if !osutil.CanStat(seedYamlFile) {
 		return ErrNoMeta
 	}
 

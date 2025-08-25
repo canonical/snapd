@@ -128,7 +128,7 @@ var (
 
 func stampedAction(stamp string, action func() error) error {
 	stampFile := filepath.Join(dirs.SnapBootstrapRunDir, stamp)
-	if osutil.FileExists(stampFile) {
+	if osutil.CanStat(stampFile) {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(stampFile), 0755); err != nil {
@@ -244,14 +244,14 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
 
 	// If kernel has fde-setup hook, then we should also have fde-setup in initramfs
 	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")
-	kernelHasFdeSetup := osutil.FileExists(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
+	kernelHasFdeSetup := osutil.CanStat(filepath.Join(kernelPath, "meta", "hooks", "fde-setup"))
 	_, fdeSetupErr := exec.LookPath("fde-setup")
 	if kernelHasFdeSetup && fdeSetupErr != nil {
 		return false, nil
 	}
 
 	gadgetPath := filepath.Join(boot.InitramfsRunMntDir, "gadget")
-	if osutil.FileExists(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
+	if osutil.CanStat(filepath.Join(gadgetPath, "meta", "hooks", "install-device")) {
 		return false, nil
 	}
 
@@ -1783,7 +1783,7 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 // waitFile waits for the given file/device-node/directory to appear.
 var waitFile = func(path string, wait time.Duration, n int) error {
 	for i := 0; i < n; i++ {
-		if osutil.FileExists(path) {
+		if osutil.CanStat(path) {
 			return nil
 		}
 		time.Sleep(wait)
@@ -1794,7 +1794,7 @@ var waitFile = func(path string, wait time.Duration, n int) error {
 
 // TODO: those have to be waited by udev instead
 func waitForDevice(path string) error {
-	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, path)) {
+	if !osutil.CanStat(filepath.Join(dirs.GlobalRootDir, path)) {
 		pollWait := 50 * time.Millisecond
 		pollIterations := 1200
 		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, path)
@@ -1886,7 +1886,7 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
 	var partSrc string
 
-	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
+	if osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
 		disk, err := disks.DiskFromDeviceName("/dev/disk/snapd/disk")
 		if err != nil {
 			return err
@@ -2134,7 +2134,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 	if encrypted {
 		saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(rootdir))
 		// if ubuntu-save exists and is encrypted, the key has been created during install
-		if !osutil.FileExists(saveKey) {
+		if !osutil.CanStat(saveKey) {
 			// ubuntu-data is encrypted, but we appear to be missing
 			// a key to open ubuntu-save
 			return false, unlockRes, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
@@ -2673,7 +2673,7 @@ func setupSeedSnapdSnap(rootfsDir string, snapdSeedSnap *seed.Snap) error {
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {
 	// check that writable is accessible by checking whether the
 	// state file exists
-	if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir(model))) {
+	if !osutil.CanStat(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir(model))) {
 		return fmt.Errorf("host state file is not accessible")
 	}
 	return nil

@@ -219,9 +219,9 @@ ShutdownWatchdogSec=20
 	c.Assert(err, IsNil)
 
 	// ensure the file got deleted
-	c.Check(osutil.FileExists(s.mockEtcEnvironment), Equals, false)
+	c.Check(osutil.CanStat(s.mockEtcEnvironment), Equals, false)
 	// but the canary is still here
-	c.Check(osutil.FileExists(canary), Equals, true)
+	c.Check(osutil.CanStat(canary), Equals, true)
 
 	// apply defaults
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{

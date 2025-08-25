@@ -97,7 +97,7 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 // dataEntries to the dstPath. Note that srcStatePath should never
 // point to a state that is in use.
 func CopyState(srcStatePath, dstStatePath string, dataEntries []string) error {
-	if osutil.FileExists(dstStatePath) {
+	if osutil.CanStat(dstStatePath) {
 		// XXX: TOCTOU - look into moving this check into
 		// checkpointOnlyBackend. The issue is right now State
 		// will simply panic if Commit() returns an error

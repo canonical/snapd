@@ -69,7 +69,7 @@ func (s *PolkitAgentSuite) TestName(c *C) {
 func (s *PolkitAgentSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Check(si.ImplicitOnClassic, Equals, false)
-	c.Check(si.ImplicitOnCore, Equals, osutil.FileExists("/usr/libexec/polkit-agent-helper-1") || osutil.FileExists("/usr/lib/polkit-1/polkit-agent-helper-1"))
+	c.Check(si.ImplicitOnCore, Equals, osutil.CanStat("/usr/libexec/polkit-agent-helper-1") || osutil.CanStat("/usr/lib/polkit-1/polkit-agent-helper-1"))
 }
 
 func (s *PolkitAgentSuite) TestAppArmor(c *C) {

@@ -109,7 +109,7 @@ func (s *cmdSuite) TestExecHappy(c *check.C) {
 
 	s.waitfor(chg)
 
-	c.Check(osutil.FileExists(fn), check.Equals, true)
+	c.Check(osutil.CanStat(fn), check.Equals, true)
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 }
 
@@ -129,7 +129,7 @@ func (s *cmdSuite) TestExecIgnore(c *check.C) {
 	s.waitfor(chg)
 
 	// file not created
-	c.Check(osutil.FileExists(fn), check.Equals, false)
+	c.Check(osutil.CanStat(fn), check.Equals, false)
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 
 	c.Check(strings.Join(ts.Tasks()[0].Log(), ""), check.Matches, `.*task ignored`)

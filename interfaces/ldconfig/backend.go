@@ -149,7 +149,7 @@ func (b *Backend) setupLdconfigCache(spec *Specification) error {
 		} else {
 			runLdconfig = true
 		}
-	} else if osutil.FileExists(ldconfigPath) {
+	} else if osutil.CanStat(ldconfigPath) {
 		// All lib dirs have been removed, remove the file and run ldconfig
 		if err := os.Remove(ldconfigPath); err != nil {
 			return err

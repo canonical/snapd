@@ -74,7 +74,7 @@ func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
 		// TODO: this is also racy but the content of the
 		// files in core and snapd is identical.  Cleanup
 		// after link-snap and setup-profiles are unified
-		return !osutil.FileExists(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))
+		return !osutil.CanStat(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))
 	case snap.TypeSnapd:
 		return true
 	default:
@@ -101,8 +101,8 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 
 		// we only need the GlobalRootDir for testing
 		dst = filepath.Join(dirs.GlobalRootDir, dst)
-		if !osutil.FileExists(src) {
-			if osutil.FileExists(dst) {
+		if !osutil.CanStat(src) {
+			if osutil.CanStat(dst) {
 				if err := os.Remove(dst); err != nil {
 					return err
 				}

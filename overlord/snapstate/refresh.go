@@ -112,7 +112,7 @@ func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefres
 	for _, appName := range err.busyAppNames {
 		if app, ok := err.SnapInfo.Apps[appName]; ok {
 			path := app.DesktopFile()
-			if osutil.FileExists(path) {
+			if osutil.CanStat(path) {
 				refreshInfo.BusyAppName = appName
 				refreshInfo.BusyAppDesktopEntry = strings.SplitN(filepath.Base(path), ".", 2)[0]
 				break

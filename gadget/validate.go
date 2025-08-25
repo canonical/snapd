@@ -409,7 +409,7 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *Volume) error
 				continue
 			}
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
-			if !osutil.FileExists(realSource) {
+			if !osutil.CanStat(realSource) {
 				return fmt.Errorf("structure #%d (%q), content %v: source path does not exist", s.YamlIndex, s.Name, c)
 			}
 			if strings.HasSuffix(c.UnresolvedSource, "/") {
