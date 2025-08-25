@@ -13,8 +13,7 @@ details: |
 systems:
     - ubuntu-core-16-64
     - ubuntu-core-18-64
-    - ubuntu-core-20-64
-    - ubuntu-core-22-64
+    - ubuntu-core-2*-64
 
 kill-timeout: 5m
 

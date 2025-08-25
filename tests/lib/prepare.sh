@@ -634,6 +634,8 @@ build_snapd_snap() {
     local snapd_snap_cache
     TARGET="${1}"
 
+    [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+
     snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
     mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
@@ -657,7 +659,6 @@ build_snapd_snap() {
                         exit 1
                         ;;
                 esac
-                [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
                 touch "${PROJECT_PATH}"/test-build
                 chmod -R go+r "${PROJECT_PATH}/tests"
                 # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
@@ -667,7 +668,55 @@ build_snapd_snap() {
         fi
         break
     done
+    cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
+}
 
+build_snapd_snap_with_tweaks() {
+    local TARGET
+    local snapd_snap_cache
+    local UNPACK_DIR
+    
+    TARGET="${1}"
+    
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
+    mkdir -p "${snapd_snap_cache}"
+    for snap in "${snapd_snap_cache}"/snapd_*.snap; do
+        if [ -f "${snap}" ]; then
+            cp "${snap}" "${TARGET}/"
+            return
+        fi
+    done
+
+    if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+        if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
+            wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
+        else
+            cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+        fi
+    else
+        touch "${PROJECT_PATH}"/test-build
+        chmod -R go+r "${PROJECT_PATH}/tests"
+        run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
+        mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
+    fi
+
+    UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
+
+    # add gpio and iio slots required for the tests
+    cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
+
+    snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
+    rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
 }
 
@@ -698,8 +747,8 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
         mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
     fi
 
-    # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
+
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
@@ -772,6 +821,18 @@ fi
 touch /root/spread-setup-done
 EOF
     chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+
+    # add gpio and iio slots required for the tests
+    cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
 
     mkdir -p "${snapd_snap_cache}"
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
@@ -1337,7 +1398,7 @@ setup_reflash_magic() {
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
     if is_test_target_core 18; then
-        build_snapd_snap "${IMAGE_HOME}"
+        build_snapd_snap_with_tweaks "${IMAGE_HOME}"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
     elif is_test_target_core 20; then
