@@ -791,8 +791,6 @@ restore_suite() {
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
-        # On Tumbleweed, removing the package doesn't stop the snapd units so ensure they are stopped
-        systemctl stop snapd.socket snapd.service || true
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch
             distro_purge_package snap-confine
