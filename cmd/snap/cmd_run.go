@@ -1370,6 +1370,8 @@ func makeStdStreamsForJournal(app *snap.AppInfo, namespace string) (stdout, stde
 }
 
 func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec func() error, args []string) error {
+	needsClassic := info.NeedsClassic()
+
 	// check for programmer error, should never happen
 	if err := runner.Validate(); err != nil {
 		return err
@@ -1403,9 +1405,15 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	krb5ccnamePath, err := exposeKerberosTickets(info)
-	if err != nil {
-		logger.Noticef("WARNING: will not expose Kerberos tickets' path: %s", err)
+	// For strictly confined snaps, Kerberos tickets stored in /tmp are exposed
+	// through /var/lib/snapd/hostfs. Snaps running under classic confinement
+	// can access /tmp without any additional help.
+	var krb5ccnamePath string
+	if !needsClassic {
+		krb5ccnamePath, err = exposeKerberosTickets(info)
+		if err != nil {
+			logger.Noticef("WARNING: will not expose Kerberos tickets' path: %s", err)
+		}
 	}
 
 	if err := activateXdgDocumentPortal(runner); err != nil {
@@ -1413,7 +1421,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	}
 
 	cmd := []string{snapConfine}
-	if info.NeedsClassic() {
+	if needsClassic {
 		cmd = append(cmd, "--classic")
 	}
 
@@ -1447,7 +1455,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	// when under confinement, snap-exec is run from 'core' snap rootfs
 	snapExecPath := filepath.Join(dirs.CoreLibExecDir, "snap-exec")
 
-	if info.NeedsClassic() {
+	if needsClassic {
 		// running with classic confinement, carefully pick snap-exec we
 		// are going to use
 		snapExecPath, err = snapdHelperPath("snap-exec")
@@ -1492,6 +1500,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		env["XAUTHORITY"] = xauthPath
 	}
 
+	// We have a new location for the ticket, update the environment variable.
 	if len(krb5ccnamePath) > 0 {
 		env["KRB5CCNAME"] = krb5ccnamePath
 	}
@@ -1502,7 +1511,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		for varName, value := range extra {
 			env[varName] = value
 		}
-		if !info.NeedsClassic() {
+		if !needsClassic {
 			return env.ForExec()
 		}
 		// For a classic snap, environment variables that are
