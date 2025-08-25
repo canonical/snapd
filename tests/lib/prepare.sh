@@ -634,14 +634,17 @@ build_snapd_snap() {
     local snapd_snap_cache
     TARGET="${1}"
 
+    [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
+
     snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
+    mkdir -p "${snapd_snap_cache}"
     for snap in "${snapd_snap_cache}"/snapd_*.snap; do
         if ! [ -f "${snap}" ]; then
             if [ "${USE_PREBUILT_SNAPD_SNAP}" = true ]; then
                 if [ -n "${USE_SNAPD_SNAP_URL}" ]; then
-                    wget -q "$USE_SNAPD_SNAP_URL" -O /tmp/snapd_from_snapcraft.snap
+                    wget -q "$USE_SNAPD_SNAP_URL" -O "${snapd_snap_cache}/snapd_from_ci.snap"
                 else
-                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
+                    cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
                 fi
             else
                 # This is not reliable across classic releases so only allow on
@@ -656,21 +659,31 @@ build_snapd_snap() {
                         exit 1
                         ;;
                 esac
-                [ -d "${TARGET}" ] || mkdir -p "${TARGET}"
                 touch "${PROJECT_PATH}"/test-build
                 chmod -R go+r "${PROJECT_PATH}/tests"
                 # TODO: run_snapcraft does not currently guarantee or check the required version for building snapd
                 run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
-                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "/tmp/snapd_from_snapcraft.snap"
+                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
             fi
         fi
         break
     done
+    cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
+}
+
+build_snapd_snap_with_tweaks() {
+    local TARGET
+    local snapd_snap_cache
+    local UNPACK_DIR
+    
+    TARGET="${1}"
+    snapd_snap_cache="$SNAPD_WORK_DIR/snapd_snap"
+    
+    build_snapd_snap "${snapd_snap_cache}/tmp"
 
     # TODO set up a trap to clean this up properly?
-    local UNPACK_DIR
     UNPACK_DIR="$(mktemp -d /tmp/snapd-unpack.XXXXXXXX)"
-    unsquashfs -no-progress -f -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" "${snapd_snap_cache}/tmp/snapd_*.snap"
 
     # add gpio and iio slots required for the tests
     cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
@@ -684,7 +697,6 @@ slots:
         path: /dev/iio:device0
 EOF
 
-    mkdir -p "${snapd_snap_cache}"
     snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
     rm -rf "$UNPACK_DIR"
     cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
@@ -1368,7 +1380,7 @@ setup_reflash_magic() {
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
     if is_test_target_core 18; then
-        build_snapd_snap "${IMAGE_HOME}"
+        build_snapd_snap_with_tweaks "${IMAGE_HOME}"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
     elif is_test_target_core 20; then
