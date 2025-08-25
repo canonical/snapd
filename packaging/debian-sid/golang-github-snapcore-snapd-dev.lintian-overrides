@@ -1,0 +1,5 @@
+# Directories used by Go tests.
+golang-github-snapcore-snapd-dev: package-contains-vcs-control-file [usr/share/gocode/src/github.com/snapcore/snapd/cmd/snap-update-ns/testdata/opt-foo-bar/.gitignore]
+golang-github-snapcore-snapd-dev: package-contains-vcs-control-file [usr/share/gocode/src/github.com/snapcore/snapd/cmd/snap-update-ns/testdata/opt-foo/.gitignore]
+golang-github-snapcore-snapd-dev: package-contains-vcs-control-file [usr/share/gocode/src/github.com/snapcore/snapd/cmd/snap-update-ns/testdata/opt/.gitignore]
+golang-github-snapcore-snapd-dev: package-contains-vcs-control-file [usr/share/gocode/src/github.com/snapcore/snapd/cmd/snap-update-ns/testdata/usr-share-secureboot-potato/.gitignore]

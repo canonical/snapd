@@ -2,7 +2,7 @@
 
 set -ex
 
-# required for the debian adt host
+# Autopkgtest may run in a special network where using the http proxy is mandatory.
 mkdir -p /etc/systemd/system/snapd.service.d/
 if [ "${http_proxy:-}" != "" ]; then
     cat <<EOF | tee /etc/systemd/system/snapd.service.d/proxy.conf
@@ -10,23 +10,20 @@ if [ "${http_proxy:-}" != "" ]; then
 Environment=http_proxy=$http_proxy
 Environment=https_proxy=$http_proxy
 EOF
-
-    # ensure environment is updated
     echo "http_proxy=$http_proxy" >> /etc/environment
     echo "https_proxy=$http_proxy" >> /etc/environment
 fi
+
 systemctl daemon-reload
 
-# ensure we are not get killed too easily
+# Ensure we are not getting killed too easily.
 printf '%s\n' "-950" > /proc/$$/oom_score_adj
 
-# see what mem we have (for debugging)
+echo "Memory information (for debugging)"
 cat /proc/meminfo
 
-# ensure we can do a connect to localhost
-echo "${AUTOPKGTEST_NORMAL_USER}":"${AUTOPKGTEST_NORMAL_USER}" | chpasswd
-sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
-systemctl reload ssh.service
+echo "Snapd version (for debugging)"
+snap version
 
 # Map snapd deb package pockets to core snap channels. This is intended to cope
 # with the autopkgtest execution when testing packages from the different pockets
@@ -36,16 +33,32 @@ elif apt -qq list snapd | grep -q -- -updates; then
     export SPREAD_CORE_CHANNEL=stable
 fi
 
-# Spread will only buid with recent go
-snap install --classic go
+# Spread requires password authentication to connect.
+echo "${AUTOPKGTEST_NORMAL_USER}":"${AUTOPKGTEST_NORMAL_USER}" | chpasswd
+sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+systemctl reload ssh.service
 
-# and now run spread against localhost
-# shellcheck disable=SC1091
-. /etc/os-release
-export GOPATH=/tmp/go
-/snap/bin/go install github.com/snapcore/spread/cmd/spread@latest
-/tmp/go/bin/spread -v "autopkgtest:${ID:-linux}-${VERSION_ID:-sid}-$(dpkg --print-architecture)":tests/smoke/
+# Build and run spread against the special autopkgtest backend, which connects
+# back to localhost and runs the test locally on the same machine.
+GOPATH=/tmp/go go install github.com/snapcore/spread/cmd/spread@latest
+# Debian CI/CD should focus if the newly built debian package can work with the upstream snapd
+# released in the snap store, as that is the realistic mode of operation. Here we cheat by telling
+# the test suite that snapp from the store is the snapd that was "built" for CI, which is not true.
+(
+	mkdir -p built-snap
+	cd built-snap
+	snap download snapd
+	mv snapd_*.snap snapd_1337.foo.snap.keep
+)
+(
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	# SPREAD_DEBUG_EACH=0 disables noisy logs on each failure
+	# SPREAD_REUSE_SNAPD=1 causes snapd from the distribution to be used
+	# SPREAD_USE_PREBUILT_SNAPD_SNAP=true prevents building snapd with snapcraft in LXD.
+	SPREAD_DEBUG_EACH=0 SPREAD_REUSE_SNAPD=1 SPREAD_USE_PREBUILT_SNAPD_SNAP=true /tmp/go/bin/spread -v "autopkgtest:${ID:-linux}-${VERSION_ID:-sid}-$(dpkg --print-architecture)":tests/smoke/
+)
 
-# store journal info for inspectsion
+# Store journal info for inspectsion
 journalctl --sync
 journalctl -ab > "$ADT_ARTIFACTS"/journal.txt
