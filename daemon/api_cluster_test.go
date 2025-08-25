@@ -168,9 +168,15 @@ func (s *clusterSuite) TestPostCommitClusterAssertion(c *check.C) {
 	cluster, err := signing.Sign(asserts.ClusterType, headers, nil, "")
 	c.Assert(err, check.IsNil)
 
-	encoded := asserts.Encode(cluster)
+	// add the cluster assertion to the database first (simulating /v2/assertions flow)
+	st.Lock()
+	err = assertstate.Add(st, cluster)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// now commit using just the cluster ID
 	body, err := json.Marshal(map[string]any{
-		"assertion": string(encoded),
+		"cluster-id": "bf3675f5-cffa-40f4-a119-7492ccc08e04",
 	})
 	c.Assert(err, check.IsNil)
 

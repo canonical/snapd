@@ -20,6 +20,7 @@
 package clusterstate
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
@@ -29,6 +30,8 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -209,34 +212,97 @@ func GetUncommittedClusterHeaders(st *state.State) (map[string]any, error) {
 	return map[string]any{
 		"type":        "cluster",
 		"cluster-id":  uncommitted.ClusterID,
-		"sequence":    "1",
+		"sequence":    "1", // TODO: handle sequences properly
 		"devices":     devices,
 		"subclusters": subclusters,
 		"timestamp":   uncommitted.CompletedAt.Format(time.RFC3339),
 	}, nil
 }
 
-// CommitClusterAssertion validates and adds a signed cluster assertion, then
-// clears the uncommitted state.
-func CommitClusterAssertion(st *state.State, cluster *asserts.Cluster) error {
+// CommitClusterAssertion validates that a cluster assertion exists in the database
+// and clears the uncommitted state if the cluster IDs match.
+func CommitClusterAssertion(st *state.State, clusterID string) error {
 	var uncommitted UncommittedClusterState
 	if err := st.Get("uncommitted-cluster-state", &uncommitted); err != nil {
 		return err
 	}
 
-	// TODO: this makes sense when we're commiting from our internal knowledge
-	// of the cluster, but maybe doesn't make sense when importing the cluster
-	// state from somewhere else
-	if cluster.ClusterID() != uncommitted.ClusterID {
-		return fmt.Errorf("cluster ID mismatch: expected %s, got %s", uncommitted.ClusterID, cluster.ClusterID())
+	// verify the cluster ID matches the uncommitted state
+	if clusterID != uncommitted.ClusterID {
+		return fmt.Errorf("cluster ID mismatch: expected %s, got %s", uncommitted.ClusterID, clusterID)
 	}
 
-	// TODO: probably not enough to just add to the DB, but good enough for now
-	if err := assertstate.Add(st, cluster); err != nil {
-		return fmt.Errorf("cannot add cluster assertion: %v", err)
+	// verify the cluster assertion exists in the database
+	db := assertstate.DB(st)
+
+	as, err := db.Find(asserts.ClusterType, map[string]string{
+		"cluster-id": clusterID,
+		"sequence":   "1", // TODO: handle sequences properly
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find cluster assertion: %v", err)
 	}
 
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	// encode the cluster assertion itself
+	if err := enc.Encode(as); err != nil {
+		return err
+	}
+
+	// fetch and encode the account-key assertion
+	ak, err := db.Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": as.SignKeyID(),
+	})
+	if err != nil {
+		return fmt.Errorf("cannot find account-key for signing key: %v", err)
+	}
+
+	if err := enc.Encode(ak); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll("/tmp/snapd-clusterdb", 0755); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644); err != nil {
+		return err
+	}
+
+	cluster, ok := as.(*asserts.Cluster)
+	if !ok {
+		return fmt.Errorf("internal error: invalid assertion type: %T", as)
+	}
+
+	// TODO: this is a super temporary standin for our actual distributed
+	// database solution
+	for _, dev := range cluster.Devices() {
+		for _, addr := range dev.Addresses {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				return err
+			}
+
+			res, err := http.Post(fmt.Sprintf("http://%s:7070", host), "text/plain", bytes.NewReader(buf.Bytes()))
+			if err != nil {
+				return err
+			}
+
+			if err := res.Body.Close(); err != nil {
+				return fmt.Errorf("cannot close body: %w", err)
+			}
+
+			if res.StatusCode != 200 {
+				return fmt.Errorf("non-200 status code from peer: %d", res.StatusCode)
+			}
+		}
+	}
+
+	// clear the uncommitted state
 	st.Set("uncommitted-cluster-state", nil)
+
 	return nil
 }
 

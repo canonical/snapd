@@ -24,7 +24,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/clusterstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -55,7 +54,7 @@ func getClusterUncommitted(c *Command, r *http.Request, user *auth.UserState) Re
 }
 
 type clusterCommitRequest struct {
-	Assertion string `json:"assertion"`
+	ClusterID string `json:"cluster-id"`
 }
 
 func postClusterUncommitted(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -64,25 +63,15 @@ func postClusterUncommitted(c *Command, r *http.Request, user *auth.UserState) R
 		return BadRequest("cannot decode request body: %v", err)
 	}
 
-	if req.Assertion == "" {
-		return BadRequest("assertion is required")
-	}
-
-	assertion, err := asserts.Decode([]byte(req.Assertion))
-	if err != nil {
-		return BadRequest("cannot decode assertion: %v", err)
-	}
-
-	cluster, ok := assertion.(*asserts.Cluster)
-	if !ok {
-		return BadRequest("assertion must be a cluster assertion")
+	if req.ClusterID == "" {
+		return BadRequest("cluster-id is required")
 	}
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	if err := clusterstate.CommitClusterAssertion(st, cluster); err != nil {
+	if err := clusterstate.CommitClusterAssertion(st, req.ClusterID); err != nil {
 		return InternalError("cannot commit cluster assertion: %v", err)
 	}
 

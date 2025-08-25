@@ -390,7 +390,12 @@ func (s *clusterStateSuite) TestCommitClusterAssertion(c *check.C) {
 	cluster, err := signingDB.Sign(asserts.ClusterType, headers, nil, "")
 	c.Assert(err, check.IsNil)
 
-	err = clusterstate.CommitClusterAssertion(st, cluster.(*asserts.Cluster))
+	// add the cluster assertion to the database first
+	err = db.Add(cluster)
+	c.Assert(err, check.IsNil)
+
+	// commit using just the cluster ID
+	err = clusterstate.CommitClusterAssertion(st, "test-cluster-id")
 	c.Assert(err, check.IsNil)
 
 	retrieved, err := db.Find(asserts.ClusterType, map[string]string{
@@ -411,7 +416,7 @@ func (s *clusterStateSuite) TestCommitClusterAssertionNoUncommittedState(c *chec
 	st.Lock()
 	defer st.Unlock()
 
-	err := clusterstate.CommitClusterAssertion(st, &asserts.Cluster{})
+	err := clusterstate.CommitClusterAssertion(st, "some-cluster-id")
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
@@ -450,20 +455,34 @@ func (s *clusterStateSuite) TestCommitClusterAssertionClusterIDMismatch(c *check
 	}
 	st.Set("uncommitted-cluster-state", uncommitted)
 
-	// create cluster assertion with different cluster ID
-	headers := map[string]any{
-		"type":         "cluster",
-		"authority-id": account.AccountID(),
-		"cluster-id":   "different-cluster-id",
-		"sequence":     "1",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-
-	signingDB := assertstest.NewSigningDB(account.AccountID(), key)
-	cluster, err := signingDB.Sign(asserts.ClusterType, headers, nil, "")
-	c.Assert(err, check.IsNil)
-
 	// commit should fail with cluster ID mismatch
-	err = clusterstate.CommitClusterAssertion(st, cluster.(*asserts.Cluster))
+	err = clusterstate.CommitClusterAssertion(st, "different-cluster-id")
 	c.Check(err, check.ErrorMatches, "cluster ID mismatch: expected expected-cluster-id, got different-cluster-id")
+}
+
+func (s *clusterStateSuite) TestCommitClusterAssertionNotInDB(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	store := assertstest.NewStoreStack("canonical", nil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   store.Trusted,
+	})
+	c.Assert(err, check.IsNil)
+	assertstate.ReplaceDB(st, db)
+
+	// create uncommitted state
+	uncommitted := clusterstate.UncommittedClusterState{
+		ClusterID:   "test-cluster-id",
+		Devices:     []asserts.ClusterDevice{},
+		Subclusters: []asserts.ClusterSubcluster{},
+		CompletedAt: time.Now(),
+	}
+	st.Set("uncommitted-cluster-state", uncommitted)
+
+	// commit should fail because cluster assertion is not in database
+	err = clusterstate.CommitClusterAssertion(st, "test-cluster-id")
+	c.Check(err, check.ErrorMatches, "cluster assertion not found in database for cluster-id test-cluster-id")
 }

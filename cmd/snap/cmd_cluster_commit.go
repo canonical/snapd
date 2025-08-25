@@ -34,7 +34,6 @@ import (
 type cmdClusterCommit struct {
 	clientMixin
 	KeyName keyName `long:"key-name" required:"yes"`
-	Chain   bool    `long:"chain" default:"true"`
 }
 
 var shortClusterCommitHelp = i18n.G("Commit a signed cluster assertion")
@@ -56,8 +55,6 @@ func init() {
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"key-name": i18n.G("Name of the key to use for signing"),
-		// TRANSLATORS: This should not start with a lowercase letter.
-		"chain": i18n.G("Include the account and account-key assertions in the submission (default true)"),
 	}, nil)
 }
 
@@ -86,20 +83,13 @@ func (x *cmdClusterCommit) Execute(args []string) error {
 	}
 
 	// get account-key assertion if we need to build a chain
-	var accountKey *asserts.AccountKey
-	if x.Chain {
-		ak, accKeyErr := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
-		if accKeyErr != nil {
-			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), accKeyErr)
-		}
-		accountKey = ak.(*asserts.AccountKey)
-		headers["authority-id"] = accountKey.AccountID()
-	} else {
-		// add authority-id to headers (required for signing)
-		// the account-key assertion should already be acked, so we just need
-		// to set the authority-id to the key's account
-		headers["authority-id"] = privKey.PublicKey().ID()
+	as, err := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
 	}
+
+	ak := as.(*asserts.AccountKey)
+	headers["authority-id"] = ak.AccountID()
 
 	// convert headers to JSON for signing
 	statement, err := json.Marshal(headers)
@@ -110,59 +100,56 @@ func (x *cmdClusterCommit) Execute(args []string) error {
 	// sign the assertion
 	signOpts := signtool.Options{
 		KeyID:      privKey.PublicKey().ID(),
-		AccountKey: accountKey,
+		AccountKey: ak,
 		Statement:  statement,
 	}
 
-	encodedAssert, err := signtool.Sign(&signOpts, keypairMgr)
+	encoded, err := signtool.Sign(&signOpts, keypairMgr)
 	if err != nil {
 		return fmt.Errorf("cannot sign cluster assertion: %v", err)
 	}
 
 	// decode the signed assertion to get the cluster ID
-	decoded, err := asserts.Decode(encodedAssert)
+	decoded, err := asserts.Decode(encoded)
 	if err != nil {
 		return fmt.Errorf("cannot decode signed assertion: %v", err)
 	}
 
-	clusterAssert, ok := decoded.(*asserts.Cluster)
+	cluster, ok := decoded.(*asserts.Cluster)
 	if !ok {
 		return fmt.Errorf("internal error: signed assertion is not a cluster assertion")
 	}
 
 	// build the assertion stream to submit
-	assertBuf := bytes.NewBuffer(nil)
-	enc := asserts.NewEncoder(assertBuf)
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
 
 	// add the cluster assertion
-	if err := enc.WriteEncoded(encodedAssert); err != nil {
+	if err := enc.WriteEncoded(encoded); err != nil {
 		return fmt.Errorf("cannot encode cluster assertion: %v", err)
 	}
 
-	// add chain assertions if requested
-	if x.Chain {
-		// add account-key assertion
-		if err := enc.Encode(accountKey); err != nil {
-			return fmt.Errorf("cannot encode account-key assertion: %v", err)
-		}
+	// add account-key assertion
+	if err := enc.Encode(ak); err != nil {
+		return fmt.Errorf("cannot encode account-key assertion: %v", err)
+	}
 
-		// add account assertion
-		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.AccountID()})
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
-		}
-		if err := enc.Encode(account); err != nil {
-			return fmt.Errorf("cannot encode account assertion: %v", err)
-		}
+	// add account assertion
+	account, err := mustGetOneAssert("account", map[string]string{"account-id": ak.AccountID()})
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
+	}
+	if err := enc.Encode(account); err != nil {
+		return fmt.Errorf("cannot encode account assertion: %v", err)
 	}
 
 	// submit the assertion(s) to the system
-	if err := x.client.Ack(assertBuf.Bytes()); err != nil {
+	if err := x.client.Ack(buf.Bytes()); err != nil {
 		return fmt.Errorf("cannot submit cluster assertion: %v", err)
 	}
 
 	// commit the cluster state by ID
-	if err := x.client.CommitClusterAssertion(clusterAssert.ClusterID()); err != nil {
+	if err := x.client.CommitClusterAssertion(cluster.ClusterID()); err != nil {
 		return fmt.Errorf("cannot commit cluster state: %v", err)
 	}
 
