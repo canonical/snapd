@@ -67,15 +67,17 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 	}
 	v.attachMount(pd.mount, m)
 
-	// The new mount entry is dominated by a shared mount
-	// so it joins a new peer group and gets propagated.
 	if pd.mount.shared != 0 {
-		// The parent mount is shared so allocate a new peer group.
+		// Since m is not a part of any peer group (mount is like a bind-mount
+		// from a private mount) we know that m.shared is zero. The destination
+		// mount point is shared so by the rules of bind-mount semantics, the
+		// new mount acts as if one called mount --make-shared on it: by
+		// allocating a new peer group.
 		m.shared = v.allocateGroupID()
 
 		// The parent mount point is shared so propagate to peers and slaves.
 		v.propagateMount(m, func(peer *mount) bool {
-			// Do not propagate back to the parent of the.
+			// Do not propagate back to the parent of the mount.
 			return peer == m.parent
 		})
 	}
