@@ -59,10 +59,23 @@ ifeq ($(with_boot),1)
 go_binaries += $(addprefix $(builddir)/, snap-bootstrap)
 endif
 
-GO_TAGS = nosecboot
+GO_TAGS =
+
+ifneq ($(with_fde),1)
+GO_TAGS += nosecboot
+endif
+
 ifeq ($(with_testkeys),1)
 GO_TAGS += withtestkeys
 GO_TAGS += structuredlogging
+GO_TAGS += faultinject
+GO_TAGS += statelocktrace
+GO_TAGS += withbootassetstesting
+endif
+
+ifeq ($(with_fips,1))
+GO_TAGS += goexperiment.opensslcrypto
+GO_TAGS += snapdfips
 endif
 
 # Any additional tags common to all targets
