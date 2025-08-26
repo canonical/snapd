@@ -77,11 +77,12 @@ GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
 BUILDFLAGS+=-ldflags=-w
+GO_BUILDMODE = pie
 # Disable -buildmode=pie mode on all our 32bit platforms
 # (i386 and armhf). For i386 because of LP: #1711052 and for
 # armhf because of LP: #1822738
-ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
- BUILDFLAGS+= -buildmode=pie
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
+GO_BUILDMODE = default
 endif
 
 GCCGOFLAGS=
@@ -178,7 +179,8 @@ with_testkeys = $(with_testkeys)
 with_fips = $(FIPSBUILD)
 with_static_pie = 0
 EXTRA_GO_BUILD_FLAGS =
-EXTRA_GO_LDFLAGS =
+EXTRA_GO_LDFLAGS = -w
+GO_BUILDMODE = $(GO_BUILDMODE)
 endef
 
 %:
@@ -240,7 +242,7 @@ endif
 
 	# generate dh-golang does not copy modules.txt
 	# TODO snapd.mk?
-	# cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
+	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
 
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
