@@ -1,2 +1,3 @@
 tar-ignore = "tests/lib/cache/*"
 tar-ignore = ".git/"
+tar-ignore = ".image-garden/"
