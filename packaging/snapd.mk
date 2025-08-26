@@ -167,7 +167,7 @@ install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
 # Install snapd and tools into /usr/lib/snapd/
-install:: $(filter-out $(builddir)/snapc,$(go_binaries)) | $(DESTDIR)$(libexecdir)/snapd
+install:: $(filter-out $(builddir)/snap,$(go_binaries)) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
