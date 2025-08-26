@@ -166,8 +166,8 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
-# Install snapctl snapd, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
+# Install snapd and tools into /usr/lib/snapd/
+install:: $(filter-out $(builddir)/snapc,$(go_binaries)) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
@@ -211,7 +211,7 @@ install:: | $(DESTDIR)/$(sharedstatedir)/snapd
 install:: | $(DESTDIR)$(localstatedir)/cache/snapd
 	touch $|/sections
 	touch $|/names
-	touch $|/commands
+	touch $|/commands.db
 
 install:: | $(DESTDIR)$(snap_mount_dir)
 	touch $|/README
