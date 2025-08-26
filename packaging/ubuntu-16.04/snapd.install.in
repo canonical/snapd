@@ -1,16 +1,16 @@
 usr/bin/snap
-usr/bin/snapctl /usr/lib/snapd/
+usr/lib/snapd/snapctl
 usr/lib/snapd/system-shutdown
-usr/bin/snap-exec /usr/lib/snapd/
-usr/bin/snap-repair /usr/lib/snapd/
-usr/bin/snap-failure /usr/lib/snapd/
-usr/bin/snap-update-ns /usr/lib/snapd/
-usr/bin/snapd /usr/lib/snapd/
-usr/bin/snap-seccomp /usr/lib/snapd/
-usr/bin/snap-bootstrap /usr/lib/snapd/
-usr/bin/snap-preseed /usr/lib/snapd/
-usr/bin/snap-fde-keymgr /usr/lib/snapd/
-usr/bin/snapd-apparmor /usr/lib/snapd/
+usr/lib/snapd/snap-exec
+usr/lib/snapd/snap-repair
+usr/lib/snapd/snap-failure
+usr/lib/snapd/snap-update-ns
+usr/lib/snapd/snapd
+usr/lib/snapd/snap-seccomp
+usr/lib/snapd/snap-bootstrap
+usr/lib/snapd/snap-preseed
+usr/lib/snapd/snap-fde-keymgr
+usr/lib/snapd/snapd-apparmor
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions
@@ -44,3 +44,9 @@ c-vendor/squashfuse/snapfuse usr/bin
 usr/lib/systemd/system-environment-generators
 # but system generators end up in lib
 @systemd-lib@/system-generators
+
+# empty ghost files
+snap/README
+var/cache/snapd/sections
+var/cache/snapd/names
+var/cache/snapd/commands.db

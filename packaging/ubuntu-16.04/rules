@@ -325,6 +325,9 @@ override_dh_install: debian/snapd.install
 		DESTDIR=$(CURDIR)/debian/tmp \
 		install
 
+	for b in snap-exec snap-seccomp snap-update-ns snapd snapd-apparmor snap-fde-keymgr; do \
+		rm -v $(CURDIR)/debian/tmp/usr/bin/$$b; \
+	done
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# toolbelt is not shippable
