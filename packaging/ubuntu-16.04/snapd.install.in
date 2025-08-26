@@ -8,9 +8,9 @@ usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-bootstrap /usr/lib/snapd/
+usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-fde-keymgr /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
-usr/bin/snap-gpio-helper /usr/lib/snapd/
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions
