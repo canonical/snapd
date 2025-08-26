@@ -425,6 +425,9 @@ type SnapState struct {
 
 	// RefreshFailures tracks information about snap failed refreshes.
 	RefreshFailures *snap.RefreshFailuresInfo `json:"refresh-failures,omitempty"`
+
+	// Base indicates the snap's base snap.
+	Base string `json:"base,omitempty"`
 }
 
 // PendingSecurityState holds information about snaps that have

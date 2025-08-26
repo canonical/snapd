@@ -2272,6 +2272,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// record type
 	snapst.SetType(newInfo.Type())
+	snapst.Base = newInfo.Base
 
 	pb := NewTaskProgressAdapterLocked(t)
 
@@ -2937,6 +2938,14 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		// may be nil if not set (e.g. created by old snapd)
 		snapst.RevertStatus = oldRevertStatus
+	}
+
+	if !firstInstall {
+		oldInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		snapst.Base = oldInfo.Base
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
