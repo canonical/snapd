@@ -165,12 +165,17 @@ sharedstatedir = /var/lib
 unitdir = /lib/systemd/system
 builddir = $(CURDIR)/_build
 # Build configuration
-with_core_bits = 0
+with_core_bits = 1
+# use /snap
 with_alt_snap_mount_dir = 0
+# use apparmor
 with_apparmor = 1
-with_testkeys = $(with_testkeys)
 # enable snap-bootstrap
 with_boot = 1
+# enable FDE support
+with_fde = 1
+with_testkeys = $(with_testkeys)
+with_fips = $(FIPSBUILD)
 with_static_pie = 0
 EXTRA_GO_BUILD_FLAGS =
 EXTRA_GO_LDFLAGS =
@@ -234,7 +239,9 @@ ifeq (${FIPSBUILD},1)
 endif
 
 	# generate dh-golang does not copy modules.txt
-	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
+	# TODO snapd.mk?
+	# cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
+
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
 	# ensure auto-generated version is also in the build-tree
@@ -250,9 +257,9 @@ endif
 
 	# note that dh-golang invokes go generate as the first step, which may invoke
 	# go
-	GOINVOKEFLAGS='-mod=vendor'	GO111MODULE=on SNAPD_VANILLA_GO=$$(which go) \
-	PATH="$$(pwd)/packaging/build-tools/:$$PATH" \
-		dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
+	#GOINVOKEFLAGS='-mod=vendor'	GO111MODULE=on SNAPD_VANILLA_GO=$$(which go) \
+	#PATH="$$(pwd)/packaging/build-tools/:$$PATH" \
+	#	dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
 
 	$(MAKE) -f packaging/snapd.mk \
 		SNAPD_DEFINES_DIR=$(CURDIR)/_build \
