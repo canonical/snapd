@@ -257,6 +257,8 @@ func CommitClusterAssertion(st *state.State, clusterID string) error {
 	// clear the uncommitted state
 	st.Set("uncommitted-cluster-state", nil)
 
+	st.EnsureBefore(0)
+
 	return nil
 }
 

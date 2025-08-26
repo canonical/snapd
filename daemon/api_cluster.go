@@ -90,7 +90,7 @@ func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Respon
 			return BadRequest("cannot create cluster assembly: %v", err)
 		}
 
-		chg := newChange(st, "assemble-cluster", "Create cluster assembly", []*state.TaskSet{ts}, nil)
+		chg := newChange(st, "assemble-cluster", "Assemble cluster", []*state.TaskSet{ts}, nil)
 		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	default:
