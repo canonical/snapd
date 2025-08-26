@@ -1215,6 +1215,12 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Epoch = snap.E("13")
 	case "some-snap-with-base":
 		info.Base = "core18"
+	case "some-snap-with-new-base":
+		if si.Revision == snap.R(1) {
+			info.Base = "old-base"
+		} else {
+			info.Base = "core22"
+		}
 	case "gadget", "brand-gadget":
 		info.SnapType = snap.TypeGadget
 	case "core":

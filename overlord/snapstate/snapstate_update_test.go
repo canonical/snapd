@@ -1709,38 +1709,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThroughSkipBinaries(c *C
 	s.testParallelInstanceUpdateRunThrough(c, true)
 }
 
-func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
-	si := &snap.SideInfo{
-		RealName: "some-snap",
-		SnapID:   "some-snap-id",
-		Revision: snap.R(7),
-	}
-	snaptest.MockSnap(c, `name: some-snap`, si)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:          true,
-		TrackingChannel: "latest/edge",
-		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
-		Current:         snap.R(7),
-		SnapType:        "app",
-	})
-
-	chg := s.state.NewChange("refresh", "refresh a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.settle(c)
-
-	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
-		{macaroon: s.user.StoreMacaroon, name: "some-base", target: filepath.Join(dirs.SnapBlobDir, "some-base_11.snap")},
-		{macaroon: s.user.StoreMacaroon, name: "some-snap", target: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap")},
-	})
-}
-
 func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	si := &snap.SideInfo{
 		RealName: "some-snap",
@@ -13549,6 +13517,7 @@ type: snapd
 		}),
 		Current:  snap.R(1),
 		SnapType: "app",
+		Base:     "old-base",
 	})
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
@@ -13600,6 +13569,78 @@ type: snapd
 	}
 
 	c.Assert(didDownloadCore22, Equals, true, Commentf("core22 was *not* downloaded"))
+
+	// check that the snaps's state reflects the new base
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap-with-new-base", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Base, Equals, "core22")
+}
+
+func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// core22 is the base of the next revision of some-snap-with-new-base
+	snapstate.Set(s.state, "core22", nil)
+	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "some-snap-with-new-base",
+				SnapID:   "some-snap-with-new-base-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+		Base:     "old-base",
+	})
+
+	_, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap-with-new-base"},
+		[]*snapstate.RevisionOptions{{
+			Channel: "latest/stable",
+		}, {
+			Channel: "some-channel",
+		}},
+		s.user.ID, nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh-snap", "failing to refresh snap pulling in a base")
+	for _, taskSet := range taskSets {
+		chg.AddAll(taskSet)
+	}
+
+	// fail the change after the snap's new state is saved
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+
+	var downloadedCore22 bool
+	for _, fakeOp := range s.fakeBackend.ops {
+		if fakeOp.op == "storesvc-download" && fakeOp.name == "core22" {
+			downloadedCore22 = true
+		}
+	}
+	c.Assert(downloadedCore22, Equals, true)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// check that the snaps's state was correctly reverted
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap-with-new-base", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Base, Equals, "old-base")
 }
 
 // prepare a refresh/install of essential and non-essential snaps, optionally
