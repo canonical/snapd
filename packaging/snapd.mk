@@ -73,7 +73,7 @@ GO_TAGS += statelocktrace
 GO_TAGS += withbootassetstesting
 endif
 
-ifeq ($(with_fips,1))
+ifeq ($(with_fips),1)
 GO_TAGS += goexperiment.opensslcrypto
 GO_TAGS += snapdfips
 endif
