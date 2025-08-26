@@ -1498,6 +1498,7 @@ nested_setup_vm(){
         remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$nested_no_proxy no_proxy=$nested_no_proxy SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
         remote.exec "sudo systemctl daemon-reload"
         remote.exec "sudo systemctl restart snapd"
+        remote.exec "sudo sync"
     fi
     if [ -n "${NTP_SERVER:-}" ]; then
         # Configure systemd-timesyncd to use the predefined ntp server
@@ -1506,6 +1507,7 @@ nested_setup_vm(){
         remote.exec "sudo sed -i '/^\[Time\]/a NTP='\"$NTP_SERVER\" \"$CONF_FILE\""
         remote.exec "sudo sed -i '/^\[Time\]/a FallbackNTP=' \"$CONF_FILE\""
         remote.exec "sudo systemctl restart systemd-timesyncd"
+        remote.exec "sudo sync"
     fi
 }
 
