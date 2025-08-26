@@ -980,16 +980,47 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTasksWaitForActiveSnap(c *C) {
-	setActive := func(active bool) {
+	s.testHookTasksWaitUntilActive(c, "test-snap")
+}
+
+func (s *hookManagerSuite) TestHookTasksWaitForActiveBase(c *C) {
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+
 		var snapst snapstate.SnapState
 		err := snapstate.Get(s.state, "test-snap", &snapst)
 		c.Assert(err, IsNil)
-		snapst.Active = active
+		snapst.Active = true
+		snapst.Base = "test-base"
 		snapstate.Set(s.state, "test-snap", &snapst)
+
+		seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "test-base",
+			Revision: snap.R(123),
+		}})
+		snapstate.Set(s.state, "test-base", &snapstate.SnapState{
+			Active:   true,
+			Sequence: seq,
+		})
+	}()
+
+	s.testHookTasksWaitUntilActive(c, "test-base")
+}
+
+func (s *hookManagerSuite) testHookTasksWaitUntilActive(c *C, conflictSnap string) {
+	setActive := func(active bool) {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, conflictSnap, &snapst)
+		c.Assert(err, IsNil)
+
+		snapst.Active = active
+		snapstate.Set(s.state, conflictSnap, &snapst)
 	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
 	setActive(false)
 
 	s.state.Unlock()
