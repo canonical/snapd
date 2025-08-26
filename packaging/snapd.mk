@@ -59,10 +59,18 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
+go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor snap-gpio-helper)
 
 ifeq ($(with_boot),1)
 go_binaries += $(addprefix $(builddir)/, snap-bootstrap)
+endif
+
+ifeq ($(with_core_bits),1)
+go_binaries += $(addprefix $(builddir)/, snap-repair snap-failure)
+endif
+
+ifeq ($(with_fde),1)
+go_binaries += $(addprefix $(builddir)/, snap-fde-keymgr)
 endif
 
 GO_TAGS =
@@ -118,7 +126,7 @@ all: $(go_binaries)
 # random GNU build ID with something more predictable, use something similar to
 # https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
 $(builddir)/snap: GO_TAGS += nomanagers
-$(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor $(builddir)/snap-bootstrap:
+$(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor $(builddir)/snap-bootstrap $(builddir)/snap-failure $(builddir)/snap-repair $(builddir)/snap-fde-keymgr $(builddir)/snap-gpio-helper:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=$(GO_BUILDMODE) \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
