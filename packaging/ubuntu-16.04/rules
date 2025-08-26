@@ -319,34 +319,38 @@ debian/snapd.install: debian/snapd.install.in
 	mv $@.tmp $@
 
 override_dh_install: debian/snapd.install
+	for b in snap-exec snap-seccomp snap-update-ns snapd snapd-apparmor snap-fde-keymgr snap-repair snap-preseed snap-failure snap-bootstrap; do \
+		rm -v $(CURDIR)/debian/tmp/usr/bin/$$b; \
+	done
+
 	rm -f $(CURDIR)/debian/tmp/usr/bin/snapctl
 	$(MAKE) -f packaging/snapd.mk \
 		SNAPD_DEFINES_DIR=$(CURDIR)/_build \
 		DESTDIR=$(CURDIR)/debian/tmp \
 		install
 
-	for b in snap-exec snap-seccomp snap-update-ns snapd snapd-apparmor snap-fde-keymgr; do \
-		rm -v $(CURDIR)/debian/tmp/usr/bin/$$b; \
-	done
+	rm -v $(CURDIR)/debian/tmp/var/lib/snapd/system-key
+	rm -v $(CURDIR)/debian/tmp/var/lib/snapd/state.json
+
 	# we do not need this in the package, its just needed during build
-	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
+	# rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# toolbelt is not shippable
-	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
+	# rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
-	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \
 		cp -R share/locale debian/snapd/usr/share; \
 	fi
 	# chrorder generator
-	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
-	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
 	# asserts/info
-	rm -f ${CURDIR}/debian/tmp/usr/bin/info
+	# rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
-	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
+	# rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
