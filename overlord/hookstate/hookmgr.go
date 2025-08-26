@@ -109,9 +109,9 @@ type HookSetup struct {
 func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
 	runner.AddBlocked(snapIsRunningHook)
-	// ensure hooks can't run concurrently with snap unlinking (can happen during
-	// confdb operations that trigger hooks)
-	runner.AddBlocked(snapIsInactive)
+	// ensure hooks can't run concurrently with snap or base unlinking (can
+	// happen during confdb operations that trigger hooks)
+	runner.AddBlocked(snapOrBaseAreInactive)
 
 	manager := &HookManager{
 		state:      s,
@@ -161,8 +161,9 @@ func snapIsRunningHook(cand *state.Task, running []*state.Task) bool {
 	return false
 }
 
-// snapIsInactive returns true if the snap referenced by the given hook is inactive.
-func snapIsInactive(cand *state.Task, running []*state.Task) bool {
+// snapOrBaseAreInactive returns true if the snap referenced by the given hook or its
+// base are inactive.
+func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() != "run-hook" {
 		return false
 	}
@@ -172,7 +173,21 @@ func snapIsInactive(cand *state.Task, running []*state.Task) bool {
 		return false
 	}
 
-	return !snapst.Active
+	if !snapst.Active {
+		return true
+	}
+
+	if snapst.Base == "" {
+		return false
+	}
+
+	var baseSnapst snapstate.SnapState
+	err = snapstate.Get(cand.State(), snapst.Base, &baseSnapst)
+	if err != nil {
+		return false
+	}
+
+	return !baseSnapst.Active
 }
 
 // Register registers a function to create Handler values whenever hooks
