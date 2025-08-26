@@ -21,11 +21,17 @@ include $(SNAPD_DEFINES_DIR)/snapd.defines.mk
 # 1) variables defining various directory names
 vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir unitdir builddir
 # 2) variables defining build options:
-#   with_testkeys: set to 1 to build snapd with test key built in
+#   with_testkeys: set to 1 to build snapd with test key built in and additional testing build tags
 #   with_apparmor: set to 1 to build snapd with apparmor support
 #   with_core_bits: set to 1 to build snapd with things needed for the core/snapd snap
 #   with_alt_snap_mount_dir: set to 1 to build snapd with alternate snap mount directory
+#   with_boot: set 1 to to build snap-bootstrap
+#   with_fde: set to 1 to enable FDE support
+#   with_fips: set to 1 to enable FIPS support (assumes FIPS enabled Go toolchain is available)
+#   with_static_pie: set 1 to enable statically built binaries to use PIE
 vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir
+vars += with_boot with_fips with_static_pie
+vars += with_vendor
 # Verify that none of the variables are empty. This may happen if snapd.mk and
 # distribution packaging generating snapd.defines.mk get out of sync.
 
@@ -81,11 +87,16 @@ endif
 # Any additional tags common to all targets
 GO_TAGS += $(EXTRA_GO_BUILD_TAGS)
 
-GO_MOD=-mod=vendor
+GO_MOD = -mod=vendor
 ifeq ($(with_vendor),0)
-GO_MOD=-mod=readonly
+GO_MOD = -mod=readonly
 endif
 
+# Assume PIE builds, unless instructed otherwise
+GO_BUILDMODE ?= pie
+
+# For static binaries assume default build mode, unless the configuration
+# indicates the PIE static builds are possible
 GO_STATIC_BUILDMODE = default
 GO_STATIC_EXTLDFLAG = -static
 ifeq ($(with_static_pie),1)
@@ -109,7 +120,7 @@ all: $(go_binaries)
 $(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor $(builddir)/snap-bootstrap:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		-buildmode=pie \
+		-buildmode=$(GO_BUILDMODE) \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		$(GO_MOD) \
 		$(EXTRA_GO_BUILD_FLAGS) \
@@ -130,7 +141,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
-	go build -o $@ -buildmode=pie \
+	go build -o $@ -buildmode=$(GO_BUILDMODE) \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
 		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
