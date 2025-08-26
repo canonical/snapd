@@ -329,6 +329,9 @@ override_dh_install: debian/snapd.install
 		DESTDIR=$(CURDIR)/debian/tmp \
 		install
 
+	# symlink is created by dpkg
+	rm -v $(CURDIR)/debian/tmp/usr/bin/snapctl
+
 	rm -v $(CURDIR)/debian/tmp/var/lib/snapd/system-key
 	rm -v $(CURDIR)/debian/tmp/var/lib/snapd/state.json
 
