@@ -164,7 +164,7 @@ datadir = /usr/share
 localstatedir = /var
 sharedstatedir = /var/lib
 unitdir = /lib/systemd/system
-builddir = $(CURDIR)/_build
+builddir = $(CURDIR)/_build/bin
 # Build configuration
 with_core_bits = 1
 # use /snap
@@ -178,30 +178,15 @@ with_fde = 1
 with_testkeys = $(with_testkeys)
 with_fips = $(FIPSBUILD)
 with_static_pie = 0
+# FIXME?
+with_vendor = 1
 EXTRA_GO_BUILD_FLAGS =
 EXTRA_GO_LDFLAGS = -w
 GO_BUILDMODE = $(GO_BUILDMODE)
 endef
 
 %:
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
-else
-	# "powerpc" is not supported unfortunately, do nothing here
-	# See https://github.com/tianon/debian-runc/compare/70957b315f82170dc2ab7085d39c23835c0fa996...xenial for a more elaborate version of this idea.
-	# Note that snapd never really worked on powerpc (we never had a core
-	# snap there) so we don't need to show anything to the user
-	if [ "$@" = "clean" ]; then \
-		rm -rf debian/snapd; \
-	fi; \
-	if [ "$@" = "binary" ] || [ "$@" = "binary-arch" ]; then \
-		install -m755 -d debian/snapd/usr/share/doc/snapd/; \
-		cp debian/README.powerpc debian/snapd/usr/share/doc/snapd/; \
-		dh_installdeb; \
-		dh_gencontrol; \
-		dh_builddeb; \
-	fi;
-endif
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
@@ -263,7 +248,7 @@ endif
 	#PATH="$$(pwd)/packaging/build-tools/:$$PATH" \
 	#	dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
 
-	$(MAKE) -f packaging/snapd.mk \
+	$(MAKE) -f $(CURDIR)/packaging/snapd.mk \
 		SNAPD_DEFINES_DIR=$(CURDIR)/_build \
 		all
 	# (cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
@@ -275,15 +260,15 @@ endif
 	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
-ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-	(cd _build/src/$(DH_GOPKG) && GOCACHE=/tmp/go-build CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build -o ../../../../bin/snap-seccomp -mod=vendor $(GCCGOFLAGS) ./cmd/snap-seccomp)
-	# ensure that libseccomp is not dynamically linked
-	ldd _build/bin/snap-seccomp
-	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
-	# revert again so that the subsequent tests work
-	sed -i "s|#cgo LDFLAGS: -l/usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-endif
+# ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+# 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+# 	(cd _build/src/$(DH_GOPKG) && GOCACHE=/tmp/go-build CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build -o ../../../../bin/snap-seccomp -mod=vendor $(GCCGOFLAGS) ./cmd/snap-seccomp)
+# 	# ensure that libseccomp is not dynamically linked
+# 	ldd _build/bin/snap-seccomp
+# 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
+# 	# revert again so that the subsequent tests work
+# 	sed -i "s|#cgo LDFLAGS: -l/usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+# endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
@@ -334,6 +319,7 @@ debian/snapd.install: debian/snapd.install.in
 	mv $@.tmp $@
 
 override_dh_install: debian/snapd.install
+	rm -f $(CURDIR)/debian/tmp/usr/bin/snapctl
 	$(MAKE) -f packaging/snapd.mk \
 		SNAPD_DEFINES_DIR=$(CURDIR)/_build \
 		DESTDIR=$(CURDIR)/debian/tmp \
