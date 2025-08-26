@@ -226,11 +226,11 @@ install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
 
-# Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
-# for preseeding of ubuntu cloud images due to certain assumptions about
-# runtime environment of the host and of the preseeded image.
-install::
-	rm -f $(DESTDIR)$(bindir)/snap-preseed
+# # Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
+# # for preseeding of ubuntu cloud images due to certain assumptions about
+# # runtime environment of the host and of the preseeded image.
+# install::
+# 	rm -f $(DESTDIR)$(bindir)/snap-preseed
 
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
