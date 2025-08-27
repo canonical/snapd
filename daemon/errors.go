@@ -230,6 +230,16 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
 	}
 }
 
+// SnapChangeConflict is an error responder used when an operation would
+// conflict with another ongoing change.
+func SystemNotSeeded(msg string) *apiError {
+	return &apiError{
+		Status:  409,
+		Message: msg,
+		Kind:    client.ErrorKindSnapChangeConflict,
+	}
+}
+
 // QuotaChangeConflict is an error responder used when an operation would
 // conflict with another ongoing change.
 func QuotaChangeConflict(qce *servicestate.QuotaChangeConflictError) *apiError {
