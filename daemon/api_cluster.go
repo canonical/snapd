@@ -60,7 +60,6 @@ func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Respon
 
 	switch req.Action {
 	case "assemble":
-		// Basic validation of provided fields
 		if req.Secret == "" {
 			return BadRequest("secret must be provided")
 		}
@@ -71,7 +70,6 @@ func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Respon
 			return BadRequest("expected-size cannot be negative")
 		}
 
-		// Create the cluster assembly configuration
 		config := clusterstate.AssembleConfig{
 			Secret:       req.Secret,
 			Address:      req.Address,
@@ -80,7 +78,6 @@ func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Respon
 			Period:       req.Period,
 		}
 
-		// Create the task set using clusterstate.Assemble
 		st := c.d.overlord.State()
 		st.Lock()
 		defer st.Unlock()

@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cluster/assemblestate"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -390,7 +391,7 @@ func receiver(st *state.State, srv *http.Server) http.Handler {
 			}
 		}
 
-		if err := os.WriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644); err != nil {
+		if err := osutil.AtomicWriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644, 0); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
 		}

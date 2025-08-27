@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
@@ -110,6 +111,10 @@ type ClusterSubcluster struct {
 
 // Assemble creates a new task to assemble a cluster using the given configuration.
 func Assemble(st *state.State, config AssembleConfig) (*state.TaskSet, error) {
+	if err := assembleInProgress(st); err != nil {
+		return nil, err
+	}
+
 	if config.Secret == "" {
 		return nil, errors.New("secret is required")
 	}
@@ -162,6 +167,15 @@ func Assemble(st *state.State, config AssembleConfig) (*state.TaskSet, error) {
 	// create and return task set
 	ts := state.NewTaskSet(task)
 	return ts, nil
+}
+
+func assembleInProgress(st *state.State) error {
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "assemble-cluster" && !chg.IsReady() {
+			return errors.New("cluster assembly is already in progress")
+		}
+	}
+	return nil
 }
 
 // GetUncommittedClusterState retrieves the uncommitted cluster state.
@@ -221,7 +235,7 @@ func CommitClusterAssertion(st *state.State, clusterID string) error {
 		return err
 	}
 
-	if err := os.WriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644); err != nil {
+	if err := osutil.AtomicWriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644, 0); err != nil {
 		return err
 	}
 

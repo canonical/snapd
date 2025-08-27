@@ -5,6 +5,8 @@ period="${1:-1s}"
 secret="$(uuidgen)"
 
 hosts="$(seq 2 "${count}" | xargs -L1 printf 'host-%d\n')"
+
+# in case i didn't stop the previous cluster assembly...
 for host in ${hosts}; do
     (
         multipass exec "${host}" sudo -- snap abort --last=assemble-cluster &> /dev/null || true

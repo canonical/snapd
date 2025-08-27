@@ -65,6 +65,10 @@ func (m *ClusterManager) Ensure() error {
 
 	cluster, err := readClusterAssertion("/tmp/snapd-clusterdb/cluster.assert")
 	if err != nil {
+		// nothing to do if the file isn't there
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
 		return err
 	}
 
@@ -119,7 +123,6 @@ func readClusterAssertion(path string) (*asserts.Cluster, error) {
 }
 
 func findSnapsForDevice(st *state.State, cluster *asserts.Cluster, serial string) ([]snapstate.StoreSnap, error) {
-	// find the device in the cluster
 	var deviceID int
 	found := false
 	for _, dev := range cluster.Devices() {
@@ -186,18 +189,13 @@ func findSnapsForDevice(st *state.State, cluster *asserts.Cluster, serial string
 }
 
 func (m *ClusterManager) install(snaps []snapstate.StoreSnap) error {
-	chg := m.state.NewChange("install-cluster-snaps", "Install snaps required by cluster configuration")
-
 	goal := snapstate.StoreInstallGoal(snaps...)
-
-	ctx := context.Background()
-	_, tasksets, err := snapstate.InstallWithGoal(ctx, m.state, goal, snapstate.Options{
-		FromChange: chg.ID(),
-	})
+	_, tasksets, err := snapstate.InstallWithGoal(context.Background(), m.state, goal, snapstate.Options{})
 	if err != nil {
 		return fmt.Errorf("cannot create snap installation tasks: %w", err)
 	}
 
+	chg := m.state.NewChange("install-cluster-snaps", "Install snaps required by cluster configuration")
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
