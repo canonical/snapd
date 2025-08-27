@@ -513,7 +513,6 @@ dbus (receive)
     member=Get*
     peer=(label=unconfined),
 
-###SNAP_DESKTOP_FILE_RULES###
 # Snaps are unable to use the data in mimeinfo.cache (since they can't execute
 # the returned desktop file themselves). unity messaging menu doesn't require
 # mimeinfo.cache and xdg-mime will fallback to reading the desktop files
