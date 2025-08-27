@@ -140,6 +140,30 @@ func (confinementType *ConfinementType) fromString(str string) error {
 	return nil
 }
 
+// GradeType represents the grade of the snap
+type GradeType string
+
+const (
+	DevelGrade  GradeType = "devel"
+	StableGrade GradeType = "stable"
+	EmptyGrade  GradeType = ""
+)
+
+// UnmarshalText sets *gradeType to a copy of data, assuming validation passes
+func (gt *GradeType) UnmarshalText(data []byte) error {
+	g := GradeType(string(data))
+
+	// Validate grade field
+	switch g {
+	case EmptyGrade, DevelGrade, StableGrade:
+		*gt = g
+	default:
+		return fmt.Errorf("unknown grade type: %q", g)
+	}
+
+	return nil
+}
+
 type ServiceStopReason string
 
 const (
