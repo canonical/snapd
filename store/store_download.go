@@ -323,6 +323,10 @@ const (
 // authentication or user state, nor a progress bar. They are also not revision-
 // specific, and do not use a download cache.
 func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+	if s.cfg.Proxy != nil {
+		// If there's a proxy in use, skip snap icon download
+		return ErrSkipIconDownload
+	}
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return err
 	}

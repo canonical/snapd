@@ -1459,6 +1459,33 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 	c.Assert(linkPath, testutil.FileEquals, oldContent)
 }
 
+func (s *storeDownloadSuite) TestDownloadIconSkipsWhenUsingProxy(c *C) {
+	const fakeName = "foo"
+	iconsDir := filepath.Join(c.MkDir(), "parent-dir")
+	iconPath := filepath.Join(iconsDir, "the-file")
+	const fakeURL = "URL"
+
+	// Set the store proxy to something
+	restore := s.store.MockProxy(func(*http.Request) (*url.URL, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	// Function should return immediately and never attempt to download icon
+	restore = store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+		c.Fatalf("should not have called downloadIcon")
+		return "", nil
+	})
+	defer restore()
+
+	err := s.store.DownloadIcon(s.ctx, fakeName, iconPath, fakeURL)
+	c.Check(err, Equals, store.ErrSkipIconDownload)
+
+	// Check that neither the icon file nor its directory was created
+	c.Check(iconsDir, testutil.FileAbsent)
+	c.Check(iconPath, testutil.FileAbsent)
+}
+
 func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	const fakeName = "foo"
 	fakePath := filepath.Join(c.MkDir(), "downloaded-file")

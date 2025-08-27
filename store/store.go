@@ -166,7 +166,7 @@ type Store struct {
 
 	cacher downloadCache
 
-	proxy              func(*http.Request) (*url.URL, error)
+	proxy              func(*http.Request) (*url.URL, error) // XXX: this is unused; s.cfg.Proxy is always used instead
 	proxyConnectHeader http.Header
 
 	userAgent string
@@ -470,7 +470,7 @@ func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {
 	if opts == nil {
 		opts = &httputil.ClientOptions{}
 	}
-	opts.Proxy = s.cfg.Proxy
+	opts.Proxy = s.cfg.Proxy // XXX: why is s.proxy not used here?
 	opts.ProxyConnectHeader = s.proxyConnectHeader
 	opts.ExtraSSLCerts = &httputil.ExtraSSLCertsFromDir{
 		Dir: dirs.SnapdStoreSSLCertsDir,
