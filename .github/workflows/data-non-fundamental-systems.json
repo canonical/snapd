@@ -108,7 +108,7 @@
         "group": "ubuntu-fips",
         "backend": "google-pro",
         "alternative-backend": "google-pro",
-        "systems": "ubuntu-fips-22.04-64",
+        "systems": "ubuntu-fips-20.04-64 ubuntu-fips-22.04-64",
         "tasks": "tests/fips/...",
         "rules": "fips"
       }
