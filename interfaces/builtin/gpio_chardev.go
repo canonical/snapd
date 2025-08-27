@@ -35,10 +35,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// TODO: Snapd should validate the correctness of slot declarations
-// (i.e. lines across slots are unique) when installing the gadget
-// snap e.g. when validating snap.yaml
-
 // The interface operates as follows:
 //   - uses snap-gpio-helper to set up a virtual GPIO device exposing specific
 //     lines defined in the slot as character device node at
