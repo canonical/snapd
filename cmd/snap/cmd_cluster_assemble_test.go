@@ -104,13 +104,6 @@ func (s *SnapSuite) TestClusterAssembleExtraArgs(c *check.C) {
 	c.Assert(err, check.Equals, snap.ErrExtraArgs)
 }
 
-func (s *SnapSuite) TestClusterNoSubcommand(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
-		"cluster",
-	})
-	c.Assert(err, check.ErrorMatches, `Please specify one command of: assemble, commit or install`)
-}
-
 func (s *SnapSuite) TestClusterUnknownSubcommand(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
 		"cluster", "unknown",

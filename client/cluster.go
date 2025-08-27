@@ -185,3 +185,58 @@ func (client *Client) ClusterInstall(snapName string) error {
 	_, err = client.doSync("POST", "/v2/cluster/uncommitted", nil, headers, &body, nil)
 	return err
 }
+
+// ClusterRemove removes a snap from the uncommitted cluster state.
+// TODO: support non-default subclusters
+func (client *Client) ClusterRemove(snapName string) error {
+	// first, get the current uncommitted state
+	state, err := client.GetClusterUncommittedState()
+	if err != nil {
+		return err
+	}
+
+	var sc *ClusterSubcluster
+	for i := range state.Subclusters {
+		if state.Subclusters[i].Name == "default" {
+			sc = &state.Subclusters[i]
+			break
+		}
+	}
+
+	if sc == nil {
+		return errors.New("missing default subcluster")
+	}
+
+	// check if snap already exists in the default subcluster
+	found := false
+	for i, snap := range sc.Snaps {
+		if snap.Instance == snapName {
+			// change existing snap's state to removed
+			sc.Snaps[i].State = "removed"
+			found = true
+			break
+		}
+	}
+
+	// if snap doesn't exist, add it as removed
+	if !found {
+		sc.Snaps = append(sc.Snaps, ClusterSnap{
+			State:    "removed",
+			Instance: snapName,
+			Channel:  "stable",
+		})
+	}
+
+	// send the updated state back
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&state); err != nil {
+		return err
+	}
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	_, err = client.doSync("POST", "/v2/cluster/uncommitted", nil, headers, &body, nil)
+	return err
+}
