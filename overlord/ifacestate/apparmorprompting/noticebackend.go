@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/state"
@@ -83,6 +84,10 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 			// This should never occur
 			return fmt.Errorf("cannot register prompting manager as a %s notice backend", bknd.namespace)
 		}
+		// Drained notices should only occur the first time snapd starts after
+		// refreshing to a new release which uses this notice backend. This is
+		// a migration to ensure no information is lost when state is no longer
+		// responsible for notices of this type.
 		for _, notice := range drainedNotices {
 			// Re-create each notice in the backend, so no data is lost before
 			// a client can receive it. The ID will be different, but the key
@@ -98,6 +103,7 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 				// Should never occur, only error would be if two notices with
 				// the same key (prompt/rule ID) existed for different users,
 				// which should never happen. Or if there's an error saving.
+				logger.Noticef("WARNING: cannot migrate notice from state to %s notice backend: %v", bknd.noticeType, err)
 				continue
 			}
 		}
