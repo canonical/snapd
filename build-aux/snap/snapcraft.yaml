@@ -354,6 +354,11 @@ parts:
             lib/snapd/snapctl
             lib/snapd/snapd-apparmor
             lib/snapd/snap-gpio-helper)
+      if [ -f fips-build ]; then
+        # build FIPS dispatcher
+        CMDS += (lib/snapd/snap-fips-dispatch)
+      fi
+
       for cmd in "${CMDS[@]}"; do
         case "${cmd}" in
            # FIXME: some binaries need to be run confined in apps. But
@@ -463,6 +468,13 @@ parts:
 
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh data/completion/bash/etelpmoc.sh
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
+
+      if [ -f fips-build ]; then
+        for cmd in bin/snap lib/snapd/snap lib/snapd/snap-repair lib/snapd/snap-bootstrap; do
+          mv -v "${CRAFT_PART_INSTALL}/usr/${cmd}" "${CRAFT_PART_INSTALL}/usr/lib/$(basename $cmd)-fips"
+          ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/${cmd}"
+        done
+      fi
 
       # TODO: For now snapd expects a renamed apparmor profile to
       # work-around LP#1673247. We should fix that since the snapd
