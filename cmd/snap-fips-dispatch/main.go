@@ -22,6 +22,10 @@ func run() error {
 			return "/usr/lib/snapd/snapd-fips"
 		case "snap":
 			return "/usr/lib/snapd/snap-fips"
+		case "snap-repair":
+			return "/usr/lib/snapd/snap-repair-fips"
+		case "snap-bootstrap":
+			return "/usr/lib/snapd/snap-bootstrap-fips"
 		default:
 			return filepath.Join("/usr/lib/snapd", filepath.Base(prog))
 		}
