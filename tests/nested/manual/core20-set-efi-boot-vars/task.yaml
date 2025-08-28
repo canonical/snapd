@@ -41,6 +41,11 @@ prepare: |
 
     VERSION=$(tests.nested show version)
     echo "Download pc-gadget to use in initial image"
+    case "${VERSION}" in
+      26)
+        GADGET_CHANNEL=edge
+        ;;
+    esac
     snap download --basename=pc --channel="${VERSION}/${GADGET_CHANNEL}" pc
     unsquashfs -d pc-gadget pc.snap
 

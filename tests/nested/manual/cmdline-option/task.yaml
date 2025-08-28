@@ -4,7 +4,11 @@ details: |
   This test checks that the system options that affect the kernel
   command line options work as expected.
 
-systems: [ubuntu-2*]
+systems:
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  # FIXME: MODEL_GRADE=signed cannot run yet on 26
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed

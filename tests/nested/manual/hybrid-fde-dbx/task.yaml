@@ -3,7 +3,11 @@ summary: Verify DBX on a hybrid system
 details: |
   Verify handling of DBX updates on a hybrid system.
 
-systems: [-ubuntu-1*, -ubuntu-20*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   NESTED_ENABLE_TPM: true
