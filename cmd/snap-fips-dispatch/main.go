@@ -9,15 +9,25 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
+const (
+	selfExe = "/proc/self/exe"
+)
+
 func run() error {
 	logger.SimpleSetup(nil)
 
 	prog := os.Args[0]
 
-	logger.Debugf("program: %s", prog)
+	exe, err := os.Readlink(selfExe)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("argv[0]: %s", prog)
+	logger.Debugf("exe: %s", exe)
 
 	target := func() string {
-		switch filepath.Base(prog) {
+		switch filepath.Base(exe) {
 		case "snapd":
 			return "/usr/lib/snapd/snapd-fips"
 		case "snap":
@@ -27,7 +37,7 @@ func run() error {
 		case "snap-bootstrap":
 			return "/usr/lib/snapd/snap-bootstrap-fips"
 		default:
-			return filepath.Join("/usr/lib/snapd", filepath.Base(prog))
+			return filepath.Join("/usr/lib/snapd", filepath.Base(exe))
 		}
 	}()
 
