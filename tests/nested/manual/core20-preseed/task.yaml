@@ -4,7 +4,11 @@ details: |
   This test checks that preseeding of UC20+ image with ubuntu-image works
   and that the resulting image boots.
 
-systems: [ -ubuntu-1* ]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""

@@ -6,7 +6,11 @@ details: |
     gadget that contains an install-device hook, which just writes a few files to the path
     pointed to by SNAP_SAVE_DATA. It verifies we can create a file and a folder.
 
-systems: [ubuntu-2*]
+systems:
+  # core26 is not yet in grade that can work with a signed model
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
     # use snapd from the spread run so that we have testkeys trusted in the
