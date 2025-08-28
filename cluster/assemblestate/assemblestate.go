@@ -20,6 +20,7 @@
 package assemblestate
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha512"
@@ -31,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -154,6 +156,11 @@ type AssembleConfig struct {
 	// ExpectedSize is the expected size of the cluster. If unset, cluster
 	// assembly will not terminate automatically.
 	ExpectedSize int
+	// Serial is this device's serial assertion.
+	Serial *asserts.Serial `json:"serial"`
+	// PrivateKey is the private key that matches the public key embedded in the
+	// given serial assertion. Will be used to sign serial proof.
+	PrivateKey asserts.PrivateKey `json:"private_key"`
 }
 
 const AssembleSessionLength = time.Hour
@@ -165,7 +172,15 @@ func NewAssembleState(
 	session AssembleSession,
 	selector func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error),
 	commit func(AssembleSession),
+	assertDB asserts.RODatabase,
 ) (*AssembleState, error) {
+	if config.Serial == nil {
+		return nil, errors.New("serial assertion is required")
+	}
+	if config.PrivateKey == nil {
+		return nil, errors.New("private key is required")
+	}
+
 	// default clock to time.Now if not provided
 	if config.Clock == nil {
 		config.Clock = time.Now
@@ -182,14 +197,29 @@ func NewAssembleState(
 		return nil, err
 	}
 
+	// calculate the HMAC that this device would use to authenticate itself
+	fp := CalculateFP(cert.Certificate[0])
+	hmac := CalculateHMAC(config.RDT, fp, config.Secret)
+
+	// sign the HMAC with our private key to create the SerialProof
+	proof, err := asserts.SignWithKey(hmac, config.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot sign hmac for serial proof: %v", err)
+	}
+
 	if err := ensureLocalDevicePresent(&validated.devices, Identity{
-		RDT: config.RDT,
-		FP:  CalculateFP(cert.Certificate[0]),
+		RDT:         config.RDT,
+		FP:          CalculateFP(cert.Certificate[0]),
+		Serial:      string(asserts.Encode(config.Serial)),
+		SerialProof: proof,
 	}); err != nil {
 		return nil, err
 	}
 
-	devices := NewDeviceQueryTracker(validated.devices, time.Minute*5, config.Clock)
+	devices, err := NewDeviceQueryTracker(validated.devices, time.Minute*5, config.Clock, assertDB, config.Secret)
+	if err != nil {
+		return nil, err
+	}
 
 	sel, err := selector(config.RDT, devices.Identified)
 	if err != nil {
@@ -771,7 +801,7 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 
 	for _, id := range devices.Devices {
 		if current, ok := h.as.devices.Lookup(id.RDT); ok {
-			if current != id {
+			if current.RDT != id.RDT || current.FP != id.FP || current.Serial != id.Serial || !bytes.Equal(current.SerialProof, id.SerialProof) {
 				return errors.New("got inconsistent device identity")
 			}
 		}
@@ -783,7 +813,9 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 	}
 
 	for _, id := range devices.Devices {
-		h.as.devices.RecordIdentity(id)
+		if err := h.as.devices.RecordIdentity(id); err != nil {
+			return err
+		}
 	}
 
 	// TODO: i don't really love the implicit connection of as.devices and
