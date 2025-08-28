@@ -108,6 +108,10 @@ is_noble() {
     grep -qFx 'UBUNTU_CODENAME=noble' /etc/os-release
 }
 
+is_questing() {
+    grep -qFx 'UBUNTU_CODENAME=questing' /etc/os-release
+}
+
 is_ubuntu() {
     VERSION=$1
     if [ -z "$VERSION" ]; then

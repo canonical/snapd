@@ -30,7 +30,15 @@ prepare: |
   #            running system, we should look into that, but for now just 
   #            re-download the snap
   version="$(tests.nested show version)"
-  snap download pc-kernel --channel="$version/beta" --basename=pc-kernel
+  case "${version}" in
+    26)
+      kernel_channel="25.10/edge"
+    ;;
+    *)
+      kernel_channel="${version}/beta"
+    ;;
+  esac
+  snap download pc-kernel --channel="${kernel_channel}" --basename=pc-kernel
   case "$PROBLEM_TYPE" in
       crash)
           if [ "$version" -le 22 ]; then
