@@ -471,7 +471,7 @@ parts:
 
       if [ -f fips-build ]; then
         for cmd in bin/snap lib/snapd/snapd lib/snapd/snap-repair lib/snapd/snap-bootstrap; do
-          mv -v "${CRAFT_PART_INSTALL}/usr/${cmd}" "${CRAFT_PART_INSTALL}/usr/lib/$(basename $cmd)-fips"
+          mv -v "${CRAFT_PART_INSTALL}/usr/${cmd}" "${CRAFT_PART_INSTALL}/usr/lib/snapd/$(basename $cmd)-fips"
           ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/${cmd}"
         done
       fi
