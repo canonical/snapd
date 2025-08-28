@@ -356,7 +356,7 @@ parts:
             lib/snapd/snap-gpio-helper)
       if [ -f fips-build ]; then
         # build FIPS dispatcher
-        CMDS += (lib/snapd/snap-fips-dispatch)
+        CMDS+=(lib/snapd/snap-fips-dispatch)
       fi
 
       for cmd in "${CMDS[@]}"; do
