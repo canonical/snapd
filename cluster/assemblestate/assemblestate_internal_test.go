@@ -36,12 +36,92 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ClusterSuite struct{}
+type clusterSuite struct{}
 
-var _ = check.Suite(&ClusterSuite{})
+var _ = check.Suite(&clusterSuite{})
+
+func createTestIdentity(
+	c *check.C,
+	signing *assertstest.StoreStack,
+	rdt DeviceToken,
+	fp Fingerprint,
+	secret string,
+) Identity {
+	assertion, key := createTestSerial(c, signing)
+
+	// create SerialProof using the same device key
+	hmac := CalculateHMAC(rdt, fp, secret)
+	proof, err := asserts.RawSignWithKey(hmac, key)
+	c.Assert(err, check.IsNil)
+
+	return Identity{
+		RDT:         rdt,
+		FP:          fp,
+		Serial:      string(asserts.Encode(assertion)),
+		SerialProof: proof,
+	}
+}
+
+func createTestSerial(
+	c *check.C,
+	signing *assertstest.StoreStack,
+) (*asserts.Serial, asserts.PrivateKey) {
+	// create a device key for the serial assertion
+	key, _ := assertstest.GenerateKey(752)
+	pubkey, err := asserts.EncodePublicKey(key.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	headers := map[string]any{
+		"authority-id":        "canonical",
+		"brand-id":            "canonical",
+		"model":               "test-model",
+		"serial":              randutil.RandomString(10),
+		"device-key":          string(pubkey),
+		"device-key-sha3-384": key.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+
+	assertion, err := signing.Sign(asserts.SerialType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	s, ok := assertion.(*asserts.Serial)
+	c.Assert(ok, check.Equals, true)
+	return s, key
+}
+
+func createTestAssembleConfig(c *check.C, signing *assertstest.StoreStack, secret, rdt string) AssembleConfig {
+	certPEM, keyPEM := createTestCertAndKey(c)
+	serial, deviceKey := createTestSerial(c, signing)
+	return AssembleConfig{
+		Secret:     secret,
+		RDT:        DeviceToken(rdt),
+		TLSCert:    certPEM,
+		TLSKey:     keyPEM,
+		Serial:     serial,
+		PrivateKey: deviceKey,
+		Clock:      time.Now,
+	}
+}
+
+func mockAssertDB(c *check.C) (*asserts.Database, *assertstest.StoreStack) {
+	signing := assertstest.NewStoreStack("canonical", nil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   signing.Trusted,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = db.Add(signing.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
+
+	return db, signing
+}
 
 // committer tracks commit calls and the session data that was committed
 type committer struct {
@@ -212,22 +292,27 @@ func createTestCertAndKey(c *check.C) (certPEM []byte, keyPEM []byte) {
 	return certPEM, keyPEM
 }
 
-func assembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, tls.Certificate) {
+func newAssembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig) (*AssembleState, *committer, tls.Certificate, asserts.PrivateKey, *assertstest.StoreStack) {
 	certPEM, keyPEM := createTestCertAndKey(c)
 
 	cfg.TLSCert = certPEM
 	cfg.TLSKey = keyPEM
 
+	db, signing := mockAssertDB(c)
+	serial, key := createTestSerial(c, signing)
+	cfg.Serial = serial
+	cfg.PrivateKey = key
+
 	cm := &committer{}
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return sel, nil
-	}, cm.commit)
+	}, cm.commit, db)
 	c.Assert(err, check.IsNil)
 
 	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))
 	c.Assert(err, check.IsNil)
 
-	return as, cm, cert
+	return as, cm, cert, key, signing
 }
 
 func statelessSelector() *selector {
@@ -247,15 +332,15 @@ func statelessSelector() *selector {
 	}
 }
 
-func (s *ClusterSuite) TestPublishAuthAndCommit(c *check.C) {
-	as, cm, tlsCert := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestPublishAuthAndCommit(c *check.C) {
+	as, cm, cert, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
 
 	var called int
 	client := testClient{
-		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) (cert []byte, err error) {
+		UntrustedFunc: func(ctx context.Context, addr, kind string, message any) ([]byte, error) {
 			called++
 
 			c.Assert(addr, check.Equals, "127.0.0.1:8002")
@@ -263,7 +348,7 @@ func (s *ClusterSuite) TestPublishAuthAndCommit(c *check.C) {
 
 			auth := message.(Auth)
 
-			expectedHMAC := CalculateHMAC("rdt", CalculateFP(tlsCert.Certificate[0]), "secret")
+			expectedHMAC := CalculateHMAC("rdt", CalculateFP(cert.Certificate[0]), "secret")
 			c.Assert(auth.HMAC, check.DeepEquals, expectedHMAC)
 			c.Assert(auth.RDT, check.Equals, DeviceToken("rdt"))
 
@@ -295,8 +380,8 @@ func (s *ClusterSuite) TestPublishAuthAndCommit(c *check.C) {
 	c.Assert(cm.commits[1].Discovered, check.DeepEquals, []string{"127.0.0.1:8002"})
 }
 
-func (s *ClusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *check.C) {
-	as, cm, cert := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *check.C) {
+	as, cm, cert, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -337,8 +422,8 @@ func (s *ClusterSuite) TestPublishAuthAndCommitCertificateAddressMismatch(c *che
 	c.Assert(len(cm.commits), check.Equals, 1)
 }
 
-func (s *ClusterSuite) TestAuthenticate(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestAuthenticate(c *check.C) {
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -347,57 +432,12 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	peerFP := CalculateFP(peerCert)
 	peerRDT := DeviceToken("peer-rdt")
 
-	// wrong RDT in HMAC
+	// valid case
 	auth := Auth{
-		HMAC: CalculateHMAC("wrong-rdt", peerFP, "secret"),
+		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
 	err := as.AuthenticateAndCommit(auth, peerCert)
-	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
-	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
-
-	// wrong RDT in message
-	auth = Auth{
-		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
-		RDT:  "wrong-rdt",
-	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
-	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
-	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
-
-	// wrong FP in HMAC
-	auth = Auth{
-		HMAC: CalculateHMAC(peerRDT, CalculateFP([]byte("wrong-cert")), "secret"),
-		RDT:  peerRDT,
-	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
-	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
-	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
-
-	// wrong cert from transport layer
-	auth = Auth{
-		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
-		RDT:  peerRDT,
-	}
-	err = as.AuthenticateAndCommit(auth, []byte("wrong-cert"))
-	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
-	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
-
-	// wrong secret
-	auth = Auth{
-		HMAC: CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
-		RDT:  peerRDT,
-	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
-	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
-	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
-
-	// valid case
-	auth = Auth{
-		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
-		RDT:  peerRDT,
-	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
@@ -409,8 +449,79 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 	})
 }
 
-func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+		Secret: "secret",
+		RDT:    "rdt",
+	})
+
+	peerCert := []byte("peer-certificate")
+	peerFP := CalculateFP(peerCert)
+	peerRDT := DeviceToken("peer-rdt")
+
+	cases := []struct {
+		name string
+		auth Auth
+		cert []byte
+		err  string
+	}{
+		{
+			name: "wrong RDT in HMAC",
+			auth: Auth{
+				HMAC: CalculateHMAC("wrong-rdt", peerFP, "secret"),
+				RDT:  peerRDT,
+			},
+			cert: peerCert,
+			err:  "received invalid HMAC from peer",
+		},
+		{
+			name: "wrong RDT in message",
+			auth: Auth{
+				HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+				RDT:  "wrong-rdt",
+			},
+			cert: peerCert,
+			err:  "received invalid HMAC from peer",
+		},
+		{
+			name: "wrong FP in HMAC",
+			auth: Auth{
+				HMAC: CalculateHMAC(peerRDT, CalculateFP([]byte("wrong-cert")), "secret"),
+				RDT:  peerRDT,
+			},
+			cert: peerCert,
+			err:  "received invalid HMAC from peer",
+		},
+		{
+			name: "wrong cert from transport layer",
+			auth: Auth{
+				HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
+				RDT:  peerRDT,
+			},
+			cert: []byte("wrong-cert"),
+			err:  "received invalid HMAC from peer",
+		},
+		{
+			name: "wrong secret",
+			auth: Auth{
+				HMAC: CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
+				RDT:  peerRDT,
+			},
+			cert: peerCert,
+			err:  "received invalid HMAC from peer",
+		},
+	}
+
+	for _, tc := range cases {
+		err := as.AuthenticateAndCommit(tc.auth, tc.cert)
+		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
+		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
+		c.Assert(len(cm.commits), check.Equals, 0)
+	}
+}
+
+func (s *clusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
+	as, cm, _, _, signing := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -420,10 +531,9 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 	// first, add a device identity with a specific fingerprint
 	correctCert := []byte("correct-certificate")
 	correctFP := CalculateFP(correctCert)
-	as.devices.RecordIdentity(Identity{
-		RDT: peerRDT,
-		FP:  correctFP,
-	})
+	identity := createTestIdentity(c, signing, peerRDT, correctFP, "secret")
+	err := as.devices.RecordIdentity(identity)
+	c.Assert(err, check.IsNil)
 
 	// now try to authenticate with the same RDT but different certificate
 	wrongCert := []byte("wrong-certificate")
@@ -434,15 +544,15 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 		RDT:  peerRDT,
 	}
 
-	err := as.AuthenticateAndCommit(auth, wrongCert)
+	err = as.AuthenticateAndCommit(auth, wrongCert)
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 
 	// verify commit was not called on fingerprint mismatch
 	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on fingerprint mismatch"))
 }
 
-func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -475,8 +585,8 @@ func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, 1)
 }
 
-func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -510,7 +620,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, 1)
 }
 
-func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
+func (s *clusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 	var authoritative []struct {
 		rdt DeviceToken
 		via string
@@ -523,7 +633,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		}{rdt, via})
 	}
 
-	as, cm, _ := assembleStateWithTestKeys(c, sel, AssembleConfig{
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, sel, AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -581,8 +691,8 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 	c.Assert(authoritative[0].via, check.Equals, peerAddr)
 }
 
-func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
-	as, _, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestVerifyPeer(c *check.C) {
+	as, _, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -604,8 +714,8 @@ func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
 	c.Assert(h.rdt, check.Equals, peerRDT)
 }
 
-func (s *ClusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
-	as, _, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
+	as, _, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -660,8 +770,8 @@ func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (vp VerifiedPee
 	return handle, peerCert
 }
 
-func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestPublishDeviceQueries(c *check.C) {
+	as, cm, _, _, signing := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
 		RDT:    "rdt",
 	})
@@ -692,11 +802,9 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline)
 
 	// act as if the peer responded for only one of the devices
+	oneID := createTestIdentity(c, signing, "one", CalculateFP([]byte("one-certificate")), "secret")
 	err = peer.CommitDevices(Devices{
-		Devices: []Identity{{
-			RDT: "one",
-			FP:  CalculateFP([]byte("one-certificate")),
-		}},
+		Devices: []Identity{oneID},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -716,27 +824,19 @@ func (s *ClusterSuite) TestPublishDeviceQueries(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline)
 }
 
-func (s *ClusterSuite) TestPublishDevicesAndCommit(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
+	as, cm, _, key, signing := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
-		RDT:    "rdt",
+		RDT:    "self",
 	})
 
-	oneRDT := DeviceToken("one")
-	one, _, _ := trustedAndDiscoveredPeer(c, as, oneRDT)
+	one, _, _ := trustedAndDiscoveredPeer(c, as, "one")
 
 	// inform us of devices one and two
+	oneID := createTestIdentity(c, signing, "one", CalculateFP([]byte("one-certificate")), "secret")
+	twoID := createTestIdentity(c, signing, "two", CalculateFP([]byte("two-certificate")), "secret")
 	err := one.CommitDevices(Devices{
-		Devices: []Identity{
-			{
-				RDT: "one",
-				FP:  CalculateFP([]byte("one-certificate")),
-			},
-			{
-				RDT: "two",
-				FP:  CalculateFP([]byte("two-certificate")),
-			},
-		},
+		Devices: []Identity{oneID, twoID},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -761,10 +861,7 @@ func (s *ClusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 			c.Assert(kind, check.Equals, "devices")
 
 			devices := message.(Devices)
-			c.Assert(devices.Devices, testutil.DeepUnsortedMatches, []Identity{{
-				RDT: "two",
-				FP:  CalculateFP([]byte("two-certificate")),
-			}})
+			c.Assert(devices.Devices, testutil.DeepUnsortedMatches, []Identity{twoID})
 			return nil
 		},
 	}
@@ -778,12 +875,49 @@ func (s *ClusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 	baseline = len(cm.commits)
 	as.publishDevicesAndCommit(context.Background(), &testClient{})
 	c.Assert(len(cm.commits), check.Equals, baseline+1)
+
+	// now test that we also send signed serial proofs for the local device
+	three.CommitDeviceQueries(UnknownDevices{
+		Devices: []DeviceToken{"self"}, // query for local device
+	})
+
+	called = 0
+	client.TrustedFunc = func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+		called++
+		c.Assert(addr, check.Equals, threeAddr)
+		c.Assert(cert, check.DeepEquals, threeCert)
+		c.Assert(kind, check.Equals, "devices")
+
+		devices := message.(Devices)
+		c.Assert(len(devices.Devices), check.Equals, 1)
+
+		d := devices.Devices[0]
+		c.Assert(d.RDT, check.Equals, DeviceToken("self"))
+		// verify the serial contains the full assertion, not just the serial number
+		c.Assert(len(d.Serial) > 0, check.Equals, true)
+		c.Assert(len(d.SerialProof) > 0, check.Equals, true)
+
+		// verify the serial proof contains a valid signature of the expected HMAC
+		expectedHMAC := CalculateHMAC("self", d.FP, "secret")
+
+		// verify the serial proof is a valid signature of the HMAC using the expected device key
+		// this tests that the system used the correct key for signing
+		err := asserts.RawVerifyWithKey(expectedHMAC, d.SerialProof, key.PublicKey())
+		c.Assert(err, check.IsNil)
+
+		return nil
+	}
+
+	baseline = len(cm.commits)
+	as.publishDevicesAndCommit(context.Background(), &client)
+	c.Assert(called, check.Equals, 1)
+	c.Assert(len(cm.commits), check.Equals, baseline+1)
 }
 
-func (s *ClusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
-		RDT:    "rdt",
+		RDT:    "self",
 	})
 
 	peerRDT := DeviceToken("peer-rdt")
@@ -796,8 +930,9 @@ func (s *ClusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
 
 	err := peer.CommitDevices(Devices{
 		Devices: []Identity{{
-			RDT: peerRDT,
-			FP:  wrongFP,
+			RDT:    peerRDT,
+			FP:     wrongFP,
+			Serial: "peer-serial",
 		}},
 	})
 
@@ -805,20 +940,17 @@ func (s *ClusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline, check.Commentf("commit should not be called on fingerprint mismatch"))
 }
 
-func (s *ClusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
-	as, cm, _ := assembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
+func (s *clusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
+	as, cm, _, _, signing := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
-		RDT:    "rdt",
+		RDT:    "self",
 	})
 
 	one, _, _ := trustedAndDiscoveredPeer(c, as, "peer-one")
 	two, _, _ := trustedAndDiscoveredPeer(c, as, "peer-two")
 
 	// first peer records an identity for a third device
-	id := Identity{
-		RDT: "peer-three",
-		FP:  CalculateFP([]byte("original-certificate")),
-	}
+	id := createTestIdentity(c, signing, "peer-three", CalculateFP([]byte("original-certificate")), "secret")
 
 	err := one.CommitDevices(Devices{
 		Devices: []Identity{id},
@@ -828,10 +960,7 @@ func (s *ClusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
 	baseline := len(cm.commits)
 
 	// second peer tries to record a different identity for the same device
-	conflicting := Identity{
-		RDT: "peer-three",
-		FP:  CalculateFP([]byte("different-certificate")),
-	}
+	conflicting := createTestIdentity(c, signing, "peer-three", CalculateFP([]byte("different-certificate")), "secret")
 
 	err = two.CommitDevices(Devices{
 		Devices: []Identity{conflicting},
@@ -841,11 +970,163 @@ func (s *ClusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline, check.Commentf("commit should not be called on identity inconsistency"))
 }
 
-func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
-	selector := statelessSelector()
-	as, cm, _ := assembleStateWithTestKeys(c, selector, AssembleConfig{
+func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
+	as, _, _, _, signing := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
-		RDT:    "rdt",
+		RDT:    "self",
+	})
+
+	peer, _, _ := trustedAndDiscoveredPeer(c, as, "trusted-peer")
+
+	cases := []struct {
+		name     string
+		identity func() Identity
+		err      string
+	}{
+		{
+			name: "wrong device key in serial proof",
+			identity: func() Identity {
+				// create a valid serial assertion
+				serial, _ := createTestSerial(c, signing)
+
+				// but sign the proof with a completely different key
+				attackerKey, _ := assertstest.GenerateKey(752)
+
+				rdt := DeviceToken("victim-rdt")
+				fp := CalculateFP([]byte("victim-cert"))
+				hmac := CalculateHMAC(rdt, fp, "secret")
+
+				// sign with attacker's key instead of device key from serial
+				proof, err := asserts.RawSignWithKey(hmac, attackerKey)
+				c.Assert(err, check.IsNil)
+
+				return Identity{
+					RDT:         rdt,
+					FP:          fp,
+					Serial:      string(asserts.Encode(serial)),
+					SerialProof: proof,
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "modified serial assertion",
+			identity: func() Identity {
+				// create a valid serial assertion and device key
+				serial, deviceKey := createTestSerial(c, signing)
+
+				rdt := DeviceToken("victim-rdt")
+				fp := CalculateFP([]byte("victim-cert"))
+				hmac := CalculateHMAC(rdt, fp, "secret")
+
+				// create valid proof
+				proof, err := asserts.RawSignWithKey(hmac, deviceKey)
+				c.Assert(err, check.IsNil)
+
+				// but modify the serial assertion after signing
+				validSerial := string(asserts.Encode(serial))
+				modifiedSerial := validSerial[:len(validSerial)-10] + "HACKED" + validSerial[len(validSerial)-6:]
+
+				return Identity{
+					RDT:         rdt,
+					FP:          fp,
+					Serial:      modifiedSerial,
+					SerialProof: proof,
+				}
+			},
+			err: ".*invalid serial assertion.*",
+		},
+		{
+			name: "wrong secret in hmac",
+			identity: func() Identity {
+				serial, deviceKey := createTestSerial(c, signing)
+
+				rdt := DeviceToken("victim-rdt")
+				fp := CalculateFP([]byte("victim-cert"))
+
+				// attacker doesn't know the real secret
+				wrongHMAC := CalculateHMAC(rdt, fp, "wrong-secret")
+
+				// sign the wrong HMAC with correct device key
+				proof, err := asserts.RawSignWithKey(wrongHMAC, deviceKey)
+				c.Assert(err, check.IsNil)
+
+				return Identity{
+					RDT:         rdt,
+					FP:          fp,
+					Serial:      string(asserts.Encode(serial)),
+					SerialProof: proof,
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "mismatched rdt in proof",
+			identity: func() Identity {
+				serial, deviceKey := createTestSerial(c, signing)
+
+				rdt := DeviceToken("real-rdt")
+				attackerRDT := DeviceToken("attacker-rdt")
+				fp := CalculateFP([]byte("victim-cert"))
+
+				// sign HMAC for different RDT than claimed
+				hmac := CalculateHMAC(attackerRDT, fp, "secret")
+				proof, err := asserts.RawSignWithKey(hmac, deviceKey)
+				c.Assert(err, check.IsNil)
+
+				return Identity{
+					RDT:         rdt, // claim this RDT
+					FP:          fp,
+					Serial:      string(asserts.Encode(serial)),
+					SerialProof: proof, // but proof is for different RDT
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "invalid signature data",
+			identity: func() Identity {
+				serial, _ := createTestSerial(c, signing)
+
+				rdt := DeviceToken("victim-rdt")
+				fp := CalculateFP([]byte("victim-cert"))
+
+				return Identity{
+					RDT:         rdt,
+					FP:          fp,
+					Serial:      string(asserts.Encode(serial)),
+					SerialProof: []byte("garbage-signature-data"),
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+	}
+
+	for _, tc := range cases {
+		c.Logf("testing forged identity case: %s", tc.name)
+
+		id := tc.identity()
+
+		// attempt to record the forged identity
+		err := peer.CommitDevices(Devices{
+			Devices: []Identity{id},
+		})
+
+		// verify the forged identity is rejected
+		c.Assert(err, check.NotNil, check.Commentf("forged identity should be rejected: %s", tc.name))
+		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("wrong error for case: %s", tc.name))
+
+		// verify the forged identity was not added to the system
+		_, exists := as.devices.Lookup(id.RDT)
+		c.Assert(exists, check.Equals, false, check.Commentf("forged identity should not be stored: %s", tc.name))
+	}
+}
+
+func (s *clusterSuite) TestPublishRoutes(c *check.C) {
+	selector := statelessSelector()
+	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, selector, AssembleConfig{
+		Secret: "secret",
+		RDT:    "self",
 	})
 
 	oneRDT := DeviceToken("one")
@@ -898,21 +1179,14 @@ func (s *ClusterSuite) TestPublishRoutes(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline)
 }
 
-func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
-	certPEM, keyPEM := createTestCertAndKey(c)
+func (s *clusterSuite) TestNewAssembleStateTimeout(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "self")
 
 	// use a fixed time for testing
 	now := time.Now()
-	clock := func() time.Time {
+	cfg.Clock = func() time.Time {
 		return now
-	}
-
-	cfg := AssembleConfig{
-		Secret:  "secret",
-		RDT:     "rdt",
-		TLSCert: certPEM,
-		TLSKey:  keyPEM,
-		Clock:   clock,
 	}
 
 	commit := func(AssembleSession) {}
@@ -920,7 +1194,7 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	// test with no initiated time (new session)
 	_, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, commit)
+	}, commit, db)
 	c.Assert(err, check.IsNil)
 
 	// test with recent session still within the timeout (30 minutes old)
@@ -929,7 +1203,7 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	}
 	_, err = NewAssembleState(cfg, recent, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, commit)
+	}, commit, db)
 	c.Assert(err, check.IsNil)
 
 	// test with expired session (2 hours old)
@@ -938,11 +1212,11 @@ func (s *ClusterSuite) TestNewAssembleStateTimeout(c *check.C) {
 	}
 	_, err = NewAssembleState(cfg, expired, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, commit)
+	}, commit, db)
 	c.Assert(err, check.ErrorMatches, "invalid session data: cannot resume an assembly session that began more than an hour ago")
 }
 
-func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
+func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	type peer struct {
 		rdt  DeviceToken
 		cert []byte
@@ -977,6 +1251,8 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		return now
 	}
 
+	assertDB, signing := mockAssertDB(c)
+
 	// create pre-populated session with various data
 	session := AssembleSession{
 		Initiated: now.Add(-30 * time.Minute),
@@ -1008,14 +1284,8 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		},
 		Devices: DeviceQueryTrackerData{
 			IDs: []Identity{
-				{
-					RDT: peers[0].rdt,
-					FP:  peers[0].fp,
-				},
-				{
-					RDT: peers[1].rdt,
-					FP:  peers[1].fp,
-				},
+				createTestIdentity(c, signing, peers[0].rdt, peers[0].fp, "secret"),
+				createTestIdentity(c, signing, peers[1].rdt, peers[1].fp, "secret"),
 			},
 			Queries: map[DeviceToken][]DeviceToken{
 				peers[0].rdt: {local.rdt},
@@ -1060,19 +1330,25 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		},
 	}
 
+	serial, deviceKey := createTestSerial(c, signing)
+	proof, err := asserts.RawSignWithKey(CalculateHMAC(local.rdt, local.fp, "secret"), deviceKey)
+	c.Assert(err, check.IsNil)
+
 	cfg := AssembleConfig{
-		Secret:  "secret",
-		RDT:     local.rdt,
-		TLSCert: certPEM,
-		TLSKey:  keyPEM,
-		Clock:   clock,
+		Secret:     "secret",
+		RDT:        local.rdt,
+		TLSCert:    certPEM,
+		TLSKey:     keyPEM,
+		Clock:      clock,
+		Serial:     serial,
+		PrivateKey: deviceKey,
 	}
 
 	// create AssembleState with imported session
 	as, err := NewAssembleState(cfg, session, func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error) {
 		c.Assert(self, check.Equals, local.rdt)
 		return selector, nil
-	}, func(AssembleSession) {})
+	}, func(AssembleSession) {}, assertDB)
 	c.Assert(err, check.IsNil)
 
 	// verify imported routes were recorded in selector
@@ -1143,8 +1419,10 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 			publications = append(publications, addr)
 			devices := message.(Devices)
 			c.Check(devices.Devices, check.DeepEquals, []Identity{{
-				RDT: local.rdt,
-				FP:  local.fp,
+				RDT:         local.rdt,
+				FP:          local.fp,
+				Serial:      string(asserts.Encode(serial)),
+				SerialProof: proof,
 			}})
 			return nil
 		},
@@ -1167,19 +1445,13 @@ func (s *ClusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	c.Assert(publications, check.DeepEquals, []string{"127.0.0.2:8001"})
 }
 
-func (s *ClusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
-	cert, key := createTestCertAndKey(c)
-
-	cfg := AssembleConfig{
-		Secret:  "secret",
-		RDT:     "local-rdt",
-		TLSCert: cert,
-		TLSKey:  key,
-	}
+func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "rdt")
 
 	commit := func(AssembleSession) {}
 
-	testCases := []struct {
+	cases := []struct {
 		name    string
 		session AssembleSession
 		err     string
@@ -1293,10 +1565,7 @@ func (s *ClusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 				return AssembleSession{
 					Devices: DeviceQueryTrackerData{
 						IDs: []Identity{
-							{
-								RDT: "local-rdt", // matches cfg.RDT in the test
-								FP:  wrongFP,     // different from actual cert fingerprint
-							},
+							createTestIdentity(c, signing, cfg.RDT, wrongFP, "secret"),
 						},
 					},
 				}
@@ -1305,23 +1574,23 @@ func (s *ClusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range cases {
 		_, err := NewAssembleState(cfg, tc.session, func(DeviceToken, func(DeviceToken) bool) (RouteSelector, error) {
 			return statelessSelector(), nil
-		}, commit)
+		}, commit, db)
 
 		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
 		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
 	}
 }
 
-func (s *ClusterSuite) TestRunTimeout(c *check.C) {
-	certPEM, keyPEM := createTestCertAndKey(c)
+func (s *clusterSuite) TestRunTimeout(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "rdt")
 
-	// mock clock that advances time on each call
 	started := time.Now()
 	called := false
-	clock := func() time.Time {
+	cfg.Clock = func() time.Time {
 		// first call during NewAssembleState: return current time
 		if !called {
 			called = true
@@ -1330,14 +1599,6 @@ func (s *ClusterSuite) TestRunTimeout(c *check.C) {
 
 		// subsequent calls: return time that's past the 1-hour limit
 		return started.Add(time.Hour + time.Second)
-	}
-
-	cfg := AssembleConfig{
-		Secret:  "secret",
-		RDT:     "rdt",
-		TLSCert: certPEM,
-		TLSKey:  keyPEM,
-		Clock:   clock,
 	}
 
 	commit := func(AssembleSession) {}
@@ -1358,7 +1619,7 @@ func (s *ClusterSuite) TestRunTimeout(c *check.C) {
 	}
 	as, err := NewAssembleState(cfg, session, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, commit)
+	}, commit, db)
 	c.Assert(err, check.IsNil)
 
 	// when Run is called, the clock will return a time past the 1-hour limit
@@ -1366,15 +1627,9 @@ func (s *ClusterSuite) TestRunTimeout(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
 }
 
-func (s *ClusterSuite) TestRunServerError(c *check.C) {
-	certPEM, keyPEM := createTestCertAndKey(c)
-
-	cfg := AssembleConfig{
-		Secret:  "secret",
-		RDT:     "rdt",
-		TLSCert: certPEM,
-		TLSKey:  keyPEM,
-	}
+func (s *clusterSuite) TestRunServerError(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "rdt")
 
 	commit := func(AssembleSession) {}
 
@@ -1392,23 +1647,17 @@ func (s *ClusterSuite) TestRunServerError(c *check.C) {
 	discover := make(chan []string)
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
-	}, commit)
+	}, commit, db)
 	c.Assert(err, check.IsNil)
 
 	_, err = as.Run(context.Background(), testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, testutil.ErrorIs, serverError)
 }
 
-func (s *ClusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
-	certPEM, keyPEM := createTestCertAndKey(c)
-
-	cfg := AssembleConfig{
-		Secret:       "secret",
-		RDT:          "rdt1",
-		TLSCert:      certPEM,
-		TLSKey:       keyPEM,
-		ExpectedSize: 2,
-	}
+func (s *clusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "one")
+	cfg.ExpectedSize = 2 // expect completion at 2 devices
 
 	// create a mock selector that immediately reports that the graph is fully
 	// connected
@@ -1431,7 +1680,7 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
 	discover := make(chan []string)
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
-	}, func(AssembleSession) {})
+	}, func(as AssembleSession) {}, db)
 	c.Assert(err, check.IsNil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1441,16 +1690,10 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *ClusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
-	certPEM, keyPEM := createTestCertAndKey(c)
-
-	cfg := AssembleConfig{
-		Secret:       "secret",
-		RDT:          "rdt1",
-		TLSCert:      certPEM,
-		TLSKey:       keyPEM,
-		ExpectedSize: 2,
-	}
+func (s *clusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "one")
+	cfg.ExpectedSize = 2 // expect completion at 2 devices
 
 	// create a mock selector that reports that the graph is fully
 	// connected after the first call
@@ -1474,7 +1717,7 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
 
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
-	}, func(AssembleSession) {})
+	}, func(AssembleSession) {}, db)
 	c.Assert(err, check.IsNil)
 
 	h, _, _ := trustedAndDiscoveredPeer(c, as, "peer")
@@ -1488,16 +1731,10 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *ClusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
-	certPEM, keyPEM := createTestCertAndKey(c)
-
-	cfg := AssembleConfig{
-		Secret:       "secret",
-		RDT:          "rdt1",
-		TLSCert:      certPEM,
-		TLSKey:       keyPEM,
-		ExpectedSize: 2,
-	}
+func (s *clusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
+	db, signing := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, signing, "secret", "one")
+	cfg.ExpectedSize = 2 // expect completion at 2 devices
 
 	// create a mock selector that reports that the graph is fully
 	// connected after the first call
@@ -1521,7 +1758,7 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
 
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
-	}, func(AssembleSession) {})
+	}, func(AssembleSession) {}, db)
 	c.Assert(err, check.IsNil)
 
 	h, _, _ := trustedAndDiscoveredPeer(c, as, "peer")
