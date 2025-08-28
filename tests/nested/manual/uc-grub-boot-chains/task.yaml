@@ -18,6 +18,12 @@ prepare: |
   apt update
 
   VERSION=$(tests.nested show version)
+  case "${VERSION}" in
+      26)
+        NESTED_GADGET_CHANNEL=edge
+        ;;
+  esac
+
   snap download --basename=pc --channel="${VERSION}/${NESTED_GADGET_CHANNEL}" pc
   unsquashfs -d pc pc.snap
   apt download shim-signed

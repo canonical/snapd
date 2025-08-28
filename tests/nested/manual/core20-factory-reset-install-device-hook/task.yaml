@@ -6,7 +6,11 @@ details: |
     conditions (whether the hook is executed in install mode, or factory-reset
     mode ).
 
-systems: [ubuntu-2*]
+systems:
+  # core26 is not yet in grade that can work with a signed model
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
     # use snapd from the spread run so that we have testkeys trusted in the
