@@ -56,7 +56,15 @@ prepare: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
+  case "${version}" in
+    26)
+      kernel_version=25.10
+      ;;
+    *)
+      kernel_version="${version}"
+      ;;
+  esac
+  snap download --basename=pc-kernel-from-store --channel="${kernel_version}/${KERNEL_CHANNEL}" pc-kernel
   # the fakestore needs this assertion
   snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
@@ -66,6 +74,12 @@ prepare: |
       uc20_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
   fi
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+
+  remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+  remote.exec "sudo mkdir -p /cdrom/casper"
+  remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
 
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
