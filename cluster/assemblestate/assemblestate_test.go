@@ -72,6 +72,8 @@ func createTestCertAndKey(c *check.C) (certPEM []byte, keyPEM []byte) {
 }
 
 func (s *assembleSuite) TestRun(c *check.C) {
+	db, signing := mockAssertDB(c)
+
 	const count = 16
 	rdts := make([]assemblestate.DeviceToken, 0, count)
 	addrs := make([]string, 0, count)
@@ -96,16 +98,20 @@ func (s *assembleSuite) TestRun(c *check.C) {
 		rdt := rdt
 
 		cert, key := createTestCertAndKey(c)
+		serial, pk := createTestSerial(c, signing)
 		as, err := assemblestate.NewAssembleState(assemblestate.AssembleConfig{
-			Secret:  "secret",
-			RDT:     assemblestate.DeviceToken(rdt),
-			TLSCert: cert,
-			TLSKey:  key,
+			Secret:     "secret",
+			RDT:        assemblestate.DeviceToken(rdt),
+			TLSCert:    cert,
+			TLSKey:     key,
+			Serial:     serial,
+			PrivateKey: pk,
 		}, assemblestate.AssembleSession{},
 			func(self assemblestate.DeviceToken, identified func(assemblestate.DeviceToken) bool) (assemblestate.RouteSelector, error) {
 				return assemblestate.NewPrioritySelector(self, nil, identified), nil
 			},
 			func(as assemblestate.AssembleSession) {},
+			db,
 		)
 		c.Assert(err, check.IsNil)
 
@@ -128,11 +134,14 @@ func (s *assembleSuite) TestRun(c *check.C) {
 
 	rdt := rdts[0]
 	cert, key := createTestCertAndKey(c)
+	serial, pk := createTestSerial(c, signing)
 	as, err := assemblestate.NewAssembleState(assemblestate.AssembleConfig{
-		Secret:  "secret",
-		RDT:     assemblestate.DeviceToken(rdt),
-		TLSCert: cert,
-		TLSKey:  key,
+		Secret:     "secret",
+		RDT:        assemblestate.DeviceToken(rdt),
+		TLSCert:    cert,
+		TLSKey:     key,
+		Serial:     serial,
+		PrivateKey: pk,
 
 		// this session has an expected size, so it will terminate on its own
 		ExpectedSize: count,
@@ -141,6 +150,7 @@ func (s *assembleSuite) TestRun(c *check.C) {
 			return assemblestate.NewPrioritySelector(self, nil, identified), nil
 		},
 		func(as assemblestate.AssembleSession) {},
+		db,
 	)
 	c.Assert(err, check.IsNil)
 
