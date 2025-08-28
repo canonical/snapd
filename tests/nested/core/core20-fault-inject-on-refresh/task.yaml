@@ -4,7 +4,11 @@ details: |
     The test checks that if a fault is injected during a fundamental snap refresh,
     then the change continues an is completed with a predictable outcome.
 
-systems: [ubuntu-2*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment: 
     TAG/base_panic_link_snap: link-snap
@@ -70,6 +74,9 @@ prepare: |
     remote.exec "sudo cp -v fault-inject.conf /etc/systemd/system/snapd.service.d/"
     remote.exec "sudo systemctl daemon-reload"
     remote.exec "sudo systemctl restart snapd.service"
+
+    remote.wait-for snap-command
+    remote.exec "retry --wait 5 -n 10 sh -c 'snap changes | MATCH \"Done.*Initialize device\"'"
 
 execute: |
     VERSION="$(tests.nested show version)"
