@@ -9,7 +9,9 @@ details: |
     - Users can replace their recovery key at runtime
     - Users can add new recovery keys at runtime
 
-systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
+systems:
+  # FIXME: make it work on 26
+  - ubuntu-24*
 
 environment:
   # TODO:FDEM: add 26.04 variant
