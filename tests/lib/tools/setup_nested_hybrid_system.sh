@@ -174,6 +174,12 @@ fi
 EOF
     remote.exec "chmod +x /home/user1/mk-classic-rootfs-wrapper.sh"
 
+    remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+    remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+    remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+    remote.exec "sudo mkdir -p /cdrom/casper"
+    remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
+
     muinstaller_args=()
     muinstaller_args+=("-label" "$label")
     muinstaller_args+=("-device" "$install_disk")
