@@ -462,8 +462,16 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAddGadgetDeviceErro
 
 	err := gpio.ExportGadgetChardevChip(context.TODO(), []string{"label-0"}, strutil.Range{{Start: 0, End: 0}}, "gadget-name", "slot-name")
 	c.Check(err, ErrorMatches, "boom!")
-	// device node is cleaned on error
+
+	// Cleanup is triggered on error
+
+	// Virtual device is removed
 	c.Check(filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name"), testutil.FileAbsent)
+	// Udev rule is removed
+	c.Check(filepath.Join(s.rootdir, "/run/udev/rules.d/69-snap.gadget-name.interface.gpio-chardev-slot-name.rules"), testutil.FileAbsent)
+	// Aggregator device is deleted
+	c.Check(s.mockChipInfos[filepath.Join(s.rootdir, "/dev/gpiochip3")], IsNil)
+	c.Check(s.mockChipInfos[filepath.Join(s.rootdir, "/dev/snap/gpio-chardev/gadget-name/slot-name")], IsNil)
 }
 
 func (s *exportUnexportTestSuite) TestExportGadgetChardevChipAggregatedChipsSkipped(c *C) {

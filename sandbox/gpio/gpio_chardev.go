@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kmod"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -41,7 +42,7 @@ func SnapChardevPath(instanceName, plugOrSlot string) string {
 // gpio aggregator for a given gadget gpio-chardev interface slot.
 //
 // Note: chipLabels must match exactly one chip.
-func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines strutil.Range, instanceName, slotName string) error {
+func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines strutil.Range, instanceName, slotName string) (retErr error) {
 	// The filtering is quadratic, but we only expect a few chip
 	// labels, so it is fine.
 	filter := func(chip *chardevChip) bool {
@@ -67,6 +68,16 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
 
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		// Best effort cleanup
+		if err := UnexportGadgetChardevChip(instanceName, slotName); err != nil {
+			logger.Noticef("cannot cleanup exported gpio chip: %v", err)
+		}
+	}()
+
 	// Order of operations below is important because the exported gpio
 	// aggregator device doesn't have enough metadata for udev to match in
 	// advance. Instead, We use the dynamically generated chip name is used
@@ -84,14 +95,14 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 // UnexportGadgetChardevChip unexports previously exported gpio chip lines
 // for a given gadget gpio-chardev interface slot.
 func UnexportGadgetChardevChip(instanceName, slotName string) error {
-	// XXX: make removal best effort and ignore errors?
-	if err := removeGadgetSlotDevice(instanceName, slotName); err != nil {
-		return err
+	// Errors are only checked at the end to cleanup as much as possible.
+	errs := []error{
+		removeGadgetSlotDevice(instanceName, slotName),
+		removeEphemeralUdevTaggingRule(instanceName, slotName),
+		removeAggregatedChip(instanceName, slotName),
 	}
-	if err := removeEphemeralUdevTaggingRule(instanceName, slotName); err != nil {
-		return err
-	}
-	return removeAggregatedChip(instanceName, slotName)
+
+	return strutil.JoinErrors(errs...)
 }
 
 var kmodLoadModule = kmod.LoadModule

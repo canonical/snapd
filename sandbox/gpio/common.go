@@ -223,13 +223,6 @@ func addGadgetSlotDevice(chipName, instanceName, slotName string) (err error) {
 		return err
 	}
 
-	defer func() {
-		if err != nil {
-			// cleanup created device node
-			os.RemoveAll(devPath)
-		}
-	}()
-
 	// restore ownership
 	if err := osChown(devPath, int(stat.Uid), int(stat.Gid)); err != nil {
 		return err
