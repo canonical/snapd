@@ -1,0 +1,12 @@
+name: test-snapd-sh-core26
+summary: A test package for snapd
+description: A test package for snapd
+version: 1.0
+architectures: ["all"]
+confinement: strict
+grade: devel
+base: core26
+
+apps:
+    sh:
+        command: bin/sh

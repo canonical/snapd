@@ -5,7 +5,7 @@ description: |
   This snap has a one-shot service that fails the first time it runs.
 architectures:
 - amd64
-base: core24
+base: @@BASE@@
 apps:
   fail-service:
     command: bin/fail.sh
