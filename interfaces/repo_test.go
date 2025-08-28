@@ -196,6 +196,30 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
 }
 
+func (s *RepositorySuite) TestAddInterfaceConflictingConnectedInterfacesErrors(c *C) {
+	iface1 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-1"},
+		ConflictingConnectedInterfaces: []string{"interface-2", "interface-3"},
+	}
+	iface2 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-2"},
+		ConflictingConnectedInterfaces: []string{"interface-1"},
+	}
+	iface3 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-3"},
+		ConflictingConnectedInterfaces: []string{"interface-2", "interface-4"},
+	}
+	iface4 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-4"},
+		ConflictingConnectedInterfaces: []string{"interface-4"},
+	}
+
+	c.Check(s.testRepo.AddInterface(iface1), IsNil)
+	c.Check(s.testRepo.AddInterface(iface2), ErrorMatches, `internal error: mutually exclusive connection relation between "interface-2" and "interface-1" was already defined by "interface-1"`)
+	c.Check(s.testRepo.AddInterface(iface3), IsNil)
+	c.Check(s.testRepo.AddInterface(iface4), ErrorMatches, `internal error: cannot define mutually exclusive connection relation for the "interface-4" interface with itself`)
+}
+
 // Tests for Repository.AllInterfaces()
 
 func (s *RepositorySuite) TestAllInterfaces(c *C) {

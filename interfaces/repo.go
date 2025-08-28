@@ -51,7 +51,7 @@ type Repository struct {
 	appSets map[string]*SnapAppSet
 	// indexed by [ifaceName1][ifaceName2] indicates that interface "ifaceName1"
 	// cannot be connected if interface "ifaceName2" already has a connection
-	conflictingConnectedInterfaces map[string]map[string]struct{}
+	conflictingConnectedInterfaces map[string]map[string]bool
 }
 
 // defaultIfaceDocURLTemplate is used as template for generating the default interface
@@ -68,7 +68,7 @@ func NewRepository() *Repository {
 		slotPlugs:                      make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
 		plugSlots:                      make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
 		appSets:                        make(map[string]*SnapAppSet),
-		conflictingConnectedInterfaces: make(map[string]map[string]struct{}),
+		conflictingConnectedInterfaces: make(map[string]map[string]bool),
 	}
 
 	return repo
@@ -83,7 +83,7 @@ func ResetRepository(repo *Repository) {
 	repo.slotPlugs = make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection)
 	repo.plugSlots = make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection)
 	repo.appSets = make(map[string]*SnapAppSet)
-	repo.conflictingConnectedInterfaces = map[string]map[string]struct{}{}
+	repo.conflictingConnectedInterfaces = map[string]map[string]bool{}
 }
 
 // Interface returns an interface with a given name.
@@ -112,19 +112,26 @@ func (r *Repository) AddInterface(i Interface) error {
 		r.hotplugIfaces[interfaceName] = i
 	}
 
-	type conflictsWithOtherConnectedInterfacesDefiner interface {
-		ConflictsWithOtherConnectedInterfaces() []string
-	}
-	if iface, ok := i.(conflictsWithOtherConnectedInterfacesDefiner); ok {
+	if iface, ok := i.(ConflictingConnectedInterfacesDefiner); ok {
 		for _, otherInterfaceName := range iface.ConflictsWithOtherConnectedInterfaces() {
+			if otherInterfaceName == interfaceName {
+				return fmt.Errorf("internal error: cannot define mutually exclusive connection relation for the %q interface with itself", interfaceName)
+			}
+
 			if r.conflictingConnectedInterfaces[interfaceName] == nil {
-				r.conflictingConnectedInterfaces[interfaceName] = make(map[string]struct{}, 1)
+				r.conflictingConnectedInterfaces[interfaceName] = make(map[string]bool)
 			}
 			if r.conflictingConnectedInterfaces[otherInterfaceName] == nil {
-				r.conflictingConnectedInterfaces[otherInterfaceName] = make(map[string]struct{}, 1)
+				r.conflictingConnectedInterfaces[otherInterfaceName] = make(map[string]bool)
 			}
-			r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] = struct{}{}
-			r.conflictingConnectedInterfaces[otherInterfaceName][interfaceName] = struct{}{}
+			if r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] {
+				// mutually exclusive connection relation was already defined in one of the
+				// interfaces, to avoid ambiguity of having multiple ways of defining the
+				// relation, only allow one interface to define the relation.
+				return fmt.Errorf("internal error: mutually exclusive connection relation between %[1]q and %[2]q was already defined by %[2]q", interfaceName, otherInterfaceName)
+			}
+			r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] = true
+			r.conflictingConnectedInterfaces[otherInterfaceName][interfaceName] = true
 		}
 	}
 
@@ -574,7 +581,7 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 	if r.conflictingConnectedInterfaces[iface.Name()] != nil {
 		// check no conflicting interfaces are connected
 		for slot := range r.slotPlugs {
-			if _, ok := r.conflictingConnectedInterfaces[iface.Name()][slot.Interface]; ok {
+			if r.conflictingConnectedInterfaces[iface.Name()][slot.Interface] {
 				return nil, fmt.Errorf("interface %[1]q and %[2]q cannot be connected at the same time: %[2]q is already connected", iface.Name(), slot.Interface)
 			}
 		}

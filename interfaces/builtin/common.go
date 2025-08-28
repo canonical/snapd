@@ -95,6 +95,8 @@ type commonInterface struct {
 	conflictingConnectedInterfaces []string
 }
 
+var _ = interfaces.ConflictingConnectedInterfacesDefiner(&commonInterface{})
+
 // Name returns the interface name.
 func (iface *commonInterface) Name() string {
 	return iface.name
