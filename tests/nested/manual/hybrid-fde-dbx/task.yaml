@@ -56,7 +56,15 @@ prepare: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
+  case "${version}" in
+    26)
+      kernel_version=25.10
+      ;;
+    *)
+      kernel_version="${version}"
+      ;;
+  esac
+  snap download --basename=pc-kernel-from-store --channel="${kernel_version}/${KERNEL_CHANNEL}" pc-kernel
   # the fakestore needs this assertion
   snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
