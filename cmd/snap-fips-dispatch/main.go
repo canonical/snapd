@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -17,17 +19,12 @@ func run() error {
 	logger.SimpleSetup(nil)
 
 	prog := os.Args[0]
-
-	exe, err := os.Readlink(selfExe)
-	if err != nil {
-		return err
-	}
+	progBase := filepath.Base(prog)
 
 	logger.Debugf("argv[0]: %s", prog)
-	logger.Debugf("exe: %s", exe)
 
 	target := func() string {
-		switch filepath.Base(exe) {
+		switch progBase {
 		case "snapd":
 			return "/usr/lib/snapd/snapd-fips"
 		case "snap":
@@ -37,9 +34,13 @@ func run() error {
 		case "snap-bootstrap":
 			return "/usr/lib/snapd/snap-bootstrap-fips"
 		default:
-			return filepath.Join("/usr/lib/snapd", filepath.Base(exe))
+			return filepath.Join("/usr/lib/snapd", progBase)
 		}
 	}()
+
+	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, progBase)) {
+		target = "/usr/lib/snapd/snap-fips"
+	}
 
 	logger.Debugf("dispatch target: %v", target)
 	return snapdtool.DispatchWithFIPS(target)
