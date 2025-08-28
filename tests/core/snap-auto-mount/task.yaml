@@ -19,7 +19,11 @@ systems:
   - ubuntu-core-18-64
   - ubuntu-core-20-64
   - ubuntu-core-22-64
-# does not work on core24
+# On core24 the udev rules will not trigger because the dm device 
+# that is set up is not marked 'removable', the udev rules has been 
+# changed in core24 to require this for auto-import - this test should be 
+# rewritten to be a nested test and tested with a fake usb-device in 
+# qemu instead of trying to fake it with a dm device.
 #  - ubuntu-core-24-64
 
 prepare: |
