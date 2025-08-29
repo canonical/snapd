@@ -254,7 +254,7 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 		cmdExit = `exit 0`
 	}
 	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", cmdExit)
-	defer systemdCmd.Restore()
+	s.AddCleanup(systemdCmd.Restore)
 
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
@@ -268,7 +268,7 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 
 			return nil
 		})
-	defer restore()
+	s.AddCleanup(restore)
 
 	restore = secboot.MockSbPreinstallRun(
 		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error) {
@@ -279,9 +279,10 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 
 			return &sb_preinstall.CheckResult{}, nil
 		})
-	defer restore()
+	s.AddCleanup(restore)
 
-	errorDetails, err := secboot.PreinstallCheck(context.Background(), nil)
+	checkContext, errorDetails, err := secboot.PreinstallCheck(context.Background(), nil)
+	c.Assert(checkContext, NotNil)
 	c.Assert(err, IsNil)
 	c.Assert(errorDetails, IsNil)
 }
@@ -300,7 +301,8 @@ func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 	}
 }
 
-func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap bool) {
+// testPreinstallCheckAndAction is a helper to test PreinstallCheck and PreinstallCheckAction
+func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboot.PreinstallAction, detectErrors, failUnwrap bool) {
 	bootImagePaths := []string{
 		"/cdrom/EFI/boot/bootXXX.efi",
 		"/cdrom/EFI/boot/grubXXX.efi",
@@ -308,10 +310,13 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 	}
 
 	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
-	defer systemdCmd.Restore()
+	s.AddCleanup(systemdCmd.Restore)
+
+	var expectedRunChecksContext *sb_preinstall.RunChecksContext
 
 	restore := secboot.MockSbPreinstallNewRunChecksContext(
 		func(initialFlags sb_preinstall.CheckFlags, loadedImages []sb_efi.Image, profileOpts sb_preinstall.PCRProfileOptionsFlags) *sb_preinstall.RunChecksContext {
+			c.Assert(checkAction, IsNil)
 			c.Assert(initialFlags, Equals, sb_preinstall.PermitVARSuppliedDrivers)
 			c.Assert(profileOpts, Equals, sb_preinstall.PCRProfileOptionsDefault)
 			c.Assert(loadedImages, HasLen, len(bootImagePaths))
@@ -319,17 +324,19 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 				c.Check(image.String(), Equals, bootImagePaths[i])
 			}
 
-			return &sb_preinstall.RunChecksContext{}
+			return expectedRunChecksContext
 		})
-	defer restore()
+	s.AddCleanup(restore)
+
+	var expectedAction sb_preinstall.Action
 
 	restore = secboot.MockSbPreinstallRun(
 		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error) {
-			c.Assert(checkCtx, NotNil)
+			c.Assert(checkCtx, Equals, expectedRunChecksContext)
 			c.Assert(checkCtx.Errors(), IsNil)
 			c.Assert(checkCtx.Result(), IsNil)
 			c.Assert(ctx, NotNil)
-			c.Assert(action, Equals, sb_preinstall.ActionNone)
+			c.Assert(action, Equals, expectedAction)
 			c.Assert(args, IsNil)
 
 			if detectErrors {
@@ -350,6 +357,8 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 						),
 					},
 				}
+				// if we test with an action then only apply failure when called from PreinstallCheckAction
+				// to ensure
 			} else if failUnwrap {
 				return nil, sb_preinstall.ErrInsufficientDMAProtection
 			} else {
@@ -363,12 +372,36 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 				}, nil
 			}
 		})
-	defer restore()
+	s.AddCleanup(restore)
 
 	logbuf, restore := logger.MockLogger()
-	defer restore()
+	s.AddCleanup(restore)
 
-	errorDetails, err := secboot.PreinstallCheck(context.Background(), bootImagePaths)
+	var (
+		checkContext *secboot.PreinstallCheckContext
+		errorDetails []secboot.PreinstallErrorDetails
+		err          error
+	)
+
+	if checkAction == nil {
+		// test PreinstallCheck
+		expectedRunChecksContext = &sb_preinstall.RunChecksContext{}
+		expectedAction = sb_preinstall.ActionNone
+		checkContext, errorDetails, err = secboot.PreinstallCheck(context.Background(), bootImagePaths)
+		if failUnwrap {
+			c.Assert(checkContext, IsNil)
+		} else {
+			c.Assert(secboot.ExtractSbRunChecksContext(checkContext), Equals, expectedRunChecksContext)
+		}
+	} else {
+		// test PreinstallCheckAction
+		expectedRunChecksContext = &sb_preinstall.RunChecksContext{}
+		checkContext = secboot.NewPreinstallChecksContext(expectedRunChecksContext)
+		expectedAction = sb_preinstall.Action(checkAction.Action)
+		errorDetails, err = checkContext.PreinstallCheckAction(context.Background(), checkAction)
+	}
+
+	// errorDetails and err should behave the same for PreinstallCheck and PreinstallCheckAction
 	if detectErrors {
 		c.Assert(err, IsNil)
 		c.Assert(logbuf.String(), Equals, "")
@@ -405,12 +438,40 @@ func (s *preinstallSuite) testPreinstallCheck(c *C, detectErrors, failUnwrap boo
 
 func (s *preinstallSuite) TestPreinstallCheckWithWarningsAndErrors(c *C) {
 	detectErrors := false // warnings and no errors
-	s.testPreinstallCheck(c, detectErrors, false)
+	s.testPreinstallCheckAndAction(c, nil, detectErrors, false)
+
 	detectErrors = true // errors and no warnings
-	s.testPreinstallCheck(c, detectErrors, false)
+	s.testPreinstallCheckAndAction(c, nil, detectErrors, false)
 }
 
 func (s *preinstallSuite) TestPreinstallCheckFailUnwrap(c *C) {
 	failUnwrap := true
-	s.testPreinstallCheck(c, false, failUnwrap)
+	s.testPreinstallCheckAndAction(c, nil, false, failUnwrap)
+}
+
+func (s *preinstallSuite) TestPreinstallCheckActionWithWarningsAndErrors(c *C) {
+	action := &secboot.PreinstallAction{
+		Action: string(sb_preinstall.ActionReboot),
+	}
+	detectErrors := false // warnings and no errors
+	s.testPreinstallCheckAndAction(c, action, detectErrors, false)
+
+	detectErrors = true // errors and no warnings
+	s.testPreinstallCheckAndAction(c, action, detectErrors, false)
+}
+
+func (s *preinstallSuite) TestPreinstallActionFailUnwrap(c *C) {
+	action := &secboot.PreinstallAction{
+		Action: string(sb_preinstall.ActionReboot),
+	}
+	failUnwrap := true
+	s.testPreinstallCheckAndAction(c, action, false, failUnwrap)
+}
+
+func (s *preinstallSuite) TestSaveCheckResultErrorNotAvailable(c *C) {
+	checkContext := secboot.NewPreinstallChecksContext(&sb_preinstall.RunChecksContext{})
+	err := checkContext.SaveCheckResult("preinstall-check-result")
+	c.Assert(err, ErrorMatches, "preinstall check result unavailable: 0 unresolved errors")
+
+	//TODO: extend test when there is a way to modify sb_preinstall.CheckResult within sb_preinstall.RunChecksContext
 }
