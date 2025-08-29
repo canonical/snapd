@@ -480,7 +480,7 @@ parts:
           ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/${cmd}"
         done
         mv -v "${CRAFT_PART_INSTALL}/usr/bin/snap" "${CRAFT_PART_INSTALL}/usr/bin/snap-fips"
-        ln -v -s -r "${CRAFT_PART_INSTALL}/usr/bin/snap-fips" "${CRAFT_PART_INSTALL}/usr/bin/snap"
+        ln -v -s -r "${CRAFT_PART_INSTALL}/usr/bin/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/bin/snap"
       fi
 
       # TODO: For now snapd expects a renamed apparmor profile to
