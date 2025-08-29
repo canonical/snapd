@@ -98,20 +98,20 @@ type mockWsl struct {
 }
 
 func mockWSLsetup(c *C, settings mockWsl) func() {
-	restoreFileExists := release.MockFileExists(func(s string) bool {
+	restoreCanStat := release.MockCanStat(func(s string) bool {
 		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
 			return settings.ExistsInterop
 		}
 		if s == "/run/WSL" {
 			return settings.ExistsRunWSL
 		}
-		return osutil.FileExists(s)
+		return osutil.CanStat(s)
 	})
 
 	restoreFilesystemRootType := MockFilesystemRootType(c, settings.FsType)
 
 	return func() {
-		restoreFileExists()
+		restoreCanStat()
 		restoreFilesystemRootType()
 	}
 }

@@ -1230,8 +1230,8 @@ func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *d
 
 	err = snaprun.CreateUserDataDirs(info, opts)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
 
 	// check we don't create the alternative dir
 	nonExistentDir := dirs.HiddenSnapDataHomeDir
@@ -1239,7 +1239,7 @@ func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *d
 		nonExistentDir = dirs.UserHomeSnapDir
 	}
 
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, nonExistentDir)), check.Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(s.fakeHome, nonExistentDir)), check.Equals, false)
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
@@ -1250,10 +1250,10 @@ func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
 
 	err = snaprun.CreateUserDataDirs(info, nil)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
 	// mount point for snap instance mapping has been created
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname")), check.Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.fakeHome, "/snap/snapname")), check.Equals, true)
 	// and it's empty inside
 	m, err := filepath.Glob(filepath.Join(s.fakeHome, "/snap/snapname/*"))
 	c.Assert(err, check.IsNil)

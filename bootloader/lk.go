@@ -134,7 +134,7 @@ func (l *lk) Present() (bool, error) {
 			return false, err
 		}
 
-		if osutil.FileExists(primary) {
+		if osutil.CanStat(primary) {
 			return true, nil
 		}
 
@@ -150,7 +150,7 @@ func (l *lk) Present() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		return osutil.FileExists(backup), nil
+		return osutil.CanStat(backup), nil
 	}
 
 	// otherwise for V2, non-sole bootloader roles we need to check on the

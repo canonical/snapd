@@ -74,12 +74,12 @@ Icon=${SNAP}/foo.png`)
 
 func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+	c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, false)
 
 	oldDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop")
 	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
 	c.Assert(os.WriteFile(oldDesktopFilePath, mockDesktopFile, 0644), IsNil)
-	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, true)
+	c.Assert(osutil.CanStat(oldDesktopFilePath), Equals, true)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
@@ -90,7 +90,7 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 
 	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, true)
 	stat, err := os.Stat(expectedDesktopFilePath)
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
@@ -102,12 +102,12 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 
 	// Old desktop file should be removed because it follows the
 	// <desktop-prefix>_*.desktop pattern.
-	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, false)
+	c.Assert(osutil.CanStat(oldDesktopFilePath), Equals, false)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesMangledDuplicate(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar._.desktop")
-	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+	c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, false)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 	baseDir := info.MountDir()
@@ -120,7 +120,7 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesMangledDuplicate(c *C) {
 	c.Assert(err, Equals, nil)
 
 	// Only one will be written, duplicates will be skipped
-	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, true)
 	files, err := os.ReadDir(dirs.SnapDesktopFilesDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
@@ -143,9 +143,9 @@ plugs:
 	if hasDesktopFileIDs {
 		expectedDesktopFilePath1 = filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop")
 	}
-	c.Assert(osutil.FileExists(expectedDesktopFilePath1), Equals, false)
+	c.Assert(osutil.CanStat(expectedDesktopFilePath1), Equals, false)
 	expectedDesktopFilePath2 := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
-	c.Assert(osutil.FileExists(expectedDesktopFilePath2), Equals, false)
+	c.Assert(osutil.CanStat(expectedDesktopFilePath2), Equals, false)
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
@@ -341,12 +341,12 @@ X-SnapInstanceName=%s`
 
 	err = wrappers.RemoveSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(osutil.CanStat(mockDesktopFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
 	// foo+instance file is still there
-	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
+	c.Assert(osutil.CanStat(mockDesktopInstanceFilePath), Equals, true)
 
 	// restore the non-instance file
 	err = os.WriteFile(mockDesktopFilePath, []byte(fmt.Sprintf(desktopFileTemplate, "foo")), 0644)
@@ -357,17 +357,17 @@ X-SnapInstanceName=%s`
 	info.InstanceKey = "instance"
 	err = wrappers.RemoveSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, false)
+	c.Assert(osutil.CanStat(mockDesktopInstanceFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
 	// foo file is still there
-	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, true)
+	c.Assert(osutil.CanStat(mockDesktopFilePath), Equals, true)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesCleanupOnError(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
-	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(osutil.CanStat(mockDesktopFilePath), Equals, false)
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
@@ -393,10 +393,10 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesCleanupOnError(c *C) {
 
 	err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Check(err, ErrorMatches, "internal error: only regular files are supported.*")
-	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Check(osutil.CanStat(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
 	// foo+instance file was not removed by cleanup
-	c.Check(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
+	c.Check(osutil.CanStat(mockDesktopInstanceFilePath), Equals, true)
 }
 
 func (s *desktopSuite) TestEnsurePackageDesktopFilesCleansOldFiles(c *C) {
@@ -827,7 +827,7 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 
 	for _, t := range tests {
 		expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, t.expectedDesktopFileName)
-		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+		c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, false)
 
 		info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 		info.InstanceKey = t.instance
@@ -842,19 +842,19 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 
 		err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 		c.Assert(err, IsNil)
-		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+		c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, true)
 
 		// Ensure that the old-style parallel install desktop file was
 		// not created.
 		if t.instance != "" {
 			unexpectedOldStyleDesktopFilePath := strings.Replace(expectedDesktopFilePath, "+", "_", 1)
-			c.Assert(osutil.FileExists(unexpectedOldStyleDesktopFilePath), Equals, false)
+			c.Assert(osutil.CanStat(unexpectedOldStyleDesktopFilePath), Equals, false)
 		}
 
 		// remove it again
 		err = wrappers.RemoveSnapDesktopFiles(info)
 		c.Assert(err, IsNil)
-		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+		c.Assert(osutil.CanStat(expectedDesktopFilePath), Equals, false)
 	}
 }
 

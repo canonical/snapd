@@ -235,7 +235,7 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 
 	// Give flock some chance to create the lock file.
 	for i := 0; i < 10; i++ {
-		if osutil.FileExists(lockPath) {
+		if osutil.CanStat(lockPath) {
 			break
 		}
 		time.Sleep(time.Millisecond * 300)

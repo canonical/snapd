@@ -86,7 +86,7 @@ func handleJournalConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyC
 			return nil
 		}
 		// only remove journal log dir if our marker file is there
-		if !osutil.FileExists(filepath.Join(logPath, marker)) {
+		if !osutil.CanStat(filepath.Join(logPath, marker)) {
 			return fmt.Errorf("the %s directory was not created by snapd, journal logs will not be removed nor disabled", logPath)
 		}
 		// This removes all logs from /var/log/journal when journal.persistent

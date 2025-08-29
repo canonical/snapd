@@ -97,7 +97,7 @@ func versionsDirExists() bool {
 }
 
 func versionFileExists(versionFilename string) bool {
-	return osutil.FileExists(filepath.Join(notifyVersionsDir(), versionFilename))
+	return osutil.CanStat(filepath.Join(notifyVersionsDir(), versionFilename))
 }
 
 // likelySupported returns true if the receiving version is supported by snapd

@@ -51,7 +51,7 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 
 	c.Assert(cs.cli.LoggedInUser(), check.Not(check.IsNil))
 
-	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	c.Check(osutil.CanStat(outfile), check.Equals, true)
 	c.Check(outfile, testutil.FileEquals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
@@ -86,7 +86,7 @@ func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
 
 	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, expected)
 
-	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	c.Check(osutil.CanStat(outfile), check.Equals, true)
 	c.Check(outfile, testutil.FileEquals, `{"username":"the-user-name","email":"zed@bar.com","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
@@ -107,7 +107,7 @@ func (cs *clientSuite) TestClientLoginError(c *check.C) {
 	c.Check(user, check.IsNil)
 	c.Check(err, check.NotNil)
 
-	c.Check(osutil.FileExists(outfile), check.Equals, false)
+	c.Check(osutil.CanStat(outfile), check.Equals, false)
 }
 
 func (cs *clientSuite) TestClientLogout(c *check.C) {
@@ -125,7 +125,7 @@ func (cs *clientSuite) TestClientLogout(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logout")
 
-	c.Check(osutil.FileExists(outfile), check.Equals, false)
+	c.Check(osutil.CanStat(outfile), check.Equals, false)
 }
 
 func (cs *clientSuite) TestWriteAuthData(c *check.C) {
@@ -140,7 +140,7 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 	err := client.TestWriteAuth(authData)
 	c.Assert(err, check.IsNil)
 
-	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	c.Check(osutil.CanStat(outfile), check.Equals, true)
 	c.Check(outfile, testutil.FileEquals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
 }
 

@@ -122,13 +122,13 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 
-	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, true)
+	c.Check(osutil.CanStat(dirs.SnapSectionsFile), Equals, true)
 	c.Check(dirs.SnapSectionsFile, testutil.FileEquals, "section1\nsection2")
 
-	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, true)
+	c.Check(osutil.CanStat(dirs.SnapNamesFile), Equals, true)
 	c.Check(dirs.SnapNamesFile, testutil.FileEquals, "pkg1\npkg2")
 
-	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
+	c.Check(osutil.CanStat(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()
 	if errors.Is(err, advisor.ErrNotSupported) {
 		c.Skip("bolt is not supported")
@@ -162,9 +162,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 	c.Check(s.store.ops, HasLen, 1)
 
 	// nothing got created
-	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapCommandsDB), Equals, false)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
@@ -173,8 +173,8 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
-	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapNamesFile), Equals, false)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
@@ -231,9 +231,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUnSeeded(c *C) {
 	// next should be still zero as we skipped refresh on unseeded system
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 	// nothing got created
-	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapCommandsDB), Equals, false)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
@@ -256,9 +256,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
 	// next should be still zero as we skipped refresh on unseeded system
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 	// nothing got created
-	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
-	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapCommandsDB), Equals, false)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {

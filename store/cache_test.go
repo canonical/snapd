@@ -109,7 +109,7 @@ func (s *cacheSuite) TestGet(c *C) {
 	targetPath := filepath.Join(s.tmp, "new-location")
 	cacheHit := s.cm.Get("some-cache-key", targetPath)
 	c.Check(cacheHit, Equals, true)
-	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(osutil.CanStat(targetPath), Equals, true)
 	c.Assert(targetPath, testutil.FileEquals, canary)
 }
 
@@ -147,12 +147,12 @@ func (s *cacheSuite) TestCleanup(c *C) {
 	s.cm.Cleanup()
 
 	// the oldest files are removed from the cache
-	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[1])), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(s.cm.CacheDir(), cacheKeys[1])), Equals, false)
 
 	// the newest files are still there
-	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[2])), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-1])), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.cm.CacheDir(), cacheKeys[2])), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-1])), Equals, true)
 }
 
 func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
@@ -179,7 +179,7 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 	c.Check(s.cm.Count(), Equals, s.maxItems)
 
 	// even though the "unremovable" file is still in the cache
-	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(s.cm.CacheDir(), cacheKeys[0])), Equals, true)
 }
 
 func (s *cacheSuite) TestHardLinkCount(c *C) {

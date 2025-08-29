@@ -2186,8 +2186,8 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 		{"required20/components/mnt/comp1", "required20+comp1_2.comp"},
 		{"optional20-a/x1", "optional20-a_x1.snap"},
 	} {
-		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.StripRootDir(dirs.SnapMountDir), seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
-		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, seedSnap.blob)), Equals, true, &dumpDirContents{c, writableDir})
+		c.Assert(osutil.CanStat(filepath.Join(writableDir, dirs.StripRootDir(dirs.SnapMountDir), seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
+		c.Assert(osutil.CanStat(filepath.Join(writableDir, dirs.SnapBlobDir, seedSnap.blob)), Equals, true, &dumpDirContents{c, writableDir})
 	}
 
 	// verify that modtime of the copied snap blob was preserved

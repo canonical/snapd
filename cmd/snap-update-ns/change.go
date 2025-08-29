@@ -749,7 +749,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 				case "":
 					exists = osutilIsDirectory(entry.Dir)
 				case "file":
-					exists = osutil.FileExists(entry.Dir)
+					exists = osutil.CanStat(entry.Dir)
 				case "symlink":
 					exists = osutil.IsSymlink(entry.Dir)
 				}

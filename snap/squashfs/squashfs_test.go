@@ -191,7 +191,7 @@ exec /bin/cp "$@"
 	didNothing, err := sn.Install(targetPath, mountDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(didNothing, Equals, false)
-	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(osutil.CanStat(targetPath), Equals, true)
 	c.Check(linked, Equals, 1)
 	c.Check(cmd.Calls(), HasLen, 0)
 }
@@ -607,7 +607,7 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	c.Assert(filepath.Join(outputDir, "data.bin"), testutil.FileEquals, data)
 
 	// ensure glob was honored
-	c.Assert(osutil.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestUnpackDetectsFailures(c *C) {

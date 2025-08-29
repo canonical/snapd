@@ -2670,7 +2670,7 @@ WantedBy=multi-user.target
 		s.sysdLog = nil
 		err = wrappers.RemoveSnapServices(info, progress.Null)
 		c.Assert(err, IsNil, comment)
-		c.Check(osutil.FileExists(svcFile), Equals, false, comment)
+		c.Check(osutil.CanStat(svcFile), Equals, false, comment)
 		c.Assert(s.sysdLog, HasLen, 2, comment)
 		c.Check(s.sysdLog, DeepEquals, [][]string{
 			{"--no-reload", "disable", filepath.Base(svcFile)},
@@ -2737,7 +2737,7 @@ WantedBy=multi-user.target
 	s.sysdLog = nil
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(svcFile), Equals, false)
+	c.Check(osutil.CanStat(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "disable", filepath.Base(svcFile)},
@@ -2776,7 +2776,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	s.sysdLog = nil
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(svcFile), Equals, false)
+	c.Check(osutil.CanStat(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--no-reload", "disable", filepath.Base(svcFile)},
@@ -2814,7 +2814,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	app := info.Apps["svc1"]
 	c.Assert(app.Sockets, HasLen, 2)
 	for _, socket := range app.Sockets {
-		c.Check(osutil.FileExists(socket.File()), Equals, false)
+		c.Check(osutil.CanStat(socket.File()), Equals, false)
 	}
 }
 
@@ -4780,8 +4780,8 @@ func (s *servicesTestSuite) TestAddRemoveSnapWithTimersAddsRemovesTimerFiles(c *
 	app := info.Apps["svc2"]
 	c.Assert(app.Timer, NotNil)
 
-	c.Check(osutil.FileExists(app.Timer.File()), Equals, true)
-	c.Check(osutil.FileExists(app.ServiceFile()), Equals, true)
+	c.Check(osutil.CanStat(app.Timer.File()), Equals, true)
+	c.Check(osutil.CanStat(app.ServiceFile()), Equals, true)
 
 	err = wrappers.StopServices(info.Services(), nil, "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -4789,8 +4789,8 @@ func (s *servicesTestSuite) TestAddRemoveSnapWithTimersAddsRemovesTimerFiles(c *
 	err = wrappers.RemoveSnapServices(info, &progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(app.Timer.File()), Equals, false)
-	c.Check(osutil.FileExists(app.ServiceFile()), Equals, false)
+	c.Check(osutil.CanStat(app.Timer.File()), Equals, false)
+	c.Check(osutil.CanStat(app.ServiceFile()), Equals, false)
 }
 
 func (s *servicesTestSuite) TestFailedAddSnapCleansUp(c *C) {
