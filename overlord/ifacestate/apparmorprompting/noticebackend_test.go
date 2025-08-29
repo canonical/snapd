@@ -510,6 +510,11 @@ func (s *noticebackendSuite) TestLoadSomeExpired(c *C) {
 	c.Check(afterNotices, HasLen, 2)
 	c.Check(afterNotices[0].Key(), Equals, "0000000000000003")
 	c.Check(afterNotices[1].Key(), Equals, "0000000000000004")
+	// Check that expired notices were not added
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000001"), IsNil)
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000002"), IsNil)
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000003"), NotNil)
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000004"), NotNil)
 
 	// Add a new notice and make sure everything is fine
 	c.Check(newBackend.PromptBackend().AddNotice(1000, 5, nil), IsNil)
@@ -548,6 +553,11 @@ func (s *noticebackendSuite) TestLoadAllExpired(c *C) {
 
 	afterNotices := newBackend.PromptBackend().BackendNotices(nil)
 	c.Check(afterNotices, HasLen, 0)
+	// Check that expired notices were not added
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000001"), IsNil)
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000002"), IsNil)
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000003"), IsNil)
+	c.Check(newBackend.PromptBackend().BackendNotice("prompt-0000000000000004"), IsNil)
 
 	// Add a new notice and make sure everything is fine
 	c.Check(newBackend.PromptBackend().AddNotice(1000, 5, nil), IsNil)

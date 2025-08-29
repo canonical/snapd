@@ -158,11 +158,6 @@ func (ntb *noticeTypeBackend) initialize(now time.Time, nextNoticeTimestamp func
 	return nil
 }
 
-type indexInfo struct {
-	found bool
-	index int
-}
-
 // addNotice records an occurrence of a notice with the specified user ID, a
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
@@ -604,23 +599,11 @@ func (ntb *noticeTypeBackend) load(now time.Time) error {
 	ntb.idToNotice = make(map[string]*state.Notice)
 	// Prune expired notices
 	for user, notices := range saved.UserNotices {
-		// Find the index of the last expired notice
-		var expiredIndex indexInfo
+		ntb.userNotices[user] = notices[:0]
 		for i, n := range notices {
 			if !n.Expired(now) {
+				ntb.userNotices[user] = notices[i:]
 				break
-			}
-			expiredIndex.found = true
-			expiredIndex.index = i
-		}
-		if !expiredIndex.found {
-			ntb.userNotices[user] = notices
-		} else {
-			ntb.userNotices[user] = notices[:0]
-			if expiredIndex.index < len(notices)-1 {
-				// There's at least one non-expired notice, so copy non-expired
-				// notices to the start of the buffer
-				ntb.userNotices[user] = append(notices[:0], notices[expiredIndex.index+1:]...)
 			}
 		}
 		// Construct ID mappings for these notices
