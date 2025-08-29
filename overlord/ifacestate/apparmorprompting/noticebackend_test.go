@@ -584,7 +584,7 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 	}{
 		{
 			stateFilter:   nil,
-			simpleFilter:  &apparmorprompting.NtbFilter{},
+			simpleFilter:  nil,
 			matchPossible: true,
 		},
 		{
@@ -704,12 +704,18 @@ func (s *noticebackendSuite) TestBackendNotices(c *C) {
 	userID3 := uint32(11235)
 
 	// Prepare the backend with some notices
+	promptBackend.AddNotice(userID1, 0, nil) // expire this notice
 	promptBackend.AddNotice(userID1, 1, nil)
 	promptBackend.AddNotice(userID1, 5, nil) // record 5, then re-record later
 	promptBackend.AddNotice(userID2, 2, nil)
 	promptBackend.AddNotice(userID2, 3, nil)
 	promptBackend.AddNotice(userID1, 4, nil)
 	promptBackend.AddNotice(userID1, 5, nil)
+
+	// Expire notice with ID 0
+	toExpire := promptBackend.BackendNotice("prompt-0000000000000000")
+	c.Assert(toExpire, NotNil)
+	toExpire.Reoccur(toExpire.LastRepeated().Add(-1000*time.Hour), nil, 0)
 
 	allNotices := promptBackend.BackendNotices(nil)
 	c.Assert(allNotices, HasLen, 5)

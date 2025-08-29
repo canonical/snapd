@@ -237,7 +237,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID string) (userNotices []*state.Notice, notice *state.Notice, existing bool, existingIndex int, err error) {
 	notice, ok := ntb.idToNotice[noticeID]
 	if !ok {
-		userNotices, _ = ntb.userNotices[userID]
+		userNotices = ntb.userNotices[userID]
 		return userNotices, nil, false, 0, nil
 	}
 
@@ -331,7 +331,7 @@ type ntbFilter struct {
 // relevant to this backend. If no notices can match this backend, returns false.
 func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simplified *ntbFilter, matchPossible bool) {
 	if filter == nil {
-		return &ntbFilter{}, true
+		return nil, true
 	}
 	if len(filter.Types) > 0 && !sliceContains(filter.Types, ntb.noticeType) {
 		return nil, false
@@ -374,24 +374,22 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 // Assumes that all notices in the slice already apply to the UserID in the
 // filter.
 func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*state.Notice {
-	if f == nil {
-		return notices
-	}
 	var filteredNotices []*state.Notice
 	// Discard expired notices or those with last repeated timestamp before f.After (if given)
 	for i, notice := range notices {
 		if notice.Expired(now) {
 			continue
 		}
-		if !f.After.IsZero() && !notice.LastRepeated().After(f.After) {
+		if f != nil && !f.After.IsZero() && !notice.LastRepeated().After(f.After) {
 			continue
 		}
 		filteredNotices = notices[i:]
 		break
 	}
-	if filteredNotices == nil {
-		// Never found a non-expired notice matching After filter
-		return nil
+	if filteredNotices == nil || f == nil {
+		// Never found a non-expired notice matching After filter, or there is
+		// no filter at all and filteredNotices now has all non-expired notices
+		return filteredNotices
 	}
 	// Discard notices with last repeated timestamp after f.BeforeOrAt (if given).
 	if !f.BeforeOrAt.IsZero() {
@@ -462,7 +460,7 @@ func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*stat
 // The caller must hold the backend lock for reading and must not mutate the
 // data within the returned slice.
 func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*state.Notice {
-	if filter.UserID != nil {
+	if filter != nil && filter.UserID != nil {
 		userNotices, ok := ntb.userNotices[*filter.UserID]
 		if !ok {
 			return nil
@@ -511,7 +509,7 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		return notices, nil
 	}
 
-	if !simplifiedFilter.BeforeOrAt.IsZero() && simplifiedFilter.BeforeOrAt.Before(now) {
+	if simplifiedFilter != nil && !simplifiedFilter.BeforeOrAt.IsZero() && simplifiedFilter.BeforeOrAt.Before(now) {
 		// No new notices can be added with a timestamp before the BeforeOrAt filter
 		return nil, nil
 	}
@@ -550,7 +548,7 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 			return notices, nil
 		}
 
-		if !simplifiedFilter.BeforeOrAt.IsZero() && now.After(simplifiedFilter.BeforeOrAt) {
+		if simplifiedFilter != nil && !simplifiedFilter.BeforeOrAt.IsZero() && now.After(simplifiedFilter.BeforeOrAt) {
 			// Since we just checked with the now timestamp and there were no
 			// matching notices, and any new notices must have a later timestamp
 			// after simplifiedFilter.BeforeOrAt, it's impossible for a new
