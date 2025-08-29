@@ -1364,10 +1364,7 @@ func (s *ClusterSuite) TestRunTimeout(c *check.C) {
 		},
 	}
 
-	discover := func(ctx context.Context) ([]string, error) {
-		return []string{}, nil
-	}
-
+	discover := make(chan []string)
 	session := AssembleSession{
 		Initiated: started,
 	}
@@ -1407,10 +1404,7 @@ func (s *ClusterSuite) TestRunServerError(c *check.C) {
 		},
 	}
 
-	discover := func(ctx context.Context) ([]string, error) {
-		return []string{}, nil
-	}
-
+	discover := make(chan []string)
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return statelessSelector(), nil
 	}, commit)
@@ -1453,10 +1447,7 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
 		},
 	}
 
-	discover := func(ctx context.Context) ([]string, error) {
-		return []string{}, nil
-	}
-
+	discover := make(chan []string)
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
 	}, func(AssembleSession) {})
@@ -1503,10 +1494,6 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
 		},
 	}
 
-	discover := func(ctx context.Context) ([]string, error) {
-		return []string{}, nil
-	}
-
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
 	}, func(AssembleSession) {})
@@ -1518,6 +1505,7 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	discover := make(chan []string)
 	_, err = as.Run(ctx, transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }
@@ -1556,10 +1544,6 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
 		},
 	}
 
-	discover := func(ctx context.Context) ([]string, error) {
-		return []string{}, nil
-	}
-
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
 		return selector, nil
 	}, func(AssembleSession) {})
@@ -1571,6 +1555,7 @@ func (s *ClusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	discover := make(chan []string)
 	_, err = as.Run(ctx, transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }
