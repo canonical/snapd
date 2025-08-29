@@ -19,10 +19,10 @@ mkdir -p built-snap
 
 # Build snapd snap
 if [ -z "$SNAPCRAFT_NO_CLEAN" ]; then
-    snapcraft --verbose clean
+    snapcraft --verbose clean snapd
 fi
 
-snapcraft --verbose
+snapcraft --verbose "$@"
 
 for snap_file in snapd_1337.*.snap; do
     mv "${snap_file}" built-snap/"${snap_file}.keep"
