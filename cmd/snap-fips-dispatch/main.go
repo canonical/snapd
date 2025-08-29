@@ -17,13 +17,21 @@
  *
  */
 
-// A dispatcher for bootstrapping FIPS environment. It is expected to be
-// symlinked as /usr/bin/snap,
-// /usr/lib/snapd/{snapd,snap-repair,snap-bootstrap}.
+// A dispatcher for bootstrapping FIPS environment. It is expected to be shipped
+// only inside the snapd snapd and symlinked as and dispatch to the following
+// binaries located within the snapd snap:
+//
+// <root>/usr/bin/snap					-> <root>/usr/lib/snapd/snap-fips
+// <root>/usr/lib/snapd/snapd			-> <root>/usr/lib/snapd/snapd-fips
+// <root>/usr/lib/snapd/snap-repair		-> <root>/usr/lib/snapd/snap-repair
+// <root>/usr/lib/snapd/snap-bootstrap	-> <root>/usr/lib/snapd/snap-bootstrap-fips
 //
 // The dispatcher sets up the environment by expliclty enabling FIPS support
 // (through GOFIPS=1), and injects environment variables such that the Go FIPS
-// toolchain runtime can locate the relevant OpenSSL FIPS provider module.
+// toolchain runtime can locate the relevant OpenSSL FIPS provider module. Next
+// it exects into the target binary located within the rootfs where the
+// dispatcher's own binary is located. In case of snapd snap, it effectively
+// reexecs into a corresponding FIPS binary in the snap.
 package main
 
 import (
@@ -37,10 +45,18 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-func run() error {
+var (
+	snapdtoolDispatchWithFIPS = snapdtool.DispatchWithFIPS
+)
+
+func run(args []string) error {
 	logger.SimpleSetup(nil)
 
-	prog := os.Args[0]
+	if len(args) == 0 {
+		return fmt.Errorf("internal error: no arguments passed")
+	}
+
+	prog := args[0]
 	progBase := filepath.Base(prog)
 
 	logger.Debugf("FIPS execution dispatcher for: %s", prog)
@@ -68,11 +84,11 @@ func run() error {
 	}
 
 	logger.Debugf("dispatch target: %v", target)
-	return snapdtool.DispatchWithFIPS(target)
+	return snapdtoolDispatchWithFIPS(target)
 }
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
