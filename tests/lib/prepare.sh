@@ -280,7 +280,7 @@ update_core_snap_for_classic_reexec() {
 
     # Now mount the new core snap, first discarding the old mount namespace
     snapd.tool exec snap-discard-ns core
-    mount "$snap" "$core"
+    mount -t squashfs "$snap" "$core"
 
     check_file() {
         if ! cmp "$1" "$2" ; then
