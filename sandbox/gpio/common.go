@@ -120,6 +120,8 @@ var osChown = os.Chown
 var osWriteFile = os.WriteFile
 var syscallMknod = syscall.Mknod
 
+// This helper does not perform any cleanup, caller may want to call
+// removeAggregatedChip in case of an error.
 func addAggregatedChip(sourceChipLabel string, lines strutil.Range, instanceName, slotName string) (chipName string, err error) {
 	configfsBaseDir := snapConfigfsDir(instanceName, slotName)
 	if err = osMkdir(configfsBaseDir, 0755); err != nil {
@@ -172,6 +174,8 @@ func aggregatedChipUdevRulePath(instanceName, slotName string) string {
 	return filepath.Join(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), fname)
 }
 
+// This helper does not perform any cleanup, caller may want to call
+// removeEphemeralUdevTaggingRule in case of an error.
 func addEphemeralUdevTaggingRule(ctx context.Context, chipName string, instanceName, slotName string) error {
 	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, ephemeralUdevRulesDir), 0755); err != nil {
 		return err
@@ -200,6 +204,8 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chipName string, instanceN
 	return nil
 }
 
+// This helper does not perform any cleanup, caller may want to call
+// removeGadgetSlotDevice in case of an error.
 func addGadgetSlotDevice(chipName, instanceName, slotName string) (err error) {
 	fi, err := osStat(filepath.Join(dirs.DevDir, chipName))
 	if err != nil {

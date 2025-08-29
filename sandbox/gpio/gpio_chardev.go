@@ -74,7 +74,7 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		}
 		// Best effort cleanup
 		if err := UnexportGadgetChardevChip(instanceName, slotName); err != nil {
-			logger.Noticef("cannot cleanup exported gpio chip: %v", err)
+			logger.Noticef("cannot cleanup exported gpio chip: %v (while handling error: %v)", err, retErr)
 		}
 	}()
 
