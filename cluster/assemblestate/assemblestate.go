@@ -61,9 +61,6 @@ type Client interface {
 	Untrusted(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
 }
 
-// Discoverer returns a set of addresses that should be considered for assembly.
-type Discoverer = func(context.Context) ([]string, error)
-
 // AssembleState contains this device's knowledge of the state of an assembly
 // session.
 type AssembleState struct {
@@ -542,7 +539,7 @@ type PublicationOptions struct {
 func (as *AssembleState) Run(
 	ctx context.Context,
 	transport Transport,
-	discover Discoverer,
+	discoveries <-chan []string,
 	opts PublicationOptions,
 ) (Routes, error) {
 	if as.initiated.IsZero() {
@@ -579,31 +576,29 @@ func (as *AssembleState) Run(
 		}
 	}()
 
-	// start periodic discovery of peers
+	// start discovery of peers from channel
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		periodic(ctx, time.Second*5, func(ctx context.Context) {
-			discoveries, err := discover(ctx)
-			if err != nil {
-				logger.Debugf("error discovering peers: %v", err)
-				return
-			}
-
-			// filter out our address
-			addrs := make([]string, 0, len(discoveries))
-			for _, d := range discoveries {
-				if d == addr {
-					continue
+		for {
+			select {
+			case discoveries := <-discoveries:
+				// filter out our address
+				addrs := make([]string, 0, len(discoveries))
+				for _, d := range discoveries {
+					if d == addr {
+						continue
+					}
+					addrs = append(addrs, d)
 				}
-				addrs = append(addrs, d)
-			}
 
-			if err := as.publishAuthAndCommit(ctx, addrs, client); err != nil {
-				logger.Debugf("error publishing auth messages: %v", err)
+				if err := as.publishAuthAndCommit(ctx, addrs, client); err != nil {
+					logger.Debugf("error publishing auth messages: %v", err)
+				}
+			case <-ctx.Done():
 				return
 			}
-		})
+		}
 	}()
 
 	var rounds int
