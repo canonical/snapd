@@ -278,7 +278,7 @@ func (s *noticebackendSuite) TestAddNoticeSameKeyDifferentUser(c *C) {
 
 	// Add notice with same ID but different user
 	result := promptBackend.AddNotice(1234, 0x123, nil)
-	c.Check(result, ErrorMatches, "cannot add prompt notice with ID 0000000000000123 for user 1234: notice with same ID already exists for user 1000")
+	c.Check(result, ErrorMatches, "cannot add prompt notice with ID prompt-0000000000000123 for user 1234: notice with the same ID already exists for user 1000")
 }
 
 func (s *noticebackendSuite) TestAddNoticeSomeExpired(c *C) {

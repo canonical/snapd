@@ -172,135 +172,149 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	key := id.String()
 	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, key)
 
-	// Retrieve or create the userNotices slice exists for this userID
-	userNotices, ok := ntb.userNotices[userID]
-	if !ok {
-		// XXX: we won't roll back this creation if an error occurs, but it's not a big deal
-		userNotices = make([]*state.Notice, 0, 1)
-		ntb.userNotices[userID] = userNotices
+	var noticeBackup state.Notice
+	userNotices, notice, existing, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
+	if err != nil {
+		return err
 	}
 
-	// Get a new unique timestamp from the state, which will bump the state's
-	// noticeLastTimestamp. Errors below should not occur in practice, so it's
-	// fine that this side effect happens before checking for those errors.
+	// Now that errors can't occur (other than save error), get a new unique
+	// timestamp from the state, which will bump the state's noticeLastTimestamp
 	timestamp := ntb.nextNoticeTimestamp()
 
 	// Check if any notices have expired relative to the new timestamp.
 	// Since they're sorted, as soon as we see a non-expired notice, bail out.
-	// Do this before searching for the existing notice, so we check its
-	// original timestamp.
-	var expiredIDs []string
+	// Do this before potentially calling Reoccur on the existing notice, so we
+	// see its original timestamp in the sorted slice.
+	expiredCount := 0
 	for _, n := range userNotices {
 		if !n.Expired(timestamp) {
 			break
 		}
-		expiredIDs = append(expiredIDs, n.ID())
+		expiredCount++
 	}
 
-	// Look for an existing notice which matches, otherwise create a new one.
-	var existingIndex int
-	var noticeBackup state.Notice // if save fails, preserve existing notice contents so it can be rolledback
-	var notice *state.Notice
-	if existing, ok := ntb.idToNotice[noticeID]; ok {
-		// Make sure the notice doesn't already exist for another user
-		existingUserID, _ := existing.UserID() // prompting notices always have UserID
-		if existingUserID != userID {
-			// This should never occur, since prompt/rule IDs are globally unique.
-			// (A prompt and rule may have the same ID, but there's no conflict
-			// since they use separate backends and notice IDs are namespaced.)
-			return fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with same ID already exists for user %d", ntb.namespace, id, userID, existingUserID)
-		}
-
-		// Find the index of the existing notice with this ID.
-		// Since the user notices are sorted by LastRepeated timestamp, and
-		// each notice has a unique LastRepeated timestamp, we can use binary
-		// search by LastRepeated timestamp.
-		// XXX: maybe use slices.BinarySearchFunc instead once on go 1.21+
-		existingIndex = sort.Search(len(userNotices), func(i int) bool {
-			// Find first index which has a LastRepeated timestamp >= the
-			// existing notice, since we're binary searching for that notice.
-			return !userNotices[i].LastRepeated().Before(existing.LastRepeated())
-		})
-		if existingIndex >= len(userNotices) || userNotices[existingIndex] != existing {
-			// ID maps to a notice which doesn't actually exist in userNotices.
-			// This should never occur.
-			return fmt.Errorf("internal error: notice ID maps to notice which doesn't exist in user notices: %v not in %v", existing, userNotices)
-		}
-		notice = existing
-		noticeBackup = *notice
+	if existing && !notice.Expired(timestamp) {
+		noticeBackup = *notice // save the original state of the existing notice
 		notice.Reoccur(timestamp, data, 0)
 	} else {
+		// Treat an expired existing notice as if it didn't exist at all
+		existing = false
 		notice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
 
-	// Assemble new notices slice by discarding any expired notices, removing
-	// the existing notice and shifting the others to fill its place, if it
-	// exists, and appending the notice to the end.
-	newNotices := userNotices
-	if len(expiredIDs) > 0 {
-		// Discard expired notices but reuse slice to avoid realloc
-		newNotices = userNotices[:0]
-		if len(expiredIDs) < len(userNotices) {
-			if existingIndex >= len(expiredIDs) {
-				// Notice already exists and is not expired, so remove it
-				// and shift any later notices left
-				newNotices = append(newNotices, userNotices[len(expiredIDs):existingIndex]...)
-				if existingIndex < len(userNotices)-1 {
-					newNotices = append(newNotices, userNotices[existingIndex+1:]...)
-				}
-			} else {
-				newNotices = append(newNotices, userNotices[len(expiredIDs):]...)
-			}
-		}
-	} else if _, ok := ntb.idToNotice[noticeID]; ok {
-		// No notices were expired, so simply remove the existing notice and
-		// shift any later notices left
-		newNotices = userNotices[:existingIndex]
-		if existingIndex < len(userNotices)-1 {
-			newNotices = append(newNotices, userNotices[existingIndex+1:]...)
-		}
-	}
+	newUserNotices, getOrigUserNotices := assembleNewUserNotices(userNotices, expiredCount, notice, existing, existingIndex)
 
-	newNotices = append(newNotices, notice)
-	ntb.userNotices[userID] = newNotices
+	ntb.userNotices[userID] = newUserNotices
 	ntb.idToNotice[noticeID] = notice
+
 	if err := ntb.save(); err != nil {
-		// Rebuild original userNotices.
-		// Since we reused the buffer, it's been mutated, so make a copy of it
-		// so we can iteratively rebuild the original information in place.
-		mutatedNotices := make([]*state.Notice, len(newNotices))
-		copy(mutatedNotices, newNotices)
-		restoredNotices := userNotices[:0] // again reuse original slice
-		// Re-add all expired notices which were discarded. Their ID mappings still exist.
-		for _, expiredID := range expiredIDs {
-			restoredNotices = append(restoredNotices, ntb.idToNotice[expiredID])
-		}
-		// Restore the new notice to its original state (maybe empty)
-		*notice = noticeBackup
-		// Re-add all the notices except the newest one
-		restoredNotices = append(restoredNotices, mutatedNotices[:len(mutatedNotices)-1]...)
-		// If the notice existed and was not expired, re-add it.
-		if existingIndex >= len(expiredIDs) {
-			restoredNotices = append(restoredNotices, notice)
-			// Sort so the existing notice ends up in the correct location
-			state.SortNotices(restoredNotices)
-		}
-		ntb.userNotices[userID] = restoredNotices
-		// If the notice didn't previously exist, delete it from the ID map
-		if noticeBackup.Key() == "" {
+		ntb.userNotices[userID] = getOrigUserNotices()
+		if existing {
+			*notice = noticeBackup
+		} else {
 			delete(ntb.idToNotice, noticeID)
 		}
 		return fmt.Errorf("cannot add notice to prompting %s backend: %w", ntb.noticeType, err)
 	}
 
 	// Now that we've successfully saved, delete the expired notices
-	for _, expiredID := range expiredIDs {
-		delete(ntb.idToNotice, expiredID)
+	for _, expiredNotice := range userNotices[:expiredCount] {
+		delete(ntb.idToNotice, expiredNotice.ID())
 	}
 
 	ntb.cond.Broadcast()
 
 	return nil
+}
+
+// searchExistingNotice looks up the list of existing notices for the given
+// userID and checks whether a notice with the given noticeID already exists.
+//
+// Returns the slice of existing notices for the given userID. If the notice
+// does exist, a pointer to it is returned, along with an existing boolean of
+// true and the index at which it occurs in the userNotices slice.
+//
+// The caller must ensure that the backend mutex is locked.
+func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID string) (userNotices []*state.Notice, notice *state.Notice, existing bool, existingIndex int, err error) {
+	notice, ok := ntb.idToNotice[noticeID]
+	if !ok {
+		userNotices, _ = ntb.userNotices[userID]
+		return userNotices, nil, false, 0, nil
+	}
+
+	if existingUserID, ok := notice.UserID(); !ok || existingUserID != userID {
+		// This should never occur, since prompting notices always have UserIDs
+		// and prompt/rule IDs are globally unique.
+		return nil, nil, false, 0, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists for user %d", ntb.namespace, noticeID, userID, existingUserID)
+	}
+
+	userNotices, ok = ntb.userNotices[userID]
+	if !ok {
+		// This should never occur.
+		return nil, nil, false, 0, fmt.Errorf("internal error: notice ID maps to notice with user which doesn't exist in user notices: %v", notice)
+	}
+
+	// Find the index of the existing notice with this ID.
+	// Since the user notices are sorted by LastRepeated timestamp, and
+	// each notice has a unique LastRepeated timestamp, we can use binary
+	// search by LastRepeated timestamp.
+	// XXX: maybe use slices.BinarySearchFunc instead once on go 1.21+
+	existingIndex = sort.Search(len(userNotices), func(i int) bool {
+		// Find first index which has a LastRepeated timestamp >= the
+		// existing notice, since we're binary searching for that notice.
+		return !userNotices[i].LastRepeated().Before(notice.LastRepeated())
+	})
+	if existingIndex >= len(userNotices) || userNotices[existingIndex] != notice {
+		// ID maps to a notice which doesn't actually exist in userNotices.
+		// This should never occur.
+		return nil, nil, false, 0, fmt.Errorf("internal error: notice ID maps to notice which doesn't exist in user notices: %v not in %v", notice, userNotices)
+	}
+
+	return userNotices, notice, true, existingIndex, nil
+}
+
+// assembleNewUserNotices returns a new slice of notices by discarding any
+// expired notices from the front of the given userNotices, appending the given
+// notice to the end of the slice, and if it was an existing notice, shifting
+// other non-expired notices to the left to fill its original place.
+//
+// Returns the newly-assembled slice of notices, along with a closure to return
+// the original slice if there is need to roll back the changes.
+//
+// The slice is reused if possible, and memcpy is avoided unless there is need
+// to reallocate a new slice with more capacity.
+func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, notice *state.Notice, existing bool, existingIndex int) (newUserNotices []*state.Notice, restore func() []*state.Notice) {
+	// Define basic restore if the original slice isn't mutated
+	restore = func() []*state.Notice {
+		return userNotices
+	}
+	// Handle simple cases where original slice doesn't need to be mutated
+	if expiredCount == len(userNotices) {
+		// All expired (or none to begin with), so return new slice
+		newUserNotices = []*state.Notice{notice}
+		return newUserNotices, restore
+	}
+	if !existing {
+		newUserNotices = append(userNotices[expiredCount:], notice)
+		return newUserNotices, restore
+	}
+	if existingIndex == len(userNotices)-1 {
+		newUserNotices = userNotices[expiredCount:]
+		return newUserNotices, restore
+	}
+	// We now know the notice existed and was not last in the slice, and realloc
+	// will not occur since the slice length will not change.
+	newUserNotices = append(userNotices[expiredCount:existingIndex], userNotices[existingIndex+1:]...)
+	newUserNotices = append(newUserNotices, notice)
+	// Original slice was muted, so we need better restore function.
+	restore = func() []*state.Notice {
+		// Shift the originally-later notices right by one
+		copy(userNotices[existingIndex+1:], userNotices[existingIndex:])
+		userNotices[existingIndex] = notice
+		return userNotices
+	}
+	return newUserNotices, restore
 }
 
 // ntbFilter is a simplified version of state.NoticeFilter which only contains
