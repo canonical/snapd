@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+trap 'echo "Exiting with 250 (SUCCESS)"; exit 250' USR1 SIGUSR1
+
+echo "Service starting (PID: $$)..."
+
+while true; do
+    echo "Service running..."
+    sleep 10
+done
