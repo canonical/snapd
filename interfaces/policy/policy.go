@@ -137,6 +137,9 @@ type ConnectCandidate struct {
 
 	Model *asserts.Model
 	Store *asserts.Store
+
+	// Are compatibility labels enabled?
+	CompatEnabled bool
 }
 
 func nestedGet(which string, attrs interfaces.Attrer, path string) (any, error) {
@@ -153,6 +156,10 @@ func (connc *ConnectCandidate) PlugAttr(arg string) (any, error) {
 
 func (connc *ConnectCandidate) SlotAttr(arg string) (any, error) {
 	return nestedGet("slot", connc.Slot, arg)
+}
+
+func (connc ConnectCandidate) CompatLabelsEnabled() bool {
+	return connc.CompatEnabled
 }
 
 func (connc *ConnectCandidate) plugSnapID() string {

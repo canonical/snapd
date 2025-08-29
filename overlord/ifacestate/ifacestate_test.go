@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -11617,4 +11619,130 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
 
 func (s *interfaceManagerSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("ifacemgr.go", c, false)
+}
+
+func (s *interfaceManagerSuite) setCompatEnabledFeature(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	_, confOption := features.ContentCompatLabel.ConfigOption()
+	err := tr.Set("core", confOption, true)
+	c.Assert(err, IsNil)
+	tr.Commit()
+}
+
+func (s *interfaceManagerSuite) testConnectTaskCheckContent(c *C, setup func(), check func(*state.Change)) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  content:
+    allow-connection:
+      plug-attributes:
+        -
+          content: $SLOT(content)
+        -
+          compatibility: $SLOT_COMPAT(compatibility)
+`))
+	defer restore()
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	setup()
+	_ = s.manager(c)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 1)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	check(change)
+}
+
+func (s *interfaceManagerSuite) TestConnectContentWithCompat(c *C) {
+	s.MockModel(c, nil)
+	s.setCompatEnabledFeature(c)
+
+	contentConsumerYaml := `
+name: consumer
+version: 1
+plugs:
+  plug:
+    interface: content
+    compatibility: xxx-1
+`
+	contentProducerYaml := `
+name: producer
+version: 1
+slots:
+  slot:
+    interface: content
+    compatibility: xxx-(0..7)
+`
+	s.testConnectTaskCheckContent(c, func() {
+		s.MockSnapDecl(c, "consumer", "one-publisher", nil)
+		s.mockSnap(c, contentConsumerYaml)
+		s.MockSnapDecl(c, "producer", "one-publisher", nil)
+		s.mockSnap(c, contentProducerYaml)
+	}, func(change *state.Change) {
+		c.Assert(change.Err(), IsNil)
+		c.Check(change.Status(), Equals, state.DoneStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Assert(ifaces.Connections, HasLen, 1)
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+			PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+	})
+}
+
+func (s *interfaceManagerSuite) TestConnectContentWithCompatDisabled(c *C) {
+	s.MockModel(c, nil)
+
+	contentConsumerYaml := `
+name: consumer
+version: 1
+plugs:
+  plug:
+    interface: content
+    compatibility: xxx-1
+`
+	contentProducerYaml := `
+name: producer
+version: 1
+slots:
+  slot:
+    interface: content
+    compatibility: xxx-(0..7)
+`
+	s.testConnectTaskCheckContent(c, func() {
+		s.MockSnapDecl(c, "consumer", "one-publisher", nil)
+		s.mockSnap(c, contentConsumerYaml)
+		s.MockSnapDecl(c, "producer", "one-publisher", nil)
+		s.mockSnap(c, contentProducerYaml)
+	}, func(change *state.Change) {
+		c.Assert(change.Err(), ErrorMatches, `.*
+.*connection not allowed by slot rule of interface.*`)
+		c.Check(change.Status(), Equals, state.ErrorStatus)
+
+		repo := s.manager(c).Repository()
+		ifaces := repo.Interfaces()
+		c.Assert(ifaces.Connections, HasLen, 0)
+	})
 }
