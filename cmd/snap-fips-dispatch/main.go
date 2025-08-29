@@ -11,10 +11,6 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-const (
-	selfExe = "/proc/self/exe"
-)
-
 func run() error {
 	logger.SimpleSetup(nil)
 
