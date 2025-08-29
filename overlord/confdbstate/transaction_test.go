@@ -78,7 +78,7 @@ func (s *transactionTestSuite) TestSet(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = bag.Get(parsePath(c, "foo"))
-	c.Assert(err, FitsTypeOf, confdb.PathError(""))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *transactionTestSuite) TestCommit(c *C) {
@@ -159,7 +159,7 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = bag.Get(parsePath(c, "foo"))
-	c.Assert(err, FitsTypeOf, confdb.PathError(""))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	// but subsequent Gets still read the uncommitted values
 	val, err := tx.Get(parsePath(c, "foo"))
@@ -251,7 +251,7 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	c.Assert(value, Equals, "bar")
 
 	value, err = bag.Get(parsePath(c, "bar"))
-	c.Assert(err, FitsTypeOf, confdb.PathError(""))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(value, IsNil)
 
 	err = txTwo.Commit(s.state, confdb.NewJSONSchema())
@@ -315,7 +315,7 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = tx.Get(parsePath(c, "foo"))
-	c.Assert(err, FitsTypeOf, confdb.PathError(""))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *transactionTestSuite) TestUnset(c *C) {
@@ -344,7 +344,7 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
 	_, err = bag.Get(parsePath(c, "foo"))
-	c.Assert(err, FitsTypeOf, confdb.PathError(""))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *transactionTestSuite) TestSerializable(c *C) {
