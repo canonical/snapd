@@ -333,7 +333,7 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 	if filter == nil {
 		return nil, true
 	}
-	if len(filter.Types) > 0 && !sliceContains(filter.Types, ntb.noticeType) {
+	if len(filter.Types) > 0 && !slicesContains(filter.Types, ntb.noticeType) {
 		return nil, false
 	}
 	var keys []string
@@ -422,7 +422,7 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 	// Look for the keys from the filter
 	keyNotices := make([]*state.Notice, 0, len(f.Keys))
 	for _, notice := range filteredNotices {
-		if !sliceContains(f.Keys, notice.Key()) {
+		if !slicesContains(f.Keys, notice.Key()) {
 			continue
 		}
 		keyNotices = append(keyNotices, notice)
@@ -433,7 +433,8 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 	return keyNotices
 }
 
-func sliceContains[T comparable](haystack []T, needle T) bool {
+// TODO: remove in favor of slices.Contains once we're on Go 1.21+
+func slicesContains[T comparable](haystack []T, needle T) bool {
 	for _, v := range haystack {
 		if v == needle {
 			return true
