@@ -194,12 +194,15 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		expiredCount++
 	}
 
-	if existing && !notice.Expired(timestamp) {
+	existingExpired := existing && notice.Expired(timestamp)
+	if existingExpired {
+		// Treat an expired existing notice as if it didn't exist at all
+		existing = false
+	}
+	if existing {
 		noticeBackup = *notice // save the original state of the existing notice
 		notice.Reoccur(timestamp, data, 0)
 	} else {
-		// Treat an expired existing notice as if it didn't exist at all
-		existing = false
 		notice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
 
@@ -212,7 +215,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		ntb.userNotices[userID] = getOrigUserNotices()
 		if existing {
 			*notice = noticeBackup
-		} else {
+		} else if !existingExpired {
 			delete(ntb.idToNotice, noticeID)
 		}
 		return fmt.Errorf("cannot add notice to prompting %s backend: %w", ntb.noticeType, err)
