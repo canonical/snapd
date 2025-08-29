@@ -39,6 +39,8 @@ func run() error {
 	}()
 
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, progBase)) {
+		// magic symlink execution through a symlink in /snap/<foo>, hand it
+		// over to snap command for dispatch
 		target = "/usr/lib/snapd/snap-fips"
 	}
 
