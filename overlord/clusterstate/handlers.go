@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -102,32 +103,8 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 	// TODO: get device serial/private key in some more reasonable way? could
 	// maybe be passed into the task?
 
-	deviceMgr := devicestate.DeviceMgr(st)
-
-	serial, err := deviceMgr.Serial()
-	if err != nil {
-		return fmt.Errorf("cannot get device serial: %v", err)
-	}
-
-	key, err := deviceMgr.DeviceKey()
-	if err != nil {
-		return fmt.Errorf("cannot get device private key: %v", err)
-	}
-
-	config := assemblestate.AssembleConfig{
-		Secret:       setup.Secret,
-		RDT:          assemblestate.DeviceToken(setup.RDT),
-		IP:           ip,
-		Port:         setup.Port,
-		TLSCert:      setup.TLSCert,
-		TLSKey:       setup.TLSKey,
-		ExpectedSize: setup.ExpectedSize,
-		Serial:       serial,
-		PrivateKey:   key,
-	}
-
 	ctx := tomb.Context(context.Background())
-	devices, routes, err := assemble(ctx, t, setup.Domain, config, setup.Period)
+	devices, routes, err := assemble(ctx, t, setup)
 	if err != nil {
 		return err
 	}
@@ -180,11 +157,23 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 func assemble(
 	ctx context.Context,
 	t *state.Task,
-	domain string,
-	config assemblestate.AssembleConfig,
-	period time.Duration,
+	setup assembleClusterSetup,
 ) ([]assemblestate.ClusterDevice, assemblestate.Routes, error) {
 	st := t.State()
+
+	deviceMgr := devicestate.DeviceMgr(st)
+
+	serial, err := deviceMgr.Serial()
+	if err != nil {
+		return nil, assemblestate.Routes{}, fmt.Errorf("cannot get device serial: %v", err)
+	}
+
+	signer := func(data []byte) ([]byte, error) {
+		st.Lock()
+		defer st.Unlock()
+		return deviceMgr.SignWithDeviceKey(data)
+	}
+
 	assertDB := assertstate.DB(st)
 
 	// TODO: create initial session, eventually attempt to detect a resumed
@@ -194,6 +183,16 @@ func assemble(
 	// unlock state before long-running operations
 	st.Unlock()
 	defer st.Lock()
+
+	config := assemblestate.AssembleConfig{
+		Secret:       setup.Secret,
+		RDT:          assemblestate.DeviceToken(setup.RDT),
+		TLSCert:      setup.TLSCert,
+		TLSKey:       setup.TLSKey,
+		ExpectedSize: setup.ExpectedSize,
+		Serial:       serial,
+		Signer:       signer,
+	}
 
 	meter := progress.Meter(progress.Null)
 	if config.ExpectedSize > 0 {
@@ -250,9 +249,14 @@ func assemble(
 
 	transport := assemblestate.NewHTTPSTransport()
 
-	iface, err := interfaceWithIP(config.IP)
+	ip := net.ParseIP(setup.IP)
+	if ip == nil {
+		return nil, assemblestate.Routes{}, fmt.Errorf("invalid ip: %s", setup.IP)
+	}
+
+	iface, err := interfaceWithIP(ip)
 	if err != nil {
-		return nil, assemblestate.Routes{}, fmt.Errorf("cannot find network interface for IP %s: %v", config.IP, err)
+		return nil, assemblestate.Routes{}, fmt.Errorf("cannot find network interface for IP %s: %v", setup.IP, err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -263,7 +267,7 @@ func assemble(
 	defer func() { <-stopped }()
 	go func() {
 		srv := &http.Server{
-			Addr: fmt.Sprintf("%s:%d", config.IP, 7070),
+			Addr: fmt.Sprintf("%s:%d", setup.IP, 7070),
 		}
 		srv.Handler = receiver(st, srv)
 
@@ -288,10 +292,10 @@ func assemble(
 	discoveries, stop, err := assemblestate.MulticastDiscovery(
 		ctx,
 		iface,
-		config.IP,
-		config.Port,
+		ip,
+		setup.Port,
 		assemblestate.DeviceToken(config.RDT),
-		domain,
+		setup.Domain,
 		false,
 	)
 	if err != nil {
@@ -299,15 +303,24 @@ func assemble(
 	}
 	defer stop()
 
+	period := setup.Period
 	if period == 0 {
 		period = 5 * time.Second
 	}
-	opts := assemblestate.PublicationOptions{
+	opts := assemblestate.RunOptions{
 		Period: period,
 	}
 
+	ln, err := net.Listen("tcp", net.JoinHostPort(
+		ip.String(), strconv.Itoa(setup.Port),
+	))
+	if err != nil {
+		return nil, assemblestate.Routes{}, err
+	}
+	defer ln.Close()
+
 	start := time.Now()
-	devices, routes, err := as.Run(ctx, transport, discoveries, opts)
+	devices, routes, err := as.Run(ctx, ln, transport, discoveries, opts)
 	if err != nil {
 		return nil, assemblestate.Routes{}, fmt.Errorf("cluster assembly failed: %v", err)
 	}
