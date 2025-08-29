@@ -346,24 +346,40 @@ nested_is_classic_system() {
     test "$NESTED_TYPE" = "classic"
 }
 
+_compare_core_version() {
+    local VERSION=$1
+    case "${VERSION}" in
+        26)
+            echo "25.10"
+            ;;
+        *)
+            echo "${VERSION}.04"
+            ;;
+    esac
+}
+
 nested_is_core_ge() {
     local VERSION=$1
-    os.query is-ubuntu-ge "${VERSION}.04"
+    os.query is-ubuntu-ge "$(_compare_core_version "${VERSION}")"
 }
 
 nested_is_core_gt() {
     local VERSION=$1
-    os.query is-ubuntu-gt "${VERSION}.04"
+    os.query is-ubuntu-gt "$(_compare_core_version "${VERSION}")"
 }
 
 nested_is_core_le() {
     local VERSION=$1
-    os.query is-ubuntu-le "${VERSION}.04"
+    os.query is-ubuntu-le "$(_compare_core_version "${VERSION}")"
 }
 
 nested_is_core_lt() {
     local VERSION=$1
-    os.query is-ubuntu-lt "${VERSION}.04"
+    os.query is-ubuntu-lt "$(_compare_core_version "${VERSION}")"
+}
+
+nested_is_core_26_system() {
+    os.query is-questing
 }
 
 nested_is_core_24_system() {
@@ -485,9 +501,34 @@ nested_cleanup_env() {
     rm -rf "$(nested_get_extra_snaps_path)"
 }
 
+nested_get_core_channel() {
+    if nested_is_core_26_system; then
+        echo "edge"
+    else
+        echo "${NESTED_CORE_CHANNEL}"
+    fi
+}
+
+nested_get_kernel_channel() {
+    if nested_is_core_26_system; then
+        echo "edge"
+    else
+        echo "${NESTED_KERNEL_CHANNEL}"
+    fi
+}
+
+nested_get_gadget_channel() {
+    if nested_is_core_26_system; then
+        echo "edge"
+    else
+        echo "${NESTED_GADGET_CHANNEL}"
+    fi
+}
+
 nested_get_image_name_base() {
     local TYPE="$1"
-    local SOURCE="${NESTED_CORE_CHANNEL}"
+    local SOURCE
+    SOURCE="$(nested_get_core_channel)"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION
 
@@ -580,6 +621,8 @@ nested_get_version() {
         echo "22"
     elif nested_is_core_24_system; then
         echo "24"
+    elif nested_is_core_26_system; then
+        echo "26"
     fi
 }
 
@@ -681,6 +724,14 @@ nested_prepare_kernel() {
         output_name="pc-kernel.snap"
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
         version="$(nested_get_version)"
+        case "${version}" in
+            26)
+                kernel_version=25.10
+                ;;
+            *)
+                kernel_version="${version}"
+                ;;
+        esac
 
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
             if nested_is_core_le 18; then
@@ -688,7 +739,7 @@ nested_prepare_kernel() {
                 repack_kernel_snap "$kernel_snap"
 
             elif nested_is_core_ge 20; then
-                snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
+                snap download --basename=pc-kernel --channel="${kernel_version}/$(nested_get_kernel_channel)" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
                 # otherwise leave it empty
@@ -747,7 +798,7 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
+            snap download --basename=pc --channel="$version/$(nested_get_gadget_channel)" pc
             unsquashfs -d pc-gadget pc.snap
             nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
             case "${NESTED_UBUNTU_SAVE:-}" in
@@ -965,8 +1016,10 @@ nested_create_core_vm() {
             export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
-            if [ -n "$NESTED_CORE_CHANNEL" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
+            local core_channel
+            core_channel="$(nested_get_core_channel)"
+            if [ -n "${core_channel}" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${core_channel}"
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
