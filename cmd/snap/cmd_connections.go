@@ -121,7 +121,13 @@ func interfaceDeterminant(conn *client.Connection) string {
 
 	switch conn.Interface {
 	case "content":
-		value, _ = conn.PlugAttrs["content"].(string)
+		value, _ = conn.PlugAttrs["compatibility"].(string)
+		if value == "" {
+			value, _ = conn.SlotAttrs["compatibility"].(string)
+		}
+		if value == "" {
+			value, _ = conn.PlugAttrs["content"].(string)
+		}
 		if value == "" {
 			value, _ = conn.SlotAttrs["content"].(string)
 		}
