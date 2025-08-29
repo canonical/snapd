@@ -289,7 +289,7 @@ parts:
     override-build: |
       # this should be passed through build environment, but we're already
       # anchoring dynamic linker env variables
-      GO_TOOLCHAIN_FIPS_CHANNEL="1.21-fips/stable"
+      GO_TOOLCHAIN_FIPS_CHANNEL="1.23-fips/stable"
 
       VERSION="$(craftctl get version)"
       if [ -f fips-build ] ; then
