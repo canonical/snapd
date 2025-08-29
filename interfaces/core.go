@@ -237,6 +237,19 @@ type SymlinksUser interface {
 	TrackedDirectories() []string
 }
 
+// ConflictingConnectedInterfacesDefiner must be implemented by Interfaces
+// that conflicts with other connected interfaces.
+type ConflictingConnectedInterfacesDefiner interface {
+	// ConflictsWithOtherConnectedInterfaces returns a list of interface names
+	// that conflict with this interface on connection.
+	//
+	// The mutually exclusive connection relation is bi-directional, so if any
+	// of the conflicting interfaces has an active connection then this interface
+	// cannot be connected, and if this interface has an active connection then
+	// non of the conflicting interfaces can be connected.
+	ConflictsWithOtherConnectedInterfaces() []string
+}
+
 // StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.

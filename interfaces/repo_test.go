@@ -196,6 +196,30 @@ func (s *RepositorySuite) TestAddInterfaceInvalidName(c *C) {
 	c.Assert(s.emptyRepo.Interface(iface.Name()), IsNil)
 }
 
+func (s *RepositorySuite) TestAddInterfaceConflictingConnectedInterfacesErrors(c *C) {
+	iface1 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-1"},
+		ConflictingConnectedInterfaces: []string{"interface-2", "interface-3"},
+	}
+	iface2 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-2"},
+		ConflictingConnectedInterfaces: []string{"interface-1"},
+	}
+	iface3 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-3"},
+		ConflictingConnectedInterfaces: []string{"interface-2", "interface-4"},
+	}
+	iface4 := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "interface-4"},
+		ConflictingConnectedInterfaces: []string{"interface-4"},
+	}
+
+	c.Check(s.testRepo.AddInterface(iface1), IsNil)
+	c.Check(s.testRepo.AddInterface(iface2), ErrorMatches, `internal error: mutually exclusive connection relation between "interface-2" and "interface-1" was already defined by "interface-1"`)
+	c.Check(s.testRepo.AddInterface(iface3), IsNil)
+	c.Check(s.testRepo.AddInterface(iface4), ErrorMatches, `internal error: cannot define mutually exclusive connection relation for the "interface-4" interface with itself`)
+}
+
 // Tests for Repository.AllInterfaces()
 
 func (s *RepositorySuite) TestAllInterfaces(c *C) {
@@ -1022,6 +1046,68 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotAndPlugAreIncompatible(c *C) {
 	connRef := NewConnRef(s.consumerPlug, s.producerSlot)
 	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot connect plug "consumer:plug" \(interface "other-interface"\) to "producer:slot" \(interface "interface"\)`)
+}
+
+func (s *RepositorySuite) TestConnectFailsForConflictingInterfaceConnections(c *C) {
+	conflictingInterface := &ifacetest.TestConflictingConnectionInterface{
+		TestInterface:                  ifacetest.TestInterface{InterfaceName: "conflicting-interface"},
+		ConflictingConnectedInterfaces: []string{"interface"},
+	}
+	err := s.testRepo.AddInterface(conflictingInterface)
+	c.Assert(err, IsNil)
+
+	otherInterface := &ifacetest.TestInterface{InterfaceName: "other-interface"}
+	err = s.testRepo.AddInterface(otherInterface)
+	c.Assert(err, IsNil)
+
+	otherConsumer := buildAppSetWithPlugsAndSlots(c, "other-consumer", []*snap.PlugInfo{
+		{Name: "conflicting-plug", Interface: "conflicting-interface"},
+		{Name: "other-plug", Interface: "other-interface"},
+	}, nil)
+	otherProducer := buildAppSetWithPlugsAndSlots(c, "other-producer", nil, []*snap.SlotInfo{
+		{Name: "conflicting-slot", Interface: "conflicting-interface"},
+		{Name: "other-slot", Interface: "other-interface"},
+	})
+
+	conflictingConsumerPlug := otherConsumer.Info().Plugs["conflicting-plug"]
+	otherConsumerPlug := otherConsumer.Info().Plugs["other-plug"]
+	conflictingProducerSlot := otherProducer.Info().Slots["conflicting-slot"]
+	otherProducerSlot := otherProducer.Info().Slots["other-slot"]
+
+	err = s.testRepo.AddAppSet(s.consumer)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddAppSet(s.producer)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddAppSet(otherConsumer)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddAppSet(otherProducer)
+	c.Assert(err, IsNil)
+
+	connRef := NewConnRef(s.consumerPlug, s.producerSlot)
+	conflictingConnRef := NewConnRef(conflictingConsumerPlug, conflictingProducerSlot)
+	otherConnRef := NewConnRef(otherConsumerPlug, otherProducerSlot)
+
+	// Connecting "interface" works okay
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// Connecting "conflicting-interface" fails because there is a connection for conflicting "interface"
+	_, err = s.testRepo.Connect(conflictingConnRef, nil, nil, nil, nil, nil)
+	c.Assert(err, ErrorMatches, `interface "conflicting-interface" and "interface" cannot be connected at the same time: "interface" is already connected`)
+
+	// But connecting "other-interface" works okay
+	_, err = s.testRepo.Connect(otherConnRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// The connection conflict relation is bi-directional
+	err = s.testRepo.Disconnect("consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	// now the conflicting connection can be connected
+	_, err = s.testRepo.Connect(conflictingConnRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+	// but the original interface cannot be connected now
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, ErrorMatches, `interface "interface" and "conflicting-interface" cannot be connected at the same time: "conflicting-interface" is already connected`)
 }
 
 func (s *RepositorySuite) TestConnectSucceeds(c *C) {

@@ -91,7 +91,11 @@ type commonInterface struct {
 	controlsDeviceCgroup bool
 
 	serviceSnippets []interfaces.PlugServicesSnippet
+
+	conflictingConnectedInterfaces []string
 }
+
+var _ = interfaces.ConflictingConnectedInterfacesDefiner(&commonInterface{})
 
 // Name returns the interface name.
 func (iface *commonInterface) Name() string {
@@ -218,4 +222,8 @@ func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 	}
 
 	return nil
+}
+
+func (iface *commonInterface) ConflictsWithOtherConnectedInterfaces() []string {
+	return iface.conflictingConnectedInterfaces
 }
