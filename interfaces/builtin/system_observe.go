@@ -134,7 +134,7 @@ ptrace (read),
 /sys/fs/cgroup/system.slice/cpu.max r,
 
 # Allow reading Btrfs filesystem information
-/sys/fs/btrfs
+/sys/fs/btrfs/* r,
 
 #include <abstractions/dbus-strict>
 
