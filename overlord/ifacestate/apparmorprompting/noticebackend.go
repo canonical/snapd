@@ -468,13 +468,30 @@ func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*sta
 		}
 		return filter.filterNotices(userNotices, now)
 	}
-	// We'll be combining notices from multiple users, so make sure all notices
-	// are copied into a new slice before sorting.
-	notices := []*state.Notice{}
+	var notices []*state.Notice
+	nonEmptyUserNotices := 0
 	for _, userNotices := range ntb.userNotices {
-		notices = append(notices, filter.filterNotices(userNotices, now)...)
+		filtered := filter.filterNotices(userNotices, now)
+		if len(filtered) == 0 {
+			continue
+		}
+		nonEmptyUserNotices++
+		switch nonEmptyUserNotices {
+		case 1:
+			// Don't copy yet, we don't know if it will be necessary
+			notices = filtered
+		case 2:
+			// Need to copy to a new slice so we can safely append other user
+			// notices and sort the end result later.
+			newNotices := make([]*state.Notice, len(notices)+len(filtered))
+			copy(newNotices, notices)
+			copy(newNotices[len(notices):], filtered)
+			notices = newNotices
+		default:
+			notices = append(notices, filtered...)
+		}
 	}
-	if len(ntb.userNotices) > 1 {
+	if nonEmptyUserNotices > 1 {
 		// Since we concatenated notices from multiple users, need to re-sort
 		state.SortNotices(notices)
 	}
