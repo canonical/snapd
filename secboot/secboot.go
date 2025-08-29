@@ -305,7 +305,7 @@ type ResealKeyParams struct {
 	// The allowed models
 	Models []ModelForSealing
 	// The TPM policy profile. May be be nil when using hooks.
-	TpmPCRProfile []byte
+	GetTpmPCRProfile func() ([]byte, error)
 	// Whether a incremented value of the counter is allowed
 	// (before a revocation)
 	NewPCRPolicyVersion bool
