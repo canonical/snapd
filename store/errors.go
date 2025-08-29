@@ -68,6 +68,9 @@ var (
 
 	// ErrNoUpdateAvailable is returned when an update is attempted for a snap that has no update available.
 	ErrNoUpdateAvailable = errors.New("snap has no updates available")
+
+	// ErrSkipIconDownload is returned when snap icon download is skipped because the store is using a proxy.
+	ErrSkipIconDownload = errors.New("skipping icon download as store is using proxy")
 )
 
 // RevisionNotAvailableError is returned when an install is attempted for a snap but the/a revision is not available (given install constraints).

@@ -186,6 +186,10 @@ func (sto *Store) MockCacher(obs downloadCache) (restore func()) {
 	}
 }
 
+func (sto *Store) MockProxy(f func(*http.Request) (*url.URL, error)) (restore func()) {
+	return testutil.Mock(&sto.cfg.Proxy, f)
+}
+
 func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
 	old := httputilNewHTTPClient
 	httputilNewHTTPClient = f
