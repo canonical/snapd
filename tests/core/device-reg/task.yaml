@@ -29,6 +29,9 @@ execute: |
 
     gadget_name="$(snaps.name gadget)"
     case "$SPREAD_SYSTEM" in
+        ubuntu-core-24-64)
+            snap model --serial --assertion | MATCH "model: ubuntu-core-24-amd64"
+            ;;
         ubuntu-core-22-64)
             snap model --serial --assertion | MATCH "model: ubuntu-core-22-amd64"
             ;;
