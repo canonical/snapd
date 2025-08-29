@@ -116,6 +116,51 @@ func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
 	return encodeV1(buf.Bytes()), nil
 }
 
+// SignWithKey signs the given data with the provided [PrivateKey]. The
+// serialized signed data is returned.
+func SignWithKey(data []byte, pk PrivateKey) ([]byte, error) {
+	signer, ok := pk.(openpgpSigner)
+	if !ok {
+		return nil, fmt.Errorf("private key does not support signing: %T", pk)
+	}
+
+	sig, err := signer.sign(data)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := bytes.NewBuffer(nil)
+	err = sig.Serialize(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// VerifyWithKey verifies that the given signature is valid for the provided
+// data using the specified [PublicKey].
+func VerifyWithKey(data []byte, signature []byte, pk PublicKey) error {
+	pkt, err := packet.Read(bytes.NewReader(signature))
+	if err != nil {
+		return fmt.Errorf("cannot decode signature: %w", err)
+	}
+
+	sig, ok := pkt.(*packet.Signature)
+	if !ok {
+		return fmt.Errorf("expected signature, got instead: %T", pkt)
+	}
+
+	verifier, ok := pk.(interface {
+		verify([]byte, *packet.Signature) error
+	})
+	if !ok {
+		return fmt.Errorf("public key does not support verification: %T", pk)
+	}
+
+	return verifier.verify(data, sig)
+}
+
 func decodeV1(b []byte, kind string) (packet.Packet, error) {
 	if len(b) == 0 {
 		return nil, fmt.Errorf("cannot decode %s: no data", kind)
