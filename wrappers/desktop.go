@@ -201,7 +201,9 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 			bline = []byte(line)
 		}
 
-		dollarSnapValue := mountDir
+		// use "current" instead of the revision number to avoid icon
+		// breakage when users copy the desktop files (LP: #1851490)
+		dollarSnapValue := filepath.Join(s.MountDir(), "..", "current")
 
 		// rewrite icon line if it references an icon theme icon
 		if bytes.HasPrefix(bline, []byte("Icon=")) {
@@ -211,10 +213,6 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 				continue
 			}
 			bline = []byte(line)
-
-			// use "current" instead of the revision number to avoid icon
-			// breakage when users copy the desktop files (LP: #1851490)
-			dollarSnapValue = []byte(filepath.Join(s.MountDir(), "..", "current"))
 		}
 
 		// do variable substitution
