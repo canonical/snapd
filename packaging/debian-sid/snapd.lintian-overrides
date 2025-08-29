@@ -3,12 +3,10 @@ snapd: non-standard-dir-in-var [var/snap/]
 snapd: non-standard-toplevel-dir [snap/]
 # The Exec= line is /bin/false and the whole thing relies on bus activation.
 snapd: desktop-command-not-in-package bin/false [usr/share/applications/io.snapcraft.SessionAgent.desktop]
-# Snapd uses setuid-root helper to launch programs.
-snapd: elevated-privileges 4755 root/root [usr/lib/snapd/snap-confine]
 # Snapd has a tailored removal script that does quite a bit of complex stuff
 # and precision as to what the actions mean is very important.
-snapd: maintainer-script-calls-systemctl [postrm:9]
-snapd: maintainer-script-calls-systemctl [prerm:9]
+snapd: maintainer-script-calls-systemctl [postrm:*]
+snapd: maintainer-script-calls-systemctl [prerm:*]
 # This could be possibly removed or migrated to a specific mechanism.
 snapd: maintscript-calls-ldconfig [postinst]
 # FIXME: Yes this one is missing but it is a programmatic interface that lives
@@ -16,4 +14,6 @@ snapd: maintscript-calls-ldconfig [postinst]
 # override.
 snapd: no-manual-page [usr/bin/snapctl]
 # This is intentional.
-snapd: systemd-service-file-refers-to-unusual-wantedby-target cloud-final.service [lib/systemd/system/snapd.seeded.service]
+snapd: systemd-service-file-refers-to-unusual-wantedby-target cloud-final.service [usr/lib/systemd/system/snapd.seeded.service]
+# This is intentional.
+snapd: package-contains-empty-directory [snap/]

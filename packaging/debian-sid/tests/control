@@ -1,8 +1,15 @@
 Tests: integrationtests
-Restrictions: allow-stderr, rw-build-tree, needs-root, breaks-testbed, isolation-machine, needs-sudo, needs-internet
+Restrictions: allow-stderr,
+              breaks-testbed,
+              isolation-machine,
+              needs-internet,
+              needs-root,
+              needs-sudo,
+              rw-build-tree
 Depends: bzr,
          ca-certificates,
          git,
+         golang-go,
          golang-golang-x-net-dev,
          locales,
          net-tools,
