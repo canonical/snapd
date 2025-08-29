@@ -979,6 +979,69 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	c.Assert(atomic.LoadInt32(&Executing), Equals, int32(0))
 }
 
+func (s *hookManagerSuite) TestHookTasksWaitForActiveSnap(c *C) {
+	s.testHookTasksWaitUntilActive(c, "test-snap")
+}
+
+func (s *hookManagerSuite) TestHookTasksWaitForActiveBase(c *C) {
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, "test-snap", &snapst)
+		c.Assert(err, IsNil)
+		snapst.Active = true
+		snapst.Base = "test-base"
+		snapstate.Set(s.state, "test-snap", &snapst)
+
+		seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "test-base",
+			Revision: snap.R(123),
+		}})
+		snapstate.Set(s.state, "test-base", &snapstate.SnapState{
+			Active:   true,
+			Sequence: seq,
+		})
+	}()
+
+	s.testHookTasksWaitUntilActive(c, "test-base")
+}
+
+func (s *hookManagerSuite) testHookTasksWaitUntilActive(c *C, conflictSnap string) {
+	setActive := func(active bool) {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, conflictSnap, &snapst)
+		c.Assert(err, IsNil)
+
+		snapst.Active = active
+		snapstate.Set(s.state, conflictSnap, &snapst)
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setActive(false)
+
+	s.state.Unlock()
+	err := s.o.TaskRunner().Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	task := s.state.Task(s.task.ID())
+	c.Assert(task.Status(), Equals, state.DoStatus)
+
+	setActive(true)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	task = s.state.Task(s.task.ID())
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+}
+
 type MockConcurrentHandler struct {
 	onDone func()
 }
@@ -1418,8 +1481,6 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 	c.Check(s.command.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "install", "-r", "1", "test-snap_instance+standard-component",
 	}})
-
-	fmt.Println(s.change.Err())
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
