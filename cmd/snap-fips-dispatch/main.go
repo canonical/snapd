@@ -62,8 +62,8 @@ func run(args []string) error {
 	logger.Debugf("FIPS execution dispatcher for: %s", prog)
 
 	targetMapper := map[string]string{
-		"snapd":          "/usr/lib/snapd/snapd-fips",
 		"snap":           "/usr/bin/snap-fips",
+		"snapd":          "/usr/lib/snapd/snapd-fips",
 		"snap-repair":    "/usr/lib/snapd/snap-repair-fips",
 		"snap-bootstrap": "/usr/lib/snapd/snap-bootstrap-fips",
 	}
