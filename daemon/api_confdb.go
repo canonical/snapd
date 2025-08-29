@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -71,12 +72,32 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		keys = strutil.CommaSeparatedList(keysStr)
 	}
 
+	constraintsStr := r.URL.Query().Get("constraints")
+	var constraints map[string]string
+	if constraintsStr != "" {
+		constraintPairs := strutil.CommaSeparatedList(constraintsStr)
+		for _, pair := range constraintPairs {
+			parts := strings.Split(pair, "=")
+			if len(parts) != 2 {
+				return BadRequest(`"with" constraints must be in the form <name>=<value>, got: %v`, pair)
+			}
+			name, value := parts[0], parts[1]
+			// TODO: validate the value? Do we validate values in general? If we don't we might
+			// allows map keys that can't later be accessed with "get"
+
+			if prevVal, ok := constraints[name]; ok {
+				return BadRequest(`cannot have several "with" constraints with same name: %s=%s and %s=%s`, name, prevVal, name, value)
+			}
+			constraints[name] = value
+		}
+	}
+
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys)
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
 	if err != nil {
 		return toAPIError(err)
 	}
