@@ -470,10 +470,17 @@ parts:
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
 
       if [ -f fips-build ]; then
-        for cmd in bin/snap lib/snapd/snapd lib/snapd/snap-repair lib/snapd/snap-bootstrap; do
+        # create symlinks for snap-fips-dispatch
+        # <root>/usr/bin/snap                 -> <root>/usr/bin/snap-fips
+        # <root>/usr/lib/snapd/snapd          -> <root>/usr/lib/snapd/snapd-fips
+        # <root>/usr/lib/snapd/snap-repair    -> <root>/usr/lib/snapd/snap-repair
+        # <root>/usr/lib/snapd/snap-bootstrap -> <root>/usr/lib/snapd/snap-bootstrap-fips
+        for cmd in lib/snapd/snapd lib/snapd/snap-repair lib/snapd/snap-bootstrap; do
           mv -v "${CRAFT_PART_INSTALL}/usr/${cmd}" "${CRAFT_PART_INSTALL}/usr/lib/snapd/$(basename $cmd)-fips"
           ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/${cmd}"
         done
+        mv -v "${CRAFT_PART_INSTALL}/usr/bin/snap" "${CRAFT_PART_INSTALL}/usr/bin/snap-fips"
+        ln -v -s -r "${CRAFT_PART_INSTALL}/usr/bin/snap-fips" "${CRAFT_PART_INSTALL}/usr/bin/snap"
       fi
 
       # TODO: For now snapd expects a renamed apparmor profile to
