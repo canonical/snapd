@@ -214,7 +214,7 @@ func (s *fipsSuite) TestMaybeSetupFIPSNoModulesButStillReexec(c *C) {
 
 	c.Check(observedArg0, Equals, mockSelfExe)
 	c.Check(observedArgv, DeepEquals, []string{"--arg"})
-	// FIPS mode is erquired
+	// FIPS mode is required
 	c.Check(observedEnv, testutil.Contains, "GOFIPS=1")
 	// module was not found, so paths are not set
 	for _, env := range observedEnv {
@@ -290,7 +290,7 @@ func (s *fipsSuite) TestMaybeSetupFIPSSnapdNotFromSnapOnClassic(c *C) {
 
 	c.Check(observedArg0, Equals, mockSelfExe)
 	c.Check(observedArgv, DeepEquals, []string{"--arg"})
-	// FIPS mode is erquired
+	// FIPS mode is required
 	c.Check(observedEnv, testutil.Contains, "GOFIPS=1")
 	// since we're not reexecuting from snapd snap, no additional env for openssl modules is set
 	for _, env := range observedEnv {
@@ -323,5 +323,78 @@ func (s *fipsSuite) TestMaybeSetupFIPSSnapdNotFromSnapFIPSNotEnabled(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	c.Assert(snapdtool.DispatchWithFIPS("/this/is/snapd"), IsNil)
+	var observedEnv []string
+	var observedArgv []string
+	var observedArg0 string
+
+	restore = snapdtool.MockSyscallExec(func(argv0 string, argv []string, envv []string) (err error) {
+		observedArg0 = argv0
+		observedArgv = argv
+		observedEnv = envv
+		panic(fmt.Errorf("exec in tests"))
+	})
+	s.AddCleanup(restore)
+
+	osArgs := os.Args
+	s.AddCleanup(func() { os.Args = osArgs })
+	os.Args = []string{"--arg"}
+
+	c.Assert(func() { snapdtool.DispatchWithFIPS("/usr/lib/snapd/snapd") }, PanicMatches, "exec in tests")
+
+	c.Check(observedArg0, Equals, mockSelfExe)
+	c.Check(observedArgv, DeepEquals, []string{"--arg"})
+	// since we're not reexecuting from snapd snap, no additional env for openssl modules is set
+	for _, env := range observedEnv {
+		if strings.HasPrefix(env, "OPENSSL_MODULES=") || strings.HasPrefix(env, "GO_OPENSSL_VERSION_OVERRIDE=") {
+			c.Fatalf("found unexpected openssl env %q", env)
+		}
+		// FIPS mode is not indicated at all
+		if strings.HasPrefix(env, "GOFIPS=") {
+			c.Fatalf("found unexpected GOFIPS env %q", env)
+		}
+	}
+	// bootstrap is done
+	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP=1")
+}
+
+func (s *fipsSuite) TestMaybeSetupFIPSSnapdFromSnapFIPSNotEnabled(c *C) {
+	// FIPS is not enabled, snapd *is* running from the snapd snap
+
+	mockSelfExe := s.mockFIPSState(c, fipsConf{
+		fipsEnabledPresent: false,
+		fipsEnabledYes:     false,
+	})
+
+	var observedEnv []string
+	var observedArgv []string
+	var observedArg0 string
+
+	restore := snapdtool.MockSyscallExec(func(argv0 string, argv []string, envv []string) (err error) {
+		observedArg0 = argv0
+		observedArgv = argv
+		observedEnv = envv
+		panic(fmt.Errorf("exec in tests"))
+	})
+	s.AddCleanup(restore)
+
+	osArgs := os.Args
+	s.AddCleanup(func() { os.Args = osArgs })
+	os.Args = []string{"--arg"}
+
+	c.Assert(func() { snapdtool.DispatchWithFIPS("/usr/lib/snapd/snapd") }, PanicMatches, "exec in tests")
+
+	c.Check(observedArg0, Equals, mockSelfExe)
+	c.Check(observedArgv, DeepEquals, []string{"--arg"})
+	// since we're not reexecuting from snapd snap, no additional env for openssl modules is set
+	for _, env := range observedEnv {
+		if strings.HasPrefix(env, "OPENSSL_MODULES=") || strings.HasPrefix(env, "GO_OPENSSL_VERSION_OVERRIDE=") {
+			c.Fatalf("found unexpected openssl env %q", env)
+		}
+		// FIPS mode is not indicated at all
+		if strings.HasPrefix(env, "GOFIPS=") {
+			c.Fatalf("found unexpected GOFIPS env %q", env)
+		}
+	}
+	// bootstrap is done
+	c.Check(observedEnv, testutil.Contains, "SNAPD_FIPS_BOOTSTRAP=1")
 }

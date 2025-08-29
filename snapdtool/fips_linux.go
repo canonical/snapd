@@ -109,13 +109,16 @@ func DispatchWithFIPS(targetExe string) error {
 		logger.Debugf("snapd snap: %s", currentRevSnapdSnap)
 	}
 
-	env := append(os.Environ(), []string{
-		"SNAPD_FIPS_BOOTSTRAP=1",
-		// make FIPS mode required at runtime, if FIPS support in Go
-		// runtime cannot be completed successfully the startup will
-		// fail in a predictable manner
-		"GOFIPS=1",
-	}...)
+	env := append(os.Environ(), "SNAPD_FIPS_BOOTSTRAP=1")
+
+	if enabled {
+		env = append(env,
+			// make FIPS mode required at runtime, if FIPS support in Go
+			// runtime cannot be completed successfully the startup will
+			// fail in a predictable manner
+			"GOFIPS=1",
+		)
+	}
 
 	execOrErr := func(target string, args, env []string) error {
 		if err := syscallExec(target, os.Args, env); err != nil {
