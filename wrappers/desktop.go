@@ -175,7 +175,6 @@ func rewriteIconLine(s *snap.Info, line string) (string, error) {
 
 func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
 	var newContent bytes.Buffer
-	mountDir := []byte(s.MountDir())
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
 	for i := 0; scanner.Scan(); i++ {
 		bline := scanner.Bytes()
