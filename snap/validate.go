@@ -813,7 +813,7 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
-var isValidStatusName = regexp.MustCompile("^[A-Z_]{3,}$").MatchString
+var isValidStatusName = regexp.MustCompile("^[A-Z_12]{3,}$").MatchString
 
 func validateAppSuccessExitStatus(app *AppInfo) error {
 	if len(app.SuccessExitStatus) == 0 {
