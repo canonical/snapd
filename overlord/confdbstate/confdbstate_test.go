@@ -268,7 +268,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	c.Assert(err, IsNil)
 
 	val, err := bag.Get(parsePath(c, "wifi.ssid"))
-	c.Assert(err, FitsTypeOf, confdb.PathError(""))
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(val, Equals, nil)
 }
 

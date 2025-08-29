@@ -3401,8 +3401,7 @@ func (*viewSuite) TestSetListSetsOrAppends(c *C) {
 
 	// cannot append if index is not next one
 	err = view.Set(bag, "a[9]", "foo")
-	c.Assert(err, testutil.ErrorIs, confdb.PathError(""))
-	c.Assert(err.Error(), Equals, `cannot access "a[9]": list has length 2`)
+	c.Assert(err, ErrorMatches, `cannot access "a\[9\]": list has length 2`)
 }
 
 func (*viewSuite) TestSetListNested(c *C) {

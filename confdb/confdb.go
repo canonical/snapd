@@ -1373,7 +1373,7 @@ func (v *View) Get(databag Databag, request string) (any, error) {
 	for _, match := range matches {
 		val, err := databag.Get(match.storagePath)
 		if err != nil {
-			if errors.Is(err, PathError("")) {
+			if errors.Is(err, &NoDataError{}) {
 				continue
 			}
 			return nil, err
@@ -1810,21 +1810,6 @@ func (i index) Access() string     { return "[" + i.Name() + "]" }
 func (i index) Name() string       { return string(i) }
 func (i index) Type() AccessorType { return ListIndexType }
 
-type PathError string
-
-func (e PathError) Error() string {
-	return string(e)
-}
-
-func (e PathError) Is(err error) bool {
-	_, ok := err.(PathError)
-	return ok
-}
-
-func pathErrorf(str string, v ...any) PathError {
-	return PathError(fmt.Sprintf(str, v...))
-}
-
 // JSONDatabag is a simple Databag implementation that keeps JSON in-memory.
 type JSONDatabag map[string]json.RawMessage
 
@@ -1865,7 +1850,7 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 	default:
 		// should be impossible since we handle terminal cases in the type specific functions
 		path := JoinAccessors(subKeys[:index+1])
-		return pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+		return fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 	}
 }
 
@@ -1877,7 +1862,6 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
 func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, result *any) error {
-	curPath := JoinAccessors(subKeys[:index+1])
 	key := subKeys[index]
 
 	var matchAll bool
@@ -1886,7 +1870,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		var ok bool
 		rawLevel, ok = node[key.Name()]
 		if !ok {
-			return pathErrorf("no value was found under path %q", curPath)
+			return &NoDataError{}
 		}
 	} else if key.Type() == KeyPlaceholderType {
 		matchAll = true
@@ -1937,7 +1921,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 			// is found under any path
 			var res any
 			if err := get(subKeys, index+1, level, &res); err != nil {
-				if errors.Is(err, PathError("")) {
+				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
 			}
@@ -1948,7 +1932,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		}
 
 		if len(results) == 0 {
-			return pathErrorf("no value was found under path %q", curPath)
+			return &NoDataError{}
 		}
 
 		*result = results
@@ -1984,9 +1968,8 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		return fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
 	}
 
-	curPath := JoinAccessors(subKeys[:keyIndex+1])
 	if listIndex >= len(list) {
-		return pathErrorf("no value was found under path %q", curPath)
+		return &NoDataError{}
 	}
 
 	// read the final value
@@ -2031,7 +2014,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 			// is found under any path
 			var res any
 			if err := get(subKeys, keyIndex+1, level, &res); err != nil {
-				if errors.Is(err, PathError("")) {
+				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
 			}
@@ -2042,7 +2025,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		}
 
 		if len(results) == 0 {
-			return pathErrorf("no value was found under path %q", curPath)
+			return &NoDataError{}
 		}
 
 		*result = results
@@ -2150,7 +2133,7 @@ func set(subKeys []Accessor, index int, node any, value any) (json.RawMessage, e
 
 	// should be impossible since we handle terminal cases in the type specific functions
 	path := JoinAccessors(subKeys[:index+1])
-	return nil, pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
 func setMap(subKeys []Accessor, index int, node map[string]json.RawMessage, value any) (json.RawMessage, error) {
@@ -2215,7 +2198,7 @@ func setList(subKeys []Accessor, keyIndex int, list []json.RawMessage, value any
 	// append the entry, extending the list)
 	if listIndex > len(list) {
 		curPath := JoinAccessors(subKeys[:keyIndex+1])
-		return nil, pathErrorf("cannot access %q: list has length %d", curPath, len(list))
+		return nil, fmt.Errorf("cannot access %q: list has length %d", curPath, len(list))
 	}
 
 	if keyIndex == len(subKeys)-1 {
@@ -2297,7 +2280,7 @@ func unset(subKeys []Accessor, index int, node any) (json.RawMessage, error) {
 
 	// should be impossible since we handle terminal cases in the type specific functions
 	path := JoinAccessors(subKeys[:index+1])
-	return nil, pathErrorf("internal error: expected level %q to be map or list but got %T", path, node)
+	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
 func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
