@@ -21,7 +21,7 @@
 // only inside the snapd snapd and symlinked as and dispatch to the following
 // binaries located within the snapd snap:
 //
-// <root>/usr/bin/snap					-> <root>/usr/lib/snapd/snap-fips
+// <root>/usr/bin/snap					-> <root>/usr/bin/snap-fips
 // <root>/usr/lib/snapd/snapd			-> <root>/usr/lib/snapd/snapd-fips
 // <root>/usr/lib/snapd/snap-repair		-> <root>/usr/lib/snapd/snap-repair
 // <root>/usr/lib/snapd/snap-bootstrap	-> <root>/usr/lib/snapd/snap-bootstrap-fips
@@ -61,26 +61,23 @@ func run(args []string) error {
 
 	logger.Debugf("FIPS execution dispatcher for: %s", prog)
 
-	target := func() string {
-		switch progBase {
-		case "snapd":
-			return "/usr/lib/snapd/snapd-fips"
-		case "snap":
-			return "/usr/lib/snapd/snap-fips"
-		case "snap-repair":
-			return "/usr/lib/snapd/snap-repair-fips"
-		case "snap-bootstrap":
-			return "/usr/lib/snapd/snap-bootstrap-fips"
-		default:
-			return filepath.Join("/usr/lib/snapd", progBase)
-		}
-	}()
+	targetMapper := map[string]string{
+		"snapd":          "/usr/lib/snapd/snapd-fips",
+		"snap":           "/usr/bin/snap-fips",
+		"snap-repair":    "/usr/lib/snapd/snap-repair-fips",
+		"snap-bootstrap": "/usr/lib/snapd/snap-bootstrap-fips",
+	}
 
-	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, progBase)) {
-		logger.Debugf("detected snap application execution through symlink")
-		// magic symlink execution through a symlink in /snap/<foo>, hand it
-		// over to snap command for dispatch
-		target = "/usr/lib/snapd/snap-fips"
+	target := targetMapper[progBase]
+	if target == "" {
+		if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, progBase)) {
+			logger.Debugf("detected snap application execution through symlink")
+			// magic symlink execution through a symlink in /snap/<foo>, hand it
+			// over to snap command for dispatch
+			target = targetMapper["snap"]
+		} else {
+			target = filepath.Join("/usr/lib/snapd", progBase)
+		}
 	}
 
 	logger.Debugf("dispatch target: %v", target)
