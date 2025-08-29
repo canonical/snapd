@@ -31,3 +31,10 @@ type PreinstallErrorDetails struct {
 	Args    map[string]json.RawMessage `json:"args,omitempty"`
 	Actions []string                   `json:"actions,omitempty"`
 }
+
+// PreinstallAction describes an action with optional arguments that may
+// be requested to resolve a preinstall check error.
+type PreinstallAction struct {
+	Action string                     `json:"action"`
+	Args   map[string]json.RawMessage `json:"args,omitempty"`
+}

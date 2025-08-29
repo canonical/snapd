@@ -68,6 +68,10 @@ type EncryptionSetupData struct {
 	// corresponding recovery key should be used for all relevant
 	// volumes during installation.
 	recoveryKeyID string
+	// optional preinstall check context that includes the check result that
+	// reflects the outcome of the most recent check and contains information
+	// required for optimum PCR configuration and reseal post install
+	preinstallCheckContext *secboot.PreinstallCheckContext
 }
 
 // EncryptedDevices returns a map partition role -> LUKS mapper device.
@@ -92,6 +96,10 @@ func (esd *EncryptionSetupData) RecoveryKeyID() string {
 	return esd.recoveryKeyID
 }
 
+func (esd *EncryptionSetupData) PreinstallCheckContext() *secboot.PreinstallCheckContext {
+	return esd.preinstallCheckContext
+}
+
 // MockEncryptedDeviceAndRole is meant to be used for unit tests from other
 // packages.
 type MockEncryptedDeviceAndRole struct {
@@ -108,10 +116,10 @@ func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAnd
 		recoveryKeyID: recoveryKeyID,
 	}
 	for label, encryptData := range labelToEncDevice {
-		//TODO:FDEM: we should use a mock for the bootstrap key. However,
-		//this is still used in place where LegacyKeptKey will be
-		//called to write the save key to a file in
-		//overlord/install/install.go. Once we have removed that call,
+		// TODO:FDEM: we should use a mock for the bootstrap key. However,
+		// this is still used in place where LegacyKeptKey will be
+		// called to write the save key to a file in
+		// overlord/install/install.go. Once we have removed that call,
 		// we can use mock object instead.
 		bootstrapKey := secboot.CreateMockBootstrappedContainer()
 		esd.parts[label] = partEncryptionData{
