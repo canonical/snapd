@@ -244,6 +244,9 @@ func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID stri
 	if existingUserID, ok := notice.UserID(); !ok || existingUserID != userID {
 		// This should never occur, since prompting notices always have UserIDs
 		// and prompt/rule IDs are globally unique.
+		if !ok {
+			return nil, nil, false, 0, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists without user", ntb.namespace, noticeID, userID)
+		}
 		return nil, nil, false, 0, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists for user %d", ntb.namespace, noticeID, userID, existingUserID)
 	}
 
