@@ -29,10 +29,10 @@ export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.18/bin:${PATH}
 ifeq (${FIPSBUILD},1)
-	# when building with FIPS, use Go 1.21 which is also declared in build
+	# when building with FIPS, use Go 1.23 which is also declared in build
 	# dependencies; during testing it is manually installed, but during LP builds
 	# it should be pulled in as a build dependency
-	export PATH:=/usr/lib/go-1.21/bin:${PATH}
+	export PATH:=/usr/lib/go-1.23/bin:${PATH}
 endif
 # GOCACHE is needed by go-1.13+
 export GOCACHE:=/tmp/go-build
@@ -201,8 +201,8 @@ override_dh_auto_build:
 	# very ugly test for FIPS variant of a toolchain
 	# see https://warthogs.atlassian.net/browse/FR-8860
 ifeq (${FIPSBUILD},1)
-	if ! test -f /usr/lib/go-1.21/src/crypto/internal/backend/openssl_linux.go; then \
-		echo "Go 1.21 FIPS toolchain not found"; \
+	if ! test -f /usr/lib/go-1.23/src/crypto/internal/backend/openssl_linux.go; then \
+		echo "Go 1.23 FIPS toolchain not found"; \
 		exit 1; \
 	fi
 endif
