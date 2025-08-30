@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/httputil"
@@ -919,15 +918,8 @@ const refreshInhibitWarningKey string = "cannot refresh due to running apps"
 
 // removeRefreshInhibitWarning removes inhibition warning if it exists.
 func removeRefreshInhibitWarning(st *state.State) error {
-	// XXX: is it worth it to check for unexpected multiple matches?
-	for _, warning := range st.AllWarnings() {
-		if !strings.HasSuffix(warning.String(), "close running apps to continue refresh.") {
-			continue
-		}
-		if err := st.RemoveWarning(refreshInhibitWarningKey); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		return nil
+	if err := st.RemoveWarning(refreshInhibitWarningKey); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
 	}
 	return nil
 }
