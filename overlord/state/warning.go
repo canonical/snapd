@@ -234,7 +234,9 @@ func (s *State) RemoveWarning(message string) error {
 	addNoticeOptions := &AddNoticeOptions{
 		RepeatAfter: 0,
 		ExpireAfter: time.Nanosecond,
-		Time:        timeNow().Add(-time.Nanosecond),
+		// Specify time explicitly so as not to bump the last notice timestamp.
+		// Add -2ns so the notice is guaranteed to be expired before returning.
+		Time: timeNow().Add(-2 * time.Nanosecond),
 	}
 	notice, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
 	if err != nil {
