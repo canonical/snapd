@@ -1250,17 +1250,21 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	err := snapstate.MaybeAddRefreshInhibitNotice(st)
 	c.Assert(err, IsNil)
 	// empty set of inhibited snaps unchanged -> []
-	// no notice recorded
-	c.Assert(st.Notices(nil), HasLen, 0)
+	// Notices recorded to back each warning
+	c.Assert(st.Notices(nil), HasLen, 2)
+	// The existing notices are WarningNotice
+	c.Assert(st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}}), HasLen, 2)
 	// no "refresh inhibition" warnings recorded
 	checkNoRefreshInhibitWarning(c, st)
 	// Verify list is empty
 	checkLastRecordedInhibitedSnaps(c, st, nil)
 
 	now := time.Now()
-	warningTime := now
+	// Refresh inhibit notice will get timestamp `now`, so warning notice will
+	// get the next monotonically increasing timestamp, 1ns later
+	warningTime := now.Add(time.Nanosecond)
 	// mock time to determine if recorded warning is recent
-	defer state.MockTime(warningTime)()
+	defer state.MockTime(now)()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -1324,6 +1328,8 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	// mock time to determine if recorded warning is recent
 	warningTime = warningTime.Add(1 * time.Hour)
 	defer state.MockTime(warningTime)()
+	// again, refresh inhibit notice will take mocked timestamp, so bump by 1ns
+	warningTime = warningTime.Add(time.Nanosecond)
 	err = snapstate.MaybeAddRefreshInhibitNotice(st)
 	c.Assert(err, IsNil)
 	// set of inhibited snaps changed -> ["some-other-snap"]
@@ -1351,6 +1357,8 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	// mock time to determine if recorded warning is recent
 	warningTime = warningTime.Add(1 * time.Hour)
 	defer state.MockTime(warningTime)()
+	// again, refresh inhibit notice will take mocked timestamp, so bump by 1ns
+	warningTime = warningTime.Add(time.Nanosecond)
 	err = snapstate.MaybeAddRefreshInhibitNotice(st)
 	c.Assert(err, IsNil)
 	// set of inhibited snaps changed -> []
@@ -1386,6 +1394,8 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	// mock time to determine if recorded warning is recent
 	warningTime = warningTime.Add(1 * time.Hour)
 	defer state.MockTime(warningTime)()
+	// again, refresh inhibit notice will take mocked timestamp, so bump by 1ns
+	warningTime = warningTime.Add(time.Nanosecond)
 	err = snapstate.MaybeAddRefreshInhibitNotice(st)
 	c.Assert(err, IsNil)
 	// set of inhibited snaps changed -> ["some-snap", "some-other-snap"]

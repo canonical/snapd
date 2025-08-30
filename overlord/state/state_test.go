@@ -575,7 +575,6 @@ func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
 		"data",
 		"changes",
 		"tasks",
-		"warnings",
 		"notices",
 		"cache",
 		"pendingChangeByAttr",
@@ -759,6 +758,8 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Warnf("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
+		func() { st.AddNotice(nil, state.WarningNotice, "foo", nil) },
+		func() { st.DrainNotices(nil) },
 	}
 
 	reads := []func(){
