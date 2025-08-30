@@ -238,22 +238,30 @@ func (s *State) RemoveWarning(message string) error {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
+	// If a notice matching this warning doesn't exist, we don't want to
+	// create a new one in an effort to remove it
+	noticeFilter := &NoticeFilter{
+		Types: []NoticeType{WarningNotice},
+		Keys:  []string{message},
+	}
+	existing := s.doNotices(noticeFilter)
+	if len(existing) == 0 {
+		return ErrNoState
+	}
+
 	// Remove warning by adding a warning with an ExpireAfter of 1ns
 	addNoticeOptions := &AddNoticeOptions{
 		RepeatAfter: 0,
 		ExpireAfter: time.Nanosecond,
 		// Specify time explicitly so as not to bump the last notice timestamp.
 		// Add -2ns so the notice is guaranteed to be expired before returning.
-		Time: timeNow().Add(-2 * time.Nanosecond),
+		Time: timeNow().UTC().Add(-2 * time.Nanosecond),
 	}
-	notice, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
+	_, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
 	if err != nil {
 		// programming error!
 		logger.Panicf("internal error, please report: attempted to use invalid notice options when removing warning")
 		return err
-	}
-	if notice.occurrences == 1 {
-		return ErrNoState
 	}
 	return nil
 }
