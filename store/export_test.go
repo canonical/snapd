@@ -158,6 +158,10 @@ func MockMaxIconFilesize(maxSize int64) (restore func()) {
 	return testutil.Mock(&maxIconFilesize, maxSize)
 }
 
+func MockDownloadIconTimeout(timeout time.Duration) (restore func()) {
+	return testutil.Mock(&downloadIconTimeout, timeout)
+}
+
 func MockDownloadIcon(f func(ctx context.Context, name, etag, downloadURL string, w ReadWriteSeekTruncater) (string, error)) (restore func()) {
 	return testutil.Mock(&downloadIcon, f)
 }
