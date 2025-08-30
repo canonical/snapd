@@ -191,9 +191,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	defer s.noticesMu.Unlock()
 
 	addNoticeOptions := &AddNoticeOptions{
-		Data: map[string]string{
-			"details": options.Details,
-		},
+		Data: map[string]string{},
 		// Always repeat warning notices. The RepeatAfter field in the warning
 		// options is really about when a warning should be re-shown to a user,
 		// and is unrelated to notice RepeatAfter. We always want to repeat the
@@ -201,6 +199,10 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 		RepeatAfter: 0,
 		ExpireAfter: defaultWarningExpireAfter,
 		Time:        options.Time,
+	}
+
+	if options.Details != "" {
+		addNoticeOptions.Data["details"] = options.Details
 	}
 
 	if options.RepeatAfter != 0 {
@@ -212,7 +214,13 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	if existingNotices := s.doNotices(noticeFilter); len(existingNotices) > 0 {
 		// Should only be possible to have one notice with a given type and key
 		existing := existingNotices[0]
-		addNoticeOptions.Data["last-shown"] = existing.lastData["last-shown"]
+		if lastShown, ok := existing.lastData["last-shown"]; ok {
+			addNoticeOptions.Data["last-shown"] = lastShown
+		}
+	}
+
+	if len(addNoticeOptions.Data) == 0 {
+		addNoticeOptions.Data = nil
 	}
 
 	if _, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions); err != nil {
@@ -298,6 +306,9 @@ func (s *State) OkayWarnings(t time.Time) int {
 	n := 0
 	for _, w := range warnings {
 		if w.ShowAfter(t) {
+			if w.notice.lastData == nil {
+				w.notice.lastData = make(map[string]string)
+			}
 			w.notice.lastData["last-shown"] = t.Format(time.RFC3339Nano)
 			n++
 		}
