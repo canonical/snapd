@@ -390,6 +390,10 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
+	// XXX: do we want this to be:
+	//     if !ok || notice.Expired(now) {
+	// If so, then we won't reuse an expired notice which happens to have not
+	// yet been pruned.
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
