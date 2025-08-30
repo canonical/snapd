@@ -947,11 +947,6 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 	// let's fallback to issuing warnings if no snap exists with the
 	// marker snap-refresh-observe interface connected.
 
-	// remove inhibition warning if it exists.
-	if err := removeRefreshInhibitWarning(st); err != nil {
-		return err
-	}
-
 	// building warning message
 	var snapsBuf bytes.Buffer
 	i := 0
