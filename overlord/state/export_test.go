@@ -46,7 +46,7 @@ func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 }
 
 func (w Warning) LastAdded() time.Time {
-	return w.lastAdded
+	return w.lastAdded()
 }
 
 func (t *Task) AccumulateDoingTime(duration time.Duration) {
