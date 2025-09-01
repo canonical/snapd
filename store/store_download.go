@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -317,12 +318,27 @@ const (
 	etagXattrName = "user.snap_store_etag"
 )
 
+var (
+	ErrProxyStoreIconDownloadUnsupported = errors.New("icon download unsupported with proxy store")
+)
+
 // DownloadIcon downloads the icon for the snap from the given download URL to
 // the given target path. Snap icons are small (<256kB) files served from an
 // ordinary unauthenticated file server, so this does not require store
 // authentication or user state, nor a progress bar. They are also not revision-
 // specific, and do not use a download cache.
 func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {
+	if s.dauthCtx != nil {
+		// custom proxy store, which historically had not supported icon
+		// downloads through its APIs
+		_, u, err := s.dauthCtx.ProxyStoreParams(s.baseURL(s.cfg.StoreBaseURL))
+		if err == nil && u != nil {
+			if !strings.HasPrefix(downloadURL, u.String()) {
+				return ErrProxyStoreIconDownloadUnsupported
+			}
+		}
+	}
+
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return err
 	}
