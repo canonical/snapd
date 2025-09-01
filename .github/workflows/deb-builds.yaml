@@ -40,6 +40,13 @@ jobs:
         mv /tmp/vendor-dir/snapd-*/vendor .
         mv /tmp/vendor-dir/snapd-*/c-vendor/* c-vendor/
 
+    - name: Setup debian dir
+      run: |
+        if [ -d "packaging/${{ inputs.os }}-${{ inputs.os-version }}" ]; then
+          rm -r debian
+          mv "packaging/${{ inputs.os }}-${{ inputs.os-version }}" debian
+        fi
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
