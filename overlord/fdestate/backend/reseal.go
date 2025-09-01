@@ -149,6 +149,10 @@ type doResealOptions struct {
 	hintExpectFDEHook bool
 }
 
+// errNoPCRProfileCalculated is used when recalculateParamatersTPM
+// does not set the parameters in state due to unchanged boot
+// chain. This is not an real error most of the time but it still needs
+// to exit resealing attempt.
 var errNoPCRProfileCalculated = errors.New("no PCR profile calculated, skipping resealing")
 
 func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inputs resealInputs, oldopts resealOptions) error {
@@ -298,6 +302,8 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 			}
 
 			if err := resealKey(fallbackKey, "recover", container.ContainerRole()); err != nil {
+				// If the error is errNoPCRProfileCalculated, then we just skipped
+				// resealing because no change was detected in boot chains. This is not an error.
 				if !errors.Is(err, errNoPCRProfileCalculated) {
 					return err
 				}
