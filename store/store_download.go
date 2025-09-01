@@ -681,20 +681,16 @@ type ReadWriteSeekTruncater interface {
 var (
 	maxIconFilesize int64 = 300000
 	downloadIcon          = downloadIconImpl
-	// downloadIconTimeout is the duration of time to wait when attempting to
-	// download a snap icon. Most icons are <100kB, and we limit the max size
-	// to 300kB. If the machine is behind a firewall which blocks connections
-	// aside from the store proxy, we want to more quickly abort, as this will
-	// otherwise hang until the 15 minute request timeout expires. Unfortunately,
-	// the request will retry 5 times total on request cancellation (e.g. by
-	// timeout), so we'll really wait 5x this value. But on very slow internet
-	// we still need to be able to download icons up to several hundred kB
-	// within this time limit.
-	// XXX: The http.Transport used by the NewHTTPClient sets ResponseHeaderTimeout
-	// to 15 seconds, so why doesn't that timer fire instead of waiting for the
-	// 15 minute request timeout? Is it blocked on DNS and never even gets to
-	// make the request?
-	downloadIconTimeout = 10 * time.Second
+	// downloadIconTimeout is the duration of time to wait for a complete
+	// request to download a snap icon. Most icons are <100kB, and we limit the
+	// max size to 300kB. If the machine is behind a firewall which blocks
+	// connections aside from the store proxy, we want to more quickly abort, as
+	// this will otherwise hang until the 15 minute request timeout expires.
+	// Unfortunately, the request will retry 5 times total on request
+	// cancellation (e.g. by timeout), so we'll really wait 5x this value. But
+	// on very slow internet we still need to be able to download icons up to
+	// several hundred kB within this time limit.
+	downloadIconTimeout = 20 * time.Second
 )
 
 // downloadIconImpl writes an http.Request which does not require authentication
