@@ -223,7 +223,7 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 			parameters, hasContainerRole = (*roleState)["all"]
 		}
 		if !hasContainerRole {
-			panic(fmt.Sprintf("No role? %s %s", role, containerRole))
+			return fmt.Errorf("internal error: not container role for %s/%s", role, containerRole)
 		}
 
 		getTpmPCRProfile := func() ([]byte, error) {
