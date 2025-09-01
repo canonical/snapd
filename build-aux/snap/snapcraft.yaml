@@ -245,6 +245,9 @@ parts:
         - optee-client-dev
       - on arm64:
         - optee-client-dev
+      - on amd64:
+        - libc6-dev-i386-cross
+        - gcc-i686-linux-gnu
     override-pull: |
       craftctl default
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
