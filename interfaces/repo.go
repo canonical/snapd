@@ -39,7 +39,7 @@ type Repository struct {
 	ifaces map[string]Interface
 	// subset of ifaces that implement HotplugDeviceAdded method
 	hotplugIfaces map[string]Interface
-	// Indexed by [snapName][plugName]
+	// indexed by [snapName][plugName]
 	plugs map[string]map[string]*snap.PlugInfo
 	slots map[string]map[string]*snap.SlotInfo
 	// given a slot and a plug, are they connected?
@@ -49,6 +49,9 @@ type Repository struct {
 	backends  []SecurityBackend
 	// mapping of snap name to app set that was added to the repo with AddAppSet
 	appSets map[string]*SnapAppSet
+	// indexed by [ifaceName1][ifaceName2] indicates that interface "ifaceName1"
+	// cannot be connected if interface "ifaceName2" already has a connection
+	conflictingConnectedInterfaces map[string]map[string]bool
 }
 
 // defaultIfaceDocURLTemplate is used as template for generating the default interface
@@ -58,13 +61,14 @@ const defaultIfaceDocURLTemplate = "https://snapcraft.io/docs/%s-interface"
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	repo := &Repository{
-		ifaces:        make(map[string]Interface),
-		hotplugIfaces: make(map[string]Interface),
-		plugs:         make(map[string]map[string]*snap.PlugInfo),
-		slots:         make(map[string]map[string]*snap.SlotInfo),
-		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
-		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
-		appSets:       make(map[string]*SnapAppSet),
+		ifaces:                         make(map[string]Interface),
+		hotplugIfaces:                  make(map[string]Interface),
+		plugs:                          make(map[string]map[string]*snap.PlugInfo),
+		slots:                          make(map[string]map[string]*snap.SlotInfo),
+		slotPlugs:                      make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
+		plugSlots:                      make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
+		appSets:                        make(map[string]*SnapAppSet),
+		conflictingConnectedInterfaces: make(map[string]map[string]bool),
 	}
 
 	return repo
@@ -79,6 +83,7 @@ func ResetRepository(repo *Repository) {
 	repo.slotPlugs = make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection)
 	repo.plugSlots = make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection)
 	repo.appSets = make(map[string]*SnapAppSet)
+	repo.conflictingConnectedInterfaces = map[string]map[string]bool{}
 }
 
 // Interface returns an interface with a given name.
@@ -105,6 +110,29 @@ func (r *Repository) AddInterface(i Interface) error {
 
 	if _, ok := i.(hotplug.Definer); ok {
 		r.hotplugIfaces[interfaceName] = i
+	}
+
+	if iface, ok := i.(ConflictingConnectedInterfacesDefiner); ok {
+		for _, otherInterfaceName := range iface.ConflictsWithOtherConnectedInterfaces() {
+			if otherInterfaceName == interfaceName {
+				return fmt.Errorf("internal error: cannot define mutually exclusive connection relation for the %q interface with itself", interfaceName)
+			}
+
+			if r.conflictingConnectedInterfaces[interfaceName] == nil {
+				r.conflictingConnectedInterfaces[interfaceName] = make(map[string]bool)
+			}
+			if r.conflictingConnectedInterfaces[otherInterfaceName] == nil {
+				r.conflictingConnectedInterfaces[otherInterfaceName] = make(map[string]bool)
+			}
+			if r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] {
+				// mutually exclusive connection relation was already defined in one of the
+				// interfaces, to avoid ambiguity of having multiple ways of defining the
+				// relation, only allow one interface to define the relation.
+				return fmt.Errorf("internal error: mutually exclusive connection relation between %[1]q and %[2]q was already defined by %[2]q", interfaceName, otherInterfaceName)
+			}
+			r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] = true
+			r.conflictingConnectedInterfaces[otherInterfaceName][interfaceName] = true
+		}
 	}
 
 	return nil
@@ -548,6 +576,15 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 	iface, ok := r.ifaces[plug.Interface]
 	if !ok {
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
+	}
+
+	if r.conflictingConnectedInterfaces[iface.Name()] != nil {
+		// check no conflicting interfaces are connected
+		for slot := range r.slotPlugs {
+			if r.conflictingConnectedInterfaces[iface.Name()][slot.Interface] {
+				return nil, fmt.Errorf("interface %[1]q and %[2]q cannot be connected at the same time: %[2]q is already connected", iface.Name(), slot.Interface)
+			}
+		}
 	}
 
 	plugAppSet := r.appSets[plugSnapName]

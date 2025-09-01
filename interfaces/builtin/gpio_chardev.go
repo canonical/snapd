@@ -204,6 +204,9 @@ func init() {
 			baseDeclarationSlots:     gpioChardevBaseDeclarationSlots,
 			permanentSlotKModModules: gpioChardevPermanentSlotKmod,
 			serviceSnippets:          gpioChardevPlugServiceSnippets,
+			// gpio-chardev and gpio export the same kernel GPIO devices but through
+			// different kernel APIs, connecting both at the same time is not supported.
+			conflictingConnectedInterfaces: []string{"gpio"},
 		},
 	})
 }
