@@ -1,4 +1,4 @@
-FROM fedora:42
+FROM fedora:latest
 
 RUN dnf makecache && \
     dnf update -y && \
