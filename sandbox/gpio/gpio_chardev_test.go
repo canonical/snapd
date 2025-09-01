@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 
@@ -167,10 +166,6 @@ type exportUnexportTestSuite struct {
 	mockChipInfos map[string]*gpio.ChardevChip
 	mockStats     map[string]fs.FileInfo
 	udevadmCmd    *testutil.MockCmd
-	// This is needed because calls to c.Error in the inotify goroutine are not registered
-	callbackErrors []error
-
-	mu sync.Mutex
 }
 
 var _ = Suite(&exportUnexportTestSuite{})
@@ -187,8 +182,6 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 
 	// Allow mocking gpio chardev devices
 	restore := gpio.MockGetChardevChipInfo(func(path string) (*gpio.ChardevChip, error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
 		chip, ok := s.mockChipInfos[path]
 		if !ok {
 			return nil, fmt.Errorf("unexpected gpio chip path %s", path)
@@ -210,12 +203,18 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 		c.Check(path, Equals, filepath.Join(s.rootdir, "/sys/kernel/config/gpio-aggregator/snap.gadget-name.slot-name"))
 		c.Check(perm, Equals, fs.FileMode(0755))
 
-		c.Assert(os.MkdirAll(path, perm), IsNil)
+		if err := os.MkdirAll(path, perm); err != nil {
+			return err
+		}
 		// populate dev_name file that points to the corresponding sysfs directory
-		c.Assert(os.WriteFile(filepath.Join(path, "dev_name"), []byte("gpio-aggregator.0\n"), 0644), IsNil)
+		if err := os.WriteFile(filepath.Join(path, "dev_name"), []byte("gpio-aggregator.0\n"), 0644); err != nil {
+			return err
+		}
 
 		// populate corresponding sysfs directory
-		c.Assert(os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0/gpiochip3"), 0755), IsNil)
+		if err := os.MkdirAll(filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0/gpiochip3"), 0755); err != nil {
+			return err
+		}
 		chipPath := filepath.Join(s.rootdir, "/dev/gpiochip3")
 		s.mockChip(c, "gpiochip3", chipPath, "gpio-aggregator.0", 7, &syscall.Stat_t{
 			Rdev: unix.Mkdev(254, 3),
@@ -236,21 +235,26 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 		// creation because they will block directory removal
 		base := filepath.Dir(path)
 		entries, err := os.ReadDir(base)
-		c.Assert(err, IsNil)
+		if err != nil {
+			return err
+		}
 		for _, entry := range entries {
 			switch {
 			case strings.HasPrefix(entry.Name(), "line"):
-				c.Assert(os.Remove(filepath.Join(base, entry.Name(), "key")), IsNil)
-				c.Assert(os.Remove(filepath.Join(base, entry.Name(), "offset")), IsNil)
+				fallthrough
 			case entry.Name() == "dev_name":
-				c.Assert(os.Remove(filepath.Join(base, entry.Name())), IsNil)
+				fallthrough
 			case entry.Name() == "live":
-				c.Assert(os.Remove(filepath.Join(base, entry.Name())), IsNil)
+				if err := os.RemoveAll(filepath.Join(base, entry.Name())); err != nil {
+					return err
+				}
 			}
 		}
 
 		// remove corresponding sysfs directory
-		c.Assert(os.RemoveAll(filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0")), IsNil)
+		if err := os.RemoveAll(filepath.Join(s.rootdir, "/sys/devices/platform/gpio-aggregator.0")); err != nil {
+			return err
+		}
 		s.removeMockedChipInfo("gpio-aggregator.0")
 		return nil
 	})
@@ -272,17 +276,6 @@ func (s *exportUnexportTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(gpio.MockSyscallMknod(func(path string, mode uint32, dev int) (err error) { return nil }))
 	s.AddCleanup(gpio.MockOsChmod(func(name string, mode fs.FileMode) error { return nil }))
 	s.AddCleanup(gpio.MockOsChown(func(name string, uid, gid int) error { return nil }))
-}
-
-func (s *exportUnexportTestSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// This is needed because calls to c.Error in the inotify goroutine (in SetUpTest) are not registered
-	for _, err := range s.callbackErrors {
-		c.Check(err, IsNil)
-	}
 }
 
 func (s *exportUnexportTestSuite) removeMockedChipInfo(label string) {
