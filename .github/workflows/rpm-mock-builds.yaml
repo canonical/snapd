@@ -25,10 +25,10 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download vendor
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: vendor-pkgs
         path: /tmp/pkg
@@ -62,7 +62,7 @@ jobs:
         version=$(cat /tmp/pkg/version)
         sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
 
-    - name: Run mock inside container
+    - name: Build rpm
       run: |
         chmod -R 777 .
         mkdir -p /tmp/mock

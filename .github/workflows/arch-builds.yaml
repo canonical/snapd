@@ -13,10 +13,10 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download vendor
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: vendor-pkgs
         path: /tmp/pkg
