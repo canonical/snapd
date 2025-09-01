@@ -15,10 +15,6 @@ on:
         description: 'The OS version to build the deb package for'
         required: true
         type: string
-      go-version:
-        description: 'The golang version to build the deb package in'
-        required: true
-        type: string
       system:
         description: 'The system name as known by spread'
         required: true
@@ -57,7 +53,6 @@ jobs:
         build-args: |
           SYSTEM=${{ inputs.os }}
           TAG=${{ inputs.os-version }}
-          GOLANG_VERSION=${{ inputs.go-version }}
         tags: deb-base:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
