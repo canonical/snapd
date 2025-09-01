@@ -307,6 +307,7 @@ jobs:
         for system in ${{ inputs.systems }}; do
           if ! [ -d built-pkgs/"$system" ]; then
             SPREAD_USE_PREBUILT_PACKAGES=false
+            echo "Disabling prebuilt packages due to missing $system directory"
           fi
         done
         echo "SPREAD_USE_PREBUILT_PACKAGES=$SPREAD_USE_PREBUILT_PACKAGES" >> $GITHUB_ENV
