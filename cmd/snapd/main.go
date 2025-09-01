@@ -57,10 +57,7 @@ func main() {
 
 	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
 
-	if err := snapdtool.MaybeSetupFIPS(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
-		os.Exit(1)
-	}
+	snapdtool.MaybeCompleteFIPSSetup()
 
 	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)

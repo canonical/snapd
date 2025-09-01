@@ -449,10 +449,7 @@ func main() {
 
 	snapdtool.ExecInSnapdOrCoreSnap()
 
-	if err := snapdtool.MaybeSetupFIPS(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v\n", err)
-		os.Exit(1)
-	}
+	snapdtool.MaybeCompleteFIPSSetup()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
