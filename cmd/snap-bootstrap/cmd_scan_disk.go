@@ -157,6 +157,11 @@ func probeDisk(node string) ([]Partition, error) {
 	partitions, err := probe.GetPartitions()
 	if err != nil {
 		return nil, err
+	} else if partitions == nil {
+		// Observed on rpi4 with loop-devices from snaps, no
+		// partitions exists, but no error is returned either, so
+		// catch the partitions == nil cases to avoid crashes.
+		return nil, nil
 	}
 
 	sectorSize, err := probe.GetSectorSize()
@@ -176,7 +181,12 @@ func probeDisk(node string) ([]Partition, error) {
 			// For MBR we have to probe the filesystem for details
 			p, err := probeFilesystem(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
 			if err != nil {
-				return ret, err
+				// On the pi, it has been observed during the installation of a preseeded image, that it
+				// can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
+				// case we try to probe the filesystem too early, before it's formatted (so no LABEL).
+				// So log a warning, but continue processing other partitions.
+				logger.Noticef("WARNING: cannot probe filesystem on non-GPT partition: %s", err)
+				continue
 			}
 			ret = append(ret, p)
 		}
