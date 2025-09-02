@@ -1580,7 +1580,6 @@ func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {
 
 func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnsupported(c *C) {
 	const expectedName = "foo"
-	const expectedURL = "URL"
 	expectedContent := []byte("I was downloaded")
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
