@@ -341,6 +341,10 @@ type AddNoticeOptions struct {
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
 
+	// ExpireAfter defines how long after this notice was last repeated before
+	// it expires. If zero, a default expiration will be used.
+	ExpireAfter time.Duration
+
 	// Time, if set, overrides time.Now() as the notice occurrence time.
 	Time time.Time
 }
@@ -357,7 +361,26 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	}
 
 	s.writing()
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 
+	notice, err := s.doAddNotice(userID, noticeType, key, options)
+	if err != nil {
+		return "", err
+	}
+	return notice.id, nil
+}
+
+// doAddNotice records an occurrence of a notice with the specified type and
+// key and options. Returns a pointer to the notice.
+//
+// The caller is responsible for ensuring that the given parameters have been
+// validated, and for holding the notices mutex for writing.
+func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
+	expireAfter := options.ExpireAfter
+	if expireAfter == 0 {
+		expireAfter = defaultNoticeExpireAfter
+	}
 	now := options.Time
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
@@ -367,10 +390,14 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
+	// XXX: do we want this to be:
+	//     if !ok || notice.Expired(now) {
+	// If so, then we won't reuse an expired notice which happens to have not
+	// yet been pruned.
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, expireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
@@ -382,7 +409,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.noticeCond.Broadcast()
 	}
 
-	return notice.id, nil
+	return notice, nil
 }
 
 // ValidateNotice validates notice type and key before adding.
@@ -494,6 +521,8 @@ func (f *NoticeFilter) futureNoticesPossible(now time.Time) bool {
 // from state to another notice backend.
 func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	s.writing()
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 
 	now := time.Now()
 	var toRemove []noticeKey
@@ -523,16 +552,24 @@ func SortNotices(notices []*Notice) {
 // Notices returns the list of notices that match the filter (if any),
 // ordered by the last-repeated time.
 func (s *State) Notices(filter *NoticeFilter) []*Notice {
-	s.reading()
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	return s.doNotices(filter)
+}
 
-	notices := s.flattenNotices(filter)
+// doNotices returns the list of notices that match the filter (if any),
+// ordered by the last-repeated time. The caller must hold the noticesMu for
+// reading.
+func (s *State) doNotices(filter *NoticeFilter) []*Notice {
+	notices := s.filterNotices(filter)
 	SortNotices(notices)
 	return notices
 }
 
 // Notice returns a single notice by ID, or nil if not found.
 func (s *State) Notice(id string) *Notice {
-	s.reading()
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
 
 	// Could use another map for lookup, but the number of notices will likely
 	// be small, and this function is probably only used rarely, so performance
@@ -545,7 +582,20 @@ func (s *State) Notice(id string) *Notice {
 	return nil
 }
 
-func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
+// flattenNotices loops over the notices map and returns all non-expired notices
+// so that they can be marshalled to disk. The notices are not sorted.
+//
+// State lock does not need to be held, and this method acquires noticesMu for
+// reading, so noticesMu must not be held for writing by the caller.
+func (s *State) flattenNotices() []*Notice {
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	return s.filterNotices(nil)
+}
+
+// filterNotices returns the list of notices that match the filter (if any),
+// without sorting them. The caller must hold the noticesMu for reading.
+func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 	now := time.Now()
 	var notices []*Notice
 	for _, n := range s.notices {
@@ -557,7 +607,13 @@ func (s *State) flattenNotices(filter *NoticeFilter) []*Notice {
 	return notices
 }
 
+// unflattenNotices takes a flat list of notices and replaces the notices map
+// with them, ignoring expired notices in the process.
+//
+// Call with the state lock held. Acquires the notices lock for writing.
 func (s *State) unflattenNotices(flat []*Notice) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 	now := time.Now()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
@@ -580,13 +636,19 @@ func (s *State) unflattenNotices(flat []*Notice) {
 // nonzero). If there are existing notices that match the filter, WaitNotices
 // will return them immediately.
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
-	s.reading()
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+
+	// It's important that we do not attempt to lock noticesMu for reading again
+	// during the rest of the function call, since any attempt to lock it for
+	// writing (either within the context timeout callback or externally) will
+	// block any attempted call to RLock in this function, and thus prevent us
+	// from releasing the RLock we already hold, and lead to deadlock.
 
 	// If there are existing notices, return them right away.
 	//
-	// State is already locked here by the caller, so notices won't be added
-	// concurrently.
-	notices := s.Notices(filter)
+	// noticesMu is already locked here, so notices won't be added concurrently.
+	notices := s.doNotices(filter)
 	if len(notices) > 0 {
 		return notices, nil
 	}
@@ -596,28 +658,34 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 	//
 	// TODO: replace this with context.AfterFunc once we're on Go 1.21.
 	stop := contextAfterFunc(ctx, func() {
-		// We need to acquire the cond lock here to be sure that the Broadcast
-		// below won't occur before the call to Wait, which would result in a
-		// missed signal (and deadlock).
-		s.noticeCond.L.Lock()
-		defer s.noticeCond.L.Unlock()
+		// We need to acquire a lock mutually exclusive with the cond lock here
+		// to be sure that the Broadcast below won't occur before the call to
+		// Wait, which would result in a missed signal (and deadlock). Since
+		// the cond lock is noticesMu.RLocker(), we need to acquire the lock
+		// for writing.
+		s.noticesMu.Lock()
+		defer s.noticesMu.Unlock()
 
 		s.noticeCond.Broadcast()
 	})
 	defer stop()
 
 	for {
-		// Since the state lock is held for the duration of AddNotice, there
-		// can be no notices currently in-flight which have timestamps before
-		// now but have not yet been added to the notices map. Therefore, if
-		// the current time is after the BeforeOrAt filter, we know there can
-		// be no new notices which match the filter.
+		// Since the noticesMu is held for writing for the duration of
+		// AddNotice, there can be no notices destined for the state notices
+		// map currently in-flight which have timestamps before now but have
+		// not yet been added to the notices map. Therefore, if the current
+		// time is after the BeforeOrAt filter, we know there can be no new
+		// notices which match the filter.
 		now := time.Now()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
 		}
 
 		// Wait till a new notice occurs or a context is cancelled.
+		// This unlocks noticeCond.L, so for this reason, it is essential that
+		// noticeCond.L is notices.Mu.RLocker, since that is what we hold
+		// during this function call.
 		s.noticeCond.Wait()
 
 		// If this context is cancelled, return the error.
@@ -627,7 +695,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		}
 
 		// Otherwise check if there are now matching notices.
-		notices = s.Notices(filter)
+		notices = s.doNotices(filter)
 		if len(notices) > 0 {
 			return notices, nil
 		}
