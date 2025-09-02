@@ -94,6 +94,7 @@ parts:
       PkKek-1-snakeoil.pem: snakeoil/PkKek-1-snakeoil.pem
       kernel-edge-20-22.crt: snakeoil/kernel-edge-20-22.crt
       kernel-edge-24.crt: snakeoil/kernel-edge-24.crt
+      kernel-edge-2510.crt: snakeoil/kernel-edge-2510.crt
     prime:
       - -*
 
@@ -117,9 +118,10 @@ parts:
       cp "${CRAFT_STAGE}/snakeoil/PkKek-1-snakeoil.pem" snakeoil.crt
       cp "${CRAFT_STAGE}/snakeoil/kernel-edge-20-22.crt" kernel-edge-20-22.crt
       cp "${CRAFT_STAGE}/snakeoil/kernel-edge-24.crt" kernel-edge-24.crt
+      cp "${CRAFT_STAGE}/snakeoil/kernel-edge-2510.crt" kernel-edge-2510.crt
       # Make sure we have Snake Oil as origanization name to trigger work-arounds in secboot
       openssl req -new -x509 -newkey rsa:2048 -subj "/CN=DB/O=Snake Oil/" -keyout DB.key -out DB.crt -days 3650 -nodes -sha256
-      make -j1 EXTRAKEYS="revoked snakeoil kernel-edge-20-22 kernel-edge-24" MYGUID="7bea37ed-f339-470a-aefe-c6b1bef55040" all revoked-hash-blacklist.esl
+      make -j1 EXTRAKEYS="revoked snakeoil kernel-edge-20-22 kernel-edge-24 kernel-edge-2510" MYGUID="7bea37ed-f339-470a-aefe-c6b1bef55040" all revoked-hash-blacklist.esl
       ./sign-efi-sig-list -c KEK.crt -k KEK.key dbx revoked-hash-blacklist.esl initial-dbx.auth
       install -Dm644 -t "${CRAFT_PART_INSTALL}/secboot" \
         LockDown-signed.efi UpdateVars-signed.efi \
@@ -127,6 +129,7 @@ parts:
         snakeoil-update.auth \
         kernel-edge-20-22-update.auth \
         kernel-edge-24-update.auth \
+        kernel-edge-2510-update.auth \
         ms-kek-pkupdate.auth \
         ms-uefi-update.auth \
         initial-dbx.auth
