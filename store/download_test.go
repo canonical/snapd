@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/juju/ratelimit"
@@ -859,9 +860,13 @@ func (s *downloadSuite) TestDownloadIconTimeout(c *C) {
 	restore := store.MockDownloadIconTimeout(fakeTimeout)
 	defer restore()
 
-	n := 0
+	n := int64(0)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
+		// the response is artificially delayed, which combined with retries on
+		// the client side may cause multiple requests to be in-progress at the
+		// mock server side
+
+		atomic.AddInt64(&n, 1)
 		// wait longer than the client timeout
 		time.Sleep(fakeDelay)
 		// response should never actually be received
@@ -875,8 +880,8 @@ func (s *downloadSuite) TestDownloadIconTimeout(c *C) {
 	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
 	endTime := time.Now()
 
-	// XXX: timeout error will trigger a retry, which maybe isn't what we actually want
-	c.Check(n, Equals, 5)
+	// timeout error will trigger a retry
+	c.Check(atomic.LoadInt64(&n) > 3, Equals, true)
 	// XXX: context deadline detection is racy, see httputil/retry_test.go in
 	// TestRetryRequestTimeoutHandling
 	c.Check(err, ErrorMatches, `.* (request canceled|context deadline exceeded) \(Client.Timeout exceeded while awaiting headers\)`)
