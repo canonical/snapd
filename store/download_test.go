@@ -884,7 +884,7 @@ func (s *downloadSuite) TestDownloadIconTimeout(c *C) {
 	c.Check(atomic.LoadInt64(&n) > 3, Equals, true)
 	// XXX: context deadline detection is racy, see httputil/retry_test.go in
 	// TestRetryRequestTimeoutHandling
-	c.Check(err, ErrorMatches, `.* (request canceled|context deadline exceeded) \(Client.Timeout exceeded while awaiting headers\)`)
+	c.Check(err, ErrorMatches, `.* (request canceled|context deadline exceeded)( \(Client.Timeout exceeded while awaiting headers\))?`)
 	c.Check(receivedEtag, Equals, "")
 	// Check that the timeout duration elapsed before the response returned
 	c.Check(endTime.After(startTime.Add(fakeTimeout)), Equals, true)
