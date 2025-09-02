@@ -610,6 +610,14 @@ func (s *State) unflattenNotices(flat []*Notice) {
 // cancelled, or the timestamp of the BeforeOrAt filter has passed (if it is
 // nonzero). If there are existing notices that match the filter, WaitNotices
 // will return them immediately.
+//
+// The caller should not hold state lock, since this function will not release
+// state lock while waiting for a new notice to be added. Adding a new notice
+// requires both state lock and noticesMu to be held for writing. Previously,
+// state lock was used as the noticeCond locker, which is unlocked when
+// noticeCond.Wait is called, but now noticesMu.RLocker is used instead, so a
+// locked state would remain locked and noticeCond.Wait would block until the
+// context is cancelled.
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
 	s.noticesMu.RLock()
 	defer s.noticesMu.RUnlock()
@@ -659,8 +667,8 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 
 		// Wait till a new notice occurs or a context is cancelled.
 		// This unlocks noticeCond.L, so for this reason, it is essential that
-		// noticeCond.L is notices.Mu.RLocker, since that is what we hold
-		// during this function call.
+		// noticeCond.L is noticesMu.RLocker, since that is what we hold during
+		// this function call.
 		s.noticeCond.Wait()
 
 		// If this context is cancelled, return the error.
