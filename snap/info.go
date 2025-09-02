@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -64,6 +65,10 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
+
+	// DmVerityInfo returns the path of the dm-verity data file and the dm-verity
+	// digest if they exist.
+	DmVerityInfo() (string, string, error)
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -2135,4 +2140,14 @@ type IntegrityData struct {
 	Salt          string `json:"salt"`
 
 	DownloadInfo `json:"download-info,omitempty"`
+}
+
+// DmVerityInfo returns the name of the dm-verity hash file
+// currently used with this snap and the dm-verity digest.
+func (s *Info) DmVerityInfo() (string, string, error) {
+	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
+		return "", "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
+	}
+
+	return integrity.DmVerityHashFileName(s.MountFile(), s.IntegrityData.Digest), s.IntegrityData.Digest, nil
 }

@@ -18,6 +18,7 @@
 package snap
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -164,6 +165,10 @@ func (c *componentPlaceInfo) MountFile() string {
 // MountDescription returns the mount unit Description field.
 func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
+}
+
+func (c *componentPlaceInfo) DmVerityInfo() (string, string, error) {
+	return "", "", errors.New("dm-verity for components not supported.")
 }
 
 // ComponentLinkPath returns the path for the symlink for a component for a
