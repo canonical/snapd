@@ -78,6 +78,56 @@ slots:
 	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
+func (s *ContentSuite) TestSanitizeSlotContentNoDefaultIfCompatibility(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  compatibility: foo-1-bar-(8..10)
+  read:
+   - shared/read
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
+	c.Assert(slot.Attrs["content"], IsNil)
+}
+
+func (s *ContentSuite) TestSanitizeSlotBadCompatibilityTag(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  compatibility: foo@-0
+  read:
+   - shared/read
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`compatibility label "foo@-0": bad string "foo@"`)
+	c.Assert(slot.Attrs["content"], IsNil)
+}
+
+func (s *ContentSuite) TestSanitizeSlotBothContentAndCompatLabels(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  compatibility: foo
+  content: bar
+  read:
+   - shared/read
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`cannot have both content and compatibility labels`)
+}
+
 func (s *ContentSuite) TestSanitizeSlotNoPaths(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
@@ -168,6 +218,53 @@ plugs:
 	plug := info.Plugs["content-plug"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 	c.Assert(plug.Attrs["content"], Equals, plug.Name)
+}
+
+func (s *ContentSuite) TestSanitizePlugContentNoDefaultIfCompatibility(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  compatibility: libbar-7
+  target: import
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
+	c.Assert(plug.Attrs["content"], IsNil)
+}
+
+func (s *ContentSuite) TestSanitizePlugBadCompatibilityTag(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  compatibility: foo@-0
+  target: import
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`compatibility label "foo@-0": bad string "foo@"`)
+	c.Assert(plug.Attrs["content"], IsNil)
+}
+
+func (s *ContentSuite) TestSanitizePlugBothContentAndCompatLabels(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  compatibility: foo
+  content: bar
+  target: import
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`cannot have both content and compatibility labels`)
 }
 
 func (s *ContentSuite) TestSanitizePlugSimpleNoTarget(c *C) {
@@ -945,6 +1042,86 @@ slots:
 	c.Assert(apparmorSpec.SnippetForTag("snap.app.app"), Equals, expected)
 }
 
+func (s *ContentSuite) TestContentInterfaceCompatibilityLabelPlugins(c *C) {
+	// Define one app snap and two snaps plugin snaps.
+	const consumerYaml = `name: app
+version: 0
+plugs:
+ plugins:
+  interface: content
+  compatibility: foo-1
+  target: $SNAP/plugins
+apps:
+ app:
+  command: foo
+`
+	connectedPlug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(1)}, "plugins")
+
+	// XXX: realistically the plugin may be a single file and we don't support
+	// those very well.
+	const pluginOneYaml = `name: plugin-one
+version: 0
+slots:
+ plugin-for-app:
+  interface: content
+  compatibility: foo-1
+  source:
+   read: [$SNAP/plugin]
+`
+	connectedSlotOne, _ := MockConnectedSlot(c, pluginOneYaml, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
+
+	const pluginTwoYaml = `name: plugin-two
+version: 0
+slots:
+ plugin-for-app:
+  interface: content
+  compatibility: foo-1
+  source:
+   read: [$SNAP/plugin]
+`
+	connectedSlotTwo, _ := MockConnectedSlot(c, pluginTwoYaml, &snap.SideInfo{Revision: snap.R(1)}, "plugin-for-app")
+
+	// Create the mount and apparmor specifications.
+	mountSpec := &mount.Specification{}
+	apparmorSpec := apparmor.NewSpecification(connectedPlug.AppSet())
+	for _, connectedSlot := range []*interfaces.ConnectedSlot{connectedSlotOne, connectedSlotTwo} {
+		c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
+		c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
+	}
+
+	// Analyze the mount specification.
+	expectedMnt := []osutil.MountEntry{{
+		Name:    "/snap/plugin-one/1/plugin",
+		Dir:     "/snap/app/1/plugins/plugin",
+		Options: []string{"bind", "ro"},
+	}, {
+		Name:    "/snap/plugin-two/1/plugin",
+		Dir:     "/snap/app/1/plugins/plugin-2",
+		Options: []string{"bind", "ro"},
+	}}
+	c.Assert(mountSpec.MountEntries(), DeepEquals, expectedMnt)
+
+	// Analyze the apparmor specification.
+	//
+	// NOTE: the paths below refer to the original locations and are *NOT*
+	// altered like the mount entries above. This is intended. See the comment
+	// below for explanation as to why those are necessary.
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.app.app"})
+	expected := `
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+"/snap/plugin-one/1/plugin/**" mrkix,
+
+
+# In addition to the bind mount, add any AppArmor rules so that
+# snaps may directly access the slot implementation's files
+# read-only.
+"/snap/plugin-two/1/plugin/**" mrkix,
+`
+	c.Assert(apparmorSpec.SnippetForTag("snap.app.app"), Equals, expected)
+}
+
 func (s *ContentSuite) TestModernContentSameReadAndWriteClash(c *C) {
 	const consumerYaml = `name: consumer
 version: 0
@@ -1045,5 +1222,6 @@ func (s *ContentSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, false)
 	c.Assert(si.Summary, Equals, `allows sharing code and data with other snaps`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "content: $SLOT(content)")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "compatibility: $SLOT_COMPAT(compatibility)")
 	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }
