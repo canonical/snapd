@@ -331,9 +331,9 @@ func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string
 	if s.dauthCtx != nil {
 		// custom proxy store, which historically had not supported icon
 		// downloads through its APIs
-		_, u, err := s.dauthCtx.ProxyStoreParams(s.baseURL(s.cfg.StoreBaseURL))
-		if err == nil && u != nil {
-			if !strings.HasPrefix(downloadURL, u.String()) {
+		psID, psU, err := s.dauthCtx.ProxyStoreParams(s.baseURL(s.cfg.StoreBaseURL))
+		if err == nil && psID != "" && psU != nil {
+			if !strings.HasPrefix(downloadURL, psU.String()) {
 				return ErrProxyStoreIconDownloadUnsupported
 			}
 		}
