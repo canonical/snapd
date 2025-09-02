@@ -332,7 +332,7 @@ func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string
 		// custom proxy store, which historically had not supported icon
 		// downloads through its APIs
 		psID, psU, err := s.dauthCtx.ProxyStoreParams(s.baseURL(s.cfg.StoreBaseURL))
-		if err == nil && psID != "" && psU != nil {
+		if err == nil && psID != "" {
 			if !strings.HasPrefix(downloadURL, psU.String()) {
 				return ErrProxyStoreIconDownloadUnsupported
 			}
