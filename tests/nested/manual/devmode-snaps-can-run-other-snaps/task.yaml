@@ -55,7 +55,7 @@ prepare: |
   # core should still be built from snapd snap. In theory from xenial,
   # but here we build with the current one.
   snapddir=snapd-from-branch
-  dpkg-deb -x "${SPREAD_PATH}"/../snapd_*.deb "${snapddir}"
+  dpkg-deb -x "${GOHOME}"/../snapd_*.deb "${snapddir}"
 
   # now repack the core snap with this snapd snap
   snap download core --edge --basename=core-from-edge

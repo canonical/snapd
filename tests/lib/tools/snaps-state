@@ -139,7 +139,7 @@ is_confinement_supported() {
 repack_snapd_deb_into_snap() {
     local snap_name="$1"
     local target_dir="${2:-$PWD}"
-    local deb_file="${3:-$(ls "$SPREAD_PATH"/../snapd_*.deb)}"
+    local deb_file="${3:-$(ls "$GOHOME"/snapd_*.deb)}"
     if [ ! -e "$deb_file" ]; then
         echo "snaps-state: deb file used to repack not found: $deb_file"
         exit 1
