@@ -728,13 +728,27 @@ func (s *noticesSuite) TestWaitNoticesNew(c *C) {
 }
 
 func (s *noticesSuite) TestWaitNoticesTimeout(c *C) {
+	doTestWaitNoticesTimeout(c, time.Millisecond)
+}
+
+func doTestWaitNoticesTimeout(c *C, timeout time.Duration) {
 	st := state.New(nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	notices, err := st.WaitNotices(ctx, nil)
 	c.Assert(err, ErrorMatches, "context deadline exceeded")
 	c.Assert(notices, HasLen, 0)
+}
+
+func (s *noticesSuite) TestWaitNoticesTimeoutDeadlock(c *C) {
+	// If the context AfterFunc goroutine calls Broadcast before the call to
+	// Wait, then there is a deadlock. This depends on the scheduler, so try
+	// 10000 times with a context timeout of 1ns to try to get it to occur.
+	// Repeating 10000 times should reliably cause deadlock if there's a bug.
+	for i := 0; i < 10000; i++ {
+		doTestWaitNoticesTimeout(c, time.Nanosecond)
+	}
 }
 
 func (s *noticesSuite) TestReadStateWaitNotices(c *C) {
