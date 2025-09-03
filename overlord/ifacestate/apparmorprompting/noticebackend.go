@@ -173,8 +173,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	key := id.String()
 	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, key)
 
-	var noticeBackup state.Notice
-	userNotices, notice, existing, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
+	userNotices, existingNotice, existing, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
 	if err != nil {
 		return err
 	}
@@ -195,27 +194,29 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		expiredCount++
 	}
 
-	existingExpired := existing && notice.Expired(timestamp)
+	existingExpired := existing && existingNotice.Expired(timestamp)
 	if existingExpired {
 		// Treat an expired existing notice as if it didn't exist at all
 		existing = false
 	}
+
+	var newNotice *state.Notice
 	if existing {
-		noticeBackup = *notice // save the original state of the existing notice
-		notice.Reoccur(timestamp, data, 0)
+		newNotice = existingNotice.DeepCopy()
+		newNotice.Reoccur(timestamp, data, 0)
 	} else {
-		notice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
+		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
 
-	newUserNotices, getOrigUserNotices := assembleNewUserNotices(userNotices, expiredCount, notice, existing, existingIndex)
+	newUserNotices, getOrigUserNotices := assembleNewUserNotices(userNotices, expiredCount, newNotice, existing, existingIndex)
 
 	ntb.userNotices[userID] = newUserNotices
-	ntb.idToNotice[noticeID] = notice
+	ntb.idToNotice[noticeID] = newNotice
 
 	if err := ntb.save(); err != nil {
 		ntb.userNotices[userID] = getOrigUserNotices()
 		if existing {
-			*notice = noticeBackup
+			ntb.idToNotice[noticeID] = existingNotice
 		} else if !existingExpired {
 			delete(ntb.idToNotice, noticeID)
 		}
@@ -291,7 +292,7 @@ func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID stri
 //
 // The slice is reused if possible, and memcpy is avoided unless there is need
 // to reallocate a new slice with more capacity.
-func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, notice *state.Notice, existing bool, existingIndex int) (newUserNotices []*state.Notice, restore func() []*state.Notice) {
+func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, newNotice *state.Notice, existing bool, existingIndex int) (newUserNotices []*state.Notice, restore func() []*state.Notice) {
 	// Define basic restore if the original slice isn't mutated
 	restore = func() []*state.Notice {
 		return userNotices
@@ -299,26 +300,33 @@ func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, notic
 	// Handle simple cases where original slice doesn't need to be mutated
 	if expiredCount == len(userNotices) {
 		// All expired (or none to begin with), so return new slice
-		newUserNotices = []*state.Notice{notice}
+		newUserNotices = []*state.Notice{newNotice}
 		return newUserNotices, restore
 	}
 	if !existing {
-		newUserNotices = append(userNotices[expiredCount:], notice)
+		newUserNotices = append(userNotices[expiredCount:], newNotice)
 		return newUserNotices, restore
 	}
+	// We're replacing the existing notice with the new notice, so we'll be
+	// mutating the original slice and we'll need a better restore function.
+	existingNotice := userNotices[existingIndex]
 	if existingIndex == len(userNotices)-1 {
+		userNotices[existingIndex] = newNotice
 		newUserNotices = userNotices[expiredCount:]
+		restore = func() []*state.Notice {
+			userNotices[existingIndex] = existingNotice
+			return userNotices
+		}
 		return newUserNotices, restore
 	}
 	// We now know the notice existed and was not last in the slice, and realloc
 	// will not occur since the slice length will not change.
 	newUserNotices = append(userNotices[expiredCount:existingIndex], userNotices[existingIndex+1:]...)
-	newUserNotices = append(newUserNotices, notice)
-	// Original slice was muted, so we need better restore function.
+	newUserNotices = append(newUserNotices, newNotice)
 	restore = func() []*state.Notice {
-		// Shift the originally-later notices right by one
+		// Shift the originally-later notices right by one, discarding the last
 		copy(userNotices[existingIndex+1:], userNotices[existingIndex:])
-		userNotices[existingIndex] = notice
+		userNotices[existingIndex] = existingNotice
 		return userNotices
 	}
 	return newUserNotices, restore
