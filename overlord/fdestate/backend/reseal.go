@@ -235,7 +235,10 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 	tpmProfilesCalculated := false
 	ensureTPMProfiles := func() error {
 		if !tpmProfilesCalculated {
-			if err := recalculateParamatersTPM(manager, newParameters, rootdir, inputs, oldopts); err != nil {
+			relock := manager.Unlock()
+			defer relock()
+
+			if err := recalculateParamatersTPM(newParameters, rootdir, inputs, oldopts); err != nil {
 				return err
 			}
 
@@ -349,7 +352,8 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 	return nil
 }
 
-func recalculateParamatersTPM(manager FDEStateManager, parameters *updatedParameters, rootdir string, inputs resealInputs, opts resealOptions) error {
+// recalculateParamatersTPM recalculate TPM PCR profiles and stores them in `parameters`
+func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inputs resealInputs, opts resealOptions) error {
 	params := inputs.bootChains
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
@@ -365,7 +369,7 @@ func recalculateParamatersTPM(manager FDEStateManager, parameters *updatedParame
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		err := updateRunProtectionProfile(manager, parameters, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName)
 		if err != nil {
 			return err
 		}
@@ -392,7 +396,7 @@ func recalculateParamatersTPM(manager FDEStateManager, parameters *updatedParame
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		err := updateFallbackProtectionProfile(manager, parameters, rpbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateFallbackProtectionProfile(parameters, rpbc, inputs.signatureDBUpdate, params.RoleToBlName)
 		if err != nil {
 			return err
 		}
@@ -418,8 +422,8 @@ func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
 	return false
 }
 
+// updateRunProtectionProfile recalculate run TPM PCR profiles and stores them in `parameters`
 func updateRunProtectionProfile(
-	manager FDEStateManager,
 	parameters *updatedParameters,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
 	sigDbxUpdate []byte,
@@ -452,9 +456,6 @@ func updateRunProtectionProfile(
 	var pcrProfileRunOnly []byte
 
 	err = func() error {
-		relock := manager.Unlock()
-		defer relock()
-
 		var err error
 
 		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
@@ -485,8 +486,8 @@ func updateRunProtectionProfile(
 	return nil
 }
 
+// updateRunProtectionProfile recalculate fallback TPM PCR profiles and stores them in `parameters`
 func updateFallbackProtectionProfile(
-	manager FDEStateManager,
 	parameters *updatedParameters,
 	pbc boot.PredictableBootChains,
 	sigDbxUpdate []byte,
@@ -512,9 +513,6 @@ func updateFallbackProtectionProfile(
 
 	var pcrProfile []byte
 	err = func() error {
-		relock := manager.Unlock()
-		defer relock()
-
 		var err error
 
 		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
