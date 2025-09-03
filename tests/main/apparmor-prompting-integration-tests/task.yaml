@@ -49,10 +49,10 @@ prepare: |
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
     fi
 
-    # create_write_chmod_single requires Ubuntu 25.10 or later and go
+    # create_write_chmod_single requires Ubuntu 25.04 or later (for kernel 6.14+), and go
     if [ "$VARIANT" = create_write_chmod_single_allow ]; then
-        if os.query is-ubuntu-lt 25.10; then
-            tests.exec skip-test "Ubuntu before 25.10 does not support FD-level caching for lifespan single" && exit 0
+        if os.query is-ubuntu-lt 25.04; then
+            tests.exec skip-test "Ubuntu before 25.04 does not support FD-level caching for lifespan single" && exit 0
         fi
         if ! go version ; then
             snap install go --classic
@@ -72,6 +72,8 @@ restore: |
 
 debug: |
     tests.exec is-skipped && exit 0
+
+    uname -a
 
     TEST_UID="$(id -u test)"
     echo "outstanding prompts:"
