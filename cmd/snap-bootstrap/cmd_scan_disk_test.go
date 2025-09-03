@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/logger"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
@@ -37,6 +38,8 @@ import (
 
 type scanDiskSuite struct {
 	testutil.BaseTest
+
+	logs *bytes.Buffer
 
 	diskProbeMap map[string]*blkid.FakeBlkidProbe
 	partProbeMap map[int64]*blkid.FakeBlkidProbe
@@ -48,6 +51,10 @@ var _ = Suite(&scanDiskSuite{})
 
 func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	buf, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+	s.logs = buf
 
 	dirs.SetRootDir(c.MkDir())
 
@@ -246,9 +253,10 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRNoPartitions(c *C) {
 	c.Assert(err, IsNil)
 	lines := output.GetLines()
 
-	_, hasWarning := lines["WARNING: cannot probe filesystem on non-GPT partition: Probe value was not found: LABEL"]
-	c.Assert(hasWarning, Equals, true)
-	c.Assert(len(lines), Equals, 1)
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, false)
+	c.Assert(len(lines), Equals, 0)
+	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on non-GPT partition: Probe value was not found: LABEL")
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
