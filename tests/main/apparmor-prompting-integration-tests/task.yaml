@@ -31,6 +31,7 @@ environment:
     VARIANT/create_multiple_not_actioned_by_other_pid_single_deny: create_multiple_not_actioned_by_other_pid_single_deny
     VARIANT/write_read_multiple_actioned_by_other_pid_allow_deny: write_read_multiple_actioned_by_other_pid_allow_deny
     VARIANT/write_read_multiple_actioned_by_other_pid_deny_allow: write_read_multiple_actioned_by_other_pid_deny_allow
+    VARIANT/create_write_chmod_single_allow: create_write_chmod_single_allow
 
     TIMEOUT: "30" # Define common timeout which can be modified as needed
 
@@ -46,6 +47,16 @@ prepare: |
     fi
     if os.query is-ubuntu 22.04 && not tests.info is-reexec-in-use; then
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
+    fi
+
+    # create_write_chmod_single requires Ubuntu 25.10 or later and go
+    if [ "$VARIANT" = create_write_chmod_single_allow ]; then
+        if os.query is-ubuntu-lt 25.10; then
+            tests.exec skip-test "Ubuntu before 25.10 does not support FD-level caching for lifespan single" && exit 0
+        fi
+        if ! go version ; then
+            snap install go --classic
+        fi
     fi
 
     tests.session prepare -u test
