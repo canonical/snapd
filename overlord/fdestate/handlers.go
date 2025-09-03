@@ -330,11 +330,11 @@ func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error)
 			return fmt.Errorf("internal error: cannot load FDE state parameters: %v", err)
 		}
 
-		hasParamters, _, _, pcrProfile, err := m.GetParameters(role, ref.ContainerRole)
+		hasParameters, _, _, pcrProfile, err := m.GetParameters(role, ref.ContainerRole)
 		if err != nil {
 			return err
 		}
-		if !hasParamters {
+		if !hasParameters {
 			return fmt.Errorf("internal error: cannot find parameters (key role: %s, container role: %s)", role, ref.ContainerRole)
 		}
 
