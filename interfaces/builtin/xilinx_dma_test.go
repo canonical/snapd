@@ -86,6 +86,9 @@ func (s *XilinxDmaInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/xdma/card[0-9]*/** rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/xdma[0-9]*_{control,user,xvc} rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/module/xdma/parameters/* r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/qdma{,vf}[0-9]*-{MM,ST}-[0-9]* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/module/qdma/parameters/* r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/pci*/**/qdma/* rw,`)
 }
 
 func (s *XilinxDmaInterfaceSuite) TestUDevSpec(c *C) {
@@ -93,9 +96,13 @@ func (s *XilinxDmaInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# xilinx-dma
 SUBSYSTEM=="xdma", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# xilinx-dma
+SUBSYSTEM=="qdma-pf", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# xilinx-dma
+SUBSYSTEM=="qdma-vf", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(
 		`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
