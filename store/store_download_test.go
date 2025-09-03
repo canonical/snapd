@@ -1579,6 +1579,9 @@ func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnsupported(c *C) {
+	// Using default store config & store proxy, download URL points to a URL
+	// **not** exposed through the proxy.
+
 	const expectedName = "foo"
 	expectedContent := []byte("I was downloaded")
 
@@ -1611,6 +1614,9 @@ func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnsupported(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadIconProxyStoreSameAsBase(c *C) {
+	// Using default store config & store proxy, download URL points to an
+	// address exposed through the proxy.
+
 	const expectedName = "foo"
 	expectedContent := []byte("I was downloaded")
 
@@ -1625,7 +1631,7 @@ func (s *storeDownloadSuite) TestDownloadIconProxyStoreSameAsBase(c *C) {
 	mockServerURL, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	device := createTestDevice()
-	theStore := store.New(&store.Config{}, &testDauthContext{
+	theStore := store.New(nil, &testDauthContext{
 		c: c, device: device,
 		proxyStoreID: "my-proxy", proxyStoreURL: mockServerURL,
 	})
@@ -1633,6 +1639,33 @@ func (s *storeDownloadSuite) TestDownloadIconProxyStoreSameAsBase(c *C) {
 	c.Logf("icon url: %v", mockServer.URL)
 	path := filepath.Join(c.MkDir(), "downloaded-file")
 	err = theStore.DownloadIcon(s.ctx, expectedName, path, mockServer.URL+"/my/icon")
+	c.Assert(err, IsNil)
+
+	c.Assert(path, testutil.FileEquals, expectedContent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnset(c *C) {
+	// Using default store config but **no** store proxy, download URL points to
+	// an address different than the base store URL.
+
+	const expectedName = "foo"
+	expectedContent := []byte("I was downloaded")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/my/icon", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(expectedContent)
+	})
+	mockServer := httptest.NewServer(mux)
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	device := createTestDevice()
+	theStore := store.New(nil, &testDauthContext{
+		c: c, device: device,
+	})
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := theStore.DownloadIcon(s.ctx, expectedName, path, mockServer.URL+"/my/icon")
 	c.Assert(err, IsNil)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
