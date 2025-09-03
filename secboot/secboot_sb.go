@@ -744,10 +744,6 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 		if err != nil {
 			return nil, err
 		}
-		if pcrProfile == nil {
-			// TODO return missing profile error
-			return nil, nil
-		}
 
 		keyParams := &resealKeysWithTPMParams{
 			PCRProfile: pcrProfile,
