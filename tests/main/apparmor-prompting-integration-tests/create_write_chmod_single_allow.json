@@ -19,7 +19,7 @@
         "action": "allow",
         "lifespan": "single",
         "constraints": {
-          "path-pattern": "${BASE_PATH}/file.txt",
+          "path-pattern": "${BASE_PATH}/test.txt",
           "permissions": [ "write" ]
         }
       }
