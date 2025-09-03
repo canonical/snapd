@@ -514,6 +514,10 @@ func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole s
 		return err
 	}
 
+	// TODO:FDEM: we don't really need to force a reseal, it should
+	// be enough to calculate the parameters. For now, this is okay
+	// until we have a better way for loading FDE parameters.
+
 	wrapped := &unlockedStateManager{
 		FDEManager: m,
 		unlocker:   m.state.Unlocker(),
