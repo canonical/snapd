@@ -150,16 +150,16 @@ func (m *InterfacesRequestsManager) RuleDB() *requestrules.RuleDB {
 }
 
 var (
-	InitializeNoticeBackends = initializeNoticeBackends
-	RegisterWithManager      = (*noticeBackend).registerWithManager
+	NewNoticeBackends   = newNoticeBackends
+	RegisterWithManager = (*noticeBackends).registerWithManager
 )
 
-func (nb *noticeBackend) PromptBackend() *noticeTypeBackend {
-	return &nb.promptBackend
+func (nb *noticeBackends) PromptBackend() *noticeTypeBackend {
+	return nb.promptBackend
 }
 
-func (nb *noticeBackend) RuleBackend() *noticeTypeBackend {
-	return &nb.ruleBackend
+func (nb *noticeBackends) RuleBackend() *noticeTypeBackend {
+	return nb.ruleBackend
 }
 
 func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data map[string]string) error {

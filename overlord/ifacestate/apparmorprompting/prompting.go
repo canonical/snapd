@@ -100,7 +100,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 	// prompting managers to record notices. Don't register the notice backends
 	// with the state until we're sure initialization was successful and
 	// prompting will be enabled.
-	noticeBackends, err := initializeNoticeBackends(noticeMgr)
+	noticeBackends, err := newNoticeBackends(noticeMgr)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize prompting notice backend: %w", err)
 	}

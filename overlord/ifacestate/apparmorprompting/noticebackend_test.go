@@ -55,8 +55,8 @@ func (s *noticebackendSuite) SetUpTest(c *C) {
 	s.noticeMgr = notices.NewNoticeManager(s.st)
 }
 
-func (s *noticebackendSuite) TestInitializeNoticeBackends(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+func (s *noticebackendSuite) TestNewNoticeBackends(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	c.Check(noticeBackend, NotNil)
 }
@@ -93,7 +93,7 @@ func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 	c.Check(existingNotices[4].ID(), Equals, id5)
 
 	// Create new prompting notice backends and check that they initially have no notices
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Check(err, IsNil)
 	c.Check(noticeBackend.PromptBackend().BackendNotices(nil), HasLen, 0)
 	c.Check(noticeBackend.RuleBackend().BackendNotices(nil), HasLen, 0)
@@ -144,7 +144,7 @@ func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 }
 
 func (s *noticebackendSuite) TestAddNotice(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -216,7 +216,7 @@ func (s *noticebackendSuite) TestAddNotice(c *C) {
 }
 
 func (s *noticebackendSuite) TestAddNoticeData(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -269,7 +269,7 @@ func (s *noticebackendSuite) TestAddNoticeData(c *C) {
 }
 
 func (s *noticebackendSuite) TestAddNoticeSameKeyDifferentUser(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -313,7 +313,7 @@ func (s *noticebackendSuite) TestAddNoticeSomeExpired(c *C) {
 		st := state.New(nil)
 		noticeMgr := notices.NewNoticeManager(st)
 
-		noticeBackend, err := apparmorprompting.InitializeNoticeBackends(noticeMgr)
+		noticeBackend, err := apparmorprompting.NewNoticeBackends(noticeMgr)
 		c.Assert(err, IsNil)
 		ruleBackend := noticeBackend.RuleBackend()
 
@@ -346,7 +346,7 @@ func (s *noticebackendSuite) TestAddNoticeAllExpired(c *C) {
 		st := state.New(nil)
 		noticeMgr := notices.NewNoticeManager(st)
 
-		noticeBackend, err := apparmorprompting.InitializeNoticeBackends(noticeMgr)
+		noticeBackend, err := apparmorprompting.NewNoticeBackends(noticeMgr)
 		c.Assert(err, IsNil)
 		promptBackend := noticeBackend.PromptBackend()
 
@@ -378,7 +378,7 @@ func (s *noticebackendSuite) TestAddNoticeSaveFailureRollback(c *C) {
 		st := state.New(nil)
 		noticeMgr := notices.NewNoticeManager(st)
 
-		noticeBackend, err := apparmorprompting.InitializeNoticeBackends(noticeMgr)
+		noticeBackend, err := apparmorprompting.NewNoticeBackends(noticeMgr)
 		c.Assert(err, IsNil)
 		promptBackend := noticeBackend.PromptBackend()
 
@@ -432,7 +432,7 @@ func (s *noticebackendSuite) TestAddNoticeSaveFailureRollback(c *C) {
 }
 
 func (s *noticebackendSuite) TestLoad(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 
 	data1 := map[string]string{"foo": "bar"}
@@ -459,7 +459,7 @@ func (s *noticebackendSuite) TestLoad(c *C) {
 	c.Check(ruleNotices[1].Key(), Equals, "0000000000000BA4")
 
 	// Initialize a new backend and check that it loads the existing notices
-	newBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	newBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Check(err, IsNil)
 
 	promptNotices = newBackend.PromptBackend().BackendNotices(nil)
@@ -479,7 +479,7 @@ func (s *noticebackendSuite) TestLoad(c *C) {
 }
 
 func (s *noticebackendSuite) TestLoadSomeExpired(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -503,7 +503,7 @@ func (s *noticebackendSuite) TestLoadSomeExpired(c *C) {
 	c.Assert(promptBackend.Save(), IsNil)
 
 	// Initialize a new backend and check that it loads existing notices
-	newBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	newBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Check(err, IsNil)
 
 	afterNotices := newBackend.PromptBackend().BackendNotices(nil)
@@ -526,7 +526,7 @@ func (s *noticebackendSuite) TestLoadSomeExpired(c *C) {
 }
 
 func (s *noticebackendSuite) TestLoadAllExpired(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -548,7 +548,7 @@ func (s *noticebackendSuite) TestLoadAllExpired(c *C) {
 	c.Assert(promptBackend.Save(), IsNil)
 
 	// Initialize a new backend and check that it loads existing notices
-	newBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	newBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Check(err, IsNil)
 
 	afterNotices := newBackend.PromptBackend().BackendNotices(nil)
@@ -567,7 +567,7 @@ func (s *noticebackendSuite) TestLoadAllExpired(c *C) {
 }
 
 func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -695,7 +695,7 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendNotices(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -848,7 +848,7 @@ func (s *noticebackendSuite) TestBackendNotices(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendNotice(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	ruleBackend := noticeBackend.RuleBackend()
 
@@ -891,7 +891,7 @@ func (s *noticebackendSuite) TestBackendNotice(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesImpossible(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -920,7 +920,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesImpossible(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesExisting(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -939,7 +939,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesExisting(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesNew(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	ruleBackend := noticeBackend.RuleBackend()
 
@@ -963,7 +963,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesNew(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesTimeout(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -975,7 +975,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesTimeout(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesLongPoll(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	ruleBackend := noticeBackend.RuleBackend()
 
@@ -999,7 +999,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesLongPoll(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesBeforeOrAtFilter(c *C) {
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
@@ -1072,7 +1072,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesBeforeOrAtFilter(c *C) {
 func (s *noticebackendSuite) TestBackendWaitNoticesConcurrent(c *C) {
 	const numWaiters = 100
 
-	noticeBackend, err := apparmorprompting.InitializeNoticeBackends(s.noticeMgr)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 	ruleBackend := noticeBackend.RuleBackend()
 

@@ -45,15 +45,14 @@ const (
 	defaultExpireAfter    = 24 * time.Hour
 )
 
-// noticeBackend manages notices related to prompting.
-type noticeBackend struct {
-	promptBackend noticeTypeBackend
-	ruleBackend   noticeTypeBackend
+// noticeBackends manages notice backends related to prompting.
+type noticeBackends struct {
+	promptBackend *noticeTypeBackend
+	ruleBackend   *noticeTypeBackend
 }
 
-func initializeNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackend, error) {
+func newNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackends, error) {
 	nextNoticeTimestamp := noticeMgr.NextNoticeTimestamp
-	backend := &noticeBackend{}
 
 	now := time.Now()
 
@@ -62,21 +61,28 @@ func initializeNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackend,
 	}
 
 	path := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "prompt-notices.json")
-	if err := backend.promptBackend.initialize(now, nextNoticeTimestamp, path, state.InterfacesRequestsPromptNotice, promptNoticeNamespace); err != nil {
+	promptNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsPromptNotice, promptNoticeNamespace)
+	if err != nil {
 		return nil, err
 	}
 
 	path = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "rule-notices.json")
-	if err := backend.ruleBackend.initialize(now, nextNoticeTimestamp, path, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace); err != nil {
+	ruleNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace)
+	if err != nil {
 		return nil, err
 	}
 
-	return backend, nil
+	backends := &noticeBackends{
+		promptBackend: promptNoticeBackend,
+		ruleBackend:   ruleNoticeBackend,
+	}
+
+	return backends, nil
 }
 
-func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) error {
+func (nb *noticeBackends) registerWithManager(noticeMgr *notices.NoticeManager) error {
 	drainNotices := true
-	for _, bknd := range []*noticeTypeBackend{&nb.promptBackend, &nb.ruleBackend} {
+	for _, bknd := range []*noticeTypeBackend{nb.promptBackend, nb.ruleBackend} {
 		// We don't use the validation closure, since notices are produced
 		// directly to satisfy validation.
 		_, drainedNotices, err := noticeMgr.RegisterBackend(bknd, bknd.noticeType, bknd.namespace, drainNotices)
@@ -113,9 +119,9 @@ func (nb *noticeBackend) registerWithManager(noticeMgr *notices.NoticeManager) e
 
 // noticeTypeBackend manages notices for a particular notice type.
 type noticeTypeBackend struct {
-	// lock must be held for writing when adding a notice and held for reading
+	// rwmu must be held for writing when adding a notice and held for reading
 	// when reading notices.
-	lock sync.RWMutex
+	rwmu sync.RWMutex
 	// cond is used to broadcast when a new notice is added.
 	cond *sync.Cond
 	// nextNoticeTimestamp is a closure derived from a notice manager which
@@ -141,29 +147,29 @@ type noticeTypeBackend struct {
 	idToNotice map[string]*state.Notice
 }
 
-func (ntb *noticeTypeBackend) initialize(now time.Time, nextNoticeTimestamp func() time.Time, path string, noticeType state.NoticeType, namespace string) error {
-	ntb.lock.Lock()
-	defer ntb.lock.Unlock()
-	ntb.nextNoticeTimestamp = nextNoticeTimestamp
-	ntb.filepath = path
-	ntb.noticeType = noticeType
-	ntb.namespace = namespace
-	// Use ntb.lock.RLocker() as the cond lock, since that is the lock which
+func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, path string, noticeType state.NoticeType, namespace string) (*noticeTypeBackend, error) {
+	ntb := &noticeTypeBackend{
+		nextNoticeTimestamp: nextNoticeTimestamp,
+		filepath:            path,
+		noticeType:          noticeType,
+		namespace:           namespace,
+	}
+	// Use ntb.rwmu.RLocker() as the cond locker, since that is the lock which
 	// is held during BackendWaitNotices(), and thus calling ntb.cond.Wait()
 	// will be able to release the lock.
-	ntb.cond = sync.NewCond(ntb.lock.RLocker())
+	ntb.cond = sync.NewCond(ntb.rwmu.RLocker())
 	if err := ntb.load(now); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return ntb, nil
 }
 
 // addNotice records an occurrence of a notice with the specified user ID, a
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
 func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data map[string]string) error {
-	ntb.lock.Lock()
-	defer ntb.lock.Unlock()
+	ntb.rwmu.Lock()
+	defer ntb.rwmu.Unlock()
 	key := id.String()
 	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, key)
 
@@ -452,8 +458,8 @@ func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*stat
 	if !matchPossible {
 		return nil
 	}
-	ntb.lock.RLock()
-	defer ntb.lock.RUnlock()
+	ntb.rwmu.RLock()
+	defer ntb.rwmu.RUnlock()
 	now := time.Now()
 	return ntb.doNotices(simplifiedFilter, now)
 }
@@ -500,6 +506,8 @@ func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*sta
 
 // BackendNotice returns a single notice by ID, or nil if not found.
 func (ntb *noticeTypeBackend) BackendNotice(id string) *state.Notice {
+	ntb.rwmu.RLock()
+	defer ntb.rwmu.RUnlock()
 	if noticeEntry, ok := ntb.idToNotice[id]; ok {
 		return noticeEntry
 	}
@@ -519,8 +527,8 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		// A match is not possible, so return immediately
 		return nil, nil
 	}
-	ntb.lock.RLock()
-	defer ntb.lock.RUnlock()
+	ntb.rwmu.RLock()
+	defer ntb.rwmu.RUnlock()
 	now := time.Now()
 	notices := ntb.doNotices(simplifiedFilter, now)
 	if len(notices) > 0 {
@@ -540,10 +548,10 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		// We need to acquire a lock mutually exclusive with the cond lock here
 		// to be sure that the Broadcast below won't occur before the call to
 		// Wait, which would result in a missed signal (and deadlock). Since
-		// the cond lock is ntb.lock.RLocker(), we need to acquire ntb.lock
+		// the cond lock is ntb.rwmu.RLocker(), we need to acquire ntb.rwmu
 		// for *writing*, rather than locking ntb.cond.L.
-		ntb.lock.Lock()
-		defer ntb.lock.Unlock()
+		ntb.rwmu.Lock()
+		defer ntb.rwmu.Unlock()
 
 		ntb.cond.Broadcast()
 	})
