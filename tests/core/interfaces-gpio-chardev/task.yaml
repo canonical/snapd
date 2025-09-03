@@ -29,6 +29,8 @@ prepare: |
     systemctl enable --now gpio-sim.service
     tests.cleanup defer systemctl disable --now gpio-sim.service
 
+    sysfs_gpiochip_num=$(find /sys/class/gpio/ -maxdepth 1 -name 'gpiochip*' -printf "%f" -quit | cut -c9-)
+
     # save the current revision of the pc snap. At this moment the pc snap is
     # the original snap.
     original_revision=$(readlink /snap/pc/current)
@@ -36,8 +38,12 @@ prepare: |
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
 
-    cat >> pc-snap/meta/snap.yaml <<'EOF'
+    cat << EOF >> pc-snap/meta/snap.yaml
     slots:
+      gpio-pin:
+        interface: gpio
+        number: $sysfs_gpiochip_num
+        direction: out
       gpio-chardev-0:
         interface: gpio-chardev
         source-chip: [gpio-bank0]
@@ -60,16 +66,27 @@ prepare: |
 
     snap connect test-snapd-gpio-control:gpio-control
 
+    # Install "gpio" consumer snap to test conflict detection
+    # of active connections
+    "$TESTSTOOLS"/snaps-state install-local gpio-consumer
+
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # Check number of gpiochips before connection
         find /dev/gpiochip* | wc -l | MATCH '^2$'
 
-        # TODO: check conflict detection works with connected "gpio" plugs.
-
-        echo "Connect to gadget slots"
+        echo 'Test conflict detection with "gpio" connection'
+        snap connect gpio-consumer:gpio pc:gpio-pin
+        not snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0 2> conflict.out
+        MATCH 'interface "gpio-chardev" and "gpio" cannot be connected at the same time: "gpio" is already connected' < conflict.out
+        
+        snap disconnect gpio-consumer:gpio pc:gpio-pin
         snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
         snap connect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
+
+        echo "and vice-versa conflict is also detected"
+        not snap connect gpio-consumer:gpio pc:gpio-pin 2> conflict.out
+        MATCH 'interface "gpio" and "gpio-chardev" cannot be connected at the same time: "gpio-chardev" is already connected' < conflict.out
 
         # Check number of gpiochips after connection
         find /dev/gpiochip* | wc -l | MATCH '^4$'
