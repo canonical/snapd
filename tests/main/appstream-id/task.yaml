@@ -5,8 +5,12 @@ details: |
     that the AppStream ID is included in the installed snaps and apps API response.
 
 # TODO we have gojq, so try enabling on ubuntu-core
-# ubuntu-core: no jq
-systems: [-ubuntu-core*]
+systems:
+    # ubuntu-core: no jq
+    - -ubuntu-core*
+    # TODO: test fails on PS7, timeout when making a request from snapd to snap
+    # store, possibly network proxy misconfiguration
+    - -amazon-linux-*
 
 debug: |
     cat response || true
