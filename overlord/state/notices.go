@@ -613,11 +613,11 @@ func (s *State) unflattenNotices(flat []*Notice) {
 //
 // The caller should not hold state lock, since this function will not release
 // state lock while waiting for a new notice to be added. Adding a new notice
-// requires both state lock and noticesMu to be held for writing. Previously,
-// state lock was used as the noticeCond locker, which is unlocked when
-// noticeCond.Wait is called, but now noticesMu.RLocker is used instead, so a
-// locked state would remain locked and noticeCond.Wait would block until the
-// context is cancelled.
+// requires both state lock and an internal notices RWMutex to be held for
+// writing. Previously, state lock was used as the noticeCond locker, which is
+// unlocked when noticeCond.Wait is called, but now the notices RWMutex RLocker
+// is used instead, so a locked state would remain locked and noticeCond.Wait
+// would block until the context is cancelled.
 func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notice, error) {
 	s.noticesMu.RLock()
 	defer s.noticesMu.RUnlock()
