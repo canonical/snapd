@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "prompt-filter": {
+    "snap": "prompting-client",
+    "interface": "home",
+    "constraints": {
+      "path": "$BASE_PATH/.*"
+    }
+  },
+  "prompts": [
+    {
+      "prompt-filter": {
+        "constraints": {
+          "path": ".*/test.txt",
+          "requested-permissions": [ "write" ]
+        }
+      },
+      "reply": {
+        "action": "allow",
+        "lifespan": "single",
+        "constraints": {
+          "path-pattern": "${BASE_PATH}/file.txt",
+          "permissions": [ "write" ]
+        }
+      }
+    }
+  ]
+}
