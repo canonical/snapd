@@ -483,8 +483,13 @@ func BuildResponse(version ProtocolVersion, id uint64, initiallyAllowed, request
 	}
 
 	// Allow permissions which AppArmor initially allowed, along with those
-	// which were initially denied but the user then explicitly allowed.
-	finalAllow := aaAllowMask | (userAllowMask & aaDenyMask)
+	// which the user then explicitly allowed. Previously, the user allowed
+	// permissions were ANDed with the initially denied permissions, but in
+	// order reduce repeated prompts on the same file descriptor for the same
+	// abstract permission (e.g. "write"), reply with the full user allowed
+	// permission mask so all those permissions are cached for the file
+	// descriptor.
+	finalAllow := aaAllowMask | userAllowMask
 	// Deny permissions which were initially denied and not explicitly allowed
 	// by the user.
 	finalDeny := aaDenyMask &^ userAllowMask
