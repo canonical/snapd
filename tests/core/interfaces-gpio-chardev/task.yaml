@@ -29,8 +29,7 @@ prepare: |
     systemctl enable --now gpio-sim.service
     tests.cleanup defer systemctl disable --now gpio-sim.service
 
-    #shellcheck disable=SC2010
-    sysfs_gpiochip_num="$(ls /sys/class/gpio/ | grep gpiochip | head -n1 | cut -c9-)"
+    sysfs_gpiochip_num=$(find /sys/class/gpio/ -maxdepth 1 -name 'gpiochip*' -printf "%f" -quit | cut -c9-)
 
     # save the current revision of the pc snap. At this moment the pc snap is
     # the original snap.
