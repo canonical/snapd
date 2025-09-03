@@ -70,7 +70,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
@@ -139,7 +138,7 @@ func probeFilesystem(node string, start, size int64) (Partition, error) {
 	return p, nil
 }
 
-func probeDisk(node string) ([]Partition, error) {
+func probeDisk(output io.Writer, node string) ([]Partition, error) {
 	probe, err := blkid.NewProbeFromFilename(node)
 	if err != nil {
 		return nil, err
@@ -185,7 +184,7 @@ func probeDisk(node string) ([]Partition, error) {
 				// can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
 				// case we try to probe the filesystem too early, before it's formatted (so no LABEL).
 				// So log a warning, but continue processing other partitions.
-				logger.Noticef("WARNING: cannot probe filesystem on non-GPT partition: %s", err)
+				fmt.Fprintf(output, "WARNING: cannot probe filesystem on non-GPT partition: %s\n", err)
 				continue
 			}
 			ret = append(ret, p)
@@ -210,7 +209,7 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
-	partitions, err := probeDisk(node)
+	partitions, err := probeDisk(output, node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -317,7 +316,7 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	partitions, err := probeDisk(node)
+	partitions, err := probeDisk(output, node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -346,7 +345,7 @@ func scanDiskNode(output io.Writer, node string) error {
 
 	cvm, err := isCVM()
 	if err != nil {
-		logger.Noticef("WARNING: error while reading recovery mode: %v", err)
+		fmt.Fprintf(output, "WARNING: error while reading recovery mode: %v\n", err)
 		return nil
 	}
 

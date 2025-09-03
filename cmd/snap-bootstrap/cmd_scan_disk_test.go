@@ -222,6 +222,35 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMBR(c *C) {
 	c.Assert(len(lines), Equals, 1)
 }
 
+func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRNoPartitions(c *C) {
+	main.MockPartitionUUIDForBootedKernelDisk("")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	// default is setup to be PTTYPE=gpt, remake as MBR
+	disk_values := make(map[string]string)
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	// Replace with empty partition probe that has no values to probe
+	// for, specifically for the MBR case where we probe the filesystem
+	// on each partition to find the LABEL.
+	s.partProbeMap[0] = disk_probe.AddEmptyPartitionProbe(0)
+	delete(s.partProbeMap, 1)
+	delete(s.partProbeMap, 2)
+	delete(s.partProbeMap, 3)
+	s.diskProbeMap["/dev/foo"] = disk_probe
+
+	// This should not fail, but also not find a boot disk
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasWarning := lines["WARNING: cannot probe filesystem on non-GPT partition: Probe value was not found: LABEL"]
+	c.Assert(hasWarning, Equals, true)
+	c.Assert(len(lines), Equals, 1)
+}
+
 func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
 	s.setCmdLine(c, "snapd_recovery_mode=install snapd_recovery_system=20191118")
 	s.env["DEVNAME"] = "/dev/foo"
