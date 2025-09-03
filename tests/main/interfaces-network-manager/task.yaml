@@ -14,12 +14,9 @@ details: |
 # there and when n-m gets installed/removed it will hang when
 # trying to deconfigure the wifi network which is already owned.
 systems:
-    - ubuntu-core-16-64
-    - ubuntu-core-16-32
-    - ubuntu-core-18-64
-    - ubuntu-core-18-32
-    - ubuntu-core-20-64
-    - ubuntu-core-22-64
+    - ubuntu-core-16-*
+    - ubuntu-core-18-*
+    - ubuntu-core-2*
 
 prepare: |
     echo "Given a network-manager snap is installed"
@@ -27,8 +24,12 @@ prepare: |
         snap install --channel=latest network-manager
     elif os.query is-core18; then
         snap install --channel=1.10 network-manager
-    else
+    elif os.query is-core20; then
         snap install --channel=20 network-manager
+    elif os.query is-core22; then
+        snap install --channel=22 network-manager
+    else
+        snap install --channel=24 network-manager
     fi
 
     rm -f /etc/netplan/00-default-nm-renderer.yaml

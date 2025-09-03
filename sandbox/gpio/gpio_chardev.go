@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/kmod"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -41,11 +42,11 @@ func SnapChardevPath(instanceName, plugOrSlot string) string {
 // gpio aggregator for a given gadget gpio-chardev interface slot.
 //
 // Note: chipLabels must match exactly one chip.
-func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines strutil.Range, instanceName, slotName string) (retErr error) {
 	// The filtering is quadratic, but we only expect a few chip
 	// labels, so it is fine.
-	filter := func(chip *ChardevChip) bool {
-		return strutil.ListContains(chipLabels, chip.Label)
+	filter := func(chip *chardevChip) bool {
+		return strutil.ListContains(chipLabels, chip.label)
 	}
 	chips, err := findChips(filter)
 	if err != nil {
@@ -55,9 +56,9 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		return errors.New("no matching gpio chips found matching chip labels")
 	}
 	if len(chips) > 1 {
-		concat := chips[0].Label
+		concat := chips[0].label
 		for _, chip := range chips[1:] {
-			concat += " " + chip.Label
+			concat += " " + chip.label
 		}
 		return fmt.Errorf("more than one gpio chips were found matching chip labels (%s)", concat)
 	}
@@ -67,31 +68,41 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		return fmt.Errorf("invalid lines argument: %w", err)
 	}
 
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		// Best effort cleanup
+		if err := UnexportGadgetChardevChip(instanceName, slotName); err != nil {
+			logger.Noticef("cannot cleanup exported gpio chip: %v (while handling error: %v)", err, retErr)
+		}
+	}()
+
 	// Order of operations below is important because the exported gpio
 	// aggregator device doesn't have enough metadata for udev to match in
 	// advance. Instead, We use the dynamically generated chip name is used
 	// for matching e.g. `SUBSYSTEM=="gpio", KERNEL=="gpiochip3"`.
-	aggregatedChip, err := addAggregatedChip(ctx, chip, lines)
+	aggregatedChipName, err := addAggregatedChip(chip.label, lines, instanceName, slotName)
 	if err != nil {
 		return err
 	}
-	if err := addEphemeralUdevTaggingRule(ctx, aggregatedChip, gadgetName, slotName); err != nil {
+	if err := addEphemeralUdevTaggingRule(ctx, aggregatedChipName, instanceName, slotName); err != nil {
 		return err
 	}
-	return addGadgetSlotDevice(aggregatedChip, gadgetName, slotName)
+	return addGadgetSlotDevice(aggregatedChipName, instanceName, slotName)
 }
 
 // UnexportGadgetChardevChip unexports previously exported gpio chip lines
 // for a given gadget gpio-chardev interface slot.
-func UnexportGadgetChardevChip(gadgetName, slotName string) error {
-	aggregatedChip, err := removeGadgetSlotDevice(gadgetName, slotName)
-	if err != nil {
-		return err
+func UnexportGadgetChardevChip(instanceName, slotName string) error {
+	// Errors are only checked at the end to cleanup as much as possible.
+	errs := []error{
+		removeGadgetSlotDevice(instanceName, slotName),
+		removeEphemeralUdevTaggingRule(instanceName, slotName),
+		removeAggregatedChip(instanceName, slotName),
 	}
-	if err := removeEphemeralUdevTaggingRule(gadgetName, slotName); err != nil {
-		return err
-	}
-	return removeAggregatedChip(aggregatedChip)
+
+	return strutil.JoinErrors(errs...)
 }
 
 var kmodLoadModule = kmod.LoadModule
@@ -103,7 +114,7 @@ func EnsureAggregatorDriver() error {
 	_, err := os.Stat(filepath.Join(dirs.GlobalRootDir, aggregatorDriverDir))
 	if errors.Is(err, os.ErrNotExist) {
 		if err := kmodLoadModule("gpio-aggregator", nil); err != nil {
-			return err
+			return fmt.Errorf("cannot load gpio-aggregator module: %v", err)
 		}
 	}
 
@@ -113,11 +124,8 @@ func EnsureAggregatorDriver() error {
 // CheckConfigfsSupport checks if the configfs interface for
 // gpio-aggregator is available.
 func CheckConfigfsSupport() error {
-	// GPIO chardev support is hidden until kernel configfs gpio-aggregator interface
-	// makes it to the 24.04 kernel AND the snap-gpio-helper is updated to use the
-	// new configfs interface.
-	// https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2103496
-
-	// The check should be as simple as checking that /sys/kernel/config/gpio-aggregator exists.
-	return errors.New("gpio-aggregator configfs support is missing")
+	if _, err := os.Stat(filepath.Join(dirs.GlobalRootDir, aggregatorConfigfsDir)); err != nil {
+		return fmt.Errorf("gpio-aggregator configfs support is missing: %v", err)
+	}
+	return nil
 }

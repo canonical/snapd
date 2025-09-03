@@ -1,0 +1,14 @@
+#!/bin/sh
+set -xeu
+(
+    # Look for the credentials environment variable
+    echo "CREDENTIALS_DIRECTORY=${CREDENTIALS_DIRECTORY:-}"
+    # Look at individual credentials.
+    if [ -d "${CREDENTIALS_DIRECTORY:-}" ]; then
+        find "$CREDENTIALS_DIRECTORY" -type f -exec cat {} \;
+    fi
+    # See if we can invoke the standard tool.
+    systemd-creds list
+) >"$SNAP_COMMON"/log
+
+exit 0

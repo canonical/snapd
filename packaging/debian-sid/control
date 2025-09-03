@@ -2,19 +2,18 @@ Source: snapd
 Section: devel
 Priority: optional
 Maintainer: Michael Hudson-Doyle <mwhudson@debian.org>
-Uploaders: Steve Langasek <vorlon@debian.org>,
-           Zygmunt Krynicki <me@zygoon.pl>,
-           Luke Faraone <lfaraone@debian.org>,
+Uploaders: Zygmunt Krynicki <me@zygoon.pl>,
            Michael Vogt <mvo@debian.org>
-Build-Depends: autoconf,
+Build-Depends: debhelper (>= 13),
+               debhelper-compat (= 13),
+               dh-apparmor,
+               dh-golang (>=1.7),
+               autoconf,
                autoconf-archive,
                automake,
                bash-completion,
                ca-certificates,
                dbus,
-               debhelper (>= 13),
-               dh-apparmor,
-               dh-golang (>=1.7),
                fakeroot,
                gcc-multilib [amd64],
                gettext,
@@ -52,29 +51,34 @@ Build-Depends: autoconf,
                libseccomp-dev,
                libudev-dev,
                openssh-client,
-               pkg-config,
+               pkgconf,
                python3,
                python3-docutils,
                python3-markdown,
                squashfs-tools,
                systemd-dev,
                tzdata,
+               udev,
                xfslibs-dev
-Standards-Version: 4.6.0
+Standards-Version: 4.7.2
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://salsa.debian.org/debian/snapd
 Vcs-Git: https://salsa.debian.org/debian/snapd.git
 XS-Go-Import-Path: github.com/snapcore/snapd
 
 Package: golang-github-snapcore-snapd-dev
+Section: golang
 Architecture: all
 Breaks: golang-github-ubuntu-core-snappy-dev (<< 2.0.6),
         golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
 Replaces: golang-github-ubuntu-core-snappy-dev (<< 2.0.6),
           golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
 Depends: ${misc:Depends}
-Description: snappy development go packages.
- Use these to use the snappy API.
+Description: Source code of the github.com/snapcore/snapd go module
+ This package contains the Go module for all of snapd source code.
+ A good chunk of the API is unstable and is not a guaranteed interface.
+ The client/ package is more stable and may be used by applications
+ looking to integate with the snapd REST API.
 
 Package: snapd
 Architecture: any
@@ -84,6 +88,7 @@ Depends: adduser,
          default-dbus-session-bus | dbus-session-bus,
          gnupg1 | gnupg,
          kmod,
+         libcap2-bin,
          openssh-client,
          squashfs-tools,
          systemd,
@@ -100,10 +105,11 @@ Breaks: snap-confine (<< 2.23),
         ubuntu-core-launcher (<< 2.22),
         ubuntu-snappy (<< 1.9),
         ubuntu-snappy-cli (<< 1.9),
+        snap (<< 2013-11-29),
         ${snapd:Breaks}
+Static-Built-Using: ${misc:Static-Built-Using}
 Recommends: gnupg
 Suggests: zenity | kdialog
-Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${Built-Using} ${misc:Built-Using}
 Description: Daemon and tooling that enable snap packages
  Install, configure, refresh and remove snap packages. Snaps are
@@ -112,18 +118,3 @@ Description: Daemon and tooling that enable snap packages
  cloud, servers, desktops and the internet of things.
  .
  Start with 'snap list' to see installed snaps.
-
-Package: snap-confine
-Architecture: any
-Section: oldlibs
-Depends: snapd (= ${binary:Version}), ${misc:Depends}
-Description: Transitional package for snapd
- This is a transitional dummy package. It can safely be removed.
-
-Package: ubuntu-core-launcher
-Architecture: any
-Depends: snapd (= ${binary:Version}), ${misc:Depends}
-Section: oldlibs
-Pre-Depends: dpkg (>= 1.15.7.2)
-Description: Transitional package for snapd
- This is a transitional dummy package. It can safely be removed.

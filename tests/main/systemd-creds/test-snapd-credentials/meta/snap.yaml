@@ -1,0 +1,11 @@
+name: test-snapd-credentials
+summary: Test snap using systemd credentials
+version: "1"
+
+confinement: strict
+base: core24
+
+apps:
+  daemon:
+    command: bin/daemon
+    daemon: oneshot

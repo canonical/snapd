@@ -1,0 +1,28 @@
+summary: verify access to systemd credentials
+details: |
+    Systemd has introduced a feature where services can be provisioned with
+    credentials that are stored in manner safer than typical default and where said
+    credentials can be injected into the system (virtual machine, container or even
+    physical machine) during provisioning or first boot.
+
+    Snapd supports this for snaps on ubuntu-core with core24 boot base or where
+    systemd on the host is recent enough and the application snap uses core24 base.
+
+    This test shows how such credentials are provisioned and how they can be
+    accessed. Note that credentials are only available to systemd services.
+systems:
+    - ubuntu-core-24-64
+    - ubuntu-24.04-64
+prepare: |
+    mkdir /etc/systemd/system/snap.test-snapd-credentials.daemon.service.d
+    tests.cleanup defer rm -rf /etc/systemd/system/snap.test-snapd-credentials.daemon.service.d
+    cat <<__CONF__ >/etc/systemd/system/snap.test-snapd-credentials.daemon.service.d/credentials.conf
+    [Service]
+    $(echo top-secret | systemd-creds encrypt -p --name=foo - -)
+    __CONF__
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-credentials
+execute: |
+    MATCH '^CREDENTIALS_DIRECTORY=/run/credentials/snap.test-snapd-credentials.daemon.service$' </var/snap/test-snapd-credentials/common/log
+    MATCH '^top-secret$' </var/snap/test-snapd-credentials/common/log
+    MATCH '^foo  weak    11B /run/credentials/snap.test-snapd-credentials.daemon.service/foo$' < /var/snap/test-snapd-credentials/common/log

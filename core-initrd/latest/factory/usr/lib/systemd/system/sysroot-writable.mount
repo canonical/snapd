@@ -2,9 +2,7 @@
 DefaultDependencies=no
 Before=initrd-root-fs.target
 
-Wants=sysroot.mount
 After=sysroot.mount
-
 After=run-mnt-data.mount
 After=run-mnt-base.mount
 After=snap-initramfs-mounts.service

@@ -75,7 +75,8 @@ const (
 	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
-
+	// ContentCompatLabel enables compatibility labels for the content interface.
+	ContentCompatLabel
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -123,7 +124,8 @@ var featureNames = map[SnapdFeature]string{
 	Confdb:        "confdb",
 	ConfdbControl: "confdb-control",
 
-	AppArmorPrompting: "apparmor-prompting",
+	AppArmorPrompting:  "apparmor-prompting",
+	ContentCompatLabel: "content-compatibility-label",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

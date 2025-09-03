@@ -9,13 +9,13 @@ systems:
     - -ubuntu-14.04-*
     # Ubuntu 16 is too old for the user services
     - -ubuntu-16.04-*
-    # The following distros do not the user agent running
+    # The following distros do not have the user agent running by default
     - -amazon-linux-2-*
     - -amazon-linux-2023-*
-    - -opensuse-15.6-*
+    - -opensuse-*
     - -arch-linux-*
     - -centos-9-*
-    - -fedora-42-*
+    - -fedora-*
 
 kill-timeout: 10m
 

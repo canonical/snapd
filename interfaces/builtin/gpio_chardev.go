@@ -35,10 +35,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// TODO: Snapd should validate the correctness of slot declarations
-// (i.e. lines across slots are unique) when installing the gadget
-// snap e.g. when validating snap.yaml
-
 // The interface operates as follows:
 //   - uses snap-gpio-helper to set up a virtual GPIO device exposing specific
 //     lines defined in the slot as character device node at
@@ -59,7 +55,7 @@ const gpioChardevBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-var gpioChardevConnectedSlotKmod = []string{
+var gpioChardevPermanentSlotKmod = []string{
 	"gpio-aggregator",
 }
 
@@ -206,8 +202,11 @@ func init() {
 			name:                     "gpio-chardev",
 			summary:                  gpioChardevSummary,
 			baseDeclarationSlots:     gpioChardevBaseDeclarationSlots,
-			connectedSlotKModModules: gpioChardevConnectedSlotKmod,
+			permanentSlotKModModules: gpioChardevPermanentSlotKmod,
 			serviceSnippets:          gpioChardevPlugServiceSnippets,
+			// gpio-chardev and gpio export the same kernel GPIO devices but through
+			// different kernel APIs, connecting both at the same time is not supported.
+			conflictingConnectedInterfaces: []string{"gpio"},
 		},
 	})
 }

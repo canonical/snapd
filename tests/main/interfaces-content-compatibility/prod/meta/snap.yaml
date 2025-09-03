@@ -1,0 +1,19 @@
+name: test-prod
+version: '1.0'
+summary: Test content interface
+description: |
+  Test content interface
+base: core24
+confinement: strict
+grade: stable
+
+slots:
+    ciiface:
+        interface: content
+        compatibility: ##COMP##
+        source:
+          write:
+            - $SNAP_DATA/data
+apps:
+  test:
+    command: bin/test.sh

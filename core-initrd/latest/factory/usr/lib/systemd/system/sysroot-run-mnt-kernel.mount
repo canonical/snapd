@@ -1,0 +1,13 @@
+[Unit]
+DefaultDependencies=no
+ConditionPathIsMountPoint=/run/mnt/kernel
+ConditionPathExists=!/sysroot/etc/system-image/writable-paths
+After=snap-initramfs-mounts.service
+RequiresMountsFor=/sysroot/run
+Before=initrd-root-fs.target
+
+[Mount]
+Where=/sysroot/run/mnt/kernel
+What=/run/mnt/kernel
+Type=none
+Options=bind

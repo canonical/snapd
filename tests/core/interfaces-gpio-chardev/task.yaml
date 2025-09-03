@@ -55,74 +55,117 @@ prepare: |
     snap install test-snapd-gpio-chardev
     tests.cleanup defer snap remove --purge test-snapd-gpio-chardev
 
+    snap install test-snapd-gpio-control
+    tests.cleanup defer snap remove --purge test-snapd-gpio-control
+
+    snap connect test-snapd-gpio-control:gpio-control
+
 execute: |
-    # TODO: remove when gpio-aggregator configfs support lands in kernel
-    # and snapd. This test should fail automatically when support lands.
-    not snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0 2> out
-    MATCH "gpio-aggregator configfs support is missing" < out
-    exit 0
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # Check number of gpiochips before connection
+        find /dev/gpiochip* | wc -l | MATCH '^2$'
 
-    # if [ "$SPREAD_REBOOT" = 0 ]; then
-    #     # Check number of gpiochips before connection
-    #     find /dev/gpiochip* | wc -l | MATCH '^2$'
+        # TODO: check conflict detection works with connected "gpio" plugs.
 
-    #     echo "Connect to gadget slots"
-    #     snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
-    #     snap connect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
-        
-    #     # Check number of gpiochips after connection
-    #     find /dev/gpiochip* | wc -l | MATCH '^4$'
+        echo "Connect to gadget slots"
+        snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
+        snap connect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
 
-    #     echo "The gpio chips are exported for the gadget slot"
-    #     test -c /dev/snap/gpio-chardev/pc/gpio-chardev-0
-    #     test -c /dev/snap/gpio-chardev/pc/gpio-chardev-1
-    #     echo "And symlinks created on the consumer plug side"
-    #     readlink /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0 | MATCH /dev/snap/gpio-chardev/pc/gpio-chardev-0
-    #     readlink /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1 | MATCH /dev/snap/gpio-chardev/pc/gpio-chardev-1
+        # Check number of gpiochips after connection
+        find /dev/gpiochip* | wc -l | MATCH '^4$'
 
-    #     echo "And gpio-chardev setup dependency was injected into snap service"
-    #     systemctl show --property=After snap.test-snapd-gpio-chardev.svc.service | grep "gpio-chardev-setup.target"
-    #     systemctl show --property=Wants snap.test-snapd-gpio-chardev.svc.service | grep "gpio-chardev-setup.target"
+        echo "The gpio chips are exported for the gadget slot"
+        test -c /dev/snap/gpio-chardev/pc/gpio-chardev-0
+        test -c /dev/snap/gpio-chardev/pc/gpio-chardev-1
+        echo "And symlinks created on the consumer plug side"
+        readlink /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0 | MATCH /dev/snap/gpio-chardev/pc/gpio-chardev-0
+        readlink /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1 | MATCH /dev/snap/gpio-chardev/pc/gpio-chardev-1
 
-    #     mkdir -p /var/snap/test-snapd-gpio-chardev/common/gpiochips
-    #     printf "0\n1\n0\n0\n0\n1\n0\n1\n" > /var/snap/test-snapd-gpio-chardev/common/gpiochips/gpio-chardev-0
-    #     printf "1\n1\n" > /var/snap/test-snapd-gpio-chardev/common/gpiochips/gpio-chardev-1
-    #     REBOOT
-    # elif [ "$SPREAD_REBOOT" = 1 ]; then
-    #     echo "Snap service should have properly set the gpio lines for each chip"
+        echo "and the right lines are being exported"
+        # lines 0-7 are exported
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*0:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*1:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*2:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*3:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*4:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*5:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*6:.*consumer=gpio-aggregator.0"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip0 | MATCH "line.*7:.*consumer=gpio-aggregator.0"
+        # lines 0 and 6 only are exported
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | MATCH "line.*0:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | NOMATCH "line.*1:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | NOMATCH "line.*2:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | NOMATCH "line.*3:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | NOMATCH "line.*4:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | NOMATCH "line.*5:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | MATCH "line.*6:.*consumer=gpio-aggregator.1"
+        test-snapd-gpio-control.gpioinfo --chip /dev/gpiochip1 | NOMATCH "line.*7:.*consumer=gpio-aggregator.1"
 
-    #     chip=/dev/snap/gpio-chardev/pc/gpio-chardev-0
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=inactive$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 2 | MATCH '^"2"=inactive$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 3 | MATCH '^"3"=inactive$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 4 | MATCH '^"4"=inactive$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 5 | MATCH '^"5"=active$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 6 | MATCH '^"6"=inactive$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 7 | MATCH '^"7"=active$'
+        echo "And gpio-chardev setup dependency was injected into snap service"
+        systemctl show --property=After snap.test-snapd-gpio-chardev.svc.service | MATCH "gpio-chardev-setup.target"
+        systemctl show --property=Wants snap.test-snapd-gpio-chardev.svc.service | MATCH "gpio-chardev-setup.target"
 
-    #     chip=/dev/snap/gpio-chardev/pc/gpio-chardev-1
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=active$'
-    #     test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
+        mkdir -p /var/snap/test-snapd-gpio-chardev/common/gpiochips
+        printf "0\n1\n0\n0\n0\n1\n0\n1\n" > /var/snap/test-snapd-gpio-chardev/common/gpiochips/gpio-chardev-0
+        printf "1\n1\n" > /var/snap/test-snapd-gpio-chardev/common/gpiochips/gpio-chardev-1
 
-    #     echo "Disconnecting unexports the aggregated devices"
-    #     snap disconnect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
-    #     snap disconnect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
-    #     not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-0
-    #     not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-1
-    #     not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0
-    #     not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1
+        # Restart service for values to take effect
+        snap restart test-snapd-gpio-chardev.svc
 
-    #     # Reboot one last time to make sure services run normally even when disconnected
-    #     rm -rf /var/snap/test-snapd-gpio-chardev/common/gpiochips
-    #     REBOOT
-    # elif [ "$SPREAD_REBOOT" = 2 ]; then
-    #     echo "Snap service runs"
-    #     retry -n 20 --wait 2 sh -c 'journalctl -u snap.test-snapd-gpio-chardev.svc | MATCH "no chips found under /var/snap/test-snapd-gpio-chardev/common/gpiochips, exiting..."'
+        chip=/dev/snap/gpio-chardev/pc/gpio-chardev-0
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 2 | MATCH '^"2"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 3 | MATCH '^"3"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 4 | MATCH '^"4"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 5 | MATCH '^"5"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 6 | MATCH '^"6"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 7 | MATCH '^"7"=active$'
 
-    #     echo "And aggregated devices are still unexported"
-    #     not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-0
-    #     not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-1
-    #     not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0
-    #     not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1
-    # fi
+        chip=/dev/snap/gpio-chardev/pc/gpio-chardev-1
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
+
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "Snap service should have properly set the gpio lines for each chip"
+
+        chip=/dev/snap/gpio-chardev/pc/gpio-chardev-0
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 2 | MATCH '^"2"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 3 | MATCH '^"3"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 4 | MATCH '^"4"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 5 | MATCH '^"5"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 6 | MATCH '^"6"=inactive$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 7 | MATCH '^"7"=active$'
+
+        chip=/dev/snap/gpio-chardev/pc/gpio-chardev-1
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 0 | MATCH '^"0"=active$'
+        test-snapd-gpio-chardev.cmd gpioget --chip "$chip" 1 | MATCH '^"1"=active$'
+
+        echo "Disconnecting unexports the aggregated devices"
+        snap disconnect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
+        snap disconnect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
+        not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-0
+        not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-1
+        not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0
+        not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1
+
+        # Check number of gpiochips
+        find /dev/gpiochip* | wc -l | MATCH '^2$'
+
+        # Reboot one last time to make sure services run normally even when disconnected
+        rm -rf /var/snap/test-snapd-gpio-chardev/common/gpiochips
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 2 ]; then
+        echo "Snap service runs"
+        retry -n 20 --wait 2 sh -c 'journalctl -u snap.test-snapd-gpio-chardev.svc | MATCH "no chips found under /var/snap/test-snapd-gpio-chardev/common/gpiochips, exiting..."'
+
+        echo "And aggregated devices are still unexported"
+        find /dev/gpiochip* | wc -l | MATCH '^2$'
+        not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-0
+        not test -e /dev/snap/gpio-chardev/pc/gpio-chardev-1
+        not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-0
+        not test -e /dev/snap/gpio-chardev/test-snapd-gpio-chardev/gpio-chardev-1
+    fi

@@ -21,7 +21,6 @@ execute: |
 
     echo "Ensure core is gone"
     distro_purge_package snapd
-    systemctl stop snapd.socket snapd.service || true
     distro_install_build_snapd
 
     echo "Check that we can set core config nevertheless"

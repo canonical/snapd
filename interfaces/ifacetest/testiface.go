@@ -167,6 +167,16 @@ type TestSymlinksInterface struct {
 	DirectoriesCallback func() []string
 }
 
+// TestConflictingConnectionInterface is used to test support for
+// defining conflicting interface connections, which needs interfaces
+// implementing ConflictsWithOtherConnectedInterfaces.
+type TestConflictingConnectionInterface struct {
+	TestInterface
+
+	// Support for defining conflicting interface connections.
+	ConflictingConnectedInterfaces []string
+}
+
 // String() returns the same value as Name().
 func (t *TestInterface) String() string {
 	return t.Name()
@@ -621,4 +631,10 @@ func (t *TestSymlinksInterface) TrackedDirectories() []string {
 		return t.DirectoriesCallback()
 	}
 	return nil
+}
+
+// Support for defining conflicting interface connections.
+
+func (t *TestConflictingConnectionInterface) ConflictsWithOtherConnectedInterfaces() []string {
+	return t.ConflictingConnectedInterfaces
 }

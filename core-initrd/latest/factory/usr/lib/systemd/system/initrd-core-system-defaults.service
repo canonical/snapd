@@ -1,0 +1,16 @@
+[Unit]
+Description=Set base defaults
+ConditionPathExists=!/sysroot/etc/system-image/writable-paths
+ConditionPathExists=!/sysroot/writable/_writable_defaults/.done
+ConditionPathExists=/sysroot/writable/system-data/_writable_defaults
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=initrd-root-fs.target shutdown.target
+RequiresMountsFor=/sysroot/writable
+
+[Service]
+Type=oneshot
+ExecStart=-/bin/mkdir -p /sysroot/writable/system-data
+ExecStart=/bin/cp -aT /sysroot/writable/system-data/_writable_defaults /sysroot/writable/system-data
+ExecStart=/bin/touch /sysroot/writable/system-data/_writable_defaults/.done
+RemainAfterExit=true

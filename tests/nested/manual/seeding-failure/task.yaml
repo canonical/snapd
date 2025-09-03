@@ -98,6 +98,7 @@ execute: |
   remote.exec "sudo touch /run/mnt/ubuntu-seed/pass"
 
   # this waits for the next attempt at seeding to work
+  tests.nested setup-vm
   remote.wait-for device-initialized
 
   remote.exec "snap list failing-service"

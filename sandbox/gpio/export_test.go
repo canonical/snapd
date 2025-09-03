@@ -21,13 +21,23 @@ package gpio
 import (
 	"io/fs"
 	"syscall"
-	"time"
 
 	"github.com/snapcore/snapd/testutil"
 )
 
+type ChardevChip = chardevChip
+
+func (c *ChardevChip) Path() string   { return c.path }
+func (c *ChardevChip) Name() string   { return c.name }
+func (c *ChardevChip) Label() string  { return c.label }
+func (c *ChardevChip) NumLines() uint { return c.numLines }
+
+func MockChardevChip(path, name, label string, numLines uint) *chardevChip {
+	return &chardevChip{path, name, label, numLines}
+}
+
 var IoctlGetChipInfo = ioctlGetChipInfo
-var ChardevChipInfo = chardevChipInfo
+var GetChardevChipInfo = getChardevChipInfo
 
 func MockUnixSyscall(f func(trap uintptr, a1 uintptr, a2 uintptr, a3 uintptr) (r1 uintptr, r2 uintptr, err syscall.Errno)) (restore func()) {
 	return testutil.Mock(&unixSyscall, f)
@@ -40,8 +50,12 @@ func MockIoctlGetChipInfo(f func(path string) (name, label [32]byte, lines uint3
 	})
 }
 
-func MockChardevChipInfo(f func(path string) (*ChardevChip, error)) (restore func()) {
-	return testutil.Mock(&chardevChipInfo, f)
+func MockGetChardevChipInfo(f func(path string) (*chardevChip, error)) (restore func()) {
+	return testutil.Mock(&getChardevChipInfo, f)
+}
+
+func MockOsMkdir(f func(path string, perm fs.FileMode) error) (restore func()) {
+	return testutil.Mock(&osMkdir, f)
 }
 
 func MockOsStat(f func(path string) (fs.FileInfo, error)) (restore func()) {
@@ -56,16 +70,12 @@ func MockOsChown(f func(path string, uid int, gid int) error) (restore func()) {
 	return testutil.Mock(&osChown, f)
 }
 
+func MockOsWriteFile(f func(name string, data []byte, perm fs.FileMode) error) (restore func()) {
+	return testutil.Mock(&osWriteFile, f)
+}
+
 func MockSyscallMknod(f func(path string, mode uint32, dev int) (err error)) (restore func()) {
 	return testutil.Mock(&syscallMknod, f)
-}
-
-func MockAggregatorCreationTimeout(t time.Duration) (restore func()) {
-	return testutil.Mock(&aggregatorCreationTimeout, t)
-}
-
-func MockLockAggregator(f func() (unlocker func(), err error)) (restore func()) {
-	return testutil.Mock(&lockAggregator, f)
 }
 
 func MockKmodLoadModule(f func(module string, options []string) error) (restore func()) {

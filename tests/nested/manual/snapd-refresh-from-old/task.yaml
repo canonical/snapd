@@ -16,7 +16,7 @@ environment:
   CORE18_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20191126_1279.snap
 
 prepare: |
-  wget -P "$(tests.nested get extra-snaps-path)" "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
+  wget -q -P "$(tests.nested get extra-snaps-path)" "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
 
   # create core image with old snapd & core18
   tests.nested build-image core

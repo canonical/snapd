@@ -558,7 +558,16 @@ prepare_project() {
     # of the tested distribution. Download snapd and snap-confine
     # as they exist in the archive for further use.
     if tests.info is-snapd-from-archive; then
-        ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+        case "$SPREAD_SYSTEM" in
+            debian-*)
+                # In Debian 14+, the snap-confine transitional package was removed.
+                # In earlier versions it was just an empty package so it's not worth pulling.
+                ( cd "${GOHOME}" && tests.pkgs download snapd )
+                ;;
+            *)
+                ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
+                ;;
+        esac
     else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
@@ -791,8 +800,6 @@ restore_suite() {
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
-        # On Tumbleweed, removing the package doesn't stop the snapd units so ensure they are stopped
-        systemctl stop snapd.socket snapd.service || true
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch
             distro_purge_package snap-confine
