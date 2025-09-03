@@ -82,6 +82,43 @@ type SealingParameters struct {
 	TpmPCRProfile []byte
 }
 
+type parametersKey struct {
+	role string
+	containerRole string
+}
+
+type updatedParameters struct {
+	catalog map[parametersKey]*SealingParameters
+}
+
+func newUpdatedParameters() *updatedParameters {
+	return &updatedParameters{catalog: make(map[parametersKey]*SealingParameters)}
+}
+
+func (u *updatedParameters) set(role, containerRole string, params *SealingParameters) {
+	u.catalog[parametersKey{role: role, containerRole: containerRole}] = params
+}
+
+func (u *updatedParameters) get(role string, containerRoles... string) *SealingParameters {
+	for _, cr := range containerRoles {
+		params, ok := u.catalog[parametersKey{role: role, containerRole: cr}]
+		if ok {
+			return params
+		}
+	}
+	return nil
+}
+
+func (u *updatedParameters) apply(manager FDEStateManager) error {
+	for key, parameters := range u.catalog {
+		if err := manager.Update(key.role, key.containerRole, parameters); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+
 // EncryptedContainer gives information on the role, path and path to
 // extra legacy keys.
 type EncryptedContainer interface {
@@ -177,30 +214,23 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 
 	params := inputs.bootChains
 	recoverModels := getUniqueModels(params.RecoveryBootChains)
-	newParameters := map[string]*map[string]*SealingParameters{
-		"run": &map[string]*SealingParameters{
-			"all": &SealingParameters{
-				BootModes: []string{"run"},
-				Models:    getUniqueModels(params.RunModeBootChains),
-			},
-		},
-		"run+recover": &map[string]*SealingParameters{
-			"all": &SealingParameters{
-				BootModes: []string{"run", "recover"},
-				Models:    getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...)),
-			},
-		},
-		"recover": &map[string]*SealingParameters{
-			"system-data": &SealingParameters{
-				BootModes: []string{"recover"},
-				Models:    recoverModels,
-			},
-			"system-save": &SealingParameters{
-				BootModes: []string{"recover", "factory-reset"},
-				Models:    recoverModels,
-			},
-		},
-	}
+	newParameters := newUpdatedParameters()
+	newParameters.set("run", "all", &SealingParameters{
+		BootModes: []string{"run"},
+		Models:    getUniqueModels(params.RunModeBootChains),
+	})
+	newParameters.set("run+recover", "all", &SealingParameters{
+		BootModes: []string{"run", "recover"},
+		Models:    getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...)),
+	})
+	newParameters.set("recover", "system-data", &SealingParameters{
+		BootModes: []string{"recover"},
+		Models:    recoverModels,
+	})
+	newParameters.set("recover", "system-save", &SealingParameters{
+		BootModes: []string{"recover", "factory-reset"},
+		Models:    recoverModels,
+	})
 
 	tpmProfilesCalculated := false
 	ensureTPMProfiles := func() error {
@@ -216,17 +246,8 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 
 	var allResealedKeys secboot.UpdatedKeys
 	resealKey := func(key secboot.KeyDataLocation, role string, containerRole string) error {
-		roleState, hasRoleState := newParameters[role]
-		if !hasRoleState {
-			r := make(map[string]*SealingParameters)
-			roleState = &r
-			newParameters[role] = roleState
-		}
-		parameters, hasContainerRole := (*roleState)[containerRole]
-		if !hasContainerRole {
-			parameters, hasContainerRole = (*roleState)["all"]
-		}
-		if !hasContainerRole {
+		parameters := newParameters.get(role, containerRole, "all")
+		if parameters == nil {
 			return fmt.Errorf("internal error: not container role for %s/%s", role, containerRole)
 		}
 
@@ -311,12 +332,8 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 		}
 	}
 
-	for role, containerParams := range newParameters {
-		for containerRole, params := range *containerParams {
-			if err := manager.Update(role, containerRole, params); err != nil {
-				return err
-			}
-		}
+	if err := newParameters.apply(manager); err != nil {
+		return err
 	}
 
 	if revokeOldKeys {
@@ -332,7 +349,7 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions, inp
 	return nil
 }
 
-func recalculateParamatersTPM(manager FDEStateManager, parameters map[string]*map[string]*SealingParameters, rootdir string, inputs resealInputs, opts resealOptions) error {
+func recalculateParamatersTPM(manager FDEStateManager, parameters *updatedParameters, rootdir string, inputs resealInputs, opts resealOptions) error {
 	params := inputs.bootChains
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
@@ -403,7 +420,7 @@ func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
 
 func updateRunProtectionProfile(
 	manager FDEStateManager,
-	parameters map[string]*map[string]*SealingParameters,
+	parameters *updatedParameters,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
 	sigDbxUpdate []byte,
 	roleToBlName map[bootloader.Role]string,
@@ -462,15 +479,15 @@ func updateRunProtectionProfile(
 
 	logger.Debugf("PCR profile length: %v", len(pcrProfile))
 
-	(*parameters["run+recover"])["all"].TpmPCRProfile = pcrProfile
-	(*parameters["run"])["all"].TpmPCRProfile = pcrProfileRunOnly
+	parameters.get("run+recover", "all").TpmPCRProfile = pcrProfile
+	parameters.get("run", "all").TpmPCRProfile = pcrProfileRunOnly
 
 	return nil
 }
 
 func updateFallbackProtectionProfile(
 	manager FDEStateManager,
-	parameters map[string]*map[string]*SealingParameters,
+	parameters *updatedParameters,
 	pbc boot.PredictableBootChains,
 	sigDbxUpdate []byte,
 	roleToBlName map[bootloader.Role]string,
@@ -515,8 +532,8 @@ func updateFallbackProtectionProfile(
 	}
 
 	// We should have different pcr profile here...
-	(*parameters["recover"])["system-save"].TpmPCRProfile = pcrProfile
-	(*parameters["recover"])["system-data"].TpmPCRProfile = pcrProfile
+	parameters.get("recover", "system-save").TpmPCRProfile = pcrProfile
+	parameters.get("recover", "system-data").TpmPCRProfile = pcrProfile
 
 	return nil
 }
