@@ -108,28 +108,10 @@ type HookSetup struct {
 // Manager returns a new HookManager.
 func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
-	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
-		// check if we're a hook task
-		if thisTask.Kind() != "run-hook" {
-			return false
-		}
-		var hooksup HookSetup
-		if thisTask.Get("hook-setup", &hooksup) != nil {
-			return false
-		}
-		thisSnapName := hooksup.Snap
-		// examine all hook tasks, block thisTask if we find any other hook task affecting same snap
-		for _, t := range running {
-			if t.Kind() != "run-hook" || t.Get("hook-setup", &hooksup) != nil {
-				continue // ignore errors and continue checking remaining tasks
-			}
-			if hooksup.Snap == thisSnapName {
-				// found hook task affecting same snap, block thisTask.
-				return true
-			}
-		}
-		return false
-	})
+	runner.AddBlocked(snapIsRunningHook)
+	// ensure hooks can't run concurrently with snap unlinking (can happen during
+	// confdb operations that trigger hooks)
+	runner.AddBlocked(snapIsInactive)
 
 	manager := &HookManager{
 		state:      s,
@@ -152,6 +134,45 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	snapstate.RegisterAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
 
 	return manager, nil
+}
+
+// snapIsRunningHook returns true if hook's snap already has other running hooks.
+func snapIsRunningHook(cand *state.Task, running []*state.Task) bool {
+	if cand.Kind() != "run-hook" {
+		return false
+	}
+	var hooksup HookSetup
+	if cand.Get("hook-setup", &hooksup) != nil {
+		return false
+	}
+
+	candSnapName := hooksup.Snap
+	// block cand if we find any other hook task affecting same snap
+	for _, t := range running {
+		if t.Kind() != "run-hook" || t.Get("hook-setup", &hooksup) != nil {
+			continue // ignore errors and continue checking remaining tasks
+		}
+		if hooksup.Snap == candSnapName {
+			// found hook task affecting same snap, block candidate task
+			return true
+		}
+	}
+
+	return false
+}
+
+// snapIsInactive returns true if the snap referenced by the given hook is inactive.
+func snapIsInactive(cand *state.Task, running []*state.Task) bool {
+	if cand.Kind() != "run-hook" {
+		return false
+	}
+
+	_, snapst, err := hookSetup(cand, "hook-setup")
+	if err != nil || !snapst.IsInstalled() {
+		return false
+	}
+
+	return !snapst.Active
 }
 
 // Register registers a function to create Handler values whenever hooks
