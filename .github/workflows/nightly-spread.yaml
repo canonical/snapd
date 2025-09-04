@@ -30,8 +30,8 @@ jobs:
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
-      group: google
-      backend: google
+      group: openstack-ps7
+      backend: openstack-ps7
       systems: 'ALL'
       tasks: 'tests/nightly/...'
       rules: ''
@@ -53,21 +53,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: google
-            backend: google
-            systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64'
-          - group: debian-not-req
-            backend: google-distro-1
-            systems: 'debian-12-64 debian-sid-64'
+          - group: openstack-ps7
+            backend: openstack-ps7
+            systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 debian-12-64'
+          - group: openstack
+            backend: openstack
+            systems: 'debian-sid-64'
 
   spread-test-experimental:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
-      group: 'google'
-      backend: 'google'
-      systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-21.10-64 ubuntu-core-20-64'
+      group: 'openstack-ps7'
+      backend: 'openstack-ps7'
+      systems: 'ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 ubuntu-core-24-64'
       tasks: 'tests/...'
       rules: ''
       use-snapd-snap-from-master: true
