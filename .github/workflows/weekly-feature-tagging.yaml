@@ -46,7 +46,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Filter systems
         if: needs.set-inputs.outputs.run-one-system != ''
@@ -177,17 +177,17 @@ jobs:
       || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get generated data
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: feature-tags-artifacts
           pattern: spread-artifacts-*
           merge-multiple: true
 
       - name: Get all features
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: all-features
 
