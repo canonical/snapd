@@ -1,3 +1,5 @@
+# Testing CI on latest master
+
 # New in snapd 2.71
 * FDE: auto-repair when recovery key is used
 * FDE: revoke keys on shim update
