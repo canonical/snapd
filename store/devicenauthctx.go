@@ -38,7 +38,10 @@ type DeviceAndAuthContext interface {
 	StoreID(fallback string) (string, error)
 
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
-	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
+	// ProxyStoreParams returns the parameters of a proxy store. If one is set
+	// up in the system, the returned URL points to the proxy store and its ID
+	// is non-empty. Otherwise returns the fallback defaultURL.
+	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxyStoreURL *url.URL, err error)
 
 	CloudInfo() (*auth.CloudInfo, error)
 
