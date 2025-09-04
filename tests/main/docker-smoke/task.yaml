@@ -29,7 +29,9 @@ prepare: |
     else
       IMAGE_URL=$IMAGE_URL_X86
     fi
-    curl -sL "$IMAGE_URL" -o hello-world.tar
+    # Save to the home directory to get around apparmor denials
+    curl -sL "$IMAGE_URL" -o "$HOME"/hello-world.tar
+    mv "$HOME"/hello-world.tar .
     # retry until docker is ready lo load images
     retry -n 30 --wait 1 docker load -i hello-world.tar  
   fi
