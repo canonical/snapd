@@ -963,15 +963,30 @@ func (s *noticebackendSuite) TestBackendWaitNoticesNew(c *C) {
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesTimeout(c *C) {
-	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	s.doTestBackendWaitNoticesTimeout(c, time.Millisecond)
+}
+
+func (s *noticebackendSuite) doTestBackendWaitNoticesTimeout(c *C, timeout time.Duration) {
+	noticeMgr := notices.NewNoticeManager(s.st)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(noticeMgr)
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	notices, err := promptBackend.BackendWaitNotices(ctx, nil)
 	c.Assert(err, ErrorMatches, "context deadline exceeded")
 	c.Assert(notices, HasLen, 0)
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesTimeoutDeadlock(c *C) {
+	// If the context AfterFunc goroutine calls Broadcast before the call to
+	// Wait, then there is a deadlock. This depends on the scheduler, so try
+	// 10000 times with a context timeout of 1ns to try to get it to occur.
+	// Repeating 10000 times should reliably cause deadlock if there's a bug.
+	for i := 0; i < 10000; i++ {
+		s.doTestBackendWaitNoticesTimeout(c, time.Nanosecond)
+	}
 }
 
 func (s *noticebackendSuite) TestBackendWaitNoticesLongPoll(c *C) {
