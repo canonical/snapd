@@ -40,6 +40,9 @@ type Metadata struct {
 	// PID is the PID of the process which triggered a request.
 	// For rules, PID should be unset/ignored.
 	PID int32
+	// PGID is the process group ID of the process which triggered a request.
+	// For rules, PGID should be unset/ignored.
+	PGID int32
 	// Interface is the interface for which the prompt or rule applies.
 	Interface string
 }

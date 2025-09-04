@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -52,6 +54,7 @@ var (
 	// someone listening over l.reqs to quickly receive and process them too.
 	readyTimeout = time.Duration(5 * time.Second)
 
+	unixGetpgid                  = unix.Getpgid
 	osOpen                       = os.Open
 	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
 	notifyIoctl                  = notify.Ioctl
@@ -65,6 +68,8 @@ type Request struct {
 	ID uint64
 	// PID is the identifier of the process which triggered the request.
 	PID int32
+	// PGID is the process group ID of the process which triggered the request.
+	PGID int32
 	// Label is the apparmor label on the process which triggered the request.
 	Label string
 	// SubjectUID is the UID of the subject which triggered the request.
@@ -531,9 +536,16 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 	if err != nil {
 		return nil, err
 	}
+	pid := int(msg.PID())
+	pgid, err := unixGetpgid(pid)
+	if err != nil {
+		// This should never occur unless the process has since terminated?
+		return nil, fmt.Errorf("cannot get process group ID of request process with PID %d: %w", pid, err)
+	}
 	return &Request{
 		ID:         msg.ID(),
-		PID:        msg.PID(),
+		PID:        int32(pid),
+		PGID:       int32(pgid),
 		Label:      msg.ProcessLabel(),
 		SubjectUID: msg.SubjectUID(),
 
