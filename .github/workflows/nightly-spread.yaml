@@ -16,6 +16,7 @@ on:
         description: Job to run
         options:
           - spread-nightly
+          - spread-nightly-google
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
@@ -37,8 +38,8 @@ jobs:
       rules: ''
       use-snapd-snap-from-master: true
 
-  spread-google-nightly:
-    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-google-nightly') }}
+  spread-nightly-google:
+    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-google') }}
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
