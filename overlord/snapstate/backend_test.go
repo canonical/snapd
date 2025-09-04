@@ -497,9 +497,6 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap-now-classic"
 	case "some-snap-was-classic-id":
 		name = "some-snap-was-classic"
-	case "some-snap-with-new-base-id":
-		name = "some-snap-with-new-base"
-		base = "core22"
 	case "some-snap-with-core18-base":
 		name = "some-snap-with-core18-base"
 		base = "core18"
@@ -512,8 +509,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "core22-id":
 		name = "core22"
 		typ = snap.TypeBase
-	case "snap-for-core22-id":
+	case "snap-core18-to-core22-id":
 		name = "snap-core18-to-core22"
+		base = "core22"
 	case "snap-for-core24-id":
 		name = "snap-for-core24"
 	case "snap-with-snapd-control-id":
@@ -1215,12 +1213,6 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Epoch = snap.E("13")
 	case "some-snap-with-base":
 		info.Base = "core18"
-	case "some-snap-with-new-base":
-		if si.Revision == snap.R(1) {
-			info.Base = "old-base"
-		} else {
-			info.Base = "core22"
-		}
 	case "gadget", "brand-gadget":
 		info.SnapType = snap.TypeGadget
 	case "core":

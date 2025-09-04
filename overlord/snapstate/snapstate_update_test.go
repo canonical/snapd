@@ -8652,7 +8652,7 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigrationOnCore22(c *C) {
 
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
-		SnapID:   "snap-for-core22-id",
+		SnapID:   "snap-core18-to-core22-id",
 		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
@@ -8691,7 +8691,7 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateToCore22FailsAfterWritingSta
 
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
-		SnapID:   "snap-for-core22-id",
+		SnapID:   "snap-core18-to-core22-id",
 		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
@@ -8750,7 +8750,7 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateToCore22Fails(c *C) {
 
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
-		SnapID:   "snap-for-core22-id",
+		SnapID:   "snap-core18-to-core22-id",
 		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
@@ -8793,7 +8793,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
-		SnapID:   "snap-for-core22-id",
+		SnapID:   "snap-core18-to-core22-id",
 		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
@@ -8835,7 +8835,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail
 
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
-		SnapID:   "snap-for-core22-id",
+		SnapID:   "snap-core18-to-core22-id",
 		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
@@ -13538,18 +13538,18 @@ type: snapd
 	s.o.TaskRunner().AddHandler("auto-connect", fakeAutoConnect, fakeAutoConnect)
 
 	snapstate.Set(s.state, "core22", nil) // NOTE: core22 is not installed.
-	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
+	snapstate.Set(s.state, "snap-core18-to-core22", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
-				RealName: "some-snap-with-new-base",
-				SnapID:   "some-snap-with-new-base-id",
+				RealName: "snap-core18-to-core22",
+				SnapID:   "snap-core18-to-core22-id",
 				Revision: snap.R(1),
 			},
 		}),
 		Current:  snap.R(1),
 		SnapType: "app",
-		Base:     "old-base",
+		Base:     "core18",
 	})
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
@@ -13565,7 +13565,7 @@ type: snapd
 	})
 
 	updated, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
-		[]string{"snapd", "some-snap-with-new-base"},
+		[]string{"snapd", "snap-core18-to-core22"},
 		[]*snapstate.RevisionOptions{{
 			Channel: "latest/stable",
 		}, {
@@ -13604,7 +13604,7 @@ type: snapd
 
 	// check that the snaps's state reflects the new base
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap-with-new-base", &snapst)
+	err = snapstate.Get(s.state, "snap-core18-to-core22", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Base, Equals, "core22")
 }
@@ -13613,24 +13613,24 @@ func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// core22 is the base of the next revision of some-snap-with-new-base
+	// core22 is the base of the next revision of snap-core18-to-core22
 	snapstate.Set(s.state, "core22", nil)
-	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
+	snapstate.Set(s.state, "snap-core18-to-core22", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
-				RealName: "some-snap-with-new-base",
-				SnapID:   "some-snap-with-new-base-id",
+				RealName: "snap-core18-to-core22",
+				SnapID:   "snap-core18-to-core22-id",
 				Revision: snap.R(1),
 			},
 		}),
 		Current:  snap.R(1),
 		SnapType: "app",
-		Base:     "old-base",
+		Base:     "core18",
 	})
 
 	_, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
-		[]string{"some-snap-with-new-base"},
+		[]string{"snap-core18-to-core22"},
 		[]*snapstate.RevisionOptions{{
 			Channel: "latest/stable",
 		}, {
@@ -13644,6 +13644,7 @@ func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
 		chg.AddAll(taskSet)
 	}
 
+	linkTask := findLastTask(chg, "link-snap")
 	// fail the change after the snap's new state is saved
 	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
 		return errors.New("expected")
@@ -13651,7 +13652,6 @@ func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
 
 	failingTask := s.state.NewTask("fail", "expected failure")
 	chg.AddTask(failingTask)
-	linkTask := findLastTask(chg, "link-snap")
 	failingTask.WaitFor(linkTask)
 	for _, lane := range linkTask.Lanes() {
 		failingTask.JoinLane(lane)
@@ -13670,9 +13670,9 @@ func (s *snapmgrTestSuite) TestUndoUpdateSnapdAndSnapPullingNewBase(c *C) {
 
 	// check that the snaps's state was correctly reverted
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap-with-new-base", &snapst)
+	err = snapstate.Get(s.state, "snap-core18-to-core22", &snapst)
 	c.Assert(err, IsNil)
-	c.Assert(snapst.Base, Equals, "old-base")
+	c.Assert(snapst.Base, Equals, "core18")
 }
 
 // prepare a refresh/install of essential and non-essential snaps, optionally
