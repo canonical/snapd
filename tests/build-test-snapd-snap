@@ -1,10 +1,48 @@
 #!/bin/bash -e
 
+help() {
+    echo "$0 [-h|--help] [--no-clean] [--clean-snapd-only]"
+    echo "builds test snapd using snapcraft"
+    echo
+    echo "options:"
+    echo "  --clean-snapd-only    - clean only the snapd part"
+    echo "  --no-clean            - do not clean anything, same as setting"
+    echo "                          SNAPCRAFT_NO_CLEAN in the environment"
+}
+
 shopt -s nullglob
+
+no_clean=0
+clean_snapd_only=0
+
+while true; do
+    if [ -z "$1" ]; then
+        break
+    fi
+    case "$1" in
+        --no-clean)
+            no_clean=1
+            shift
+            ;;
+        --clean-snapd-only)
+            clean_snapd_only=1
+            shift
+            ;;
+        --help|-h)
+            help
+            exit 0
+            ;;
+    esac
+done
+
+if [ "$no_clean" = "1" ] && [ "$clean_snapd_only" = "1" ]; then
+   echo "both --no-clean and --clean-snapd-only passed, which is it then?" >&2
+   exit 1
+fi
 
 # check dependencies
 if ! snap list snapcraft >/dev/null; then
-    echo "snapcraft is not installed"
+    echo "snapcraft is not installed" >&2
     exit 1
 fi
 
@@ -17,9 +55,14 @@ find . -name 'snapd_1337.*.snap.keep' -delete -print
 touch test-build
 mkdir -p built-snap
 
+snapd_clean_arg=
+if [ "$clean_snapd_only" = "1" ]; then
+    snapd_clean_arg="snapd"
+fi
+
 # Build snapd snap
-if [ -z "$SNAPCRAFT_NO_CLEAN" ]; then
-    snapcraft --verbose clean
+if [ -z "$SNAPCRAFT_NO_CLEAN" ] && [ "$no_clean" != "1" ]; then
+    snapcraft --verbose clean $snapd_clean_arg
 fi
 
 snapcraft --verbose
