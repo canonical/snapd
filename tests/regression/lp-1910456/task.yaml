@@ -151,7 +151,9 @@ execute: |
         else
             IMAGE_URL=$IMAGE_URL_X86
         fi  
-        curl -sL "$IMAGE_URL" -o ubuntu-24.04.tar
+        # Save to the home directory to get around apparmor denials
+        curl -sL "$IMAGE_URL" -o "$HOME"/ubuntu-24.04.tar
+        mv "$HOME"/ubuntu-24.04.tar .
         retry -n 30 --wait 1 docker load -i ubuntu-24.04.tar
     fi
 
