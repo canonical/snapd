@@ -141,9 +141,8 @@ func (s *noticesSuite) TestReoccur(c *C) {
 
 func (s *noticesSuite) TestMarshal(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	start := time.Now()
 	uid := uint32(1000)
 	addNotice(c, st, &uid, state.ChangeUpdateNotice, "123", nil)
@@ -151,6 +150,7 @@ func (s *noticesSuite) TestMarshal(c *C) {
 	addNotice(c, st, &uid, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
 		Data: map[string]string{"k": "v"},
 	})
+	st.Unlock()
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
@@ -254,12 +254,12 @@ func (s *noticesSuite) TestString(c *C) {
 
 func (s *noticesSuite) TestType(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	addNotice(c, st, nil, state.WarningNotice, "danger!", nil)
+	st.Unlock()
 
 	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
 	c.Assert(notices, HasLen, 1)
@@ -276,14 +276,14 @@ func (s *noticesSuite) TestType(c *C) {
 
 func (s *noticesSuite) TestOccurrences(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	st.Unlock()
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 2)
@@ -344,9 +344,8 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	uid1 := uint32(1000)
 	uid2 := uint32(0)
 	addNotice(c, st, &uid1, state.ChangeUpdateNotice, "443", nil)
@@ -356,6 +355,7 @@ func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 	addNotice(c, st, &uid2, state.WarningNotice, "Warning 1!", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "Warning 2!", nil)
+	st.Unlock()
 
 	// No filter
 	notices := st.Notices(nil)
@@ -383,9 +383,8 @@ func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 
 func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "443", nil)
@@ -397,6 +396,7 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	addNotice(c, st, nil, state.WarningNotice, "Warning 2!", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
+	st.Unlock()
 
 	// No filter
 	notices := st.Notices(nil)
@@ -452,14 +452,14 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 
 func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "example.com/x", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/baz", nil)
+	st.Unlock()
 
 	// No filter
 	notices := st.Notices(nil)
@@ -495,9 +495,8 @@ func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 
 func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
@@ -507,6 +506,7 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
+	st.Unlock()
 
 	// After unset
 	notices = st.Notices(nil)
@@ -523,8 +523,8 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 
 func (s *noticesSuite) TestNoticesFilterBeforeOrAt(c *C) {
 	st := state.New(nil)
+
 	st.Lock()
-	defer st.Unlock()
 
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
 	notices := st.Notices(nil)
@@ -535,6 +535,8 @@ func (s *noticesSuite) TestNoticesFilterBeforeOrAt(c *C) {
 
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)
+
+	st.Unlock()
 
 	// After unset
 	notices = st.Notices(nil)
@@ -603,9 +605,8 @@ func (s *noticesSuite) TestDrainNotices(c *C) {
 
 func (s *noticesSuite) TestNotice(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	uid1 := uint32(0)
 	uid2 := uint32(123)
 	uid3 := uint32(1000)
@@ -614,6 +615,7 @@ func (s *noticesSuite) TestNotice(c *C) {
 	addNotice(c, st, &uid2, state.WarningNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, &uid3, state.WarningNotice, "foo.com/z", nil)
+	st.Unlock()
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 3)
@@ -631,8 +633,6 @@ func (s *noticesSuite) TestNotice(c *C) {
 
 func (s *noticesSuite) TestEmptyState(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
 	notices := st.Notices(nil)
 	c.Check(notices, HasLen, 0)
@@ -689,12 +689,12 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 
 func (s *noticesSuite) TestWaitNoticesExisting(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
+	st.Lock()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
 	addNotice(c, st, nil, state.WarningNotice, "example.com/x", nil)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/baz", nil)
+	st.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -718,8 +718,6 @@ func (s *noticesSuite) TestWaitNoticesNew(c *C) {
 		addNotice(c, st, nil, state.WarningNotice, "example.com/y", nil)
 	}()
 
-	st.Lock()
-	defer st.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	notices, err := st.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"example.com/y"}})
@@ -730,15 +728,27 @@ func (s *noticesSuite) TestWaitNoticesNew(c *C) {
 }
 
 func (s *noticesSuite) TestWaitNoticesTimeout(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+	doTestWaitNoticesTimeout(c, time.Millisecond)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+func doTestWaitNoticesTimeout(c *C, timeout time.Duration) {
+	st := state.New(nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	notices, err := st.WaitNotices(ctx, nil)
 	c.Assert(err, ErrorMatches, "context deadline exceeded")
 	c.Assert(notices, HasLen, 0)
+}
+
+func (s *noticesSuite) TestWaitNoticesTimeoutDeadlock(c *C) {
+	// If the context AfterFunc goroutine calls Broadcast before the call to
+	// Wait, then there is a deadlock. This depends on the scheduler, so try
+	// 10000 times with a context timeout of 1ns to try to get it to occur.
+	// Repeating 10000 times should reliably cause deadlock if there's a bug.
+	for i := 0; i < 10000; i++ {
+		doTestWaitNoticesTimeout(c, time.Nanosecond)
+	}
 }
 
 func (s *noticesSuite) TestReadStateWaitNotices(c *C) {
@@ -763,8 +773,6 @@ func (s *noticesSuite) TestReadStateWaitNotices(c *C) {
 
 func (s *noticesSuite) TestWaitNoticesLongPoll(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
 	go func() {
 		for i := 0; i < 10; i++ {
@@ -792,8 +800,6 @@ func (s *noticesSuite) TestWaitNoticesLongPoll(c *C) {
 
 func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -806,7 +812,9 @@ func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 
 	// If we ask for notices before now and there are notices matching the
 	// filter, return them immediately
+	st.Lock()
 	addNotice(c, st, nil, state.WarningNotice, "existing", nil)
+	st.Unlock()
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now()})
 	c.Assert(err, IsNil)
 	c.Assert(notices, HasLen, 1)
@@ -822,14 +830,12 @@ func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 	// If we ask for notices before a time in the future, then a matching
 	// notice occurs, it will be returned
 	go func() {
-		time.Sleep(10 * time.Millisecond)
 		st.Lock()
+		defer st.Unlock()
+		time.Sleep(10 * time.Millisecond)
 		addNotice(c, st, nil, state.WarningNotice, "hay", nil)
-		st.Unlock()
 		time.Sleep(10 * time.Millisecond)
-		st.Lock()
 		addNotice(c, st, nil, state.WarningNotice, "needle", nil)
-		st.Unlock()
 	}()
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{
 		BeforeOrAt: time.Now().Add(time.Second),
@@ -877,8 +883,6 @@ func (s *noticesSuite) TestWaitNoticesConcurrent(c *C) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			st.Lock()
-			defer st.Unlock()
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			key := fmt.Sprintf("a.b/%d", i)
@@ -890,10 +894,10 @@ func (s *noticesSuite) TestWaitNoticesConcurrent(c *C) {
 		}(i)
 	}
 
+	st.Lock()
+	defer st.Unlock()
 	for i := 0; i < numWaiters; i++ {
-		st.Lock()
 		addNotice(c, st, nil, state.WarningNotice, fmt.Sprintf("a.b/%d", i), nil)
-		st.Unlock()
 		time.Sleep(time.Microsecond)
 	}
 
