@@ -1928,8 +1928,10 @@ suites:
         environment:
             # disable reexec so that the tests run with deb
             SNAP_REEXEC/deb: "0"
+            SNAPD_DEB_FROM_REPO/deb: 'false'
             # but keep it enabled when using the snap
             SNAP_REEXEC/snap: "1"
+            SNAPD_DEB_FROM_REPO/snap: 'true'
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
