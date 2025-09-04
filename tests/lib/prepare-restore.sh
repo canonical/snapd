@@ -570,6 +570,13 @@ prepare_project() {
         esac
     elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then
         find "$PROJECT_PATH/built-pkgs/$SPREAD_SYSTEM" -type f -exec cp -v {} "${GOPATH%%:*}" \;
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*)
+                # set the version to ensure core-initrd/build-source-pkgs.sh doesn't fail
+                newver="$(dpkg-parsechangelog --show-field Version)"
+                dch --newversion "1337.$newver" "testing build"
+                ;;
+        esac
     else
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
