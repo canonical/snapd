@@ -66,6 +66,15 @@ func (s *listenerSuite) SetUpTest(c *C) {
 		return v != 0
 	})
 	s.AddCleanup(restore)
+
+	restoreGetpgid := listener.MockUnixGetpgid(func(pid int) (pgid int, err error) {
+		// newMsgNotificationFile sets PID to be 1234
+		if pid == 1234 {
+			return 5678, nil
+		}
+		return 0, fmt.Errorf("unexpected pid: %d", pid)
+	})
+	s.AddCleanup(restoreGetpgid)
 }
 
 func (*listenerSuite) TestReply(c *C) {
