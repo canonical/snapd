@@ -107,9 +107,9 @@ func (resp *response) checkError() {
 	}
 }
 
-func (client *Client) sendRequest(ctx context.Context, uid int, method, urlpath string, query url.Values, headers map[string]string, body []byte) *response {
-	response := &response{uid: uid}
-
+// sendOneRaw performs a request for a single UID, returns the response and/or
+// an error.
+func (client *Client) sendOneRaw(ctx context.Context, uid int, method, urlpath string, query url.Values, headers map[string]string, body []byte) (*http.Response, error) {
 	u := url.URL{
 		Scheme:   "http",
 		Host:     fmt.Sprintf("%d", uid),
@@ -118,23 +118,36 @@ func (client *Client) sendRequest(ctx context.Context, uid int, method, urlpath 
 	}
 	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
 	if err != nil {
-		response.err = fmt.Errorf("internal error: %v", err)
-		return response
+		return nil, fmt.Errorf("internal error: %v", err)
 	}
 	req = req.WithContext(ctx)
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	httpResp, err := client.doer.Do(req)
+
+	return client.doer.Do(req)
+}
+
+func (client *Client) sendRequest(ctx context.Context, uid int, method, urlpath string, query url.Values, headers map[string]string, body []byte) *response {
+	response := &response{uid: uid}
+
+	httpResp, err := client.sendOneRaw(ctx, uid, method, urlpath, query, headers, body)
 	if err != nil {
 		response.err = err
 		return response
 	}
+
 	defer httpResp.Body.Close()
 	response.statusCode = httpResp.StatusCode
 	response.err = decodeInto(httpResp.Body, &response)
 	response.checkError()
 	return response
+}
+
+// DebugOneRaw allows to make raw queries to the API with the intention of using
+// it from the debug code.
+func (client *Client) DebugOneRaw(ctx context.Context, uid int, method, urlpath string, query url.Values, headers map[string]string, body []byte) (*http.Response, error) {
+	return client.sendOneRaw(ctx, uid, method, urlpath, query, headers, body)
 }
 
 func (client *Client) uidIsValidAsTarget(uid int) bool {
