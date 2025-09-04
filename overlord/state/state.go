@@ -113,6 +113,9 @@ type State struct {
 	warningsMu sync.RWMutex
 	warnings   map[string]*Warning
 
+	// noticesMu allows notices to be read without requiring the state lock to
+	// be held. Any modifications to notices requires the state lock as well.
+	noticesMu  sync.RWMutex
 	notices    map[noticeKey]*Notice
 	noticeCond *sync.Cond
 
@@ -145,7 +148,9 @@ func New(backend Backend) *State {
 		taskHandlers:        make(map[int]func(t *Task, old Status, new Status) bool),
 		changeHandlers:      make(map[int]func(chg *Change, old Status, new Status)),
 	}
-	st.noticeCond = sync.NewCond(st) // use State.Lock and State.Unlock
+	// The noticeCond.L must be the same as the lock which is held during
+	// WaitNotices, since noticeCond.Wait() will unlock noticeCond.L.
+	st.noticeCond = sync.NewCond(st.noticesMu.RLocker())
 	return st
 }
 
@@ -208,7 +213,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		Changes:  s.changes,
 		Tasks:    s.tasks,
 		Warnings: s.flattenWarnings(),
-		Notices:  s.flattenNotices(nil),
+		Notices:  s.flattenNotices(),
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
@@ -505,11 +510,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 
 	s.pruneWarnings(now)
 
-	for k, n := range s.notices {
-		if n.Expired(now) {
-			delete(s.notices, k)
-		}
-	}
+	s.pruneNotices(now)
 
 NextChange:
 	for _, chg := range changes {
@@ -558,6 +559,16 @@ func (s *State) pruneWarnings(now time.Time) {
 	for k, w := range s.warnings {
 		if w.ExpiredBefore(now) {
 			delete(s.warnings, k)
+		}
+	}
+}
+
+func (s *State) pruneNotices(now time.Time) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+	for k, n := range s.notices {
+		if n.Expired(now) {
+			delete(s.notices, k)
 		}
 	}
 }
@@ -644,7 +655,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 		return nil, fmt.Errorf("cannot read state: %s", err)
 	}
 	s.backend = backend
-	s.noticeCond = sync.NewCond(s)
+	s.noticeCond = sync.NewCond(s.noticesMu.RLocker())
 	s.modified = false
 	s.cache = make(map[any]any)
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
