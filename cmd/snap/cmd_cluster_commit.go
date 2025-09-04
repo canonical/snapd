@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -36,7 +37,6 @@ import (
 
 type cmdClusterCommit struct {
 	clientMixin
-	KeyName keyName `long:"key-name" required:"yes"`
 }
 
 var shortClusterCommitHelp = i18n.G("Commit a signed cluster assertion")
@@ -45,25 +45,29 @@ The cluster commit command retrieves the uncommitted cluster state,
 signs it with the specified key, and commits the signed assertion.
 
 This command should be run after cluster assembly has completed successfully.
-The specified key must be available in your GPG keyring or external key manager,
+The signing key must be specified via the CLUSTER_SIGN_KEY environment variable.
+The key must be available in your GPG keyring or external key manager,
 and its corresponding account-key assertion must already be acked in the system.
 
 Example:
-  snap cluster commit --key-name=my-signing-key
+  CLUSTER_SIGN_KEY=my-signing-key snap cluster commit
 `)
 
 func init() {
 	addClusterCommand("commit", shortClusterCommitHelp, longClusterCommitHelp, func() flags.Commander {
 		return &cmdClusterCommit{}
-	}, map[string]string{
-		// TRANSLATORS: This should not start with a lowercase letter.
-		"key-name": i18n.G("Name of the key to use for signing"),
-	}, nil)
+	}, nil, nil)
 }
 
 func (x *cmdClusterCommit) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	// get the key name from environment variable
+	keyName := os.Getenv("CLUSTER_SIGN_KEY")
+	if keyName == "" {
+		return fmt.Errorf(i18n.G("CLUSTER_SIGN_KEY environment variable must be set"))
 	}
 
 	// get uncommitted cluster state
@@ -82,10 +86,10 @@ func (x *cmdClusterCommit) Execute(args []string) error {
 	}
 
 	// get the private key
-	privKey, err := keypairMgr.GetByName(string(x.KeyName))
+	privKey, err := keypairMgr.GetByName(keyName)
 	if err != nil {
 		// TRANSLATORS: %q is the key name, %v the error message
-		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
+		return fmt.Errorf(i18n.G("cannot use %q key: %v"), keyName, err)
 	}
 
 	// get account-key assertion if we need to build a chain
@@ -217,7 +221,7 @@ func convertStateToHeaders(state client.UncommittedClusterState) map[string]any 
 	return map[string]any{
 		"type":        "cluster",
 		"cluster-id":  state.ClusterID,
-		"sequence":    "1", // TODO: handle sequences properly
+		"sequence":    strconv.Itoa(state.Sequence + 1), // TODO: handle sequences properly
 		"devices":     devices,
 		"subclusters": subclusters,
 		"timestamp":   state.CompletedAt.Format(time.RFC3339),

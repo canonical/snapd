@@ -25,9 +25,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"net"
+	"net/http"
 	"os"
+	"sync"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,6 +44,119 @@ import (
 type ClusterManager struct {
 	state  *state.State
 	runner *state.TaskRunner
+
+	receiver AssertionReceiver
+}
+
+type AssertionReceiver struct {
+	server  http.Server
+	started int32
+
+	lock   sync.Mutex
+	cancel func()
+}
+
+func (ar *AssertionReceiver) set(cancel func()) {
+	ar.lock.Lock()
+	defer ar.lock.Unlock()
+	ar.cancel = cancel
+}
+
+func (ar *AssertionReceiver) start(st *state.State, host string) error {
+	if !atomic.CompareAndSwapInt32(&ar.started, 0, 1) {
+		return nil
+	}
+
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, 7070))
+	if err != nil {
+		return err
+	}
+
+	recv := ar.receiver(st)
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			recv.ServeHTTP(w, r)
+		}),
+		ErrorLog: log.New(io.Discard, "", 0),
+	}
+
+	go server.Serve(ln)
+
+	return nil
+}
+
+func (ar *AssertionReceiver) receiver(st *state.State) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		batch := asserts.NewBatch(nil)
+		refs, err := batch.AddStream(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		// validate that we only have cluster and account-key assertions
+		var cluster *asserts.Ref
+		for _, r := range refs {
+			if r.Type.Name == asserts.ClusterType.Name {
+				cluster = r
+			}
+		}
+
+		if cluster == nil {
+			http.Error(w, "missing cluster assertion in bundle!", 400)
+			return
+		}
+
+		st.Lock()
+		defer st.Unlock()
+
+		db := assertstate.DB(st)
+		if err := assertstate.AddBatch(st, batch, &asserts.CommitOptions{
+			Precheck: true,
+		}); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		// save our assertion to our "distributed database"
+		if err := os.MkdirAll("/tmp/snapd-clusterdb", 0755); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		f, err := os.Create("/tmp/snapd-clusterdb/cluster.assert")
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		defer f.Close()
+
+		buf := bytes.NewBuffer(nil)
+		enc := asserts.NewEncoder(buf)
+		for _, r := range refs {
+			a, err := r.Resolve(db.Find)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+
+			if err := enc.Encode(a); err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+		}
+
+		if err := osutil.AtomicWriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644, 0); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+
+		st.EnsureBefore(0)
+
+		ar.lock.Lock()
+		defer ar.lock.Unlock()
+		ar.cancel()
+	})
 }
 
 // Manager returns a new cluster manager.

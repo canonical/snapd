@@ -69,6 +69,6 @@ func (x *cmdClusterInstall) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Added %q to uncommitted cluster state.\n"), x.Positional.Snap)
+	fmt.Fprintf(Stdout, i18n.G("Marked %q as clustered in uncommitted cluster state.\n"), x.Positional.Snap)
 	return nil
 }

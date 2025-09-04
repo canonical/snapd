@@ -87,6 +87,7 @@ type UncommittedClusterState struct {
 	Devices     []ClusterDevice     `json:"devices"`
 	Subclusters []ClusterSubcluster `json:"subclusters"`
 	CompletedAt time.Time           `json:"completed-at"`
+	Sequence    int                 `json:"sequence"`
 }
 
 type ClusterDevice struct {
@@ -203,10 +204,9 @@ func CommitClusterAssertion(st *state.State, clusterID string) error {
 	// verify the cluster assertion exists in the database
 	db := assertstate.DB(st)
 
-	as, err := db.Find(asserts.ClusterType, map[string]string{
+	as, err := db.FindSequence(asserts.ClusterType, map[string]string{
 		"cluster-id": clusterID,
-		"sequence":   "1", // TODO: handle sequences properly
-	})
+	}, -1, asserts.ClusterType.MaxSupportedFormat())
 	if err != nil {
 		return fmt.Errorf("cannot find cluster assertion: %v", err)
 	}
@@ -214,20 +214,11 @@ func CommitClusterAssertion(st *state.State, clusterID string) error {
 	buf := bytes.NewBuffer(nil)
 	enc := asserts.NewEncoder(buf)
 
-	// encode the cluster assertion itself
-	if err := enc.Encode(as); err != nil {
-		return err
-	}
+	f := asserts.NewFetcher(db, func(r *asserts.Ref) (asserts.Assertion, error) {
+		return r.Resolve(db.Find)
+	}, enc.Encode)
 
-	// fetch and encode the account-key assertion
-	ak, err := db.Find(asserts.AccountKeyType, map[string]string{
-		"public-key-sha3-384": as.SignKeyID(),
-	})
-	if err != nil {
-		return fmt.Errorf("cannot find account-key for signing key: %v", err)
-	}
-
-	if err := enc.Encode(ak); err != nil {
+	if err := f.Save(as); err != nil {
 		return err
 	}
 
@@ -268,8 +259,8 @@ func CommitClusterAssertion(st *state.State, clusterID string) error {
 		}
 	}
 
-	// clear the uncommitted state
-	st.Set("uncommitted-cluster-state", nil)
+	uncommitted.Sequence = as.Sequence()
+	UpdateUncommittedClusterState(st, uncommitted)
 
 	st.EnsureBefore(0)
 

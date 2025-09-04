@@ -34,7 +34,6 @@ type cmdClusterAssemble struct {
 	Secret       string `long:"secret" required:"yes"`
 	Address      string `long:"address" required:"yes"`
 	ExpectedSize int    `long:"expected-size"`
-	Domain       string `long:"domain"`
 	Period       string `long:"period"`
 }
 
@@ -55,7 +54,6 @@ The address should be accessible by other devices on the network.
 Examples:
   snap cluster assemble --secret=my-cluster-secret --address=192.168.1.100:8080
   snap cluster assemble --secret=my-cluster-secret --address=192.168.1.100:8080 --expected-size=3
-  snap cluster assemble --secret=my-cluster-secret --address=192.168.1.100:8080 --domain=mycompany.local
 `)
 
 func init() {
@@ -68,8 +66,6 @@ func init() {
 		"address": i18n.G("IP:port address to bind for cluster assembly"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"expected-size": i18n.G("Expected number of devices in cluster (0 for indefinite)"),
-		// TRANSLATORS: This should not start with a lowercase letter.
-		"domain": i18n.G("Domain used with mDNS device discovery (default: local)"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"period": i18n.G("Route publication period (e.g., '10s', '1m', '500ms'; default: 5s)"),
 	}), nil)
@@ -93,7 +89,6 @@ func (x *cmdClusterAssemble) Execute(args []string) error {
 		Secret:       x.Secret,
 		Address:      x.Address,
 		ExpectedSize: x.ExpectedSize,
-		Domain:       x.Domain,
 		Period:       period,
 	}
 

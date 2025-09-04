@@ -106,6 +106,7 @@ type UncommittedClusterState struct {
 	Subclusters []ClusterSubcluster `json:"subclusters"`
 	// CompletedAt records when the assembly process completed
 	CompletedAt time.Time `json:"completed-at"`
+	Sequence    int       `json:"sequence"`
 }
 
 // GetClusterUncommittedState retrieves the uncommitted cluster state.
@@ -160,17 +161,24 @@ func (client *Client) ClusterInstall(snapName string) error {
 	}
 
 	// check if snap already exists in the default subcluster
-	for _, snap := range sc.Snaps {
+	found := false
+	for i, snap := range sc.Snaps {
 		if snap.Instance == snapName {
-			return nil // snap already in cluster state
+			// change existing snap's state to clustered
+			sc.Snaps[i].State = "clustered"
+			found = true
+			break
 		}
 	}
 
-	sc.Snaps = append(sc.Snaps, ClusterSnap{
-		State:    "clustered",
-		Instance: snapName,
-		Channel:  "stable",
-	})
+	// if snap doesn't exist, add it as clustered
+	if !found {
+		sc.Snaps = append(sc.Snaps, ClusterSnap{
+			State:    "clustered",
+			Instance: snapName,
+			Channel:  "stable",
+		})
+	}
 
 	// send the updated state back
 	var body bytes.Buffer

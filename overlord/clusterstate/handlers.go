@@ -20,26 +20,20 @@
 package clusterstate
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net"
-	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cluster/assemblestate"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 )
 
@@ -104,7 +98,12 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 	// maybe be passed into the task?
 
 	ctx := tomb.Context(context.Background())
-	devices, routes, err := assemble(ctx, t, setup)
+
+	if err := m.receiver.start(st, setup.IP); err != nil {
+		return err
+	}
+
+	devices, routes, err := assemble(ctx, &m.receiver, t, setup)
 	if err != nil {
 		return err
 	}
@@ -139,6 +138,7 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 			},
 		},
 		CompletedAt: time.Now(),
+		Sequence:    0,
 	}
 
 	st.Set("uncommitted-cluster-state", uncommitted)
@@ -156,6 +156,7 @@ func (m *ClusterManager) doAssembleCluster(t *state.Task, tomb *tomb.Tomb) error
 
 func assemble(
 	ctx context.Context,
+	ar *AssertionReceiver,
 	t *state.Task,
 	setup assembleClusterSetup,
 ) ([]assemblestate.ClusterDevice, assemblestate.Routes, error) {
@@ -194,11 +195,7 @@ func assemble(
 		Signer:       signer,
 	}
 
-	meter := progress.Meter(progress.Null)
-	if config.ExpectedSize > 0 {
-		meter = snapstate.NewTaskProgressAdapterUnlocked(t)
-	}
-
+	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
 	selector := func(
 		self assemblestate.DeviceToken,
 		identified func(assemblestate.DeviceToken) bool,
@@ -262,32 +259,9 @@ func assemble(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// start up our "distributed database". this server is scoped to this task
-	stopped := make(chan struct{})
-	defer func() { <-stopped }()
-	go func() {
-		srv := &http.Server{
-			Addr: fmt.Sprintf("%s:%d", setup.IP, 7070),
-		}
-		srv.Handler = receiver(st, srv)
-
-		// if the whole context gets cancelled, then shut this thing down. that
-		// will allow the task handler to return, regardless of if we actually
-		// received the assertion or not.
-		go func() {
-			<-ctx.Done()
-			srv.Shutdown(context.Background())
-		}()
-
-		_ = srv.ListenAndServe()
-
-		// if the server shutdown, that means that either we got in an assertion
-		// or something is cancelling our task (meaning we are going to send our
-		// assertion).
-		cancel()
-
-		defer close(stopped)
-	}()
+	// when cancel is called by our server, then all the other handlers will
+	// exit
+	ar.set(cancel)
 
 	discoveries, stop, err := assemblestate.MulticastDiscovery(
 		ctx,
@@ -331,96 +305,5 @@ func assemble(
 		time.Since(start).Truncate(time.Second), stats.Sent, stats.Tx, stats.Received, stats.Rx,
 	))
 
-	// once the call to Run has returned, we should shutdown the http server.
-	cancel()
-
 	return devices, routes, nil
-}
-
-func receiver(st *state.State, srv *http.Server) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		batch := asserts.NewBatch(nil)
-		refs, err := batch.AddStream(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-
-		// validate that we only have cluster and account-key assertions
-		var cluster *asserts.Ref
-		for _, r := range refs {
-			switch r.Type.Name {
-			case asserts.ClusterType.Name:
-				cluster = r
-			case asserts.AccountKeyType.Name:
-			default:
-				// reject any other assertion types
-				http.Error(w, fmt.Sprintf("unexpected assertion type %q in bundle, only cluster and account-key assertions are allowed", r.Type.Name), 400)
-				return
-			}
-		}
-
-		if cluster == nil {
-			http.Error(w, "missing cluster assertion in bundle!", 400)
-			return
-		}
-
-		st.Lock()
-		defer st.Unlock()
-
-		db := assertstate.DB(st)
-		if err := assertstate.AddBatch(st, batch, &asserts.CommitOptions{
-			Precheck: true,
-		}); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-
-		// save our assertion to our "distributed database"
-		if err := os.MkdirAll("/tmp/snapd-clusterdb", 0755); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-
-		f, err := os.Create("/tmp/snapd-clusterdb/cluster.assert")
-		if err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		defer f.Close()
-
-		buf := bytes.NewBuffer(nil)
-		enc := asserts.NewEncoder(buf)
-		for _, r := range refs {
-			a, err := r.Resolve(db.Find)
-			if err != nil {
-				http.Error(w, err.Error(), 400)
-				return
-			}
-
-			if err := enc.Encode(a); err != nil {
-				http.Error(w, err.Error(), 400)
-				return
-			}
-		}
-
-		if err := osutil.AtomicWriteFile("/tmp/snapd-clusterdb/cluster.assert", buf.Bytes(), 0644, 0); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-
-		// since we got the assertion, we know that we don't need this state any
-		// more
-		st.Set("uncommitted-cluster-state", nil)
-
-		st.EnsureBefore(0)
-
-		// wait for the response to be done
-		if flusher, ok := w.(http.Flusher); ok {
-			flusher.Flush()
-		}
-
-		// shutdown the server
-		go srv.Shutdown(context.Background())
-	})
 }
