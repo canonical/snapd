@@ -250,6 +250,33 @@ func TestList_FirstToLast(t *testing.T) {
 			t.Errorf("Unexpected number of iterations: %d", n)
 		}
 	})
+
+	t.Run("calling-unlink", func(t *testing.T) {
+		var l lists.List[Room, viaLeftRight]
+		var r1, r2, r3 Room
+
+		l.Append(&r1)
+		l.Append(&r2)
+		l.Append(&r3)
+
+		l.FirstToLast()(func(r *Room) bool {
+			r.leftRight.Unlink()
+			return true
+		})
+
+		if l.Len() != 0 {
+			t.Error("Unlinked list is not empty")
+		}
+		if !r1.leftRight.Unlinked() {
+			t.Error("Node of r1 is not unlinked")
+		}
+		if !r2.leftRight.Unlinked() {
+			t.Error("Node of r1 is not unlinked")
+		}
+		if !r3.leftRight.Unlinked() {
+			t.Error("Node of r1 is not unlinked")
+		}
+	})
 }
 
 func Test_LastToFirst(t *testing.T) {
@@ -324,6 +351,33 @@ func Test_LastToFirst(t *testing.T) {
 		})
 		if n != 3 {
 			t.Errorf("Unexpected number of iterations: %d", n)
+		}
+	})
+
+	t.Run("calling-unlink", func(t *testing.T) {
+		var l lists.List[Room, viaLeftRight]
+		var r1, r2, r3 Room
+
+		l.Append(&r1)
+		l.Append(&r2)
+		l.Append(&r3)
+
+		l.LastToFirst()(func(r *Room) bool {
+			r.leftRight.Unlink()
+			return true
+		})
+
+		if l.Len() != 0 {
+			t.Error("Unlinked list is not empty")
+		}
+		if !r1.leftRight.Unlinked() {
+			t.Error("Node of r1 is not unlinked")
+		}
+		if !r2.leftRight.Unlinked() {
+			t.Error("Node of r1 is not unlinked")
+		}
+		if !r3.leftRight.Unlinked() {
+			t.Error("Node of r1 is not unlinked")
 		}
 	})
 }

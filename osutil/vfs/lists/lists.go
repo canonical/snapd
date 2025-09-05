@@ -125,11 +125,16 @@ func (l *List[T, O]) Prepend(v *T) {
 }
 
 // FirstToLast returns an iterator over elements of the list from first to last.
+//
+// It is safe to call [Node.Unlink] on the node that participates in the list.
+// Iteration always advances through the original chain of nodes.
 func (l *List[T, O]) FirstToLast() Seq[*T] {
 	var o O
 	off := o.Offset(nil)
 	return func(yield func(*T) bool) {
-		for n := l.head.next; n != nil && n != &l.head; n = n.next {
+		var next *Node[T]
+		for n := l.head.next; n != nil && n != &l.head; n = next {
+			next = n.next
 			if !yield(containerPtr(n, off)) {
 				return
 			}
@@ -138,11 +143,16 @@ func (l *List[T, O]) FirstToLast() Seq[*T] {
 }
 
 // LastToFirst returns an iterator over elements of the list from last to first.
+//
+// It is safe to call [Node.Unlink] on the node that participates in the list.
+// Iteration always advances through the original chain of nodes.
 func (l *List[T, O]) LastToFirst() Seq[*T] {
 	var o O
 	off := o.Offset(nil)
 	return func(yield func(*T) bool) {
-		for n := l.head.prev; n != nil && n != &l.head; n = n.prev {
+		var prev *Node[T]
+		for n := l.head.prev; n != nil && n != &l.head; n = prev {
+			prev = n.prev
 			if !yield(containerPtr(n, off)) {
 				return
 			}
