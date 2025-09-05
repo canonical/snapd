@@ -63,6 +63,11 @@ func BuildFakeProbe(values map[string]string) *FakeBlkidProbe {
 	return &FakeBlkidProbe{values, &FakeBlkidPartlist{}}
 }
 
+func (p *FakeBlkidProbe) AddEmptyPartitionProbe(start int64) *FakeBlkidProbe {
+	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{"", "", start})
+	return BuildFakeProbe(make(map[string]string))
+}
+
 func (p *FakeBlkidProbe) AddPartitionProbe(name, uuid string, start int64) *FakeBlkidProbe {
 	p.partlist.partitions = append(p.partlist.partitions, &FakeBlkidPartition{name, uuid, start})
 
