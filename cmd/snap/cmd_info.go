@@ -482,6 +482,10 @@ func (iw *infoWriter) maybePrintNotes() {
 	}
 	fmt.Fprintln(iw, "notes:\t")
 	fmt.Fprintf(iw, "  private:\t%t\n", iw.theSnap.Private)
+	if iw.theSnap.Grade != "" {
+		fmt.Fprintf(iw, "  grade:\t%s\n", iw.theSnap.Grade)
+	}
+
 	fmt.Fprintf(iw, "  confinement:\t%s\n", iw.theSnap.Confinement)
 	if iw.localSnap == nil {
 		return
