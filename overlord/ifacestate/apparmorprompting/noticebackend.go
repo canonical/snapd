@@ -304,16 +304,16 @@ type ntbFilter struct {
 
 // simplifyFilter creates a new simplified filter with only the information
 // relevant to this backend. If no notices can match this backend, returns false.
-func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simplified *ntbFilter, matchPossible bool) {
+func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simplified ntbFilter, matchPossible bool) {
 	if filter == nil {
-		return nil, true
+		return simplified, true
 	}
 	if len(filter.Types) > 0 && !slicesContains(filter.Types, ntb.noticeType) {
-		return nil, false
+		return simplified, false
 	}
 	if !filter.BeforeOrAt.IsZero() && !filter.After.IsZero() && !filter.After.Before(filter.BeforeOrAt) {
 		// No possible timestamp can satisfy both After and BeforeOrAt filters
-		return nil, false
+		return simplified, false
 	}
 	var keys []string
 	if len(filter.Keys) > 0 {
@@ -329,10 +329,10 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 		if len(keys) == 0 {
 			// There were keys specified in the original filter but none were
 			// viable, so it's impossible for notices to match this filter.
-			return nil, false
+			return simplified, false
 		}
 	}
-	simplified = &ntbFilter{
+	simplified = ntbFilter{
 		UserID:     filter.UserID,
 		Keys:       keys,
 		After:      filter.After,
@@ -346,20 +346,20 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 //
 // Assumes that all notices in the slice already apply to the UserID in the
 // filter.
-func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*state.Notice {
+func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*state.Notice {
 	var filteredNotices []*state.Notice
 	// Discard expired notices or those with last repeated timestamp before f.After (if given)
 	for i, notice := range notices {
 		if notice.Expired(now) {
 			continue
 		}
-		if f != nil && !f.After.IsZero() && !notice.LastRepeated().After(f.After) {
+		if !f.After.IsZero() && !notice.LastRepeated().After(f.After) {
 			continue
 		}
 		filteredNotices = notices[i:]
 		break
 	}
-	if len(filteredNotices) == 0 || f == nil {
+	if len(filteredNotices) == 0 {
 		// Never found a non-expired notice matching After filter, or there is
 		// no filter at all and filteredNotices now has all non-expired notices
 		return filteredNotices
@@ -433,8 +433,8 @@ func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*stat
 
 // The caller must hold the backend lock for reading and must not mutate the
 // data within the returned slice.
-func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*state.Notice {
-	if filter != nil && filter.UserID != nil {
+func (ntb *noticeTypeBackend) doNotices(filter ntbFilter, now time.Time) []*state.Notice {
+	if filter.UserID != nil {
 		userNotices, ok := ntb.userNotices[*filter.UserID]
 		if !ok {
 			return nil
@@ -502,7 +502,7 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		return notices, nil
 	}
 
-	if simplifiedFilter != nil && !simplifiedFilter.BeforeOrAt.IsZero() && simplifiedFilter.BeforeOrAt.Before(now) {
+	if !simplifiedFilter.BeforeOrAt.IsZero() && simplifiedFilter.BeforeOrAt.Before(now) {
 		// No new notices can be added with a timestamp before the BeforeOrAt filter
 		return nil, nil
 	}
@@ -541,7 +541,7 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 			return notices, nil
 		}
 
-		if simplifiedFilter != nil && !simplifiedFilter.BeforeOrAt.IsZero() && now.After(simplifiedFilter.BeforeOrAt) {
+		if !simplifiedFilter.BeforeOrAt.IsZero() && now.After(simplifiedFilter.BeforeOrAt) {
 			// Since we just checked with the now timestamp and there were no
 			// matching notices, and any new notices must have a later timestamp
 			// after simplifiedFilter.BeforeOrAt, it's impossible for a new

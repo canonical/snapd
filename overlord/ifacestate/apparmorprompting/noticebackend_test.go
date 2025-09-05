@@ -579,22 +579,22 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 
 	for _, testCase := range []struct {
 		stateFilter   *state.NoticeFilter
-		simpleFilter  *apparmorprompting.NtbFilter
+		simpleFilter  apparmorprompting.NtbFilter
 		matchPossible bool
 	}{
 		{
 			stateFilter:   nil,
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{},
-			simpleFilter:  &apparmorprompting.NtbFilter{},
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
@@ -603,22 +603,22 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 				Types:  []state.NoticeType{state.WarningNotice},
 				Keys:   []string{"0000000000001234"},
 			},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice, state.InterfacesRequestsPromptNotice}},
-			simpleFilter:  &apparmorprompting.NtbFilter{},
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{Keys: []string{"0000000000001234", "0000000000005678"}},
-			simpleFilter:  &apparmorprompting.NtbFilter{Keys: []string{"0000000000001234", "0000000000005678"}},
+			simpleFilter:  apparmorprompting.NtbFilter{Keys: []string{"0000000000001234", "0000000000005678"}},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{Keys: []string{"foo", "bar"}},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
@@ -627,37 +627,37 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 				Types:  []state.NoticeType{state.InterfacesRequestsPromptNotice},
 				Keys:   []string{"foo", "bar"},
 			},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{Keys: []string{"0000000000001234", "foo"}},
-			simpleFilter:  &apparmorprompting.NtbFilter{Keys: []string{"0000000000001234"}},
+			simpleFilter:  apparmorprompting.NtbFilter{Keys: []string{"0000000000001234"}},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{After: sometime},
-			simpleFilter:  &apparmorprompting.NtbFilter{After: sometime},
+			simpleFilter:  apparmorprompting.NtbFilter{After: sometime},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{BeforeOrAt: sometime},
-			simpleFilter:  &apparmorprompting.NtbFilter{BeforeOrAt: sometime},
+			simpleFilter:  apparmorprompting.NtbFilter{BeforeOrAt: sometime},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{After: earlier, BeforeOrAt: later},
-			simpleFilter:  &apparmorprompting.NtbFilter{After: earlier, BeforeOrAt: later},
+			simpleFilter:  apparmorprompting.NtbFilter{After: earlier, BeforeOrAt: later},
 			matchPossible: true,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{After: later, BeforeOrAt: earlier},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
 			stateFilter:   &state.NoticeFilter{After: sometime, BeforeOrAt: sometime},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
@@ -668,7 +668,7 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 				After:      sometime,
 				BeforeOrAt: sometime,
 			},
-			simpleFilter:  nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
 			matchPossible: false,
 		},
 		{
@@ -679,7 +679,7 @@ func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
 				After:      earlier,
 				BeforeOrAt: sometime,
 			},
-			simpleFilter: &apparmorprompting.NtbFilter{
+			simpleFilter: apparmorprompting.NtbFilter{
 				UserID:     &userID,
 				Keys:       []string{"0000000000001234", "0123456789ABCDEF"},
 				After:      earlier,

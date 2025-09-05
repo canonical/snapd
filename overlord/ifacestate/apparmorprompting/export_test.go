@@ -168,7 +168,7 @@ func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data
 
 type NtbFilter = ntbFilter
 
-func (ntb *noticeTypeBackend) SimplifyFilter(filter *state.NoticeFilter) (simplified *ntbFilter, matchPossible bool) {
+func (ntb *noticeTypeBackend) SimplifyFilter(filter *state.NoticeFilter) (simplified ntbFilter, matchPossible bool) {
 	return ntb.simplifyFilter(filter)
 }
 
