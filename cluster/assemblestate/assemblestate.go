@@ -151,9 +151,13 @@ func (as *AssembleState) export() AssembleSession {
 	}
 }
 
+// Peer is a peer that has established trust via proof of the shared secret in
+// an assemble session.
 type Peer struct {
-	RDT  DeviceToken `json:"rdt"`
-	Cert []byte      `json:"cert"`
+	// RDT is the device token that this peer used to identity itself.
+	RDT DeviceToken `json:"rdt"`
+	// Cert is the TLS certificate that this peer used to send its messages.
+	Cert []byte `json:"cert"`
 }
 
 // AssembleConfig contains the configuration parameters required to initialize
