@@ -47,13 +47,24 @@ const xilinxDmaConnectedPlugAppArmor = `
 # If multiple cards are detected, nodes are created under
 /dev/xdma/card[0-9]*/** rw,
 
+# Access to the device nodes created by the Xilinx QDMA driver
+/dev/qdma{,vf}[0-9]*-{MM,ST}-[0-9]* rw,
+
 # View XDMA driver module parameters
 /sys/module/xdma/parameters/* r,
+
+# View QDMA driver module parameters
+/sys/module/qdma/parameters/* r,
+
+# Access to QDMA driver configurations
+/sys/devices/pci*/**/qdma/* rw,
 `
 
 // The xdma subsystem alone should serve as a unique identifier for all relevant devices
 var xilinxDmaConnectedPlugUDev = []string{
 	`SUBSYSTEM=="xdma"`,
+	`SUBSYSTEM=="qdma-pf"`,
+	`SUBSYSTEM=="qdma-vf"`,
 }
 
 func init() {
