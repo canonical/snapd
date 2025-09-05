@@ -1936,10 +1936,6 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            # When snapd.deb is from the repo, we just need to test when re-exec is enabled
-            if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
-                tests.exec skip-test "When snapd.deb is from the repo, we just need to test when re-exec is enabled" && exit 0
-            fi
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
