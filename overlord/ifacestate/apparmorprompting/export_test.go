@@ -20,6 +20,7 @@
 package apparmorprompting
 
 import (
+	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -145,4 +146,25 @@ func (m *InterfacesRequestsManager) PromptDB() *requestprompts.PromptDB {
 
 func (m *InterfacesRequestsManager) RuleDB() *requestrules.RuleDB {
 	return m.rules
+}
+
+var (
+	NewNoticeBackends   = newNoticeBackends
+	RegisterWithManager = (*noticeBackends).registerWithManager
+)
+
+func (nb *noticeBackends) PromptBackend() *noticeTypeBackend {
+	return nb.promptBackend
+}
+
+func (nb *noticeBackends) RuleBackend() *noticeTypeBackend {
+	return nb.ruleBackend
+}
+
+func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data map[string]string) error {
+	return ntb.addNotice(userID, id, data)
+}
+
+func (ntb *noticeTypeBackend) Save() error {
+	return ntb.save()
 }
