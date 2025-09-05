@@ -33,7 +33,8 @@ import (
 )
 
 var (
-	ReadyTimeout = readyTimeout
+	ReadyTimeout   = readyTimeout
+	ReadCgroupPath = readCgroupPath
 )
 
 func ExitOnError() (restore func()) {
@@ -55,14 +56,12 @@ func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVe
 	}
 }
 
-func MockUnixGetpgid(f func(pid int) (pgid int, err error)) (restore func()) {
-	return testutil.Mock(&unixGetpgid, f)
+func MockOsReadFile(f func(name string) ([]byte, error)) (restore func()) {
+	return testutil.Mock(&osReadFile, f)
 }
 
 func MockOsOpen(f func(name string) (*os.File, error)) (restore func()) {
-	restore = testutil.Backup(&osOpen)
-	osOpen = f
-	return restore
+	return testutil.Mock(&osOpen, f)
 }
 
 // Mocks os.Open to instead create a socket, wrap it in a os.File, and return
