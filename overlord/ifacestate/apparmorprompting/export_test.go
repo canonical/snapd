@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/testutil"
@@ -163,6 +164,12 @@ func (nb *noticeBackends) RuleBackend() *noticeTypeBackend {
 
 func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data map[string]string) error {
 	return ntb.addNotice(userID, id, data)
+}
+
+type NtbFilter = ntbFilter
+
+func (ntb *noticeTypeBackend) SimplifyFilter(filter *state.NoticeFilter) (simplified ntbFilter, matchPossible bool) {
+	return ntb.simplifyFilter(filter)
 }
 
 func (ntb *noticeTypeBackend) Save() error {

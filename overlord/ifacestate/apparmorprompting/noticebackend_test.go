@@ -20,8 +20,10 @@
 package apparmorprompting_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -564,6 +566,287 @@ func (s *noticebackendSuite) TestLoadAllExpired(c *C) {
 	c.Check(finalNotices[0].Key(), Equals, "0000000000000005")
 }
 
+func (s *noticebackendSuite) TestSimplifyFilter(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	promptBackend := noticeBackend.PromptBackend()
+
+	userID := uint32(1234)
+
+	sometime := time.Now()
+	earlier := sometime.Add(-time.Second)
+	later := sometime.Add(time.Second)
+
+	for _, testCase := range []struct {
+		stateFilter   *state.NoticeFilter
+		simpleFilter  apparmorprompting.NtbFilter
+		matchPossible bool
+	}{
+		{
+			stateFilter:   nil,
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter: &state.NoticeFilter{
+				UserID: &userID,
+				Types:  []state.NoticeType{state.WarningNotice},
+				Keys:   []string{"0000000000001234"},
+			},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice, state.InterfacesRequestsPromptNotice}},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{Keys: []string{"0000000000001234", "0000000000005678"}},
+			simpleFilter:  apparmorprompting.NtbFilter{Keys: []string{"0000000000001234", "0000000000005678"}},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{Keys: []string{"foo", "bar"}},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter: &state.NoticeFilter{
+				UserID: &userID,
+				Types:  []state.NoticeType{state.InterfacesRequestsPromptNotice},
+				Keys:   []string{"foo", "bar"},
+			},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{Keys: []string{"0000000000001234", "foo"}},
+			simpleFilter:  apparmorprompting.NtbFilter{Keys: []string{"0000000000001234"}},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{After: sometime},
+			simpleFilter:  apparmorprompting.NtbFilter{After: sometime},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{BeforeOrAt: sometime},
+			simpleFilter:  apparmorprompting.NtbFilter{BeforeOrAt: sometime},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{After: earlier, BeforeOrAt: later},
+			simpleFilter:  apparmorprompting.NtbFilter{After: earlier, BeforeOrAt: later},
+			matchPossible: true,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{After: later, BeforeOrAt: earlier},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter:   &state.NoticeFilter{After: sometime, BeforeOrAt: sometime},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter: &state.NoticeFilter{
+				UserID:     &userID,
+				Types:      []state.NoticeType{state.InterfacesRequestsPromptNotice},
+				Keys:       []string{"0000000012345678"},
+				After:      sometime,
+				BeforeOrAt: sometime,
+			},
+			simpleFilter:  apparmorprompting.NtbFilter{},
+			matchPossible: false,
+		},
+		{
+			stateFilter: &state.NoticeFilter{
+				UserID:     &userID,
+				Types:      []state.NoticeType{state.WarningNotice, state.InterfacesRequestsPromptNotice, state.InterfacesRequestsRuleUpdateNotice},
+				Keys:       []string{"foo", "0000000000001234", "bar", "0123456789ABCDEF", "baz"},
+				After:      earlier,
+				BeforeOrAt: sometime,
+			},
+			simpleFilter: apparmorprompting.NtbFilter{
+				UserID:     &userID,
+				Keys:       []string{"0000000000001234", "0123456789ABCDEF"},
+				After:      earlier,
+				BeforeOrAt: sometime,
+			},
+			matchPossible: true,
+		},
+	} {
+		simplified, matchPossible := promptBackend.SimplifyFilter(testCase.stateFilter)
+		c.Check(simplified, DeepEquals, testCase.simpleFilter, Commentf("testCase: %+v", testCase))
+		c.Check(matchPossible, Equals, testCase.matchPossible, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *noticebackendSuite) TestBackendNotices(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	promptBackend := noticeBackend.PromptBackend()
+
+	userID1 := uint32(1000)
+	userID2 := uint32(1234)
+	userID3 := uint32(11235)
+
+	// Prepare the backend with some notices
+	promptBackend.AddNotice(userID1, 0, nil) // expire this notice
+	promptBackend.AddNotice(userID1, 1, nil)
+	promptBackend.AddNotice(userID1, 5, nil) // record 5, then re-record later
+	promptBackend.AddNotice(userID2, 2, nil)
+	promptBackend.AddNotice(userID2, 3, nil)
+	promptBackend.AddNotice(userID1, 4, nil)
+	promptBackend.AddNotice(userID1, 5, nil)
+
+	// Expire notice with ID 0
+	toExpire := promptBackend.BackendNotice("prompt-0000000000000000")
+	c.Assert(toExpire, NotNil)
+	toExpire.Reoccur(toExpire.LastRepeated().Add(-1000*time.Hour), nil, 0)
+
+	allNotices := promptBackend.BackendNotices(nil)
+	c.Assert(allNotices, HasLen, 5)
+
+	for i, testCase := range []struct {
+		filter      *state.NoticeFilter
+		expectedIDs []prompting.IDType
+	}{
+		{
+			filter:      nil,
+			expectedIDs: []prompting.IDType{1, 2, 3, 4, 5},
+		},
+		{
+			filter:      &state.NoticeFilter{},
+			expectedIDs: []prompting.IDType{1, 2, 3, 4, 5},
+		},
+		{
+			filter:      &state.NoticeFilter{UserID: &userID1},
+			expectedIDs: []prompting.IDType{1, 4, 5},
+		},
+		{
+			filter:      &state.NoticeFilter{UserID: &userID2},
+			expectedIDs: []prompting.IDType{2, 3},
+		},
+		{
+			filter:      &state.NoticeFilter{UserID: &userID3},
+			expectedIDs: nil,
+		},
+		{
+			filter:      &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsPromptNotice}},
+			expectedIDs: []prompting.IDType{1, 2, 3, 4, 5},
+		},
+		{
+			filter:      &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice}},
+			expectedIDs: nil,
+		},
+		{
+			filter: &state.NoticeFilter{
+				UserID: &userID1,
+				Types:  []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice},
+				Keys:   []string{"0000000000000001", "0000000000000004"},
+			},
+			expectedIDs: nil,
+		},
+		{
+			filter:      &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice, state.InterfacesRequestsPromptNotice, state.WarningNotice}},
+			expectedIDs: []prompting.IDType{1, 2, 3, 4, 5},
+		},
+		{
+			filter:      &state.NoticeFilter{Keys: []string{"0000000000000003", "0000000000000004", "0000000000000002"}},
+			expectedIDs: []prompting.IDType{2, 3, 4},
+		},
+		{
+			filter:      &state.NoticeFilter{Keys: []string{"foo", "0000000000000001", "bar", "0000000000000003", "baz"}},
+			expectedIDs: []prompting.IDType{1, 3},
+		},
+		{
+			filter:      &state.NoticeFilter{Keys: []string{"foo", "bar", "baz"}},
+			expectedIDs: nil,
+		},
+		{
+			filter: &state.NoticeFilter{
+				UserID: &userID2,
+				Types:  []state.NoticeType{state.InterfacesRequestsPromptNotice},
+				Keys:   []string{"foo", "bar", "baz"},
+			},
+			expectedIDs: nil,
+		},
+		{
+			filter:      &state.NoticeFilter{After: allNotices[1].LastRepeated()},
+			expectedIDs: []prompting.IDType{3, 4, 5},
+		},
+		{
+			filter:      &state.NoticeFilter{After: allNotices[4].LastRepeated()},
+			expectedIDs: nil,
+		},
+		{
+			filter:      &state.NoticeFilter{BeforeOrAt: allNotices[1].LastRepeated()},
+			expectedIDs: []prompting.IDType{1, 2},
+		},
+		{
+			filter:      &state.NoticeFilter{BeforeOrAt: allNotices[0].LastRepeated()},
+			expectedIDs: []prompting.IDType{1},
+		},
+		{
+			filter:      &state.NoticeFilter{BeforeOrAt: allNotices[0].LastRepeated().Add(-time.Nanosecond)},
+			expectedIDs: nil,
+		},
+		{
+			filter: &state.NoticeFilter{
+				After:      allNotices[1].LastRepeated(),
+				BeforeOrAt: allNotices[1].LastRepeated(),
+			},
+			expectedIDs: nil,
+		},
+		{
+			filter: &state.NoticeFilter{
+				UserID:     &userID1,
+				Types:      []state.NoticeType{state.InterfacesRequestsPromptNotice},
+				Keys:       []string{"0000000000000001", "0000000000000002", "0000000000000003", "0000000000000004", "0000000000000005"},
+				After:      allNotices[1].LastRepeated(),
+				BeforeOrAt: allNotices[1].LastRepeated(),
+			},
+			expectedIDs: nil,
+		},
+		{
+			filter: &state.NoticeFilter{
+				After:      allNotices[0].LastRepeated(),
+				BeforeOrAt: allNotices[3].LastRepeated(),
+			},
+			expectedIDs: []prompting.IDType{2, 3, 4},
+		},
+		{
+			filter: &state.NoticeFilter{
+				UserID:     &userID2,
+				Types:      []state.NoticeType{state.InterfacesRequestsPromptNotice},
+				Keys:       []string{"0000000000000003", "0000000000000004"},
+				After:      allNotices[0].LastRepeated(),
+				BeforeOrAt: allNotices[3].LastRepeated(),
+			},
+			expectedIDs: []prompting.IDType{3},
+		},
+	} {
+		notices := promptBackend.BackendNotices(testCase.filter)
+		c.Check(notices, HasLen, len(testCase.expectedIDs), Commentf("testCase %d: %+v", i, testCase))
+		for j, n := range notices {
+			c.Check(n.Key(), Equals, testCase.expectedIDs[j].String())
+		}
+	}
+}
+
 func (s *noticebackendSuite) TestBackendNotice(c *C) {
 	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -605,4 +888,238 @@ func (s *noticebackendSuite) TestBackendNotice(c *C) {
 	c.Assert(notice, IsNil)
 	notice = ruleBackend.BackendNotice("foo")
 	c.Assert(notice, IsNil)
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesImpossible(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	promptBackend := noticeBackend.PromptBackend()
+
+	// Filter for rule notices but query prompt notice backend, so impossible
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	filter := &state.NoticeFilter{Types: []state.NoticeType{state.InterfacesRequestsRuleUpdateNotice}}
+	notices, err := promptBackend.BackendWaitNotices(ctx, filter)
+	c.Check(err, IsNil)
+	c.Check(notices, HasLen, 0)
+
+	// Add some prompt notices
+	c.Check(promptBackend.AddNotice(1000, 1, nil), IsNil)
+	c.Check(promptBackend.AddNotice(1000, 2, nil), IsNil)
+
+	// Query for other type still returns immediately
+	notices, err = promptBackend.BackendWaitNotices(ctx, filter)
+	c.Check(err, IsNil)
+	c.Check(notices, HasLen, 0)
+
+	// Query for impossible keys returns immediately too
+	filter = &state.NoticeFilter{Keys: []string{"foo", "bar"}}
+	notices, err = promptBackend.BackendWaitNotices(ctx, filter)
+	c.Check(err, IsNil)
+	c.Check(notices, HasLen, 0)
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesExisting(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	promptBackend := noticeBackend.PromptBackend()
+
+	c.Check(promptBackend.AddNotice(1000, 1, nil), IsNil)
+	c.Check(promptBackend.AddNotice(1234, 2, nil), IsNil)
+	c.Check(promptBackend.AddNotice(11235, 3, nil), IsNil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	userID := uint32(1234)
+	filter := &state.NoticeFilter{UserID: &userID}
+	notices, err := promptBackend.BackendWaitNotices(ctx, filter)
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Key(), Equals, prompting.IDType(2).String())
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesNew(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	ruleBackend := noticeBackend.RuleBackend()
+
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		ruleBackend.AddNotice(1000, 0x42, nil)
+		ruleBackend.AddNotice(1000, 0x36, nil)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	filter := &state.NoticeFilter{Keys: []string{"0000000000000036"}}
+	notices, err := ruleBackend.BackendWaitNotices(ctx, filter)
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 1)
+	uid, ok := notices[0].UserID()
+	c.Check(ok, Equals, true)
+	c.Check(uid, Equals, uint32(1000))
+	c.Check(notices[0].Type(), Equals, state.InterfacesRequestsRuleUpdateNotice)
+	c.Check(notices[0].Key(), Equals, prompting.IDType(0x36).String())
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesTimeout(c *C) {
+	s.doTestBackendWaitNoticesTimeout(c, time.Millisecond)
+}
+
+func (s *noticebackendSuite) doTestBackendWaitNoticesTimeout(c *C, timeout time.Duration) {
+	noticeMgr := notices.NewNoticeManager(s.st)
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(noticeMgr)
+	c.Assert(err, IsNil)
+	promptBackend := noticeBackend.PromptBackend()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	notices, err := promptBackend.BackendWaitNotices(ctx, nil)
+	c.Assert(err, ErrorMatches, "context deadline exceeded")
+	c.Assert(notices, HasLen, 0)
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesTimeoutDeadlock(c *C) {
+	// If the context AfterFunc goroutine calls Broadcast before the call to
+	// Wait, then there is a deadlock. This depends on the scheduler, so try
+	// 10000 times with a context timeout of 1ns to try to get it to occur.
+	// Repeating 10000 times should reliably cause deadlock if there's a bug.
+	for i := 0; i < 10000; i++ {
+		s.doTestBackendWaitNoticesTimeout(c, time.Nanosecond)
+	}
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesLongPoll(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	ruleBackend := noticeBackend.RuleBackend()
+
+	go func() {
+		for i := 0; i < 10; i++ {
+			ruleBackend.AddNotice(1000, prompting.IDType(i), nil)
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	var after time.Time
+	for total := 0; total < 10; {
+		notices, err := ruleBackend.BackendWaitNotices(ctx, &state.NoticeFilter{After: after})
+		c.Assert(err, IsNil)
+		c.Assert(notices, Not(HasLen), 0)
+		total += len(notices)
+		after = notices[len(notices)-1].LastRepeated()
+	}
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesBeforeOrAtFilter(c *C) {
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	promptBackend := noticeBackend.PromptBackend()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// If we ask for notices before now and there are currently no notices
+	// matching the filter, return immediately.
+	notices, err := promptBackend.BackendWaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now()})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 0)
+
+	// If we ask for notices before now and there are notices matching the
+	// filter, return them immediately.
+	c.Assert(promptBackend.AddNotice(1234, 0x42, nil), IsNil)
+	c.Assert(promptBackend.AddNotice(1234, 0x36, nil), IsNil)
+	notices, err = promptBackend.BackendWaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now()})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 2)
+	c.Check(notices[0].Key(), Equals, prompting.IDType(0x42).String())
+	c.Check(notices[1].Key(), Equals, prompting.IDType(0x36).String())
+
+	// If we ask for notices before a time in the past and there are no notices
+	// matching the filter, return immediately.
+	notices, err = promptBackend.BackendWaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now().Add(-time.Second)})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 0)
+
+	// If we ask for notices before a time in the future, and then a matching
+	// notice occurs, it will be returned.
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		promptBackend.AddNotice(1000, 7, nil)
+		time.Sleep(10 * time.Millisecond)
+		promptBackend.AddNotice(1000, 5, nil)
+	}()
+	notices, err = promptBackend.BackendWaitNotices(ctx, &state.NoticeFilter{
+		BeforeOrAt: time.Now().Add(time.Second),
+		Keys:       []string{prompting.IDType(5).String()},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Key(), Equals, "0000000000000005")
+
+	// If we ask for notices before a time in the future and that time in the
+	// future passes, with some non-matching notice waking the waiter, then
+	// return immediately.
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				// create another notice
+			}
+			c.Assert(promptBackend.AddNotice(1000, 1123, nil), IsNil)
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	notices, err = promptBackend.BackendWaitNotices(ctx, &state.NoticeFilter{
+		BeforeOrAt: time.Now().Add(10 * time.Millisecond),
+		Keys:       []string{prompting.IDType(5813).String()},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(notices, HasLen, 0)
+}
+
+func (s *noticebackendSuite) TestBackendWaitNoticesConcurrent(c *C) {
+	const numWaiters = 100
+
+	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
+	c.Assert(err, IsNil)
+	ruleBackend := noticeBackend.RuleBackend()
+
+	var wg sync.WaitGroup
+	for i := 0; i < numWaiters; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			key := prompting.IDType(i).String()
+			notices, err := ruleBackend.BackendWaitNotices(ctx, &state.NoticeFilter{Keys: []string{key}})
+			c.Assert(err, IsNil)
+			c.Assert(notices, HasLen, 1)
+			c.Check(notices[0].Key(), Equals, key)
+		}(i)
+	}
+
+	for i := 0; i < numWaiters; i++ {
+		c.Assert(ruleBackend.AddNotice(1000, prompting.IDType(i), nil), IsNil)
+		time.Sleep(time.Millisecond)
+	}
+
+	// Wait for WaitNotices goroutines to finish
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-time.After(time.Second):
+		c.Fatalf("timed out waiting for BackendWaitNotices goroutines to finish")
+	case <-done:
+	}
 }
