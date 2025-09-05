@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 )
 
@@ -78,6 +79,37 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	}
 
 	return nil
+}
+
+// ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
+var ErrNoIntegrityDataFoundInRevision = errors.New("no integrity data found in revision")
+
+// NewIntegrityDataParamsFromRevision will parse a revision for integrity data and return them as
+// a new IntegrityDataParams object.
+//
+// An ErrNoIntegrityDataFoundInRevision error will be returned if there is no integrity data in the revision.
+func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDataParams, error) {
+	snapIntegrityData := rev.SnapIntegrityData()
+
+	if len(snapIntegrityData) == 0 {
+		return nil, ErrNoIntegrityDataFoundInRevision
+	}
+
+	// XXX: The first item in the snap-revision integrity data list is selected.
+	// In future versions, extra logic will be required here to decide which integrity data
+	// should be used based on extra information (i.e from the model).
+	sid := snapIntegrityData[0]
+
+	return &IntegrityDataParams{
+		Type:          sid.Type,
+		Version:       sid.Version,
+		HashAlg:       sid.HashAlg,
+		DataBlockSize: uint64(sid.DataBlockSize),
+		HashBlockSize: uint64(sid.HashBlockSize),
+		Digest:        sid.Digest,
+		Salt:          sid.Salt,
+		DataBlocks:    rev.SnapSize() / uint64(sid.DataBlockSize),
+	}, nil
 }
 
 // ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
