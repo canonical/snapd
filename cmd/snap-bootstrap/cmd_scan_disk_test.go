@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/logger"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
 	"github.com/snapcore/snapd/dirs"
@@ -37,6 +38,8 @@ import (
 
 type scanDiskSuite struct {
 	testutil.BaseTest
+
+	logs *bytes.Buffer
 
 	diskProbeMap map[string]*blkid.FakeBlkidProbe
 	partProbeMap map[int64]*blkid.FakeBlkidProbe
@@ -48,6 +51,10 @@ var _ = Suite(&scanDiskSuite{})
 
 func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	buf, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+	s.logs = buf
 
 	dirs.SetRootDir(c.MkDir())
 
@@ -220,6 +227,62 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMBR(c *C) {
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
 	c.Assert(len(lines), Equals, 1)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRWithOnePartitionWithoutFilesystem(c *C) {
+	main.MockPartitionUUIDForBootedKernelDisk("")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	// default is setup to be PTTYPE=gpt, remake as MBR
+	disk_values := make(map[string]string)
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	s.partProbeMap[0] = disk_probe.AddEmptyPartitionProbe(0)
+	s.partProbeMap[1] = disk_probe.AddPartitionProbe("ubuntu-seed", "6ae5a792-912e-43c9-ac92-e36723bbda12", 1)
+	s.partProbeMap[2] = disk_probe.AddPartitionProbe("ubuntu-boot", "29261148-b8ba-4335-b934-417ed71e9e91", 2)
+	delete(s.partProbeMap, 3)
+	s.diskProbeMap["/dev/foo"] = disk_probe
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, true)
+	c.Assert(len(lines), Equals, 1)
+	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on non-GPT partition: Probe value was not found: LABEL")
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRNoPartitions(c *C) {
+	main.MockPartitionUUIDForBootedKernelDisk("")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	// default is setup to be PTTYPE=gpt, remake as MBR
+	disk_values := make(map[string]string)
+	disk_probe := blkid.BuildFakeProbe(disk_values)
+	// Replace with empty partition probe that has no values to probe
+	// for, specifically for the MBR case where we probe the filesystem
+	// on each partition to find the LABEL.
+	s.partProbeMap[0] = disk_probe.AddEmptyPartitionProbe(0)
+	delete(s.partProbeMap, 1)
+	delete(s.partProbeMap, 2)
+	delete(s.partProbeMap, 3)
+	s.diskProbeMap["/dev/foo"] = disk_probe
+
+	// This should not fail, but also not find a boot disk
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, false)
+	c.Assert(len(lines), Equals, 0)
+	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on non-GPT partition: Probe value was not found: LABEL")
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {
