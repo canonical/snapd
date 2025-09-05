@@ -83,7 +83,7 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 		},
 	})
 	// File not removed
-	c.Assert(osutil.FileExists(compPath), Equals, true)
+	c.Assert(osutil.CanStat(compPath), Equals, true)
 }
 
 func (s *mountCompSnapSuite) TestDoMountComponentFailsUnassertedComponentAssertedSnap(c *C) {

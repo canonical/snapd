@@ -437,7 +437,7 @@ apps:
 
 	// Check that system key is not on disk.
 	c.Check(log.String(), Matches, `.*cannot regenerate BROKEN profiles\n.*FAILED.*\n`)
-	c.Check(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	c.Check(osutil.CanStat(dirs.SnapSystemKeyFile), Equals, false)
 }
 
 func mockSnaps(c *C, st *state.State) {

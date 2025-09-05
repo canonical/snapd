@@ -140,7 +140,7 @@ func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo, decorator StatusDecora
 			Name:     app.Name,
 			CommonID: app.CommonID,
 		}
-		if fn := app.DesktopFile(); osutil.FileExists(fn) {
+		if fn := app.DesktopFile(); osutil.CanStat(fn) {
 			appInfo.DesktopFile = fn
 		}
 

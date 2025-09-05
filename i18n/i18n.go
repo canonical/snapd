@@ -63,12 +63,12 @@ func langpackResolver(baseRoot string, locale string, domain string) string {
 			// ubuntu uses /usr/lib/locale-langpack and patches the glibc gettext
 			// implementation
 			langpack := filepath.Join(root, "..", "locale-langpack", r)
-			if osutil.FileExists(langpack) {
+			if osutil.CanStat(langpack) {
 				return langpack
 			}
 
 			regular := filepath.Join(root, r)
-			if osutil.FileExists(regular) {
+			if osutil.CanStat(regular) {
 				return regular
 			}
 		}

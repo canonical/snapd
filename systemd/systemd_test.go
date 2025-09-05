@@ -1633,7 +1633,7 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
-	if !osutil.FileExists("/dev/fuse") {
+	if !osutil.CanStat("/dev/fuse") {
 		c.Skip("No /dev/fuse on the system")
 	}
 
@@ -1836,7 +1836,7 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 
 	c.Assert(err, IsNil)
 	// the file is gone
-	c.Check(osutil.FileExists(mountUnit), Equals, false)
+	c.Check(osutil.CanStat(mountUnit), Equals, false)
 	// and the unit is disabled and the daemon reloaded
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", rootDir, "disable", "snap-foo-42.mount"},
@@ -2257,7 +2257,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "disable", "snap-foo-42.mount"}})
 
 	// the file is gone
-	c.Check(osutil.FileExists(mountUnit), Equals, false)
+	c.Check(osutil.CanStat(mountUnit), Equals, false)
 
 	// umount was called
 	c.Check(mockUmountCmd.Calls(), DeepEquals, [][]string{{"umount", "-d", "-l", mountDir}})

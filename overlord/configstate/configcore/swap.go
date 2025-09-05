@@ -109,7 +109,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOn
 	// default location of the swapfile in case we can't determine the location
 	// from the config file
 	location := "/var/tmp/swapfile.swp"
-	if osutil.FileExists(swapConfigPath) {
+	if osutil.CanStat(swapConfigPath) {
 		// then get values from the config file
 		// read the existing file to get the location setting
 		cfg := goconfigparser.New()

@@ -606,17 +606,17 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Assert(restart, IsNil)
 
 	// check that snapd services were *not* created
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service")), Equals, false)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service")), Equals, false)
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
@@ -647,14 +647,14 @@ func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
 	c.Assert(err, IsNil)
 
 	// check that snapd services were *not* created
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "snapd.service")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
 
 	c.Assert(logBuf.String(), testutil.Contains, "/etc/dbus-1/session.d appears to be read-only, could not write snapd dbus config files")
 }

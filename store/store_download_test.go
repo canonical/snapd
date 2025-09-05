@@ -459,9 +459,9 @@ func (s *storeDownloadSuite) TestDownloadFails(c *C) {
 	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, false)
 	// ... and not because it succeeded either
-	c.Assert(osutil.FileExists(path), Equals, false)
+	c.Assert(osutil.CanStat(path), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadFailsLeavePartial(c *C) {
@@ -482,9 +482,9 @@ func (s *storeDownloadSuite) TestDownloadFailsLeavePartial(c *C) {
 	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is *NOT* removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, true)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, true)
 	// ... but the target path isn't there
-	c.Assert(osutil.FileExists(path), Equals, false)
+	c.Assert(osutil.CanStat(path), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
@@ -505,9 +505,9 @@ func (s *storeDownloadSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
 	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile *is* removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, false)
 	// ... and the target path isn't there
-	c.Assert(osutil.FileExists(path), Equals, false)
+	c.Assert(osutil.CanStat(path), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
@@ -531,9 +531,9 @@ func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
 	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, false)
 	// ... because it's been renamed to the target path already
-	c.Assert(osutil.FileExists(path), Equals, true)
+	c.Assert(osutil.CanStat(path), Equals, true)
 }
 
 var downloadDeltaTests = []struct {
@@ -692,7 +692,7 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 				{"xdelta3", "config"},
 				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
 			})
-			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.CanStat(targetSnapPath+".partial"), Equals, false)
 			st, err := os.Stat(targetSnapPath)
 			c.Assert(err, IsNil)
 			c.Check(st.Mode(), Equals, os.FileMode(0600))
@@ -700,8 +700,8 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		} else {
 			c.Assert(err, NotNil)
 			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
-			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)
-			c.Assert(osutil.FileExists(targetSnapPath), Equals, false)
+			c.Assert(osutil.CanStat(targetSnapPath+".partial"), Equals, false)
+			c.Assert(osutil.CanStat(targetSnapPath), Equals, false)
 		}
 		c.Assert(os.Remove(currentSnapPath), IsNil)
 		c.Assert(os.Remove(deltaPath), IsNil)
@@ -1477,9 +1477,9 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, false)
 	// ... and not because it succeeded either
-	c.Assert(osutil.FileExists(fakePath), Equals, false)
+	c.Assert(osutil.CanStat(fakePath), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
@@ -1501,9 +1501,9 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, false)
 	// ... and the target path isn't there
-	c.Assert(osutil.FileExists(fakePath), Equals, false)
+	c.Assert(osutil.CanStat(fakePath), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadIconFailsWithExisting(c *C) {
@@ -1532,7 +1532,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsWithoutExisting(c *C) {
 	s.testDownloadIconSyncFailsGeneric(c, fakeName, fakePath, fakeURL)
 
 	// Check that the file was not renamed to fakePath
-	c.Assert(osutil.FileExists(fakePath), Equals, false)
+	c.Assert(osutil.CanStat(fakePath), Equals, false)
 }
 
 func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fakePath, fakeURL string) {
@@ -1552,7 +1552,7 @@ func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fa
 	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, "cannot commit snap icon file for snap foo: .* file already closed")
 	// ... and ensure that the tempfile is removed
-	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	c.Assert(osutil.CanStat(tmpfile.Name()), Equals, false)
 }
 
 func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {

@@ -910,7 +910,7 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableHappyNoDirs(c *C) {
 	err := apparmor.UpdateHomedirsTunable([]string{})
 	c.Check(err, IsNil)
 	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
-	c.Check(osutil.FileExists(configFile), Equals, false)
+	c.Check(osutil.CanStat(configFile), Equals, false)
 }
 
 func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {

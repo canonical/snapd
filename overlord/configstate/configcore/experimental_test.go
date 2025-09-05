@@ -86,7 +86,7 @@ func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
 	})
 	tmpDir := c.MkDir()
 	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), IsNil)
-	c.Check(osutil.FileExists(filepath.Join(tmpDir, "/var/lib/snapd/features/refresh-app-awareness")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(tmpDir, "/var/lib/snapd/features/refresh-app-awareness")), Equals, true)
 }
 
 func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {

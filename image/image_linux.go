@@ -238,7 +238,7 @@ func unpackSnap(gadgetFname, gadgetUnpackDir string) error {
 
 func installCloudConfig(rootDir, gadgetDir string) error {
 	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
-	if !osutil.FileExists(cloudConfig) {
+	if !osutil.CanStat(cloudConfig) {
 		return nil
 	}
 
@@ -410,7 +410,7 @@ func (s *imageSeeder) setModelessDirs() error {
 	s.seedDir = dirs.SnapSeedDirUnder(s.rootDir)
 
 	// validity check target
-	if osutil.FileExists(dirs.SnapStateFileUnder(s.rootDir)) {
+	if osutil.CanStat(dirs.SnapStateFileUnder(s.rootDir)) {
 		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(s.rootDir))
 	}
 	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(s.rootDir), "*.snap")); len(snaps) > 0 {

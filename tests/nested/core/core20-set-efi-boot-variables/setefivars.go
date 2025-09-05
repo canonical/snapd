@@ -17,7 +17,7 @@ var possibleAssets = []string{
 
 func uefiLoadOptionParameters() (description string, assetPath string, optionalData []byte, err error) {
 	for _, assetPath = range possibleAssets {
-		if osutil.FileExists(assetPath) {
+		if osutil.CanStat(assetPath) {
 			return "spread-test-var", assetPath, make([]byte, 0), nil
 		}
 	}

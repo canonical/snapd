@@ -507,7 +507,7 @@ func (s *storeTestSuite) makeComponentAssertions(c *C, fn, name, snapID, develID
 
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
-	c.Assert(osutil.FileExists(snapFn), Equals, true)
+	c.Assert(osutil.CanStat(snapFn), Equals, true)
 	c.Assert(snapFn, Equals, filepath.Join(s.store.blobDir, "foo_1_all.snap"))
 }
 

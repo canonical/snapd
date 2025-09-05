@@ -125,8 +125,8 @@ func readOSReleaseFromRoot(rootdir string) OS {
 	return osRelease
 }
 
-// Note that osutil.FileExists cannot be used here as an osutil import will create a cyclic import
-var fileExists = func(path string) bool {
+// Note that osutil.CanStat cannot be used here as an osutil import will create a cyclic import
+var canStat = func(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
@@ -174,7 +174,7 @@ func filesystemRootType() (string, error) {
 // - Anything else means WSL2
 // After knowing we're in WSL, if any error occurs we assume WSL2 as it is the more flexible version
 func getWSLVersion() int {
-	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") && !fileExists("/run/WSL") {
+	if !canStat("/proc/sys/fs/binfmt_misc/WSLInterop") && !canStat("/run/WSL") {
 		return 0
 	}
 	fstype, err := filesystemRootType()

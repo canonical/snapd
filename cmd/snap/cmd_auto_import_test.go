@@ -237,7 +237,7 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 	c.Check(logbuf.String(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 
-	c.Check(osutil.FileExists(fakeAssertsFn), Equals, false)
+	c.Check(osutil.CanStat(fakeAssertsFn), Equals, false)
 }
 
 func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {

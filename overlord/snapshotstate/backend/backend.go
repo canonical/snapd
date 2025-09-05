@@ -647,7 +647,7 @@ func (t *importTransaction) Start() error {
 // InProgress returns true if there is an import for this transactions
 // snapshot ID already.
 func (t *importTransaction) InProgress() bool {
-	return osutil.FileExists(t.lockPath)
+	return osutil.CanStat(t.lockPath)
 }
 
 // Cancel cancels a snapshot import and cleanups any files on disk belonging

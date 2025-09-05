@@ -195,7 +195,7 @@ func (s *appArmorSuite) TestRemoveCachedProfilesInForest(c *C) {
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
-	c.Check(osutil.FileExists(features), Equals, true)
+	c.Check(osutil.CanStat(features), Equals, true)
 }
 
 func (s *appArmorSuite) TestReloadAllSnapProfilesFailure(c *C) {

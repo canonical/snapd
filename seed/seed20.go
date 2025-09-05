@@ -203,7 +203,7 @@ func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]b
 	availableSnapSet, availableCompSets := s.availableAssertedContainers()
 
 	optsPath := filepath.Join(s.systemDir, "options.yaml")
-	if s.model.Grade() == asserts.ModelDangerous && osutil.FileExists(optsPath) {
+	if s.model.Grade() == asserts.ModelDangerous && osutil.CanStat(optsPath) {
 		opts, err := internal.ReadOptions20(optsPath)
 		if err != nil {
 			return nil, nil, err
@@ -273,7 +273,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 	}
 
 	destSystemDir := filepath.Join(destSeedDir, "systems", opts.Label)
-	if osutil.FileExists(destSystemDir) {
+	if osutil.CanStat(destSystemDir) {
 		return fmt.Errorf("cannot create system: system %q already exists at %q", opts.Label, destSystemDir)
 	}
 
@@ -761,7 +761,7 @@ func (s *seed20) loadOptions() error {
 		return nil
 	}
 	optionsFn := filepath.Join(s.systemDir, "options.yaml")
-	if !osutil.FileExists(optionsFn) {
+	if !osutil.CanStat(optionsFn) {
 		// missing
 		return nil
 	}
@@ -790,7 +790,7 @@ func (s *seed20) nextOptSnap(modSnap *asserts.ModelSnap) (optSnap *internal.Snap
 
 func (s *seed20) loadAuxInfos() error {
 	auxInfoFn := filepath.Join(s.systemDir, "snaps", "aux-info.json")
-	if !osutil.FileExists(auxInfoFn) {
+	if !osutil.CanStat(auxInfoFn) {
 		// missing
 		return nil
 	}
@@ -1607,7 +1607,7 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) e
 }
 
 func (s *seed20) HasArtifact(relName string) bool {
-	return osutil.FileExists(s.ArtifactPath(relName))
+	return osutil.CanStat(s.ArtifactPath(relName))
 }
 
 func (s *seed20) ArtifactPath(relName string) string {
