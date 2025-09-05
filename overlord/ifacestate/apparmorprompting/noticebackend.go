@@ -173,7 +173,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	key := id.String()
 	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, key)
 
-	userNotices, existingNotice, existing, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
+	userNotices, existingNotice, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
 	if err != nil {
 		return err
 	}
@@ -195,21 +195,21 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	}
 
 	var newNotice *state.Notice
-	if existing && !existingNotice.Expired(timestamp) {
+	if existingNotice != nil && !existingNotice.Expired(timestamp) {
 		newNotice = existingNotice.DeepCopy()
 		newNotice.Reoccur(timestamp, data, 0)
 	} else {
 		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
 
-	newUserNotices := assembleNewUserNotices(userNotices, expiredCount, newNotice, existing, existingIndex)
+	newUserNotices := assembleNewUserNotices(userNotices, expiredCount, newNotice, existingIndex)
 
 	ntb.userNotices[userID] = newUserNotices
 	ntb.idToNotice[noticeID] = newNotice
 
 	if err := ntb.save(); err != nil {
 		ntb.userNotices[userID] = userNotices
-		if existing {
+		if existingNotice != nil {
 			ntb.idToNotice[noticeID] = existingNotice
 		} else {
 			delete(ntb.idToNotice, noticeID)
@@ -231,30 +231,31 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 // userID and checks whether a notice with the given noticeID already exists.
 //
 // Returns the slice of existing notices for the given userID. If the notice
-// does exist, a pointer to it is returned, along with an existing boolean of
-// true and the index at which it occurs in the userNotices slice.
+// does exist, a pointer to it is returned, along with the index at which it
+// occurs in the userNotices slice. If it does not exist, returns a nil
+// existingNotice and returns existingIndex of -1.
 //
 // The caller must ensure that the backend mutex is locked.
-func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID string) (userNotices []*state.Notice, notice *state.Notice, existing bool, existingIndex int, err error) {
+func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID string) (userNotices []*state.Notice, notice *state.Notice, existingIndex int, err error) {
 	notice, ok := ntb.idToNotice[noticeID]
 	if !ok {
 		userNotices = ntb.userNotices[userID]
-		return userNotices, nil, false, 0, nil
+		return userNotices, nil, -1, nil
 	}
 
 	if existingUserID, ok := notice.UserID(); !ok || existingUserID != userID {
 		// This should never occur, since prompting notices always have UserIDs
 		// and prompt/rule IDs are globally unique.
 		if !ok {
-			return nil, nil, false, 0, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists without user", ntb.namespace, noticeID, userID)
+			return nil, nil, -1, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists without user", ntb.namespace, noticeID, userID)
 		}
-		return nil, nil, false, 0, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists for user %d", ntb.namespace, noticeID, userID, existingUserID)
+		return nil, nil, -1, fmt.Errorf("cannot add %s notice with ID %s for user %d: notice with the same ID already exists for user %d", ntb.namespace, noticeID, userID, existingUserID)
 	}
 
 	userNotices, ok = ntb.userNotices[userID]
 	if !ok {
 		// This should never occur.
-		return nil, nil, false, 0, fmt.Errorf("internal error: notice ID maps to notice with user which doesn't exist in user notices: %v", notice)
+		return nil, nil, -1, fmt.Errorf("internal error: notice ID maps to notice with user which doesn't exist in user notices: %v", notice)
 	}
 
 	// Find the index of the existing notice with this ID.
@@ -270,20 +271,21 @@ func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID stri
 	if existingIndex >= len(userNotices) || userNotices[existingIndex] != notice {
 		// ID maps to a notice which doesn't actually exist in userNotices.
 		// This should never occur.
-		return nil, nil, false, 0, fmt.Errorf("internal error: notice ID maps to notice which doesn't exist in user notices: %v not in %v", notice, userNotices)
+		return nil, nil, -1, fmt.Errorf("internal error: notice ID maps to notice which doesn't exist in user notices: %v not in %v", notice, userNotices)
 	}
 
-	return userNotices, notice, true, existingIndex, nil
+	return userNotices, notice, existingIndex, nil
 }
 
 // assembleNewUserNotices returns a new slice of notices by discarding any
 // expired notices from the front of the given userNotices, copying non-expired
 // notices other than the existing notice, if it exists, and appending the given
-// new notice to the end of the slice.
-func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, newNotice *state.Notice, existing bool, existingIndex int) []*state.Notice {
+// new notice to the end of the slice. If the notice did not previously exist in
+// the userNotices slice, existingIndex should be -1.
+func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, newNotice *state.Notice, existingIndex int) []*state.Notice {
 	newUserNotices := make([]*state.Notice, 0, len(userNotices)-expiredCount+1)
 	for i := expiredCount; i < len(userNotices); i++ {
-		if !existing || i != existingIndex {
+		if i != existingIndex {
 			newUserNotices = append(newUserNotices, userNotices[i])
 		}
 	}
