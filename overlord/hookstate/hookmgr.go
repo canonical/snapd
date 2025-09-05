@@ -178,6 +178,7 @@ func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 	}
 
 	if snapst.Base == "" {
+		// snaps installed before "Base" was added won't have this set
 		return false
 	}
 
