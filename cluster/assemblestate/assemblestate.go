@@ -529,6 +529,9 @@ func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
 
 // Run starts the assembly process, managing both the server and periodic client operations.
 // It returns when the context is cancelled, returning the final routes discovered.
+//
+// TODO: a good chunk of this method is missing coverage, this should be
+// addressed once a real [Transport] is merged.
 func (as *AssembleState) Run(
 	ctx context.Context,
 	transport Transport,
