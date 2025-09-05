@@ -309,28 +309,26 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 	if len(filter.Types) > 0 && !slicesContains(filter.Types, ntb.noticeType) {
 		return nil, false
 	}
+	if !filter.BeforeOrAt.IsZero() && !filter.After.IsZero() && !filter.After.Before(filter.BeforeOrAt) {
+		// No possible timestamp can satisfy both After and BeforeOrAt filters
+		return nil, false
+	}
 	var keys []string
 	if len(filter.Keys) > 0 {
 		keys = make([]string, 0, len(filter.Keys))
-		sawViableKey := false
 		for _, key := range filter.Keys {
 			if _, err := prompting.IDFromString(key); err != nil {
-				// Key is not a valid prompting ID, so it's imposible for
+				// Key is not a valid prompting ID, so it's impossible for
 				// there to be a notice matching it.
 				continue
 			}
 			keys = append(keys, key)
-			sawViableKey = true
 		}
-		if !sawViableKey {
+		if len(keys) == 0 {
 			// There were keys specified in the original filter but none were
 			// viable, so it's impossible for notices to match this filter.
 			return nil, false
 		}
-	}
-	if !filter.BeforeOrAt.IsZero() && !filter.After.IsZero() && !filter.After.Before(filter.BeforeOrAt) {
-		// No possible timestamp can satisfy both After and BeforeOrAt filters
-		return nil, false
 	}
 	simplified = &ntbFilter{
 		UserID:     filter.UserID,
@@ -359,7 +357,7 @@ func (f *ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*sta
 		filteredNotices = notices[i:]
 		break
 	}
-	if filteredNotices == nil || f == nil {
+	if len(filteredNotices) == 0 || f == nil {
 		// Never found a non-expired notice matching After filter, or there is
 		// no filter at all and filteredNotices now has all non-expired notices
 		return filteredNotices
@@ -456,9 +454,9 @@ func (ntb *noticeTypeBackend) doNotices(filter *ntbFilter, now time.Time) []*sta
 		case 2:
 			// Need to copy to a new slice so we can safely append other user
 			// notices and sort the end result later.
-			newNotices := make([]*state.Notice, len(notices)+len(filtered))
-			copy(newNotices, notices)
-			copy(newNotices[len(notices):], filtered)
+			newNotices := make([]*state.Notice, 0, len(notices)+len(filtered))
+			newNotices = append(newNotices, notices...)
+			newNotices = append(newNotices, filtered...)
 			notices = newNotices
 		default:
 			notices = append(notices, filtered...)
