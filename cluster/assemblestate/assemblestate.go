@@ -342,7 +342,9 @@ func (as *AssembleState) publishDeviceQueries(ctx context.Context, client Client
 		logger.Debugf("sent device queries to %s at %s, count: %d", p.RDT, addr, len(queries))
 	}
 
-	// nothing new to commit here
+	// we don't commit when publishing device queries since we don't keep track
+	// of which queries are in-flight in persistent state. at worst, we send out
+	// a duplicate query for device identities when resuming a session.
 }
 
 // publishDevicesAndCommit responds to queries for device information that our
