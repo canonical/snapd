@@ -221,7 +221,7 @@ unmount /run/netns/ovnmeta-*,
 @{PROC}/@{pids}/pagemap r,
 capability ipc_lock,
 # Allow anonymous files backed by huge pages.
-# https://bugs.launchpad.net/ubuntu/+source/libvirt/+bug/2073214
+# https://gitlab.com/apparmor/apparmor/-/issues/545
 owner / rw,
 `
 
