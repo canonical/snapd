@@ -35,32 +35,6 @@ import (
 	"github.com/snapcore/snapd/randutil"
 )
 
-// Transport provides an abstraction for defining how incoming and outgoing
-// messages are handled in an assembly session.
-type Transport interface {
-	// Serve starts a server that handles incoming requests and routes them to
-	// the provided [AssembleState].
-	Serve(ctx context.Context, addr string, cert tls.Certificate, as *AssembleState) error
-
-	// NewClient creates a client for sending outbound messages compatible with
-	// this [Transport].
-	NewClient(cert tls.Certificate) Client
-
-	// Stats returns the sent and received byte counts for this assembly
-	// session.
-	Stats() (sent, received, tx, rx int64)
-}
-
-// Client is used to communicate with our peers.
-type Client interface {
-	// Trusted sends a message to a trusted peer. Implementations must verify
-	// that the peer is using the given certificate.
-	Trusted(ctx context.Context, addr string, cert []byte, kind string, message any) error
-	// Untrusted sends a message to a peer that we do not yet trust. The
-	// certificate that the peer used to communicate is returned.
-	Untrusted(ctx context.Context, addr string, kind string, message any) (cert []byte, err error)
-}
-
 // AssembleState contains this device's knowledge of the state of an assembly
 // session.
 type AssembleState struct {
@@ -170,10 +144,6 @@ type AssembleConfig struct {
 	// RDT is this device's random device token used to uniquely identity this
 	// device.
 	RDT DeviceToken
-	// IP is the IP address to bind the assembly server to.
-	IP net.IP
-	// Port is the port number to bind the assembly server to.
-	Port int
 	// TLSCert is the PEM-encoded TLS certificate for this device.
 	TLSCert []byte
 	// TLSKey is the PEM-encoded private key corresponding to TLSCert.
@@ -466,7 +436,7 @@ func shuffle[T any](available []T) {
 // This method is to be called by an implementation of the [Transport] interface.
 //
 // This method calls AssembleState.commit with the current state.
-func (as *AssembleState) authenticateAndCommit(auth Auth, cert []byte) error {
+func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -515,14 +485,14 @@ func (as *AssembleState) authenticateAndCommit(auth Auth, cert []byte) error {
 	return nil
 }
 
-// verifyPeer checks if the given certificate is trusted and maps to a known RDT.
-// If it is, then a [peerHandle] is returned that can be used to modify the state
-// of the cluster on this peer's behalf.
+// VerifyPeer checks if the given certificate is trusted and maps to a known
+// RDT. If it is, then a [VerifiedPeer] is returned that can be used to modify
+// the state of the cluster on this peer's behalf.
 //
 // An error is returned if the certificate isn't trusted.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (as *AssembleState) verifyPeer(cert []byte) (*peerHandle, error) {
+func (as *AssembleState) VerifyPeer(cert []byte) (VerifiedPeer, error) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -534,8 +504,8 @@ func (as *AssembleState) verifyPeer(cert []byte) (*peerHandle, error) {
 	}
 
 	return &peerHandle{
-		as:   as,
-		peer: p.RDT,
+		as:  as,
+		rdt: p.RDT,
 	}, nil
 }
 
@@ -553,6 +523,7 @@ type RunOptions struct {
 // addressed once a real [Transport] is merged.
 func (as *AssembleState) Run(
 	ctx context.Context,
+	ln net.Listener,
 	transport Transport,
 	discoveries <-chan []string,
 	opts RunOptions,
@@ -565,7 +536,7 @@ func (as *AssembleState) Run(
 		return Routes{}, errors.New("cannot resume an assembly session that began more than an hour ago")
 	}
 
-	addr := fmt.Sprintf("%s:%d", as.config.IP, as.config.Port)
+	addr := ln.Addr().String()
 	client := transport.NewClient(as.cert)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -581,7 +552,7 @@ func (as *AssembleState) Run(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := transport.Serve(ctx, addr, as.cert, as); err != nil {
+		if err := transport.Serve(ctx, ln, as.cert, as); err != nil {
 			// only propagate non-context.Canceled errors
 			if !errors.Is(err, context.Canceled) {
 				logger.Debugf("server error: %v", err)
@@ -681,10 +652,10 @@ func (as *AssembleState) Run(
 		}
 	}
 
-	sent, received, tx, rx := transport.Stats()
+	stats := transport.Stats()
 	logger.Debugf(
 		"assemble stopped after %d rounds, sent: %d messages (%d bytes), received: %d messages (%d bytes)",
-		rounds, sent, tx, received, rx,
+		rounds, stats.Sent, stats.Tx, stats.Received, stats.Rx,
 	)
 
 	return as.selector.Routes(), nil
@@ -709,13 +680,8 @@ func periodic(
 // peerHandle is a wrapper over [AssembleState] that enables an authenticated
 // peer report its knowledge of the state of the cluster.
 type peerHandle struct {
-	as   *AssembleState
-	peer DeviceToken
-}
-
-// RDT returns the RDT of the device that this [peerHandle] represents.
-func (h *peerHandle) RDT() DeviceToken {
-	return h.peer
+	as  *AssembleState
+	rdt DeviceToken
 }
 
 // CommitDeviceQueries adds the given devices to the queue of queries for this
@@ -728,10 +694,10 @@ func (h *peerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
-	h.as.devices.RecordIncomingQuery(h.peer, unknown.Devices)
+	h.as.devices.RecordIncomingQuery(h.rdt, unknown.Devices)
 
 	h.as.commit(h.as.export())
-	logger.Debugf("got device queries from %q", h.peer)
+	logger.Debugf("got device queries from %q", h.rdt)
 
 	return nil
 }
@@ -745,9 +711,9 @@ func (h *peerHandle) CommitRoutes(routes Routes) error {
 
 	// if this peer is sending us routes that include these devices, then we
 	// know that they must have identifying information for those devices.
-	h.as.devices.RecordDevicesKnownBy(h.peer, routes.Devices)
+	h.as.devices.RecordDevicesKnownBy(h.rdt, routes.Devices)
 
-	added, total, err := h.as.selector.RecordRoutes(h.peer, routes)
+	added, total, err := h.as.selector.RecordRoutes(h.rdt, routes)
 	if err != nil {
 		return err
 	}
@@ -761,7 +727,7 @@ func (h *peerHandle) CommitRoutes(routes Routes) error {
 	// routes are represented by an array of triplets, refer to the doc comment
 	// on [Routes] for more information
 	received := len(routes.Routes) / 3
-	logger.Debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.peer, received, received-added, total)
+	logger.Debugf("got routes update from %s, received: %d, wasted: %d, total: %d", h.rdt, received, received-added, total)
 
 	return nil
 }
@@ -827,7 +793,7 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 
 	h.as.commit(h.as.export())
 
-	logger.Debugf("got unknown device information from %s, count: %d", h.peer, len(devices.Devices))
+	logger.Debugf("got unknown device information from %s, count: %d", h.rdt, len(devices.Devices))
 
 	return nil
 }
