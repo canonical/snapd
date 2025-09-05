@@ -443,9 +443,9 @@ func shuffle[T any](available []T) {
 	}
 }
 
-// AuthenticateAndCommit checks that the given [Auth] message is valid and proves
+// authenticateAndCommit checks that the given [Auth] message is valid and proves
 // knowledge of the shared secret. If this check is passed, we allow mutation of
-// this [AssembleState] via future calls to [AssembleState.VerifyPeer] with the same
+// this [AssembleState] via future calls to [AssembleState.verifyPeer] with the same
 // certificate.
 //
 // An error is returned if the message's HMAC is found to not prove knowledge of
@@ -454,7 +454,7 @@ func shuffle[T any](available []T) {
 // This method is to be called by an implementation of the [Transport] interface.
 //
 // This method calls AssembleState.commit with the current state.
-func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
+func (as *AssembleState) authenticateAndCommit(auth Auth, cert []byte) error {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -503,14 +503,14 @@ func (as *AssembleState) AuthenticateAndCommit(auth Auth, cert []byte) error {
 	return nil
 }
 
-// VerifyPeer checks if the given certificate is trusted and maps to a known RDT.
-// If it is, then a [PeerHandle] is returned that can be used to modify the state
+// verifyPeer checks if the given certificate is trusted and maps to a known RDT.
+// If it is, then a [peerHandle] is returned that can be used to modify the state
 // of the cluster on this peer's behalf.
 //
 // An error is returned if the certificate isn't trusted.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
+func (as *AssembleState) verifyPeer(cert []byte) (*peerHandle, error) {
 	as.lock.Lock()
 	defer as.lock.Unlock()
 
@@ -521,7 +521,7 @@ func (as *AssembleState) VerifyPeer(cert []byte) (*PeerHandle, error) {
 		return nil, errors.New("given TLS certificate is not associated with a trusted RDT")
 	}
 
-	return &PeerHandle{
+	return &peerHandle{
 		as:   as,
 		peer: p.RDT,
 	}, nil
@@ -675,15 +675,15 @@ func periodic(
 	}
 }
 
-// PeerHandle is a wrapper over [AssembleState] that enables an authenticated
+// peerHandle is a wrapper over [AssembleState] that enables an authenticated
 // peer report its knowledge of the state of the cluster.
-type PeerHandle struct {
+type peerHandle struct {
 	as   *AssembleState
 	peer DeviceToken
 }
 
-// RDT returns the RDT of the device that this [PeerHandle] represents.
-func (h *PeerHandle) RDT() DeviceToken {
+// RDT returns the RDT of the device that this [peerHandle] represents.
+func (h *peerHandle) RDT() DeviceToken {
 	return h.peer
 }
 
@@ -693,7 +693,7 @@ func (h *PeerHandle) RDT() DeviceToken {
 // know, either this local node or the requesting peer has a bug.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
+func (h *peerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -708,7 +708,7 @@ func (h *PeerHandle) CommitDeviceQueries(unknown UnknownDevices) error {
 // CommitRoutes updates the state of the cluster with the given routes.
 //
 // This method is to be called by an implementation of the [Transport] interface.
-func (h *PeerHandle) CommitRoutes(routes Routes) error {
+func (h *peerHandle) CommitRoutes(routes Routes) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 
@@ -738,7 +738,7 @@ func (h *PeerHandle) CommitRoutes(routes Routes) error {
 // This method is to be called by an implementation of the [Transport] interface.
 //
 // This method calls AssembleState.commit with the current state.
-func (h *PeerHandle) CommitDevices(devices Devices) error {
+func (h *peerHandle) CommitDevices(devices Devices) error {
 	h.as.lock.Lock()
 	defer h.as.lock.Unlock()
 

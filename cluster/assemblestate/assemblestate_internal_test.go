@@ -316,7 +316,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC("wrong-rdt", peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err := as.AuthenticateAndCommit(auth, peerCert)
+	err := as.authenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
@@ -325,7 +325,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  "wrong-rdt",
 	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
+	err = as.authenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
@@ -334,7 +334,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, CalculateFP([]byte("wrong-cert")), "secret"),
 		RDT:  peerRDT,
 	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
+	err = as.authenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
@@ -343,7 +343,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err = as.AuthenticateAndCommit(auth, []byte("wrong-cert"))
+	err = as.authenticateAndCommit(auth, []byte("wrong-cert"))
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
@@ -352,7 +352,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "wrong-secret"),
 		RDT:  peerRDT,
 	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
+	err = as.authenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.ErrorMatches, "received invalid HMAC from peer")
 	c.Assert(len(cm.commits), check.Equals, 0, check.Commentf("commit should not be called on authentication failure"))
 
@@ -361,7 +361,7 @@ func (s *ClusterSuite) TestAuthenticate(c *check.C) {
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}
-	err = as.AuthenticateAndCommit(auth, peerCert)
+	err = as.authenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 1)
@@ -400,7 +400,7 @@ func (s *ClusterSuite) TestAuthenticateFingerprintMismatch(c *check.C) {
 		RDT:  peerRDT,
 	}
 
-	err := as.AuthenticateAndCommit(auth, wrongCert)
+	err := as.authenticateAndCommit(auth, wrongCert)
 	c.Assert(err, check.ErrorMatches, "fingerprint mismatch for device peer-rdt")
 
 	// verify commit was not called on fingerprint mismatch
@@ -419,7 +419,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 	fp := CalculateFP(cert)
 
 	// first peer authenticates successfully
-	err := as.AuthenticateAndCommit(Auth{
+	err := as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-one", fp, "secret"),
 		RDT:  "peer-one",
 	}, cert)
@@ -434,7 +434,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateReuse(c *check.C) {
 	})
 
 	// second peer tries to use the same certificate - should fail
-	err = as.AuthenticateAndCommit(Auth{
+	err = as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer-two", fp, "secret"),
 		RDT:  "peer-two",
 	}, cert)
@@ -454,7 +454,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	// first authentication with first certificate
 	cert := []byte("certificate-one")
 	fp := CalculateFP(cert)
-	err := as.AuthenticateAndCommit(Auth{
+	err := as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer", fp, "secret"),
 		RDT:  "peer",
 	}, cert)
@@ -471,7 +471,7 @@ func (s *ClusterSuite) TestAuthenticateCertificateConsistency(c *check.C) {
 	// second authentication with different certificate - should fail
 	cert = []byte("certificate-two")
 	fp = CalculateFP(cert)
-	err = as.AuthenticateAndCommit(Auth{
+	err = as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC("peer", fp, "secret"),
 		RDT:  "peer",
 	}, cert)
@@ -541,7 +541,7 @@ func (s *ClusterSuite) TestAuthenticateWithKnownAddress(c *check.C) {
 		RDT:  peerRDT,
 	}
 
-	err = as.AuthenticateAndCommit(auth, peerCert)
+	err = as.authenticateAndCommit(auth, peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(len(cm.commits), check.Equals, 2)
@@ -574,13 +574,13 @@ func (s *ClusterSuite) TestVerifyPeer(c *check.C) {
 	peerFP := CalculateFP(peerCert)
 	peerRDT := DeviceToken("peer-rdt")
 
-	err := as.AuthenticateAndCommit(Auth{
+	err := as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(peerRDT, peerFP, "secret"),
 		RDT:  peerRDT,
 	}, peerCert)
 	c.Assert(err, check.IsNil)
 
-	handle, err := as.VerifyPeer(peerCert)
+	handle, err := as.verifyPeer(peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, peerRDT)
@@ -595,22 +595,22 @@ func (s *ClusterSuite) TestVerifyPeerUntrustedCert(c *check.C) {
 	})
 
 	// try to verify a certificate that was never authenticated
-	handle, err := as.VerifyPeer([]byte("untrusted-certificate"))
+	handle, err := as.verifyPeer([]byte("untrusted-certificate"))
 	c.Assert(err, check.ErrorMatches, "given TLS certificate is not associated with a trusted RDT")
 	c.Assert(handle, check.IsNil)
 }
 
-func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, address string, cert []byte) {
+func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *peerHandle, address string, cert []byte) {
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
 	peerFP := CalculateFP(peerCert)
 
-	err := as.AuthenticateAndCommit(Auth{
+	err := as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
 	}, peerCert)
 	c.Assert(err, check.IsNil)
 
-	handle, err := as.VerifyPeer(peerCert)
+	handle, err := as.verifyPeer(peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, rdt)
@@ -630,17 +630,17 @@ func trustedAndDiscoveredPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h
 	return handle, peerAddr, peerCert
 }
 
-func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *PeerHandle, cert []byte) {
+func trustedPeer(c *check.C, as *AssembleState, rdt DeviceToken) (h *peerHandle, cert []byte) {
 	peerCert := []byte(fmt.Sprintf("%s-certificate", rdt))
 	peerFP := CalculateFP(peerCert)
 
-	err := as.AuthenticateAndCommit(Auth{
+	err := as.authenticateAndCommit(Auth{
 		HMAC: CalculateHMAC(rdt, peerFP, "secret"),
 		RDT:  rdt,
 	}, peerCert)
 	c.Assert(err, check.IsNil)
 
-	handle, err := as.VerifyPeer(peerCert)
+	handle, err := as.verifyPeer(peerCert)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(handle.RDT(), check.Equals, rdt)
