@@ -131,22 +131,29 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 // DeepCopy returns a deep copy of the receiver.
 func (n *Notice) DeepCopy() *Notice {
 	// Create deep copies of non-primitive fields (strings are fine)
-	userID := *n.userID
-	data := make(map[string]string, len(n.lastData))
-	for k, v := range n.lastData {
-		data[k] = v
+	var userID *uint32
+	if n.userID != nil {
+		userIDVal := *n.userID
+		userID = &userIDVal
+	}
+	var lastData map[string]string
+	if len(n.lastData) > 0 {
+		lastData = make(map[string]string, len(n.lastData))
+		for k, v := range n.lastData {
+			lastData[k] = v
+		}
 	}
 
 	return &Notice{
 		id:            n.id,
-		userID:        &userID,
+		userID:        userID,
 		noticeType:    n.noticeType,
 		key:           n.key,
 		firstOccurred: n.firstOccurred,
 		lastOccurred:  n.lastOccurred,
 		lastRepeated:  n.lastRepeated,
 		occurrences:   n.occurrences,
-		lastData:      data,
+		lastData:      lastData,
 		repeatAfter:   n.repeatAfter,
 		expireAfter:   n.expireAfter,
 	}

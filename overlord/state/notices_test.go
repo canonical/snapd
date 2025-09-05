@@ -169,6 +169,16 @@ func (s *noticesSuite) TestDeepCopy(c *C) {
 	c.Check(duplicate, Not(DeepEquals), notice)
 	// and "fizz" still exists in the duplicate map
 	c.Check(duplicate.LastData()["fizz"], Equals, "buzz")
+
+	// Check that we can copy a notice with nil fields
+	var nilUserID *uint32
+	var nilData map[string]string
+	notice = state.NewNotice(id, nilUserID, nType, key, timestamp, nilData, repeatAfter, expireAfter)
+
+	duplicate = notice.DeepCopy()
+
+	c.Check(duplicate, DeepEquals, notice)
+	c.Check(duplicate, Not(Equals), notice)
 }
 
 func (s *noticesSuite) TestMarshal(c *C) {
