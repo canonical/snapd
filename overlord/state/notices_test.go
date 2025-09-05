@@ -139,6 +139,48 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["repeat-after"], IsNil)
 }
 
+func (s *noticesSuite) TestDeepCopy(c *C) {
+	id := "foo"
+	userID := uint32(123)
+	nType := state.NoticeType("bar")
+	key := "baz"
+	timestamp := time.Now()
+	data := map[string]string{"fizz": "buzz"}
+	repeatAfter := 10 * time.Second
+	expireAfter := 30 * time.Second
+
+	notice := state.NewNotice(id, &userID, nType, key, timestamp, data, repeatAfter, expireAfter)
+
+	duplicate := notice.DeepCopy()
+
+	c.Check(duplicate, DeepEquals, notice)
+	c.Check(duplicate, Not(Equals), notice)
+
+	origJSON, err := notice.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	copyJSON, err := duplicate.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	c.Check(string(origJSON), Equals, string(copyJSON))
+
+	// If we mutate the last-data map in the orig, check that they now differ
+	delete(notice.LastData(), "fizz")
+	c.Check(duplicate, Not(DeepEquals), notice)
+	// and "fizz" still exists in the duplicate map
+	c.Check(duplicate.LastData()["fizz"], Equals, "buzz")
+
+	// Check that we can copy a notice with nil fields
+	var nilUserID *uint32
+	var nilData map[string]string
+	notice = state.NewNotice(id, nilUserID, nType, key, timestamp, nilData, repeatAfter, expireAfter)
+
+	duplicate = notice.DeepCopy()
+
+	c.Check(duplicate, DeepEquals, notice)
+	c.Check(duplicate, Not(Equals), notice)
+}
+
 func (s *noticesSuite) TestMarshal(c *C) {
 	st := state.New(nil)
 
