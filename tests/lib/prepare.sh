@@ -979,7 +979,7 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     quiet apt install software-properties-common -y
     # carries ubuntu-core-initframfs
-    quiet add-apt-repository ppa:snappy-dev/image -y
+    quiet add-apt-repository ppa:snappy-dev/image --massive-debug -y
     # On focal, lvm2 does not reinstall properly after being removed.
     # So we need to clean up in case the VM has been re-used.
     if os.query is-focal; then
