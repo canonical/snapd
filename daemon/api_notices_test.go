@@ -869,9 +869,7 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 	resultBytes, err := json.Marshal(rsp.Result)
 	c.Assert(err, IsNil)
 
-	st.Lock()
 	notices := st.Notices(nil)
-	st.Unlock()
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	noticeID, ok := n["id"].(string)

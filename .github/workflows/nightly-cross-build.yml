@@ -23,6 +23,5 @@ jobs:
 
       - name: build-snapd
         run: |
-          # TODO: Move to openstack-arm-ext-ps7 when https://github.com/canonical/snapcraft/issues/5635 is fixed
-          spread google-nested-arm:ubuntu-22.04-arm-64:tests/utils/cross-build/suite/build-snapd-armhf:jammy
+          spread openstack-arm-ext-ps7:ubuntu-22.04-arm-64:tests/utils/cross-build/suite/build-snapd-armhf:jammy
 

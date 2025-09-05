@@ -20,16 +20,20 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	usc "github.com/snapcore/snapd/usersession/client"
 )
 
 const longDebugAPIHelp = `
@@ -45,12 +49,14 @@ $ snap debug api '/v2/find?name=foo'
 Request refresh of snap 'some-snap':
 $ echo '{"action": "refresh"}' | snap debug api -X POST \
       -H 'Content-Type: application/json' /v2/snaps/some-snap
+
+Execute a request to the session agent of UID 12345:
+$ snap debug api --session-agent-uid=12345 /v1/session-info
 `
 
 type cmdDebugAPI struct {
-	clientMixin
-
-	SnapSocket bool `long:"snap-socket"`
+	SnapSocket      bool   `long:"snap-socket"`
+	SessionAgentUID string `long:"session-agent-uid"`
 
 	Headers []string `short:"H" long:"header"`
 	Method  string   `short:"X" long:"request"`
@@ -70,17 +76,61 @@ func init() {
 		func() flags.Commander {
 			return &cmdDebugAPI{}
 		}, map[string]string{
-			"header":      "Set header (can be repeated multiple times), header kind and value are separated with ': '",
-			"request":     "HTTP method to use (defaults to GET)",
-			"fail":        "Fail on request errors",
-			"snap-socket": "Use snap access socket",
+			"header":            "Set header (can be repeated multiple times), header kind and value are separated with ': '",
+			"request":           "HTTP method to use (defaults to GET)",
+			"fail":              "Fail on request errors",
+			"snap-socket":       "Use snap access socket",
+			"session-agent-uid": "Communicate with session agent of a given UID",
 		}, nil)
 }
 
+type debugAPIClient interface {
+	DebugRaw(
+		ctx context.Context, method string, urlpath string, query url.Values, headers map[string]string, body io.Reader,
+	) (*http.Response, error)
+}
+
+type debugClientUserAdapter struct {
+	uc *usc.Client
+
+	uid int
+}
+
+func (d *debugClientUserAdapter) DebugRaw(
+	ctx context.Context, method string, urlpath string, query url.Values, headers map[string]string, body io.Reader,
+) (*http.Response, error) {
+	var reqBody bytes.Buffer
+
+	if body != nil {
+		if _, err := io.Copy(&reqBody, body); err != nil {
+			return nil, err
+		}
+	}
+
+	return d.uc.DebugOneRaw(ctx, d.uid, method, urlpath, query, headers, reqBody.Bytes())
+}
+
 func (x *cmdDebugAPI) Execute(args []string) error {
+	if x.SnapSocket && x.SessionAgentUID != "" {
+		return fmt.Errorf("cannot use both snap socket and session-agent")
+	}
+
+	var client debugAPIClient = mkClient()
 	if x.SnapSocket {
 		ClientConfig.Socket = dirs.SnapSocket
-		x.setClient(mkClient())
+		client = mkClient()
+	}
+
+	if x.SessionAgentUID != "" {
+		uid, err := strconv.Atoi(x.SessionAgentUID)
+		if err != nil {
+			return fmt.Errorf("cannot parse UID: %v", err)
+		}
+
+		client = &debugClientUserAdapter{
+			uc:  usc.New(),
+			uid: uid,
+		}
 	}
 
 	method := x.Method
@@ -116,7 +166,7 @@ func (x *cmdDebugAPI) Execute(args []string) error {
 	logger.Debugf("query: %v", u.RawQuery)
 	logger.Debugf("headers: %s", reqHdrs)
 
-	rsp, err := x.client.DebugRaw(context.Background(), method, u.Path, u.Query(), reqHdrs, in)
+	rsp, err := client.DebugRaw(context.Background(), method, u.Path, u.Query(), reqHdrs, in)
 	if err != nil {
 		return err
 	}

@@ -1577,3 +1577,96 @@ func (s *storeDownloadSuite) TestDownloadIconInfiniteRedirect(c *C) {
 	err := s.store.DownloadIcon(s.ctx, fakeName, fakePath, fakeURL)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", fakeURL))
 }
+
+func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnsupported(c *C) {
+	// Using default store config & store proxy, download URL points to a URL
+	// **not** exposed through the proxy.
+
+	const expectedName = "foo"
+	expectedContent := []byte("I was downloaded")
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(expectedContent)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	device := createTestDevice()
+	configURL, err := url.Parse("http://foo.internal")
+	c.Assert(err, IsNil)
+	theStore := store.New(
+		&store.Config{
+			StoreBaseURL: configURL,
+		},
+		&testDauthContext{
+			c: c, device: device,
+			proxyStoreID: "my-proxy", proxyStoreURL: mockServerURL,
+		},
+	)
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err = theStore.DownloadIcon(s.ctx, expectedName, path, "http://bar.internal/my/icon")
+	c.Assert(err, Equals, store.ErrProxyStoreIconDownloadUnsupported)
+
+	c.Assert(path, testutil.FileAbsent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconProxyStoreSameAsBase(c *C) {
+	// Using default store config & store proxy, download URL points to an
+	// address exposed through the proxy.
+
+	const expectedName = "foo"
+	expectedContent := []byte("I was downloaded")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/my/icon", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(expectedContent)
+	})
+	mockServer := httptest.NewServer(mux)
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	device := createTestDevice()
+	theStore := store.New(nil, &testDauthContext{
+		c: c, device: device,
+		proxyStoreID: "my-proxy", proxyStoreURL: mockServerURL,
+	})
+
+	c.Logf("icon url: %v", mockServer.URL)
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err = theStore.DownloadIcon(s.ctx, expectedName, path, mockServer.URL+"/my/icon")
+	c.Assert(err, IsNil)
+
+	c.Assert(path, testutil.FileEquals, expectedContent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnset(c *C) {
+	// Using default store config but **no** store proxy, download URL points to
+	// an address different than the base store URL.
+
+	const expectedName = "foo"
+	expectedContent := []byte("I was downloaded")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/my/icon", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(expectedContent)
+	})
+	mockServer := httptest.NewServer(mux)
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	device := createTestDevice()
+	theStore := store.New(nil, &testDauthContext{
+		c: c, device: device,
+	})
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := theStore.DownloadIcon(s.ctx, expectedName, path, mockServer.URL+"/my/icon")
+	c.Assert(err, IsNil)
+
+	c.Assert(path, testutil.FileEquals, expectedContent)
+}
