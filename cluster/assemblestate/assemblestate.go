@@ -642,6 +642,12 @@ func (as *AssembleState) Run(
 	default:
 	}
 
+	// at this point, the [Transport] should have shutdown and not interface
+	// with our data anymore. however, a misbehaving implementation might. in
+	// that case, we need to lock.
+	as.lock.Lock()
+	defer as.lock.Unlock()
+
 	// perform final fingerprint consistency check
 	devices := as.devices.Export()
 	for _, identity := range devices.IDs {
