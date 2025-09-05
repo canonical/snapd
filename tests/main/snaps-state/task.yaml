@@ -130,12 +130,12 @@ execute: |
 
     # Check the repack of the snapd deb into core and snapd snaps. This check is executed
     # on ubuntu/debian systems where the snapd_*.deb is generated while the system is prepared
-    if ls "$SPREAD_PATH"/../snapd_*.deb; then
+    if ls "$GOHOME"/snapd_*.deb; then
         "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core
         test -e core/core-from-snapd-deb.snap
         rm -rf core
 
-        cp "$SPREAD_PATH"/../snapd_*.deb current_snapd.deb
+        cp "$GOHOME"/snapd_*.deb current_snapd.deb
         "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core current_snapd.deb
         test -e core/core-from-snapd-deb.snap
         rm -rf core

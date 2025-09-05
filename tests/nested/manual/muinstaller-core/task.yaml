@@ -192,7 +192,7 @@ execute: |
 
   remote.exec "sudo sh -c 'echo SNAPD_DEBUG=1 >> /etc/environment'"
   # push our snap down
-  remote.push "$SPREAD_PATH"/../snapd_*.deb
+  remote.push "$GOHOME"/snapd_*.deb
   remote.exec "sudo apt install -y ./snapd_*.deb"
 
   # push our seed down
