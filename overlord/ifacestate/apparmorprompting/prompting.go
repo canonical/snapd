@@ -322,7 +322,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		User:      userID,
 		Snap:      snap,
 		PID:       req.PID,
-		PGID:      req.PGID,
+		Cgroup:    req.Cgroup,
 		Interface: iface,
 	}
 
