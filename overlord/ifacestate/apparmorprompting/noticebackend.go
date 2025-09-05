@@ -418,8 +418,6 @@ func slicesContains[T comparable](haystack []T, needle T) bool {
 
 // BackendNotices returns the list of notices that match the filter (if any),
 // ordered by the last-repeated time.
-//
-// The caller must not mutate the data within the returned slice.
 func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*state.Notice {
 	simplifiedFilter, matchPossible := ntb.simplifyFilter(filter)
 	if !matchPossible {
@@ -431,38 +429,25 @@ func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*stat
 	return ntb.doNotices(simplifiedFilter, now)
 }
 
-// The caller must hold the backend lock for reading and must not mutate the
-// data within the returned slice.
+// The caller must hold the backend lock for reading.
 func (ntb *noticeTypeBackend) doNotices(filter ntbFilter, now time.Time) []*state.Notice {
+	var notices []*state.Notice
 	if filter.UserID != nil {
 		userNotices, ok := ntb.userNotices[*filter.UserID]
 		if !ok {
 			return nil
 		}
-		return filter.filterNotices(userNotices, now)
+		notices = append(notices, filter.filterNotices(userNotices, now)...)
+		return notices
 	}
-	var notices []*state.Notice
 	nonEmptyUserNotices := 0
 	for _, userNotices := range ntb.userNotices {
 		filtered := filter.filterNotices(userNotices, now)
 		if len(filtered) == 0 {
 			continue
 		}
+		notices = append(notices, filtered...)
 		nonEmptyUserNotices++
-		switch nonEmptyUserNotices {
-		case 1:
-			// Don't copy yet, we don't know if it will be necessary
-			notices = filtered
-		case 2:
-			// Need to copy to a new slice so we can safely append other user
-			// notices and sort the end result later.
-			newNotices := make([]*state.Notice, 0, len(notices)+len(filtered))
-			newNotices = append(newNotices, notices...)
-			newNotices = append(newNotices, filtered...)
-			notices = newNotices
-		default:
-			notices = append(notices, filtered...)
-		}
 	}
 	if nonEmptyUserNotices > 1 {
 		// Since we concatenated notices from multiple users, need to re-sort
