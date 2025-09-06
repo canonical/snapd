@@ -157,3 +157,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
+
+  re-run:
+    permissions:
+      actions: write
+    needs: [read-systems, spread-master-fundamental, spread-master-not-fundamental, spread-master-nested]
+    # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
+    if: failure() && fromJSON(github.run_attempt) <= 1
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run rerun.yaml -F run_id=${{ github.run_id }}
