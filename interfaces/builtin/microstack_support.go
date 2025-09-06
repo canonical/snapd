@@ -215,6 +215,14 @@ unmount /run/netns/ovnmeta-*,
 
 # Required by libvirtd to detect and utilise AMD SEV capabilities for AMD CPU's
 /dev/sev rw,
+
+# Required by OVS to initialize DPDK
+# https://doc.dpdk.org/guides/linux_gsg/enable_func.html
+@{PROC}/@{pids}/pagemap r,
+capability ipc_lock,
+# Allow anonymous files backed by huge pages.
+# https://gitlab.com/apparmor/apparmor/-/issues/545
+owner / rw,
 `
 
 const microStackSupportConnectedPlugSecComp = `
