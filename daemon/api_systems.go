@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -66,7 +67,7 @@ var systemsActionCmd = &Command{
 	Actions: []string{
 		"do", "reboot", "install",
 		"create", "remove", "check-passphrase",
-		"check-pin",
+		"check-pin", "fix-encryption-support",
 	},
 	WriteAccess: rootAccess{},
 }
@@ -123,8 +124,13 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // wrapped for unit tests
-var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel)
+var deviceManagerSystemAndGadgetAndEncryptionInfo = func(
+	dm *devicestate.DeviceManager,
+	systemLabel string,
+	checkAction *secboot.PreinstallAction,
+	encInfoFromCache bool,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel, checkAction, encInfoFromCache)
 }
 
 func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
@@ -172,13 +178,22 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	wantedSystemLabel := muxVars(r)["label"]
 
 	deviceMgr := c.d.overlord.DeviceManager()
-
-	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel)
+	details, err := getSystemDetailsWithOptionalFixAction(deviceMgr, wantedSystemLabel, nil)
 	if err != nil {
 		return InternalError(err.Error())
+
 	}
 
-	rsp := client.SystemDetails{
+	return SyncResponse(*details)
+}
+
+func getSystemDetailsWithOptionalFixAction(deviceMgr *devicestate.DeviceManager, wantedSystemLabel string, fixAction *secboot.PreinstallAction) (*client.SystemDetails, error) {
+	const encInfoFromCache = false
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel, fixAction, encInfoFromCache)
+	if err != nil {
+		return nil, err
+	}
+	details := &client.SystemDetails{
 		Current: sys.Current,
 		Label:   sys.Label,
 		Brand: snap.StoreAccount{
@@ -197,13 +212,12 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 		StorageEncryption: storageEncryption(encryptionInfo),
 	}
 	for _, sa := range sys.Actions {
-		rsp.Actions = append(rsp.Actions, client.SystemAction{
+		details.Actions = append(details.Actions, client.SystemAction{
 			Title: sa.Title,
 			Mode:  sa.Mode,
 		})
 	}
-
-	return SyncResponse(rsp)
+	return details, nil
 }
 
 type systemActionRequest struct {
@@ -213,6 +227,7 @@ type systemActionRequest struct {
 	client.InstallSystemOptions
 	client.CreateSystemOptions
 	client.QualityCheckOptions
+	client.FixEncryptionSupportOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -290,6 +305,8 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCheckPassphrase(c, systemLabel, &req)
 	case "check-pin":
 		return postSystemActionCheckPIN(c, systemLabel, &req)
+	case "fix-encryption-support":
+		return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -622,34 +639,6 @@ func postSystemActionRemove(c *Command, systemLabel string) Response {
 	return AsyncResponse(nil, chg.ID())
 }
 
-type encryptionSupportInfoKey struct{ systemLabel string }
-
-// cachedEncryptionSupportInfoByLabel returns encryption support info for specified system from cache.
-// If no cached value exist it is computed once and reused for future calls.
-//
-// Note that the cached value is never cleared as system seeds are assumed to be immutable.
-func cachedEncryptionSupportInfoByLabel(c *Command, systemLabel string) (*install.EncryptionSupportInfo, error) {
-	c.d.state.Lock()
-	cached := c.d.state.Cached(encryptionSupportInfoKey{systemLabel})
-	c.d.state.Unlock()
-	if cached != nil {
-		encryptionSupportInfo, ok := cached.(*install.EncryptionSupportInfo)
-		if ok {
-			return encryptionSupportInfo, nil
-		}
-	}
-	// no entry found in cache, let's compute encryption support info for target system
-	deviceMgr := c.d.overlord.DeviceManager()
-	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel)
-	if err != nil {
-		return nil, err
-	}
-	c.d.state.Lock()
-	c.d.state.Cache(encryptionSupportInfoKey{systemLabel}, encryptionInfo)
-	c.d.state.Unlock()
-	return encryptionInfo, nil
-}
-
 var deviceValidatePassphrase = device.ValidatePassphrase
 
 func postValidatePassphrase(mode device.AuthMode, passphrase string) Response {
@@ -693,7 +682,9 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
 	}
 
-	encryptionInfo, err := cachedEncryptionSupportInfoByLabel(c, systemLabel)
+	const encInfoFromCache = true
+	deviceMgr := c.d.overlord.DeviceManager()
+	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, nil, encInfoFromCache)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -716,7 +707,9 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 		return BadRequest("pin must be provided in request body for action %q", req.Action)
 	}
 
-	encryptionInfo, err := cachedEncryptionSupportInfoByLabel(c, systemLabel)
+	const encInfoFromCache = true
+	deviceMgr := c.d.overlord.DeviceManager()
+	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, nil, encInfoFromCache)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -729,4 +722,36 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 	}
 
 	return postValidatePassphrase(device.AuthModePIN, req.PIN)
+}
+
+func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *systemActionRequest) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+
+	if req.FixAction == "" {
+		return BadRequest("fix action must be provided in request body for action %q", req.Action)
+	}
+
+	if req.Args == nil {
+		return BadRequest("fix action args must be provided in request body for action %q", req.Action)
+	}
+
+	checkAction := &secboot.PreinstallAction{
+		Action: req.FixAction,
+		Args:   req.Args,
+	}
+
+	// TODO:FDEM: In the future, snapd should be able to identify actions it is responsible for handling,
+	// and avoid forwarding those actions to secboot. Similarly, actions intended for the installer
+	// should result in an error. A mechanism is needed to determine ownership of each action.
+
+	deviceMgr := c.d.overlord.DeviceManager()
+	details, err := getSystemDetailsWithOptionalFixAction(deviceMgr, systemLabel, checkAction)
+	if err != nil {
+		return InternalError(err.Error())
+
+	}
+
+	return SyncResponse(*details)
 }
