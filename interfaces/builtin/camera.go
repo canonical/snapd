@@ -31,10 +31,10 @@ const cameraBaseDeclarationSlots = `
 
 const cameraConnectedPlugAppArmor = `
 # Until we have proper device assignment, allow access to all cameras
-/dev/video[0-9]* rw,
+###PROMPT### /dev/video[0-9]* rw,
 
 # VideoCore cameras (shared device with VideoCore/EGL)
-/dev/vchiq rw,
+###PROMPT### /dev/vchiq rw,
 
 # Allow detection of cameras. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
