@@ -22,6 +22,7 @@ package apparmorprompting
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"gopkg.in/tomb.v2"
@@ -272,8 +273,12 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	if err != nil {
 		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
 			// There were no tags registered with a snapd interface, so we
-			// default to the "home" interface.
-			iface = "home"
+			// look at the path to decide whether it's "home" or "camera".
+			if strings.HasPrefix(req.Path, "/dev/video") || req.Path == "/dev/vchiq" {
+				iface = "camera"
+			} else {
+				iface = "home"
+			}
 		} else {
 			// There was either more than one interface associated with tags, or
 			// none which applied to all requested permissions. Since we can't
