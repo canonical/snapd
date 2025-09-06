@@ -447,6 +447,19 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 			},
 		}
+	case "channel-for-integrity-data":
+		info.IntegrityData = &snap.IntegrityData{
+			Version:       1,
+			Type:          "dm-verity",
+			HashAlg:       "sha256",
+			DataBlockSize: 1000,
+			HashBlockSize: 1000,
+			Salt:          "salt",
+			Digest:        "digest",
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
