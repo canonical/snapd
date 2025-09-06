@@ -57,6 +57,7 @@ $ snap debug api --session-agent-uid=12345 /v1/session-info
 type cmdDebugAPI struct {
 	SnapSocket      bool   `long:"snap-socket"`
 	SessionAgentUID string `long:"session-agent-uid"`
+	DisableAuth     bool   `long:"disable-auth"`
 
 	Headers []string `short:"H" long:"header"`
 	Method  string   `short:"X" long:"request"`
@@ -81,6 +82,7 @@ func init() {
 			"fail":              "Fail on request errors",
 			"snap-socket":       "Use snap access socket",
 			"session-agent-uid": "Communicate with session agent of a given UID",
+			"disable-auth":      "Disable authorization with data from auth.json",
 		}, nil)
 }
 
@@ -115,11 +117,13 @@ func (x *cmdDebugAPI) Execute(args []string) error {
 		return fmt.Errorf("cannot use both snap socket and session-agent")
 	}
 
-	var client debugAPIClient = mkClient()
+	ClientConfig.DisableAuth = x.DisableAuth
+
 	if x.SnapSocket {
 		ClientConfig.Socket = dirs.SnapSocket
-		client = mkClient()
 	}
+
+	var client debugAPIClient = mkClient()
 
 	if x.SessionAgentUID != "" {
 		uid, err := strconv.Atoi(x.SessionAgentUID)
