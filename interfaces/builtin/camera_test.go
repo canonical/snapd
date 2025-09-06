@@ -113,3 +113,23 @@ func (s *CameraInterfaceSuite) TestAutoConnect(c *C) {
 func (s *CameraInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *CameraInterfaceSuite) TestDetectCameraFromPath(c *C) {
+	for _, path := range []string{
+		"/dev/video0",
+		"/dev/video1",
+		"/dev/video99",
+		"/dev/vchiq",
+	} {
+		c.Check(builtin.DetectCameraFromPath(path), Equals, true, Commentf("%q should be detected as camera path"))
+	}
+
+	for _, path := range []string{
+		"/foo/bar",
+		"/dev/vid",
+		"/dev/vhci",
+		"/home/ubuntu",
+	} {
+		c.Check(builtin.DetectCameraFromPath(path), Equals, false, Commentf("%q should not be detected as camera path"))
+	}
+}
