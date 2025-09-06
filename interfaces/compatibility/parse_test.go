@@ -1,0 +1,238 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package compatibility_test
+
+import (
+	"github.com/snapcore/snapd/interfaces/compatibility"
+	. "gopkg.in/check.v1"
+)
+
+func (s *CompatSuite) TestParserValidLabels(c *C) {
+	for i, tc := range []struct {
+		expression string
+		tree       *compatibility.Node
+		labels     []compatibility.CompatField
+	}{
+		{"foo",
+			&compatibility.Node{Exp: &compatibility.CompatField{
+				[]compatibility.CompatDimension{{"foo", []compatibility.CompatRange{{0, 0}}}}}},
+			[]compatibility.CompatField{{Dimensions: []compatibility.CompatDimension{{Tag: "foo", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}}}}},
+		},
+		{"foo-7-4 OR bar",
+			&compatibility.Node{
+				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
+				Left: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "foo", Values: []compatibility.CompatRange{{7, 7}, {4, 4}}}},
+					},
+				},
+				Right: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "bar", Values: []compatibility.CompatRange{{0, 0}}}},
+					},
+				},
+			},
+			[]compatibility.CompatField{
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "foo", Values: []compatibility.CompatRange{{Min: 7, Max: 7}, {Min: 4, Max: 4}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "bar", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+			},
+		},
+		{"((foo AND bar-(1..10)))",
+			&compatibility.Node{
+				Exp:   &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
+				Depth: 2,
+				Left: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "foo", Values: []compatibility.CompatRange{{0, 0}}}},
+					},
+				},
+				Right: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "bar", Values: []compatibility.CompatRange{{1, 10}}}},
+					},
+				},
+			},
+			[]compatibility.CompatField{
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "foo", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "bar", Values: []compatibility.CompatRange{{Min: 1, Max: 10}}},
+				}},
+			},
+		},
+		{"(foo AND bar) OR baz-(5..6)-(5..56)",
+			&compatibility.Node{
+				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
+				Left: &compatibility.Node{
+					Exp:   &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
+					Depth: 1,
+					Left: &compatibility.Node{
+						Exp: &compatibility.CompatField{
+							Dimensions: []compatibility.CompatDimension{
+								{Tag: "foo", Values: []compatibility.CompatRange{{0, 0}}}},
+						},
+					},
+					Right: &compatibility.Node{
+						Exp: &compatibility.CompatField{
+							Dimensions: []compatibility.CompatDimension{
+								{Tag: "bar", Values: []compatibility.CompatRange{{0, 0}}}},
+						},
+					}},
+				Right: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "baz", Values: []compatibility.CompatRange{{5, 6}, {5, 56}}}},
+					},
+				},
+			},
+			[]compatibility.CompatField{
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "foo", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "bar", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "baz", Values: []compatibility.CompatRange{{Min: 5, Max: 6}, {Min: 5, Max: 56}}},
+				}},
+			},
+		},
+		{"foo-0-blah-5 AND (bar OR baz)",
+			&compatibility.Node{
+				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
+				Left: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "foo", Values: []compatibility.CompatRange{{0, 0}}},
+							{Tag: "blah", Values: []compatibility.CompatRange{{5, 5}}},
+						},
+					},
+				},
+				Right: &compatibility.Node{
+					Exp:   &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
+					Depth: 1,
+					Left: &compatibility.Node{
+						Exp: &compatibility.CompatField{
+							Dimensions: []compatibility.CompatDimension{
+								{Tag: "bar", Values: []compatibility.CompatRange{{0, 0}}}},
+						},
+					},
+					Right: &compatibility.Node{
+						Exp: &compatibility.CompatField{
+							Dimensions: []compatibility.CompatDimension{
+								{Tag: "baz", Values: []compatibility.CompatRange{{0, 0}}}},
+						},
+					}},
+			},
+			[]compatibility.CompatField{
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "foo", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+					{Tag: "blah", Values: []compatibility.CompatRange{{Min: 5, Max: 5}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "bar", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "baz", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+			},
+		},
+		{"foo OR bar OR baz",
+			&compatibility.Node{
+				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
+				Left: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "foo", Values: []compatibility.CompatRange{{0, 0}}}},
+					},
+				},
+				Right: &compatibility.Node{
+					Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
+					Left: &compatibility.Node{
+						Exp: &compatibility.CompatField{
+							Dimensions: []compatibility.CompatDimension{
+								{Tag: "bar", Values: []compatibility.CompatRange{{0, 0}}}},
+						},
+					},
+					Right: &compatibility.Node{
+						Exp: &compatibility.CompatField{
+							Dimensions: []compatibility.CompatDimension{
+								{Tag: "baz", Values: []compatibility.CompatRange{{0, 0}}}},
+						},
+					}},
+			},
+			[]compatibility.CompatField{
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "foo", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "bar", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+				{Dimensions: []compatibility.CompatDimension{
+					{Tag: "baz", Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				}},
+			},
+		},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+		node, labels, err := compatibility.Parse(tc.expression)
+		c.Check(err, IsNil)
+		c.Check(node, DeepEquals, tc.tree)
+		c.Check(labels, DeepEquals, tc.labels)
+	}
+}
+
+func (s *CompatSuite) TestParserInvalidLabels(c *C) {
+	for i, tc := range []struct {
+		expression string
+		errMsg     string
+	}{
+		{"(foo", "expected right parenthesis"},
+		{"foo)", "unexpected right parenthesis"},
+		{"AND", `unexpected token "AND"`},
+		{"OR", `unexpected token "OR"`},
+		{"foo OR", `unexpected token after operator "OR": "EOF"`},
+		{"OR foo", `unexpected token "OR"`},
+		{"(OR foo)", `unexpected token "OR"`},
+		{"foo-", "while parsing: no rune after dash"},
+		{"foo-1-foo-2", "repeated string in label: foo"},
+		{"a12345678901234567890123456789012", "string is longer than 32 characters: a12345678901234567890123456789012"},
+		{"foo-(1..)", `while parsing: not an integer: \)`},
+		{"foo-(55..1)", `negative range specified: \(55\.\.1\)`},
+		{"foo OR bar AND baz", `parenthesis required for disambiguation`},
+		{"blah AND (foo OR bar AND baz)", `parenthesis required for disambiguation`},
+		{"(blah AND foo OR bar) AND baz", `parenthesis required for disambiguation`},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+		node, labels, err := compatibility.Parse(tc.expression)
+		c.Check(err, ErrorMatches, tc.errMsg)
+		c.Check(node, IsNil)
+		c.Check(len(labels), Equals, 0)
+	}
+}
