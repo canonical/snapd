@@ -20,29 +20,29 @@
 package builtin
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
-	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-const eglDriverLibsSummary = `allows exposing EGL driver libraries to the system`
+const gbmDriverLibsSummary = `allows exposing GBM driver libraries to the system`
 
 // Plugs only supported for the system on classic for the moment (note this is
 // checked on "system" snap installation even though this is an implicit plug
 // in that case) - in the future we will allow snaps having this as plug and
 // this declaration will have to change.
-const eglDriverLibsBaseDeclarationPlugs = `
-  egl-driver-libs:
+const gbmDriverLibsBaseDeclarationPlugs = `
+  gbm-driver-libs:
     allow-installation:
       plug-snap-type:
         - core
@@ -52,26 +52,21 @@ const eglDriverLibsBaseDeclarationPlugs = `
 `
 
 // Installation only allowed if permitted by the snap declaration (for asserted snaps)
-const eglDriverLibsBaseDeclarationSlots = `
-  egl-driver-libs:
+const gbmDriverLibsBaseDeclarationSlots = `
+  gbm-driver-libs:
     allow-installation: false
     deny-auto-connection: true
 `
 
-// eglDriverLibsInterface allows exposing EGL driver libraries to the system or snaps.
-type eglDriverLibsInterface struct {
+// gbmDriverLibsInterface allows exposing GBM driver libraries to the system or snaps.
+type gbmDriverLibsInterface struct {
 	commonInterface
 }
 
-func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+var reClientDriver = regexp.MustCompile("^[-0-9a-zA-Z_.]+$").Match
+
+func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// Validate attributes
-	var priority int64
-	if err := slot.Attr("priority", &priority); err != nil {
-		return fmt.Errorf("invalid priority: %w", err)
-	}
-	if priority <= 0 {
-		return fmt.Errorf("priority must be a positive integer")
-	}
 	var clientDriver string
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
@@ -80,81 +75,82 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	if strings.ContainsRune(clientDriver, os.PathSeparator) {
 		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
 	}
+	if !reClientDriver([]byte(clientDriver)) {
+		return fmt.Errorf("invalid client-driver name: %s", clientDriver)
+	}
 	var compatField string
 	if err := slot.Attr("compatibility", &compatField); err != nil {
 		return err
 	}
 	// Validate format of compatibility field - we don't actually need to
 	// do anything else with it until we start to support regular snaps.
-	_, err := compatibility.DecodeCompatField(compatField,
-		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
-			{Tag: "egl", Values: []compatibility.CompatRange{{Min: 1, Max: 1}, {Min: 5, Max: 5}}},
-			{Tag: "ubuntu", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
-		}})
-	if err != nil {
-		return err
+	var compatErr error
+	var validCompat bool
+	// TODO maybe we should support regular expressions in the CompatSpec tags
+	for _, arch := range []string{"arch32", "arch64"} {
+		_, err := compatibility.DecodeCompatField(compatField,
+			&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
+				{Tag: "gbmbackend", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
+				{Tag: arch, Values: []compatibility.CompatRange{{Min: 0, Max: 0}}},
+				{Tag: "ubuntu", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
+			}})
+		if err == nil {
+			validCompat = true
+			break
+		}
+		compatErr = err
+	}
+	if !validCompat {
+		return compatErr
 	}
 	// Validate directories
 	return validateLdconfigLibDirs(slot)
 }
 
-func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
 }
 
-var _ = interfaces.ConfigfilesUser(&eglDriverLibsInterface{})
+var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})
+var _ = symlinks.ConnectedPlugCallback(&gbmDriverLibsInterface{})
 
-const eglVendorPath = "/usr/share/glvnd/egl_vendor.d"
-
-func (t *eglDriverLibsInterface) PathPatterns() []string {
-	return []string{filepath.Join(eglVendorPath, "*_snap_*_*.json")}
+func gbmVendorPath() string {
+	// TODO consider alternative architectures?
+	return fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())
 }
 
-func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// The plug can only be the system plug for the time being
+func (iface *gbmDriverLibsInterface) TrackedDirectories() []string {
+	return []string{gbmVendorPath()}
+}
 
-	var priority int64
-	if err := slot.Attr("priority", &priority); err != nil {
-		return fmt.Errorf("invalid priority: %w", err)
-	}
+func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var clientDriver string
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
-
-	var icd struct {
-		FileFormatVersion string `json:"file_format_version"`
-		ICD               struct {
-			LibraryPath string `json:"library_path"`
-		} `json:"ICD"`
-	}
-	icd.FileFormatVersion = "1.0.0"
-	icd.ICD.LibraryPath = clientDriver
-	icdContent, err := json.MarshalIndent(icd, "", "    ")
+	// Look for the driver library
+	path, err := filePathInLibDirs(slot, clientDriver)
 	if err != nil {
 		return err
 	}
-	icdContent = append(icdContent, byte('\n'))
 
-	icdPath := filepath.Join(eglVendorPath, fmt.Sprintf(
-		"%d_snap_%s_%s.json", priority, slot.Snap().InstanceName(), slot.Name()))
-	return spec.AddPathContent(icdPath, &osutil.MemoryFileState{Content: icdContent, Mode: 0644})
+	return spec.AddSymlink(path, filepath.Join(gbmVendorPath(), clientDriver))
 }
 
-func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+func (iface *gbmDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// TODO This might need changes when we support plugs in non-system
 	// snaps for this interface.
 	return true
 }
 
 func init() {
-	registerIface(&eglDriverLibsInterface{
+	registerIface(&gbmDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "egl-driver-libs",
-			summary:              eglDriverLibsSummary,
-			baseDeclarationPlugs: eglDriverLibsBaseDeclarationPlugs,
-			baseDeclarationSlots: eglDriverLibsBaseDeclarationSlots,
+			name:                 "gbm-driver-libs",
+			summary:              gbmDriverLibsSummary,
+			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
+			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
 			implicitPlugOnCore:    false,
 			implicitPlugOnClassic: true,
