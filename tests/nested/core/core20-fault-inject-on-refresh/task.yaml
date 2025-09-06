@@ -97,7 +97,14 @@ execute: |
             ;;
         kernel_*)
             SNAP=pc-kernel
-            CHANNEL="$VERSION/beta"
+            case "${VERSION}" in
+              26)
+                CHANNEL="$VERSION/edge"
+              ;;
+              *)
+                CHANNEL="$VERSION/beta"
+              ;;
+            esac
             if [ "$FAULT" = reboot ]; then
                 SECOND_REBOOT=true
             else
