@@ -1,0 +1,87 @@
+summary: Check that services with success-exit-status have SuccessExitStatus directive
+
+details: |
+    Verifies that a snap service with SuccessExitStatus=250 SIGKILL is considered active or successfully terminated by systemd when it exits with status 250 or SIGKILL, and that other unexpected signals do not have this effect.
+
+environment:
+    SERVICE_NAME: snap.test-snapd-success-exit-status.test-snapd-success-exit-status.service
+
+restore: |
+    snap remove --purge test-snapd-success-exit-status || true
+
+execute: |
+    echo "Given a service snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-success-exit-status
+
+    echo "When the service state is reported as active"
+    while ! systemctl show -p ActiveState "$SERVICE_NAME" | grep -Pq "ActiveState=active"; do sleep 0.5; done
+
+    echo "The service contains the SuccessExitStatus= directive"
+    systemctl cat "$SERVICE_NAME" | grep -q "SuccessExitStatus=250 SIGKILL"
+
+    echo "Then systemctl reports the status of the service as loaded, active and running"
+    expected='(?s).*?Loaded: loaded .*?Active: active \(running\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
+
+    echo "When the service initialization is completed"
+    while [[ ! $(systemctl status "$SERVICE_NAME" | grep -oP 'Main PID: \d+ \([^)]+\)' | grep -oP '\([^)]+\)' | tr -d '()') =~ ^service-exit- ]]; do sleep 0.5; done
+
+    echo "Terminate the service with success exit status 250"
+    systemctl kill -s 10 --wait "$SERVICE_NAME"
+
+    echo "When the signal is propagated to the service"
+    timeout 20 bash -c "while ! systemctl show -p ActiveState \"$SERVICE_NAME\" | grep -Pq \"ActiveState=inactive\"; do sleep 0.5; done" || true
+
+    echo "Then systemctl reports the status of the service as terminated with the custom status"
+    expected='(?s).*?\(code=exited, status=250\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
+
+    # ==========
+
+    echo "Restart the service for another test"
+    systemctl restart "$SERVICE_NAME"
+
+    echo "When the service state is reported as active"
+    while ! systemctl show -p ActiveState "$SERVICE_NAME" | grep -Pq "ActiveState=active"; do sleep 0.5; done
+
+    echo "Then systemctl reports the status of the service as loaded, active and running"
+    expected='(?s).*?Loaded: loaded .*?Active: active \(running\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
+
+    echo "When the service initialization is completed"
+    while [[ ! $(systemctl status "$SERVICE_NAME" | grep -oP 'Main PID: \d+ \([^)]+\)' | grep -oP '\([^)]+\)' | tr -d '()') =~ ^service-exit- ]]; do sleep 0.5; done
+
+    echo "Terminate the service with success exit status SIGKILL"
+    systemctl kill -s 9 --wait "$SERVICE_NAME"
+
+    echo "When the signal is propagated to the service"
+    timeout 20 bash -c "while ! systemctl show -p ActiveState \"$SERVICE_NAME\" | grep -Pq \"ActiveState=inactive\"; do sleep 0.5; done" || true
+
+    echo "Then systemctl reports the status of the service as terminated"
+    expected='(?s).*?\(code=killed, signal=KILL\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
+
+    # ==========
+
+    echo "Restart the service for another test"
+    systemctl restart "$SERVICE_NAME"
+
+    echo "When the service state is reported as active"
+    while ! systemctl show -p ActiveState "$SERVICE_NAME" | grep -Pq "ActiveState=active"; do sleep 0.5; done
+
+    echo "Then systemctl reports the status of the service as loaded, active and running"
+    expected='(?s).*?Loaded: loaded .*?Active: active \(running\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
+
+    echo "When the service initialization is completed"
+    while [[ ! $(systemctl status "$SERVICE_NAME" | grep -oP 'Main PID: \d+ \([^)]+\)' | grep -oP '\([^)]+\)' | tr -d '()') =~ ^service-exit- ]]; do sleep 0.5; done
+
+    echo "Terminate the service with failure exit status sending SIGUSR2"
+    systemctl kill -s 12 --wait "$SERVICE_NAME"
+
+    echo "When the signal is propagated to the service"
+    timeout 20 bash -c "while ! systemctl show -p ActiveState \"$SERVICE_NAME\" | grep -Pq \"ActiveState=active\"; do sleep 0.5; done" || true
+
+    echo "Then systemctl reports the status of the service as loaded, active and running"
+    expected='(?s).*?Loaded: loaded .*?Active: active \(running\)'
+    systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
