@@ -4806,7 +4806,7 @@ func (s *secbootSuite) TestResealKeyTPM(c *C) {
 
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices: []string{"/dev/foo"},
-		TpmPCRProfile:     []byte(`some bytes`),
+		GetTpmPCRProfile:  func() ([]byte, error) { return []byte(`some bytes`), nil },
 	}
 
 	updatedKeys, err := secboot.ResealKey(key, params)
@@ -4872,7 +4872,7 @@ func (s *secbootSuite) TestResealKeyTPMKeyFile(c *C) {
 
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices: []string{"/dev/foo"},
-		TpmPCRProfile:     []byte(`some bytes`),
+		GetTpmPCRProfile:  func() ([]byte, error) { return []byte(`some bytes`), nil },
 	}
 
 	updatedKeys, err := secboot.ResealKey(key, params)
@@ -4941,7 +4941,7 @@ func (s *secbootSuite) TestResealKeyTPMKeyFileLegacy(c *C) {
 
 	params := &secboot.ResealKeyParams{
 		PrimaryKeyDevices: []string{"/dev/foo"},
-		TpmPCRProfile:     []byte(`some bytes`),
+		GetTpmPCRProfile:  func() ([]byte, error) { return []byte(`some bytes`), nil },
 	}
 
 	updatedKeys, err := secboot.ResealKey(key, params)

@@ -402,11 +402,6 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 	restore = backend.MockSecbootResealKey(func(key secboot.KeyDataLocation, params *secboot.ResealKeyParams) (secboot.UpdatedKeys, error) {
 		resealCalls++
 
-		skippedCalls := 0
-		if missingRunParams {
-			skippedCalls += 1
-		}
-
 		c.Check(params.PrimaryKeyDevices, DeepEquals, []string{"/dev/disk/by-uuid/123", "/dev/disk/by-uuid/456"})
 		c.Check(params.FallbackPrimaryKeyFiles, DeepEquals, []string{
 			filepath.Join(dirs.SnapSaveDir, "device/fde", "aux-key"),
@@ -415,8 +410,9 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 
 		c.Logf("key: %v", key)
 
-		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
-		switch resealCalls + skippedCalls {
+		tpmPCRProfile, profileErr := params.GetTpmPCRProfile()
+
+		switch resealCalls {
 		case 1:
 			// Resealing the run+recover key for data partition
 			c.Check(key, DeepEquals, secboot.KeyDataLocation{
@@ -424,6 +420,12 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 				SlotName:   "default",
 				KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"),
 			})
+			if missingRunParams {
+				c.Assert(profileErr, NotNil)
+				return nil, profileErr
+			}
+			c.Assert(profileErr, IsNil)
+			c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 		case 2:
 			// Resealing the recovery key for both data partition
 			c.Check(key, DeepEquals, secboot.KeyDataLocation{
@@ -431,6 +433,12 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 				SlotName:   "default-fallback",
 				KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"),
 			})
+			if missingRecoverParams {
+				c.Assert(profileErr, NotNil)
+				return nil, profileErr
+			}
+			c.Assert(profileErr, IsNil)
+			c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 		case 3:
 			// Resealing the recovery key for both save partition
 			c.Check(key, DeepEquals, secboot.KeyDataLocation{
@@ -438,6 +446,12 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 				SlotName:   "default-fallback",
 				KeyFile:    filepath.Join(s.rootdir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"),
 			})
+			if missingRecoverParams {
+				c.Assert(profileErr, NotNil)
+				return nil, profileErr
+			}
+			c.Assert(profileErr, IsNil)
+			c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 		default:
 			c.Errorf("unexpected additional call to secboot.ResealKey (call # %d)", resealCalls)
 		}
@@ -469,6 +483,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 			c.Errorf("unexpected call")
 			return fmt.Errorf("unexpected call")
 		}
+
 		c.Assert(uk, NotNil)
 		c.Assert(*uk, HasLen, 3)
 		c.Check((*uk)[0].(*fakeSealedKey).num, Equals, 1)
@@ -494,14 +509,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, revokeOldKeys bool, missingRu
 
 	c.Assert(bootIsResealNeededCalls, Equals, 2)
 
-	expectedResealCalls := 3
-	if missingRunParams {
-		expectedResealCalls -= 1
-	}
-	if missingRecoverParams {
-		expectedResealCalls -= 2
-	}
-	c.Check(resealCalls, Equals, expectedResealCalls)
+	c.Check(resealCalls, Equals, 3)
 
 	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
 	c.Assert(err, IsNil)
@@ -846,7 +854,8 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 			c.Check(params.HintExpectFDEHook, Equals, false)
 
 			resealKeysCalls++
-			c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+
+			tpmPCRProfile, profileErr := params.GetTpmPCRProfile()
 
 			checkRunParams := func() {
 				c.Check(key, DeepEquals, secboot.KeyDataLocation{
@@ -854,6 +863,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 					SlotName:   "default",
 					KeyFile:    filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 				})
+
+				if !tc.reuseRunPbc {
+					c.Assert(profileErr, IsNil)
+					c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+				} else {
+					c.Assert(profileErr, NotNil)
+				}
 			}
 
 			checkRecoveryParamsData := func() {
@@ -862,6 +878,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				})
+
+				if !tc.reuseRecoveryPbc {
+					c.Assert(profileErr, IsNil)
+					c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+				} else {
+					c.Assert(profileErr, NotNil)
+				}
 			}
 
 			checkRecoveryParamsSave := func() {
@@ -870,6 +893,13 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 					SlotName:   "default-fallback",
 					KeyFile:    filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 				})
+
+				if !tc.reuseRecoveryPbc {
+					c.Assert(profileErr, IsNil)
+					c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+				} else {
+					c.Assert(profileErr, NotNil)
+				}
 			}
 
 			switch resealKeysCalls {
@@ -1295,7 +1325,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 		c.Check(params.HintExpectFDEHook, Equals, false)
 
 		resealKeysCalls++
-		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+		tpmPCRProfile, err := params.GetTpmPCRProfile()
+		c.Assert(err, IsNil)
+		c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 
 		switch resealKeysCalls {
 		case 1: // run key
@@ -1637,7 +1669,9 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 		c.Check(params.HintExpectFDEHook, Equals, false)
 
 		resealKeysCalls++
-		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+		tpmPCRProfile, err := params.GetTpmPCRProfile()
+		c.Assert(err, IsNil)
+		c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 
 		switch resealKeysCalls {
 		case 1: // run key
@@ -1891,7 +1925,9 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 
 		c.Check(params.NewPCRPolicyVersion, Equals, false)
 		c.Check(params.HintExpectFDEHook, Equals, false)
-		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
+		tpmPCRProfile, err := params.GetTpmPCRProfile()
+		c.Assert(err, IsNil)
+		c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile"`))
 
 		c.Logf("reseal: %+v", params)
 		switch resealKeysCalls {
@@ -2337,7 +2373,9 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 		c.Check(params.NewPCRPolicyVersion, Equals, false)
 		c.Check(params.HintExpectFDEHook, Equals, false)
 
-		c.Check(params.TpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile-with-dbx"`))
+		tpmPCRProfile, err := params.GetTpmPCRProfile()
+		c.Assert(err, IsNil)
+		c.Check(tpmPCRProfile, DeepEquals, []byte(`"serialized-pcr-profile-with-dbx"`))
 		c.Logf("reseal: %+v", params)
 
 		return nil, nil
