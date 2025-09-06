@@ -98,8 +98,8 @@ network netlink raw,
 @{PROC}/tty/driver/{,*} r,
 @{PROC}/sys/dev/cdrom/info r,
 
-# status of hugepages and transparent_hugepage, but not the pages themselves
-/sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
+# status of ksm (Kernel Samepage Merging), hugepages and transparent_hugepage, but not the pages themselves
+/sys/kernel/mm/{ksm,hugepages,transparent_hugepage}/{,**} r,
 
 # systemd-detect-virt
 /{,usr/}bin/systemd-detect-virt ixr,
