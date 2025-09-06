@@ -540,7 +540,8 @@ var (
 	// List of permissions available for each interface. This also defines the
 	// order in which the permissions should be presented.
 	interfacePermissionsAvailable = map[string][]string{
-		"home": {"read", "write", "execute"},
+		"home":   {"read", "write", "execute"},
+		"camera": {"access"},
 	}
 
 	// A mapping from interfaces which support AppArmor file permissions to
@@ -554,6 +555,9 @@ var (
 			"read":    notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
 			"write":   notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 			"execute": notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+		},
+		"camera": {
+			"access": notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND,
 		},
 	}
 )
