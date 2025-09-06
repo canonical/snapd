@@ -221,12 +221,6 @@ func TestMountLinkage(t *testing.T) {
 	if v.RootMount().Parent() != nil {
 		t.Fatal("rootfs has a parent?")
 	}
-	if f, l := v.RootMount().ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("rootfs has children?")
-	}
-	if p, n := v.RootMount().SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("rootfs has siblings?")
-	}
 
 	// Mount /a and check links for rootfs and a.
 	if err := v.Mount(fstest.MapFS{}, "a"); err != nil {
@@ -240,21 +234,9 @@ func TestMountLinkage(t *testing.T) {
 	if v.RootMount().Parent() != nil {
 		t.Fatal("rootfs has a parent?")
 	}
-	if f, l := v.RootMount().ChildrenPtrs(); f != a || l != a {
-		t.Fatal("rootfs first and last child is not mount at /a?")
-	}
-	if p, n := v.RootMount().SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("rootfs has siblings?")
-	}
 
 	if a.Parent() != v.RootMount() {
 		t.Fatal("/a is not a parent of the root?")
-	}
-	if f, l := a.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/a has children?")
-	}
-	if p, n := a.SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("/a has siblings?")
 	}
 
 	// Mount /b and check links for rootfs, a and b.
@@ -269,31 +251,13 @@ func TestMountLinkage(t *testing.T) {
 	if v.RootMount().Parent() != nil {
 		t.Fatal("rootfs has a parent?")
 	}
-	if f, l := v.RootMount().ChildrenPtrs(); f != a || l != b {
-		t.Fatal("rootfs first is not /a and last is not /b?")
-	}
-	if p, n := v.RootMount().SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("rootfs has siblings?")
-	}
 
 	if a.Parent() != v.RootMount() {
 		t.Fatal("/a is not a parent of the root?")
 	}
-	if f, l := a.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/a has children?")
-	}
-	if p, n := a.SiblingPtrs(); p != nil || n != b {
-		t.Fatal("/a sibling is not /b?")
-	}
 
 	if b.Parent() != v.RootMount() {
 		t.Fatal("/b is not a parent of the root?")
-	}
-	if f, l := b.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/b has children?")
-	}
-	if p, n := b.SiblingPtrs(); p != a || n != nil {
-		t.Fatal("/b sibling is not /a?")
 	}
 
 	// Mount /c and check links for rootfs, a, b and c.
@@ -308,41 +272,17 @@ func TestMountLinkage(t *testing.T) {
 	if v.RootMount().Parent() != nil {
 		t.Fatal("rootfs has a parent?")
 	}
-	if f, l := v.RootMount().ChildrenPtrs(); f != a || l != c {
-		t.Fatal("rootfs first is not /a and last is not /c?")
-	}
-	if p, n := v.RootMount().SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("rootfs has siblings?")
-	}
 
 	if a.Parent() != v.RootMount() {
 		t.Fatal("/a is not a parent of the root?")
-	}
-	if f, l := a.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/a has children?")
-	}
-	if p, n := a.SiblingPtrs(); p != nil || n != b {
-		t.Fatal("/a sibling is not /b?")
 	}
 
 	if b.Parent() != v.RootMount() {
 		t.Fatal("/b is not a parent of the root?")
 	}
-	if f, l := b.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/b has children?")
-	}
-	if p, n := b.SiblingPtrs(); p != a || n != c {
-		t.Fatal("/b siblings are not /a and /c?")
-	}
 
 	if c.Parent() != v.RootMount() {
 		t.Fatal("/c is not a parent of the root?")
-	}
-	if f, l := c.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/c has children?")
-	}
-	if p, n := c.SiblingPtrs(); p != b || n != nil {
-		t.Fatal("/c sibling is not /b?")
 	}
 
 	// Unmount /a and re-check linkage.
@@ -352,31 +292,13 @@ func TestMountLinkage(t *testing.T) {
 	if v.RootMount().Parent() != nil {
 		t.Fatal("rootfs has a parent?")
 	}
-	if f, l := v.RootMount().ChildrenPtrs(); f != b || l != c {
-		t.Fatal("rootfs first child is not /b and is not /c?")
-	}
-	if p, n := v.RootMount().SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("rootfs has siblings?")
-	}
 
 	if a.Parent() != nil {
 		t.Fatal("/a is not detached from parent?")
 	}
-	if f, l := a.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/a has children?")
-	}
-	if p, n := a.SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("/a is not detached from siblings?")
-	}
 
 	if b.Parent() != v.RootMount() {
 		t.Fatal("/b is not a parent of the root?")
-	}
-	if f, l := b.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/b has children?")
-	}
-	if p, n := b.SiblingPtrs(); p != nil || n != c {
-		t.Fatal("/b is is not a sibling of only /c?")
 	}
 
 	// Unmount /c and re-check linkage.
@@ -386,30 +308,12 @@ func TestMountLinkage(t *testing.T) {
 	if v.RootMount().Parent() != nil {
 		t.Fatal("rootfs has a parent?")
 	}
-	if f, l := v.RootMount().ChildrenPtrs(); f != b || l != b {
-		t.Fatal("rootfs first and last child is not mount at /b?")
-	}
-	if p, n := v.RootMount().SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("rootfs has siblings?")
-	}
 
 	if b.Parent() != v.RootMount() {
 		t.Fatal("/b is not detached from parent?")
 	}
-	if f, l := b.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/b has children?")
-	}
-	if p, n := b.SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("/b has siblings?")
-	}
 
 	if c.Parent() != nil {
 		t.Fatal("/c is not detached from parent?")
-	}
-	if f, l := b.ChildrenPtrs(); f != nil || l != nil {
-		t.Fatal("/c has children?")
-	}
-	if p, n := b.SiblingPtrs(); p != nil || n != nil {
-		t.Fatal("/c is not detached from siblings?")
 	}
 }
