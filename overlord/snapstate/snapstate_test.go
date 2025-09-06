@@ -1827,13 +1827,36 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlockedUndo(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
+	s.revertWithBase(c, snap.R(1), "core18", func(chg *state.Change) bool { return false })
+}
+
+func (s *snapmgrTestSuite) TestRevertWithBaseUndo(c *C) {
+	s.revertWithBase(c, snap.R(7), "core22", func(chg *state.Change) bool {
+		// fail the change after the snap's new state is saved
+		s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+			return errors.New("expected")
+		}, nil)
+
+		linkTask := findLastTask(chg, "link-snap")
+		failingTask := s.state.NewTask("fail", "expected failure")
+		chg.AddTask(failingTask)
+		failingTask.WaitFor(linkTask)
+		for _, lane := range linkTask.Lanes() {
+			failingTask.JoinLane(lane)
+		}
+
+		return true
+	})
+}
+
+func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expectedBase string, maybeFail func(*state.Change) bool) {
 	si := snap.SideInfo{
-		RealName: "some-snap-with-base",
+		RealName: "snap-core18-to-core22",
 		Revision: snap.R(7),
 	}
 	siOld := snap.SideInfo{
-		RealName: "some-snap-with-base",
-		Revision: snap.R(2),
+		RealName: "snap-core18-to-core22",
+		Revision: snap.R(1),
 	}
 
 	s.state.Lock()
@@ -1841,10 +1864,20 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 
 	// core18 with snapd, no core snap
 	snapstate.Set(s.state, "core", nil)
+	// so we don't have to list the tasks for the core18 install
 	snapstate.Set(s.state, "core18", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "core22", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "core22", SnapID: "core22-snap-id", Revision: snap.R(1)},
 		}),
 		Current:  snap.R(1),
 		SnapType: "base",
@@ -1859,73 +1892,78 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 	})
 
 	// test snap to revert
-	snapstate.Set(s.state, "some-snap-with-base", &snapstate.SnapState{
+	snapstate.Set(s.state, "snap-core18-to-core22", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
+		Base:     "core22",
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap backwards")
-	ts, err := snapstate.Revert(s.state, "some-snap-with-base", snapstate.Flags{}, "")
+	ts, err := snapstate.Revert(s.state, "snap-core18-to-core22", snapstate.Flags{}, "")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
+	failing := maybeFail(chg)
+
 	s.settle(c)
 
-	expected := fakeOps{
-		{
-			op:   "remove-snap-aliases",
-			name: "some-snap-with-base",
-		},
-		{
-			op:          "run-inhibit-snap-for-unlink",
-			name:        "some-snap-with-base",
-			inhibitHint: "refresh",
-		},
-		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/7"),
-		},
-		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap-with-base",
-			revno: snap.R(2),
-		},
-		{
-			op: "candidate",
-			sinfo: snap.SideInfo{
-				RealName: "some-snap-with-base",
-				Revision: snap.R(2),
+	if !failing {
+		expected := fakeOps{
+			{
+				op:   "remove-snap-aliases",
+				name: "snap-core18-to-core22",
 			},
-		},
-		{
-			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/2"),
-		},
-		{
-			op: "maybe-set-next-boot",
-		},
-		{
-			op:    "auto-connect:Doing",
-			name:  "some-snap-with-base",
-			revno: snap.R(2),
-		},
-		{
-			op: "update-aliases",
-		},
+			{
+				op:          "run-inhibit-snap-for-unlink",
+				name:        "snap-core18-to-core22",
+				inhibitHint: "refresh",
+			},
+			{
+				op:   "unlink-snap",
+				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+			},
+			{
+				op:    "setup-profiles:Doing",
+				name:  "snap-core18-to-core22",
+				revno: snap.R(1),
+			},
+			{
+				op: "candidate",
+				sinfo: snap.SideInfo{
+					RealName: "snap-core18-to-core22",
+					Revision: snap.R(1),
+				},
+			},
+			{
+				op:   "link-snap",
+				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/1"),
+			},
+			{
+				op: "maybe-set-next-boot",
+			},
+			{
+				op:    "auto-connect:Doing",
+				name:  "snap-core18-to-core22",
+				revno: snap.R(1),
+			},
+			{
+				op: "update-aliases",
+			},
+		}
+		// start with an easier-to-read error if this fails:
+		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+		c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 	}
-	// start with an easier-to-read error if this fails:
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
-	// verify that the R(2) version is active now and R(7) is still there
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap-with-base", &snapst)
+	err = snapstate.Get(s.state, "snap-core18-to-core22", &snapst)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Current, Equals, expectedRev)
+	c.Assert(snapst.Base, Equals, expectedBase)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
