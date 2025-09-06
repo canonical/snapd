@@ -140,7 +140,7 @@ func getDesktopFileRules(s *snap.Info) (string, error) {
 			// Unexpected, should have failed in BeforePreparePlug
 			return "", fmt.Errorf("internal error: invalid desktop file ID %q found in snap %q: %v", desktopFileID, s.InstanceName(), err)
 		}
-		fmt.Fprintf(&b, "%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
+		fmt.Fprintf(&b, "%s/%s r,\n", dirs.SnapDesktopFilesDir, desktopFileID)
 	}
 
 	// Generate deny rules to suppress apparmor warnings
