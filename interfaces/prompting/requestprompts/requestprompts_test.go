@@ -1835,7 +1835,7 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	s.checkWrittenIDMap(c, expectedMap)
 }
 
-func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
+func (s *requestpromptsSuite) TestPromptMarshalJSONHome(c *C) {
 	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
@@ -1871,6 +1871,48 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	c.Assert(err, IsNil)
 
 	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
+
+	marshalled, err := json.Marshal(prompt)
+	c.Assert(err, IsNil)
+
+	c.Assert(string(marshalled), Equals, string(expectedJSON))
+}
+
+func (s *requestpromptsSuite) TestPromptMarshalJSONCamera(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
+		c.Fatalf("should not have called sendReply")
+		return nil
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "firefox",
+		PID:       1234,
+		Interface: "camera",
+	}
+	path := "/dev/video1"
+	requestedPermissions := []string{"access"}
+	outstandingPermissions := []string{"access"}
+
+	fakeRequest := listener.Request{
+		ID: 0x1234,
+	}
+
+	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, &fakeRequest)
+	c.Assert(err, IsNil)
+	c.Assert(merged, Equals, false)
+
+	// Set timestamp to a known time
+	timeStr := "2024-08-14T09:47:03.350324989-05:00"
+	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
+	c.Assert(err, IsNil)
+
+	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"interface":"camera","constraints":{"path":"/dev/video1","name":"Imaginary HD Camera","subsystem":"video4linux","requested-permissions":["access"],"available-permissions":["access"]}}`
 
 	marshalled, err := json.Marshal(prompt)
 	c.Assert(err, IsNil)
