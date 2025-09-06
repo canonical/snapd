@@ -319,6 +319,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1234,
+		Cgroup:    "some-cgroup-name",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -329,6 +330,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	listenerReq3 := &listener.Request{ID: 3}
 	listenerReq4 := &listener.Request{ID: 4}
 	listenerReq5 := &listener.Request{ID: 5}
+	listenerReq6 := &listener.Request{ID: 6}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadataTemplate.User, clientActivity)
@@ -347,6 +349,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
 	c.Check(prompt1.PID, Equals, metadata.PID)
+	c.Check(prompt1.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -383,6 +386,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	c.Check(prompt2.Snap, Equals, metadata.Snap)
 	c.Check(prompt2.PID, Equals, metadata.PID)
+	c.Check(prompt2.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt2.Interface, Equals, metadata.Interface)
 	c.Check(prompt2.Constraints.Path(), Equals, path)
 	c.Check(prompt2.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -412,7 +416,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	// Looking up prompt should not record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	// Add third prompt, this time with different PID
+	// Add third prompt, this time with different PID but same Cgroup
 
 	metadata = metadataTemplate
 	metadata.PID = 1337
@@ -424,6 +428,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	c.Check(prompt3.Snap, Equals, metadata.Snap)
 	c.Check(prompt3.PID, Equals, metadata.PID)
+	c.Check(prompt3.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt3.Interface, Equals, metadata.Interface)
 	c.Check(prompt3.Constraints.Path(), Equals, path)
 	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -452,10 +457,10 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	// Looking up prompt should not record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	// Add fourth prompt, this time with different path
+	// Add fourth prompt, this time with different Cgroup but same PID
 
 	metadata = metadataTemplate
-	path = "/home/test/Documents/other.txt"
+	metadata.Cgroup = "another/cgroup"
 	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq4)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
@@ -465,6 +470,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	c.Check(prompt4.Snap, Equals, metadata.Snap)
 	c.Check(prompt4.PID, Equals, metadata.PID)
+	c.Check(prompt4.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt4.Interface, Equals, metadata.Interface)
 	c.Check(prompt4.Constraints.Path(), Equals, path)
 	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -494,12 +500,11 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	// Looking up prompt should not record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	// Add fifth prompt, this time with different requested permissions
+	// Add fifth prompt, this time with different path
 
 	metadata = metadataTemplate
-	path = "/home/test/Documents/foo.txt"
-	requestedPermissions := permissions[:2]
-	prompt5, merged, err := pdb.AddOrMerge(&metadata, path, requestedPermissions, permissions, listenerReq5)
+	path = "/home/test/Documents/other.txt"
+	prompt5, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq5)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt5, Not(Equals), prompt1)
@@ -509,6 +514,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	c.Check(prompt5.Snap, Equals, metadata.Snap)
 	c.Check(prompt5.PID, Equals, metadata.PID)
+	c.Check(prompt5.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt5.Interface, Equals, metadata.Interface)
 	c.Check(prompt5.Constraints.Path(), Equals, path)
 	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -538,6 +544,54 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	// Looking up prompt should not record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
+
+	// Add sixth prompt, this time with different requested permissions
+
+	metadata = metadataTemplate
+	path = "/home/test/Documents/foo.txt"
+	requestedPermissions := permissions[:2]
+	prompt6, merged, err := pdb.AddOrMerge(&metadata, path, requestedPermissions, permissions, listenerReq6)
+	c.Assert(err, IsNil)
+	c.Check(merged, Equals, false)
+	c.Check(prompt6, Not(Equals), prompt1)
+	c.Check(prompt6, Not(Equals), prompt2)
+	c.Check(prompt6, Not(Equals), prompt3)
+	c.Check(prompt6, Not(Equals), prompt4)
+	c.Check(prompt6, Not(Equals), prompt5)
+
+	c.Check(prompt6.Snap, Equals, metadata.Snap)
+	c.Check(prompt6.PID, Equals, metadata.PID)
+	c.Check(prompt6.Cgroup, Equals, metadata.Cgroup)
+	c.Check(prompt6.Interface, Equals, metadata.Interface)
+	c.Check(prompt6.Constraints.Path(), Equals, path)
+	c.Check(prompt6.Constraints.OutstandingPermissions(), DeepEquals, permissions)
+	c.Assert(prompt6.ListenerReqs(), HasLen, 1)
+	c.Check(prompt6.ListenerReqs()[0].ID, Equals, uint64(6))
+
+	// New prompts should record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{prompt6.ID}, nil)
+	// New prompts should advance the max ID
+	expectedID++
+	expectedMap[6] = requestprompts.IDMapEntry{PromptID: 6, UserID: s.defaultUser}
+	s.checkWrittenMaxID(c, expectedID)
+	s.checkWrittenIDMap(c, expectedMap)
+
+	storedPrompt, err = pdb.PromptWithID(metadata.User, prompt6.ID, clientActivity)
+	c.Check(err, IsNil)
+	c.Check(storedPrompt, Equals, prompt6)
+
+	stored, err = pdb.Prompts(metadata.User, clientActivity)
+	c.Assert(err, IsNil)
+	c.Assert(stored, HasLen, 6)
+	c.Check(stored[0], Equals, prompt1)
+	c.Check(stored[1], Equals, prompt2)
+	c.Check(stored[2], Equals, prompt3)
+	c.Check(stored[3], Equals, prompt4)
+	c.Check(stored[4], Equals, prompt5)
+	c.Check(stored[5], Equals, prompt6)
+
+	// Looking up prompt should not record notice
+	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
@@ -555,6 +609,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1234,
+		Cgroup:    "some/cgroup/path",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -610,6 +665,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 
 	c.Check(prompt1.Snap, Equals, metadata.Snap)
 	c.Check(prompt1.PID, Equals, metadata.PID)
+	c.Check(prompt1.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
@@ -661,6 +717,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1234,
+		Cgroup:    "some-cgroup-path",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -791,6 +848,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       42,
+		Cgroup:    "some-cgroup",
 		Interface: "home",
 	}
 
@@ -863,6 +921,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1337,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/foo.scope",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -911,6 +970,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       123,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/foo.scope",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1043,6 +1103,7 @@ func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       123,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup-id.scope",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1107,6 +1168,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       123,
+		Cgroup:    "some-cgroup-path",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1158,6 +1220,7 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       123,
+		Cgroup:    "some-cgroup-path",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1211,8 +1274,9 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 		},
 	}
 
-	// For completeness, set metadata.PID to 0 since it would not be populated for rules
+	// For completeness, set PID and Cgroup to empty since they would not be populated for rules
 	metadata.PID = 0
+	metadata.Cgroup = ""
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
@@ -1315,6 +1379,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		User:      user,
 		Snap:      snap,
 		PID:       123,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: iface,
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1326,8 +1391,9 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, nil)
 
-	// For completeness, set metadata.PID to 0 since it would not be populated for rules
+	// For completeness, set PID and Cgroup to empty since they would not be populated for rules
 	metadata.PID = 0
+	metadata.Cgroup = ""
 
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
@@ -1451,6 +1517,7 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1234,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
 	permissions := []string{"read", "write", "execute"}
@@ -1595,6 +1662,7 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1234,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1626,7 +1694,7 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 	c.Check(prompt3, Not(Equals), prompt2)
 	c.Check(prompt3.ID, Equals, prompting.IDType(1))
 
-	// Add fourth request, this time with different PID
+	// Add fourth request, this time with different PID but same Cgroup
 	metadata = metadataTemplate
 	metadata.PID = 5000
 	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq4)
@@ -1704,6 +1772,7 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       1234,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
 	path := "/home/test/Documents/foo.txt"
@@ -1781,6 +1850,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 		User:      s.defaultUser,
 		Snap:      "firefox",
 		PID:       1234,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1800,7 +1870,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
 	c.Assert(err, IsNil)
 
-	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
+	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
 
 	marshalled, err := json.Marshal(prompt)
 	c.Assert(err, IsNil)
@@ -1832,6 +1902,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 		User:      s.defaultUser,
 		Snap:      "firefox",
 		PID:       1234,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
 	path := "/home/test/foo"
@@ -1997,6 +2068,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 		User:      s.defaultUser,
 		Snap:      "firefox",
 		PID:       123,
+		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
 	path := "/home/test/foo"

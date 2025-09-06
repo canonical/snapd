@@ -40,6 +40,9 @@ type Metadata struct {
 	// PID is the PID of the process which triggered a request.
 	// For rules, PID should be unset/ignored.
 	PID int32
+	// Cgroup is the cgroup path of the process which triggered a request.
+	// For rules, Cgroup should be unset/ignored.
+	Cgroup string
 	// Interface is the interface for which the prompt or rule applies.
 	Interface string
 }
