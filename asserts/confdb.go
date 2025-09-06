@@ -93,6 +93,7 @@ func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}
 
+	// TODO: parse the parameters stanza and pass them into the schema
 	confdbSchema, err := confdb.NewSchema(accountID, name, viewsMap, schema)
 	if err != nil {
 		return nil, err

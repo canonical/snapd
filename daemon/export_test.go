@@ -443,7 +443,7 @@ func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstat
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
 }
 
-func MockConfdbstateLoadConfdbAsync(f func(_ *state.State, _ *confdb.View, _ []string) (string, error)) (restore func()) {
+func MockConfdbstateLoadConfdbAsync(f func(_ *state.State, _ *confdb.View, _ []string, _ map[string]string) (string, error)) (restore func()) {
 	return testutil.Mock(&confdbstateLoadConfdbAsync, f)
 }
 

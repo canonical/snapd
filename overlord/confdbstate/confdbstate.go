@@ -126,19 +126,14 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
-func GetViaView(bag confdb.Databag, view *confdb.View, requests []string) (any, error) {
+func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]string) (any, error) {
 	if len(requests) == 0 {
-		val, err := view.Get(bag, "")
-		if err != nil {
-			return nil, err
-		}
-
-		return val, nil
+		return view.Get(bag, "", constraints)
 	}
 
 	results := make(map[string]any, len(requests))
 	for _, request := range requests {
-		value, err := view.Get(bag, request)
+		value, err := view.Get(bag, request, constraints)
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) && len(requests) > 1 {
 				continue
@@ -647,7 +642,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 // LoadConfdbAsync schedules a change to load a confdb, running any appropriate
 // hooks and fulfilling the requests by reading the view and placing the resulting
 // data in the change's data (so it can be read by the client).
-func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (changeID string, err error) {
+func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]string) (changeID string, err error) {
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
 	txs, _, err := getOngoingTxs(st, account, schemaName)
@@ -684,6 +679,9 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 		loadConfdbTask := st.NewTask("load-confdb-change", "Load confdb data into the change")
 		loadConfdbTask.Set("requests", requests)
 		loadConfdbTask.Set("view-name", view.Name)
+		if constraints != nil {
+			loadConfdbTask.Set("constraints", constraints)
+		}
 
 		loadConfdbTask.Set("tx-task", clearTxTask.ID())
 		loadConfdbTask.WaitFor(clearTxTask)
@@ -697,7 +695,7 @@ func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string) (cha
 	} else {
 		// no hooks to run so we can just load the values directly into the change
 		// (we still need the change because the API is async)
-		err := readViewIntoChange(chg, tx, view, requests)
+		err := readViewIntoChange(chg, tx, view, requests, constraints)
 		if err != nil {
 			return "", err
 		}
