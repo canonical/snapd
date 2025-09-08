@@ -44,8 +44,8 @@ type PreinstallCheckContext struct {
 // preinstallCheckInfo contains information required post install
 // for optimum PCR configuration and resealing.
 type preinstallCheckInfo struct {
-	sbCheckResult    *sb_preinstall.CheckResult           `json:"result"`
-	sbPCRProfileOpts sb_preinstall.PCRProfileOptionsFlags `json:"pcr-profile-opts"`
+	Result         *sb_preinstall.CheckResult           `json:"result"`
+	PCRProfileOpts sb_preinstall.PCRProfileOptionsFlags `json:"pcr-profile-opts"`
 }
 
 var (
