@@ -17,31 +17,32 @@
  *
  */
 
-package vfs
+package lists
 
-func (v *VFS) FindMount(id MountID) *mount {
-	for _, m := range v.mounts {
-		if m.mountID == id {
-			return m
-		}
-	}
-
-	return nil
-}
-
-// RootMount returns the mount that is the ancestor of all other mounts.
-func (v *VFS) RootMount() *mount {
-	return v.mounts[0]
-}
-
-// MountPoint returns the mount point of the given mount.
-func (m *mount) MountPoint() string {
-	return m.mountPoint()
-}
-
-// Parent returns the parent mount.
+// At returns the Nth element of the list.
 //
-// Parent is nil for detached nodes and for the rootfs.
-func (m *mount) Parent() *mount {
-	return m.parent
+// Positive indices iterate first-to-last, with 0 being the first visited element.
+// Negative indices iterate last-to-first, with -1 being the first visited element.
+func (l *List[T, O]) At(n int) (e *T) {
+	var idx int
+	if n >= 0 {
+		l.FirstToLast()(func(el *T) bool {
+			if idx == n {
+				e = el
+				return false
+			}
+			idx++
+			return true
+		})
+	} else {
+		l.LastToFirst()(func(el *T) bool {
+			idx--
+			if idx == n {
+				e = el
+				return false
+			}
+			return true
+		})
+	}
+	return e
 }
