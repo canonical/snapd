@@ -88,7 +88,7 @@ func (nb *noticeBackends) registerWithManager(noticeMgr *notices.NoticeManager) 
 		_, drainedNotices, err := noticeMgr.RegisterBackend(bknd, bknd.noticeType, bknd.namespace, drainNotices)
 		if err != nil {
 			// This should never occur
-			return fmt.Errorf("cannot register prompting manager as a %s notice backend", bknd.namespace)
+			return fmt.Errorf("internal error: cannot register prompting manager as a %s notice backend", bknd.namespace)
 		}
 		// Drained notices should only occur the first time snapd starts after
 		// refreshing to a new release which uses this notice backend. This is
