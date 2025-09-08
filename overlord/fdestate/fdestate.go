@@ -655,6 +655,18 @@ func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions
 		authMode = volumesAuth.Mode
 	}
 
+	var keyType string
+	switch authMode {
+	case device.AuthModePassphrase:
+		keyType = "passphrase"
+	case device.AuthModePIN:
+		keyType = "pin"
+	case device.AuthModeNone:
+		keyType = "platform"
+	default:
+		return nil, fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
 	if len(keyslotRefs) == 0 {
 		// by default, target protected keys that would have been added during installation.
 		keyslotRefs = append(keyslotRefs,
@@ -742,18 +754,18 @@ func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions
 
 	ts := state.NewTaskSet()
 
-	addTemporaryKeys := st.NewTask("fde-add-protected-keys", fmt.Sprintf("Add temporary %s key slots", authMode))
+	addTemporaryKeys := st.NewTask("fde-add-protected-keys", fmt.Sprintf("Add temporary %s key slots", keyType))
 	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
 	addTemporaryKeys.Set("auth-mode", authMode)
 	addTemporaryKeys.Set("roles", tmpKeyslotRoles)
 	ts.AddTask(addTemporaryKeys)
 
-	removeOldKeys := st.NewTask("fde-remove-keys", fmt.Sprintf("Remove old %s key slots", authMode))
+	removeOldKeys := st.NewTask("fde-remove-keys", fmt.Sprintf("Remove old %s key slots", keyType))
 	removeOldKeys.Set("keyslots", keyslotRefs)
 	removeOldKeys.WaitFor(addTemporaryKeys)
 	ts.AddTask(removeOldKeys)
 
-	renameTemporaryKeys := st.NewTask("fde-rename-keys", fmt.Sprintf("Rename temporary %s key slots", authMode))
+	renameTemporaryKeys := st.NewTask("fde-rename-keys", fmt.Sprintf("Rename temporary %s key slots", keyType))
 	renameTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
 	renameTemporaryKeys.Set("renames", tmpKeyslotRenames)
 	renameTemporaryKeys.WaitFor(removeOldKeys)

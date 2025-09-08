@@ -491,12 +491,15 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "snapd-tmp:default-fallback"})
 	}
 
+	keyType := "platform"
 	var volumesAuth *device.VolumesAuthOptions
 	switch authMode {
 	case device.AuthModePassphrase:
 		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "password"}
+		keyType = "passphrase"
 	case device.AuthModePIN:
 		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+		keyType = "pin"
 	}
 
 	s.mockDeviceInState(&asserts.Model{}, "run")
@@ -538,7 +541,7 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 	tsks := ts.Tasks()
 	c.Check(tsks, HasLen, 3)
 
-	c.Check(tsks[0].Summary(), Matches, fmt.Sprintf("Add temporary %s key slots", authMode))
+	c.Check(tsks[0].Summary(), Matches, fmt.Sprintf("Add temporary %s key slots", keyType))
 	c.Check(tsks[0].Kind(), Equals, "fde-add-protected-keys")
 	// check tmp key slots are passed to task
 	var tskKeyslots []fdestate.KeyslotRef
@@ -561,13 +564,13 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 		})
 	}
 
-	c.Check(tsks[1].Summary(), Matches, fmt.Sprintf("Remove old %s key slots", authMode))
+	c.Check(tsks[1].Summary(), Matches, fmt.Sprintf("Remove old %s key slots", keyType))
 	c.Check(tsks[1].Kind(), Equals, "fde-remove-keys")
 	// check target key slots are passed to task
 	c.Assert(tsks[1].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, keyslots)
 
-	c.Check(tsks[2].Summary(), Matches, fmt.Sprintf("Rename temporary %s key slots", authMode))
+	c.Check(tsks[2].Summary(), Matches, fmt.Sprintf("Rename temporary %s key slots", keyType))
 	c.Check(tsks[2].Kind(), Equals, "fde-rename-keys")
 	// check tmp key slots are passed to task
 	c.Assert(tsks[2].Get("keyslots", &tskKeyslots), IsNil)
