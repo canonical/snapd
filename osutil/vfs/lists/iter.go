@@ -16,32 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+package lists
 
-package vfs
+// TODO: replace with iter.Seq after go 1.23 update.
 
-func (v *VFS) FindMount(id MountID) *mount {
-	for _, m := range v.mounts {
-		if m.mountID == id {
-			return m
-		}
-	}
-
-	return nil
-}
-
-// RootMount returns the mount that is the ancestor of all other mounts.
-func (v *VFS) RootMount() *mount {
-	return v.mounts[0]
-}
-
-// MountPoint returns the mount point of the given mount.
-func (m *mount) MountPoint() string {
-	return m.mountPoint()
-}
-
-// Parent returns the parent mount.
-//
-// Parent is nil for detached nodes and for the rootfs.
-func (m *mount) Parent() *mount {
-	return m.parent
-}
+// Seq is an iterator over sequences of individual values. When called as
+// seq(yield), seq calls yield(v) for each value v in the sequence, stopping
+// early if yield returns false. See the iter package documentation for more
+// details.
+type Seq[V any] func(yield func(V) bool)

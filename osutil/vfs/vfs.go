@@ -69,6 +69,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"unsafe"
+
+	"github.com/snapcore/snapd/osutil/vfs/lists"
 )
 
 var (
@@ -102,12 +105,14 @@ type mount struct {
 	mountPointCache *string
 
 	// Links to parent, children and siblings. Any of those may be nil.
-	parent      *mount
-	firstChild  *mount
-	lastChild   *mount
-	nextSibling *mount
-	prevSibling *mount
+	parent    *mount
+	children  lists.List[mount, viaChildNode]
+	childNode lists.Node[mount]
 }
+
+type viaChildNode struct{}
+
+func (viaChildNode) Offset(m *mount) uintptr { return unsafe.Offsetof(m.childNode) }
 
 func (m *mount) mountPoint() string {
 	if m == nil {
@@ -177,17 +182,7 @@ func (v *VFS) attachMount(parent *mount, child *mount) {
 	child.mountID = v.allocateMountID()
 
 	child.parent = parent
-
-	if parent.firstChild == nil {
-		parent.firstChild = child
-	}
-
-	if parent.lastChild != nil {
-		child.prevSibling = parent.lastChild
-		parent.lastChild.nextSibling = child
-	}
-
-	parent.lastChild = child
+	parent.children.Append(child)
 
 	v.mounts = append(v.mounts, child)
 }
@@ -197,24 +192,9 @@ func (v *VFS) detachMount(m *mount, idx int) {
 		panic("cannot detach rootfs")
 	}
 
-	if m.parent.firstChild == m {
-		m.parent.firstChild = m.nextSibling
-	}
-	if m.parent.lastChild == m {
-		m.parent.lastChild = m.prevSibling
-	}
+	m.childNode.Unlink()
 
-	if m.prevSibling != nil {
-		m.prevSibling.nextSibling = m.nextSibling
-	}
-	if m.nextSibling != nil {
-		m.nextSibling.prevSibling = m.prevSibling
-	}
-
-	m.nextSibling = nil
-	m.prevSibling = nil
 	m.parent = nil
-
 	m.parentID = 0
 	m.mountID = 0
 
