@@ -10,6 +10,7 @@ rules:
       - tests/unit/.*
       - tests/upgrade/.*
       - tests/fips/.*
+      - tests/fips-deb/.*
     to: [$SELF]
 
   unit:
