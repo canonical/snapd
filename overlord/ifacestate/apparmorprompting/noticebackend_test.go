@@ -943,12 +943,16 @@ func (s *noticebackendSuite) TestBackendWaitNoticesNew(c *C) {
 	c.Assert(err, IsNil)
 	ruleBackend := noticeBackend.RuleBackend()
 
+	start := make(chan struct{})
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		close(start)
+		sawMutexHeld := apparmorprompting.WaitUntilMutexHeld(ruleBackend, 100*time.Millisecond)
+		c.Logf("sawMutexHeld: %b", sawMutexHeld)
 		ruleBackend.AddNotice(1000, 0x42, nil)
 		ruleBackend.AddNotice(1000, 0x36, nil)
 	}()
 
+	<-start
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	filter := &state.NoticeFilter{Keys: []string{"0000000000000036"}}
@@ -1045,12 +1049,17 @@ func (s *noticebackendSuite) TestBackendWaitNoticesBeforeOrAtFilter(c *C) {
 
 	// If we ask for notices before a time in the future, and then a matching
 	// notice occurs, it will be returned.
+	start := make(chan struct{})
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		close(start)
+		sawMutexHeld := apparmorprompting.WaitUntilMutexHeld(promptBackend, 100*time.Millisecond)
+		c.Logf("sawMutexHeld: %b", sawMutexHeld)
 		promptBackend.AddNotice(1000, 7, nil)
-		time.Sleep(10 * time.Millisecond)
+		sawMutexHeld = apparmorprompting.WaitUntilMutexHeld(promptBackend, 100*time.Millisecond)
+		c.Logf("sawMutexHeld: %b", sawMutexHeld)
 		promptBackend.AddNotice(1000, 5, nil)
 	}()
+	<-start
 	notices, err = promptBackend.BackendWaitNotices(ctx, &state.NoticeFilter{
 		BeforeOrAt: time.Now().Add(time.Second),
 		Keys:       []string{prompting.IDType(5).String()},
