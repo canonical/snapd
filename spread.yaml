@@ -1928,6 +1928,7 @@ suites:
         environment:
             SNAP_REEXEC: "1"
             SNAPD_DEB_FROM_REPO: 'true'
+            FIPS_ARTIFACT: "snap"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -1951,6 +1952,7 @@ suites:
             # deb from the source tree
             SNAP_REEXEC: "0"
             SNAPD_DEB_FROM_REPO: 'false'
+            FIPS_ARTIFACT: "deb"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

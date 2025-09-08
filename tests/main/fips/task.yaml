@@ -18,8 +18,9 @@ execute: |
             [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]
 
             # depending on whether the binary is run from the snapd snap or the
-            # snapd deb, the locations of mapped libraries will be different
-            case "$SPREAD_VARIANT" in
+            # snapd deb, the locations of mapped libraries will be different,
+            # FIPS_ARTIFACT is set at the suite level in spread.yaml
+            case "$FIPS_ARTIFACT" in
                 deb)
                     # libcrypto is loaded at runtime, this is what we're trying to
                     # match:
