@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -52,10 +53,10 @@ var (
 	// someone listening over l.reqs to quickly receive and process them too.
 	readyTimeout = time.Duration(5 * time.Second)
 
-	osReadFile                   = os.ReadFile
-	osOpen                       = os.Open
-	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
-	notifyIoctl                  = notify.Ioctl
+	osOpen                            = os.Open
+	notifyRegisterFileDescriptor      = notify.RegisterFileDescriptor
+	notifyIoctl                       = notify.Ioctl
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
 )
 
 // Request is a high-level representation of an apparmor prompting message.
@@ -535,9 +536,9 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 		return nil, err
 	}
 	pid := msg.PID()
-	cgroup, err := readCgroupPath(pid)
+	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
 	}
 	return &Request{
 		ID:         msg.ID(),
@@ -554,16 +555,6 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 
 		listener: l,
 	}, nil
-}
-
-// readCgroupPath returns the cgroup path for the given PID.
-func readCgroupPath(pid int32) (string, error) {
-	procPath := fmt.Sprintf("/proc/%d/cgroup", pid)
-	cgroupBytes, err := osReadFile(procPath)
-	if err != nil {
-		return "", fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
-	}
-	return string(cgroupBytes), nil
 }
 
 // decrementPendingCheckFinal decrements the pending count if it's not already

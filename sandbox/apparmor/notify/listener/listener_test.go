@@ -67,11 +67,10 @@ func (s *listenerSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	restoreOsReadFile := listener.MockOsReadFile(func(name string) ([]byte, error) {
-		c.Assert(name, Matches, `\/proc\/[1-9][0-9]*\/cgroup`)
-		return []byte("0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope"), nil
+	restore = listener.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "some-cgroup-path", nil
 	})
-	s.AddCleanup(restoreOsReadFile)
+	s.AddCleanup(restore)
 }
 
 func (*listenerSuite) TestReply(c *C) {
@@ -1789,33 +1788,4 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	c.Check(requestsSent > 1, Equals, true, Commentf("should have sent more than one request"))
 	c.Check(replyCount > 1, Equals, true, Commentf("should have replied to more than one request"))
 	c.Check(responseCount > 1, Equals, true, Commentf("should have received more than one response"))
-}
-
-func (*listenerSuite) TestReadCgroupPathHappy(c *C) {
-	pid := int32(1234)
-	expected := "some-cgroup-path"
-	restore := listener.MockOsReadFile(func(name string) ([]byte, error) {
-		c.Check(name, Equals, fmt.Sprintf("/proc/%d/cgroup", pid))
-		return []byte(expected), nil
-	})
-	defer restore()
-
-	result, err := listener.ReadCgroupPath(pid)
-	c.Check(result, Equals, expected)
-	c.Check(err, IsNil)
-}
-
-func (*listenerSuite) TestReadCgroupPathUnhappy(c *C) {
-	pid := int32(1234)
-	expectedErr := errors.New("something bad happened")
-	restore := listener.MockOsReadFile(func(name string) ([]byte, error) {
-		c.Check(name, Equals, fmt.Sprintf("/proc/%d/cgroup", pid))
-		return nil, expectedErr
-	})
-	defer restore()
-
-	result, err := listener.ReadCgroupPath(pid)
-	c.Check(result, Equals, "")
-	c.Check(err, ErrorMatches, "cannot read cgroup path for request process with PID 1234: something bad happened")
-	c.Check(errors.Is(err, expectedErr), Equals, true)
 }

@@ -33,8 +33,7 @@ import (
 )
 
 var (
-	ReadyTimeout   = readyTimeout
-	ReadCgroupPath = readCgroupPath
+	ReadyTimeout = readyTimeout
 )
 
 func ExitOnError() (restore func()) {
@@ -54,10 +53,6 @@ func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVe
 		AaAllowed:  aaAllow,
 		listener:   listener,
 	}
-}
-
-func MockOsReadFile(f func(name string) ([]byte, error)) (restore func()) {
-	return testutil.Mock(&osReadFile, f)
 }
 
 func MockOsOpen(f func(name string) (*os.File, error)) (restore func()) {
@@ -176,10 +171,12 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 	return ioctlDoneRW, restore
 }
 
+func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
+	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
+}
+
 func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationResponse) error) (restore func()) {
-	restore = testutil.Backup(&encodeAndSendResponse)
-	encodeAndSendResponse = f
-	return restore
+	return testutil.Mock(&encodeAndSendResponse, f)
 }
 
 func (l *Listener) EpollIsClosed() bool {
