@@ -1229,7 +1229,7 @@ nested_start_core_vm_unit() {
     elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
-    elif [ "$SPREAD_BACKEND" = "openstack-arm-ext-ps7" ]; then
+    elif [ "$SPREAD_BACKEND" = "openstack-arm-ext-ps7" ] || [ "$SPREAD_BACKEND" = "openstack-arm-dev-ps7" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     else
@@ -1677,7 +1677,7 @@ nested_start_classic_vm() {
     elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
-    elif [ "$SPREAD_BACKEND" = "openstack-arm-ext-ps7" ]; then
+    elif [ "$SPREAD_BACKEND" = "openstack-arm-ext-ps7" ] || [ "$SPREAD_BACKEND" = "openstack-arm-dev-ps7" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"        
     else
