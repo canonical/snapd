@@ -20,6 +20,8 @@
 package apparmorprompting
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/interfaces/prompting"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
@@ -174,4 +176,29 @@ func (ntb *noticeTypeBackend) SimplifyFilter(filter *state.NoticeFilter) (simpli
 
 func (ntb *noticeTypeBackend) Save() error {
 	return ntb.save()
+}
+
+// WaitUntilMutexHeld polls the backend's RWMutex until it sees that it is
+// held, or until the given timeout elapses. Returns true if the mutex was
+// seen to be held, or false if it timed out.
+func WaitUntilMutexHeld(ntb *noticeTypeBackend, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	for {
+		// Poll the lock 100 times before checking the timeout
+		for i := 0; i < 100; i++ {
+			if ntb.rwmu.TryLock() {
+				ntb.rwmu.Unlock()
+			} else {
+				// Lock failed, so we know it's held elsewhere
+				return true
+			}
+			// Sleep so we give other goroutines the chance to be scheduled
+			time.Sleep(time.Nanosecond)
+		}
+		select {
+		case <-timer.C:
+			return false
+		default:
+		}
+	}
 }
