@@ -78,45 +78,70 @@ jobs:
       run: |
           cat <<EOF > comparison.py
           import json
+          import requests
           from statistics import geometric_mean
+          import sys
 
-          def log_scores(snap_json, bin_json, log_file):
-              with open(log_file, 'w') as f:
-                  snap_scores = []
-                  bin_scores = []
-                  for metric, data in snap_json.items():
-                      s = data['metrics']['Score']['current'][0]
-                      b = bin_json[metric]['metrics']['Score']['current'][0]
-                      snap_scores.append(s)
-                      bin_scores.append(b)
+          exit_error = 0
 
-                      f.write(f'metric {metric}: snap = {s:.3f}\n')
-                      f.write(f'metric {metric}: bin = {b:.3f}\n')
-                      f.write(f'metric {metric}: diff = {b - s:.3f}\n')
+          def post(type, data):
+              endpoint = 'http://localhost:9091/metrics/job/snapd-ci/test/firefox/type'
+              response = requests.post(f'{endpoint}/{type}', data=data)
+              if not response.ok:
+                  print(f'error when posting {data} to {endpoint}: {response.text}', file=sys.stderr)
+                  global exit_error
+                  exit_error = 1
+              print(f'{type}: {data}')
 
-                  snap_score = geometric_mean(snap_scores)
-                  bin_score = geometric_mean(bin_scores)
-                  f.write(f'overall: snap = {snap_score:.3f}\n')
-                  f.write(f'overall: bin = {bin_score:.3f}\n')
-                  f.write(f'overall: diff = {bin_score - snap_score:.3f}\n')
+          def log_scores(snap_json, bin_json):
+              snap_scores = []
+              bin_scores = []
+              for metric, data in snap_json.items():
+                  s = data['metrics']['Score']['current'][0]
+                  b = bin_json[metric]['metrics']['Score']['current'][0]
+                  snap_scores.append(s)
+                  bin_scores.append(b)
 
-                  return snap_score, bin_score
+                  # Metric names cannot have hyphens, dots, or begin with begin with numbers
+                  metric = metric.replace("-", "_").replace(".", "_").replace("3", "three")
+                  post('snap', f'{metric} {s:.3f}\n')
+                  post('bin', f'{metric} {b:.3f}\n')
+                  post('diff', f'{metric} {b - s:.3f}\n')
+
+              snap_score = geometric_mean(snap_scores)
+              bin_score = geometric_mean(bin_scores)
+              post('snap', f'overall_geometric_mean {snap_score:.3f}\n')
+              post('bin', f'overall_geometric_mean {bin_score:.3f}\n')
+              post('diff', f'overall_geometric_mean {bin_score - snap_score:.3f}\n')
+
+              return snap_score, bin_score
 
           with open("snap-results.json", 'r') as f:
               snap = json.load(f)["JetStream2.0"]["tests"]
           with open("bin-results.json", 'r') as f:
               bin = json.load(f)["JetStream2.0"]["tests"]
 
-          snap_score, bin_score = log_scores(snap, bin, "firefox-metrics.log")
+          snap_score, bin_score = log_scores(snap, bin)
 
           # The bigger the overall score is, the better it is; see https://browserbench.org/JetStream2.2/index.html
           # The choice of threshold is somewhat arbitrary. After various iterations,
           # the numbers remain fairly close within 5 of each other. Use 10 as a threshold
           # to ensure this fails if something drastic happens.
           if bin_score - snap_score > 10:
-            print(f'The binary ({bin_score}) is better than the snap ({snap_score}) by more than 10: {bin_score - snap_score}')
+            print(f'The binary ({bin_score}) is better than the snap ({snap_score}) by more than 10: {bin_score - snap_score}', file=sys.stderr)
             exit(1)
+
+          exit(exit_error)
           EOF
 
           python3 comparison.py
-          cat firefox-metrics.log
+
+    - name: Remove metrics
+      if: always()
+      run: |
+          # The metrics gathering occurs every minute. Sleep for 1.5 minutes
+          # to ensure the metrics were gathered and then delete them.
+          sleep 1.5m
+          curl -X DELETE http://localhost:9091/metrics/job/snapd-ci/test/firefox/type/snap || true
+          curl -X DELETE http://localhost:9091/metrics/job/snapd-ci/test/firefox/type/bin || true
+          curl -X DELETE http://localhost:9091/metrics/job/snapd-ci/test/firefox/type/diff || true
