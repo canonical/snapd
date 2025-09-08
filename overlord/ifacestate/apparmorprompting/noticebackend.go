@@ -122,8 +122,6 @@ type noticeTypeBackend struct {
 	// rwmu must be held for writing when adding a notice and held for reading
 	// when reading notices.
 	rwmu sync.RWMutex
-	// cond is used to broadcast when a new notice is added.
-	cond *sync.Cond
 	// nextNoticeTimestamp is a closure derived from a notice manager which
 	// returns a unique and monotonically increasing next notice timestamp.
 	nextNoticeTimestamp func() time.Time
@@ -154,10 +152,6 @@ func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, p
 		noticeType:          noticeType,
 		namespace:           namespace,
 	}
-	// Use ntb.rwmu.RLocker() as the cond locker, since that is the lock which
-	// is held during BackendWaitNotices(), and thus calling ntb.cond.Wait()
-	// will be able to release the lock.
-	ntb.cond = sync.NewCond(ntb.rwmu.RLocker())
 	if err := ntb.load(now); err != nil {
 		return nil, err
 	}
@@ -221,8 +215,6 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	for _, expiredNotice := range userNotices[:expiredCount] {
 		delete(ntb.idToNotice, expiredNotice.ID())
 	}
-
-	ntb.cond.Broadcast()
 
 	return nil
 }
