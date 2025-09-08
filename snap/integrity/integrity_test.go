@@ -289,5 +289,5 @@ func (s *IntegrityTestSuite) TestNewIntegrityDataParamsFromRevision(c *C) {
 func (s *IntegrityTestSuite) TestNewIntegrityDataParamsFromRevisionNotFound(c *C) {
 	rev := makeMockSnapRevisionAssertion(c, "")
 	_, err := integrity.NewIntegrityDataParamsFromRevision(rev)
-	c.Check(err, ErrorMatches, integrity.ErrNoIntegrityDataFoundInRevision.Error())
+	c.Check(err, Equals, integrity.ErrNoIntegrityDataFoundInRevision)
 }
