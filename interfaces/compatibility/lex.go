@@ -59,12 +59,14 @@ type Item struct {
 func (i Item) String() string {
 	switch i.Typ {
 	case ItemError:
+		fallthrough
 	case ItemString:
+		fallthrough
 	case ItemInteger:
-		if len(i.Val) > 10 {
-			return fmt.Sprintf("%s: %.10q...", itemVal[i.Typ], i.Val)
+		if len(i.Val) > 20 {
+			return fmt.Sprintf(`"%s: %.20s..."`, itemVal[i.Typ], i.Val)
 		} else {
-			return fmt.Sprintf("%s: %q", itemVal[i.Typ], i.Val)
+			return fmt.Sprintf(`"%s: %s"`, itemVal[i.Typ], i.Val)
 		}
 	}
 	return fmt.Sprintf("%q", itemVal[i.Typ])
@@ -112,7 +114,7 @@ func (l *lexer) backup() {
 
 // items returns tokens from the input. Called by the parser.
 // TODO implement instead nextItem to make this concurrent. Note that we are
-// using itemError in preparation for this: we return such an error as the last
+// using ItemError in preparation for this: we return such an error as the last
 // item to adapt to a future stream processing.
 func items(input string) []Item {
 	l := &lexer{input: input}
@@ -123,11 +125,12 @@ func items(input string) []Item {
 	return l.tokens
 }
 
-//
-// Definition of the lexer states
-//
+func (l *lexer) finishWithError(errMsg string) stateFn {
+	l.tokens = append(l.tokens, Item{Typ: ItemError, Val: errMsg})
+	return nil
+}
 
-func lexSpace(l *lexer) stateFn {
+func (l *lexer) eatSpaces() rune {
 	var r rune
 	for {
 		r = l.peek()
@@ -136,6 +139,15 @@ func lexSpace(l *lexer) stateFn {
 		}
 		l.next()
 	}
+	return r
+}
+
+//
+// Definition of the lexer states
+//
+
+func lexSpace(l *lexer) stateFn {
+	r := l.eatSpaces()
 	switch {
 	case strings.HasPrefix(l.input[l.pos:], "AND"):
 		return lexAND
@@ -150,9 +162,7 @@ func lexSpace(l *lexer) stateFn {
 	case r == eof:
 		return nil
 	}
-	l.tokens = append(l.tokens,
-		Item{Typ: ItemError, Val: fmt.Sprintf("unexpected rune: %c", r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune: %c", r))
 }
 
 func lexAND(l *lexer) stateFn {
@@ -173,14 +183,10 @@ func lexOperator(l *lexer, itemTyp ItemType) stateFn {
 		return lexSpace
 	case r == '(':
 		return lexLeftParen
-	case r == ')':
-		return lexRightParen
 	case r == eof:
 		return nil
 	}
-	l.tokens = append(l.tokens, Item{Typ: ItemError,
-		Val: fmt.Sprintf("unexpected rune after %s: %c", itemVal[itemTyp], r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune after %s: %c", itemVal[itemTyp], r))
 }
 
 func lexLeftParen(l *lexer) stateFn {
@@ -209,20 +215,32 @@ func lexString(l *lexer) stateFn {
 	r := l.peek()
 	switch {
 	case unicode.IsSpace(r):
-		return lexSpace
+		return lexNoLabel
 	case r == '-':
 		l.pos += 1
 		return lexStringIntegerOrRange
-	case r == '(':
-		return lexLeftParen
 	case r == ')':
 		return lexRightParen
 	case r == eof:
 		return nil
 	}
-	l.tokens = append(l.tokens, Item{Typ: ItemError,
-		Val: fmt.Sprintf("unexpected rune after string: %c", r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune after string: %c", r))
+}
+
+func lexNoLabel(l *lexer) stateFn {
+	// We expect something that is not a label
+	r := l.eatSpaces()
+	switch {
+	case strings.HasPrefix(l.input[l.pos:], "AND"):
+		return lexAND
+	case strings.HasPrefix(l.input[l.pos:], "OR"):
+		return lexOR
+	case r == ')':
+		return lexRightParen
+	case r == eof:
+		return nil
+	}
+	return l.finishWithError(fmt.Sprintf("unexpected rune: %c", r))
 }
 
 func lexStringIntegerOrRange(l *lexer) stateFn {
@@ -236,12 +254,9 @@ func lexStringIntegerOrRange(l *lexer) stateFn {
 		l.pos += 1
 		return lexRangeLeftInteger
 	case r == eof:
-		l.tokens = append(l.tokens, Item{Typ: ItemError, Val: "no rune after dash"})
-		return nil
+		return l.finishWithError("no rune after dash")
 	}
-	l.tokens = append(l.tokens, Item{Typ: ItemError,
-		Val: fmt.Sprintf("unexpected rune after dash: %c", r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune after dash: %c", r))
 }
 
 func readInteger(l *lexer, typ ItemType) error {
@@ -265,8 +280,7 @@ func readInteger(l *lexer, typ ItemType) error {
 
 func lexInteger(l *lexer) stateFn {
 	if err := readInteger(l, ItemInteger); err != nil {
-		l.tokens = append(l.tokens, Item{Typ: ItemError, Val: err.Error()})
-		return nil
+		return l.finishWithError(err.Error())
 	}
 
 	r := l.peek()
@@ -278,25 +292,18 @@ func lexInteger(l *lexer) stateFn {
 		return lexStringIntegerOrRange
 	case r == ')':
 		return lexRightParen
-	case r == '(':
-		return lexLeftParen
 	case r == eof:
 		return nil
 	}
-	l.tokens = append(l.tokens, Item{Typ: ItemError,
-		Val: fmt.Sprintf("unexpected rune after integer: %c", r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune after integer: %c", r))
 }
 
 func lexRangeLeftInteger(l *lexer) stateFn {
 	if l.peek() == eof {
-		l.tokens = append(l.tokens, Item{Typ: ItemError,
-			Val: "no range left value after ("})
-		return nil
+		return l.finishWithError("no range left value after (")
 	}
 	if err := readInteger(l, ItemRangeLeftInt); err != nil {
-		l.tokens = append(l.tokens, Item{Typ: ItemError, Val: err.Error()})
-		return nil
+		return l.finishWithError(err.Error())
 	}
 
 	r := l.peek()
@@ -305,36 +312,26 @@ func lexRangeLeftInteger(l *lexer) stateFn {
 		l.pos += 2
 		return lexRangeRightInteger
 	case r == eof:
-		l.tokens = append(l.tokens, Item{Typ: ItemError,
-			Val: "no .. after range left value"})
-		return nil
+		return l.finishWithError("no .. after range left value")
 	}
-	l.tokens = append(l.tokens, Item{Typ: ItemError,
-		Val: fmt.Sprintf("unexpected rune after range left integer: %c", r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune after range left integer: %c", r))
 }
 
 func lexRangeRightInteger(l *lexer) stateFn {
 	if l.peek() == eof {
-		l.tokens = append(l.tokens, Item{Typ: ItemError,
-			Val: "no range right value after .."})
-		return nil
+		return l.finishWithError("no range right value after ..")
 	}
 	if err := readInteger(l, ItemRangeRightInt); err != nil {
-		l.tokens = append(l.tokens, Item{Typ: ItemError, Val: err.Error()})
-		return nil
+		return l.finishWithError(err.Error())
 	}
 
 	r := l.next()
 	if r == eof {
-		l.tokens = append(l.tokens, Item{Typ: ItemError,
-			Val: "no ) after range right value"})
-		return nil
+		return l.finishWithError("no ) after range right value")
 	}
 	if r != ')' {
-		l.tokens = append(l.tokens, Item{Typ: ItemError,
-			Val: fmt.Sprintf("unexpected rune after range right integer: %c", r)})
-		return nil
+		return l.finishWithError(
+			fmt.Sprintf("unexpected rune after range right integer: %c", r))
 	}
 
 	r = l.peek()
@@ -346,12 +343,8 @@ func lexRangeRightInteger(l *lexer) stateFn {
 		return lexStringIntegerOrRange
 	case r == ')':
 		return lexRightParen
-	case r == '(':
-		return lexLeftParen
 	case r == eof:
 		return nil
 	}
-	l.tokens = append(l.tokens, Item{Typ: ItemError,
-		Val: fmt.Sprintf("unexpected rune after integer range: %c", r)})
-	return nil
+	return l.finishWithError(fmt.Sprintf("unexpected rune after integer range: %c", r))
 }

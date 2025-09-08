@@ -24,6 +24,25 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+func (s *CompatSuite) TestItemString(c *C) {
+	for i, tc := range []struct {
+		item compatibility.Item
+		str  string
+	}{
+		{compatibility.Item{Typ: compatibility.ItemError, Val: "tokenizer error"},
+			`"error: tokenizer error"`},
+		{compatibility.Item{Typ: compatibility.ItemError, Val: "very long tokenizer error"},
+			`"error: very long tokenizer ..."`},
+		{compatibility.Item{Typ: compatibility.ItemString, Val: "badlyformatted"},
+			`"string: badlyformatted"`},
+		{compatibility.Item{Typ: compatibility.ItemInteger, Val: "1234"},
+			`"integer: 1234"`},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+		c.Check(tc.item.String(), Equals, tc.str)
+	}
+}
+
 func (s *CompatSuite) TestLexValidExpressions(c *C) {
 	for i, tc := range []struct {
 		expression string
@@ -87,6 +106,16 @@ func (s *CompatSuite) TestLexValidExpressionsDashes(c *C) {
 			{compatibility.ItemInteger, "0"},
 			{compatibility.ItemRightParen, ""},
 		}},
+		{"( foo )", []compatibility.Item{
+			{compatibility.ItemLeftParen, ""},
+			{compatibility.ItemString, "foo"},
+			{compatibility.ItemRightParen, ""},
+		}},
+		{"(foo)", []compatibility.Item{
+			{compatibility.ItemLeftParen, ""},
+			{compatibility.ItemString, "foo"},
+			{compatibility.ItemRightParen, ""},
+		}},
 		{"(foo-2-(3..7))", []compatibility.Item{
 			{compatibility.ItemLeftParen, ""},
 			{compatibility.ItemString, "foo"},
@@ -126,7 +155,16 @@ func (s *CompatSuite) TestLexInvalidExpressions(c *C) {
 		{" _foo", "unexpected rune: _"},
 		{"foo AN", "unexpected rune: A"},
 		{"fooX", "unexpected rune after string: X"},
-		{"foo OR xx (ANDb", "unexpected rune after AND: b"},
+		{"foo OR xx (", "unexpected rune: ("},
+		{"foo(bar)", "unexpected rune after string: ("},
+		{"foo-1(bar)", "unexpected rune after integer: ("},
+		{"foo-1#", "unexpected rune after integer: #"},
+		{"AND)", "unexpected rune after AND: )"},
+		{"OR)", "unexpected rune after OR: )"},
+		{"foo-(1..2)(", "unexpected rune after integer range: ("},
+		{"foo-(1..2)_", "unexpected rune after integer range: _"},
+		{"foo-(13__15)", "unexpected rune after range left integer: _"},
+		{"foo-(13..15#", "unexpected rune after range right integer: #"},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 		tokens := compatibility.Items(tc.expression)
