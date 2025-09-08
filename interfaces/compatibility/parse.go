@@ -243,9 +243,7 @@ func (p *parser) parseOperator(left *Node) (*Node, error) {
 	// and it happened at the current depth, return an error as we require
 	// parenthesis to disambiguate in this case.
 	oper, ok := node.Right.Exp.(*Operator)
-	if ok && node.Right.Depth == p.depth &&
-		((op.Typ == ItemAND && oper.Oper.Typ == ItemOR) ||
-			(op.Typ == ItemOR && oper.Oper.Typ == ItemAND)) {
+	if ok && node.Right.Depth == p.depth && op.Typ != oper.Oper.Typ {
 		return nil, errors.New("parenthesis required for disambiguation")
 	}
 

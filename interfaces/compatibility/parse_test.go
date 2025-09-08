@@ -24,7 +24,18 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (s *CompatSuite) TestParserValidLabels(c *C) {
+func (s *CompatSuite) TestOperatorString(c *C) {
+	//exp := &compatibility.Expression{}
+	var exp compatibility.Expression
+	op := &compatibility.Operator{Oper: compatibility.Item{compatibility.ItemOR, ""}}
+	exp = op
+	c.Check(exp.String(), Equals, `"OR"`)
+	op = &compatibility.Operator{Oper: compatibility.Item{compatibility.ItemAND, ""}}
+	exp = op
+	c.Check(exp.String(), Equals, `"AND"`)
+}
+
+func (s *CompatSuite) TestParserValidExpressions(c *C) {
 	for i, tc := range []struct {
 		expression string
 		tree       *compatibility.Node
@@ -208,13 +219,18 @@ func (s *CompatSuite) TestParserValidLabels(c *C) {
 	}
 }
 
-func (s *CompatSuite) TestParserInvalidLabels(c *C) {
+func (s *CompatSuite) TestParserInvalidExpressions(c *C) {
 	for i, tc := range []struct {
 		expression string
 		errMsg     string
 	}{
+		{"", "empty compatibility string"},
 		{"(foo", "expected right parenthesis"},
 		{"foo)", "unexpected right parenthesis"},
+		{"foo(", "while parsing: unexpected rune after string: \\("},
+		{"foo (", "while parsing: unexpected rune: \\("},
+		{"foo bar", "while parsing: unexpected rune: b"},
+		{"foo OR OR bar", `unexpected token after operator "OR": "OR"`},
 		{"AND", `unexpected token "AND"`},
 		{"OR", `unexpected token "OR"`},
 		{"foo OR", `unexpected token after operator "OR": "EOF"`},
