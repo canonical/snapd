@@ -37,6 +37,7 @@ prepare: |
 
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
+    cp -r pc-snap pc-snap-without-gpio
 
     cat << EOF >> pc-snap/meta/snap.yaml
     slots:
@@ -54,7 +55,20 @@ prepare: |
         lines: 0,6
     EOF
 
+    cat << EOF >> pc-snap-without-gpio/meta/snap.yaml
+    slots:
+      gpio-chardev-0:
+        interface: gpio-chardev
+        source-chip: [gpio-bank0]
+        lines: 0-7
+      gpio-chardev-1:
+        interface: gpio-chardev
+        source-chip: [gpio-bank1]
+        lines: 0,6
+    EOF
+
     snap pack pc-snap --filename=pc_x1.snap
+    snap pack pc-snap-without-gpio --filename=pc-snap-without-gpio_x1.snap
     snap install pc_x1.snap --dangerous
     tests.cleanup defer snap revert pc --revision="$original_revision"
 
@@ -81,12 +95,26 @@ execute: |
         MATCH 'interface "gpio-chardev" and "gpio" cannot be connected at the same time: "gpio" is already connected' < conflict.out
         
         snap disconnect gpio-consumer:gpio pc:gpio-pin
+        # gpio-chardev connection works  now 
         snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
-        snap connect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
 
         echo "and vice-versa conflict is also detected"
         not snap connect gpio-consumer:gpio pc:gpio-pin 2> conflict.out
         MATCH 'interface "gpio" and "gpio-chardev" cannot be connected at the same time: "gpio-chardev" is already connected' < conflict.out
+
+        # Test that refreshing the gadget to a revision without "gpio" slots automatically
+        # disconnects existing connections
+        snap disconnect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
+        snap connect gpio-consumer:gpio pc:gpio-pin
+        # Cannot connect gpio-chardev
+        not snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0 2> conflict.out
+        MATCH 'interface "gpio-chardev" and "gpio" cannot be connected at the same time: "gpio" is already connected' < conflict.out
+        # Perform gadget refresh
+        snap install pc-snap-without-gpio_x1.snap --dangerous
+        # Now gpio-chardev can be connected that gpio connections were automatically
+        # disconnected due to missing slots
+        snap connect test-snapd-gpio-chardev:gpio-chardev-0 pc:gpio-chardev-0
+        snap connect test-snapd-gpio-chardev:gpio-chardev-1 pc:gpio-chardev-1
 
         # Check number of gpiochips after connection
         find /dev/gpiochip* | wc -l | MATCH '^4$'
