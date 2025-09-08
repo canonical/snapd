@@ -122,6 +122,8 @@ type noticeTypeBackend struct {
 	// rwmu must be held for writing when adding a notice and held for reading
 	// when reading notices.
 	rwmu sync.RWMutex
+	// cond is used to broadcast when a new notice is added.
+	cond *sync.Cond
 	// nextNoticeTimestamp is a closure derived from a notice manager which
 	// returns a unique and monotonically increasing next notice timestamp.
 	nextNoticeTimestamp func() time.Time
@@ -152,6 +154,10 @@ func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, p
 		noticeType:          noticeType,
 		namespace:           namespace,
 	}
+	// Use ntb.rwmu.RLocker() as the cond locker, since that is the lock which
+	// is held during BackendWaitNotices(), and thus calling ntb.cond.Wait()
+	// will be able to release the lock.
+	ntb.cond = sync.NewCond(ntb.rwmu.RLocker())
 	if err := ntb.load(now); err != nil {
 		return nil, err
 	}
@@ -215,6 +221,8 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	for _, expiredNotice := range userNotices[:expiredCount] {
 		delete(ntb.idToNotice, expiredNotice.ID())
 	}
+
+	ntb.cond.Broadcast()
 
 	return nil
 }
@@ -286,29 +294,180 @@ func appendNotice(notices []*state.Notice, newNotice *state.Notice, existingInde
 	return newNotices
 }
 
+// ntbFilter is a simplified version of state.NoticeFilter which only contains
+// information relevant to a noticeTypeBackend.
+type ntbFilter struct {
+	UserID     *uint32
+	Keys       []string
+	After      time.Time
+	BeforeOrAt time.Time
+}
+
+// simplifyFilter creates a new simplified filter with only the information
+// relevant to this backend. If no notices can match this backend, returns false.
+func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simplified ntbFilter, matchPossible bool) {
+	if filter == nil {
+		return simplified, true
+	}
+	if len(filter.Types) > 0 && !slicesContains(filter.Types, ntb.noticeType) {
+		return simplified, false
+	}
+	if !filter.BeforeOrAt.IsZero() && !filter.After.IsZero() && !filter.After.Before(filter.BeforeOrAt) {
+		// No possible timestamp can satisfy both After and BeforeOrAt filters
+		return simplified, false
+	}
+	var keys []string
+	if len(filter.Keys) > 0 {
+		keys = make([]string, 0, len(filter.Keys))
+		for _, key := range filter.Keys {
+			if _, err := prompting.IDFromString(key); err != nil {
+				// Key is not a valid prompting ID, so it's impossible for
+				// there to be a notice matching it.
+				continue
+			}
+			keys = append(keys, key)
+		}
+		if len(keys) == 0 {
+			// There were keys specified in the original filter but none were
+			// viable, so it's impossible for notices to match this filter.
+			return simplified, false
+		}
+	}
+	simplified = ntbFilter{
+		UserID:     filter.UserID,
+		Keys:       keys,
+		After:      filter.After,
+		BeforeOrAt: filter.BeforeOrAt,
+	}
+	return simplified, true
+}
+
+// filterNotices filters the given slice of notices, returning only those which
+// match the filter. Requires that the notices are sorted by last repeated time.
+//
+// Assumes that all notices in the slice already apply to the UserID in the
+// filter.
+func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*state.Notice {
+	var filteredNotices []*state.Notice
+	// Discard expired notices or those with last repeated timestamp before f.After (if given)
+	for i, notice := range notices {
+		if notice.Expired(now) {
+			continue
+		}
+		if !f.After.IsZero() && !notice.LastRepeated().After(f.After) {
+			continue
+		}
+		filteredNotices = notices[i:]
+		break
+	}
+	if len(filteredNotices) == 0 {
+		// Never found a non-expired notice matching After filter
+		return filteredNotices
+	}
+	// Discard notices with last repeated timestamp after f.BeforeOrAt (if given).
+	if !f.BeforeOrAt.IsZero() {
+		// Since this filter is not exported over the API, we only expect
+		// notices to occur after f.BeforeOrAt if they're racing with a
+		// request. So look from newest notice to oldest, and stop looking
+		// once we see a notice with timestamp before or at f.BeforeOrAt.
+		allAfter := true
+		for i := len(filteredNotices) - 1; i >= 0; i-- {
+			if filteredNotices[i].LastRepeated().After(f.BeforeOrAt) {
+				continue
+			}
+			allAfter = false
+			// Discard all notices with timestamps after this one
+			filteredNotices = filteredNotices[:i+1]
+			break
+		}
+		if allAfter {
+			// All notices had timestamps after f.BeforeOrAt
+			return nil
+		}
+	}
+
+	// Now have non-expired notices matching After/BeforeOrAt filters.
+	// If filter has no keys, we're done.
+	if len(f.Keys) == 0 {
+		return filteredNotices
+	}
+
+	// Look for the keys from the filter
+	keyNotices := make([]*state.Notice, 0, len(f.Keys))
+	for _, notice := range filteredNotices {
+		if !slicesContains(f.Keys, notice.Key()) {
+			continue
+		}
+		keyNotices = append(keyNotices, notice)
+		if len(keyNotices) == len(f.Keys) {
+			break
+		}
+	}
+	return keyNotices
+}
+
+// TODO: remove in favor of slices.Contains once we're on Go 1.21+
+func slicesContains[T comparable](haystack []T, needle T) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
+}
+
 // BackendNotices returns the list of notices that match the filter (if any),
 // ordered by the last-repeated time.
 //
 // The caller must not mutate the data within the returned slice.
 func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*state.Notice {
-	// just a naive stub, for now, which ignores much of the filter
+	simplifiedFilter, matchPossible := ntb.simplifyFilter(filter)
+	if !matchPossible {
+		return nil
+	}
 	ntb.rwmu.RLock()
 	defer ntb.rwmu.RUnlock()
 	now := time.Now()
+	return ntb.doNotices(simplifiedFilter, now)
+}
 
-	// XXX: this is wrong, replace with a real implementation
+// The caller must hold the backend lock for reading and must not mutate the
+// data within the returned slice.
+func (ntb *noticeTypeBackend) doNotices(filter ntbFilter, now time.Time) []*state.Notice {
+	if filter.UserID != nil {
+		userNotices, ok := ntb.userNotices[*filter.UserID]
+		if !ok {
+			return nil
+		}
+		return filter.filterNotices(userNotices, now)
+	}
 	var notices []*state.Notice
-	for userID, userNotices := range ntb.userNotices {
-		if filter != nil && filter.UserID != nil && *filter.UserID != userID {
+	nonEmptyUserNotices := 0
+	for _, userNotices := range ntb.userNotices {
+		filtered := filter.filterNotices(userNotices, now)
+		if len(filtered) == 0 {
 			continue
 		}
-		for _, notice := range userNotices {
-			if !notice.Expired(now) {
-				notices = append(notices, notice)
-			}
+		nonEmptyUserNotices++
+		switch nonEmptyUserNotices {
+		case 1:
+			// Don't copy yet, we don't know if it will be necessary
+			notices = filtered
+		case 2:
+			// Need to copy to a new slice so we can safely append other user
+			// notices and sort the end result later.
+			newNotices := make([]*state.Notice, 0, len(notices)+len(filtered))
+			newNotices = append(newNotices, notices...)
+			newNotices = append(newNotices, filtered...)
+			notices = newNotices
+		default:
+			notices = append(notices, filtered...)
 		}
 	}
-	state.SortNotices(notices)
+	if nonEmptyUserNotices > 1 {
+		// Since we concatenated notices from multiple users, need to re-sort
+		state.SortNotices(notices)
+	}
 	return notices
 }
 
@@ -330,8 +489,82 @@ func (ntb *noticeTypeBackend) BackendNotice(id string) *state.Notice {
 // nonzero). If there are existing notices that match the filter,
 // BackendWaitNotices will return them immediately.
 func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
-	// just a non-functional stub, for now
-	return nil, nil
+	simplifiedFilter, matchPossible := ntb.simplifyFilter(filter)
+	if !matchPossible {
+		// A match is not possible, so return immediately
+		return nil, nil
+	}
+	ntb.rwmu.RLock()
+	defer ntb.rwmu.RUnlock()
+	now := time.Now()
+	notices := ntb.doNotices(simplifiedFilter, now)
+	if len(notices) > 0 {
+		return notices, nil
+	}
+
+	if !simplifiedFilter.BeforeOrAt.IsZero() && simplifiedFilter.BeforeOrAt.Before(now) {
+		// No new notices can be added with a timestamp before the BeforeOrAt filter
+		return nil, nil
+	}
+
+	// When the context is done/cancelled, wake up the waiters so that they can
+	// check their ctx.Err() and return if they're cancelled.
+	//
+	// TODO: replace this with context.AfterFunc once we're on Go 1.21.
+	stop := contextAfterFunc(ctx, func() {
+		// We need to acquire a lock mutually exclusive with the cond lock here
+		// to be sure that the Broadcast below won't occur before the call to
+		// Wait, which would result in a missed signal (and deadlock). Since
+		// the cond lock is ntb.rwmu.RLocker(), we need to acquire ntb.rwmu
+		// for *writing*, rather than locking ntb.cond.L.
+		ntb.rwmu.Lock()
+		defer ntb.rwmu.Unlock()
+
+		ntb.cond.Broadcast()
+	})
+	defer stop()
+
+	for {
+		// Wait until a new notice occurs or ctx is cancelled.
+		ntb.cond.Wait()
+
+		// If ctx was cancelled, return the error.
+		ctxErr := ctx.Err()
+		if ctxErr != nil {
+			return nil, ctxErr
+		}
+
+		now = time.Now()
+		// Otherwise, check if there are now matching notices.
+		notices = ntb.doNotices(simplifiedFilter, now)
+		if len(notices) > 0 {
+			return notices, nil
+		}
+
+		if !simplifiedFilter.BeforeOrAt.IsZero() && now.After(simplifiedFilter.BeforeOrAt) {
+			// Since we just checked with the now timestamp and there were no
+			// matching notices, and any new notices must have a later timestamp
+			// after simplifiedFilter.BeforeOrAt, it's impossible for a new
+			// notice to match the filter.
+			return nil, nil
+		}
+	}
+}
+
+// Remove this and just use context.AfterFunc once we're on Go 1.21.
+func contextAfterFunc(ctx context.Context, f func()) func() {
+	stopCh := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			f()
+		case <-stopCh:
+		}
+	}()
+	stop := func() {
+		close(stopCh)
+	}
+	return stop
 }
 
 type savedNotices struct {
