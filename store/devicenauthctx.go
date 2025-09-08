@@ -43,6 +43,8 @@ type DeviceAndAuthContext interface {
 	// is non-empty. Otherwise returns the fallback defaultURL.
 	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxyStoreURL *url.URL, err error)
 
+	// CloudInfo returns details about the cloud the current system is running
+	// in. Returns nil if no evidence of cloud was found at runtime.
 	CloudInfo() (*auth.CloudInfo, error)
 
 	StoreOffline() (bool, error)
