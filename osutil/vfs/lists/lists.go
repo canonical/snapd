@@ -88,7 +88,7 @@ func (n *Node[T]) linkBefore(other *Node[T]) {
 	prev.next = other
 }
 
-// List is a head of doubly-linked list of elements of the same type T.
+// List is a head of circular, doubly-linked list of elements of the same type T.
 // The support type O provides an offset of Node[T] within T.
 //
 // The zero value has length zero and is empty.
