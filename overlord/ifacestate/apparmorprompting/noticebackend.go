@@ -202,7 +202,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
 
-	newUserNotices := assembleNewUserNotices(userNotices, expiredCount, newNotice, existingIndex)
+	newUserNotices := appendNotice(userNotices, newNotice, existingIndex, expiredCount)
 
 	ntb.userNotices[userID] = newUserNotices
 	ntb.idToNotice[noticeID] = newNotice
@@ -277,20 +277,21 @@ func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID stri
 	return userNotices, notice, existingIndex, nil
 }
 
-// assembleNewUserNotices returns a new slice of notices by discarding any
-// expired notices from the front of the given userNotices, copying non-expired
-// notices other than the existing notice, if it exists, and appending the given
-// new notice to the end of the slice. If the notice did not previously exist in
-// the userNotices slice, existingIndex should be -1.
-func assembleNewUserNotices(userNotices []*state.Notice, expiredCount int, newNotice *state.Notice, existingIndex int) []*state.Notice {
-	newUserNotices := make([]*state.Notice, 0, len(userNotices)-expiredCount+1)
-	for i := expiredCount; i < len(userNotices); i++ {
+// appendNotice returns a new slice of notices by copying non-expired notices
+// other than the existing notice, if it exists, and appending the given new
+// notice to the end of the slice. If the notice did not previously exist in
+// the userNotices slice, existingIndex should be -1. The caller must ensure
+// that the given notices are sorted by last repeated timestamp, and the first
+// expiredCount notices are expired.
+func appendNotice(notices []*state.Notice, newNotice *state.Notice, existingIndex int, expiredCount int) []*state.Notice {
+	newNotices := make([]*state.Notice, 0, len(notices)-expiredCount+1)
+	for i := expiredCount; i < len(notices); i++ {
 		if i != existingIndex {
-			newUserNotices = append(newUserNotices, userNotices[i])
+			newNotices = append(newNotices, notices[i])
 		}
 	}
-	newUserNotices = append(newUserNotices, newNotice)
-	return newUserNotices
+	newNotices = append(newNotices, newNotice)
+	return newNotices
 }
 
 // BackendNotices returns the list of notices that match the filter (if any),
