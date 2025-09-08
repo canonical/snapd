@@ -362,7 +362,7 @@ func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*stat
 	}
 	if len(filteredNotices) == 0 {
 		// Never found a non-expired notice matching After filter
-		return filteredNotices
+		return nil
 	}
 	// Discard notices with last repeated timestamp after f.BeforeOrAt (if given).
 	if !f.BeforeOrAt.IsZero() {
@@ -476,7 +476,6 @@ func (ntb *noticeTypeBackend) BackendNotice(id string) *state.Notice {
 func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *state.NoticeFilter) ([]*state.Notice, error) {
 	simplifiedFilter, matchPossible := ntb.simplifyFilter(filter)
 	if !matchPossible {
-		// A match is not possible, so return immediately
 		return nil, nil
 	}
 	ntb.rwmu.RLock()
