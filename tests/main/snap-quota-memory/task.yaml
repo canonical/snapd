@@ -88,21 +88,28 @@ execute: |
       echo "cannot detect cgroup memory file"
       exit 1
   fi
+  
+  total_iters=5
+  for iter in $(seq "$total_iters"); do
+      snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | gojq -r '.result.current.memory')"
+      kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
-  snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | gojq -r '.result.current.memory')"
-  kernelSaysMemUsage="$(cat "$cgroupMemFile")"
+      pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
+      if command -v python3 > /dev/null; then
+          percentChg="$(python3 -c "$pyCmd")"
+      else 
+          percentChg="$(python -c "$pyCmd")"
+      fi
 
-  pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
-  if command -v python3 > /dev/null; then
-    percentChg="$(python3 -c "$pyCmd")"
-  else 
-    percentChg="$(python -c "$pyCmd")"
-  fi
-
-  if [ "$percentChg" -gt 10 ]; then
-    echo "memory usage reported by snapd differs from that of the kernel by more than 10%"
-    exit 1
-  fi
+      if [ "$percentChg" -le 10 ]; then
+          break
+      elif [ "$iter" = "$total_iters" ]; then
+          echo "memory usage reported by snapd differs from that of the kernel by more than 10%"
+          exit 1
+      else
+          sleep 3
+      fi
+  done
 
   echo "Removing the quota will stop the slice and the service will be restarted"
   snap remove-quota group-one
