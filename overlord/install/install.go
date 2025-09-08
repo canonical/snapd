@@ -136,7 +136,7 @@ var (
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	secbootPreinstallCheck             = secboot.PreinstallCheck
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
-	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
+	secbootSaveCheckInfo               = (*secboot.PreinstallCheckContext).SaveCheckInfo
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -224,13 +224,13 @@ func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext
 	}
 }
 
-// MockSecbootSaveCheckResult mocks secbootSaveCheckResult usage by the package for testing.
-func MockSecbootSaveCheckResult(f func(pcc *secboot.PreinstallCheckContext, filename string) error) (restore func()) {
-	osutil.MustBeTestBinary("secbootCheckResult can only be mocked in tests")
-	old := secbootSaveCheckResult
-	secbootSaveCheckResult = f
+// MockSecbootSaveCheckInfo mocks secbootSaveCheckInfo usage by the package for testing.
+func MockSecbootSaveCheckInfo(f func(pcc *secboot.PreinstallCheckContext, filename string) error) (restore func()) {
+	osutil.MustBeTestBinary("secbootCheckInfo can only be mocked in tests")
+	old := secbootSaveCheckInfo
+	secbootSaveCheckInfo = f
 	return func() {
-		secbootSaveCheckResult = old
+		secbootSaveCheckInfo = old
 	}
 }
 
@@ -658,7 +658,7 @@ func PrepareEncryptedSystemData(
 	if checkContext != nil {
 		// write check result containing information required
 		// for optimum PCR configuration and resealing
-		if err := saveCheckResult(checkContext); err != nil {
+		if err := saveCheckInfo(checkContext); err != nil {
 			return err
 		}
 	}
@@ -674,14 +674,9 @@ func PrepareEncryptedSystemData(
 	return nil
 }
 
-func saveCheckResult(checkContext *secboot.PreinstallCheckContext) error {
-	saveCheckResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
-
-	if err := os.MkdirAll(filepath.Dir(saveCheckResultPath), 0755); err != nil {
-		return err
-	}
-
-	return secbootSaveCheckResult(checkContext, saveCheckResultPath)
+func saveCheckInfo(checkContext *secboot.PreinstallCheckContext) error {
+	saveCheckInfoPath := device.PreinstallCheckInfoUnder(boot.InstallHostFDESaveDir)
+	return secbootSaveCheckInfo(checkContext, saveCheckInfoPath)
 }
 
 // writeMarkers writes markers containing the same secret to pair data and save.

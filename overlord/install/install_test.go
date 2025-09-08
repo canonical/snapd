@@ -1852,11 +1852,14 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 
 	expectedCheckContext := &secboot.PreinstallCheckContext{}
 
-	restore = install.MockSecbootSaveCheckResult(func(pcc *secboot.PreinstallCheckContext, filename string) error {
+	restore = install.MockSecbootSaveCheckInfo(func(pcc *secboot.PreinstallCheckContext, filename string) error {
 		if hasCheckResult {
 			c.Assert(pcc, Equals, expectedCheckContext)
-			c.Assert(filename, Matches, ".*/run/mnt/ubuntu-save/device/fde/preinstall-check-result")
-			osutil.AtomicWriteFile(filename, []byte("some content"), 0600, 0)
+			c.Assert(filename, Matches, ".*/run/mnt/ubuntu-save/device/fde/preinstall-check-info")
+			err := os.MkdirAll(filepath.Dir(filename), 0755)
+			c.Assert(err, IsNil)
+			err = osutil.AtomicWriteFile(filename, []byte("some content"), 0600, 0)
+			c.Assert(err, IsNil)
 			return nil
 		} else {
 			c.Assert(true, Equals, false, Commentf("unexpected call to secbootSave"))
@@ -1888,7 +1891,7 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 
-	checkResultContent, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-save/device/fde", "preinstall-check-result"))
+	checkResultContent, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-save/device/fde", "preinstall-check-info"))
 	if hasCheckResult {
 		c.Assert(err, IsNil)
 		c.Assert(checkResultContent, HasLen, 12)
@@ -1917,25 +1920,25 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 
 func (s *installSuite) TestPrepareEncryptedSystemDataWithCheckResult(c *C) {
 	useTokens := true
-	hasCheckResult := false
+	hasCheckResult := true
 	s.testPrepareEncryptedSystemData(c, useTokens, hasCheckResult)
 }
 
 func (s *installSuite) TestPrepareEncryptedSystemDataNoCheckResult(c *C) {
 	useTokens := true
-	hasCheckResult := true
+	hasCheckResult := false
 	s.testPrepareEncryptedSystemData(c, useTokens, hasCheckResult)
 }
 
 func (s *installSuite) TestPrepareEncryptedSystemDataLegacyKeysWithCheckResult(c *C) {
 	useTokens := false
-	hasCheckResult := false
+	hasCheckResult := true
 	s.testPrepareEncryptedSystemData(c, useTokens, hasCheckResult)
 }
 
 func (s *installSuite) TestPrepareEncryptedSystemDataLegacyKeysNoCheckResult(c *C) {
 	useTokens := false
-	hasCheckResult := true
+	hasCheckResult := false
 	s.testPrepareEncryptedSystemData(c, useTokens, hasCheckResult)
 }
 
