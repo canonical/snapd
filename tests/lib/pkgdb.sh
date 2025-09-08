@@ -562,6 +562,13 @@ pkg_dependencies_ubuntu_nested(){
         "
 }
 
+pkg_dependencies_ubuntu_nested_arm(){
+    echo "
+        qemu-efi-aarch64
+        ipxe-qemu
+        "
+}
+
 pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
@@ -894,6 +901,9 @@ pkg_dependencies(){
             if tests.nested is-nested &>/dev/null; then
                 pkg_dependencies_ubuntu_generic
                 pkg_dependencies_ubuntu_nested
+                if os.query is-arm; then
+                    pkg_dependencies_ubuntu_nested_arm
+                fi
             else
                 pkg_dependencies_ubuntu_generic
                 pkg_dependencies_ubuntu_classic
