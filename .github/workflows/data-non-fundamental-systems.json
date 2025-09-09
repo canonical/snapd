@@ -105,11 +105,19 @@
         "rules": "main"
       },
       {
-        "group": "ubuntu-fips",
+        "group": "ubuntu-fips-snap",
         "backend": "google-pro",
         "alternative-backend": "google-pro",
         "systems": "ubuntu-fips-22.04-64",
-        "tasks": "tests/fips/... tests/fips-deb/...",
+        "tasks": "tests/fips/...",
+        "rules": "fips"
+      },
+      {
+        "group": "ubuntu-fips-deb",
+        "backend": "google-pro",
+        "alternative-backend": "google-pro",
+        "systems": "ubuntu-fips-22.04-64",
+        "tasks": "tests/fips-deb/...",
         "rules": "fips"
       }
     ]
