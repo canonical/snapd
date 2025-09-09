@@ -60,19 +60,19 @@ jobs:
           - group: google
             backend: google
             systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd'
+            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
           - group: google-core
             backend: google-core
             systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd'
+            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
           - group: google-distro
             backend: google-distro
             systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd'
+            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
           - group: google-arm
             backend: google-distro
             systems: 'ubuntu-22.04-arm-64 ubuntu-core-24-arm-64'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd'
+            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
 
   spread-test-build-from-current:
     if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-build-from-current') }}
