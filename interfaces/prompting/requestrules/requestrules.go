@@ -1102,6 +1102,13 @@ func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, pat
 			continue
 		}
 
+		if iface == "camera" {
+			// "camera" interface doesn't use path patterns, so pretend it always
+			// matches. There should only ever be one variant entry anyway.
+			matchingVariants = append(matchingVariants, variantEntry.Variant)
+			continue
+		}
+
 		// Need to compare the path pattern variant, not the rule's path
 		// pattern, so that only variants which match are included,
 		// and the highest precedence variant can be computed.
