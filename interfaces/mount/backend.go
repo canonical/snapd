@@ -82,6 +82,9 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	if _, _, err := osutil.EnsureDirState(dir, glob, content); err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
+	if snapInfo.MountNamespace != snap.Persistent {
+		return nil
+	}
 	if err := UpdateSnapNamespace(snapName); err != nil {
 		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
 		for _, app := range snapInfo.Apps {
