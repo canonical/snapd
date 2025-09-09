@@ -1921,7 +1921,7 @@ suites:
             tests.nested restore
 
     # FIPS test suite running with snapd snap
-    tests/fips/:
+    tests/fips-snap/:
         summary: FIPS enabled snapd snap test suite
         systems:
             - ubuntu-fips-*

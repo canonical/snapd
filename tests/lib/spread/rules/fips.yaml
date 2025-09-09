@@ -8,11 +8,11 @@ rules:
       - tests/main/.*
       - tests/smoke/.*
     to:
-        - tests/fips/
+        - tests/fips-snap/
         - tests/fips-deb/
 
   rest:
     from: [.*]
     to:
-        - tests/fips/
+        - tests/fips-snap/
         - tests/fips-deb/
