@@ -11970,3 +11970,32 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }
+
+func (s *snapmgrTestSuite) TestDownloadNotEnoughSpaceIncludingIntegrityData(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(rootDir string, requiredSpace uint64) error {
+
+		// from safetyMarginDiskSpace
+		margin := 5 * 1024 * 1024
+
+		// from fakeStore.snap
+		snapSize := 5
+
+		// from fakeStore.snap channel-with-integrity-data
+		veritySize := 100
+
+		c.Check(requiredSpace, Equals, uint64(margin+snapSize+veritySize))
+
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	downloadDir := c.MkDir()
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{
+		Channel:  "channel-with-integrity-data",
+		Revision: snap.R(2),
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+}
