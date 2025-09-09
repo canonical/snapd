@@ -168,6 +168,10 @@ const fwupdPermanentSlotAppArmor = `
   /sys/devices/**/nvm_non_active*/nvmem a,
   /sys/devices/**/nvm_active*/nvmem r,
 
+  # Required by plugin intel-cvs
+  /sys/devices/**/cvs_ctrl_data_fwupd r,
+  /sys/devices/**/cvs_ctrl_data_pre rw,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)
