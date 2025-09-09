@@ -1002,18 +1002,16 @@ func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
 		"unlink-snap": {state.DoStatus, state.DoingStatus},
 	}
 
-	var unlinkingTask bool
-out:
-	for kind, statuses := range affectingTasks {
-		if cand.Kind() != kind {
-			continue
-		}
+	statuses, ok := affectingTasks[cand.Kind()]
+	if !ok {
+		return false
+	}
 
-		for _, status := range statuses {
-			if cand.Status() == status {
-				unlinkingTask = true
-				break out
-			}
+	var unlinkingTask bool
+	for _, status := range statuses {
+		if cand.Status() == status {
+			unlinkingTask = true
+			break
 		}
 	}
 
