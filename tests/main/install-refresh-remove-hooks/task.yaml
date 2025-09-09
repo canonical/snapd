@@ -83,7 +83,7 @@ execute: |
     snap set "$NAME" exitcode=1
     snap remove "$NAME"
     EXITCODE_VALUE=$(cat "$REMOVE_HOOK_FILE")
-    if test "x$EXITCODE_VALUE" != "x1"; then
+    if test "$EXITCODE_VALUE" != "1"; then
         echo "Remove hook was not executed"
         exit 1
     fi
