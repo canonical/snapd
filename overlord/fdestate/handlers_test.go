@@ -967,8 +967,11 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
 		var volumesAuth *device.VolumesAuthOptions
 		if !tc.noVolumesAuth {
 			volumesAuth = &device.VolumesAuthOptions{Mode: tc.authMode}
-			if tc.authMode == device.AuthModePassphrase {
+			switch tc.authMode {
+			case device.AuthModePassphrase:
 				volumesAuth.Passphrase = "password"
+			case device.AuthModePIN:
+				volumesAuth.PIN = "1234"
 			}
 			s.st.Cache(fdestate.VolumesAuthOptionsKey(), volumesAuth)
 		}

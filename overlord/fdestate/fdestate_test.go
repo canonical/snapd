@@ -498,7 +498,7 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "password"}
 		keyType = "passphrase"
 	case device.AuthModePIN:
-		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
 		keyType = "pin"
 	}
 

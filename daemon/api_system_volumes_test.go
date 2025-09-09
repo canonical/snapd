@@ -440,6 +440,14 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
+	if authMode == device.AuthModePIN {
+		// PIN support is not implemented
+		rsp := s.errorReq(c, req, nil, actionIsExpected)
+		c.Assert(rsp.Status, Equals, 400)
+		c.Check(rsp.Message, Equals, `invalid platform key options: "pin" authentication mode is not implemented`)
+		return
+	}
+
 	rsp := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 202)
 
@@ -474,19 +482,29 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyError(c *C
 	s.daemon(c)
 	s.mockHybridSystem()
 
+	// make sure authentication options validation is called
+	body := strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "1234", "pin": "1234"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Message, Equals, "invalid platform key options: passphrase and pin cannot be set at the same time")
+
 	var mockErr error
 	s.AddCleanup(daemon.MockFdestateReplaceProtectedKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
 		return nil, mockErr
 	}))
 
 	// catch all, bad request error
-	body := strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "none"}`)
-	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	body = strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "none"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
 
 	mockErr = errors.New("boom!")
-	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Check(rsp.Message, Equals, "cannot replace platform key: boom!")
 
