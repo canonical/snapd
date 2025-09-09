@@ -366,7 +366,7 @@ func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string
 
 	logger.Debugf("Starting download of %q to %q.", downloadURL, targetPath)
 
-	etag, err = downloadIcon(ctx, name, etag, downloadURL, aw)
+	etag, err = downloadIcon(ctx, name, etag, downloadURL, s, aw)
 	if err != nil {
 		if errors.Is(err, errIconUnchanged) {
 			logger.Debugf("download of snap icon skipped for snap %s: icon unchanged", name)
@@ -712,7 +712,7 @@ var (
 // downloadIconImpl writes an http.Request which does not require authentication
 // or a progress.Meter. Returns the etag of the downloaded icon, if it exists.
 // If the icon file on disk is unchanged on the server, returns errIconUnchanged.
-func downloadIconImpl(ctx context.Context, name, etag, downloadURL string, w ReadWriteSeekTruncater) (newEtag string, err error) {
+func downloadIconImpl(ctx context.Context, name, etag, downloadURL string, s *Store, w ReadWriteSeekTruncater) (newEtag string, err error) {
 	iconURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return "", err
@@ -724,8 +724,7 @@ func downloadIconImpl(ctx context.Context, name, etag, downloadURL string, w Rea
 		httputil.MaybeLogRetryAttempt(iconURL.String(), attempt, startTime)
 
 		err = func() error {
-			clientOpts := &httputil.ClientOptions{Timeout: downloadIconTimeout}
-			cli := httputil.NewHTTPClient(clientOpts)
+			cli := s.newHTTPClient(&httputil.ClientOptions{Timeout: downloadIconTimeout})
 			reqOptions := iconRequestOptions{
 				url:  iconURL,
 				etag: etag,
