@@ -32,6 +32,24 @@
  */
 #define SC_EXTRA_LIB_DIR "/var/lib/snapd/lib"
 
+enum sc_mount_ns_type {
+    SC_MOUNT_NS_PERSISTENT,
+    SC_MOUNT_NS_EPHEMERAL,
+    SC_MOUNT_NS_HOST,
+};
+
+struct sc_mount_ns_options {
+    enum sc_mount_ns_type mount_ns_type;
+};
+
+/**
+ * Get the mount namespace setup options for the given invocation.
+ *
+ * This function retrieves the mount namespace setup options for the given
+ * invocation by reading the info-file at /var/lib/snapd/mount/snap.$SNAP_INSTANCE.info.
+ */
+void sc_get_mount_ns_setup(const sc_invocation *inv, struct sc_mount_ns_options *nssetup);
+
 /**
  * Assuming a new mountspace, populate it accordingly.
  *

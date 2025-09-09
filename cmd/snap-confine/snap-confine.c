@@ -292,7 +292,8 @@ static void sc_cleanup_preserved_process_state(sc_preserved_process_state *proc_
 
 static void enter_classic_execution_environment(const sc_invocation *inv, gid_t real_gid, gid_t saved_gid);
 static void enter_non_classic_execution_environment(sc_invocation *inv, struct sc_apparmor *aa, uid_t real_uid,
-                                                    gid_t real_gid, gid_t saved_gid);
+                                                    gid_t real_gid, gid_t saved_gid,
+                                                    struct sc_mount_ns_options *mountnsopts);
 
 /* Snapd may be packaged with two more capabilities assigned to snap-confine:
  * setuid and setgid. Those capabilities are required to run snap applications
@@ -540,10 +541,17 @@ int main(int argc, char **argv) {
         sc_unlock(global_lock_fd);
     }
 
+    struct sc_mount_ns_options mountnsopts = {};
+    sc_get_mount_ns_setup(&invocation, &mountnsopts);
+
+    if (mountnsopts.mount_ns_type == SC_MOUNT_NS_HOST && !invocation.classic_confinement) {
+        die("using host mount namespace requires classic confinement");
+    }
+
     if (invocation.classic_confinement) {
         enter_classic_execution_environment(&invocation, real_gid, saved_gid);
     } else {
-        enter_non_classic_execution_environment(&invocation, &apparmor, real_uid, real_gid, saved_gid);
+        enter_non_classic_execution_environment(&invocation, &apparmor, real_uid, real_gid, saved_gid, &mountnsopts);
     }
 
     log_startup_stage("snap-confine mount namespace finish");
@@ -786,7 +794,8 @@ static sc_device_cgroup_mode device_cgroup_mode_for_snap(sc_invocation *inv) {
 }
 
 static void enter_non_classic_execution_environment(sc_invocation *inv, struct sc_apparmor *aa, uid_t real_uid,
-                                                    gid_t real_gid, gid_t saved_gid) {
+                                                    gid_t real_gid, gid_t saved_gid,
+                                                    struct sc_mount_ns_options *mountnsopts) {
     // main() reassociated with the mount ns of PID 1 to make /run/snapd/ns
     // visible
 
@@ -877,22 +886,35 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
     /* Stale mount namespace discarded or no mount namespace to
        join. We need to construct a new mount namespace ourselves.
        To capture it we will need a helper process so make one. */
-    sc_fork_helper(group, aa);
-    sc_debug_capabilities("caps on join");
-    int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
-    if (retval == ESRCH) {
-        /* Create and populate the mount namespace. This performs all
-           of the bootstrapping mounts, pivots into the new root filesystem and
-           applies the per-snap mount profile using snap-update-ns. */
-        debug("unsharing the mount namespace (per-snap)");
-        if (unshare(CLONE_NEWNS) < 0) {
-            die("cannot unshare the mount namespace");
-        }
-        sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid, saved_gid);
-        sc_store_ns_info(inv);
+    switch (mountnsopts->mount_ns_type) {
+        case SC_MOUNT_NS_EPHEMERAL:
+            debug("unsharing the mount namespace (per-snap)");
+            if (unshare(CLONE_NEWNS) < 0) {
+                die("cannot unshare the mount namespace");
+            }
+            sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid, saved_gid);
+            break;
+        case SC_MOUNT_NS_PERSISTENT:
+            sc_fork_helper(group, aa);
+            sc_debug_capabilities("caps on join");
+            int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
+            if (retval == ESRCH) {
+                /* Create and populate the mount namespace. This performs all
+                   of the bootstrapping mounts, pivots into the new root filesystem and
+                   applies the per-snap mount profile using snap-update-ns. */
+                debug("unsharing the mount namespace (per-snap)");
+                if (unshare(CLONE_NEWNS) < 0) {
+                    die("cannot unshare the mount namespace");
+                }
+                sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid, saved_gid);
+                sc_store_ns_info(inv);
 
-        /* Preserve the mount namespace. */
-        sc_preserve_populated_mount_ns(group);
+                /* Preserve the mount namespace. */
+                sc_preserve_populated_mount_ns(group);
+            }
+            break;
+        default:
+            die("unknown mount namespace type");
     }
 
     /* Older versions of snap-confine created incorrect 777 permissions
@@ -903,27 +925,44 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
 
     /* User mount profiles only apply to non-root users. */
     if (real_uid != 0) {
-        debug("joining preserved per-user mount namespace");
-        retval = sc_join_preserved_per_user_ns(group, inv->snap_instance);
-        if (retval == ESRCH) {
-            debug("unsharing the mount namespace (per-user)");
-            if (unshare(CLONE_NEWNS) < 0) {
-                die("cannot unshare the mount namespace");
-            }
-            sc_setup_user_mounts(aa, snap_update_ns_fd, inv->snap_instance);
-            /* Preserve the mount per-user namespace. But only if the
-             * experimental feature is enabled. This way if the feature is
-             * disabled user mount namespaces will still exist but will be
-             * entirely ephemeral. In addition the call
-             * sc_join_preserved_user_ns() will never find a preserved mount
-             * namespace and will always enter this code branch. */
-            if (sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
-                sc_preserve_populated_per_user_mount_ns(group);
-            } else {
-                debug("NOT preserving per-user mount namespace");
-            }
+        switch (mountnsopts->mount_ns_type) {
+            case SC_MOUNT_NS_EPHEMERAL:
+                debug("unsharing the mount namespace (per-user)");
+                if (unshare(CLONE_NEWNS) < 0) {
+                    die("cannot unshare the mount namespace");
+                }
+                sc_setup_user_mounts(aa, snap_update_ns_fd, inv->snap_instance);
+                break;
+            case SC_MOUNT_NS_PERSISTENT:
+                debug("joining preserved per-user mount namespace");
+                int retval = sc_join_preserved_per_user_ns(group, inv->snap_instance);
+                if (retval == ESRCH) {
+                    debug("unsharing the mount namespace (per-user)");
+                    if (unshare(CLONE_NEWNS) < 0) {
+                        die("cannot unshare the mount namespace");
+                    }
+                    sc_setup_user_mounts(aa, snap_update_ns_fd, inv->snap_instance);
+                    /* Preserve the mount per-user namespace. But only if the
+                     * experimental feature is enabled. This way if the feature is
+                     * disabled user mount namespaces will still exist but will be
+                     * entirely ephemeral. In addition the call
+                     * sc_join_preserved_user_ns() will never find a preserved mount
+                     * namespace and will always enter this code branch. */
+                    if (sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
+                        /* NOTE: This is somewhat dead as we never enabled persistence
+                         * for per-user mount namespaces. */
+                        sc_preserve_populated_per_user_mount_ns(group);
+                    } else {
+                        debug("NOT preserving per-user mount namespace");
+                    }
+                }
+                break;
+            default:
+                die("unknown mount namespace type");
+                break;
         }
     }
+
     // With cgroups v1, associate each snap process with a dedicated
     // snap freezer cgroup and snap pids cgroup. All snap processes
     // belonging to one snap share the freezer cgroup. All snap
