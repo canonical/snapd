@@ -1927,7 +1927,7 @@ suites:
             - ubuntu-fips-*
         environment:
             SNAP_REEXEC: "1"
-            SNAPD_DEB_FROM_REPO: 'true'
+            SNAPD_DEB_FROM_REPO: "true"
             FIPS_ARTIFACT: "snap"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
@@ -1951,7 +1951,7 @@ suites:
             # disable reexec so that we use the deb and and explicitly build the
             # deb from the source tree
             SNAP_REEXEC: "0"
-            SNAPD_DEB_FROM_REPO: 'false'
+            SNAPD_DEB_FROM_REPO: "false"
             FIPS_ARTIFACT: "deb"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
