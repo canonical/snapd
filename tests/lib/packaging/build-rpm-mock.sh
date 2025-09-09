@@ -56,6 +56,7 @@ mock -r "$config_file" \
     --sources "$src_dir" \
     --resultdir /home/mockbuilder/builds
 
+# use the enable-network option to allow mock to download go dependencies
 mock -r "$config_file" \
     --no-clean \
     --no-cleanup-after \

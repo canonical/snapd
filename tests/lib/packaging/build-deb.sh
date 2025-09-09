@@ -37,5 +37,6 @@ fi
 snapd_dir=$(pwd)
 
 dch --newversion "$pkg_version" "testing build"
+# Skip tests since the unit tests are run separately in dedicated jobs in the CI
 unshare -n -- \
     su -l -c "cd $snapd_dir && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" "$user"
