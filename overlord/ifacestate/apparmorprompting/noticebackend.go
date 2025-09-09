@@ -81,7 +81,7 @@ func newNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackends, error
 }
 
 func (nb *noticeBackends) registerWithManager(noticeMgr *notices.NoticeManager) error {
-	drainNotices := true
+	const drainNotices = true
 	for _, bknd := range []*noticeTypeBackend{nb.promptBackend, nb.ruleBackend} {
 		// We don't use the validation closure, since notices are produced
 		// directly to satisfy validation.
