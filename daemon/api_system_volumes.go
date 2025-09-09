@@ -332,20 +332,23 @@ func postSystemVolumesActionReplacePlatformKey(c *Command, req *systemVolumesAct
 		return BadRequest("system volume action requires auth-mode to be provided")
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
 	var volumesAuth *device.VolumesAuthOptions
 	if req.AuthMode != device.AuthModeNone {
 		volumesAuth = &device.VolumesAuthOptions{
-			Mode: req.AuthMode,
-			// TODO:FDEM: add PIN support
+			Mode:       req.AuthMode,
+			PIN:        req.PIN,
 			Passphrase: req.Passphrase,
 			KDFType:    req.KDFType,
 			KDFTime:    req.KDFTime,
 		}
+		if err := volumesAuth.Validate(); err != nil {
+			return BadRequest("invalid platform key options: %v", err)
+		}
 	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	ts, err := fdestateReplaceProtectedKey(st, volumesAuth, req.Keyslots)
 	if err != nil {
