@@ -20,6 +20,8 @@
 package client
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/gadget/device"
 )
 
@@ -57,4 +59,13 @@ type SystemVolumesOptions struct {
 type ChangePassphraseOptions struct {
 	OldPassphrase string `json:"old-passphrase"`
 	NewPassphrase string `json:"new-passphrase"`
+}
+
+type PlatformKeyOptions struct {
+	Passphrase string `json:"passphrase,omitempty"`
+	PIN        string `json:"pin,omitempty"`
+
+	AuthMode device.AuthMode `json:"auth-mode,omitempty"`
+	KDFType  string          `json:"kdf-type,omitempty"`
+	KDFTime  time.Duration   `json:"kdf-time,omitempty"`
 }

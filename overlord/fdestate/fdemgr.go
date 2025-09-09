@@ -115,6 +115,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	// which is strange from a UX perspective but it is necessary to prevent
 	// conflicting reseal/seal operations from racing when reading/writing
 	// FDE state parameters.
+	//
+	// XXX: s/fde-add-protected-keys/fde-add-platform-keys?
 	snapstate.RegisterAffectedSnapsByKind("fde-add-protected-keys", addProtectedKeysAffectedSnaps)
 
 	runner.AddHandler("efi-secureboot-db-update-prepare",

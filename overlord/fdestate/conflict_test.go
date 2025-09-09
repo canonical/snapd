@@ -38,6 +38,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 	var chgToErr = map[string]string{
 		"fde-efi-secureboot-db-update": "external EFI DBX update in progress, no other FDE changes allowed until this is done",
 		"fde-replace-recovery-key":     "replacing recovery key in progress, no other FDE changes allowed until this is done",
+		"fde-replace-platform-key":     "replacing platform key in progress, no other FDE changes allowed until this is done",
 		"fde-change-passphrase":        "changing passphrase in progress, no other FDE changes allowed until this is done",
 		"some-fde-change":              "FDE change in progress, no other FDE changes allowed until this is done",
 
