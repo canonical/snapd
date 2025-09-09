@@ -447,6 +447,19 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 			},
 		}
+	case "channel-with-integrity-data":
+		info.IntegrityData = &snap.IntegrityDataInfo{
+			Version:       1,
+			Type:          "dm-verity",
+			HashAlg:       "sha256",
+			DataBlockSize: 1000,
+			HashBlockSize: 1000,
+			Salt:          "salt",
+			Digest:        "digest",
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "foo_1.snap.dmverity_digest1",
+			},
+		}
 	}
 
 	if spec.Name == "provenance-snap" {
@@ -816,6 +829,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			if opts.IncludeResources {
 				sar.Resources = f.snapResources(info)
 			}
+
+			// TODO by default fakestore returns a snap info for a snap with integrity data
+			// if the "channel-with-integrity-data" is used in tests. This should actually
+			// be made configurable to respect a new option in the opts field which the actual
+			// store will use and that will indicate whether it should return integrity data
+			// information.
 
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
