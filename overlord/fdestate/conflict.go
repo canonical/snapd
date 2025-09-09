@@ -48,13 +48,18 @@ func checkFDEChangeConflict(st *state.State) error {
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
+		case "fde-replace-platform-key":
+			return &snapstate.ChangeConflictError{
+				Message:    "replacing platform key in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
 		case "fde-change-passphrase":
 			return &snapstate.ChangeConflictError{
 				Message:    "changing passphrase in progress, no other FDE changes allowed until this is done",
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
-		// TODO:FDEM: add entry for passphrase reset when API lands
 		default:
 			// try to catch changes/tasks that could have been missed
 			// and log a warning.

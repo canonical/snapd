@@ -40,6 +40,10 @@ func MockFdestateReplaceRecoveryKey(f func(st *state.State, recoveryKeyID string
 	return testutil.Mock(&fdestateReplaceRecoveryKey, f)
 }
 
+func MockFdestateReplaceProtectedKey(f func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error)) (restore func()) {
+	return testutil.Mock(&fdestateReplaceProtectedKey, f)
+}
+
 func MockFdestateChangeAuth(f func(st *state.State, authMode device.AuthMode, old string, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error)) (restore func()) {
 	return testutil.Mock(&fdestateChangeAuth, f)
 }

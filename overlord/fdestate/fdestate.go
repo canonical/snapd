@@ -646,6 +646,8 @@ type volumesAuthOptionsKey struct{}
 //   - container-role: system-data, name: default
 //   - container-role: system-data, name: default-fallback
 //   - container-role: system-save, name: default-fallback
+//
+// XXX: s/ReplaceProtectedKey/ReplacePlatformKey?
 func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
 	authMode := device.AuthModeNone
 	if volumesAuth != nil {
