@@ -92,6 +92,9 @@ apps:
   ion-memory-control:
     command: bin/run
     plugs: [ ion-memory-control ]
+  iscsi-initiator:
+    command: bin/run
+    plugs: [ iscsi-initiator ]
   jack1:
     command: bin/run
     plugs: [ jack1 ]
