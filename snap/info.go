@@ -437,7 +437,21 @@ type Info struct {
 
 	// Categories this snap is in.
 	Categories []CategoryInfo
+
+	// MountNamespace specifies the type of mount namespace for a snap.
+	MountNamespace MountNamespace
 }
+
+// MountNamespace is used to specify the type of mount namespace for a snap.
+type MountNamespace string
+
+// Known values for [MountNamespace]. The zero value makes the effective namespace
+// dependent on the snap's confinement and base.
+const (
+	Ephemeral  MountNamespace = "ephemeral"
+	Persistent MountNamespace = "persistent"
+	Host       MountNamespace = "host"
+)
 
 // StoreAccount holds information about a store account, for example of snap
 // publisher.
