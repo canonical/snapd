@@ -65,9 +65,9 @@ jobs:
         # Here we use rpmbuild instead of osc because osc
         # requires authentication to build packages
 
-        chmod -R 777 .
+        chmod -R o+wr .
         mkdir -p /tmp/uploads
-        chmod -R 777 /tmp/uploads
+        chmod -R o+wr /tmp/uploads
         docker run --privileged --rm \
           --mount type=bind,src=$(pwd),dst=/root/snapd \
           --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \

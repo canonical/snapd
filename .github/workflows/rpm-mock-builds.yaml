@@ -64,10 +64,10 @@ jobs:
 
     - name: Build rpm
       run: |
-        chmod -R 777 .
+        chmod -R o+rw .
         mkdir -p /tmp/mock
         mkdir -p /tmp/builds
-        chmod -R 777 /tmp/builds
+        chmod -R o+rw /tmp/builds
         docker run --privileged --rm \
           --mount type=bind,src=/tmp/mock,dst=/var/cache/mock \
           --mount type=bind,src=$(pwd),dst=/home/mockbuilder/snapd \
