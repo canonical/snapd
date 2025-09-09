@@ -125,6 +125,10 @@ func MockSecbootAddContainerRecoveryKey(f func(devicePath string, slotName strin
 	return testutil.Mock(&secbootAddContainerRecoveryKey, f)
 }
 
+func MockSecbootAddContainerTPMProtectedKey(f func(devicePath string, slotName string, params *secboot.ProtectKeyParams) error) (restore func()) {
+	return testutil.Mock(&secbootAddContainerTPMProtectedKey, f)
+}
+
 func MockSecbootDeleteContainerKey(f func(devicePath string, slotName string) error) (restore func()) {
 	return testutil.Mock(&secbootDeleteContainerKey, f)
 }
@@ -159,4 +163,8 @@ func (o *changeAuthOptions) Old() string {
 
 func (o *changeAuthOptions) New() string {
 	return o.new
+}
+
+func VolumesAuthOptionsKey() volumesAuthOptionsKey {
+	return volumesAuthOptionsKey{}
 }
