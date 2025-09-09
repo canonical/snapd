@@ -21,6 +21,7 @@ package store_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -3672,6 +3673,34 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 	// go 1.17 started quoting the failing URL, also context deadline
 	// exceeded may appear in place of request being canceled
 	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: (net/http: request canceled|context deadline exceeded)( \(Client.Timeout exceeded while awaiting headers\))?.*`)
+}
+
+func (s *storeActionSuite) TestSnapActionUsesProxy(c *C) {
+	restore := store.MockRequestTimeout(250 * time.Millisecond)
+	defer restore()
+
+	u, err := url.Parse("https://foo.internal/snap-action")
+	c.Assert(err, IsNil)
+	cfg := store.Config{
+		StoreBaseURL: u,
+		Proxy: func(r *http.Request) (*url.URL, error) {
+			c.Check(r.Method, Equals, "POST")
+			// accessing /v2/snaps/refresh endpoint
+			c.Check(r.URL.String(), Equals, "https://foo.internal/snap-action/v2/snaps/refresh")
+			return nil, errors.New("mock proxy error")
+		},
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	_, _, err = sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo",
+		},
+	}, nil, nil, nil)
+
+	c.Assert(err, ErrorMatches, `.* mock proxy error`)
 }
 
 func (s *storeActionSuite) TestResourceToComponentType(c *C) {

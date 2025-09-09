@@ -1256,6 +1256,25 @@ func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
 }
 
+func (s *storeDownloadSuite) TestDownloadSnapUsesProxy(c *C) {
+	// Verify store downloads use the configured proxy
+
+	theStore := store.New(&store.Config{
+		Proxy: func(r *http.Request) (*url.URL, error) {
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.String(), Equals, "https://foo.internal/snap-now")
+			return nil, errors.New("mock proxy error")
+		},
+	}, nil)
+
+	snap := &snap.Info{}
+	snap.DownloadURL = "https://foo.internal/snap-now"
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := theStore.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, ErrorMatches, ".* mock proxy error")
+}
+
 func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
 	const expectedName = "foo"
 	const expectedURL = "URL"
