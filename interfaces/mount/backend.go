@@ -74,7 +74,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	spec.(*Specification).AddExtraLayouts(opts.ExtraLayouts)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
-	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
+	glob := fmt.Sprintf("snap.%s.*", snapName)
 	dir := dirs.SnapMountPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
@@ -103,7 +103,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
+	glob := fmt.Sprintf("snap.%s.*", snapName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
@@ -135,6 +135,11 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 	// Add the per-snap user-fstab file.
 	// This file will be read by snap-update-ns in the per-user pass.
 	addMountProfile(content, fmt.Sprintf("snap.%s.user-fstab", snapName), spec.UserMountEntries())
+	// Add the per-snap info file. This file is read by snap-confine.
+	content[fmt.Sprintf("snap.%s.info", snapName)] = &osutil.MemoryFileState{
+		Content: []byte(fmt.Sprintf("mount-namespace=%s\n", snapInfo.MountNamespace)),
+		Mode:    0644,
+	}
 	return content
 }
 
