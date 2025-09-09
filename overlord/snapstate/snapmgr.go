@@ -1003,6 +1003,7 @@ func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
 	}
 
 	var unlinkingTask bool
+out:
 	for kind, statuses := range affectingTasks {
 		if cand.Kind() != kind {
 			continue
@@ -1011,6 +1012,7 @@ func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
 		for _, status := range statuses {
 			if cand.Status() == status {
 				unlinkingTask = true
+				break out
 			}
 		}
 	}
