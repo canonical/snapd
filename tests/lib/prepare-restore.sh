@@ -569,7 +569,7 @@ prepare_project() {
                 ;;
         esac
     elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then
-        find "$PROJECT_PATH/built-pkgs/$SPREAD_SYSTEM" -type f -exec cp -v {} "${GOPATH%%:*}" \;
+        find "$PROJECT_PATH/built-pkgs/$SPREAD_SYSTEM" -type f -exec cp -v {} "${GOHOME}" \;
         case "$SPREAD_SYSTEM" in
             ubuntu-*)
                 # set the version to ensure core-initrd/build-source-pkgs.sh doesn't fail
