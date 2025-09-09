@@ -112,6 +112,30 @@ func TestVFS_Mount(t *testing.T) {
 
 		t.Log("Final state", v)
 	})
+
+	t.Run("mount-on-shared", func(t *testing.T) {
+		v := vfs.NewVFS(fstest.MapFS{"a": &fstest.MapFile{Mode: fs.ModeDir}})
+		a := fstest.MapFS{"b": &fstest.MapFile{Mode: fs.ModeDir}}
+		b := fstest.MapFS{}
+		assertSuccess(t, v.Mount(a, "a"))
+		assertSuccess(t, v.MakeShared("a"))
+		assertSuccess(t, v.Mount(b, "a/b"))
+		// We expect "a/b" to be a shared mount, because "a" was shared, but
+		// using a new peer group ID (not the one from "a") because each new
+		// mount behaves as a bind mount from a private mount and mounts on
+		// shared mounts act as if followed by atomic make-shared operation.
+		assertVFS(t, v, `
+-1 -1 0:0 / / rw - (fstype) (source) rw
+0  -1 0:0 / /a rw shared:1 - (fstype) (source) rw
+1  0 0:0 / /a/b rw shared:2 - (fstype) (source) rw
+`)
+		if n := v.MustFindMount(0).Peers().Len(); n != 1 {
+			t.Fatalf("Expected mount /a to have 1 peer (itself), got %d", n)
+		}
+		if n := v.MustFindMount(1).Peers().Len(); n != 1 {
+			t.Fatalf("Expected mount /a/b to have 1 peer (itself), got %d", n)
+		}
+	})
 }
 
 func TestVFS_BindMount(t *testing.T) {
@@ -440,6 +464,7 @@ func TestVFS_BindMount(t *testing.T) {
 			t.Fatal("Unexpected stat of foo.txt.2", fi)
 		}
 	})
+
 	t.Run("sub-file", func(t *testing.T) {
 		v := vfs.NewVFS(fstest.MapFS{
 			"var/home/user/file.txt": &fstest.MapFile{Sys: "actually var/home/user/file.txt"},
@@ -542,6 +567,58 @@ func TestVFS_BindMount(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	t.Run("bind-mount-from-shared-to-private", func(t *testing.T) {
+		v := vfs.NewVFS(fstest.MapFS{
+			"a": &fstest.MapFile{Mode: fs.ModeDir},
+			"b": &fstest.MapFile{Mode: fs.ModeDir},
+		})
+		a := fstest.MapFS{}
+		assertSuccess(t, v.Mount(a, "a"))
+		assertSuccess(t, v.MakeShared("a"))
+		assertSuccess(t, v.BindMount("a", "b"))
+		// We expect "b" to be a shared mount but using the same peer group as
+		// "a", as bind mount retains peer membership.
+		assertVFS(t, v, `
+-1 -1 0:0 / / rw - (fstype) (source) rw
+0  -1 0:0 / /a rw shared:1 - (fstype) (source) rw
+1  -1 0:0 / /b rw shared:1 - (fstype) (source) rw
+`)
+		if n := v.MustFindMount(0).Peers().Len(); n != 2 {
+			t.Fatalf("Expected mount /a to have 2 peers (/a and /b), got %d", n)
+		}
+		if n := v.MustFindMount(1).Peers().Len(); n != 2 {
+			t.Fatalf("Expected mount /b to have 2 peers (/a and /b), got %d", n)
+		}
+	})
+
+	t.Run("bind-mount-from-shared-to-shared", func(t *testing.T) {
+		v := vfs.NewVFS(fstest.MapFS{
+			"a": &fstest.MapFile{Mode: fs.ModeDir},
+			"b": &fstest.MapFile{Mode: fs.ModeDir},
+		})
+		a := fstest.MapFS{}
+		assertSuccess(t, v.MakeShared(""))
+		assertSuccess(t, v.Mount(a, "a"))
+		assertSuccess(t, v.BindMount("a", "b"))
+		// We expect "b" to be a shared mount but using the same peer group as
+		// "a" as bind mount retains peer membership. Note that we do not
+		// allocate a new peer group ID for "b" because rootfs was shared.
+		// Making a shared mount shared again has no effect and this situation
+		// is analogous.
+		assertVFS(t, v, `
+-1 -1 0:0 / / rw shared:1 - (fstype) (source) rw
+0  -1 0:0 / /a rw shared:2 - (fstype) (source) rw
+1  -1 0:0 / /b rw shared:2 - (fstype) (source) rw
+`)
+		if n := v.MustFindMount(0).Peers().Len(); n != 2 {
+			t.Fatalf("Expected mount /a to have 2 peers (/a and /b), got %d", n)
+		}
+		if n := v.MustFindMount(1).Peers().Len(); n != 2 {
+			t.Fatalf("Expected mount /b to have 2 peers (/a and /b), got %d", n)
+		}
+	})
+
 }
 
 func TestVFS_RecursiveBindMount(t *testing.T) {
@@ -817,6 +894,28 @@ func TestVFS_Unmount(t *testing.T) {
 	t.Run("mount-path-with-trailing-slash", func(t *testing.T) {
 		if err := v.Unmount("home/"); err == nil {
 			t.Fatal("Unexpected success")
+		}
+	})
+
+	t.Run("unmount-shared", func(t *testing.T) {
+		v := vfs.NewVFS(fstest.MapFS{
+			"a": &fstest.MapFile{Mode: fs.ModeDir},
+			"b": &fstest.MapFile{Mode: fs.ModeDir},
+		})
+		assertSuccess(t, v.Mount(fstest.MapFS{}, "a"))
+		assertSuccess(t, v.MakeShared("a"))
+		assertSuccess(t, v.BindMount("a", "b"))
+		if n := v.MustFindMount(0).Peers().Len(); n != 2 {
+			t.Fatalf("Expected mount /a to have 2 peers (/a and /b), got %d", n)
+		}
+		assertSuccess(t, v.Unmount("b"))
+		assertVFS(t, v, `
+-1 -1 0:0 / / rw - (fstype) (source) rw
+0  -1 0:0 / /a rw shared:1 - (fstype) (source) rw
+`)
+		// Since /b is now unmounted, /a should be the only remaining mount in the peer group.
+		if n := v.MustFindMount(0).Peers().Len(); n != 1 {
+			t.Fatalf("Expected mount /a to have 1 peer (itself), got %d", n)
 		}
 	})
 }

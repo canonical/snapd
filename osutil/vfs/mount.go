@@ -65,7 +65,14 @@ func (v *VFS) Mount(fsFS fs.StatFS, mountPoint string) error {
 		isDir:      true,
 		fsFS:       fsFS,
 	}
+	m.initLinkage()
 	v.attachMount(pd.mount, m)
+
+	// If the parent mount is shared then the new mount becomes shared.
+	if pd.mount.shared {
+		const recursive = false
+		v.changePropagationToShared(m, recursive)
+	}
 
 	return nil
 }
@@ -133,7 +140,18 @@ func (v *VFS) unlockedBindMount(sourcePoint, mountPoint string) (*mount, error) 
 		isDir:      fsFi.IsDir(),
 		fsFS:       sourcePd.mount.fsFS,
 	}
+	m.initLinkage()
 	v.attachMount(pd.mount, m)
+
+	// If the source mount was shared then the new mount is a new member of the existing peer group.
+	if !m.shared && sourcePd.mount.shared {
+		m.joinPeerGroupOf(sourcePd.mount)
+	}
+	// If the parent mount is shared then the new mount becomes shared.
+	if !m.shared && pd.mount.shared {
+		const recursive = false
+		v.changePropagationToShared(m, recursive)
+	}
 
 	return m, nil
 }
