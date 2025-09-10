@@ -16,7 +16,7 @@ jobs:
       go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Go snap channels
         id: resolve-go-channels
@@ -60,7 +60,7 @@ jobs:
     name: Create go vendor
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: vendor
         run: |
@@ -156,7 +156,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download Debian dependencies
       run: |
@@ -205,7 +205,7 @@ jobs:
     if: github.ref != 'refs/heads/master'
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -257,7 +257,7 @@ jobs:
         shell: bash
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Confirm required static checks passed
         uses: ./.github/actions/combine-results
@@ -389,8 +389,8 @@ jobs:
   unit-tests-python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '>=3.9'
           cache: 'pip'
@@ -414,7 +414,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Confirm required unit tests passed
         uses: ./.github/actions/combine-results
@@ -434,7 +434,7 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         pattern: coverage-files-*
         path: .coverage/
@@ -471,7 +471,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read matrix file
         id: read-systems

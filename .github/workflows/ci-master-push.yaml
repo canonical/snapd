@@ -10,7 +10,7 @@ jobs:
       go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Go snap channels
         id: resolve-go-channels
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download Debian dependencies
       run: |
@@ -136,7 +136,7 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         pattern: coverage-files-*
         path: .coverage/
