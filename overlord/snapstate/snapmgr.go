@@ -179,6 +179,9 @@ type SnapSetup struct {
 	// ComponentExclusiveOperation is set if this SnapSetup exists only to deal with
 	// components, and not the snap itself.
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
+
+	// IntegrityData contains the integrity data to be used when mounting this snap.
+	IntegrityData *snap.IntegrityData `json:"integrity-data,omitempty"`
 }
 
 // ConfdbSchemaID identifies a confdb schema.
@@ -225,7 +228,22 @@ func (snapsup *SnapSetup) BlobPath() string {
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
 	}
+
 	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
+}
+
+// IntegrityBlobPath returns the path to the integrity data that backs the snap that
+// is being setup. Unless the snap was downloaded to a custom location, this
+// will be under dirs.SnapBlobDir.
+func (snapsup *SnapSetup) IntegrityBlobPath() string {
+	snapFn := snapsup.BlobPath()
+
+	digest := snapsup.IntegrityData.DownloadInfo.GetVerityDigest()
+	if len(digest) > 0 {
+		return fmt.Sprintf("%s.dmverity_%s", snapFn, digest)
+	}
+
+	return ""
 }
 
 // ComponentSetup holds the necessary component details to perform
@@ -904,6 +922,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
 	runner.AddHandler("prepare-kernel-modules-components", m.doPrepareKernelModulesComponents, m.undoPrepareKernelModulesComponents)
 
+	// integrity tasks
+	runner.AddHandler("download-integrity-data", m.doDownloadIntegrityData, nil)
+
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
@@ -1449,14 +1470,32 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if snapType == snap.TypeKernel && dev == nil {
 				continue
 			}
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
-				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{
-					PreventRestartIfModified: true,
-					// We need early mounts only for UC20+/hybrid, also 16.04
-					// systemd seems to be buggy if we enable this.
-					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
-						dev.HasModeenv()}); err != nil {
+
+			// We need early mounts only for UC20+/hybrid, also 16.04
+			// systemd seems to be buggy if we enable this.
+			startBeforeDriversLoad := snapType == snap.TypeKernel && dev.HasModeenv()
+
+			mountOptions := &systemd.MountUnitOptions{
+				Lifetime:                 systemd.Persistent,
+				Description:              info.MountDescription(),
+				What:                     squashfsPath,
+				Where:                    whereDir,
+				PreventRestartIfModified: true,
+			}
+
+			fsType, options, mountUnitType := sysd.MountUnitOptions(squashfsPath, "squashfs", startBeforeDriversLoad)
+
+			mountOptions.Fstype = fsType
+			mountOptions.Options = options
+			mountOptions.MountUnitType = mountUnitType
+
+			// TODO Here there is no way of figuring out whether the snap is mounted
+			// with integrity data since this is information is not stored in the state
+			// for now. This means that after EnsureMountUnitFileWithOptions runs, the
+			// mount unit will be updated to one that doesn't use integrity data even
+			// if it did before.
+			_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+			if err != nil {
 				return err
 			}
 		}

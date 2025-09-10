@@ -116,7 +116,13 @@ type installSnapInfo struct {
 }
 
 func (ins installSnapInfo) DownloadSize() int64 {
-	return ins.DownloadInfo.Size
+	size := ins.DownloadInfo.Size
+
+	if ins.IntegrityData != nil {
+		size += ins.IntegrityData.DownloadInfo.Size
+	}
+
+	return size
 }
 
 // SnapBase returns the base snap of the snap.
@@ -495,6 +501,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 		checkAsserts = st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(checkAsserts)
 		finalBeforeLocalSystemModifications = checkAsserts
+
+		if snapsup.IntegrityData != nil {
+			downloadIntegrityData := st.NewTask("download-integrity-data", fmt.Sprintf(i18n.G("Download integrity data for snap %q%s"), snapsup.InstanceName(), revisionStr))
+			addTask(downloadIntegrityData)
+		}
 	}
 
 	for _, t := range componentsTSS.beforeLocalSystemModificationsTasks {
@@ -1654,6 +1665,7 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		IntegrityData:               info.IntegrityData,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1703,6 +1715,11 @@ func downloadTasks(
 
 		validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(validate)
+
+		if snapsup.IntegrityData != nil {
+			downloadIntegrityData := st.NewTask("download-integrity-data", fmt.Sprintf(i18n.G("Download integrity data for snap %q%s"), snapsup.InstanceName(), revisionStr))
+			addTask(downloadIntegrityData)
+		}
 	}
 
 	compsupIDs := make([]string, 0, len(compsups))
