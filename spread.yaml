@@ -228,7 +228,7 @@ backends:
                   workers: 1
                   attach-service-account: true
 
-    google-distro-1:
+    google-distro:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/europe-west3-b
@@ -248,12 +248,6 @@ backends:
                   workers: 6
                   storage: preserve-size
 
-    google-distro-2:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west4-b
-        halt-timeout: 2h
-        systems:
             - arch-linux-64:
                   workers: 6
                   storage: 20G
