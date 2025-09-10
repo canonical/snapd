@@ -41,6 +41,11 @@ type PreinstallCheckContext struct {
 	sbRunChecksContext *sb_preinstall.RunChecksContext
 }
 
+// checkResultProvider builds the JSON-serializable payload.
+type checkResultProvider interface {
+	CheckResult() (*preinstallCheckResult, error)
+}
+
 // preinstallCheckResult contains information required post install
 // for optimum PCR configuration and resealing.
 type preinstallCheckResult struct {
@@ -85,7 +90,6 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	for _, image := range bootImagePaths {
 		bootImages = append(bootImages, sb_efi.NewFileImage(image))
 	}
-
 	checkContext := &PreinstallCheckContext{sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)}
 
 	// no actions or action args for preinstall checks
@@ -129,21 +133,19 @@ func (c *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, acti
 	return nil, nil
 }
 
-// SaveCheckResult writes the serialized preinstall check information in the
+// SaveCheckResult writes the serialized preinstall check result in the
 // location specified by the filename.
 func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
-	if c.sbRunChecksContext == nil {
-		return fmt.Errorf("preinstall check context unavailable")
+	return saveCheckResultFromProvider(filename, c)
+}
+
+func saveCheckResultFromProvider(filename string, provider checkResultProvider) error {
+	checkResult, err := provider.CheckResult()
+	if err != nil {
+		return err
 	}
 
-	result := c.sbRunChecksContext.Result()
-	if result == nil {
-		errorCount := len(c.sbRunChecksContext.Errors())
-		return fmt.Errorf("preinstall check result unavailable: %d unresolved errors", errorCount)
-	}
-
-	// TODO:FDEM: use profileOpts from c.sbRunChecksContext when there is a way.
-	bytes, err := json.Marshal(preinstallCheckResult{result, sb_preinstall.PCRProfileOptionsDefault})
+	bytes, err := json.Marshal(checkResult)
 	if err != nil {
 		return fmt.Errorf("cannot serialize preinstall check information: %v", err)
 	}
@@ -152,6 +154,25 @@ func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, bytes, 0600, 0)
+}
+
+// CheckResult builds a marshaling-ready preinstall check result from the
+// preinstall check context. An error is returned if the underlying run context
+// is unavailable or if no result has been produced yet (in which case the error
+// includes the number of unresolved errors that prevented result generation).
+func (c *PreinstallCheckContext) CheckResult() (*preinstallCheckResult, error) {
+	if c.sbRunChecksContext == nil {
+		return nil, fmt.Errorf("preinstall check context unavailable")
+	}
+
+	result := c.sbRunChecksContext.Result()
+	if result == nil {
+		errorCount := len(c.sbRunChecksContext.Errors())
+		return nil, fmt.Errorf("preinstall check result unavailable: %d unresolved errors", errorCount)
+	}
+
+	// TODO:FDEM: use profileOpts from c.sbRunChecksContext when there is a way.
+	return &preinstallCheckResult{result, sb_preinstall.PCRProfileOptionsDefault}, nil
 }
 
 // unwrapPreinstallCheckError converts a single or compound preinstall check

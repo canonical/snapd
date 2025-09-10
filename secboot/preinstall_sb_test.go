@@ -24,6 +24,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 
 	"github.com/canonical/go-tpm2"
 	sb_efi "github.com/snapcore/secboot/efi"
@@ -477,6 +479,40 @@ func (s *preinstallSuite) TestSaveCheckResultErrorResultNotAvailable(c *C) {
 	checkContext := secboot.NewPreinstallChecksContext(&sb_preinstall.RunChecksContext{})
 	err := checkContext.SaveCheckResult("preinstall")
 	c.Assert(err, ErrorMatches, "preinstall check result unavailable: 0 unresolved errors")
+}
 
-	//TODO: extend test when there is a way to modify sb_preinstall.CheckResult within sb_preinstall.RunChecksContext
+func (s *preinstallSuite) TestSaveCheckResultFromProvider(c *C) {
+	filename := filepath.Join(c.MkDir(), "/run/mnt/ubuntu-save/device/fde/preinstall")
+	expectedCheckResult := secboot.PreinstallCheckResult{
+		Result: &sb_preinstall.CheckResult{
+			PCRAlg: tpm2.HashAlgorithmSHA512,
+			Flags:  sb_preinstall.NoPlatformConfigProfileSupport | sb_preinstall.NoDriversAndAppsProfileSupport,
+		},
+		PCRProfileOpts: sb_preinstall.PCRProfileOptionsDefault,
+	}
+
+	rp := &resultProvider{
+		result: &expectedCheckResult,
+		err:    nil,
+	}
+	err := secboot.SaveCheckResultFromProvider(filename, rp)
+	c.Assert(err, IsNil)
+
+	data, err := os.ReadFile(filename)
+	c.Assert(err, IsNil)
+
+	var checkResult secboot.PreinstallCheckResult
+	err = json.Unmarshal(data, &checkResult)
+	c.Assert(err, IsNil)
+
+	c.Assert(checkResult, DeepEquals, expectedCheckResult)
+}
+
+type resultProvider struct {
+	result *secboot.PreinstallCheckResult
+	err    error
+}
+
+func (rp *resultProvider) CheckResult() (*secboot.PreinstallCheckResult, error) {
+	return rp.result, rp.err
 }

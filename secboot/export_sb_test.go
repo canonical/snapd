@@ -37,12 +37,16 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type ResealKeysWithTPMParams = resealKeysWithTPMParams
+type (
+	ResealKeysWithTPMParams = resealKeysWithTPMParams
+	PreinstallCheckResult   = preinstallCheckResult
+)
 
 var (
 	UnwrapPreinstallCheckError         = unwrapPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
 	ConvertPreinstallCheckErrorActions = convertPreinstallCheckErrorActions
+	SaveCheckResultFromProvider        = saveCheckResultFromProvider
 
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
