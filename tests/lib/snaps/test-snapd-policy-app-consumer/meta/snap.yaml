@@ -155,6 +155,9 @@ apps:
   multipass-support:
     command: bin/run
     plugs: [ multipass-support ]
+  multipath-control:
+    command: bin/run
+    plugs: [ multipath-control ]
   network-manager-observe:
     command: bin/run
     plugs: [ network-manager-observe ]
