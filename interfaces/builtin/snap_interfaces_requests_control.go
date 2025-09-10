@@ -98,12 +98,12 @@ func (iface *requestsControlInterface) BeforePreparePlug(plug *snap.PlugInfo) er
 func init() {
 	registerIface(&requestsControlInterface{
 		commonInterface{
-			name:                 "snap-interfaces-requests-control",
-			summary:              snapPromptingControlSummary,
-			implicitOnCore:       true,
-			implicitOnClassic:    true,
-			baseDeclarationPlugs: snapPromptingControlBaseDeclarationPlugs,
-			baseDeclarationSlots: snapPromptingControlBaseDeclarationSlots,
+			name:                  "snap-interfaces-requests-control",
+			summary:               snapPromptingControlSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationPlugs:  snapPromptingControlBaseDeclarationPlugs,
+			baseDeclarationSlots:  snapPromptingControlBaseDeclarationSlots,
 			connectedPlugAppArmor: snapInterfacesRequestsControlConnectedPlugAppArmor,
 		},
 	})
