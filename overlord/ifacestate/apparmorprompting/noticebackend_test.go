@@ -946,6 +946,9 @@ func (s *noticebackendSuite) TestBackendWaitNoticesNew(c *C) {
 	start := make(chan struct{})
 	go func() {
 		close(start)
+		// wait until notice backend mutex is held so we're sure cond.Wait()
+		// has been called before we add the new notice, so we're sure we're
+		// testing the waiting code and not returning an existing notice.
 		sawMutexHeld := apparmorprompting.WaitUntilMutexHeld(ruleBackend, 100*time.Millisecond)
 		c.Logf("sawMutexHeld: %b", sawMutexHeld)
 		ruleBackend.AddNotice(1000, 0x42, nil)
@@ -1052,6 +1055,9 @@ func (s *noticebackendSuite) TestBackendWaitNoticesBeforeOrAtFilter(c *C) {
 	start := make(chan struct{})
 	go func() {
 		close(start)
+		// wait until notice backend mutex is held so we're sure cond.Wait()
+		// has been called before we add the new notice, so we're sure we're
+		// testing the waiting code and not returning an existing notice.
 		sawMutexHeld := apparmorprompting.WaitUntilMutexHeld(promptBackend, 100*time.Millisecond)
 		c.Logf("sawMutexHeld: %b", sawMutexHeld)
 		promptBackend.AddNotice(1000, 7, nil)
