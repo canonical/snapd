@@ -26,7 +26,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
-    apt install attr
+    tests.pkgs install attr
 
 restore: |
     tests.exec is-skipped && exit 0
