@@ -248,6 +248,68 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
+    - name: Download and extract pre-built packages if they exist
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      env:
+        SYSTEMS: ${{ inputs.systems }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          let fs = require('fs');
+          let path = require('path');
+          let os = require('os');
+          let child_process = require('child_process');
+          let systems = process.env.SYSTEMS.split(' ');
+
+          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.runId,
+          });
+          
+          for (let system of systems) {
+            let artifactName = `package-${system}`;
+            const match = system.match(/^ubuntu-core-(\d+)(-arm)?-64$/);
+            if (match) {
+              const version = match[1];
+              const arch = match[2] || '';
+              artifactName = `package-ubuntu-${version}.04${arch}-64`;
+            }
+            let artifact = allArtifacts.data.artifacts.find(a => a.name === artifactName);
+            if (!artifact) {
+              console.log(`Artifact not found for system: ${system}`);
+              continue;
+            }
+            console.log(`Found artifact "${artifactName}" with id ${artifact.id}, downloading...`);
+
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+
+            const artifactZipPath = path.join(process.env.GITHUB_WORKSPACE, `${artifactName}.zip`);
+            fs.writeFileSync(artifactZipPath, Buffer.from(download.data));
+
+            const extractDir = path.join(process.env.GITHUB_WORKSPACE, 'built-pkgs', system);
+            fs.mkdirSync(extractDir, { recursive: true });
+            child_process.execSync(`unzip -q -o ${artifactZipPath} -d ${extractDir}`);
+
+            fs.unlinkSync(artifactZipPath);
+          }
+
+    - name: Set whether to use pre-built packages in spread
+      run: |
+        SPREAD_USE_PREBUILT_PACKAGES=true
+        for system in ${{ inputs.systems }}; do
+          if ! [ -d built-pkgs/"$system" ]; then
+            SPREAD_USE_PREBUILT_PACKAGES=false
+            echo "Disabling prebuilt packages due to missing $system directory"
+          fi
+        done
+        echo "SPREAD_USE_PREBUILT_PACKAGES=$SPREAD_USE_PREBUILT_PACKAGES" >> $GITHUB_ENV
+
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
       if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !contains(inputs.group, '-fips') }}"

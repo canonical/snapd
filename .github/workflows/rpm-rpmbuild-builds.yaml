@@ -1,0 +1,88 @@
+name: Build deb package
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: 'A json list of tags to indicate which runner to use'
+        required: true
+        type: string
+      image-name:
+        description: 'The name of the docker image to build'
+        required: true
+        type: string
+      image-tag:
+        description: 'The tag of the docker image to build'
+        required: true
+        type: string
+      pkg-dir:
+        description: 'The directory name in packaging'
+        required: true
+        type: string
+      system:
+        description: 'The system name as known by spread'
+        required: true
+        type: string
+
+jobs:
+  build-rpm:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Download vendor
+      uses: actions/download-artifact@v5
+      with:
+        name: vendor-pkgs
+        path: /tmp/pkg
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image with cache support
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        load: true
+        file: tests/lib/packaging/opensuse.dockerfile
+        tags: ${{ inputs.image-name }}-base:latest
+        build-args: |
+          IMAGE=${{ inputs.image-name }}
+          TAG=${{ inputs.image-tag }}
+          PACKAGING_DIR=${{ inputs.pkg-dir }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Set version in spec
+      run: |
+        version=$(cat /tmp/pkg/version)
+        sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
+
+    - name: Build rpm
+      run: |
+        # Here we use rpmbuild instead of osc because osc
+        # requires authentication to build packages
+
+        chmod -R o+wr .
+        mkdir -p /tmp/uploads
+        chmod -R o+wr /tmp/uploads
+        docker run --privileged --rm \
+          --mount type=bind,src=$(pwd),dst=/root/snapd \
+          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
+          --mount type=bind,src=/tmp/uploads,dst=/tmp/uploads \
+          ${{ inputs.image-name }}-base:latest \
+          bash -c "
+            cd /root/snapd && \
+            tests/lib/packaging/build-rpm-rpmbuild.sh \
+              --pkg-dir ${{ inputs.pkg-dir }} \
+              --vendor-tar-dir /tmp/pkg \
+              --build-dir /tmp/uploads
+          "
+
+    - name: Upload packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-${{ inputs.system }}
+        path: /tmp/uploads
