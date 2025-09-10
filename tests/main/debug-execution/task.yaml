@@ -119,7 +119,7 @@ execute: |
             fi
 
             if [ "$SNAP_REEXEC" = 0 ]; then
-                MATCH 'snap-update-ns: /usr/lib(exec)?/snapd/snap-update-ns' < snap-uns-default.out
+                MATCH 'snap-update-ns: /usr/lib/snapd/snap-update-ns' < snap-uns-default.out
             else
                 MATCH 'snap-update-ns: /snap/snapd/.*/usr/lib/snapd/snap-update-ns' < snap-uns-default.out
             fi
