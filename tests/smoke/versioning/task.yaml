@@ -1,6 +1,8 @@
-summary: Check that the version is not dirty
+summary: Check version content.
 
 details: |
+    Check that snap version output is as expected.
+
     Snapd has a script that generates the version string based on the Debian
     changelog file or on Git history, and the status of the git repository. When
     Git-based version is computed, it could contain the word "dirty" if the
@@ -9,10 +11,31 @@ details: |
     modified the code in unintended ways.
 
 execute: |
-    tests.exec is-skipped && exit 0
+    snap version > version.out
 
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"
     if not uname -m | MATCH riscv64; then
-        snap version | NOMATCH dirty
+        NOMATCH dirty < version.out
     fi
+
+    echo "Ensure both version of snapd and the snap command is reported"
+    # repository package
+    MATCH '^snapd *.*2.*' < version.out
+    MATCH '^snap *.*2.*' < version.out
+
+    echo "Versions of snapd and snap are identical"
+    vers_snapd="$(awk '/snapd / { print $2 }' < version.out)"
+    vers_snap="$(awk '/snap / { print $2 }' < version.out)"
+    test "$vers_snapd" = "$vers_snap"
+
+    if ! os.query is-core; then
+        echo "Ensure distribution information is included in the output"
+        distro_id="$( . /etc/os-release; echo "$ID" )"
+        # distro_id better not contain any characters that may be treated as regex
+        # operators
+        MATCH "$distro_id *" < version.out
+    fi
+
+    echo "Ensure version output includes architecture"
+    MATCH "architecture *(amd64|arm64|armel|armhf|i386|ppc64el|riscv64|s390x)" < version.out
