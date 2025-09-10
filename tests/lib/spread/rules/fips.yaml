@@ -7,8 +7,12 @@ rules:
       # tests/fips test suite
       - tests/main/.*
       - tests/smoke/.*
-    to: [tests/fips/]
+    to:
+        - tests/fips-snap/
+        - tests/fips-deb/
 
   rest:
     from: [.*]
-    to: [tests/fips/]
+    to:
+        - tests/fips-snap/
+        - tests/fips-deb/
