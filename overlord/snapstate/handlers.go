@@ -833,6 +833,8 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		switch {
 		case iconURL == "":
 			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
+		// TODO icons: remove this exception once the store starts hosting the
+		// icons, see SN-4888
 		case cloud != "":
 			logger.Debugf("skipping snap icon download when running in cloud %q", cloud)
 		default:
