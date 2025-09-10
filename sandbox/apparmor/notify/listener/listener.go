@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -52,9 +53,10 @@ var (
 	// someone listening over l.reqs to quickly receive and process them too.
 	readyTimeout = time.Duration(5 * time.Second)
 
-	osOpen                       = os.Open
-	notifyRegisterFileDescriptor = notify.RegisterFileDescriptor
-	notifyIoctl                  = notify.Ioctl
+	osOpen                            = os.Open
+	notifyRegisterFileDescriptor      = notify.RegisterFileDescriptor
+	notifyIoctl                       = notify.Ioctl
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
 )
 
 // Request is a high-level representation of an apparmor prompting message.
@@ -65,6 +67,8 @@ type Request struct {
 	ID uint64
 	// PID is the identifier of the process which triggered the request.
 	PID int32
+	// Cgroup is the cgroup path of the process which triggered the request.
+	Cgroup string
 	// Label is the apparmor label on the process which triggered the request.
 	Label string
 	// SubjectUID is the UID of the subject which triggered the request.
@@ -531,9 +535,15 @@ func (l *Listener) newRequest(msg notify.MsgNotificationGeneric) (*Request, erro
 	if err != nil {
 		return nil, err
 	}
+	pid := msg.PID()
+	cgroup, err := cgroupProcessPathInTrackingCgroup(int(pid))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read cgroup path for request process with PID %d: %w", pid, err)
+	}
 	return &Request{
 		ID:         msg.ID(),
-		PID:        msg.PID(),
+		PID:        pid,
+		Cgroup:     cgroup,
 		Label:      msg.ProcessLabel(),
 		SubjectUID: msg.SubjectUID(),
 
