@@ -83,7 +83,7 @@ execute: |
   # now install our snapd deb from the branch - this is so we know the patched
   # snapd is always executing, regardless of which snapd/core snap re-exec 
   # nonsense is going on
-  SNAPD_DEB_ARR=( "$SPREAD_PATH"/../snapd_*.deb )
+  SNAPD_DEB_ARR=( "$GOHOME"/snapd_*.deb )
   SNAPD_DEB=${SNAPD_DEB_ARR[0]}
   remote.push "$SNAPD_DEB"
   remote.exec "sudo dpkg -i $(basename "$SNAPD_DEB")"

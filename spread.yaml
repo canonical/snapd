@@ -121,6 +121,9 @@ environment:
     USE_SNAPD_SNAP_URL: '$(HOST: echo "${SPREAD_USE_SNAPD_SNAP_URL:-}")'
     SNAPD_USE_PROXY: '$(HOST: echo "${SPREAD_SNAPD_USE_PROXY:-}")'
 
+    # Whether we should use pre-built packages in the ./built-pkgs/ directory
+    USE_PREBUILT_PACKAGES: '$(HOST: echo "${SPREAD_USE_PREBUILT_PACKAGES:-false}")'
+
     # When SPREAD_TAG_FEATURES is populated with a non-empty value,
     # each spread task will extract relevant information form its
     # journal and copy it and the state.json to the artifacts folder.
