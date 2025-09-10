@@ -89,6 +89,10 @@ execute: |
       exit 1
   fi
   
+  # In systemd source code, systemd query this from property_get_current_memory() (which is sdbus),
+  # which is actually read from the exact same address as "$cgroupMemFile". So the delay we are seeing
+  # is most likely because systemd needs to start gathering information first from sdbus.
+  # So having the retries make sense.
   total_iters=5
   for iter in $(seq "$total_iters"); do
       snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | gojq -r '.result.current.memory')"
