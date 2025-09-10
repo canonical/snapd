@@ -41,9 +41,9 @@ type PreinstallCheckContext struct {
 	sbRunChecksContext *sb_preinstall.RunChecksContext
 }
 
-// preinstallCheckInfo contains information required post install
+// preinstallCheckResult contains information required post install
 // for optimum PCR configuration and resealing.
-type preinstallCheckInfo struct {
+type preinstallCheckResult struct {
 	Result         *sb_preinstall.CheckResult           `json:"result"`
 	PCRProfileOpts sb_preinstall.PCRProfileOptionsFlags `json:"pcr-profile-opts"`
 }
@@ -131,7 +131,7 @@ func (c *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, acti
 
 // SaveCheckResult writes the serialized preinstall check information in the
 // location specified by the filename.
-func (c *PreinstallCheckContext) SaveCheckInfo(filename string) error {
+func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
 	if c.sbRunChecksContext == nil {
 		return fmt.Errorf("preinstall check context unavailable")
 	}
@@ -143,7 +143,7 @@ func (c *PreinstallCheckContext) SaveCheckInfo(filename string) error {
 	}
 
 	// TODO:FDEM: use profileOpts from c.sbRunChecksContext when there is a way.
-	bytes, err := json.Marshal(preinstallCheckInfo{result, sb_preinstall.PCRProfileOptionsDefault})
+	bytes, err := json.Marshal(preinstallCheckResult{result, sb_preinstall.PCRProfileOptionsDefault})
 	if err != nil {
 		return fmt.Errorf("cannot serialize preinstall check information: %v", err)
 	}

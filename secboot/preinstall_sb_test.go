@@ -467,15 +467,15 @@ func (s *preinstallSuite) TestPreinstallActionFailUnwrap(c *C) {
 	s.testPreinstallCheckAndAction(c, action, false, failUnwrap)
 }
 
-func (s *preinstallSuite) TestSaveCheckInfoErrorContextNotAvailable(c *C) {
+func (s *preinstallSuite) TestSaveCheckResultErrorContextNotAvailable(c *C) {
 	checkContext := secboot.NewPreinstallChecksContext(nil)
-	err := checkContext.SaveCheckInfo("preinstall-check-info")
+	err := checkContext.SaveCheckResult("preinstall")
 	c.Assert(err, ErrorMatches, "preinstall check context unavailable")
 }
 
-func (s *preinstallSuite) TestSaveCheckInfoErrorResultNotAvailable(c *C) {
+func (s *preinstallSuite) TestSaveCheckResultErrorResultNotAvailable(c *C) {
 	checkContext := secboot.NewPreinstallChecksContext(&sb_preinstall.RunChecksContext{})
-	err := checkContext.SaveCheckInfo("preinstall-check-info")
+	err := checkContext.SaveCheckResult("preinstall")
 	c.Assert(err, ErrorMatches, "preinstall check result unavailable: 0 unresolved errors")
 
 	//TODO: extend test when there is a way to modify sb_preinstall.CheckResult within sb_preinstall.RunChecksContext

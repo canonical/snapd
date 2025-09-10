@@ -102,9 +102,9 @@ func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
 }
 
-// PreinstallCheckInfoUnder returns the path of the preinstall check information.
-func PreinstallCheckInfoUnder(deviceFDEDir string) string {
-	return filepath.Join(deviceFDEDir, "preinstall-check-info")
+// PreinstallCheckResultUnder returns the path of the preinstall check result.
+func PreinstallCheckResultUnder(deviceFDEDir string) string {
+	return filepath.Join(deviceFDEDir, "preinstall")
 }
 
 // ErrNoSealedKeys error if there are no sealed keys

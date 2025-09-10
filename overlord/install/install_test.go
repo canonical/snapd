@@ -1852,10 +1852,10 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 
 	expectedCheckContext := &secboot.PreinstallCheckContext{}
 
-	restore = install.MockSecbootSaveCheckInfo(func(pcc *secboot.PreinstallCheckContext, filename string) error {
+	restore = install.MockSecbootSaveCheckResult(func(pcc *secboot.PreinstallCheckContext, filename string) error {
 		if hasCheckResult {
 			c.Assert(pcc, Equals, expectedCheckContext)
-			c.Assert(filename, Matches, ".*/run/mnt/ubuntu-save/device/fde/preinstall-check-info")
+			c.Assert(filename, Matches, ".*/run/mnt/ubuntu-save/device/fde/preinstall")
 			err := os.MkdirAll(filepath.Dir(filename), 0755)
 			c.Assert(err, IsNil)
 			err = osutil.AtomicWriteFile(filename, []byte("some content"), 0600, 0)
@@ -1891,7 +1891,7 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 
-	checkResultContent, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-save/device/fde", "preinstall-check-info"))
+	checkResultContent, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-save/device/fde", "preinstall"))
 	if hasCheckResult {
 		c.Assert(err, IsNil)
 		c.Assert(checkResultContent, HasLen, 12)

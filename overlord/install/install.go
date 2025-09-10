@@ -136,7 +136,7 @@ var (
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	secbootPreinstallCheck             = secboot.PreinstallCheck
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
-	secbootSaveCheckInfo               = (*secboot.PreinstallCheckContext).SaveCheckInfo
+	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -224,13 +224,13 @@ func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext
 	}
 }
 
-// MockSecbootSaveCheckInfo mocks secbootSaveCheckInfo usage by the package for testing.
-func MockSecbootSaveCheckInfo(f func(pcc *secboot.PreinstallCheckContext, filename string) error) (restore func()) {
-	osutil.MustBeTestBinary("secbootCheckInfo can only be mocked in tests")
-	old := secbootSaveCheckInfo
-	secbootSaveCheckInfo = f
+// MockSecbootSaveCheckResult mocks secbootSaveCheckResult usage by the package for testing.
+func MockSecbootSaveCheckResult(f func(pcc *secboot.PreinstallCheckContext, filename string) error) (restore func()) {
+	osutil.MustBeTestBinary("secbootSaveCheckResult can only be mocked in tests")
+	old := secbootSaveCheckResult
+	secbootSaveCheckResult = f
 	return func() {
-		secbootSaveCheckInfo = old
+		secbootSaveCheckResult = old
 	}
 }
 
@@ -675,8 +675,8 @@ func PrepareEncryptedSystemData(
 }
 
 func saveCheckInfo(checkContext *secboot.PreinstallCheckContext) error {
-	saveCheckInfoPath := device.PreinstallCheckInfoUnder(boot.InstallHostFDESaveDir)
-	return secbootSaveCheckInfo(checkContext, saveCheckInfoPath)
+	saveCheckInfoPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+	return secbootSaveCheckResult(checkContext, saveCheckInfoPath)
 }
 
 // writeMarkers writes markers containing the same secret to pair data and save.

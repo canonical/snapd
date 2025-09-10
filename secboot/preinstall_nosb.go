@@ -34,6 +34,6 @@ func (c *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, acti
 	return nil, errBuildWithoutSecboot
 }
 
-func (c *PreinstallCheckContext) SaveCheckInfo(filename string) error {
+func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
 	return errBuildWithoutSecboot
 }

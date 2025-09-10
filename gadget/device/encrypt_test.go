@@ -106,8 +106,8 @@ func (s *deviceSuite) TestLocations(c *C) {
 	c.Check(device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)), Equals,
 		"/var/lib/snapd/save/device/fde/tpm-lockout-auth")
 
-	c.Check(device.PreinstallCheckInfoUnder(boot.InstallHostFDESaveDir), Equals,
-		"/run/mnt/ubuntu-save/device/fde/preinstall-check-info")
+	c.Check(device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir), Equals,
+		"/run/mnt/ubuntu-save/device/fde/preinstall")
 }
 
 func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
