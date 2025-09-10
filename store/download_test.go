@@ -718,8 +718,9 @@ func (s *downloadSuite) TestActualDownloadIcon(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	newEtag, err := store.DownloadIconImpl(context.TODO(), "foo", existingEtag, mockServer.URL, &buf)
+	newEtag, err := store.DownloadIconImpl(context.TODO(), "foo", existingEtag, mockServer.URL, theStore, &buf)
 	c.Assert(err, IsNil)
 	c.Check(newEtag, Equals, "")
 	c.Check(buf.String(), Equals, "response-data")
@@ -746,8 +747,9 @@ func (s *downloadSuite) testActualDownloadIconWithNewEtagVariant(c *C, etagSpell
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", existingEtag, mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", existingEtag, mockServer.URL, theStore, &buf)
 	c.Assert(err, IsNil)
 	c.Check(receivedEtag, Equals, newEtag)
 	c.Check(buf.String(), Equals, "response-data")
@@ -767,8 +769,9 @@ func (s *downloadSuite) TestActualDownloadIconWithExistingEtag(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", etag, mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", etag, mockServer.URL, theStore, &buf)
 	c.Check(err, Equals, store.ErrIconUnchanged)
 	c.Check(receivedEtag, Equals, "") // since we return an error, expect empty etag
 	c.Check(buf.String(), Equals, "")
@@ -790,8 +793,9 @@ func (s *downloadSuite) TestActualDownloadIconWithChangedEtag(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", existingEtag, mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", existingEtag, mockServer.URL, theStore, &buf)
 	c.Assert(err, IsNil)
 	c.Check(receivedEtag, Equals, newEtag)
 	c.Check(buf.String(), Equals, "response-data")
@@ -812,8 +816,9 @@ func (s *downloadSuite) TestActualDownloadIconTooLarge(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, theStore, &buf)
 	c.Assert(err, ErrorMatches, "unsupported Content-Length .*")
 	c.Check(receivedEtag, Equals, "")
 	c.Check(n, Equals, 1)
@@ -844,8 +849,9 @@ func (s *downloadSuite) TestActualDownloadIconCopyError(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf BadWriter
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, theStore, &buf)
 	c.Check(err, testutil.ErrorIs, io.EOF)
 	c.Check(receivedEtag, Equals, "")
 	c.Check(n, Equals, 5)
@@ -876,8 +882,9 @@ func (s *downloadSuite) TestDownloadIconTimeout(c *C) {
 	defer mockServer.Close()
 
 	startTime := time.Now()
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, theStore, &buf)
 	endTime := time.Now()
 
 	// timeout error will trigger a retry
@@ -906,8 +913,9 @@ func (s *downloadSuite) TestDownloadIconCancellation(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(ctx, "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(ctx, "foo", "fake-etag", mockServer.URL, theStore, &buf)
 
 	c.Check(n, Equals, 1)
 	c.Assert(err, testutil.ErrorIs, context.Canceled)
@@ -923,8 +931,9 @@ func (s *downloadSuite) TestActualDownloadIcon404(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, theStore, &buf)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &store.DownloadError{})
 	c.Check(err.(*store.DownloadError).Code, Equals, 404)
@@ -941,8 +950,9 @@ func (s *downloadSuite) TestActualDownloadIcon500(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, theStore, &buf)
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &store.DownloadError{})
 	c.Check(err.(*store.DownloadError).Code, Equals, 500)
@@ -963,8 +973,9 @@ func (s *downloadSuite) TestActualDownloadIcon500Once(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	theStore := store.New(&store.Config{}, nil)
 	var buf SillyBuffer
-	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, &buf)
+	receivedEtag, err := store.DownloadIconImpl(context.TODO(), "foo", "fake-etag", mockServer.URL, theStore, &buf)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(receivedEtag, Equals, "")
