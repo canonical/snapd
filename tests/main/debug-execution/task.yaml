@@ -96,12 +96,7 @@ execute: |
 
             echo "Checking AppArmor"
             if [ "$SNAP_REEXEC" = 0 ]; then
-                if os.query is-xenial || os.query is-bionic; then
-                    # Ubuntu < 20.04 does not have usr-merge
-                    MATCH 'apparmor-parser: /sbin/apparmor_parser' < snap-apparmor-default.out
-                else
-                    MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-default.out
-                fi
+                MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
                 MATCH 'internal: false' < snap-apparmor-default.out            
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
