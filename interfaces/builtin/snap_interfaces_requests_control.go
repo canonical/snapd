@@ -40,6 +40,29 @@ const snapPromptingControlBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
+const snapInterfacesRequestsControlConnectedPlugAppArmor = `
+# Description: Can connect to the Shell integration prompting API.
+
+#include <abstractions/dbus-session-strict>
+
+# Allow to communicate with the shell integration API.
+dbus (send)
+    bus=session
+    path=/com/canonical/Shell/PermissionPrompting
+    interface={com.canonical.Shell.PermissionPrompting,org.freedesktop.DBus.Properties}
+    peer=(name=com.canonical.Shell.PermissionPrompting),
+dbus (receive)
+    bus=session
+    path=/com/canonical/Shell/PermissionPrompting
+    interface=com.canonical.Shell.PermissionPrompting
+    peer=(name=unconfined),
+dbus (receive)
+    bus=session
+    path=/com/canonical/Shell/PermissionPrompting
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+`
 
 type requestsControlInterface struct {
 	commonInterface
@@ -75,12 +98,13 @@ func (iface *requestsControlInterface) BeforePreparePlug(plug *snap.PlugInfo) er
 func init() {
 	registerIface(&requestsControlInterface{
 		commonInterface{
-			name:                 "snap-interfaces-requests-control",
-			summary:              snapPromptingControlSummary,
-			implicitOnCore:       true,
-			implicitOnClassic:    true,
-			baseDeclarationPlugs: snapPromptingControlBaseDeclarationPlugs,
-			baseDeclarationSlots: snapPromptingControlBaseDeclarationSlots,
+			name:                  "snap-interfaces-requests-control",
+			summary:               snapPromptingControlSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationPlugs:  snapPromptingControlBaseDeclarationPlugs,
+			baseDeclarationSlots:  snapPromptingControlBaseDeclarationSlots,
+			connectedPlugAppArmor: snapInterfacesRequestsControlConnectedPlugAppArmor,
 		},
 	})
 }
