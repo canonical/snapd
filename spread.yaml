@@ -1920,24 +1920,43 @@ suites:
         restore: |
             tests.nested restore
 
-    # FIPS test suite
-    tests/fips/:
-        summary: FIPS enabled test suite
+    # FIPS test suite running with snapd snap
+    tests/fips-snap/:
+        summary: FIPS enabled snapd snap test suite
         systems:
             - ubuntu-fips-*
         environment:
-            # disable reexec so that the tests run with deb
-            SNAP_REEXEC/deb: "0"
-            # but keep it enabled when using the snap
-            SNAP_REEXEC/snap: "1"
+            SNAP_REEXEC: "1"
+            SNAPD_DEB_FROM_REPO: "true"
+            FIPS_ARTIFACT: "snap"
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            # When snapd.deb is from the repo, we just need to test when re-exec is enabled
-            if [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive; then
-                tests.exec skip-test "When snapd.deb is from the repo, we just need to test when re-exec is enabled" && exit 0
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
             fi
+
+    # FIPS test suite running with snapd DEB
+    tests/fips-deb/:
+        summary: FIPS enabled snapd deb test suite
+        systems:
+            - ubuntu-fips-*
+        environment:
+            # disable reexec so that we use the deb and and explicitly build the
+            # deb from the source tree
+            SNAP_REEXEC: "0"
+            SNAPD_DEB_FROM_REPO: "false"
+            FIPS_ARTIFACT: "deb"
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |

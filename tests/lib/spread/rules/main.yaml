@@ -9,7 +9,8 @@ rules:
       - tests/smoke/.
       - tests/unit/.*
       - tests/upgrade/.*
-      - tests/fips/.*
+      - tests/fips-snap/.*
+      - tests/fips-deb/.*
     to: [$SELF]
 
   unit:
