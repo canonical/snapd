@@ -77,7 +77,6 @@ type lexer struct {
 	input  string // the string being scanned
 	pos    int
 	tokens []Item
-	atEOF  bool
 }
 
 // stateFn represents the state of the scanner as a function that performs an
@@ -89,7 +88,6 @@ type stateFn func(*lexer) stateFn
 // next returns the next rune in the input.
 func (l *lexer) next() rune {
 	if l.pos >= len(l.input) {
-		l.atEOF = true
 		return eof
 	}
 	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
@@ -99,17 +97,11 @@ func (l *lexer) next() rune {
 
 // peek returns but does not consume the next rune in the input.
 func (l *lexer) peek() rune {
-	r := l.next()
-	l.backup()
-	return r
-}
-
-// backup steps back one rune.
-func (l *lexer) backup() {
-	if !l.atEOF && l.pos > 0 {
-		_, w := utf8.DecodeLastRuneInString(l.input[:l.pos])
-		l.pos -= w
+	if l.pos >= len(l.input) {
+		return eof
 	}
+	r, _ := utf8.DecodeRuneInString(l.input[l.pos:])
+	return r
 }
 
 // items returns tokens from the input. Called by the parser.
@@ -130,11 +122,21 @@ func (l *lexer) finishWithError(errMsg string) stateFn {
 	return nil
 }
 
+// isSpace returns true for the usual spaces. We acoid using isSpace as
+// we prefer to error out if more esoteric space runes are found.
+func isSpace(r rune) bool {
+	switch r {
+	case '\t', '\n', '\r', ' ':
+		return true
+	}
+	return false
+}
+
 func (l *lexer) eatSpaces() rune {
 	var r rune
 	for {
 		r = l.peek()
-		if !unicode.IsSpace(r) {
+		if !isSpace(r) {
 			break
 		}
 		l.next()
@@ -179,7 +181,7 @@ func lexOperator(l *lexer, itemTyp ItemType) stateFn {
 
 	r := l.peek()
 	switch {
-	case unicode.IsSpace(r):
+	case isSpace(r):
 		return lexSpace
 	case r == '(':
 		return lexLeftParen
@@ -214,7 +216,7 @@ func lexString(l *lexer) stateFn {
 
 	r := l.peek()
 	switch {
-	case unicode.IsSpace(r):
+	case isSpace(r):
 		return lexNoLabel
 	case r == '-':
 		l.pos += 1
@@ -285,7 +287,7 @@ func lexInteger(l *lexer) stateFn {
 
 	r := l.peek()
 	switch {
-	case unicode.IsSpace(r):
+	case isSpace(r):
 		return lexSpace
 	case r == '-':
 		l.pos += 1
@@ -336,7 +338,7 @@ func lexRangeRightInteger(l *lexer) stateFn {
 
 	r = l.peek()
 	switch {
-	case unicode.IsSpace(r):
+	case isSpace(r):
 		return lexSpace
 	case r == '-':
 		l.pos += 1
