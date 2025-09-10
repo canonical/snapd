@@ -7,7 +7,6 @@ details: |
 environment:
     KEYSDIR: "/$HOME/.ssh"
     TESTKEY: "/$HOME/.ssh/testkey"
-    HOST_SSH: "/etc/ssh"
     TESTKEY_HOST_ECDSA: "/etc/ssh/ssh_host_ecdsa_key"
     TESTKEY_HOST_RSA: "/etc/ssh/ssh_host_rsa_key"
     TESTKEY_HOST_ED25519: "/etc/ssh/ssh_host_ed25519_key"
@@ -19,7 +18,6 @@ prepare: |
     "$TESTSTOOLS"/fs-state mock-dir "$KEYSDIR"
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY"
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY".pub
-    "$TESTSTOOLS"/fs-state mock-dir "$HOST_SSH"
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_ECDSA"
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_ECDSA".pub
     "$TESTSTOOLS"/fs-state mock-file "$TESTKEY_HOST_RSA"
@@ -30,7 +28,12 @@ prepare: |
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-dir "$KEYSDIR"
-    "$TESTSTOOLS"/fs-state restore-dir "$HOST_SSH"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ECDSA"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ECDSA".pub
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_RSA"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_RSA".pub
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ED25519"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ED25519".pub
 
 execute: |
     echo "The interface is not connected by default"
