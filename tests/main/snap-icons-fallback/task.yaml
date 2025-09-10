@@ -40,6 +40,21 @@ restore: |
     fi
 
 execute: |
+    # poke the snap store to check whether SN-4888 has been fixed (though skip
+    # that on core where we'd have to install curl separately):
+    if ! os.query is-core; then
+        echo '{"actions":[{"action":"install", "name": "snapd", "instance-key": ""}], "context": [], "fields": ["download","media"]}' | \
+        curl --fail -d@- \
+            -H 'Content-Type: application/json' -H 'Snap-Device-Series: 16' \
+            -H 'Snap-Device-Architecture: amd64' \
+            -X POST https://api.snapcraft.io/v2/snaps/refresh |\
+            gojq -r '.results[0].snap.media[] | select(.type=="icon").url' | tee store-icon-url
+
+        # TODO: if this check fails then SN-4888 has likely been fixed and it should
+        # be possible to drop the workaround in snapd
+        MATCH 'dashboard.snapcraft.io' < store-icon-url
+    fi
+
     # Snap which has local icon file and a store icon
     # Local icon: icon-orange-chest.svg
     # Store icon: icon-orange-wing.svg
