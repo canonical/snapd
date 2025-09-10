@@ -78,6 +78,7 @@ jobs:
       run: |
           cat <<EOF > comparison.py
           import json
+          import re
           import requests
           from statistics import geometric_mean
           import sys
@@ -102,8 +103,10 @@ jobs:
                   snap_scores.append(s)
                   bin_scores.append(b)
 
-                  # Metric names cannot have hyphens, dots, or begin with begin with numbers
-                  metric = metric.replace("-", "_").replace(".", "_").replace("3", "three")
+                  # Metric names cannot have hyphens or dots
+                  metric = re.sub(r"-|\.", "_", metric)
+                  # Metric names cannot begin with numbers
+                  metric = re.sub(r"^(\d)", r"_\1", metric)
                   post('snap', f'{metric} {s:.3f}\n')
                   post('bin', f'{metric} {b:.3f}\n')
                   post('diff', f'{metric} {b - s:.3f}\n')
