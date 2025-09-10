@@ -5,6 +5,10 @@ details: |
   model and serial assertions.
 
 execute: |
+  echo "Wait for device initialization to be done"
+  . "$TESTSLIB"/core-config.sh
+  wait_for_device_initialized_change
+
   knownCmdAssertion=$(snap known model)
   modelCmdAssertion=$(snap model --assertion)
   echo "Check that model assertion from \"snap known\" matches \"snap model\""
