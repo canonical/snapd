@@ -56,9 +56,7 @@ func FakeRequestWithIDVersionClassAllowDeny(id uint64, version notify.ProtocolVe
 }
 
 func MockOsOpen(f func(name string) (*os.File, error)) (restore func()) {
-	restore = testutil.Backup(&osOpen)
-	osOpen = f
-	return restore
+	return testutil.Mock(&osOpen, f)
 }
 
 // Mocks os.Open to instead create a socket, wrap it in a os.File, and return
@@ -173,10 +171,12 @@ func SynchronizeNotifyIoctl() (ioctlDone <-chan notify.IoctlRequest, restore fun
 	return ioctlDoneRW, restore
 }
 
+func MockCgroupProcessPathInTrackingCgroup(f func(pid int) (string, error)) (restore func()) {
+	return testutil.Mock(&cgroupProcessPathInTrackingCgroup, f)
+}
+
 func MockEncodeAndSendResponse(f func(l *Listener, resp *notify.MsgNotificationResponse) error) (restore func()) {
-	restore = testutil.Backup(&encodeAndSendResponse)
-	encodeAndSendResponse = f
-	return restore
+	return testutil.Mock(&encodeAndSendResponse, f)
 }
 
 func (l *Listener) EpollIsClosed() bool {

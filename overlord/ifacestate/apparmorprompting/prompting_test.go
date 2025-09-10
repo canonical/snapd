@@ -347,6 +347,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 	for i := 0; i < maxOutstandingPromptsPerUser; i++ {
 		req := &listener.Request{
 			PID:        1234,
+			Cgroup:     "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 			Label:      "snap.firefox.firefox",
 			SubjectUID: s.defaultUser,
 			Path:       fmt.Sprintf("/home/test/%d", i),
@@ -368,6 +369,7 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestErrors(c *C) {
 
 	req = &listener.Request{
 		PID:        1234,
+		Cgroup:     "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Label:      "snap.firefox.firefox",
 		SubjectUID: s.defaultUser,
 		Path:       fmt.Sprintf("/home/test/%d", maxOutstandingPromptsPerUser),
@@ -479,6 +481,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 
 	c.Check(prompt.Snap, Equals, expectedSnap)
 	c.Check(prompt.PID, Equals, req.PID)
+	c.Check(prompt.Cgroup, Equals, req.Cgroup)
 	c.Check(prompt.Interface, Equals, "home") // assumes InterfaceFromTagsets returns "home" or ErrNoInterfaceTags
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
@@ -496,6 +499,9 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 func (s *apparmorpromptingSuite) fillInPartialRequest(req *listener.Request) {
 	if req.PID == 0 {
 		req.PID = 1234
+	}
+	if req.Cgroup == "" {
+		req.Cgroup = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope"
 	}
 	if req.Label == "" {
 		req.Label = "snap.firefox.firefox"
