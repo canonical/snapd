@@ -73,8 +73,7 @@ func (s *CompatSuite) TestParserValidExpressions(c *C) {
 		},
 		{"((foo AND bar-(1..10)))",
 			&compatibility.Node{
-				Exp:   &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
-				Depth: 2,
+				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
 				Left: &compatibility.Node{
 					Exp: &compatibility.CompatField{
 						Dimensions: []compatibility.CompatDimension{
@@ -101,8 +100,7 @@ func (s *CompatSuite) TestParserValidExpressions(c *C) {
 			&compatibility.Node{
 				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
 				Left: &compatibility.Node{
-					Exp:   &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
-					Depth: 1,
+					Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemAND, ""}},
 					Left: &compatibility.Node{
 						Exp: &compatibility.CompatField{
 							Dimensions: []compatibility.CompatDimension{
@@ -146,8 +144,7 @@ func (s *CompatSuite) TestParserValidExpressions(c *C) {
 					},
 				},
 				Right: &compatibility.Node{
-					Exp:   &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
-					Depth: 1,
+					Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
 					Left: &compatibility.Node{
 						Exp: &compatibility.CompatField{
 							Dimensions: []compatibility.CompatDimension{
@@ -178,25 +175,25 @@ func (s *CompatSuite) TestParserValidExpressions(c *C) {
 			&compatibility.Node{
 				Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
 				Left: &compatibility.Node{
-					Exp: &compatibility.CompatField{
-						Dimensions: []compatibility.CompatDimension{
-							{Tag: "foo", Values: []compatibility.CompatRange{{0, 0}}}},
-					},
-				},
-				Right: &compatibility.Node{
 					Exp: &compatibility.Operator{compatibility.Item{compatibility.ItemOR, ""}},
 					Left: &compatibility.Node{
 						Exp: &compatibility.CompatField{
 							Dimensions: []compatibility.CompatDimension{
-								{Tag: "bar", Values: []compatibility.CompatRange{{0, 0}}}},
+								{Tag: "foo", Values: []compatibility.CompatRange{{0, 0}}}},
 						},
 					},
 					Right: &compatibility.Node{
 						Exp: &compatibility.CompatField{
 							Dimensions: []compatibility.CompatDimension{
-								{Tag: "baz", Values: []compatibility.CompatRange{{0, 0}}}},
+								{Tag: "bar", Values: []compatibility.CompatRange{{0, 0}}}},
 						},
 					}},
+				Right: &compatibility.Node{
+					Exp: &compatibility.CompatField{
+						Dimensions: []compatibility.CompatDimension{
+							{Tag: "baz", Values: []compatibility.CompatRange{{0, 0}}}},
+					},
+				},
 			},
 			[]compatibility.CompatField{
 				{Dimensions: []compatibility.CompatDimension{
@@ -225,15 +222,15 @@ func (s *CompatSuite) TestParserInvalidExpressions(c *C) {
 		errMsg     string
 	}{
 		{"", "empty compatibility string"},
-		{"(foo", "expected right parenthesis"},
+		{"(foo", `expected right parenthesis, found "EOF"`},
 		{"foo)", "unexpected right parenthesis"},
 		{"foo(", "while parsing: unexpected rune after string: \\("},
 		{"foo (", "while parsing: unexpected rune: \\("},
 		{"foo bar", "while parsing: unexpected rune: b"},
-		{"foo OR OR bar", `unexpected token after operator "OR": "OR"`},
+		{"foo OR OR bar", `unexpected token "OR"`},
 		{"AND", `unexpected token "AND"`},
 		{"OR", `unexpected token "OR"`},
-		{"foo OR", `unexpected token after operator "OR": "EOF"`},
+		{"foo OR", `unexpected token "EOF"`},
 		{"OR foo", `unexpected token "OR"`},
 		{"(OR foo)", `unexpected token "OR"`},
 		{"foo-", "while parsing: no rune after dash"},
@@ -241,9 +238,9 @@ func (s *CompatSuite) TestParserInvalidExpressions(c *C) {
 		{"a12345678901234567890123456789012", "string is longer than 32 characters: a12345678901234567890123456789012"},
 		{"foo-(1..)", `while parsing: not an integer: \)`},
 		{"foo-(55..1)", `negative range specified: \(55\.\.1\)`},
-		{"foo OR bar AND baz", `parenthesis required for disambiguation`},
-		{"blah AND (foo OR bar AND baz)", `parenthesis required for disambiguation`},
-		{"(blah AND foo OR bar) AND baz", `parenthesis required for disambiguation`},
+		{"foo OR bar AND baz", `unexpected AND after OR`},
+		{"blah AND (foo OR bar AND baz)", `unexpected AND after OR`},
+		{"(blah AND foo OR bar) AND baz", `unexpected OR after AND`},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 		node, labels, err := compatibility.Parse(tc.expression)

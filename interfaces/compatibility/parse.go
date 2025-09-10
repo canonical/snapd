@@ -17,6 +17,55 @@
  *
  */
 
+// This implements a parser for compatibility expressions (SD211), which is a
+// combination of compatibility labels with AND and OR operators, with the
+// possibility of grouping expressions using parenthesis. The grammar we have
+// for this parser is:
+//
+// Expr ::= AndExpr | OrExpr
+// AndExpr ::= AndExpr 'AND' Atom | Atom
+// OrExpr ::= OrExpr 'OR' Atom | Atom
+// Atom ::= '(' Expr ')' | LABEL
+//
+// With lexical tokens:
+//
+// LABEL = [a-z][a-z0-9]*(-([0-9]+|[(][0-9]+[.][.][0-9]+[)]))*([a-z][a-z0-9]*(-([0-9]+|[(][0-9]+[.][.][0-9]+[)]))*)*
+//
+//
+// To make it recursive LL(1), we can break left recursion, and break conflicts:
+//
+// Expr ::= Atom ExprR
+// ExprR ::= OrExprR | AndExprR | ε
+// OrExprR ::= 'OR' Atom OrExprROpt
+// OrExprROpt ::= OrExprR | ε
+// AndExprR ::= 'AND' Atom AndExprROpt
+// AndExprROpt ::= AndExprR | ε
+// Atom ::= '(' Expr ')' | Label
+//
+// We end up with the first and follow sets (with FIRST in respective order of the rules):
+//
+//              First         Follow
+// Expr         '(',Label     EOF,')'
+// ExprR        'OR','AND',ε  EOF,')'
+// OrExprR      'OR'          EOF,')'
+// OrExprROpt   'OR',ε        EOF,')'
+// AndExprR     'AND'         EOF,')'
+// AndExprROpt  'AND',ε       EOF,')'
+// Atom         '(',Label     EOF,')','OR','AND'
+//
+// And no conflicts.
+//
+// Note that it will be parsed as right associative, but as we do not mix OR and
+// AND, we can just ignore it and keep the AST with right priority.
+//
+// For each non-terminal, we have a function, and check the token from the
+// lexer, FIRST and decide which branch to take. If ε is in FIRST, then compare
+// to what is in FOLLOW.
+//
+// For more details look at https://en.wikipedia.org/wiki/LL_parser
+//
+// Thanks to Valentin David for suggesting this grammar.
+
 package compatibility
 
 import (
@@ -36,8 +85,6 @@ type Node struct {
 	Left  *Node
 	Right *Node
 	Exp   Expression
-	// Depth at which this node was processed, useful only for operators
-	Depth int
 }
 
 // parser for compatibility expressions
@@ -57,9 +104,6 @@ type Operator struct {
 func (op *Operator) String() string {
 	return op.Oper.String()
 }
-
-// These parse operands
-type parsePrefixFn func() (*Node, error)
 
 func (p *parser) nextToken() Item {
 	if p.pos >= len(p.tokens) {
@@ -89,50 +133,117 @@ func parse(input string) (*Node, []CompatField, error) {
 		return nil, nil, fmt.Errorf("while parsing: %s", lastItem.Val)
 	}
 	p := parser{tokens: tokens}
-	root, err := p.parseExpression()
+	root, err := p.parseExpr()
 	if err != nil {
 		return nil, nil, err
 	}
 	return root, p.labels, nil
 }
 
-func (p *parser) parseExpression() (*Node, error) {
-	t := p.peekToken()
-	var parse parsePrefixFn
-	switch t.Typ {
-	case ItemString:
-		parse = p.parseCompatLabel
-	case ItemLeftParen:
-		parse = p.parseGroupedExpression
-	case ItemEOF:
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("unexpected token %s", t)
-	}
-
-	exp, err := parse()
+func (p *parser) parseExpr() (*Node, error) {
+	left, err := p.parseAtom()
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse operators if present
-	t = p.peekToken()
-	switch t.Typ {
-	case ItemAND, ItemOR:
-		exp, err = p.parseOperator(exp)
+	return p.parseExprR(left)
+}
+
+func (p *parser) parseAtom() (*Node, error) {
+	switch p.peekToken().Typ {
+	case ItemString:
+		return p.parseCompatLabel()
+	case ItemLeftParen:
+		// Consume '('
+		p.nextToken()
+		p.depth++
+		node, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
+		if p.peekToken().Typ != ItemRightParen {
+			return nil, fmt.Errorf("expected right parenthesis, found %s", p.peekToken())
+		}
+		// Consume ')'
+		p.nextToken()
+		p.depth--
+		return node, nil
+	default:
+		return nil, fmt.Errorf("unexpected token %s", p.peekToken())
+	}
+}
+
+func (p *parser) parseExprR(left *Node) (*Node, error) {
+	t := p.peekToken()
+	switch t.Typ {
+	case ItemOR:
+		return p.parseOrExprR(left)
+	case ItemAND:
+		return p.parseAndExprR(left)
 	case ItemRightParen:
 		if p.depth == 0 {
-			return nil, errors.New("unexpected right parenthesis")
+			return nil, fmt.Errorf("unexpected right parenthesis")
 		}
+		return left, nil
 	case ItemEOF:
+		return left, nil
 	default:
-		return nil, fmt.Errorf("unexpected token %s", t)
+		return nil, fmt.Errorf("unexpected token %s", p.peekToken())
+	}
+}
+
+func (p *parser) parseOrExprR(left *Node) (*Node, error) {
+	if p.peekToken().Typ != ItemOR {
+		return nil, fmt.Errorf("expected OR, found %s", p.peekToken())
+	}
+	orToken := p.nextToken()
+
+	right, err := p.parseAtom()
+	if err != nil {
+		return nil, err
 	}
 
-	return exp, nil
+	orNode := &Node{Exp: &Operator{Oper: orToken}, Left: left, Right: right}
+	return p.parseOrExprROpt(orNode)
+}
+
+func (p *parser) parseOrExprROpt(left *Node) (*Node, error) {
+	t := p.peekToken()
+	switch t.Typ {
+	case ItemOR:
+		return p.parseOrExprR(left)
+	case ItemAND:
+		return nil, fmt.Errorf("unexpected AND after OR")
+	default:
+		return left, nil
+	}
+}
+
+func (p *parser) parseAndExprR(left *Node) (*Node, error) {
+	if p.peekToken().Typ != ItemAND {
+		return nil, fmt.Errorf("expected AND, found %s", p.peekToken())
+	}
+	andToken := p.nextToken()
+
+	right, err := p.parseAtom()
+	if err != nil {
+		return nil, err
+	}
+
+	andNode := &Node{Exp: &Operator{Oper: andToken}, Left: left, Right: right}
+	return p.parseAndExprROpt(andNode)
+}
+
+func (p *parser) parseAndExprROpt(left *Node) (*Node, error) {
+	t := p.peekToken()
+	switch t.Typ {
+	case ItemAND:
+		return p.parseAndExprR(left)
+	case ItemOR:
+		return nil, fmt.Errorf("unexpected OR after AND")
+	default:
+		return left, nil
+	}
 }
 
 func appendDimensionToLabel(label *CompatField, dim *CompatDimension) {
@@ -200,52 +311,6 @@ intLoop:
 	}
 	appendDimensionToLabel(compatLabel, currDim)
 	p.labels = append(p.labels, *compatLabel)
-
-	return node, nil
-}
-
-func (p *parser) parseGroupedExpression() (*Node, error) {
-	// Remove '('
-	p.nextToken()
-	p.depth++
-	exp, err := p.parseExpression()
-	if err != nil {
-		return nil, err
-	}
-	// Remove ')'
-	t := p.nextToken()
-	p.depth--
-	if t.Typ != ItemRightParen {
-		return nil, errors.New("expected right parenthesis")
-	}
-
-	return exp, nil
-}
-
-func (p *parser) parseOperator(left *Node) (*Node, error) {
-	op := p.nextToken()
-	node := &Node{Exp: &Operator{Oper: op}, Depth: p.depth, Left: left}
-	t := p.peekToken()
-	switch t.Typ {
-	// Only labels or left parenthesis after operator
-	case ItemString, ItemLeftParen:
-	default:
-		return nil, fmt.Errorf("unexpected token after operator %s: %v", op, t)
-	}
-
-	var err error
-	node.Right, err = p.parseExpression()
-	if err != nil {
-		return nil, err
-	}
-
-	// If our right expression is an operator different to the current one
-	// and it happened at the current depth, return an error as we require
-	// parenthesis to disambiguate in this case.
-	oper, ok := node.Right.Exp.(*Operator)
-	if ok && node.Right.Depth == p.depth && op.Typ != oper.Oper.Typ {
-		return nil, errors.New("parenthesis required for disambiguation")
-	}
 
 	return node, nil
 }
