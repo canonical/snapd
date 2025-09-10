@@ -62,7 +62,7 @@ jobs:
       - test-firefox-snap
       - test-firefox-binary
     name: Compare snap vs. binary results
-    runs-on: [self-hosted, spread-enabled]
+    runs-on: [self-hosted, perf-metrics]
     steps:
     - name: Download snap results
       uses: actions/download-artifact@v4
@@ -135,13 +135,3 @@ jobs:
           EOF
 
           python3 comparison.py
-
-    - name: Remove metrics
-      if: always()
-      run: |
-          # The metrics gathering occurs every minute. Sleep for 1.5 minutes
-          # to ensure the metrics were gathered and then delete them.
-          sleep 1.5m
-          curl -X DELETE http://localhost:9091/metrics/job/snapd-ci/test/firefox/type/snap || true
-          curl -X DELETE http://localhost:9091/metrics/job/snapd-ci/test/firefox/type/bin || true
-          curl -X DELETE http://localhost:9091/metrics/job/snapd-ci/test/firefox/type/diff || true
