@@ -8,4 +8,3 @@ Before=plymouth-switch-root.service
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/core/set-plymouth-theme
-ExecStart=/usr/bin/systemctl reload plymouth-start.service

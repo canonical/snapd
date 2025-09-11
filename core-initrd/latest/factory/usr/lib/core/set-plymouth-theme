@@ -6,8 +6,9 @@ if [ -d /run/mnt/gadget/splash/plymouth/themes/vendor ]; then
   conf=vendor
 elif [ -d /run/mnt/data/system-data ]; then
   conf=core
-else
-  conf=classic
 fi
 
-ln -sf "${conf}.conf" /etc/plymouth/plymouthd.conf
+if [ ${conf+set} = set ]; then
+  ln -sf "${conf}.conf" /etc/plymouth/plymouthd.conf
+  /usr/bin/plymouth reload || true
+fi
