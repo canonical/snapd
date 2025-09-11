@@ -21,11 +21,11 @@ execute: |
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
   for iface in cuda egl gbm opengl opengles; do
       snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
-      cat "$SNAP_LDCONF_P" | MATCH "$iface"
+      MATCH "$iface" < "$SNAP_LDCONF_P"
   done
 
-  EGL_VENDOR_P=/usr/share/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl.json
-  cat "$EGL_VENDOR_P" | MATCH libEGL_nvidia.so.0
+  EGL_VENDOR_P=/etc/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl_nvidia.json
+  MATCH libEGL_nvidia.so.0 < "$EGL_VENDOR_P"
   ARCH_TRIPLET=$(gcc -dumpmachine)
   GBM_LIB_P=$(realpath /usr/lib/"$ARCH_TRIPLET"/gbm/nvidia-drm_gbm.so)
   [[ "$GBM_LIB_P" = /snap/"$NVIDIA_TEST_SNAP"/x1/usr/lib/"$ARCH_TRIPLET"/libnvidia-allocator.* ]]

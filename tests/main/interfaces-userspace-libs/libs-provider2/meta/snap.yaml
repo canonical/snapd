@@ -4,11 +4,11 @@ base: core24
 slots:
   cuda-driver-libs:
     compatibility: cuda-(9..12)-ubuntu-2404
-    source:
+    library-source:
       - $SNAP/libs
   egl-driver-libs:
     priority: 15
-    compatibility: egl-ubuntu-2404
-    client-driver: libmultiply.so
-    source:
+    compatibility: egl-1-5-ubuntu-2404
+    icd-source: $SNAP/egl.d
+    library-source:
       - $SNAP/libs

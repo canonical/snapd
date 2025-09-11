@@ -21,33 +21,33 @@ slots:
   cuda-dl:
     interface: cuda-driver-libs
     compatibility: cuda-(9..12)-ubuntu-2510
-    source:
+    library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
   gbm-dl:
     interface: gbm-driver-libs
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510
     client-driver: nvidia-drm_gbm.so
-    source:
+    library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/gbm
   egl-dl:
     interface: egl-driver-libs
     priority: 10
     compatibility: egl-1-5-ubuntu-2510
-    client-driver: libEGL_nvidia.so.0
-    source:
+    icd-source: $SNAP/usr/share/glvnd/egl_vendor.d/
+    library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/i386-linux-gnu
   opengl-dl:
     interface: opengl-driver-libs
     compatibility: opengl-4-6-ubuntu-2510
-    source:
+    library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/i386-linux-gnu
   opengles-dl:
     interface: opengles-driver-libs
     compatibility: opengles-4-6-ubuntu-2510
-    source:
+    library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       - $SNAP/usr/lib/i386-linux-gnu
 
@@ -89,3 +89,6 @@ parts:
       for p in *.deb; do
           dpkg -x "$p" "$CRAFT_PART_INSTALL"
       done
+      # strip out priority of the egl config file to avoid a snap_..._10_10_nvidia.json name.
+      mv "$CRAFT_PART_INSTALL"/usr/share/glvnd/egl_vendor.d/10_nvidia.json \
+         "$CRAFT_PART_INSTALL"/usr/share/glvnd/egl_vendor.d/nvidia.json
