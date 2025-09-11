@@ -901,6 +901,13 @@ restore_project_each() {
             find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
             ;;
     esac
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-*)
+            # TODO fishing for the test which broke the keys
+            stat --format %A /etc/ssh/ssh_host_rsa_key | MATCH -e '-rw-------'
+            ;;
+    esac
 }
 
 restore_project() {
