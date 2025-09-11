@@ -4,6 +4,10 @@ endef
 
 define ARCHLINUX_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
+# enable AppArmor
+- sed -i -e 's/GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 lsm=landlock,lockdown,yama,integrity,apparmor,bpf"/' /etc/default/grub
+- grub-mkconfig -o /boot/grub/grub.cfg
+- systemctl enable --now apparmor.service
 # Pre-install apparmor on ArchLinux systems.
 packages:
 - apparmor
