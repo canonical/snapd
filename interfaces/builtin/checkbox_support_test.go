@@ -23,8 +23,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -65,16 +65,16 @@ func (s *CheckboxSupportInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "checkbox-support")
 }
 
-func (s *CheckboxSupportInterfaceSuite) TestSecCompSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := seccomp.NewSpecification(appSet)
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@unrestricted\n")
-}
-
 func (s *CheckboxSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *CheckboxSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "StartTransientUnit")
 }
 
 func (s *CheckboxSupportInterfaceSuite) TestUdevSpec(c *C) {
@@ -82,7 +82,7 @@ func (s *CheckboxSupportInterfaceSuite) TestUdevSpec(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
+	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 }
 
 func (s *CheckboxSupportInterfaceSuite) TestStaticInfo(c *C) {
