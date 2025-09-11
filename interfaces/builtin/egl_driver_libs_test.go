@@ -28,9 +28,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -68,7 +67,7 @@ slots:
   egl-driver-libs:
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
     library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
@@ -106,7 +105,7 @@ slots:
     interface: egl-driver-libs
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
     library-source:
       - /snap/egl-provider/current/lib1
 `, nil, "egl")
@@ -119,7 +118,7 @@ slots:
   egl:
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
     interface: egl-driver-libs
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -132,7 +131,7 @@ slots:
     interface: egl-driver-libs
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
     library-source: $SNAP/lib1
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -144,7 +143,7 @@ slots:
   egl:
     interface: egl-driver-libs
     compatibility: egl-ubuntu-2404
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`invalid priority: snap "egl-provider" does not have attribute "priority" for interface "egl-driver-libs"`)
@@ -158,7 +157,7 @@ slots:
     compatibility: egl-1-5-ubuntu-2404
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`invalid client-driver: snap "egl-provider" does not have attribute "client-driver" for interface "egl-driver-libs"`)
+		`invalid icd-source: snap "egl-provider" does not have attribute "icd-source" for interface "egl-driver-libs"`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -167,7 +166,7 @@ slots:
     interface: egl-driver-libs
     priority: 0
     compatibility: egl-1-5-ubuntu-2404
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`priority must be a positive integer`)
@@ -179,10 +178,10 @@ slots:
     interface: egl-driver-libs
     priority: 15
     compatibility: egl-1-5-ubuntu-2404
-    client-driver: /abs/path/libEGL_nvidia.so.0
+    icd-source: /abs/path/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`client-driver value "/abs/path/libEGL_nvidia.so.0" should be a file`)
+		`source directory "/abs/path/egl.d/" must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -191,11 +190,11 @@ slots:
     interface: egl-driver-libs
     priority: 15
     compatibility: egl-ubuntu-2404
-    client-driver:
-      - libEGL_nvidia.so.0
+    icd-source:
+      - $SNAP/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`invalid client-driver: snap "egl-provider" has interface "egl-driver-libs" with invalid value type \[\]interface {} for "client-driver" attribute: \*string`)
+		`invalid icd-source: snap "egl-provider" has interface "egl-driver-libs" with invalid value type \[\]interface {} for "icd-source" attribute: \*string`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -204,7 +203,7 @@ slots:
     interface: egl-driver-libs
     priority: 15
     compatibility: ubuntu
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`compatibility label "ubuntu": unexpected number of strings \(should be 2\)`)
@@ -215,7 +214,7 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 15
-    client-driver: libEGL_nvidia.so.0
+    icd-source: $SNAP/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		`snap "egl-provider" does not have attribute "compatibility" for interface "egl-driver-libs"`)
@@ -235,19 +234,76 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib2")}})
 }
 
-func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
-	spec := &configfiles.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
-		"/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-driver-libs.json": &osutil.MemoryFileState{
-			Content: []byte(`{
-    "file_format_version": "1.0.0",
-    "ICD": {
-        "library_path": "libEGL_nvidia.so.0"
+func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
+	// Write ICD file
+	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/egl.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	icdPath := filepath.Join(icdDir, "nvidia.json")
+	os.WriteFile(icdPath, []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_nvidia.so.0"
     }
 }
-`), Mode: 0644},
+`), 0655)
+	libDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib2")
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	libPath := filepath.Join(libDir, "libEGL_nvidia.so.0")
+	os.WriteFile(libPath, []byte{}, 0655)
+
+	// Ignored file
+	otherPath := filepath.Join(icdDir, "foo.bar")
+	os.WriteFile(otherPath, []byte{}, 0655)
+
+	// Ignored symlink
+	os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
+
+	// Now check symlinks to be created
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
+		"/etc/glvnd/egl_vendor.d": {
+			"10_snap_egl-provider_egl-driver-libs_nvidia.json": icdPath,
+		},
 	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
+	symlinksUser := builtin.SymlinksUserIfaceFromEglIface(s.iface)
+	c.Assert(symlinksUser.TrackedDirectories(), DeepEquals, []string{
+		"/etc/glvnd/egl_vendor.d"})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
+	// Write ICD file
+	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/egl.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	icdPath := filepath.Join(icdDir, "nvidia.json")
+	os.WriteFile(icdPath, []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_nvidia.so.0"
+    }
+}
+`), 0655)
+
+	// Now check symlinks to be created
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
+		`invalid icd-source: "libEGL_nvidia.so.0" not found in the library-source directories`)
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
+	// Write ICD file
+	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/egl.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	icdPath := filepath.Join(icdDir, "nvidia.json")
+	os.WriteFile(icdPath, []byte(`libEGL_nvidia.so.0`), 0655)
+
+	// Now check symlinks to be created
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
+		`invalid icd-source: while unmarshalling nvidia.json: invalid character 'l' looking for beginning of value`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestStaticInfo(c *C) {

@@ -46,6 +46,11 @@ func SymlinksUserIfaceFromGbmIface(iface interfaces.Interface) interfaces.Symlin
 	return interfaces.SymlinksUser(gbmIface)
 }
 
+func SymlinksUserIfaceFromEglIface(iface interfaces.Interface) interfaces.SymlinksUser {
+	eglIface := iface.(*eglDriverLibsInterface)
+	return interfaces.SymlinksUser(eglIface)
+}
+
 func MprisGetName(iface interfaces.Interface, attribs map[string]any) (string, error) {
 	return iface.(*mprisInterface).getName(attribs)
 }
