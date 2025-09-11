@@ -41,7 +41,7 @@ message-kind: confdb
 devices:
   - 03961d5d-26e5.generic-classic.generic
   - 66:c5:d7:14:84:f8.rpi5.acme-corp
-  - some.very.long.device.id
+  - some.legacy.serial.model.brand
 assumes:
   - snapd2.70
 valid-since: 2025-01-08T13:31:20+00:00
@@ -80,7 +80,7 @@ func (s *requestMessageSuite) TestDecodeOK(c *C) {
 	expectedDevices := []asserts.DeviceID{
 		{"03961d5d-26e5", "generic-classic", "generic"},
 		{"66:c5:d7:14:84:f8", "rpi5", "acme-corp"},
-		{"some.very.long", "device", "id"},
+		{"some.legacy.serial", "model", "brand"},
 	}
 	c.Check(req.Devices(), DeepEquals, expectedDevices)
 
@@ -119,7 +119,7 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 	devices := `devices:
   - 03961d5d-26e5.generic-classic.generic
   - 66:c5:d7:14:84:f8.rpi5.acme-corp
-  - some.very.long.device.id
+  - some.legacy.serial.model.brand
 `
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
