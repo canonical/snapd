@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -37,26 +38,26 @@ var (
 
 // DeviceID represents a unique device identifier composed of <brand-id>.<model>.<serial>.
 type DeviceID struct {
-	BrandID string
-	Model   string
 	Serial  string
+	Model   string
+	BrandID string
 }
 
 func newDeviceIDFromString(rawID string) (*DeviceID, error) {
-	parts := strings.SplitN(rawID, ".", 3)
+	parts := strutil.RSplitN(rawID, ".", 3)
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid device id: %s", rawID)
-	}
-
-	if !validAccountID.MatchString(parts[0]) {
-		return nil, fmt.Errorf("invalid brand-id: %s", parts[0])
 	}
 
 	if !validModel.MatchString(parts[1]) {
 		return nil, fmt.Errorf("invalid model: %s", parts[1])
 	}
 
-	return &DeviceID{BrandID: parts[0], Model: parts[1], Serial: parts[2]}, nil
+	if !validAccountID.MatchString(parts[2]) {
+		return nil, fmt.Errorf("invalid brand-id: %s", parts[0])
+	}
+
+	return &DeviceID{Serial: parts[0], Model: parts[1], BrandID: parts[2]}, nil
 }
 
 // RequestMessage represents a request message assertion used to trigger actions on snapd.
