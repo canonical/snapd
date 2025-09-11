@@ -28,6 +28,12 @@ prepare: |
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-dir "$KEYSDIR"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ECDSA"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ECDSA".pub
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_RSA"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_RSA".pub
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ED25519"
+    "$TESTSTOOLS"/fs-state restore-file "$TESTKEY_HOST_ED25519".pub
 
 execute: |
     echo "The interface is not connected by default"
