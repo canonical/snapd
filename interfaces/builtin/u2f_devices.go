@@ -212,6 +212,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "3752",
 		ProductIDPattern: "0001",
 	},
+	{
+		Name:             "Cano Key",
+		VendorIDPattern:  "20a0",
+		ProductIDPattern: "42d4",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
