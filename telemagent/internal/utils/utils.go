@@ -3,31 +3,49 @@ package utils
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
-	"os"
-	"path"
+	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cakturk/go-netstat/netstat"
 	"github.com/snapcore/snapd/client"
 )
 
 func getSnapNamePublisherIDFromPID(pid int) (string, string, error) {
-	procPath := path.Join("/proc", strconv.Itoa(pid), "exe")
+	cmd := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "command")
+    output, err := cmd.Output()
+    if err != nil {
+        return "", "", err
+    }
 
-	execPath, err := os.Readlink(procPath)
-	if err != nil {
-		return "", "", err
-	}
+	trimmedOutput := strings.TrimPrefix(string(output), "COMMAND\n")
 
-	levels := strings.Split(execPath, "/")[1:] // first split gives empty string
+	commands := strings.Split(trimmedOutput, " ")
 
 	var snapName string
-	if len(levels) > 1 && levels[0] == "snap" {
-		snapName = levels[1]
-	} else {
-		return "", "", fmt.Errorf("could not find snap in the executable path")
+	for _, command := range commands {
+		levels := strings.Split(command, "/")[1:]
+
+		if len(levels) < 2 {
+			continue
+		}
+
+		if levels[0] == "snap" {
+			snapName = levels[1]
+			break
+		}
+
+	}
+
+	if snapName == "" {
+		return "", "", fmt.Errorf("could not find snap in commmand %s", string(output))
+	}
+
+	if snapName == "landscape-client" {
+		return "canonical", "landscape-client", nil
 	}
 
 	snapClient := client.New(nil)
@@ -89,6 +107,15 @@ func GetDeviceId() (string, error) {
 	snapClient := client.New(nil)
 
 	results, err := snapClient.Known("serial", make(map[string]string), nil)
+
+	for i := 0; i < 5; i++ {
+		if err == nil && len(results) == 1 {
+			break
+		}
+
+		time.Sleep(10 * time.Second * time.Duration(math.Pow(2, float64(i))))
+		results, err = snapClient.Known("serial", make(map[string]string), nil)
+    }
 
 	if err != nil {
 		return "", err

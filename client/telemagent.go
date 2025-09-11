@@ -77,6 +77,7 @@ func (c *Client) Associate(email string, password string, otp string, isLogged b
 
 
 	var payload struct {
+		Email     string `json:"email"`
 		Macaroon  string  `json:"macaroon"`
 	}
 
@@ -86,6 +87,7 @@ func (c *Client) Associate(email string, password string, otp string, isLogged b
 	}
 
 	payload.Macaroon = macaroon[0]
+	payload.Email = email
 
 	jsonBytes, err := json.Marshal(payload)
 		if err != nil {
