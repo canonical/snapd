@@ -58,9 +58,10 @@
 // Note that it will be parsed as right associative, but as we do not mix OR and
 // AND, we can just ignore it and keep the AST with right priority.
 //
-// For each non-terminal, we have a function, and check the token from the
-// lexer, FIRST and decide which branch to take. If ε is in FIRST, then compare
-// to what is in FOLLOW.
+// For each non-terminal, we have a function (note though that functions that
+// handle AND and OR have been fused in one to avoid code duplication), and
+// check the token from the lexer, FIRST and decide which branch to take. If ε
+// is in FIRST, then compare to what is in FOLLOW.
 //
 // For more details look at https://en.wikipedia.org/wiki/LL_parser
 //
@@ -91,7 +92,6 @@ type Node struct {
 type parser struct {
 	tokens []Item
 	pos    int
-	depth  int
 	labels []CompatField
 }
 
@@ -137,6 +137,9 @@ func parse(input string) (*Node, []CompatField, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	if p.peekToken().Typ != ItemEOF {
+		return nil, nil, fmt.Errorf("unexpected string at the end: %s", p.peekToken())
+	}
 	return root, p.labels, nil
 }
 
@@ -156,7 +159,6 @@ func (p *parser) parseAtom() (*Node, error) {
 	case ItemLeftParen:
 		// Consume '('
 		p.nextToken()
-		p.depth++
 		node, err := p.parseExpr()
 		if err != nil {
 			return nil, err
@@ -166,7 +168,6 @@ func (p *parser) parseAtom() (*Node, error) {
 		}
 		// Consume ')'
 		p.nextToken()
-		p.depth--
 		return node, nil
 	default:
 		return nil, fmt.Errorf("unexpected token %s", p.peekToken())
@@ -177,72 +178,40 @@ func (p *parser) parseExprR(left *Node) (*Node, error) {
 	t := p.peekToken()
 	switch t.Typ {
 	case ItemOR:
-		return p.parseOrExprR(left)
+		return p.parseOpExprR(ItemOR, left)
 	case ItemAND:
-		return p.parseAndExprR(left)
-	case ItemRightParen:
-		if p.depth == 0 {
-			return nil, fmt.Errorf("unexpected right parenthesis")
-		}
-		return left, nil
-	case ItemEOF:
+		return p.parseOpExprR(ItemAND, left)
+	case ItemEOF, ItemRightParen:
 		return left, nil
 	default:
 		return nil, fmt.Errorf("unexpected token %s", p.peekToken())
 	}
 }
 
-func (p *parser) parseOrExprR(left *Node) (*Node, error) {
-	if p.peekToken().Typ != ItemOR {
-		return nil, fmt.Errorf("expected OR, found %s", p.peekToken())
+func (p *parser) parseOpExprR(oper ItemType, left *Node) (*Node, error) {
+	if p.peekToken().Typ != oper {
+		return nil, fmt.Errorf("expected %s, found %s", oper, p.peekToken())
 	}
-	orToken := p.nextToken()
+	operToken := p.nextToken()
 
 	right, err := p.parseAtom()
 	if err != nil {
 		return nil, err
 	}
 
-	orNode := &Node{Exp: &Operator{Oper: orToken}, Left: left, Right: right}
-	return p.parseOrExprROpt(orNode)
+	opNode := &Node{Exp: &Operator{Oper: operToken}, Left: left, Right: right}
+	return p.parseOpExprROpt(oper, opNode)
 }
 
-func (p *parser) parseOrExprROpt(left *Node) (*Node, error) {
+func (p *parser) parseOpExprROpt(oper ItemType, left *Node) (*Node, error) {
 	t := p.peekToken()
 	switch t.Typ {
-	case ItemOR:
-		return p.parseOrExprR(left)
-	case ItemAND:
-		return nil, fmt.Errorf("unexpected AND after OR")
-	default:
+	case oper:
+		return p.parseOpExprR(oper, left)
+	case ItemRightParen, ItemEOF:
 		return left, nil
-	}
-}
-
-func (p *parser) parseAndExprR(left *Node) (*Node, error) {
-	if p.peekToken().Typ != ItemAND {
-		return nil, fmt.Errorf("expected AND, found %s", p.peekToken())
-	}
-	andToken := p.nextToken()
-
-	right, err := p.parseAtom()
-	if err != nil {
-		return nil, err
-	}
-
-	andNode := &Node{Exp: &Operator{Oper: andToken}, Left: left, Right: right}
-	return p.parseAndExprROpt(andNode)
-}
-
-func (p *parser) parseAndExprROpt(left *Node) (*Node, error) {
-	t := p.peekToken()
-	switch t.Typ {
-	case ItemAND:
-		return p.parseAndExprR(left)
-	case ItemOR:
-		return nil, fmt.Errorf("unexpected OR after AND")
 	default:
-		return left, nil
+		return nil, fmt.Errorf("unexpected item after %s: %s", oper, t)
 	}
 }
 

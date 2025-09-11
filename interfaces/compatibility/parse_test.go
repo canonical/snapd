@@ -222,8 +222,9 @@ func (s *CompatSuite) TestParserInvalidExpressions(c *C) {
 		errMsg     string
 	}{
 		{"", "empty compatibility string"},
+		{"()", `unexpected token "\)"`},
 		{"(foo", `expected right parenthesis, found "EOF"`},
-		{"foo)", "unexpected right parenthesis"},
+		{"foo)", `unexpected string at the end: "\)"`},
 		{"foo(", "while parsing: unexpected rune after string: \\("},
 		{"foo (", "while parsing: unexpected rune: \\("},
 		{"foo bar", "while parsing: unexpected rune: b"},
@@ -238,9 +239,9 @@ func (s *CompatSuite) TestParserInvalidExpressions(c *C) {
 		{"a12345678901234567890123456789012", "string is longer than 32 characters: a12345678901234567890123456789012"},
 		{"foo-(1..)", `while parsing: not an integer: \)`},
 		{"foo-(55..1)", `negative range specified: \(55\.\.1\)`},
-		{"foo OR bar AND baz", `unexpected AND after OR`},
-		{"blah AND (foo OR bar AND baz)", `unexpected AND after OR`},
-		{"(blah AND foo OR bar) AND baz", `unexpected OR after AND`},
+		{"foo OR bar AND baz", `unexpected item after OR: "AND"`},
+		{"blah AND (foo OR bar AND baz)", `unexpected item after OR: "AND"`},
+		{"(blah AND foo OR bar) AND baz", `unexpected item after AND: "OR"`},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 		node, labels, err := compatibility.Parse(tc.expression)
