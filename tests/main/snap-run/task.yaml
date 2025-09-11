@@ -29,7 +29,19 @@ execute: |
 
     echo "Running a trivial command causes no DENIED messages"
     test-snapd-sh.sh -c 'echo hello'
-    dmesg | not grep DENIED
+    if os.query is-arch-linux && [ "$SNAP_REEXEC" != "1" ]; then
+        dmesg | grep DENIED > arch-denied.log
+        # due to Go 1.25 poking /proc/self/mountinfo we get a denial from
+        # snap-exec which executes under the profile of test-snapd-sh which looks like this (all in one line):
+        # [ 1698.601327] audit: type=1400 audit(1757424814.280:2967): apparmor="DENIED"
+        # operation="open" class="file" profile="snap.test-snapd-sh.sh"
+        # name="/proc/162399/mountinfo" pid=162399 comm="snap-exec"
+        # requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+        MATCH 'apparmor="DENIED" operation="open" .* name="/proc/[0-9]+/mountinfo" .* comm="snap-exec"' < arch-denied.log
+        test "$(wc -l < arch-denied.log)" = "1"
+    else
+        dmesg | not grep DENIED
+    fi
 
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
