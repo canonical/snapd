@@ -66,7 +66,7 @@ version: 0
 slots:
   opengles-driver-libs:
     compatibility: opengles-2-0-ubuntu-2510
-    source:
+    library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
 `
@@ -102,7 +102,7 @@ slots:
   opengles:
     interface: opengles-driver-libs
     compatibility: opengles-2-0-ubuntu-2510
-    source:
+    library-source:
       - /snap/opengles-provider/current/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -116,7 +116,7 @@ slots:
     compatibility: opengles-2-0-ubuntu-2510
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "opengles-provider" does not have attribute "source" for interface "opengles-driver-libs"`)
+		`snap "opengles-provider" does not have attribute "library-source" for interface "opengles-driver-libs"`)
 
 	slot = MockSlot(c, `name: opengles-provider
 version: 0
@@ -124,17 +124,17 @@ slots:
   opengles:
     interface: opengles-driver-libs
     compatibility: opengles-2-0-ubuntu-2510
-    source: $SNAP/lib1
+    library-source: $SNAP/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "opengles-provider" has interface "opengles-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+		`snap "opengles-provider" has interface "opengles-driver-libs" with invalid value type string for "library-source" attribute: \*\[\]string`)
 
 	slot = MockSlot(c, `name: opengles-provider
 version: 0
 slots:
   opengles:
     interface: opengles-driver-libs
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -146,7 +146,7 @@ slots:
   opengles:
     interface: opengles-driver-libs
     compatibility: opengles-2-0-other-2510
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,

@@ -69,7 +69,7 @@ slots:
   gbm-driver-libs:
     client-driver: nvidia-drm_gbm.so
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510
-    source:
+    library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
 `
@@ -106,7 +106,7 @@ slots:
     interface: gbm-driver-libs
     client-driver: nvidia-drm_gbm.so
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
-    source:
+    library-source:
       - /snap/gbm-provider/current/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -121,7 +121,7 @@ slots:
     interface: gbm-driver-libs
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "gbm-provider" does not have attribute "source" for interface "gbm-driver-libs"`)
+		`snap "gbm-provider" does not have attribute "library-source" for interface "gbm-driver-libs"`)
 
 	slot = MockSlot(c, `name: gbm-provider
 version: 0
@@ -130,10 +130,10 @@ slots:
     interface: gbm-driver-libs
     client-driver: nvidia-drm_gbm.so
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
-    source: $SNAP/lib1
+    library-source: $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "gbm-provider" has interface "gbm-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+		`snap "gbm-provider" has interface "gbm-driver-libs" with invalid value type string for "library-source" attribute: \*\[\]string`)
 
 	slot = MockSlot(c, `name: gbm-provider
 version: 0
@@ -141,7 +141,7 @@ slots:
   gbm:
     compatibility: gbmbackend-(0..2)-arch64
     interface: gbm-driver-libs
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -154,7 +154,7 @@ slots:
     interface: gbm-driver-libs
     client-driver: libnvidia@-allocator.so.1
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -167,7 +167,7 @@ slots:
     interface: gbm-driver-libs
     client-driver: /abs/path/libnvidia-allocator.so.1
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -181,7 +181,7 @@ slots:
     compatibility: gbmbackend-(0..2)-arch64-ubuntu-2404
     client-driver:
       - libnvidia-allocator.so.1
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -193,7 +193,7 @@ slots:
   gbm:
     interface: gbm-driver-libs
     client-driver: nvidia-drm_gbm.so
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -206,7 +206,7 @@ slots:
     interface: gbm-driver-libs
     compatibility: foo-(0..2)-arch64-ubuntu-2404
     client-driver: nvidia-drm_gbm.so
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -219,7 +219,7 @@ slots:
     interface: gbm-driver-libs
     compatibility: gbmbackend-(0..2)-arch64-1-ubuntu-2404
     client-driver: nvidia-drm_gbm.so
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -234,7 +234,7 @@ slots:
     interface: gbm-driver-libs
     client-driver: nvidia-drm_gbm.so
     compatibility: gbmbackend-(0..2)-arch32-ubuntu-2404
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
@@ -284,7 +284,7 @@ slots:
   gbm:
     compatibility: gbmbackend-(0..2)-arch64
     interface: gbm-driver-libs
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "gbm")
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), ErrorMatches,

@@ -62,7 +62,7 @@ version: 0
 slots:
   cuda-driver-libs:
     compatibility: cuda-(9..12)-ubuntu-2404
-    source:
+    library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
 `
@@ -91,7 +91,7 @@ slots:
   cuda:
     interface: cuda-driver-libs
     compatibility: cuda-(9..12)-ubuntu-2404
-    source:
+    library-source:
       - /snap/cuda-provider/current/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -105,7 +105,7 @@ slots:
     compatibility: cuda-(9..12)-ubuntu-2404
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "cuda-provider" does not have attribute "source" for interface "cuda-driver-libs"`)
+		`snap "cuda-provider" does not have attribute "library-source" for interface "cuda-driver-libs"`)
 
 	slot = MockSlot(c, `name: cuda-provider
 version: 0
@@ -113,17 +113,17 @@ slots:
   cuda:
     interface: cuda-driver-libs
     compatibility: cuda-(9..12)-ubuntu-2404
-    source: $SNAP/lib1
+    library-source: $SNAP/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "cuda-provider" has interface "cuda-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+		`snap "cuda-provider" has interface "cuda-driver-libs" with invalid value type string for "library-source" attribute: \*\[\]string`)
 
 	slot = MockSlot(c, `name: cuda-provider
 version: 0
 slots:
   cuda:
     interface: cuda-driver-libs
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -148,7 +148,7 @@ slots:
   cuda:
     interface: cuda-driver-libs
     compatibility: '%s'
-    source:
+    library-source:
       - $SNAP/lib1
 `, tt.versRange), nil, "cuda")
 		err := interfaces.BeforePrepareSlot(s.iface, slot)

@@ -31,13 +31,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// validateLdconfigLibDirs checks that the list of directories in the "source"
-// attribute of some slots (which is used by some interfaces that pass them to
-// the ldconfig backend) is valid.
+// validateLdconfigLibDirs checks that the list of directories in the
+// "library-source" attribute of some slots (which is used by some interfaces
+// that pass them to the ldconfig backend) is valid.
 func validateLdconfigLibDirs(slot *snap.SlotInfo) error {
 	// Validate directories and make sure the client driver is around
 	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
+	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
 	for _, dir := range libDirs {
@@ -55,7 +55,7 @@ func validateLdconfigLibDirs(slot *snap.SlotInfo) error {
 // some interface slots to the ldconfig backend.
 func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.ConnectedSlot) error {
 	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
+	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
 	expandedDirs := make([]string, 0, len(libDirs))
@@ -70,7 +70,7 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 // list of library directories of the slot.
 func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string, error) {
 	libDirs := []string{}
-	if err := slot.Attr("source", &libDirs); err != nil {
+	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return "", err
 	}
 	for _, dir := range libDirs {

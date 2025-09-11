@@ -65,7 +65,7 @@ version: 0
 slots:
   opengl-driver-libs:
     compatibility: opengl-4-6-ubuntu-2510
-    source:
+    library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
 `
@@ -101,7 +101,7 @@ slots:
   opengl:
     compatibility: opengl-3-2-ubuntu-2510
     interface: opengl-driver-libs
-    source:
+    library-source:
       - /snap/opengl-provider/current/lib1
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -115,7 +115,7 @@ slots:
     compatibility: opengl-3-2-ubuntu-2510
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "opengl-provider" does not have attribute "source" for interface "opengl-driver-libs"`)
+		`snap "opengl-provider" does not have attribute "library-source" for interface "opengl-driver-libs"`)
 
 	slot = MockSlot(c, `name: opengl-provider
 version: 0
@@ -123,17 +123,17 @@ slots:
   opengl:
     interface: opengl-driver-libs
     compatibility: opengl-3-2-ubuntu-2510
-    source: $SNAP/lib1
+    library-source: $SNAP/lib1
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "opengl-provider" has interface "opengl-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+		`snap "opengl-provider" has interface "opengl-driver-libs" with invalid value type string for "library-source" attribute: \*\[\]string`)
 
 	slot = MockSlot(c, `name: opengl-provider
 version: 0
 slots:
   opengl:
     interface: opengl-driver-libs
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -145,7 +145,7 @@ slots:
   opengl:
     interface: opengl-driver-libs
     compatibility: opengl-3-2-other-2510
-    source:
+    library-source:
       - $SNAP/lib1
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,

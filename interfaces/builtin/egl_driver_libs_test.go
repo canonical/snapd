@@ -69,7 +69,7 @@ slots:
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
-    source:
+    library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
 `
@@ -107,7 +107,7 @@ slots:
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
-    source:
+    library-source:
       - /snap/egl-provider/current/lib1
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
@@ -123,7 +123,7 @@ slots:
     interface: egl-driver-libs
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "egl-provider" does not have attribute "source" for interface "egl-driver-libs"`)
+		`snap "egl-provider" does not have attribute "library-source" for interface "egl-driver-libs"`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -133,10 +133,10 @@ slots:
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
     client-driver: libEGL_nvidia.so.0
-    source: $SNAP/lib1
+    library-source: $SNAP/lib1
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`snap "egl-provider" has interface "egl-driver-libs" with invalid value type string for "source" attribute: \*\[\]string`)
+		`snap "egl-provider" has interface "egl-driver-libs" with invalid value type string for "library-source" attribute: \*\[\]string`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
