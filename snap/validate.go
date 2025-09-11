@@ -913,7 +913,7 @@ func ValidateApp(app *AppInfo) error {
 
 	// Socket activation requires the "network-bind" plug
 	if len(app.Sockets) > 0 {
-		if _, ok := app.Plugs["network-bind"]; !ok {
+		if _, ok := app.Plugs["network-bind"]; !ok && app.Snap.Confinement != ClassicConfinement {
 			return fmt.Errorf(`"network-bind" interface plug is required when sockets are used`)
 		}
 	}
