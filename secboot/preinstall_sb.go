@@ -22,14 +22,31 @@ package secboot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/systemd"
 )
+
+// PreinstallCheckContext wraps RunChecksContext to control access
+// and avoid exposing the secboot dependency to external packages.
+type PreinstallCheckContext struct {
+	sbRunChecksContext *sb_preinstall.RunChecksContext
+}
+
+// preinstallCheckResult contains information required post install
+// for optimum PCR configuration and resealing.
+type preinstallCheckResult struct {
+	Result         *sb_preinstall.CheckResult           `json:"result"`
+	PCRProfileOpts sb_preinstall.PCRProfileOptionsFlags `json:"pcr-profile-opts"`
+}
 
 var (
 	sbPreinstallNewRunChecksContext = sb_preinstall.NewRunChecksContext
@@ -40,14 +57,15 @@ var (
 // TCG-compliant PCR profile generation options to evaluate whether the host
 // environment is an EFI system suitable for TPM-based Full Disk Encryption. The
 // caller must supply the current boot images in boot order via bootImagePaths.
-// On success, it returns a list with details on all errors identified by secboot
-// or nil if no errors were found. Any warnings contained in the secboot result
-// are logged. On failure, it returns the error encountered while interpreting
-// the secboot error.
+// On success, it returns the preinstall check context required for follow-up
+// preinstall checks with actions, and a list with details on all errors
+// identified by secboot (or nil if no errors were found). Any warnings
+// contained in the secboot result are logged. On failure, it returns the error
+// encountered while interpreting the secboot error.
 //
 // To support testing, when the system is running in a Virtual Machine, the check
 // configuration is modified to permit this to avoid an error.
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]PreinstallErrorDetails, error) {
+func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
 	// allow value-added-retailer drivers that are:
 	//  - listed as Driver#### load options
 	//  - referenced in the DriverOrder UEFI variable
@@ -67,11 +85,37 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]Preinstall
 	for _, image := range bootImagePaths {
 		bootImages = append(bootImages, sb_efi.NewFileImage(image))
 	}
-
-	checksContext := sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)
+	checkContext := &PreinstallCheckContext{sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)}
 
 	// no actions or action args for preinstall checks
-	result, err := sbPreinstallRunChecks(checksContext, ctx, sb_preinstall.ActionNone)
+	result, err := sbPreinstallRunChecks(checkContext.sbRunChecksContext, ctx, sb_preinstall.ActionNone)
+	if err != nil {
+		errorDetails, err := unwrapPreinstallCheckError(err)
+		if err != nil {
+			return nil, errorDetails, err
+		}
+		return checkContext, errorDetails, err
+	}
+
+	if result.Warnings != nil {
+		for _, warn := range result.Warnings.Unwrap() {
+			logger.Noticef("preinstall check warning: %v", warn)
+		}
+	}
+
+	return checkContext, nil, nil
+}
+
+// PreinstallCheckAction runs a follow-up preinstall check using the specified
+// action to evaluate whether a previously reported issue can be resolved. It
+// reuses the check configuration and boot image state from the preinstall check
+// context. On success, it returns a list with details on all remaining errors
+// identified by secboot or nil if no errors were found. Any warnings contained
+// in the secboot result are logged. On failure, it returns the error
+// encountered while interpreting the secboot error.
+func (cc *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, action *PreinstallAction) ([]PreinstallErrorDetails, error) {
+	//TODO:FDEM: Changes to secboot required to allow passing args in a more usable format
+	result, err := sbPreinstallRunChecks(cc.sbRunChecksContext, ctx, sb_preinstall.Action(action.Action))
 	if err != nil {
 		return unwrapPreinstallCheckError(err)
 	}
@@ -82,6 +126,44 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) ([]Preinstall
 		}
 	}
 	return nil, nil
+}
+
+// SaveCheckResult writes the serialized preinstall check result in the
+// location specified by the filename.
+func (cc *PreinstallCheckContext) SaveCheckResult(filename string) error {
+	checkResult, err := cc.checkResult()
+	if err != nil {
+		return err
+	}
+
+	return checkResult.save(filename)
+}
+
+func (cc *PreinstallCheckContext) checkResult() (*preinstallCheckResult, error) {
+	if cc.sbRunChecksContext == nil {
+		return nil, fmt.Errorf("preinstall check context unavailable")
+	}
+
+	result := cc.sbRunChecksContext.Result()
+	if result == nil {
+		errorCount := len(cc.sbRunChecksContext.Errors())
+		return nil, fmt.Errorf("preinstall check result unavailable: %d unresolved errors", errorCount)
+	}
+
+	// TODO:FDEM: use profileOpts from c.sbRunChecksContext when there is a way.
+	return &preinstallCheckResult{result, sb_preinstall.PCRProfileOptionsDefault}, nil
+}
+
+func (cr *preinstallCheckResult) save(filename string) error {
+	bytes, err := json.Marshal(cr)
+	if err != nil {
+		return fmt.Errorf("cannot serialize preinstall check result: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, bytes, 0600, 0)
 }
 
 // unwrapPreinstallCheckError converts a single or compound preinstall check
