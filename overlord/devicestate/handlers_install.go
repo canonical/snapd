@@ -313,7 +313,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if useEncryption {
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, nil, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -640,7 +640,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		}
 		installedSystem.BootstrappedContainerForRole[gadget.SystemSave] = saveBoostrapContainer
 
-		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, trustedInstallObserver); err != nil {
+		if err := installLogic.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, nil, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -1173,7 +1173,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encryptSetupData)
 		if trustedInstallObserver != nil {
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, bootstrappedContainersForRole, encryptSetupData.VolumesAuth(), trustedInstallObserver); err != nil {
+			// TODO:FDEM: pass preinstall check context that we get from encryptSetupData that is cached during install step install-setup-storage-encryption
+			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, bootstrappedContainersForRole, encryptSetupData.VolumesAuth(), nil, trustedInstallObserver); err != nil {
 				return err
 			}
 		}
