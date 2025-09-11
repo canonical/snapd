@@ -273,7 +273,7 @@ func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClient(c *C) {
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`"nvidia-drm_gbm\.so" not found in the source directories`)
+		`"nvidia-drm_gbm\.so" not found in the library-source directories`)
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClientDriver(c *C) {

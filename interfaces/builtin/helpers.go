@@ -20,7 +20,9 @@
 package builtin
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -30,6 +32,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
+
+// validateSnapDir checks that dir starts with either $SNAP or ${SNAP}.
+func validateSnapDir(dir string) error {
+	if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
+		return fmt.Errorf("source directory %q must start with $SNAP/ or ${SNAP}/", dir)
+	}
+	return nil
+}
 
 // validateLdconfigLibDirs checks that the list of directories in the
 // "library-source" attribute of some slots (which is used by some interfaces
@@ -80,5 +90,62 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 			return path, nil
 		}
 	}
-	return "", fmt.Errorf("%q not found in the source directories", fileName)
+	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
+}
+
+// icdDirFilesCheck returns a list of file names found in the icd-source
+// directory of the slot, after checking that the library_path in these files
+// matches a file found in the directories specified by library-source.
+func icdDirFilesCheck(slot *interfaces.ConnectedSlot) (checked []string, err error) {
+	var icdDir string
+	if err := slot.Attr("icd-source", &icdDir); err != nil {
+		return nil, err
+	}
+	icdDir = filepath.Join(dirs.GlobalRootDir,
+		slot.AppSet().Info().ExpandSnapVariables(icdDir))
+
+	icdFiles, err := os.ReadDir(icdDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range icdFiles {
+		// Only regular files are considered - note that even symlinks
+		// are ignored as we eventually will want to use apparmor to
+		// allow access to these paths.
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		// We are only interested in json files (same as libglvnd).
+		if !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+
+		icdContent, err := os.ReadFile(filepath.Join(icdDir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		// We will check only library_path
+		// TODO check api_version when this gets to be used by icd
+		// files for vulkan or others that use this field.
+		var icdJson struct {
+			Icd struct {
+				LibraryPath string `json:"library_path"`
+			} `json:"ICD"`
+		}
+		err = json.Unmarshal(icdContent, &icdJson)
+		if err != nil {
+			return nil, fmt.Errorf("while unmarshalling %s: %w", entry.Name(), err)
+		}
+		// Here we are implicitly limiting library_path to be a file
+		// name instead of a full path.
+		_, err = filePathInLibDirs(slot, icdJson.Icd.LibraryPath)
+		if err != nil {
+			return nil, err
+		}
+		// Good enough
+		checked = append(checked, filepath.Join(icdDir, entry.Name()))
+	}
+
+	return checked, nil
 }
