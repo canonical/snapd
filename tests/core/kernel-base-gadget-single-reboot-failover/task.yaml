@@ -84,7 +84,7 @@ execute: |
         # and since kernel, gadget and base all are considered to be forced as a transaction
         # we expect all to be undone
         MATCH 'Undone\s+.*Make snap "pc-kernel" .* available' < tasks.done
-        MATCH 'Undone\s+.*Make snap "${core_snap}" .* available' < tasks.done
+        MATCH "Undone\s+.*Make snap \"${core_snap}\" .* available" < tasks.done
         MATCH 'Undone\s+.*Make snap "pc" .* available' < tasks.done
 
         # boot variables should have been cleared
