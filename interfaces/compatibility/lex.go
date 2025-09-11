@@ -48,6 +48,10 @@ const (
 var itemVal = [...]string{
 	"error", "string", "integer", "AND", "OR", "(", ")", "(", ")", "EOF"}
 
+func (typ ItemType) String() string {
+	return fmt.Sprintf("%s", itemVal[typ])
+}
+
 const eof = -1
 
 // Item represents a token or text string returned from the scanner.
