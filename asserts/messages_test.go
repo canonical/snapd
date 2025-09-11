@@ -39,8 +39,8 @@ account-id: account-id-1
 message-id: someId
 message-kind: confdb
 devices:
-  - generic.generic-classic.03961d5d-26e5
-  - acme-corp.rpi5.66:c5:d7:14:84:f8
+  - 03961d5d-26e5.generic-classic.generic
+  - 66:c5:d7:14:84:f8.rpi5.acme-corp
   - some.very.long.device.id
 assumes:
   - snapd2.70
@@ -78,9 +78,9 @@ func (s *requestMessageSuite) TestDecodeOK(c *C) {
 	c.Check(req.Kind(), Equals, "confdb")
 
 	expectedDevices := []asserts.DeviceID{
-		{"generic", "generic-classic", "03961d5d-26e5"},
-		{"acme-corp", "rpi5", "66:c5:d7:14:84:f8"},
-		{"some", "very", "long.device.id"},
+		{"03961d5d-26e5", "generic-classic", "generic"},
+		{"66:c5:d7:14:84:f8", "rpi5", "acme-corp"},
+		{"some.very.long", "device", "id"},
 	}
 	c.Check(req.Devices(), DeepEquals, expectedDevices)
 
@@ -117,8 +117,8 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 
 	const errPrefix = "assertion request-message: "
 	devices := `devices:
-  - generic.generic-classic.03961d5d-26e5
-  - acme-corp.rpi5.66:c5:d7:14:84:f8
+  - 03961d5d-26e5.generic-classic.generic
+  - 66:c5:d7:14:84:f8.rpi5.acme-corp
   - some.very.long.device.id
 `
 
