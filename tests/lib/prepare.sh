@@ -1467,26 +1467,22 @@ EOF
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
         IMAGE_CHANNEL="$GADGET_CHANNEL"
-        if is_test_target_core_le 18; then
-            if is_test_target_core 16; then
-                BRANCH=latest
-            elif is_test_target_core 18; then
-                BRANCH=18
-            fi
-            # download pc-kernel snap for the specified channel and set
-            # ubuntu-image channel to that of the gadget, so that we don't
-            # need to download it. Do this only for UC16/18 as the UC20+
-            # case is considered a few lines below.
-            snap download --basename=pc-kernel --channel="$BRANCH/$KERNEL_CHANNEL" pc-kernel
-            # Repack to prevent reboots as the image channel (which will become
-            # the tracked channel) is different to the kernel channel.
-            unsquashfs -d pc-kernel pc-kernel.snap
-            touch pc-kernel/repacked
-            snap pack --filename=pc-kernel-repacked.snap pc-kernel
-            rm -rf pc-kernel
-            mv pc-kernel-repacked.snap pc-kernel.snap
-            EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
-        fi
+    fi
+    
+    if is_test_target_core 18; then
+        # download pc-kernel snap for the specified channel and set
+        # ubuntu-image channel to that of the gadget, so that we don't
+        # need to download it. Do this only for 18 as the UC20+
+        # case is considered a few lines below.
+        snap download --basename=pc-kernel --channel="18/$KERNEL_CHANNEL" pc-kernel
+        # Repack to prevent reboots as the image channel (which will become
+        # the tracked channel) is different to the kernel channel.
+        unsquashfs -d pc-kernel pc-kernel.snap
+        touch pc-kernel/repacked
+        snap pack --filename=pc-kernel-repacked.snap pc-kernel
+        rm -rf pc-kernel
+        mv pc-kernel-repacked.snap pc-kernel.snap
+        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
     fi
 
     if is_test_target_core_ge 20; then
@@ -1555,8 +1551,8 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
     fi
 
-    # for core18 if we need an unasserted gadget, allow this
-    if is_test_target_core 18 && [ "$CORE18_GADGET_REPACK" = "true" ]; then
+    # use unasserted gadget for gadget tests + add debug options
+    if is_test_target_core 18; then
         snap download --basename=pc --channel="18/${GADGET_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap

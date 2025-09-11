@@ -4,8 +4,7 @@ details: |
     Test ensures that if any two of the essential snaps (base, gadget and kernel) can be refreshed
     together with a single reboot, and will also revert with no more than a single reboot.
 
-# TODO make the test work with ubuntu-core-20
-systems: [ubuntu-core-18-*]
+systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 environment:
     SNAP_ONE/kernel_base: core
@@ -25,82 +24,106 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    # To get VERSION_ID defined
+    . /etc/os-release
 
-    core_snap=core20
-    if os.query is-core18; then
-        core_snap=core18
-    fi
+    # we need yq for editing yaml files
+    snap install yq 
+
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
 
     # read all for simplification
     readlink /snap/pc-kernel/current > pc-kernel.rev
     readlink "/snap/$core_snap/current" > core.rev
-    readlink "/snap/pc/current" > pc.rev
+    readlink /snap/pc/current > pc.rev
 
-restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
+debug: |
+    change_id="$(cat refresh-change-id)"
+    snap debug state --change "$change_id" /var/lib/snapd/state.json
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+    # To get VERSION_ID defined
+    . /etc/os-release
+
+    if snap list pc | NOMATCH "x[1-9]"; then
+        echo "This test needs a host using an unasserted 'pc' gadget snap"
+        exit 1
     fi
 
-    # shellcheck source=tests/lib/prepare.sh
-    . "$TESTSLIB/prepare.sh"
-
-    core_snap=core20
-    if os.query is-core18; then
-        core_snap=core18
-    fi
-
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
+    
+    # correct the naming based on the system we are testing
     if [ "$SNAP_ONE" = "core" ]; then
         SNAP_ONE=$core_snap
     elif [ "$SNAP_TWO" = "core" ]; then
         SNAP_TWO=$core_snap
     fi
 
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB/prepare.sh"
+
+    inject_failure_configure_hook() {
+        if cat "$1/meta/snap.yaml" | yq '.hooks'; then
+            cat "$1/meta/snap.yaml" | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> "$1/meta/snap.yaml"
+        else
+            cat "$1/meta/snap.yaml" | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> "$1/meta/snap.yaml"
+            mkdir -p "$1/meta/hooks"
+        fi
+        echo 'exit 1' >> "$1/meta/hooks/configure"
+        chmod +x "$1/meta/hooks/configure"
+    }
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-        "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+        echo Downloading snaps needed
+        snap download pc-kernel --channel="$VERSION_ID"/edge
+
+        snap download "$core_snap" --edge
+        printf '\0' >> "$core_snap"_*.snap
 
         # break the pc-kernel snap if that is the last snap
         if [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            if os.query is-core18; then
-                unsquashfs -d pc-kernel-snap /var/lib/snapd/snaps/pc-kernel_*.snap
-                truncate -s 0 pc-kernel-snap/initrd.img
-            elif os.query is-core20; then
-                uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
-            else
-                echo "unsupported Ubuntu Core system"
-                exit 1
+            unsquashfs -d pc-kernel-snap pc-kernel_*.snap
+            inject_failure_configure_hook ./pc-kernel-snap
+            rm pc-kernel_*.snap pc-kernel_*.assert
+            snap pack pc-kernel-snap
+            rm -rf pc-kernel-snap
+        fi
+
+        # prepare gadget update if gadget variant
+        # and break pc gadget if that is the last snap
+        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
+            # unsquash gadget for modification
+            cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
+            unsquashfs -d pc-snap gadget.snap
+
+            cp pc-snap/meta/gadget.yaml gadget.yaml.orig
+
+            system_seed=""
+            if os.query is-core-ge 20; then
+                system_seed="--system-seed"
             fi
-            "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel --snap-blob "$PWD/pc-kernel-snap"
-        elif [[ "$SNAP_ONE" == "pc-kernel" ]]; then
-            "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel
+
+            # prepare update
+            python3 ../gadget-update-pc/generate.py ./gadget.yaml.orig v1 $system_seed > pc-snap/meta/gadget.yaml
+            echo 'this is foo-x2' > foo-x2.img
+            cp foo-x2.img pc-snap/foo.img
+            echo 'this is foo.cfg' > pc-snap/foo.cfg
+            if os.query is-core-ge 20; then
+                echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
+            fi
+            sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
+
+            # break the gadget snap if that is the second snap
+            if [[ "$SNAP_TWO" == "pc" ]]; then
+                inject_failure_configure_hook ./pc-snap
+            fi
+            snap pack pc-snap --filename=pc_x1.snap
         fi
 
-        # break the gadget snap if that is the second snap
-        if [[ "$SNAP_TWO" == "pc" ]]; then
-            unsquashfs -d pc-snap /var/lib/snapd/snaps/pc_*.snap
-            echo 'exit 1' >> ./pc-snap/snap/hooks/configure
-            "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc --snap-blob "$PWD/pc-snap"
-        elif [[ "$SNAP_ONE" == "pc" ]]; then
-            "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc
-        fi
+        snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --dangerous --no-wait > refresh-change-id
 
-        if [[ "$SNAP_ONE" == "$core_snap" ]] || [[ "$SNAP_TWO" == "$core_snap" ]]; then
-            "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$core_snap"
-        fi
-
-        snap refresh --no-wait "$SNAP_ONE" "$SNAP_TWO" > refresh-change-id
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
         
@@ -130,13 +153,13 @@ execute: |
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
             fi
-        elif os.query is-core20; then
+        elif os.query is-core-ge 20; then
             if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
                 stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
             fi
             if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-                MATCH 'try_base=core20_.*.snap' < /var/lib/snapd/modeenv
+                MATCH "try_base=core${VERSION_ID}_.*.snap" < /var/lib/snapd/modeenv
             fi
         else
             echo "unsupported Ubuntu Core system"
@@ -148,7 +171,7 @@ execute: |
         # Because it's the configure hook we expect the error to happen after
         # system comes up, where-as with the kernel failure it happens before
         # we're able to observe it
-        if [ "$SPREAD_REBOOT" = 2 ] && [[ "$SNAP_TWO" != "pc" ]]; then
+        if [ "$SPREAD_REBOOT" = 2 ] && [[ "$SNAP_TWO" == "core" ]]; then
             echo "unexpected reboot"
             exit 1
         fi
@@ -156,9 +179,9 @@ execute: |
         change_id="$(cat refresh-change-id)"
         snap watch "$change_id" || true
 
-        # The gadget snap continue after the reboot, and then fails, the change reverts
+        # The gadget and kernel snap continue after the reboot, and then fails, the change reverts
         # and requests another reboot for a total of 2 reboots (one for do, one for undo)
-        if [ "$SPREAD_REBOOT" = 1 ] && [[ "$SNAP_TWO" == "pc" ]]; then
+        if [ "$SPREAD_REBOOT" = 1 ] && { [ "$SNAP_TWO" = "pc" ] || [ "$SNAP_TWO" = "pc-kernel" ]; }; then
             # wait for a restart to be requested
             retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
             REBOOT
@@ -173,13 +196,18 @@ execute: |
         MATCH "Undone\s+.*Make snap \"$SNAP_ONE\" .* available" < tasks.done
         MATCH "Undone\s+.*Make snap \"$SNAP_TWO\" .* available" < tasks.done
 
-        # TODO: checks for UC20+
         if os.query is-core18; then
             # boot variables should have been cleared
             snap debug boot-vars > boot-vars.dump
             MATCH 'snap_mode=$' < boot-vars.dump
             MATCH 'snap_try_core=$' < boot-vars.dump
             MATCH 'snap_try_kernel=$' < boot-vars.dump
+        elif os.query is-core-ge 20; then
+            stat /boot/grub/try-kernel.efi | NOMATCH 'pc-kernel.*.snap/kernel.efi'
+            stat -L /boot/grub/try-kernel.efi && exit 1
+        else
+            echo "unsupported Ubuntu Core system"
+            exit 1
         fi
 
         # make sure the system is in stable state, no pending reboots
@@ -188,20 +216,14 @@ execute: |
         retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
         # we're expecting the old revisions to be back
-        # verify that current points to old revisions
+        original_kernel="$(cat pc-kernel.rev)"
+        original_core="$(cat core.rev)"
+        original_pc="$(cat pc.rev)"
 
-        if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-            expecting_core="$(cat core.rev)"
-            test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
-        fi
-        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            expecting_gadget="$(cat pc.rev)"
-            test "$(readlink /snap/pc/current)" = "$expecting_gadget"
-        fi
-        if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            expecting_kernel="$(cat pc-kernel.rev)"
-            test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
-        fi
+        # verify that current points to old revisions
+        test "$(readlink /snap/pc-kernel/current)" = "$original_kernel"
+        test "$(readlink /snap/"${core_snap}"/current)" = "$original_core"
+        test "$(readlink /snap/pc/current)" = "$original_pc"
     else
         echo "unexpected reboot"
         exit 1
