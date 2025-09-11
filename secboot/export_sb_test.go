@@ -46,7 +46,7 @@ var (
 	UnwrapPreinstallCheckError         = unwrapPreinstallCheckError
 	ConvertPreinstallCheckErrorType    = convertPreinstallCheckErrorType
 	ConvertPreinstallCheckErrorActions = convertPreinstallCheckErrorActions
-	SaveCheckResultFromProvider        = saveCheckResultFromProvider
+	Save                               = (*preinstallCheckResult).save
 
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys

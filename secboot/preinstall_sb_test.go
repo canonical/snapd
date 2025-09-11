@@ -21,6 +21,7 @@
 package secboot_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -325,7 +326,6 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 			for i, image := range loadedImages {
 				c.Check(image.String(), Equals, bootImagePaths[i])
 			}
-
 			return expectedRunChecksContext
 		})
 	s.AddCleanup(restore)
@@ -481,7 +481,7 @@ func (s *preinstallSuite) TestSaveCheckResultErrorResultNotAvailable(c *C) {
 	c.Assert(err, ErrorMatches, "preinstall check result unavailable: 0 unresolved errors")
 }
 
-func (s *preinstallSuite) TestSaveCheckResultFromProvider(c *C) {
+func (s *preinstallSuite) TestSave(c *C) {
 	filename := filepath.Join(c.MkDir(), "/run/mnt/ubuntu-save/device/fde/preinstall")
 	expectedCheckResult := secboot.PreinstallCheckResult{
 		Result: &sb_preinstall.CheckResult{
@@ -490,29 +490,33 @@ func (s *preinstallSuite) TestSaveCheckResultFromProvider(c *C) {
 		},
 		PCRProfileOpts: sb_preinstall.PCRProfileOptionsDefault,
 	}
+	expectedData :=
+		`{
+  "result": {
+    "pcr-alg": "sha512",
+    "used-secure-boot-cas": null,
+    "flags": [
+      "no-platform-config-profile-support",
+      "no-drivers-and-apps-profile-support"
+    ]
+  },
+  "pcr-profile-opts": 0
+}`
 
-	rp := &resultProvider{
-		result: &expectedCheckResult,
-		err:    nil,
-	}
-	err := secboot.SaveCheckResultFromProvider(filename, rp)
+	err := secboot.Save(&expectedCheckResult, filename)
 	c.Assert(err, IsNil)
 
 	data, err := os.ReadFile(filename)
 	c.Assert(err, IsNil)
+
+	var readable bytes.Buffer
+	err = json.Indent(&readable, data, "", "  ")
+	c.Assert(err, IsNil)
+	c.Assert(readable.String(), Equals, expectedData)
 
 	var checkResult secboot.PreinstallCheckResult
 	err = json.Unmarshal(data, &checkResult)
 	c.Assert(err, IsNil)
 
 	c.Assert(checkResult, DeepEquals, expectedCheckResult)
-}
-
-type resultProvider struct {
-	result *secboot.PreinstallCheckResult
-	err    error
-}
-
-func (rp *resultProvider) CheckResult() (*secboot.PreinstallCheckResult, error) {
-	return rp.result, rp.err
 }
