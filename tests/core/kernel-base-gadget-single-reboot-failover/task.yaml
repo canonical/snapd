@@ -105,7 +105,7 @@ execute: |
 
         # verify that current points to old revisions
         test "$(readlink /snap/pc-kernel/current)" = "$original_kernel"
-        test "$(readlink /snap/${core_snap}/current)" = "$original_core"
+        test "$(readlink /snap/"${core_snap}"/current)" = "$original_core"
         test "$(readlink /snap/pc/current)" = "$original_pc"
     else
         echo "unexpected reboot"
