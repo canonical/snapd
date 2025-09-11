@@ -157,7 +157,7 @@ func (cc *PreinstallCheckContext) checkResult() (*preinstallCheckResult, error) 
 func (cr *preinstallCheckResult) save(filename string) error {
 	bytes, err := json.Marshal(cr)
 	if err != nil {
-		return fmt.Errorf("cannot serialize preinstall check information: %v", err)
+		return fmt.Errorf("cannot serialize preinstall check result: %v", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
