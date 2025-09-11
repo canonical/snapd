@@ -379,7 +379,7 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	defer d.Overlord().Stop()
 
 	called := 0
-	s.AddCleanup(daemon.MockFdestateReplaceProtectedKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+	s.AddCleanup(daemon.MockFdestateReplacePlatformKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
 		called++
 		switch authMode {
 		case device.AuthModeNone:
@@ -397,6 +397,8 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 				Mode:    device.AuthModePIN,
 				KDFTime: 1002,
 			})
+		default:
+			c.Errorf("unexpected auth-mode %q", authMode)
 		}
 		c.Check(keyslotRefs, DeepEquals, []fdestate.KeyslotRef{
 			{ContainerRole: "some-container-role", Name: "some-name"},
@@ -493,7 +495,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyError(c *C
 	c.Check(rsp.Message, Equals, "invalid platform key options: passphrase and pin cannot be set at the same time")
 
 	var mockErr error
-	s.AddCleanup(daemon.MockFdestateReplaceProtectedKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
+	s.AddCleanup(daemon.MockFdestateReplacePlatformKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
 		return nil, mockErr
 	}))
 
