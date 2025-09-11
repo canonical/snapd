@@ -76,10 +76,16 @@ execute: |
         ubuntu-*|debian-*)
             echo "Checking default scenario"
             MATCH 'distro-supports-reexec: true' < snap-default.out
-            MATCH 'is-reexec-enabled: true' < snap-default.out
             MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
-            MATCH 'is-reexecd: true' < snap-default.out
-            MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
+            if [ "$SNAP_REEXEC" = 0 ]; then
+                MATCH 'is-reexec-enabled: false' < snap-default.out
+                MATCH 'is-reexecd: false' < snap-default.out
+                MATCH 'self-exe: /usr/bin/snap' < snap-default.out
+            else
+                MATCH 'is-reexec-enabled: true' < snap-default.out
+                MATCH 'is-reexecd: true' < snap-default.out
+                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
+            fi
 
             echo "Checking without reeexec scenario"
             MATCH 'distro-supports-reexec: true' < snap-no-reexec.out
@@ -89,9 +95,14 @@ execute: |
             MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
 
             echo "Checking AppArmor"
-            MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
-            MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
-            MATCH 'internal: true' < snap-apparmor-default.out
+            if [ "$SNAP_REEXEC" = 0 ]; then
+                MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'internal: false' < snap-apparmor-default.out            
+            else
+                MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
+                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
+                MATCH 'internal: true' < snap-apparmor-default.out
+            fi
 
             if os.query is-xenial || os.query is-bionic; then
                 # Ubuntu < 20.04 does not have usr-merge
@@ -102,7 +113,11 @@ execute: |
                 MATCH 'internal: false' < snap-apparmor-no-reexec.out
             fi
 
-            MATCH 'snap-update-ns: /snap/snapd/.*/usr/lib/snapd/snap-update-ns' < snap-uns-default.out
+            if [ "$SNAP_REEXEC" = 0 ]; then
+                MATCH 'snap-update-ns: /usr/lib/snapd/snap-update-ns' < snap-uns-default.out
+            else
+                MATCH 'snap-update-ns: /snap/snapd/.*/usr/lib/snapd/snap-update-ns' < snap-uns-default.out
+            fi
             ;;
         *)
             echo "Checking default scenario"
