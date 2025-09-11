@@ -452,6 +452,7 @@ var (
 	AutoRefreshPhase1          = autoRefreshPhase1
 	RefreshRetain              = refreshRetain
 	RefreshCheck               = refreshAppsCheck
+	AffectsRunningHooks        = affectsRunningHooks
 
 	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )

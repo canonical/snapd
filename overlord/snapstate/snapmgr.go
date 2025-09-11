@@ -905,7 +905,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("prepare-kernel-modules-components", m.doPrepareKernelModulesComponents, m.undoPrepareKernelModulesComponents)
 
 	// control serialisation
-	runner.AddBlocked(m.blockedTask)
+	runner.AddBlocked(m.otherPrereqRunning)
+	runner.AddBlocked(affectsRunningHooks)
 
 	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 
@@ -974,7 +975,7 @@ func genRefreshRequestSalt(st *state.State) error {
 	return nil
 }
 
-func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool {
+func (m *SnapManager) otherPrereqRunning(cand *state.Task, running []*state.Task) bool {
 	// Serialize "prerequisites", the state lock is not enough as
 	// Install() inside doPrerequisites() will unlock to talk to
 	// the store.
@@ -983,6 +984,77 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 			if t.Kind() == "prerequisites" {
 				return true
 			}
+		}
+	}
+
+	return false
+}
+
+func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
+	st := cand.State()
+
+	affectingTasks := map[string][]state.Status{
+		"unlink-current-snap": {state.DoStatus, state.DoingStatus},
+		// this will block any undo link-snap, although only undos of first installs/snap
+		// unlink. It's unlikely that a hook runs between the link-snap and the end
+		// of the change and, in the worst case, we delay the undoing
+		"link-snap":   {state.UndoStatus, state.UndoingStatus},
+		"unlink-snap": {state.DoStatus, state.DoingStatus},
+	}
+
+	statuses, ok := affectingTasks[cand.Kind()]
+	if !ok {
+		return false
+	}
+
+	var unlinkingTask bool
+	for _, status := range statuses {
+		if cand.Status() == status {
+			unlinkingTask = true
+			break
+		}
+	}
+
+	if !unlinkingTask {
+		return false
+	}
+
+	snapsup, err := TaskSnapSetup(cand)
+	if err != nil {
+		logger.Noticef("internal error: cannot obtain snap-setup from task %q: %v", cand.ID(), err)
+		return false
+	}
+	candSnap := snapsup.InstanceName()
+
+	for _, t := range running {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+
+		type hookSetup struct {
+			Snap string `json:"snap"`
+		}
+
+		var hooksup hookSetup
+		if err := t.Get("hook-setup", &hooksup); err != nil {
+			logger.Noticef("internal error: cannot obtain hook-setup from task %q: %v", t.ID(), err)
+			return false
+		}
+
+		// this snap has a hook running, retry later
+		if candSnap == hooksup.Snap {
+			return true
+		}
+
+		var hookSnapst SnapState
+		if err := Get(st, hooksup.Snap, &hookSnapst); err != nil {
+			logger.Noticef("internal error: cannot get snapstate for %q: %v", hooksup.Snap, err)
+			return false
+		}
+
+		// this is a base for a snap with a hook running, retry later
+		if candSnap == hookSnapst.Base {
+			return true
 		}
 	}
 

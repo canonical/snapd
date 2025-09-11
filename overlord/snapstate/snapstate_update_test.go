@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/store/storetest"
 	userclient "github.com/snapcore/snapd/usersession/client"
 
@@ -18661,4 +18662,93 @@ func checkComponentSetupTasks(c *C, ts *state.TaskSet, expected []snapstate.Comp
 
 	c.Assert(found, HasLen, len(expected))
 	c.Check(found, testutil.DeepUnsortedMatches, expected)
+}
+
+func (s *snapmgrTestSuite) TestBlockUnlinkAffectingHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	hooksup := &hookstate.HookSetup{Snap: "some-snap"}
+	hook := hookstate.HookTask(s.state, "blocking hook", hooksup, nil)
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Current:  si.Revision,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Base:     "some-base",
+	})
+
+	type testcase struct {
+		task          string
+		blockStatuses []state.Status
+	}
+
+	tcs := []testcase{
+		{
+			task:          "unlink-current-snap",
+			blockStatuses: []state.Status{state.DoingStatus, state.DoStatus},
+		},
+
+		{
+			task:          "link-snap",
+			blockStatuses: []state.Status{state.UndoStatus, state.UndoingStatus},
+		},
+		{
+			task:          "unlink-snap",
+			blockStatuses: []state.Status{state.DoStatus, state.DoingStatus},
+		},
+	}
+
+	for _, tc := range tcs {
+		for _, status := range []state.Status{state.DoStatus, state.DoingStatus, state.UndoStatus, state.UndoingStatus} {
+			var expectBlocked bool
+			for _, s := range tc.blockStatuses {
+				if status == s {
+					expectBlocked = true
+					break
+				}
+			}
+
+			task := s.state.NewTask(tc.task, "summary")
+			task.SetStatus(status)
+			task.Set("snap-setup", &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					SnapID:   "some-snap-id",
+					Revision: snap.R(1),
+				},
+			})
+
+			// unlinking a snap with running hook
+			block := snapstate.AffectsRunningHooks(task, []*state.Task{hook})
+			c.Assert(block, Equals, expectBlocked)
+
+			task.Set("snap-setup", &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-base",
+					SnapID:   "some-base-id",
+					Revision: snap.R(1),
+				},
+			})
+
+			// unlinking the base of a snap with running hook
+			block = snapstate.AffectsRunningHooks(task, []*state.Task{hook})
+			c.Assert(block, Equals, expectBlocked)
+
+			// unlinking a snap unrelated to the hook
+			task.Set("snap-setup", &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "other-snap",
+					SnapID:   "other-snap-id",
+					Revision: snap.R(1),
+				},
+			})
+			block = snapstate.AffectsRunningHooks(task, []*state.Task{hook})
+			c.Assert(block, Equals, false)
+		}
+	}
 }
