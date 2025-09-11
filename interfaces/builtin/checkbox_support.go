@@ -19,11 +19,6 @@
 
 package builtin
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/udev"
-)
-
 const checkboxSupportSummary = `allows checkbox to execute arbitrary system tests`
 
 const checkboxSupportBaseDeclarationPlugs = `
@@ -40,28 +35,42 @@ const checkboxSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-type checkboxSupportInterface struct {
-	// The checkbox-support interface is exactly the steam-support interface
-	// with the exception that it is also allowed to run on core devices.
-	steamSupportInterface
-}
-
-func (iface *checkboxSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// we inherit one from steamSupportInterface, but none of the snippets are
-	// useful as the interface can manage device cgroup, giving it unrestricted
-	// access to devices
-	return iface.commonInterface.UDevConnectedPlug(spec, plug, slot)
-}
+const checkboxSupportConnectedPlugAppArmor = `
+#include <abstractions/dbus-strict>
+dbus (send)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member=StartTransientUnit
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member=KillUnit
+    peer=(label=unconfined),
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member=JobRemoved
+    peer=(label=unconfined),
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/systemd1/unit/*_2eservice
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+`
 
 func init() {
-	registerIface(&checkboxSupportInterface{steamSupportInterface{commonInterface{
-		name:                 "checkbox-support",
-		summary:              checkboxSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		controlsDeviceCgroup: true, // checkbox is exempt from device filtering
-		baseDeclarationSlots: checkboxSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: checkboxSupportBaseDeclarationPlugs,
-		connectedPlugSecComp: steamSupportConnectedPlugSecComp,
-	}}})
+	registerIface(&commonInterface{
+		name:                  "checkbox-support",
+		summary:               checkboxSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		connectedPlugAppArmor: checkboxSupportConnectedPlugAppArmor,
+		baseDeclarationSlots:  checkboxSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:  checkboxSupportBaseDeclarationPlugs,
+	})
 }
