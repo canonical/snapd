@@ -86,7 +86,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 
 }
 
-func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
+func (s *fdeMgrSuite) TestAddPlatformKeysAffectedSnaps(c *C) {
 	st := s.st
 	onClassic := true
 	s.startedManager(c, onClassic)
@@ -99,7 +99,7 @@ func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
 
 	tsk := st.NewTask("foo", "foo task")
 
-	names, err := fdestate.AddProtectedKeysAffectedSnaps(tsk)
+	names, err := fdestate.AddPlatformKeysAffectedSnaps(tsk)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{
 		"pc",        // gadget

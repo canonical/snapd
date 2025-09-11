@@ -85,11 +85,11 @@ var fdeReplacePlatformKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-pl
 var fdeChangePassphraseChangeKind = swfeats.RegisterChangeKind("fde-change-passphrase")
 
 var (
-	fdestateReplaceRecoveryKey  = fdestate.ReplaceRecoveryKey
-	fdestateReplaceProtectedKey = fdestate.ReplaceProtectedKey
-	fdestateChangeAuth          = fdestate.ChangeAuth
-	fdeMgrGenerateRecoveryKey   = (*fdestate.FDEManager).GenerateRecoveryKey
-	fdeMgrCheckRecoveryKey      = (*fdestate.FDEManager).CheckRecoveryKey
+	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
+	fdestateReplacePlatformKey = fdestate.ReplacePlatformKey
+	fdestateChangeAuth         = fdestate.ChangeAuth
+	fdeMgrGenerateRecoveryKey  = (*fdestate.FDEManager).GenerateRecoveryKey
+	fdeMgrCheckRecoveryKey     = (*fdestate.FDEManager).CheckRecoveryKey
 
 	devicestateGetVolumeStructuresWithKeyslots = devicestate.GetVolumeStructuresWithKeyslots
 )
@@ -350,7 +350,7 @@ func postSystemVolumesActionReplacePlatformKey(c *Command, req *systemVolumesAct
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := fdestateReplaceProtectedKey(st, volumesAuth, req.Keyslots)
+	ts, err := fdestateReplacePlatformKey(st, volumesAuth, req.Keyslots)
 	if err != nil {
 		return errToResponse(err, nil, BadRequest, "cannot replace platform key: %v")
 	}

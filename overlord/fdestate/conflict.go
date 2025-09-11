@@ -125,7 +125,7 @@ func checkDBXChangeConflicts(st *state.State) error {
 	return snapstate.CheckChangeConflictMany(st, snaps, "")
 }
 
-func addProtectedKeysAffectedSnaps(t *state.Task) ([]string, error) {
+func addPlatformKeysAffectedSnaps(t *state.Task) ([]string, error) {
 	// adding a TPM protected key requires populating the role parameters
 	// in the FDE state (ensureParametersLoaded), those parameters could
 	// be updated as a result of a reseal caused by a refresh of any snap
