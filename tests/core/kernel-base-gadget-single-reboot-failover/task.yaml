@@ -9,9 +9,11 @@ systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
-    CORE18_GADGET_REPACK: true
 
 prepare: |
+    # To get VERSION_ID defined
+    . /etc/os-release
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -32,6 +34,9 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     
 execute: |
+    # To get VERSION_ID defined
+    . /etc/os-release
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -88,10 +93,18 @@ execute: |
         MATCH 'Undone\s+.*Make snap "pc" .* available' < tasks.done
 
         # boot variables should have been cleared
-        snap debug boot-vars > boot-vars.dump
-        MATCH 'snap_mode=$' < boot-vars.dump
-        MATCH 'snap_try_core=$' < boot-vars.dump
-        MATCH 'snap_try_kernel=$' < boot-vars.dump
+        if os.query is-core18; then
+            snap debug boot-vars > boot-vars.dump
+            MATCH 'snap_mode=$' < boot-vars.dump
+            MATCH 'snap_try_core=$' < boot-vars.dump
+            MATCH 'snap_try_kernel=$' < boot-vars.dump
+        elif os.query is-core-ge 20; then
+            stat /boot/grub/try-kernel.efi | NOMATCH 'pc-kernel.*.snap/kernel.efi'
+            ! stat -L /boot/grub/try-kernel.efi
+        else
+            echo "unsupported Ubuntu Core system"
+            exit 1
+        fi
 
         # make sure the system is in stable state, no pending reboots
         # XXX systemctl exits with non-0 when in degraded state
