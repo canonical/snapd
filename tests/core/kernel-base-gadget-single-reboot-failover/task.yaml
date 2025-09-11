@@ -100,7 +100,7 @@ execute: |
             MATCH 'snap_try_kernel=$' < boot-vars.dump
         elif os.query is-core-ge 20; then
             stat /boot/grub/try-kernel.efi | NOMATCH 'pc-kernel.*.snap/kernel.efi'
-            ! stat -L /boot/grub/try-kernel.efi
+            stat -L /boot/grub/try-kernel.efi && exit 1
         else
             echo "unsupported Ubuntu Core system"
             exit 1
