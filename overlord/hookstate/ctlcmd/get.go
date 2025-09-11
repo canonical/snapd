@@ -423,7 +423,8 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		bag = tx.Previous()
 	}
 
-	res, err := confdbstate.GetViaView(bag, view, requests)
+	// TODO: support --with ... constraints
+	res, err := confdbstate.GetViaView(bag, view, requests, nil)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err

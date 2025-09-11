@@ -68,10 +68,11 @@ type cmdGet struct {
 		Keys []string
 	} `positional-args:"yes"`
 
-	Typed    bool   `short:"t"`
-	Document bool   `short:"d"`
-	List     bool   `short:"l"`
-	Default  string `long:"default" unquote:"false"`
+	Typed    bool     `short:"t"`
+	Document bool     `short:"d"`
+	List     bool     `short:"l"`
+	Default  string   `long:"default" unquote:"false"`
+	With     []string `long:"with"`
 }
 
 func init() {
@@ -93,6 +94,8 @@ func init() {
 			"t": i18n.G("Strict typing with nulls and quoted strings"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"default": i18n.G("A strictly typed default value to be used when none is found"),
+			// TODO; finish
+			"with": i18n.G("TODO"),
 		}, []argDesc{
 			{
 				name: "<snap>",
@@ -268,7 +271,7 @@ func (x *cmdGet) Execute(args []string) error {
 	var err error
 	if isConfdbViewID(snapName) {
 		// first argument is a confdbViewID, use the confdb API
-		conf, err = x.getConfdb(snapName, confKeys)
+		conf, err = x.getConfdb(snapName, confKeys, x.With)
 	} else {
 		if x.Default != "" {
 			return fmt.Errorf(`cannot use --default in non-confdb read`)
@@ -291,7 +294,7 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 }
 
-func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]any, error) {
+func (x *cmdGet) getConfdb(confdbViewID string, confKeys, constraints []string) (map[string]any, error) {
 	if err := validateConfdbFeatureFlag(); err != nil {
 		return nil, err
 	}
@@ -300,13 +303,19 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys []string) (map[string]a
 		return nil, err
 	}
 
+	for _, constraint := range constraints {
+		if !strings.ContainsRune(constraint, '=') {
+			return nil, fmt.Errorf(`constraint provided to "--with" must be in the form <name>=<value>`)
+		}
+	}
+
 	if x.Default != "" && len(confKeys) > 1 {
 		// TODO: what if some keys are fulfilled and others aren't? Do we fill in
 		// just the ones that are missing or none?
 		return nil, fmt.Errorf("cannot use --default with more than one confdb request")
 	}
 
-	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys)
+	chgID, err := x.client.ConfdbGetViaView(confdbViewID, confKeys, constraints)
 	if err != nil {
 		return nil, err
 	}
