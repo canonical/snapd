@@ -187,7 +187,6 @@ execute: |
         snap ack "$p"
         cp -av pc_x3.snap "$BLOB_DIR/"
 
-        # on uc20, the pc snap we booted with is unasserted for extra debugging
         snap install pc_x3.snap --dangerous
 
         REBOOT

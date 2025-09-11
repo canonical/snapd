@@ -16,8 +16,6 @@ environment:
     UPDATE_VARIANT/gadget_reboot: reboot
     UPDATE_VARIANT/gadget_noreboot: no-reboot
 
-    GADGET_CHANNEL: edge
-
     # We are uploading too much in terms of size for the snaps
     # we sideload. On UC18 this is disabled automatically, but
     # on UC20+ this has proved to be an issue

@@ -22,8 +22,6 @@ environment:
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
-    GADGET_CHANNEL: edge
-
     # We are uploading too much in terms of size for the snaps
     # we sideload. On UC18 this is disabled automatically, but
     # on UC20+ this has proved to be an issue
