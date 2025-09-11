@@ -9,6 +9,7 @@ systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 # run before remodel test, unfortunately some tests mess with snaps installed
 # and this causes this test to be messed with
+# we can remove this once we don't support UC18
 priority: 600
 
 environment:

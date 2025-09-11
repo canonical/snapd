@@ -5,19 +5,23 @@ details: |
     other essential snaps (boot-base, gadget, kernel specifically), then all of
     them are rolled back.
 
-# TODO make the test work with ubuntu-core-20
-systems: [ubuntu-core-18-*]
+systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
+    CORE18_GADGET_REPACK: true
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
+
     readlink "/snap/pc-kernel/current" > pc-kernel.rev
-    readlink "/snap/core18/current" > core.rev
+    readlink "/snap/${core_snap}/current" > core.rev
     readlink "/snap/pc/current" > pc.rev
 
 restore: |
@@ -36,24 +40,37 @@ execute: |
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # break the pc-kernel snap
         unsquashfs -d pc-kernel-snap /var/lib/snapd/snaps/pc-kernel_*.snap
         truncate -s 0 pc-kernel-snap/initrd.img
 
         "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel --snap-blob "$PWD/pc-kernel-snap"
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" core18
+        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "${core_snap}"
         "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc
 
-        snap refresh --no-wait core18 pc pc-kernel > refresh-change-id
+        snap refresh --no-wait "${core_snap}" pc pc-kernel > refresh-change-id
         
         # wait for the link tasks to be done
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
-        snap debug boot-vars > boot-vars.dump
-        MATCH 'snap_mode=try' < boot-vars.dump
-        MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
-        MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
+        if os.query is-core18; then
+            snap debug boot-vars > boot-vars.dump
+            MATCH 'snap_mode=try' < boot-vars.dump
+            MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
+            MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
+        elif os.query is-core-ge 20; then
+            stat /boot/grub/kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
+            stat -L /boot/grub/kernel.efi
+            stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
+            stat -L /boot/grub/try-kernel.efi
+        else
+            echo "unsupported Ubuntu Core system"
+            exit 1
+        fi
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
@@ -67,7 +84,7 @@ execute: |
         # and since kernel, gadget and base all are considered to be forced as a transaction
         # we expect all to be undone
         MATCH 'Undone\s+.*Make snap "pc-kernel" .* available' < tasks.done
-        MATCH 'Undone\s+.*Make snap "core18" .* available' < tasks.done
+        MATCH 'Undone\s+.*Make snap "${core_snap}" .* available' < tasks.done
         MATCH 'Undone\s+.*Make snap "pc" .* available' < tasks.done
 
         # boot variables should have been cleared
@@ -88,7 +105,7 @@ execute: |
 
         # verify that current points to old revisions
         test "$(readlink /snap/pc-kernel/current)" = "$original_kernel"
-        test "$(readlink /snap/core18/current)" = "$original_core"
+        test "$(readlink /snap/${core_snap}/current)" = "$original_core"
         test "$(readlink /snap/pc/current)" = "$original_pc"
     else
         echo "unexpected reboot"
