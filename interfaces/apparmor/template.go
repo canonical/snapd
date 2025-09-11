@@ -664,6 +664,9 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
 
+  # rust rewritten coreutils
+  /usr/lib/cargo/bin/coreutils/* ixr,
+
   # lsb-release
   /usr/bin/lsb_release ixr,
   /usr/bin/ r,
