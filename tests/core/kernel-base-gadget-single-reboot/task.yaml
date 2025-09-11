@@ -9,14 +9,12 @@ systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 # run before remodel test, unfortunately some tests mess with snaps installed
 # and this causes this test to be messed with
+# we can remove this once we don't support UC18
 priority: 600
 
 environment:
     UPDATE_VARIANT/gadget_reboot: reboot
     UPDATE_VARIANT/gadget_noreboot: no-reboot
-
-    GADGET_CHANNEL: edge
-    CORE18_GADGET_REPACK: true
 
     # We are uploading too much in terms of size for the snaps
     # we sideload. On UC18 this is disabled automatically, but
@@ -38,8 +36,8 @@ execute: |
     # To get VERSION_ID defined
     . /etc/os-release
 
-    if not snap list pc; then
-        echo "This test needs a host using 'pc' gadget snap"
+    if snap list pc | NOMATCH "x[1-9]"; then
+        echo "This test needs a host using an unasserted 'pc' gadget snap"
         exit 1
     fi
 
@@ -72,15 +70,13 @@ execute: |
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
 
-        snap download "$core_snap" --edge --basename=core-for-repack
-        unsquashfs -d base-snap core-for-repack.snap
-        rm core-for-repack.snap core-for-repack.assert
-        snap pack base-snap
+        snap download "$core_snap" --edge
+        printf '\0' >> "$core_snap"_*.snap
 
         # We run one with a vanilla gadget, and one with another gadget
         cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
         unsquashfs -d pc-snap gadget.snap        
-        
+
         if [ "$UPDATE_VARIANT" = "no-reboot" ]; then
             # prepare a vanilla version
             sed -i -e 's/^version: \(.*\)/version: \1-1/' pc-snap/meta/snap.yaml
