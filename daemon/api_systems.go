@@ -124,14 +124,14 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // wrapped for unit tests
-var deviceManagerSystemAndGadgetAndEncryptionInfo = func(
+var deviceManagerSystemAndGadgetAndEncryptionInfo func(
 	dm *devicestate.DeviceManager,
 	systemLabel string,
 	checkAction *secboot.PreinstallAction,
 	encInfoFromCache bool,
-) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel, checkAction, encInfoFromCache)
-}
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).SystemAndGadgetAndEncryptionInfo
 
 func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
@@ -750,7 +750,6 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 	details, err := getSystemDetailsWithOptionalFixAction(deviceMgr, systemLabel, checkAction)
 	if err != nil {
 		return InternalError(err.Error())
-
 	}
 
 	return SyncResponse(*details)

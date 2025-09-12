@@ -2989,7 +2989,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	}, m.runFDESetupHook)
 }
 
-// encryptionSupportInfoUnlocked is the refreshCacheEncryptionSupport variant to use when the state is not locked.
+// encryptionSupportInfoUnlocked is the encryptionSupportInfo variant to use when the state is not locked.
 func (m *DeviceManager) encryptionSupportInfoUnlocked(constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
 	return m.encryptionSupportInfo(
 		constraints,
@@ -2999,7 +2999,7 @@ func (m *DeviceManager) encryptionSupportInfoUnlocked(constraints install.Encryp
 	)
 }
 
-// encryptionSupportInfoLocked is the refreshCacheEncryptionSupport variant to use when the state is locked.
+// encryptionSupportInfoLocked is the encryptionSupportInfo variant to use when the state is locked.
 func (m *DeviceManager) encryptionSupportInfoLocked(constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
 	return m.encryptionSupportInfo(
 		constraints, encInfoFromCache,
@@ -3008,6 +3008,24 @@ func (m *DeviceManager) encryptionSupportInfoLocked(constraints install.Encrypti
 	)
 }
 
+// encryptionSupportInfo returns encryption support information, optionally
+// consulting and refreshing a cache.
+//
+// Cache behavior is implicit and depends on the combination of arguments:
+//   - With a CheckAction: the cache must provide a valid CheckContext. In this
+//     mode, only the CheckContext is used, and the rest of the cached
+//     EncryptionSupportInfo is ignored. This implies that any call with
+//     CheckAction must be preceded by a call without that populates the cache.
+//   - Without a CheckAction and encInfoFromCache = true: the function returns
+//     the cached EncryptionSupportInfo directly, if available. This provides a
+//     way to skip the expensive encryption availability check in cases where
+//     it is not relevant.
+//   - Otherwise: the function computes fresh information via
+//     GetEncryptionSupportInfo and refreshes the cache on success.
+//
+// Errors are returned if inconsistent or impossible cache usage is requested
+//   - CheckAction requires a cache but none is available
+//   - CheckAction is combined with encInfoFromCache = true
 func (m *DeviceManager) encryptionSupportInfo(
 	constraints install.EncryptionConstraints,
 	encInfoFromCache bool,
@@ -3038,6 +3056,9 @@ func (m *DeviceManager) encryptionSupportInfo(
 		return cachedEncryptionSupportInfo, nil
 	}
 
+	// GetEncryptionSupportInfo expects and uses constraints.CheckContext when
+	// constraints.CheckAction != nil, otherwise it is ignored. See
+	// install.encryptionAvailabilityCheck.
 	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
 	if err == nil {
 		refreshCache(constraints.SystemLabel, &encInfo)

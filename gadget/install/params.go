@@ -126,7 +126,7 @@ func MockEncryptionSetupData(
 		//this is still used in place where LegacyKeptKey will be
 		//called to write the save key to a file in
 		//overlord/install/install.go. Once we have removed that call,
-		//we can use mock object instead.
+		// we can use mock object instead.
 		bootstrapKey := secboot.CreateMockBootstrappedContainer()
 		esd.parts[label] = partEncryptionData{
 			role:                encryptData.Role,
