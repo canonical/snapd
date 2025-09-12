@@ -45,6 +45,7 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 		if !ok {
 			return 0, 0, fmt.Errorf("cannot register notify socket: no mutually supported protocol versions")
 		}
+		logger.Debugf("attempting to register with notify protocol version %d", protocolVersion)
 
 		if protocolVersion >= 5 {
 			// Attempt to register the listener ID before setting the filter
@@ -80,6 +81,7 @@ func RegisterFileDescriptor(fd uintptr) (version ProtocolVersion, pendingCount i
 		// discarded, and the old listener and its filters are used.
 		if err := setFilterForListener(fd, protocolVersion); err != nil {
 			if errors.Is(err, unix.EPROTONOSUPPORT) {
+				logger.Debugf("SET_FILTER returned EPROTONOSUPPORT for protocol version %d", protocolVersion)
 				unsupported[protocolVersion] = true
 				// XXX: pendingCount may still be set, if the current protocol
 				// version supports registration but not setting filter. This
