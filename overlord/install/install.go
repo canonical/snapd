@@ -265,7 +265,6 @@ func checkPassphraseSupportedByTargetSystem(sysVer SystemSnapdVersions) (bool, e
 // [GetEncryptionSupportInfo] must consider when deciding how to encrypt the
 // system.
 type EncryptionConstraints struct {
-	SystemLabel   string
 	Model         *asserts.Model
 	Kernel        *snap.Info
 	Gadget        *gadget.Info

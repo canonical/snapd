@@ -1339,7 +1339,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	}
 
 	const encInfoFromCache = false
-	encryptInfo, err := m.encryptionSupportInfoLocked(constraints, encInfoFromCache)
+	encryptInfo, err := m.encryptionSupportInfoLocked(systemLabel, constraints, encInfoFromCache)
 	if err != nil {
 		return err
 	}

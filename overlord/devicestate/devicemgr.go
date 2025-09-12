@@ -2315,8 +2315,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(
 	}
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfoUnlocked(install.EncryptionConstraints{
-		SystemLabel:   wantedSystemLabel,
+	encInfo, err := m.encryptionSupportInfoUnlocked(wantedSystemLabel, install.EncryptionConstraints{
 		Model:         systemAndSnaps.Model,
 		Kernel:        systemAndSnaps.InfosByType[snap.TypeKernel],
 		Gadget:        gadgetInfo,
@@ -2990,8 +2989,9 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 }
 
 // encryptionSupportInfoUnlocked is the encryptionSupportInfo variant to use when the state is not locked.
-func (m *DeviceManager) encryptionSupportInfoUnlocked(constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
+func (m *DeviceManager) encryptionSupportInfoUnlocked(systemLabel string, constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
 	return m.encryptionSupportInfo(
+		systemLabel,
 		constraints,
 		encInfoFromCache,
 		m.readCacheEncryptionSupportInfoUnlocked,
@@ -3000,8 +3000,9 @@ func (m *DeviceManager) encryptionSupportInfoUnlocked(constraints install.Encryp
 }
 
 // encryptionSupportInfoLocked is the encryptionSupportInfo variant to use when the state is locked.
-func (m *DeviceManager) encryptionSupportInfoLocked(constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
+func (m *DeviceManager) encryptionSupportInfoLocked(systemLabel string, constraints install.EncryptionConstraints, encInfoFromCache bool) (*install.EncryptionSupportInfo, error) {
 	return m.encryptionSupportInfo(
+		systemLabel,
 		constraints, encInfoFromCache,
 		m.readCacheEncryptionSupportInfoLocked,
 		m.refreshCacheEncryptionSupportInfoLocked,
@@ -3027,6 +3028,7 @@ func (m *DeviceManager) encryptionSupportInfoLocked(constraints install.Encrypti
 //   - CheckAction requires a cache but none is available
 //   - CheckAction is combined with encInfoFromCache = true
 func (m *DeviceManager) encryptionSupportInfo(
+	systemLabel string,
 	constraints install.EncryptionConstraints,
 	encInfoFromCache bool,
 	readCache func(systemLabel string) *install.EncryptionSupportInfo,
@@ -3037,7 +3039,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 		return nil, errors.New("internal error: cannot apply check action and use cached encryption information")
 	}
 
-	cachedEncryptionSupportInfo := readCache(constraints.SystemLabel)
+	cachedEncryptionSupportInfo := readCache(systemLabel)
 
 	if constraints.CheckAction != nil {
 		// a check action requires only the check context from the cache
@@ -3061,7 +3063,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 	// install.encryptionAvailabilityCheck.
 	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
 	if err == nil {
-		refreshCache(constraints.SystemLabel, &encInfo)
+		refreshCache(systemLabel, &encInfo)
 	}
 	return &encInfo, err
 }
