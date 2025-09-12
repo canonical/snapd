@@ -745,9 +745,21 @@ func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreServic
 	return snapsup, sto, user, nil
 }
 
+func maybeCloudName(st *state.State) (name string, err error) {
+	tr := config.NewTransaction(st)
+	var cloudInfo auth.CloudInfo
+	err = tr.Get("core", "cloud", &cloudInfo)
+	if err != nil && !config.IsNoOption(err) {
+		return "", err
+	}
+
+	return cloudInfo.Name, nil
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	var rate int64
+	var cloud string
 
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
@@ -756,7 +768,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
 	}
+
+	if err == nil {
+		cloud, err = maybeCloudName(st)
+	}
 	st.Unlock()
+
 	if err != nil {
 		return err
 	}
@@ -813,9 +830,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 		// Snap download succeeded, now try to download the snap icon
-		if iconURL == "" {
+		switch {
+		case iconURL == "":
 			logger.Debugf("cannot download snap icon for %q: no icon URL", snapsup.SnapName())
-		} else {
+		// TODO icons: remove this exception once the store starts hosting the
+		// icons, see SN-4888
+		case cloud != "":
+			logger.Debugf("skipping snap icon download when running in cloud %q", cloud)
+		default:
 			timings.Run(perfTimings, "download-icon", fmt.Sprintf("download snap icon for %q", snapsup.SnapName()), func(timings.Measurer) {
 				if iconErr := theStore.DownloadIcon(ctx, snapsup.SnapName(), targetIconFn, iconURL); iconErr != nil {
 					logger.Debugf("cannot download snap icon for %q: %v", snapsup.SnapName(), iconErr)
