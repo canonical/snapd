@@ -62,7 +62,7 @@ jobs:
       - test-firefox-snap
       - test-firefox-binary
     name: Compare snap vs. binary results
-    runs-on: [self-hosted, perf-metrics]
+    runs-on: [self-hosted, spread-enabled]
     steps:
     - name: Download snap results
       uses: actions/download-artifact@v4
@@ -75,9 +75,13 @@ jobs:
         name: bin-results
 
     - name: Compare and report results
+      env:
+        METRICS_HOST: ${{ secrets.METRICS_HOST }}
+        METRICS_PORT: ${{ secrets.METRICS_PORT }}
       run: |
           cat <<EOF > comparison.py
           import json
+          import os
           import re
           import requests
           from statistics import geometric_mean
@@ -86,7 +90,7 @@ jobs:
           exit_error = 0
 
           def post(type, data):
-              endpoint = 'http://localhost:9091/metrics/job/snapd-ci/test/firefox/type'
+              endpoint = f'http://{os.environ["METRICS_HOST"]}:{os.environ["METRICS_PORT"]}/metrics/job/snapd-ci/type'
               response = requests.post(f'{endpoint}/{type}', data=data)
               if not response.ok:
                   print(f'error when posting {data} to {endpoint}: {response.text}', file=sys.stderr)
@@ -105,17 +109,15 @@ jobs:
 
                   # Metric names cannot have hyphens or dots
                   metric = re.sub(r"-|\.", "_", metric)
-                  # Metric names cannot begin with numbers
-                  metric = re.sub(r"^(\d)", r"_\1", metric)
-                  post('snap', f'{metric} {s:.3f}\n')
-                  post('bin', f'{metric} {b:.3f}\n')
-                  post('diff', f'{metric} {b - s:.3f}\n')
+                  post('snap', f'snapd_firefox_{metric} {s:.3f}\n')
+                  post('bin', f'snapd_firefox_{metric} {b:.3f}\n')
+                  post('diff', f'snapd_firefox_{metric} {b - s:.3f}\n')
 
               snap_score = geometric_mean(snap_scores)
               bin_score = geometric_mean(bin_scores)
-              post('snap', f'overall_geometric_mean {snap_score:.3f}\n')
-              post('bin', f'overall_geometric_mean {bin_score:.3f}\n')
-              post('diff', f'overall_geometric_mean {bin_score - snap_score:.3f}\n')
+              post('snap', f'snapd_firefox_overall_geometric_mean {snap_score:.3f}\n')
+              post('bin', f'snapd_firefox_overall_geometric_mean {bin_score:.3f}\n')
+              post('diff', f'snapd_firefox_overall_geometric_mean {bin_score - snap_score:.3f}\n')
 
               return snap_score, bin_score
 
