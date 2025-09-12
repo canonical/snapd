@@ -306,7 +306,7 @@ func (t *HTTPSTransport) handleDevices(w http.ResponseWriter, r *http.Request, p
 // outbound assembly protocol messages. The client will use the provided TLS
 // certificate for mutual authentication.
 func (t *HTTPSTransport) NewClient(cert tls.Certificate) Client {
-	return NewHTTPSClient(cert, &t.stats, rate.NewLimiter(rate.Limit(1000000), 5000000))
+	return NewHTTPSClient(cert, &t.stats, rate.NewLimiter(rate.Limit(1_000_000), 5_000_000))
 }
 
 // Stats returns the cumulative statistics for messages sent and received by
