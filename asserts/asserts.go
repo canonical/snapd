@@ -1264,7 +1264,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]any, body []b
 	}
 	content := buf.Bytes()
 
-	signature, err := signContent(content, privKey)
+	signature, err := signAndEncode(content, privKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign assertion: %v", err)
 	}

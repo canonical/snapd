@@ -96,24 +96,64 @@ type openpgpSigner interface {
 	sign(content []byte) (*packet.Signature, error)
 }
 
-func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
-	signer, ok := privateKey.(openpgpSigner)
-	if !ok {
-		panic(fmt.Errorf("not an internally supported PrivateKey: %T", privateKey))
-	}
-
-	sig, err := signer.sign(content)
+func signAndEncode(content []byte, privateKey PrivateKey) ([]byte, error) {
+	sig, err := RawSignWithKey(content, privateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	buf := new(bytes.Buffer)
+	return encodeV1(sig), nil
+}
+
+// RawSignWithKey signs the given data with the provided [PrivateKey]. The
+// serialized signature returned.
+//
+// This is not intended to sign assertions. Rather, it might be used to
+// explicitly sign data with a device key.
+func RawSignWithKey(data []byte, pk PrivateKey) ([]byte, error) {
+	signer, ok := pk.(openpgpSigner)
+	if !ok {
+		return nil, fmt.Errorf("private key does not support signing: %T", pk)
+	}
+
+	sig, err := signer.sign(data)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := bytes.NewBuffer(nil)
 	err = sig.Serialize(buf)
 	if err != nil {
 		return nil, err
 	}
 
-	return encodeV1(buf.Bytes()), nil
+	return buf.Bytes(), nil
+}
+
+// RawVerifyWithKey verifies that the given signature is valid for the provided
+// data using the specified [PublicKey].
+//
+// This is not intended to verify assertions. Rather, it might be used to verify
+// data signed with a device key.
+func RawVerifyWithKey(data []byte, signature []byte, pk PublicKey) error {
+	pkt, err := packet.Read(bytes.NewReader(signature))
+	if err != nil {
+		return fmt.Errorf("cannot decode signature: %w", err)
+	}
+
+	sig, ok := pkt.(*packet.Signature)
+	if !ok {
+		return fmt.Errorf("expected signature, got instead: %T", pkt)
+	}
+
+	verifier, ok := pk.(interface {
+		verify([]byte, *packet.Signature) error
+	})
+	if !ok {
+		return fmt.Errorf("public key does not support verification: %T", pk)
+	}
+
+	return verifier.verify(data, sig)
 }
 
 func decodeV1(b []byte, kind string) (packet.Packet, error) {
