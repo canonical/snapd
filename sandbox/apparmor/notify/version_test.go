@@ -140,7 +140,7 @@ func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
 			c.Assert(f.Close(), IsNil)
 		}
 
-		restore = notify.MockApparmorMetadataTagsSupported(func() bool {
+		restore = notify.MockApparmorMetadataTagsSupportedByKernel(func() bool {
 			return testCase.metadataTagsSupported
 		})
 		defer restore()
