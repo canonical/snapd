@@ -182,12 +182,7 @@ func (c *countingReader) Read(p []byte) (int, error) {
 
 func (t *HTTPSTransport) trustedHandler(next func(http.ResponseWriter, *http.Request, VerifiedPeer), pa PeerAuthenticator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
-			w.WriteHeader(403)
-			return
-		}
-
-		if len(r.TLS.PeerCertificates) != 1 {
+		if r.TLS == nil || len(r.TLS.PeerCertificates) != 1 {
 			w.WriteHeader(403)
 			return
 		}
@@ -210,13 +205,8 @@ func (t *HTTPSTransport) handleAuth(w http.ResponseWriter, r *http.Request, pa P
 		return
 	}
 
-	if r.TLS == nil {
-		w.WriteHeader(400)
-		return
-	}
-
-	if len(r.TLS.PeerCertificates) != 1 {
-		w.WriteHeader(400)
+	if r.TLS == nil || len(r.TLS.PeerCertificates) != 1 {
+		w.WriteHeader(403)
 		return
 	}
 
