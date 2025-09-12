@@ -402,6 +402,13 @@ sched_yield
 # permissions)
 seccomp
 
+# Allow restricting access with Landlock. This is OK because the kernel
+# enforces that each new restriction only drops accesses for the calling
+# process (i.e., no widening permissions).
+landlock_create_ruleset
+landlock_add_rule
+landlock_restrict_self
+
 select
 _newselect
 pselect
