@@ -25,8 +25,8 @@ prepare: |
 
 execute: |
   LDCONF_PATH=/etc/ld.so.conf.d/snap.system.conf
-  egl_vendor_cfg1=/usr/share/glvnd/egl_vendor.d/15_snap_libs-provider1_egl-driver-libs.json
-  egl_vendor_cfg2=/usr/share/glvnd/egl_vendor.d/15_snap_libs-provider2_egl-driver-libs.json
+  egl_vendor_cfg1=/etc/glvnd/egl_vendor.d/15_snap_libs-provider1_egl-driver-libs_vendor.json
+  egl_vendor_cfg2=/etc/glvnd/egl_vendor.d/15_snap_libs-provider2_egl-driver-libs_vendor.json
 
   snap install --dangerous "$PROVIDER_SNAP1"_*.snap
   snap install --dangerous "$PROVIDER_SNAP2"_*.snap
@@ -46,14 +46,13 @@ execute: |
   ldd user | MATCH /snap/"$PROVIDER_SNAP1"/x1/libs/libsquare.so
   ldd user | MATCH /snap/"$PROVIDER_SNAP2"/x1/libs/libmultiply.so
   ./user 2 | MATCH 8
-  # Check EGL vendor configuration files
-  MATCH '"library_path": "libsquare.so"' < "$egl_vendor_cfg1"
-  MATCH '"library_path": "libmultiply.so"' < "$egl_vendor_cfg2"
+  # Check symlinks to EGL vendor configuration files
+  test "$(readlink "$egl_vendor_cfg1")" = /snap/"$PROVIDER_SNAP1"/x1/egl.d/vendor.json
+  test "$(readlink "$egl_vendor_cfg2")" = /snap/"$PROVIDER_SNAP2"/x1/egl.d/vendor.json
 
   snap remove libs-provider2
   MATCH /snap/"$PROVIDER_SNAP1"/x1/libs < "$LDCONF_PATH"
   not MATCH /snap/"$PROVIDER_SNAP2"/x1/libs < "$LDCONF_PATH"
-  MATCH '"library_path": "libsquare.so"' < "$egl_vendor_cfg1"
   not stat "$egl_vendor_cfg2"
 
   snap remove libs-provider1

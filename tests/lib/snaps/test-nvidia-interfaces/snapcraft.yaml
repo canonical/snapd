@@ -1,0 +1,94 @@
+name: test-nvidia-interfaces
+version: 1.0
+type: app
+summary: Test for nvidia interfaces
+description: |
+ This snap is for testing the interfaces that export graphics driver libraries
+ from a confined snap to a classic system.
+confinement: strict
+grade: stable
+base: core24
+
+package-repositories:
+  - type: apt
+    architectures: [i386]
+    key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
+    components: [main, restricted]
+    suites: [noble, noble-updates, noble-backports]
+    url: http://archive.ubuntu.com/ubuntu/
+
+slots:
+  cuda-dl:
+    interface: cuda-driver-libs
+    compatibility: cuda-(9..12)-ubuntu-2510
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+  gbm-dl:
+    interface: gbm-driver-libs
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510
+    client-driver: nvidia-drm_gbm.so
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/gbm
+  egl-dl:
+    interface: egl-driver-libs
+    priority: 10
+    compatibility: egl-1-5-ubuntu-2510
+    icd-source: $SNAP/usr/share/glvnd/egl_vendor.d/
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      - $SNAP/usr/lib/i386-linux-gnu
+  opengl-dl:
+    interface: opengl-driver-libs
+    compatibility: opengl-4-6-ubuntu-2510
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      - $SNAP/usr/lib/i386-linux-gnu
+  opengles-dl:
+    interface: opengles-driver-libs
+    compatibility: opengles-4-6-ubuntu-2510
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      - $SNAP/usr/lib/i386-linux-gnu
+
+parts:
+  nvidia:
+    plugin: nil
+    # This one would be in a kernel-modules component
+    # - nvidia-firmware-570-570.133.07
+    # modprobe/udev config, already partially in base
+    # - nvidia-kernel-common-570
+    # Sources not needed
+    # - nvidia-kernel-source-570
+    # Utils not needed for the moment
+    # - nvidia-utils-570
+    # Needed in case we develop an interface for X11
+    # - xserver-xorg-video-nvidia-570
+    # This includes only docummentation
+    # - nvidia-driver-570
+    override-build: |
+      pkgs=(
+          libnvidia-cfg1-570
+          libnvidia-common-570
+          libnvidia-compute-570:amd64
+          libnvidia-compute-570:i386
+          libnvidia-decode-570:amd64
+          libnvidia-decode-570:i386
+          libnvidia-encode-570:amd64
+          libnvidia-encode-570:i386
+          libnvidia-extra-570:amd64
+          libnvidia-fbc1-570:amd64
+          libnvidia-fbc1-570:i386
+          libnvidia-gl-570:amd64
+          libnvidia-gl-570:i386
+          nvidia-compute-utils-570
+      )
+      for p in "${pkgs[@]}"; do
+          apt-get download "$p"
+      done
+      for p in *.deb; do
+          dpkg -x "$p" "$CRAFT_PART_INSTALL"
+      done
+      # strip out priority of the egl config file to avoid a snap_..._10_10_nvidia.json name.
+      mv "$CRAFT_PART_INSTALL"/usr/share/glvnd/egl_vendor.d/10_nvidia.json \
+         "$CRAFT_PART_INSTALL"/usr/share/glvnd/egl_vendor.d/nvidia.json
