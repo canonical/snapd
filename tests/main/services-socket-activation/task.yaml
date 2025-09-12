@@ -14,6 +14,12 @@ prepare: |
             if os.query is-core; then
                # cannot install classic snaps on core
                exit 0
+            elif os.query is_arch_linux || os.query is_fedora || os.query is_centos; then
+                # although classic snaps do not work out of the box on fedora,
+                # we still want to verify if the basics do work if the user
+                # symlinks /snap to $SNAP_MOUNT_DIR themselves
+                SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+                ln -sf "$SNAP_MOUNT_DIR" /snap
             fi
             "$TESTSTOOLS"/snaps-state install-local socket-activation-classic --classic
             ;;
@@ -31,6 +37,8 @@ execute: |
             if os.query is-core; then
                # cannot install classic snaps on core
                exit 0
+            elif os.query is_arch_linux || os.query is_fedora || os.query is_centos; then
+                rm -f /snap
             fi
             ;;
     esac
