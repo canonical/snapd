@@ -20,6 +20,7 @@
 package assemblestate_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -193,6 +194,44 @@ func (s *transportSuite) TestTrustedNonSuccessStatus(c *check.C) {
 	c.Assert(stats.Sent, check.Equals, int64(0))
 }
 
+func (s *transportSuite) TestTrustedMultipleServerCertificates(c *check.C) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+
+	// create a second certificate for the server to present
+	secondCert, _ := generateTestCert()
+	server.TLS = &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{
+					testServerCert.Certificate[0],
+					secondCert.Certificate[0],
+				},
+				PrivateKey: testServerCert.PrivateKey,
+			},
+		},
+		ClientAuth: tls.RequireAnyClientCert,
+	}
+	server.StartTLS()
+	defer server.Close()
+
+	stats := assemblestate.TransportStats{}
+	client := assemblestate.NewHTTPSClient(testClientCert, &stats, nil)
+
+	routes := assemblestate.Routes{
+		Devices:   []assemblestate.DeviceToken{"device1"},
+		Addresses: []string{"addr1"},
+		Routes:    []int{1},
+	}
+
+	err := client.Trusted(context.Background(), server.Listener.Addr().String(), testServerCertDER, "routes", routes)
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, ".*exactly one peer certificate expected, got 2")
+	c.Assert(stats.Sent, check.Equals, int64(0))
+}
+
 func (s *transportSuite) TestUntrustedSuccess(c *check.C) {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(r.URL.Path, check.Equals, "/assemble/auth")
@@ -273,6 +312,74 @@ func (s *transportSuite) TestUntrustedNoTLS(c *check.C) {
 	// client tries TLS but server doesn't support it
 	_, err := client.Untrusted(context.Background(), server.Listener.Addr().String(), "auth", auth)
 	c.Assert(err, check.ErrorMatches, ".*server gave HTTP response to HTTPS client")
+}
+
+func (s *transportSuite) TestUntrustedMultipleServerCertificates(c *check.C) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+
+	// create a second certificate for the server to present
+	secondCert, _ := generateTestCert()
+	server.TLS = &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{
+					testServerCert.Certificate[0],
+					secondCert.Certificate[0],
+				},
+				PrivateKey: testServerCert.PrivateKey,
+			},
+		},
+		ClientAuth: tls.RequireAnyClientCert,
+	}
+	server.StartTLS()
+	defer server.Close()
+
+	stats := assemblestate.TransportStats{}
+	client := assemblestate.NewHTTPSClient(testClientCert, &stats, nil)
+
+	auth := assemblestate.Auth{
+		HMAC: []byte("test-hmac"),
+		RDT:  assemblestate.DeviceToken("test-device"),
+	}
+
+	_, err := client.Untrusted(context.Background(), server.Listener.Addr().String(), "auth", auth)
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, ".*exactly one peer certificate expected, got 2")
+
+	// message was sent but failed on certificate validation after response
+	c.Assert(stats.Sent, check.Equals, int64(1))
+}
+
+func (s *transportSuite) TestHTTPSClientRejectsRedirects(c *check.C) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "https://example.com/redirected")
+		w.WriteHeader(302)
+	}))
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+
+	server.TLS = &tls.Config{
+		Certificates: []tls.Certificate{testServerCert},
+		ClientAuth:   tls.RequireAnyClientCert,
+	}
+	server.StartTLS()
+	defer server.Close()
+
+	ctx := context.Background()
+	addr := server.Listener.Addr().String()
+
+	stats := assemblestate.TransportStats{}
+	client := assemblestate.NewHTTPSClient(testClientCert, &stats, nil)
+
+	err := client.Trusted(ctx, addr, testServerCertDER, "routes", nil)
+	c.Assert(err, check.ErrorMatches, ".*redirects are not expected")
+	c.Assert(stats.Sent, check.Equals, int64(0))
+
+	_, err = client.Untrusted(ctx, addr, "auth", nil)
+	c.Assert(err, check.ErrorMatches, ".*redirects are not expected")
+	c.Assert(stats.Sent, check.Equals, int64(0))
 }
 
 func (s *transportSuite) TestTrustedNoTLS(c *check.C) {
@@ -667,6 +774,343 @@ func (s *transportSuite) TestHTTPSTransportServeAuthRejectsFailedAuthentication(
 	_, err = client.Untrusted(ctx, addr, "auth", auth)
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "got non-200 status code in response to auth message: 403")
+
+	stats := transport.Stats()
+	c.Assert(stats.Received, check.Equals, int64(0))
+
+	cancel()
+	wg.Wait()
+}
+
+func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsMultipleCertificates(c *check.C) {
+	pa := &testPeerAuthenticator{
+		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+			c.Fatal("should not be called when multiple certificates are provided")
+			return nil, nil
+		},
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	defer ln.Close()
+
+	addr := ln.Addr().String()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	transport := assemblestate.NewHTTPSTransport()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = transport.Serve(ctx, ln, testServerCert, pa)
+	}()
+
+	// create a second certificate to present alongside the first
+	secondCert, _ := generateTestCert()
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{
+							testClientCert.Certificate[0],
+							secondCert.Certificate[0],
+						},
+						PrivateKey: testClientCert.PrivateKey,
+					},
+				},
+			},
+		},
+		Timeout: time.Second * 5,
+	}
+
+	endpoints := []struct {
+		path string
+		data any
+	}{
+		{
+			path: "auth",
+			data: assemblestate.Auth{
+				HMAC: []byte("test-hmac-data"),
+				RDT:  assemblestate.DeviceToken("test-rdt"),
+			},
+		},
+		{
+			path: "routes",
+			data: assemblestate.Routes{
+				Devices:   []assemblestate.DeviceToken{"device1"},
+				Addresses: []string{"addr1"},
+				Routes:    []int{0},
+			},
+		},
+		{
+			path: "devices",
+			data: assemblestate.Devices{
+				Devices: []assemblestate.Identity{
+					{
+						RDT:    assemblestate.DeviceToken("device-1"),
+						FP:     assemblestate.CalculateFP([]byte("fp")),
+						Serial: "serial1",
+					},
+				},
+			},
+		},
+		{
+			path: "unknown",
+			data: assemblestate.UnknownDevices{
+				Devices: []assemblestate.DeviceToken{"unknown-device"},
+			},
+		},
+	}
+
+	for _, endpoint := range endpoints {
+		payload, err := json.Marshal(endpoint.data)
+		c.Assert(err, check.IsNil)
+
+		url := fmt.Sprintf("https://%s/assemble/%s", addr, endpoint.path)
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+		c.Assert(err, check.IsNil)
+
+		resp, err := client.Do(req)
+		c.Assert(err, check.IsNil)
+		defer resp.Body.Close()
+
+		c.Assert(resp.StatusCode, check.Equals, 403)
+	}
+
+	stats := transport.Stats()
+	c.Assert(stats.Received, check.Equals, int64(0))
+
+	cancel()
+	wg.Wait()
+}
+
+func (s *transportSuite) TestHTTPSTransportRejectsNonPOSTRequests(c *check.C) {
+	pa := &testPeerAuthenticator{
+		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, cert []byte) error {
+			c.Fatal("should not be called for non-POST requests")
+			return nil
+		},
+		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+			return &testVerifiedPeer{
+				CommitDevicesFunc: func(devices assemblestate.Devices) error {
+					c.Fatal("should not be called for non-POST requests")
+					return nil
+				},
+				CommitDeviceQueriesFunc: func(unknown assemblestate.UnknownDevices) error {
+					c.Fatal("should not be called for non-POST requests")
+					return nil
+				},
+				CommitRoutesFunc: func(routes assemblestate.Routes) error {
+					c.Fatal("should not be called for non-POST requests")
+					return nil
+				},
+			}, nil
+		},
+	}
+
+	transport := assemblestate.NewHTTPSTransport()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	defer ln.Close()
+
+	addr := ln.Addr().String()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = transport.Serve(ctx, ln, testServerCert, pa)
+	}()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{testClientCert},
+			},
+		},
+		Timeout: time.Second * 5,
+	}
+
+	for _, endpoint := range []string{"auth", "routes", "devices", "unknown"} {
+		url := fmt.Sprintf("https://%s/assemble/%s", addr, endpoint)
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		c.Assert(err, check.IsNil)
+
+		resp, err := client.Do(req)
+		c.Assert(err, check.IsNil)
+		defer resp.Body.Close()
+
+		c.Assert(resp.StatusCode, check.Equals, 405)
+	}
+
+	stats := transport.Stats()
+	c.Assert(stats.Received, check.Equals, int64(0))
+
+	cancel()
+	wg.Wait()
+}
+
+func (s *transportSuite) TestHTTPSTransportVerifiedPeerErrors(c *check.C) {
+	pa := &testPeerAuthenticator{
+		VerifyPeerFunc: func(cert []byte) (assemblestate.VerifiedPeer, error) {
+			return &testVerifiedPeer{
+				CommitDevicesFunc: func(devices assemblestate.Devices) error {
+					return errors.New("commit devices failed")
+				},
+				CommitDeviceQueriesFunc: func(unknown assemblestate.UnknownDevices) error {
+					return errors.New("commit device queries failed")
+				},
+				CommitRoutesFunc: func(routes assemblestate.Routes) error {
+					return errors.New("commit routes failed")
+				},
+			}, nil
+		},
+	}
+
+	transport := assemblestate.NewHTTPSTransport()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	defer ln.Close()
+
+	addr := ln.Addr().String()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = transport.Serve(ctx, ln, testServerCert, pa)
+	}()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{testClientCert},
+			},
+		},
+		Timeout: time.Second * 5,
+	}
+
+	endpoints := []struct {
+		path string
+		data any
+	}{
+		{
+			path: "routes",
+			data: assemblestate.Routes{
+				Devices:   []assemblestate.DeviceToken{"device1"},
+				Addresses: []string{"addr1"},
+				Routes:    []int{0},
+			},
+		},
+		{
+			path: "devices",
+			data: assemblestate.Devices{
+				Devices: []assemblestate.Identity{
+					{
+						RDT:    assemblestate.DeviceToken("device-1"),
+						FP:     assemblestate.CalculateFP([]byte("fp")),
+						Serial: "serial1",
+					},
+				},
+			},
+		},
+		{
+			path: "unknown",
+			data: assemblestate.UnknownDevices{
+				Devices: []assemblestate.DeviceToken{"unknown-device"},
+			},
+		},
+	}
+
+	for _, endpoint := range endpoints {
+		payload, err := json.Marshal(endpoint.data)
+		c.Assert(err, check.IsNil)
+
+		url := fmt.Sprintf("https://%s/assemble/%s", addr, endpoint.path)
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+		c.Assert(err, check.IsNil)
+
+		resp, err := client.Do(req)
+		c.Assert(err, check.IsNil)
+		defer resp.Body.Close()
+
+		c.Assert(resp.StatusCode, check.Equals, 400)
+	}
+
+	stats := transport.Stats()
+	c.Assert(stats.Received, check.Equals, int64(0))
+
+	cancel()
+	wg.Wait()
+}
+
+func (s *transportSuite) TestHTTPSTransportAuthenticateAndCommitError(c *check.C) {
+	pa := &testPeerAuthenticator{
+		AuthenticateAndCommitFunc: func(auth assemblestate.Auth, cert []byte) error {
+			return errors.New("authentication failed")
+		},
+	}
+
+	transport := assemblestate.NewHTTPSTransport()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+	defer ln.Close()
+
+	addr := ln.Addr().String()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_ = transport.Serve(ctx, ln, testServerCert, pa)
+	}()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{testClientCert},
+			},
+		},
+		Timeout: time.Second * 5,
+	}
+
+	auth := assemblestate.Auth{
+		HMAC: []byte("test-hmac-data"),
+		RDT:  assemblestate.DeviceToken("test-rdt"),
+	}
+
+	payload, err := json.Marshal(auth)
+	c.Assert(err, check.IsNil)
+
+	url := fmt.Sprintf("https://%s/assemble/auth", addr)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+	c.Assert(err, check.IsNil)
+
+	resp, err := client.Do(req)
+	c.Assert(err, check.IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, check.Equals, 403)
 
 	stats := transport.Stats()
 	c.Assert(stats.Received, check.Equals, int64(0))
