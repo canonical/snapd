@@ -185,7 +185,7 @@ func desktopFileFromOutput(s *Settings, output string, sender dbus.Sender) (stri
 
 func setDialog(s *Settings, setspec *settingSpec, desktopFile string, sender dbus.Sender) *dbus.Error {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, desktopFile)
-	if !osutil.FileExists(df) {
+	if !osutil.CanStat(df) {
 		return dbus.MakeFailedError(fmt.Errorf("cannot find desktop file %q", df))
 	}
 

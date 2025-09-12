@@ -94,7 +94,7 @@ func sysparamsFile(rootdir string) string {
 // new SystemParams structure.
 func Open(rootdir string) (*SystemParams, error) {
 	sspFile := sysparamsFile(rootdir)
-	if !osutil.FileExists(sspFile) {
+	if !osutil.CanStat(sspFile) {
 		return &SystemParams{rootdir: rootdir}, nil
 	}
 

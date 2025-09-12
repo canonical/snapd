@@ -196,9 +196,9 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure the file got deleted
-	c.Check(osutil.FileExists(s.servOverridePath), Equals, false)
+	c.Check(osutil.CanStat(s.servOverridePath), Equals, false)
 	// but the canary is still here
-	c.Check(osutil.FileExists(canary), Equals, true)
+	c.Check(osutil.CanStat(canary), Equals, true)
 
 	// the default was applied
 	c.Check(s.systemctlArgs, HasLen, 0)

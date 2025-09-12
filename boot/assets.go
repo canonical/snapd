@@ -111,7 +111,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 	}
 
 	targetName := c.pathInCache(cacheKey)
-	if osutil.FileExists(targetName) {
+	if osutil.CanStat(targetName) {
 		// asset is already cached
 		return ta, nil
 	}
@@ -346,7 +346,7 @@ func (o *trustedAssetsInstallObserverImpl) ObserveExistingTrustedRecoveryAssets(
 	}
 	for trustedAsset, trustedAssetName := range o.trustedRecoveryAssets {
 		path := filepath.Join(recoveryRootDir, trustedAsset)
-		if !osutil.FileExists(path) {
+		if !osutil.CanStat(path) {
 			continue
 		}
 		ta, err := o.cache.Add(path, o.recoveryBlName, trustedAssetName)

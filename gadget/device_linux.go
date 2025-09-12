@@ -63,7 +63,7 @@ func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 	var found string
 	var match string
 	for _, candidate := range candidates {
-		if !osutil.FileExists(candidate) {
+		if !osutil.CanStat(candidate) {
 			continue
 		}
 		if !osutil.IsSymlink(candidate) {

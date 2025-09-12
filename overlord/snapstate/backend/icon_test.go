@@ -127,8 +127,8 @@ func (s *iconSuite) TestSnapIconLinkUnlinkDiscardPermutations(c *C) {
 			} else {
 				c.Check(err, IsNil, Commentf("test case %d, step %d", i, step))
 			}
-			c.Check(osutil.FileExists(poolIconPath), Equals, testCase.poolIconExistsAfter[step], Commentf("test case %d, step %d", i, step))
-			c.Check(osutil.FileExists(installedIconPath), Equals, testCase.installedIconExistsAfter[step], Commentf("test case %d, step %d", i, step))
+			c.Check(osutil.CanStat(poolIconPath), Equals, testCase.poolIconExistsAfter[step], Commentf("test case %d, step %d", i, step))
+			c.Check(osutil.CanStat(installedIconPath), Equals, testCase.installedIconExistsAfter[step], Commentf("test case %d, step %d", i, step))
 		}
 	}
 }

@@ -489,7 +489,7 @@ func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[st
 	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
 		return nil, fmt.Errorf("cannot create interfaces requests run directory: %w", err)
 	}
-	if !osutil.FileExists(maxIDFilepath) && osutil.FileExists(legacyMaxIDFilepath) {
+	if !osutil.CanStat(maxIDFilepath) && osutil.CanStat(legacyMaxIDFilepath) {
 		// Previous snapd stored max ID file in the snapd run dir, so link it
 		// to the new location, so snapd doesn't reuse prompt IDs. Link instead
 		// of moving in case snapd reverts and wants to use the old location

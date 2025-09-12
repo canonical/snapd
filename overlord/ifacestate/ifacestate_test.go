@@ -7184,7 +7184,7 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
-	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	c.Assert(osutil.CanStat(dirs.SnapSystemKeyFile), Equals, false)
 
 	_ = s.manager(c)
 	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, `{.*"build-id":.*`)

@@ -479,7 +479,7 @@ func PromptingSupportedByFeatures(apparmorFeatures *FeaturesSupported) (bool, st
 			return false, "apparmor kernel features do not support prompting for file access"
 		}
 	}
-	if !osutil.FileExists(NotifySocketPath) {
+	if !osutil.CanStat(NotifySocketPath) {
 		return false, "apparmor kernel notification socket required by prompting listener is not present"
 	}
 	version, err := probeKernelFeaturesPermstable32Version()
@@ -1012,7 +1012,7 @@ func UpdateHomedirsTunable(homedirs []string) error {
 	// not just an optimisation, but a necessity in Ubuntu Core: the
 	// /etc/apparmor.d/ tree is read-only, and attempting to create the file
 	// would generate an error.
-	if len(homedirs) == 0 && !osutil.FileExists(tunableFilePath) {
+	if len(homedirs) == 0 && !osutil.CanStat(tunableFilePath) {
 		return nil
 	}
 

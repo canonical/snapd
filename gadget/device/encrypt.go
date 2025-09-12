@@ -39,7 +39,7 @@ func encryptionMarkerUnder(deviceFDEDir string) string {
 // HasEncryptedMarkerUnder returns true when there is an encryption marker in a
 // given directory.
 func HasEncryptedMarkerUnder(deviceFDEDir string) bool {
-	return osutil.FileExists(encryptionMarkerUnder(deviceFDEDir))
+	return osutil.CanStat(encryptionMarkerUnder(deviceFDEDir))
 }
 
 // ReadEncryptionMarkers reads the encryption marker files at the appropriate

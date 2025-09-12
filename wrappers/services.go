@@ -936,7 +936,7 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
-		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.CanStat(app.ServiceFile()) {
 			continue
 		}
 		// Skip stop on refresh when refresh mode is set to something
@@ -1110,7 +1110,7 @@ func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 
 	// collect list of system units to disable and remove
 	for _, app := range s.Apps {
-		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() || !osutil.CanStat(app.ServiceFile()) {
 			continue
 		}
 

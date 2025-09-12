@@ -299,7 +299,7 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
 
-	if !osutil.FileExists(dirs.SnapStateFile) {
+	if !osutil.CanStat(dirs.SnapStateFile) {
 		// fail fast, mostly interesting for tests, this dir is setup
 		// by the snapd package
 		stateDir := filepath.Dir(dirs.SnapStateFile)

@@ -367,7 +367,7 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	// For now call the update-notifier script with similar inputs
 	// as apt/dpkg.
 	nrrPath := filepath.Join(dirs.GlobalRootDir, "/usr/share/update-notifier/notify-reboot-required")
-	if osutil.FileExists(nrrPath) {
+	if osutil.CanStat(nrrPath) {
 		var snapStr string
 		if rebootRequiredSnap == "" {
 			snapStr = "snapd"

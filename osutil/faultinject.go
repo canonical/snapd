@@ -46,7 +46,7 @@ func injectFault(tagKind string) (injected bool) {
 	tag := s[0]
 	kind := s[1]
 	stampFile := filepath.Join(injectSysroot, "/var/lib/snapd/faults", tagKind)
-	if FileExists(stampFile) {
+	if CanStat(stampFile) {
 		// already injected once
 		return false
 	}

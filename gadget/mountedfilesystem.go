@@ -216,7 +216,7 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
-	if osutil.FileExists(dst) && strutil.SortedListContains(preserveInDst, dst) {
+	if osutil.CanStat(dst) && strutil.SortedListContains(preserveInDst, dst) {
 		// entry shall be preserved
 		return nil
 	}
@@ -416,7 +416,7 @@ func (f *mountedFilesystemUpdater) Update() error {
 				continue
 			}
 
-			if strutil.SortedListContains(preserveInDst, destPath) || osutil.FileExists(preserveStamp) {
+			if strutil.SortedListContains(preserveInDst, destPath) || osutil.CanStat(preserveStamp) {
 				continue
 			}
 
@@ -518,21 +518,21 @@ func (f *mountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 		return fmt.Errorf("cannot update file %s: symbolic links are not supported", source)
 	}
 
-	if osutil.FileExists(ignoreStamp) {
+	if osutil.CanStat(ignoreStamp) {
 		// explicitly ignored by request of the observer
 		return ErrNoUpdate
 	}
 
-	if osutil.FileExists(dstPath) {
-		if strutil.SortedListContains(preserveInDst, dstPath) || osutil.FileExists(preserveStamp) {
+	if osutil.CanStat(dstPath) {
+		if strutil.SortedListContains(preserveInDst, dstPath) || osutil.CanStat(preserveStamp) {
 			// file is to be preserved
 			return ErrNoUpdate
 		}
-		if osutil.FileExists(sameStamp) {
+		if osutil.CanStat(sameStamp) {
 			// file is the same as current copy
 			return ErrNoUpdate
 		}
-		if !osutil.FileExists(backupName) {
+		if !osutil.CanStat(backupName) {
 			// not preserved & different than the update, error out
 			// as there is no backup
 			return fmt.Errorf("missing backup file %q for %v", backupName, target)
@@ -624,7 +624,7 @@ func (f *mountedFilesystemUpdater) Backup() error {
 			}
 			backupName := backupPath + ".backup"
 
-			if !osutil.FileExists(destPath) {
+			if !osutil.CanStat(destPath) {
 				continue
 			}
 
@@ -680,7 +680,7 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 		}
 
 		prefixBackupName := prefixBackupBase + ".backup"
-		if osutil.FileExists(prefixBackupName) {
+		if osutil.CanStat(prefixBackupName) {
 			continue
 		}
 		if !osutil.IsDirectory(prefixDst) {
@@ -761,7 +761,7 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		After: source,
 	}
 
-	if osutil.FileExists(ignoreStamp) {
+	if osutil.CanStat(ignoreStamp) {
 		// observer already requested the change to the target location
 		// to be ignored
 		return nil, nil
@@ -772,18 +772,18 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 		return nil, fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
 	}
 
-	if !osutil.FileExists(dstPath) {
+	if !osutil.CanStat(dstPath) {
 		// destination does not exist and will be created when writing
 		// the udpate, no need for backup
 		return changeNewFile, nil
 	}
 	// destination file exists beyond this point
 
-	if osutil.FileExists(backupName) {
+	if osutil.CanStat(backupName) {
 		// file already checked and backed up
 		return changeWithBackup, nil
 	}
-	if osutil.FileExists(sameStamp) {
+	if osutil.CanStat(sameStamp) {
 		// file already checked, same as the update, move on
 		return nil, nil
 	}
@@ -791,7 +791,7 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	// executed update pass
 
 	if strutil.SortedListContains(preserveInDst, dstPath) {
-		if osutil.FileExists(preserveStamp) {
+		if osutil.CanStat(preserveStamp) {
 			// already stamped
 			return nil, nil
 		}
@@ -923,7 +923,7 @@ func (f *mountedFilesystemUpdater) Rollback() error {
 func (f *mountedFilesystemUpdater) rollbackPrefix(dstRoot, target string, backupDir string) error {
 	for prefix := filepath.Dir(target); prefix != "/" && prefix != "."; prefix = filepath.Dir(prefix) {
 		prefixDstPath, prefixBackupPath := f.entryDestPaths(dstRoot, "", prefix, backupDir)
-		if !osutil.FileExists(prefixBackupPath + ".backup") {
+		if !osutil.CanStat(prefixBackupPath + ".backup") {
 			// try remove
 			if err := os.Remove(prefixDstPath); err != nil {
 				logger.Noticef("cannot remove gadget directory %q: %v", prefix, err)
@@ -972,16 +972,16 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 	preserveStamp := backupPath + ".preserve"
 	ignoreStamp := backupPath + ".ignore"
 
-	if strutil.SortedListContains(preserveInDst, dstPath) && osutil.FileExists(preserveStamp) {
+	if strutil.SortedListContains(preserveInDst, dstPath) && osutil.CanStat(preserveStamp) {
 		// file was preserved at original location by being
 		// explicitly listed
 		return nil
 	}
-	if osutil.FileExists(sameStamp) {
+	if osutil.CanStat(sameStamp) {
 		// contents are the same as original, do nothing
 		return nil
 	}
-	if osutil.FileExists(ignoreStamp) {
+	if osutil.CanStat(ignoreStamp) {
 		// observer requested the changes to the target to be ignored
 		// previously
 		return nil
@@ -993,7 +993,7 @@ func (f *mountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 		Before: backupName,
 	}
 
-	if osutil.FileExists(backupName) {
+	if osutil.CanStat(backupName) {
 		// restore backup -> destination
 		if err := writeFileOrSymlink(backupName, dstPath, nil); err != nil {
 			return err

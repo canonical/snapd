@@ -9824,7 +9824,7 @@ apps:
 	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
 	unitName := systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", fmt.Sprintf("%s.mount", "42"))))
 	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
-	if osutil.FileExists(mountFile) {
+	if osutil.CanStat(mountFile) {
 		c.Assert(os.Remove(mountFile), IsNil)
 	}
 
