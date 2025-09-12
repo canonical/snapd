@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -57,6 +58,7 @@ type snapYaml struct {
 	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
 	Links           map[string][]string      `yaml:"links,omitempty"`
 	Components      map[string]componentYaml `yaml:"components,omitempty"`
+	MountNamespace  string                   `yaml:"mount-namespace,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -251,9 +253,45 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 		return nil, err
 	}
 
+	if err := setMountNamespaceFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
 	// FIXME: validation of the fields
 
 	return snap, nil
+}
+
+func setMountNamespaceFromSnapYaml(y snapYaml, snap *Info) error {
+	switch y.MountNamespace {
+	case "ephemeral":
+		snap.MountNamespace = Ephemeral
+	case "persistent":
+		snap.MountNamespace = Persistent
+	case "host":
+		// Enforce one-to-one mapping between host mount namespace and classic confinement.
+		if y.Confinement != "classic" {
+			return errors.New("cannot use host mount namespace without classic confinement")
+		}
+		snap.MountNamespace = Host
+	default:
+		if snap.Confinement == "classic" {
+			snap.MountNamespace = Host
+		}
+		switch snap.Base {
+		case "", "core", "core18", "core20", "core22", "core24":
+			// Snaps using core bases, up until core24 (inclusive) use persistent mount namespace by default.
+			snap.MountNamespace = Persistent
+		case "bare":
+			// Bare snap is unversioned and retains the original menaning.
+			// TODO: have snapcraft recommend ephemeral mount namespace for snaps that have not declared their preference.
+			snap.MountNamespace = Persistent
+		default:
+			// Future base snaps imply ephemeral mount namespace.
+			snap.MountNamespace = Ephemeral
+		}
+	}
+	return nil
 }
 
 // infoSkeletonFromSnapYaml initializes an Info without apps, hook, plugs, or
