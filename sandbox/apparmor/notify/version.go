@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 )
@@ -118,10 +119,12 @@ func (v ProtocolVersion) likelySupported() (bool, error) {
 // require duplicate checks of support check functions.
 func likelySupportedProtocolVersion(unsupported map[ProtocolVersion]bool) (ProtocolVersion, bool) {
 	for _, v := range versions {
+		logger.Debugf("checking whether notify protocol version %d is supported", v)
 		if _, exists := unsupported[v]; exists {
 			continue
 		}
 		if supported, _ := v.likelySupported(); !supported {
+			logger.Debugf("notify protocol version %d likely unsupported", v)
 			unsupported[v] = true
 			continue
 		}
