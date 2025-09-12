@@ -36,8 +36,8 @@ var (
 	// the next version, etc.
 	versions = []ProtocolVersion{5, 3}
 
-	// apparmorMetadataTagsSupported allows tests to mock tags support.
-	apparmorMetadataTagsSupported = apparmor.MetadataTagsSupported
+	// apparmorMetadataTagsSupportedByKernel allows tests to mock tags support.
+	apparmorMetadataTagsSupportedByKernel = apparmor.MetadataTagsSupportedByKernel
 
 	// versionLikelySupportedChecks provides a function for each known protocol
 	// version which returns true if that version is supported by snapd and
@@ -60,7 +60,7 @@ var (
 			return true
 		},
 		5: func() bool {
-			if !apparmorMetadataTagsSupported() {
+			if !apparmorMetadataTagsSupportedByKernel() {
 				// Don't use v5 if tags are not supported
 				return false
 			}
