@@ -215,6 +215,17 @@ unmount /run/netns/ovnmeta-*,
 
 # Required by libvirtd to detect and utilise AMD SEV capabilities for AMD CPU's
 /dev/sev rw,
+
+# Required by OVS to initialize DPDK
+# https://doc.dpdk.org/guides/linux_gsg/enable_func.html
+@{PROC}/@{pids}/pagemap r,
+capability ipc_lock,
+# Allow anonymous files backed by huge pages.
+# https://gitlab.com/apparmor/apparmor/-/issues/545
+# Note that this rule doesn't allow top level files and directories to be removed.
+# At the same time, subpaths are expected to be on squashfs unless modified
+# through layouts.
+owner / rw,
 `
 
 const microStackSupportConnectedPlugSecComp = `
