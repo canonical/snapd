@@ -79,3 +79,30 @@ execute: |
   snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
   snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=foo' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
   snap run --shell test-custodian-snap.sh -c 'snapctl unset --view :manage-wifi ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
+
+  snap remove --purge test-custodian-snap_other test-custodian-snap
+  "$TESTSTOOLS"/snaps-state install-local waiting-custodian
+  # we want to check that a refresh of a custodian waits for any running custodian
+  # hooks. A refresh starting after the hook will hang on the pre-refresh hook
+  # (only one can run at once), so we'll refresh here and revert so that no pre-refresh
+  # hook runs and we approximate a custodian hook starting mid-refresh
+  "$TESTSTOOLS"/snaps-state install-local waiting-custodian
+  snap connect waiting-custodian:wifi-setup
+
+  # access confdb triggering a custodian hook that hangs
+  OLD_CHG=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  snap get developer1/network/wifi-setup ssid &>/dev/null &
+  pid="$!"
+  GET_CHG="$((OLD_CHG+1))"
+
+  retry -n 5 sh -c "snap change $GET_CHG | grep "Doing.*Run hook load-view-wifi-setup""
+
+  # try to "refresh" the custodian and check it waits before unlinking
+  REVERT_CHG="$(snap revert waiting-custodian --no-wait)"
+  retry -n 5 sh -c "snap change $REVERT_CHG | MATCH ".*Do.*Make current revision for snap \"waiting-custodian\" unavailable""
+
+  # unblock the custodian hook and check that the revert finished
+  touch /var/snap/waiting-custodian/common/flag
+  wait "$pid"
+  retry -n 5 sh -c "snap changes | tail -n 4 | MATCH \"$GET_CHG.*Done.*Get confdb through.*\""
+  retry -n 5 sh -c "snap changes | tail -n 4 | MATCH \"$REVERT_CHG.*Done.*Revert .waiting-custodian. snap\""
