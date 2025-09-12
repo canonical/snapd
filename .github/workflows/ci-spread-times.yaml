@@ -32,6 +32,9 @@ jobs:
           spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
 
       - name: Write the metrics to prometheus
+        env:
+          METRICS_HOST: ${{ secrets.METRICS_HOST }}
+          METRICS_PORT: ${{ secrets.METRICS_PORT }}
         run: |
           json_file="report.json"
 
