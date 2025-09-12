@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""
+A small CLI utility to push custom metrics to a Prometheus Pushgateway.
+
+Usage example:
+    ./post-metric gauge "5" --label test=firefox --label os=ubuntu --job snapd-ci
+
+This will send a metric of name 'gauge' with value '5' and labels
+'test=firefox' and 'os=ubuntu' to the Pushgateway.
+"""
+
+import argparse
+import os
+import sys
+
+import requests
+
+
+def build_endpoint(base_url: str, job_name: str, labels: dict[str, str]) -> str:
+    """
+    Construct the full Pushgateway endpoint URL.
+    """
+    path_parts = [f"{k}/{v}" for k, v in labels.items()]
+    path_str = "/".join(path_parts)
+    if path_str:
+        return f"{base_url}/metrics/job/{job_name}/{path_str}"
+    else:
+        return f"{base_url}/metrics/job/{job_name}"
+
+
+def post_metric(base_url: str, job_name: str, metric_name: str, metric_value: str, labels: dict[str, str]) -> int:
+    """
+    Send a metric to the Pushgateway.
+
+    Returns:
+        int: 0 if success, 1 if error.
+    """
+    timeout = 10  # timeout used to post metrics
+    endpoint = build_endpoint(base_url, job_name, labels)    
+    data = f"{metric_name} {metric_value}\n"
+
+    response = requests.post(endpoint, data=data, timeout=timeout)
+    if not response.ok:
+        print(f"Error posting '{data}' to metrics endpoint: {response.text}", file=sys.stderr)
+        return 1
+
+
+def parse_labels(label_args: list[str]) -> dict[str, str]:
+    """
+    Parse CLI label arguments into a dictionary.
+    """
+    labels = {}
+    for label in label_args:
+        if '=' not in label:
+            print(f"Invalid label format: {label}. Use name=value", file=sys.stderr)
+            continue
+        key, value = label.split('=', 1)
+        labels[key] = value
+    return labels
+
+
+def main() -> int:
+    """
+    Command-line entry point.
+
+    Parses arguments, prepares labels, and pushes the metric to the Pushgateway.
+    Returns exit code 0 on success, 1 on failure.
+    """
+    parser = argparse.ArgumentParser(description="Push metrics to Prometheus Pushgateway")
+    parser.add_argument("name", help="Metric name")
+    parser.add_argument("value", help="Metric value (raw text)")
+    parser.add_argument("--job", default="snapd-ci", help="Job name")
+    parser.add_argument("--label", action='append', default=[], help="Labels in name=value format")
+    parser.add_argument("--host", help="Pushgateway host (default from METRICS_HOST or 'localhost')")
+    parser.add_argument("--port", type=int, help="Pushgateway port (default from METRICS_PORT or 9091)")
+    args = parser.parse_args()
+
+    # Determine host/port: CLI > env var > default
+    host = args.host or os.environ.get("METRICS_HOST", "localhost")
+    port = args.port or int(os.environ.get("METRICS_PORT", "9091"))
+
+    base_url = f"http://{host}:{port}"
+
+    labels = parse_labels(args.label)
+    return post_metric(base_url, args.job, args.name, args.value, labels)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
