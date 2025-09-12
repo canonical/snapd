@@ -1448,7 +1448,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 				EncryptedDevice: "/dev/mapper/ubuntu-data",
 			},
 		}
-		esd = install.MockEncryptionSetupData(labelToEncData, "", nil)
+		esd = install.MockEncryptionSetupData(labelToEncData, "", nil, nil)
 	}
 	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, nil, timings.New(nil))
 	c.Assert(err, IsNil)
@@ -1537,10 +1537,13 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 		return nil
 	})()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.volumesAuth, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
+	checkContext := &secboot.PreinstallCheckContext{}
+
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.volumesAuth, opts.encryptType, checkContext, model, gadgetRoot, "", timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	c.Assert(encryptSetup.VolumesAuth(), Equals, opts.volumesAuth)
+	c.Assert(encryptSetup.PreinstallCheckContext(), Equals, checkContext)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
 		"ubuntu-save": "/dev/mapper/ubuntu-save",
 		"ubuntu-data": "/dev/mapper/ubuntu-data",
@@ -1574,7 +1577,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, nil, model, gadgetRoot, "", timings.New(nil))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)
@@ -1681,7 +1684,7 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 				EncryptedDevice: "/dev/mapper/ubuntu-data",
 			},
 		}
-		esd = install.MockEncryptionSetupData(labelToEncData, "", nil)
+		esd = install.MockEncryptionSetupData(labelToEncData, "", nil, nil)
 	}
 
 	// 10 million mocks later ...

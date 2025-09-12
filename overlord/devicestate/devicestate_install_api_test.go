@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -522,7 +523,30 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		s.AddCleanup(restore)
 
 		// Insert encryption set-up data in state cache
-		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, recoveryKeyID, opts.volumesAuth)
+		var checkContext *secboot.PreinstallCheckContext
+		if opts.hasSystemSeed && opts.installClassic {
+			// hybrid classic
+			checkContext = preinstallCheckContext
+			restore = installLogic.MockSecbootSaveCheckResult(func(pcc *secboot.PreinstallCheckContext, filename string) error {
+				var err error
+				if pcc != preinstallCheckContext {
+					return fmt.Errorf("test error: MockSecbootSaveCheckResult received unexpected check context")
+				}
+				if !strings.HasSuffix(filename, "run/mnt/ubuntu-save/device/fde/preinstall") {
+					return fmt.Errorf("test error: MockSecbootSaveCheckResult received unexpected filename %s", filename)
+				}
+				dir := filepath.Dir(filename)
+				if err = os.MkdirAll(dir, 0755); err != nil {
+					return fmt.Errorf("test error: MockSecbootSaveCheckResult failed to create dir %s", dir)
+				}
+				if err = osutil.AtomicWriteFile(filename, []byte{}, 0600, 0); err != nil {
+					return fmt.Errorf("test error: MockSecbootSaveCheckResult failed to create file %s", filename)
+				}
+				return err
+			})
+			s.AddCleanup(restore)
+		}
+		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, recoveryKeyID, opts.volumesAuth, checkContext)
 		s.AddCleanup(restore)
 
 		// Write expected boot assets needed when creating bootchain
@@ -668,6 +692,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/marker"),
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/ubuntu-save.key"),
 			filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/marker"))
+
+		if opts.hasSystemSeed && opts.installClassic {
+			// hybrid classic
+			expectedFiles = append(expectedFiles, filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/preinstall"))
+		}
 	}
 	if opts.hasKernelModsComps {
 		expectedFiles = append(expectedFiles,
@@ -715,11 +744,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithRecover
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionAndSystemSeedHappy(c *C) {
-	s.testInstallFinishStep(c, finishStepOpts{
-		encrypted:      true,
-		installClassic: true,
-		hasSystemSeed:  true,
-	})
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, hasSystemSeed: true})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionPartialHappy(c *C) {
@@ -820,13 +845,27 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 	gadgetSnapPath, kernelSnapPath, _, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, hasTPM)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, hasTPM)
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0
-	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+	restore := devicestate.MockInstallEncryptPartitions(func(
+		onVolumes map[string]*gadget.Volume,
+		volumesAuth *device.VolumesAuthOptions,
+		encryptionType device.EncryptionType,
+		checkContext *secboot.PreinstallCheckContext,
+		model *asserts.Model,
+		gadgetRoot,
+		kernelRoot string,
+		perfTimings timings.Measurer,
+	) (*install.EncryptionSetupData, error) {
 		encrytpPartCalls++
 		c.Check(encryptionType, Equals, device.EncryptionTypeLUKS)
+		if isSupportedHybrid {
+			c.Check(checkContext, DeepEquals, preinstallCheckContext)
+		} else {
+			c.Check(checkContext, IsNil)
+		}
 		saveFound := false
 		dataFound := false
 		for _, strct := range onVolumes["pc"].Structure {
@@ -877,6 +916,13 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	if isSupportedHybrid {
+		c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
+	} else {
+		c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
+	}
 
 	// Checks now
 	if !hasTPM {
@@ -1093,9 +1139,18 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
 
-	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, encryptionType device.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+	restore := devicestate.MockInstallEncryptPartitions(func(
+		onVolumes map[string]*gadget.Volume,
+		volumesAuth *device.VolumesAuthOptions,
+		encryptionType device.EncryptionType,
+		checkContext *secboot.PreinstallCheckContext,
+		model *asserts.Model,
+		gadgetRoot,
+		kernelRoot string,
+		perfTimings timings.Measurer,
+	) (*install.EncryptionSetupData, error) {
 		return &install.EncryptionSetupData{}, nil
 	})
 	s.AddCleanup(restore)
@@ -1120,6 +1175,9 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
 
 	// Checks now
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
