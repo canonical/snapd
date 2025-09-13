@@ -24,9 +24,11 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/integrity/dmverity"
 	"github.com/snapcore/snapd/testutil"
@@ -224,4 +226,68 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataAnyError(c *C) {
 	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, nil)
 	c.Check(hashFileName, Equals, "")
 	c.Check(err, ErrorMatches, "any other error")
+}
+
+func makeMockSnapRevisionAssertion(c *C, integrityData string) *asserts.SnapRevision {
+	hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	ts := time.Now().Truncate(time.Second).UTC()
+	tsLine := "timestamp: " + ts.Format(time.RFC3339) + "\n"
+
+	assertsString := "type: snap-revision\n" +
+		"authority-id: store-id1\n" +
+		"snap-sha3-384: " + hash + "\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-size: 123\n" +
+		"snap-revision: 1\n" +
+		integrityData +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	a, err := asserts.Decode([]byte(assertsString))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
+	snapRev := a.(*asserts.SnapRevision)
+
+	return snapRev
+}
+
+func (s *IntegrityTestSuite) TestNewIntegrityDataParamsFromRevision(c *C) {
+	verity_hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	verity_salt := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	integrityData := "integrity:\n" +
+		"  -\n" +
+		"    type: dm-verity\n" +
+		"    digest: " + verity_hash + "\n" +
+		"    version: 1\n" +
+		"    hash-algorithm: sha256\n" +
+		"    data-block-size: 4096\n" +
+		"    hash-block-size: 4096\n" +
+		"    salt: " + verity_salt + "\n"
+	rev := makeMockSnapRevisionAssertion(c, integrityData)
+
+	expectedParams := &integrity.IntegrityDataParams{
+		Type:          "dm-verity",
+		Version:       0x1,
+		HashAlg:       "sha256",
+		DataBlocks:    0x0,
+		DataBlockSize: 0x1000,
+		HashBlockSize: 0x1000,
+		Digest:        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Salt:          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+
+	params, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+	c.Check(err, IsNil)
+	c.Check(params, DeepEquals, expectedParams)
+}
+
+func (s *IntegrityTestSuite) TestNewIntegrityDataParamsFromRevisionNotFound(c *C) {
+	rev := makeMockSnapRevisionAssertion(c, "")
+	_, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+	c.Check(err, Equals, integrity.ErrNoIntegrityDataFoundInRevision)
 }
