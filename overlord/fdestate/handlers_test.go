@@ -850,7 +850,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeysNoop(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
-func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
+func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
@@ -899,7 +899,7 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
 		},
 		{
 			authMode: device.AuthModePassphrase, recoveryMode: true,
-			expectedErr: "cannot add protected keys if the system was unlocked with a recovery key during boot",
+			expectedErr: "cannot add platform keys if the system was unlocked with a recovery key during boot",
 		},
 		{
 			authMode:    device.AuthModePassphrase,
@@ -929,7 +929,7 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
 				"/dev/disk/by-uuid/data:tmp-default-1",
 				"/dev/disk/by-uuid/data:tmp-default-2",
 			},
-			expectedErr: `cannot add protected key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
@@ -967,8 +967,11 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
 		var volumesAuth *device.VolumesAuthOptions
 		if !tc.noVolumesAuth {
 			volumesAuth = &device.VolumesAuthOptions{Mode: tc.authMode}
-			if tc.authMode == device.AuthModePassphrase {
+			switch tc.authMode {
+			case device.AuthModePassphrase:
 				volumesAuth.Passphrase = "password"
+			case device.AuthModePIN:
+				volumesAuth.PIN = "1234"
 			}
 			s.st.Cache(fdestate.VolumesAuthOptionsKey(), volumesAuth)
 		}
@@ -1005,7 +1008,7 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
 
 		c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
-		task := s.st.NewTask("fde-add-protected-keys", "test")
+		task := s.st.NewTask("fde-add-platform-keys", "test")
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
 		task.Set("roles", roles)
@@ -1055,7 +1058,7 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeys(c *C) {
 	}
 }
 
-func (s *fdeMgrSuite) TestDoAddProtectedKeysIdempotence(c *C) {
+func (s *fdeMgrSuite) TestDoAddPlatformKeysIdempotence(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
@@ -1117,7 +1120,7 @@ func (s *fdeMgrSuite) TestDoAddProtectedKeysIdempotence(c *C) {
 	chg := s.st.NewChange("sample", "...")
 
 	for i := 1; i <= 3; i++ {
-		t := s.st.NewTask("fde-add-protected-keys", "test")
+		t := s.st.NewTask("fde-add-platform-keys", "test")
 		t.Set("keyslots", keyslotRefs)
 		t.Set("auth-mode", device.AuthModeNone)
 		t.Set("roles", roles)

@@ -477,7 +477,7 @@ func (s *fdeMgrSuite) TestSystemEncryptedFromStateNoEncryptedDisks(c *C) {
 	s.testSystemEncryptedFromState(c, hasEncryptedDisks)
 }
 
-func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, defaultKeyslots bool) {
+func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, defaultKeyslots bool) {
 	keyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default"},
 	}
@@ -498,7 +498,7 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "password"}
 		keyType = "passphrase"
 	case device.AuthModePIN:
-		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
 		keyType = "pin"
 	}
 
@@ -526,9 +526,9 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 	var ts *state.TaskSet
 	var err error
 	if defaultKeyslots {
-		ts, err = fdestate.ReplaceProtectedKey(s.st, volumesAuth, nil)
+		ts, err = fdestate.ReplacePlatformKey(s.st, volumesAuth, nil)
 	} else {
-		ts, err = fdestate.ReplaceProtectedKey(s.st, volumesAuth, keyslots)
+		ts, err = fdestate.ReplacePlatformKey(s.st, volumesAuth, keyslots)
 	}
 	if authMode == device.AuthModePIN {
 		// this is expected to break when PIN support lands
@@ -542,7 +542,7 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 	c.Check(tsks, HasLen, 3)
 
 	c.Check(tsks[0].Summary(), Matches, fmt.Sprintf("Add temporary %s key slots", keyType))
-	c.Check(tsks[0].Kind(), Equals, "fde-add-protected-keys")
+	c.Check(tsks[0].Kind(), Equals, "fde-add-platform-keys")
 	// check tmp key slots are passed to task
 	var tskKeyslots []fdestate.KeyslotRef
 	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
@@ -597,31 +597,31 @@ func (s *fdeMgrSuite) testReplaceProtectedKey(c *C, authMode device.AuthMode, de
 	}
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeyAuthModeNone(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeyAuthModeNone(c *C) {
 	const defaultKeyslots = false
 	const authMode = device.AuthModeNone
-	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+	s.testReplacePlatformKey(c, authMode, defaultKeyslots)
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeyAuthModePassphrase(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeyAuthModePassphrase(c *C) {
 	const defaultKeyslots = false
 	const authMode = device.AuthModePassphrase
-	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+	s.testReplacePlatformKey(c, authMode, defaultKeyslots)
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeyAuthModePIN(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeyAuthModePIN(c *C) {
 	const defaultKeyslots = false
 	const authMode = device.AuthModePIN
-	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+	s.testReplacePlatformKey(c, authMode, defaultKeyslots)
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeyDefaultKeyslots(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeyDefaultKeyslots(c *C) {
 	const defaultKeyslots = true
 	const authMode = device.AuthModeNone
-	s.testReplaceProtectedKey(c, authMode, defaultKeyslots)
+	s.testReplacePlatformKey(c, authMode, defaultKeyslots)
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeyErrors(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
 		switch fmt.Sprintf("%s:%s", devicePath, slotName) {
 		case "/dev/disk/by-uuid/data:default":
@@ -649,27 +649,27 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeyErrors(c *C) {
 	defer s.st.Unlock()
 
 	// unsupported auth mode
-	_, err := fdestate.ReplaceProtectedKey(s.st, &device.VolumesAuthOptions{Mode: "unknown"}, nil)
+	_, err := fdestate.ReplacePlatformKey(s.st, &device.VolumesAuthOptions{Mode: "unknown"}, nil)
 	c.Assert(err, ErrorMatches, `invalid authentication mode "unknown", only "passphrase" and "pin" modes are supported`)
 
 	// invalid key slot reference
 	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "", name: "some-name"\): container role cannot be empty`)
 
 	// invalid key slot reference
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-recovery"}
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default-recovery"\): unsupported name, expected "default" or "default-fallback"`)
 
 	// missing keyslot
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-fallback"\) not found`)
 
 	// keyslot key data loading error
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `cannot read key data for \(container-role: "system-data", name: "default-fallback"\): cannot read key data for "default-fallback" from "/dev/disk/by-uuid/data": boom!`)
 
 	// bad keyslot type (recovery instead of platform)
@@ -677,7 +677,7 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeyErrors(c *C) {
 	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}}, nil)
 	s.st.Lock()
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported type "recovery", expected "platform"`)
 
 	// recovery mode
@@ -685,7 +685,7 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeyErrors(c *C) {
 		UbuntuData: boot.PartitionState{UnlockKey: "recovery"},
 	}
 	c.Assert(unlockState.WriteTo("unlocked.json"), IsNil)
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, nil)
 	c.Assert(err, ErrorMatches, "system was unlocked with a recovery key during boot: reboot required")
 	// cleanup
 	c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil)
@@ -694,7 +694,7 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeyErrors(c *C) {
 	chg := s.st.NewChange("fde-change-passphrase", "")
 	task := s.st.NewTask("some-fde-task", "")
 	chg.AddTask(task)
-	_, err = fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	_, err = fdestate.ReplacePlatformKey(s.st, nil, nil)
 	c.Assert(err, ErrorMatches, `changing passphrase in progress, no other FDE changes allowed until this is done`)
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 	// cleanup
@@ -733,14 +733,14 @@ type: base
 		c.Assert(err, IsNil)
 		chg = s.st.NewChange("install-essential-snap", "")
 		chg.AddAll(ts)
-		_, err = fdestate.ReplaceProtectedKey(s.st, nil, nil)
+		_, err = fdestate.ReplacePlatformKey(s.st, nil, nil)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q has "install-essential-snap" change in progress`, sn.name))
 		// cleanup
 		chg.Abort()
 	}
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeyConflictSnaps(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeyConflictSnaps(c *C) {
 	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
 		return &mockKeyData{authMode: device.AuthModeNone, platformName: "tpm2"}, nil
 	})()
@@ -760,7 +760,7 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeyConflictSnaps(c *C) {
 	s.st.Set("seeded", true)
 
 	// mock change in progress
-	ts, err := fdestate.ReplaceProtectedKey(s.st, nil, nil)
+	ts, err := fdestate.ReplacePlatformKey(s.st, nil, nil)
 	c.Assert(err, IsNil)
 	chg := s.st.NewChange("fde-change", "")
 	chg.AddAll(ts)
@@ -812,7 +812,7 @@ type: app
 	}
 }
 
-func (s *fdeMgrSuite) TestReplaceProtectedKeySecbootPlatforms(c *C) {
+func (s *fdeMgrSuite) TestReplacePlatformKeySecbootPlatforms(c *C) {
 	// initialize fde manager
 	onClassic := true
 	s.startedManager(c, onClassic)
@@ -832,7 +832,7 @@ func (s *fdeMgrSuite) TestReplaceProtectedKeySecbootPlatforms(c *C) {
 			return &mockKeyData{authMode: device.AuthModeNone, platformName: platform}, nil
 		})()
 
-		ts, err := fdestate.ReplaceProtectedKey(s.st, nil, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}})
+		ts, err := fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}})
 		switch platform {
 		case "tpm2":
 			// only supported platform currently is "tpm2"

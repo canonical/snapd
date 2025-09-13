@@ -70,6 +70,10 @@ func (s *systemVolumesSuite) SetUpTest(c *C) {
 				Interfaces: []string{"snap-fde-control"},
 				Polkit:     "io.snapcraft.snapd.manage-fde",
 			},
+			"replace-platform-key": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
 		},
 		Default: daemon.RootAccess{},
 	}
@@ -364,6 +368,175 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKey
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Equals, "system volume action requires key-id to be provided")
+}
+
+func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, authMode device.AuthMode) {
+	d := s.daemon(c)
+	s.mockHybridSystem()
+	st := d.Overlord().State()
+
+	d.Overlord().Loop()
+	defer d.Overlord().Stop()
+
+	called := 0
+	s.AddCleanup(daemon.MockFdestateReplacePlatformKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		called++
+		switch authMode {
+		case device.AuthModeNone:
+			c.Check(volumesAuth, IsNil)
+		case device.AuthModePassphrase:
+			c.Check(*volumesAuth, DeepEquals, device.VolumesAuthOptions{
+				Mode:       device.AuthModePassphrase,
+				Passphrase: "passw0rd",
+				KDFType:    "argon2id",
+				KDFTime:    1001,
+			})
+		case device.AuthModePIN:
+			c.Check(*volumesAuth, DeepEquals, device.VolumesAuthOptions{
+				// TODO:FDEM: check PIN is passed
+				Mode:    device.AuthModePIN,
+				KDFTime: 1002,
+			})
+		default:
+			c.Errorf("unexpected auth-mode %q", authMode)
+		}
+		c.Check(keyslotRefs, DeepEquals, []fdestate.KeyslotRef{
+			{ContainerRole: "some-container-role", Name: "some-name"},
+		})
+
+		return state.NewTaskSet(st.NewTask("some-task", "")), nil
+	}))
+
+	bodyTemplate := `
+{
+	"action": "replace-platform-key",
+	"keyslots": [
+		{"container-role": "some-container-role", "name": "some-name"}
+	],
+%s
+}`
+
+	var bodyRaw string
+	switch authMode {
+	case device.AuthModeNone:
+		bodyRaw = fmt.Sprintf(bodyTemplate, `
+	"auth-mode": "none"
+`)
+	case device.AuthModePassphrase:
+		bodyRaw = fmt.Sprintf(bodyTemplate, `
+	"auth-mode": "passphrase",
+	"passphrase": "passw0rd",
+	"kdf-type": "argon2id",
+	"kdf-time": 1001
+`)
+	case device.AuthModePIN:
+		bodyRaw = fmt.Sprintf(bodyTemplate, `
+	"auth-mode": "pin",
+	"pin": "p1n",
+	"kdf-time": 1002
+`)
+	}
+
+	body := strings.NewReader(bodyRaw)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	if authMode == device.AuthModePIN {
+		// PIN support is not implemented
+		rsp := s.errorReq(c, req, nil, actionIsExpected)
+		c.Assert(rsp.Status, Equals, 400)
+		c.Check(rsp.Message, Equals, `invalid platform key options: "pin" authentication mode is not implemented`)
+		return
+	}
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 202)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	tsks := chg.Tasks()
+	st.Unlock()
+	c.Check(chg, NotNil)
+	c.Check(chg.ID(), Equals, "1")
+	c.Check(chg.Kind(), Equals, "fde-replace-platform-key")
+	c.Assert(tsks, HasLen, 1)
+	c.Check(tsks[0].Kind(), Equals, "some-task")
+	c.Check(called, Equals, 1)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModeNone(c *C) {
+	const authMode = device.AuthModeNone
+	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePassphrase(c *C) {
+	const authMode = device.AuthModePassphrase
+	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyAuthModePIN(c *C) {
+	const authMode = device.AuthModePIN
+	s.testSystemVolumesActionReplacePlatformKey(c, authMode)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyError(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	// make sure authentication options validation is called
+	body := strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "1234", "pin": "1234"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Message, Equals, "invalid platform key options: passphrase and pin cannot be set at the same time")
+
+	var mockErr error
+	s.AddCleanup(daemon.MockFdestateReplacePlatformKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		return nil, mockErr
+	}))
+
+	// catch all, bad request error
+	body = strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "none"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	mockErr = errors.New("boom!")
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Message, Equals, "cannot replace platform key: boom!")
+
+	// typed conflict detection error kind
+	mockErr = &snapstate.ChangeConflictError{
+		Message: fmt.Sprintf("conflict error: boom!"),
+	}
+	body = strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "none"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 409)
+	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rsp.Message, Equals, "conflict error: boom!")
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyMissingAuthMode(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	body := strings.NewReader(`{"action": "replace-platform-key"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Equals, "system volume action requires auth-mode to be provided")
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {

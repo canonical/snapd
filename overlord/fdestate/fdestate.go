@@ -639,14 +639,14 @@ func SystemEncryptedFromState(st *state.State) (bool, error) {
 
 type volumesAuthOptionsKey struct{}
 
-// ReplaceProtectedKey creates a taskset that replaces the
-// protected key for the specified target key slots.
+// ReplacePlatformKey creates a taskset that replaces the
+// platform protected key for the specified target key slots.
 //
 // If keyslotRefs is empty, the following key slots are targets:
 //   - container-role: system-data, name: default
 //   - container-role: system-data, name: default-fallback
 //   - container-role: system-save, name: default-fallback
-func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
 	authMode := device.AuthModeNone
 	if volumesAuth != nil {
 		if err := volumesAuth.Validate(); err != nil {
@@ -668,7 +668,7 @@ func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions
 	}
 
 	if len(keyslotRefs) == 0 {
-		// by default, target protected keys that would have been added during installation.
+		// by default, target platform keys that would have been added during installation.
 		keyslotRefs = append(keyslotRefs,
 			KeyslotRef{ContainerRole: "system-data", Name: "default"},
 			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
@@ -754,7 +754,7 @@ func ReplaceProtectedKey(st *state.State, volumesAuth *device.VolumesAuthOptions
 
 	ts := state.NewTaskSet()
 
-	addTemporaryKeys := st.NewTask("fde-add-protected-keys", fmt.Sprintf("Add temporary %s key slots", keyType))
+	addTemporaryKeys := st.NewTask("fde-add-platform-keys", fmt.Sprintf("Add temporary %s key slots", keyType))
 	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
 	addTemporaryKeys.Set("auth-mode", authMode)
 	addTemporaryKeys.Set("roles", tmpKeyslotRoles)

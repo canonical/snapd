@@ -38,6 +38,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 	var chgToErr = map[string]string{
 		"fde-efi-secureboot-db-update": "external EFI DBX update in progress, no other FDE changes allowed until this is done",
 		"fde-replace-recovery-key":     "replacing recovery key in progress, no other FDE changes allowed until this is done",
+		"fde-replace-platform-key":     "replacing platform key in progress, no other FDE changes allowed until this is done",
 		"fde-change-passphrase":        "changing passphrase in progress, no other FDE changes allowed until this is done",
 		"some-fde-change":              "FDE change in progress, no other FDE changes allowed until this is done",
 
@@ -85,7 +86,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 
 }
 
-func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
+func (s *fdeMgrSuite) TestAddPlatformKeysAffectedSnaps(c *C) {
 	st := s.st
 	onClassic := true
 	s.startedManager(c, onClassic)
@@ -98,7 +99,7 @@ func (s *fdeMgrSuite) TestAddProtectedKeysAffectedSnaps(c *C) {
 
 	tsk := st.NewTask("foo", "foo task")
 
-	names, err := fdestate.AddProtectedKeysAffectedSnaps(tsk)
+	names, err := fdestate.AddPlatformKeysAffectedSnaps(tsk)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{
 		"pc",        // gadget

@@ -214,7 +214,7 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error) {
+func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -265,7 +265,7 @@ func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error)
 	if unlockedWithRecoveryKey {
 		// primary key might be missing from kernel keyring if disk was
 		// unlocked with recovery key during boot.
-		return errors.New("cannot add protected keys if the system was unlocked with a recovery key during boot")
+		return errors.New("cannot add platform keys if the system was unlocked with a recovery key during boot")
 	}
 
 	containers, err := m.GetEncryptedContainers()
@@ -346,7 +346,7 @@ func (m *FDEManager) doAddProtectedKeys(t *state.Task, _ *tomb.Tomb) (err error)
 		}
 		// TODO:FDEM: support FDE hook setup
 		if err := secbootAddContainerTPMProtectedKey(devicePath, ref.Name, &params); err != nil {
-			return fmt.Errorf("cannot add protected key slot %s: %v", ref.String(), err)
+			return fmt.Errorf("cannot add platform key slot %s: %v", ref.String(), err)
 		}
 
 		addedKeyslots = append(addedKeyslots, ref)
