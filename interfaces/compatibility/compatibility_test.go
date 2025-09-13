@@ -77,6 +77,8 @@ func (s *CompatSuite) TestValidCompatFields(c *C) {
 		cfield, err := compatibility.DecodeCompatField(tc.compat, nil)
 		c.Assert(err, IsNil)
 		c.Check(cfield, DeepEquals, tc.cfield)
+		cfield, err = compatibility.DecodeCompatField(cfield.String(), nil)
+		c.Check(cfield, DeepEquals, tc.cfield)
 	}
 }
 
@@ -134,26 +136,26 @@ func (s *CompatSuite) TestInvalidCompatFields(c *C) {
 		compat string
 		err    string
 	}{
-		{"", `compatibility label "": bad string ""`},
-		{"3foo", `compatibility label "3foo": bad string "3foo"`},
-		{"-foo", `compatibility label "-foo": bad string ""`},
-		{"foo-", `compatibility label "foo-": "" is not a valid string`},
-		{"foo-2-foo-5", `compatibility label "foo-2-foo-5": string "foo" appears more than once`},
-		{"foo-(0..0)-foo-5-other", `compatibility label "foo-(0..0)-foo-5-other": string "foo" appears more than once`},
-		{"foo-01", `compatibility label "foo-01": "01" is not a valid string`},
-		{"foo-(01..5)", `compatibility label "foo-(01..5)": "(01..5)" is not a valid string`},
-		{"foo-(1..05)", `compatibility label "foo-(1..05)": "(1..05)" is not a valid string`},
-		{"foo-bar-", `compatibility label "foo-bar-": "" is not a valid string`},
+		{"", `compatibility label "": empty compatibility string`},
+		{"3foo", `compatibility label "3foo": while parsing: unexpected rune: 3`},
+		{"-foo", `compatibility label "-foo": while parsing: unexpected rune: -`},
+		{"foo-", `compatibility label "foo-": while parsing: no rune after dash`},
+		{"foo-2-foo-5", `compatibility label "foo-2-foo-5": repeated string in label: foo`},
+		{"foo-(0..0)-foo-5-other", `compatibility label "foo-(0..0)-foo-5-other": repeated string in label: foo`},
+		{"foo-01", `compatibility label "foo-01": while parsing: integers not allowed to start with 0: 01`},
+		{"foo-(01..5)", `compatibility label "foo-(01..5)": while parsing: integers not allowed to start with 0: 01`},
+		{"foo-(1..05)", `compatibility label "foo-(1..05)": while parsing: integers not allowed to start with 0: 05`},
+		{"foo-bar-", `compatibility label "foo-bar-": while parsing: no rune after dash`},
 		// More than 32 characters in tag
-		{"a12345678901234567890123456789012", `compatibility label "a12345678901234567890123456789012": bad string "a12345678901234567890123456789012"`},
-		{"fooBar", `compatibility label "fooBar": bad string "fooBar"`},
+		{"a12345678901234567890123456789012", `compatibility label "a12345678901234567890123456789012": string is longer than 32 characters: a12345678901234567890123456789012`},
+		{"fooBar", `compatibility label "fooBar": while parsing: unexpected rune after string: B`},
 		// More than 8 digits
-		{"foo-012345678", `compatibility label "foo-012345678": "012345678" is not a valid string`},
-		{"foo-(10..012345678)", `compatibility label "foo-(10..012345678)": "(10..012345678)" is not a valid string`},
+		{"foo-012345678", `compatibility label "foo-012345678": while parsing: integers not allowed to start with 0: 012345678`},
+		{"foo-(10..012345678)", `compatibility label "foo-(10..012345678)": while parsing: integers not allowed to start with 0: 012345678`},
 		{"foo-bar-baz-other", `compatibility label "foo-bar-baz-other": only 3 strings allowed`},
 		{"foo-1-2-3-4", `compatibility label "foo-1-2-3-4": only 3 integer/integer ranges allowed per string`},
-		{"bar-3-(2..1)", `compatibility label "bar-3-(2..1)": invalid range "(2..1)"`},
-		{"bar-3-(2 ..99)", `compatibility label "bar-3-(2 ..99)": "(2 ..99)" is not a valid string`},
+		{"bar-3-(2..1)", `compatibility label "bar-3-(2..1)": negative range specified: (2..1)`},
+		{"bar-3-(2 ..99)", `compatibility label "bar-3-(2 ..99)": while parsing: unexpected rune after range left integer:  `},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
@@ -245,12 +247,30 @@ func (s *CompatSuite) TestCompatibility(c *C) {
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 
-		field1, err := compatibility.DecodeCompatField(tc.compat1, nil)
-		c.Assert(err, IsNil)
-		field2, err := compatibility.DecodeCompatField(tc.compat2, nil)
-		c.Assert(err, IsNil)
-		c.Check(compatibility.CheckCompatibility(*field1, *field2), Equals, tc.result)
-		// Must be symmetric
-		c.Check(compatibility.CheckCompatibility(*field2, *field1), Equals, tc.result)
+		c.Check(compatibility.CheckCompatibility(tc.compat1, tc.compat2), Equals, tc.result)
+	}
+}
+
+func (s *CompatSuite) TestCompatibilityExpressions(c *C) {
+	for i, tc := range []struct {
+		compat1, compat2 string
+		result           bool
+	}{
+		{"foo", "foo OR bar", true},
+		{"foo", "foo AND bar", false},
+		{"foo OR bar", "foo AND bar", true},
+		{"foo AND bar", "foo AND bar", true},
+		{"foo AND bar", "foo AND bar AND baz", false},
+		{"foo OR bar", "foo AND bar AND baz", false},
+		{"foo AND bar", "foo OR bar OR baz", true},
+		{"(foo AND bar) OR (oof AND rab)", "foo OR bar", true},
+		{"(foo AND bar) OR (oof AND rab)", "foo OR oof", false},
+		{"(foo AND bar) OR (oof AND rab)", "foo AND oof", false},
+		{"foo-3 OR bar-rab-6", "foo-(1..3) AND bar-rab-(6..99)", true},
+		{"foo-3 OR bar-rab-6", "foo-(1..3) AND bar-rab-1", false},
+	} {
+		c.Logf("tc %d: %+v", i, tc)
+
+		c.Check(compatibility.CheckCompatibility(tc.compat1, tc.compat2), Equals, tc.result)
 	}
 }
