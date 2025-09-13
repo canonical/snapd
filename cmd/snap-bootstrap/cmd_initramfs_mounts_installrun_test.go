@@ -228,6 +228,7 @@ echo '{"features":[]}'
 			boot.InitramfsDataDir,
 			bindDataOpts,
 			nil,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -392,6 +393,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 			boot.InitramfsDataDir,
 			bindDataOpts,
 			nil,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -443,6 +445,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 			nil,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -488,6 +491,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
