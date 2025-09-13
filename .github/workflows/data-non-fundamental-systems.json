@@ -81,10 +81,10 @@
         "rules": "main"
       },
       {
-        "group": "ubuntu-core-22",
+        "group": "ubuntu-core-20",
         "backend": "openstack-ps7",
         "alternative-backend": "google-core",
-        "systems": "ubuntu-core-22-64",
+        "systems": "ubuntu-core-20-64",
         "tasks": "tests/...",
         "rules": "main"
       },
