@@ -950,3 +950,44 @@ apps:
 	_, err = internal.GenerateSnapServiceUnitFile(app, nil)
 	c.Assert(err, ErrorMatches, `internal error: unknown plug service snippet section "bad"`)
 }
+
+func (s *serviceUnitGenSuite) TestSuccessExitStatus(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.SystemDaemon,
+		SuccessExitStatus: []string{"TEMPFAIL", "250", "SIGKILL"},
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=TEMPFAIL 250 SIGKILL\n.*`)
+}
+
+func (s *serviceUnitGenSuite) TestSuccessExitStatusEmpty(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+		// No SuccessExitStatus specified
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	// Should not contain SuccessExitStatus line
+	c.Check(string(generatedWrapper), Not(Matches), `(?s).*SuccessExitStatus.*`)
+}
