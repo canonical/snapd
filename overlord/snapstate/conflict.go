@@ -245,6 +245,13 @@ func isIrrelevantChange(chg *state.Change, ignoreChangeID string) bool {
 		return true
 	}
 	switch chg.Kind() {
+	case "get-confdb":
+		// confdb hooks can conflict with tasks unlinking custodian/base snaps but
+		// those are prevented using task blockers (before hooks/unlinking snaps).
+		// We also prevent concurrent accesses to the same confdb in confdbstate/
+		fallthrough
+	case "set-confdb":
+		fallthrough
 	case "pre-download":
 		// pre-download changes only have pre-download tasks
 		// which don't generate conflicts because they only

@@ -1079,7 +1079,7 @@ func (s *confdbTestSuite) mockConfdbHooks(c *C) (*[]string, func()) {
 			return nil, err
 		}
 
-		if !confdbstate.IsConfdbHook(ctx) {
+		if !confdbstate.IsConfdbHookCtx(ctx) {
 			// ignore non-confdb hooks
 			return nil, nil
 		}

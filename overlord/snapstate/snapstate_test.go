@@ -6464,6 +6464,57 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2MarkAliasTasksInError(c *C) {
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 
+func (s *snapmgrTestSuite) TestConflictManyIgnoresConfdbChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.RegisterAffectedSnapsByAttr("hook-setup", func(t *state.Task) ([]string, error) {
+		var hooksup hookstate.HookSetup
+		if err := t.Get("hook-setup", &hooksup); err != nil {
+			return nil, fmt.Errorf("internal error: cannot obtain hook data from task: %s", t.Summary())
+		}
+		return []string{hooksup.Snap}, nil
+	})
+
+	type testcase struct {
+		kind  string
+		fails bool
+	}
+
+	tcs := []testcase{
+		{
+			kind:  "random",
+			fails: true,
+		},
+		{
+			kind: "get-confdb",
+		},
+		{
+			kind: "set-confdb",
+		},
+	}
+
+	for i, tc := range tcs {
+		chg := s.state.NewChange(tc.kind, "")
+		for _, hook := range []string{"load-view-setup", "save-view-setup", "change-view-setup", "observe-view-setup", "query-view-setup"} {
+			hookSup := &hookstate.HookSetup{
+				Snap: "some-snap",
+				Hook: hook,
+			}
+			chg.AddTask(hookstate.HookTask(s.state, "summary", hookSup, nil))
+		}
+
+		err := snapstate.CheckChangeConflictMany(s.state, []string{"some-snap"}, "")
+		cmt := Commentf("testcase %d (0-indexed)", i)
+		if tc.fails {
+			c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{}, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
+		chg.SetStatus(state.DoneStatus)
+	}
+}
+
 func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

@@ -1,0 +1,12 @@
+name: waiting-custodian
+version: 1.0
+apps:
+  sh:
+    command: bin/sh
+base: core24
+plugs:
+  wifi-setup:
+    interface: confdb
+    account: developer1
+    view: network/wifi-setup
+    role: custodian

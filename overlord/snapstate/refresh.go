@@ -38,6 +38,10 @@ import (
 // pidsOfSnap is a mockable version of PidsOfSnap
 var pidsOfSnap = cgroup.PidsOfSnap
 
+var ConfdbstateIsConfdbHookname = func(string) bool {
+	panic("internal error: confdbstate.IsConfdbHookname is unset")
+}
+
 // refreshAppsCheck returns an error if the snap has processes running that aren't
 // services and aren't marked to be ignored (refresh-mode: "ignore-running").
 var refreshAppsCheck = func(info *snap.Info) error {
@@ -51,11 +55,10 @@ var refreshAppsCheck = func(info *snap.Info) error {
 	var busyHookNames []string
 	var busyPIDs []int
 
-	// Currently there are no situations when hooks might be allowed to run
-	// during the refresh process. The function exists to make the next two
-	// chunks of code symmetric.
 	canHookRunDuringRefresh := func(hook *snap.HookInfo) bool {
-		return false
+		// refreshes and changes that unlink snaps can conflict with confdb accesses
+		// that run custodian hooks but those are dealt with before running hooks/unlinking
+		return ConfdbstateIsConfdbHookname(hook.Name)
 	}
 
 	for name, app := range info.Apps {
