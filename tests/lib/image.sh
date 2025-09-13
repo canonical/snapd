@@ -112,6 +112,9 @@ get_ubuntu_image_url_for_vm() {
         ubuntu-24.04-64*)
             echo "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
             ;;
+        ubuntu-25.10-64*|ubuntu-26.04-64*)
+            echo "https://cloud-images.ubuntu.com/questing/current/questing-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1

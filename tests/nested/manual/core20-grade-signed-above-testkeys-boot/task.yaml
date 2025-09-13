@@ -3,7 +3,11 @@ summary: Test that snapd with testkeys on UC2* can boot a model with grade signe
 details: |
     Check that snapd can boot a model with grade signed using testkeys.
 
-systems: [ubuntu-2*]
+systems:
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  # FIXME: MODEL_GRADE=signed/secured cannot run yet on 26
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed
