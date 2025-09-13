@@ -55,8 +55,6 @@ github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraK
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0EmriMOiI4YgtQNOo+6fNxzLCYioo3Q3BCVLdMCE=
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
-github.com/snapcore/secboot v0.0.0-20250716090113-a44df50f5352 h1:2r8fFh1ItbDAZp31tck02YJ81gjmqnOVsQjsMf2Iwq0=
-github.com/snapcore/secboot v0.0.0-20250716090113-a44df50f5352/go.mod h1:YOJQnKKG5YXotxAebtzIJrnDiDAMirAbVTRj7IkGa7U=
 github.com/snapcore/secboot v0.0.0-20250723142039-3e181c8edf0f h1:9fDxDbmLSfDTk3T9pAdHqmP/cm5s8brua3OnIbG8d9Y=
 github.com/snapcore/secboot v0.0.0-20250723142039-3e181c8edf0f/go.mod h1:YOJQnKKG5YXotxAebtzIJrnDiDAMirAbVTRj7IkGa7U=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
