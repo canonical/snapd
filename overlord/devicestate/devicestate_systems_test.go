@@ -3160,7 +3160,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupport
 
 	// basic availability check - fill empty info cache
 	encInfoFromCache := false
-	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
@@ -3177,7 +3177,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupport
 
 	// basic availability check - get info from cache
 	encInfoFromCache = true
-	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
@@ -3211,7 +3211,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 
 	// comprehensive preinstall check - fill empty info cache
 	encInfoFromCache := false
-	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
@@ -3228,7 +3228,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 
 	// comprehensive preinstall check - get info from cache
 	encInfoFromCache = true
-	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
 	c.Assert(err, IsNil)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
 	c.Check(system, DeepEquals, &devicestate.System{
@@ -3244,8 +3244,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 
 	// comprehensive preinstall check with action - not allowed to get info from cache
-	encInfoFromCache = false
-	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", preinstallAction, encInfoFromCache)
+	system, gadgetInfo, encInfo, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", preinstallAction)
 	c.Assert(err, IsNil)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 1, sealingSupportedCnt: 0})
 	c.Check(system, DeepEquals, &devicestate.System{
@@ -3299,7 +3298,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphrase
 
 	// refresh empty cache
 	encInfoFromCache := false
-	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, expectedSystem)
@@ -3308,7 +3307,7 @@ func (s *modelAndGadgetInfoSuite) testSystemAndGadgetAndEncryptionInfoPassphrase
 
 	// get info from cache
 	encInfoFromCache = true
-	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, encInfoFromCache)
+	system, gadgetInfo, encInfo, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, expectedSystem)
@@ -3343,13 +3342,24 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoPassphrase
 	s.testSystemAndGadgetAndEncryptionInfoPassphraseSupport(c, snapdVersionByType, hasPassphraseSupport)
 }
 
+func (s *modelAndGadgetInfoSuite) TestApplyActionOnSystemAndGadgetAndEncryptionInfoErrorNoAction(c *C) {
+	_, _, _, err := s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("invalid/label", nil)
+	c.Assert(err, ErrorMatches, "cannot apply empty action")
+}
+
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label", nil, false)
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label", false)
+	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("invalid/label", &secboot.PreinstallAction{})
 	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed", nil, false)
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed", false)
+	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("no-such-seed", &secboot.PreinstallAction{})
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
 }
 
@@ -3360,8 +3370,12 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
 	c.Assert(err, IsNil)
 
-	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)
 	c.Assert(err, ErrorMatches, "cannot load essential snaps metadata: cannot stat snap:.*: no such file or directory")
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", &secboot.PreinstallAction{})
+	c.Assert(err, ErrorMatches, "cannot load essential snaps metadata: cannot stat snap:.*: no such file or directory")
+
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) {
@@ -3371,7 +3385,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) 
 	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
 
-	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)
+	c.Assert(err, ErrorMatches, `cannot load essential snaps metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", &secboot.PreinstallAction{})
 	c.Assert(err, ErrorMatches, `cannot load essential snaps metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
 }
 
@@ -3379,7 +3396,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic, nil)
 
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)
+	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", &secboot.PreinstallAction{})
 	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
 }
 
@@ -3391,7 +3411,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
 	c.Assert(err, IsNil)
 
-	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
+	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)
+	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", &secboot.PreinstallAction{})
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
 }
 
@@ -3403,8 +3426,12 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) 
 
 	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, true, true)
 
-	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", nil, false)
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", false)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 0, sealingSupportedCnt: 0})
+	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
+
+	_, _, _, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", preinstallAction)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 1, sealingSupportedCnt: 0})
 	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
 }
 

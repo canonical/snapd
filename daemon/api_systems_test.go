@@ -932,11 +932,9 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 			mgr *devicestate.DeviceManager,
 			label string,
-			checkAction *secboot.PreinstallAction,
 			encInfoFromCache bool,
 		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 			c.Check(label, check.Equals, "20191119")
-			c.Check(checkAction, check.IsNil)
 			c.Check(encInfoFromCache, check.Equals, false)
 			sys := &devicestate.System{
 				Model: s.seedModelForLabel20191119,
@@ -992,7 +990,6 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 		mgr *devicestate.DeviceManager,
 		label string,
-		checkAction *secboot.PreinstallAction,
 		encInfoFromCache bool,
 	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		return nil, nil, nil, fmt.Errorf("boom")
@@ -1029,15 +1026,13 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 		mgr *devicestate.DeviceManager,
 		label string,
-		checkAction *secboot.PreinstallAction,
 		encInfoFromCache bool,
 	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		c.Check(label, check.Equals, "20191119")
-		c.Check(checkAction, check.IsNil)
 		c.Check(encInfoFromCache, check.Equals, false)
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
-		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label, checkAction, encInfoFromCache)
+		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label, encInfoFromCache)
 		c.Assert(err, check.IsNil)
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
@@ -1526,10 +1521,8 @@ func (s *systemsSuite) TestSystemActionCheckPassphrase(c *check.C) {
 
 	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 		dm *devicestate.DeviceManager, s string,
-		checkAction *secboot.PreinstallAction,
 		encInfoFromCache bool,
 	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-		c.Assert(checkAction, check.IsNil)
 		c.Assert(encInfoFromCache, check.Equals, true)
 		return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: true}, nil
 	})
@@ -1632,10 +1625,8 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseError(c *check.C) {
 		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 			dm *devicestate.DeviceManager,
 			s string,
-			checkAction *secboot.PreinstallAction,
 			encInfoFromCache bool,
 		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-			c.Assert(checkAction, check.IsNil)
 			c.Assert(encInfoFromCache, check.Equals, true)
 			return nil, nil, &install.EncryptionSupportInfo{PassphraseAuthAvailable: !tc.unavailable}, tc.mockSupportErr
 		})
@@ -1689,10 +1680,8 @@ func (s *systemsSuite) TestSystemActionCheckPIN(c *check.C) {
 	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 		dm *devicestate.DeviceManager,
 		s string,
-		checkAction *secboot.PreinstallAction,
 		encInfoFromCache bool,
 	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-		c.Assert(checkAction, check.IsNil)
 		c.Assert(encInfoFromCache, check.Equals, true)
 		return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: true}, nil
 	})
@@ -1778,10 +1767,8 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 			dm *devicestate.DeviceManager,
 			s string,
-			checkAction *secboot.PreinstallAction,
 			encInfoFromCache bool,
 		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-			c.Assert(checkAction, check.IsNil)
 			c.Assert(encInfoFromCache, check.Equals, true)
 			return nil, nil, &install.EncryptionSupportInfo{PINAuthAvailable: !tc.unavailable}, tc.mockSupportErr
 		})
@@ -1899,11 +1886,10 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
 			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
 		}
 
-		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		r := daemon.MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(func(
 			mgr *devicestate.DeviceManager,
 			label string,
 			checkAction *secboot.PreinstallAction,
-			encInfoFromCache bool,
 		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 			c.Check(label, check.Equals, "20191119")
 			c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
@@ -1913,7 +1899,6 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
 					"args1": json.RawMessage(`"value1"`),
 				},
 			})
-			c.Check(encInfoFromCache, check.Equals, false)
 			sys := &devicestate.System{
 				Model: s.seedModelForLabel20191119,
 				Label: "20191119",
@@ -2019,18 +2004,16 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 			route = "/v2/systems"
 		}
 
-		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		restore := daemon.MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(func(
 			dm *devicestate.DeviceManager,
 			label string,
 			checkAction *secboot.PreinstallAction,
-			encInfoFromCache bool,
 		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 			c.Check(label, check.Equals, "20191119")
 			c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
 				Action: tc.fixAction,
 				Args:   tc.args,
 			})
-			c.Check(encInfoFromCache, check.Equals, false)
 			return nil, nil, &install.EncryptionSupportInfo{}, tc.mockSupportErr
 		})
 		defer restore()
@@ -2080,7 +2063,7 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegrationErrors(c *
 	c.Check(rspe.Message, check.Equals, "cannot use check action without cached encryption information")
 
 	deviceMgr := d.Overlord().DeviceManager()
-	deviceMgr.RefreshCacheEncryptionSupportInfoUnlocked("20191119", &install.EncryptionSupportInfo{})
+	deviceMgr.SetEncryptionSupportInfoInCacheUnlocked("20191119", &install.EncryptionSupportInfo{})
 	buf = bytes.NewBuffer(b)
 	req, err = http.NewRequest("POST", "/v2/systems/20191119", buf)
 	c.Assert(err, check.IsNil)
@@ -2097,11 +2080,10 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegration(c *check.
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+	r := daemon.MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(func(
 		mgr *devicestate.DeviceManager,
 		label string,
 		checkAction *secboot.PreinstallAction,
-		encInfoFromCache bool,
 	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		c.Check(label, check.Equals, "20191119")
 		c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
@@ -2111,18 +2093,18 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegration(c *check.
 				"args1": json.RawMessage(`"value1"`),
 			},
 		})
-		c.Check(encInfoFromCache, check.Equals, false)
 
 		// populate the cache with encryption support information that
 		// includes a check context similar to having performed an
 		// initial preinstall check
 		encInfo := &install.EncryptionSupportInfo{}
 		encInfo.SetAvailabilityCheckContext(&secboot.PreinstallCheckContext{})
-		deviceMgr.RefreshCacheEncryptionSupportInfoUnlocked(label, encInfo)
+		deviceMgr.SetEncryptionSupportInfoInCacheUnlocked(label, encInfo)
 
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryption information
-		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label, checkAction, encInfoFromCache)
+		const encInfoFromCache = false
+		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label, encInfoFromCache)
 		c.Assert(err, check.IsNil)
 		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false

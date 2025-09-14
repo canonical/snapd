@@ -45,10 +45,17 @@ type (
 func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(
 	*devicestate.DeviceManager,
 	string,
-	*secboot.PreinstallAction,
 	bool,
 ) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
 	return testutil.Mock(&deviceManagerSystemAndGadgetAndEncryptionInfo, f)
+}
+
+func MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+	string,
+	*secboot.PreinstallAction,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo, f)
 }
 
 func MockDevicestateInstallFinish(f func(*state.State, string, map[string]*gadget.Volume, *devicestate.OptionalContainers) (*state.Change, error)) (restore func()) {

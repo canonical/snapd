@@ -127,11 +127,19 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 var deviceManagerSystemAndGadgetAndEncryptionInfo func(
 	dm *devicestate.DeviceManager,
 	systemLabel string,
-	checkAction *secboot.PreinstallAction,
 	encInfoFromCache bool,
 ) (
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).SystemAndGadgetAndEncryptionInfo
+
+// wrapped for unit tests
+var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+	systemLabel string,
+	checkAction *secboot.PreinstallAction,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).ApplyActionOnSystemAndGadgetAndEncryptionInfo
 
 func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
@@ -178,21 +186,21 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	wantedSystemLabel := muxVars(r)["label"]
 
 	deviceMgr := c.d.overlord.DeviceManager()
-	details, err := getSystemDetailsWithOptionalFixAction(deviceMgr, wantedSystemLabel, nil)
+
+	// do not use cached encryption information; perform a fresh encryption
+	// availability check
+	const encInfoFromCache = false
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel, encInfoFromCache)
 	if err != nil {
 		return InternalError(err.Error())
-
 	}
 
+	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
 	return SyncResponse(*details)
 }
 
-func getSystemDetailsWithOptionalFixAction(deviceMgr *devicestate.DeviceManager, wantedSystemLabel string, fixAction *secboot.PreinstallAction) (*client.SystemDetails, error) {
-	const encInfoFromCache = false
-	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel, fixAction, encInfoFromCache)
-	if err != nil {
-		return nil, err
-	}
+func systemDetailsFrom(sys *devicestate.System, gadgetInfo *gadget.Info, encryptionInfo *install.EncryptionSupportInfo) *client.SystemDetails {
 	details := &client.SystemDetails{
 		Current: sys.Current,
 		Label:   sys.Label,
@@ -217,7 +225,7 @@ func getSystemDetailsWithOptionalFixAction(deviceMgr *devicestate.DeviceManager,
 			Mode:  sa.Mode,
 		})
 	}
-	return details, nil
+	return details
 }
 
 type systemActionRequest struct {
@@ -682,9 +690,12 @@ func postSystemActionCheckPassphrase(c *Command, systemLabel string, req *system
 		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
 	}
 
+	// use cached encryption information when available; skips the expensive
+	// availability check and still checks the passphrase
 	const encInfoFromCache = true
+
 	deviceMgr := c.d.overlord.DeviceManager()
-	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, nil, encInfoFromCache)
+	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, encInfoFromCache)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -707,9 +718,12 @@ func postSystemActionCheckPIN(c *Command, systemLabel string, req *systemActionR
 		return BadRequest("pin must be provided in request body for action %q", req.Action)
 	}
 
+	// use cached encryption information when available; skips the expensive
+	// availability check and still checks the PIN
 	const encInfoFromCache = true
+
 	deviceMgr := c.d.overlord.DeviceManager()
-	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, nil, encInfoFromCache)
+	_, _, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, encInfoFromCache)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -747,10 +761,12 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 	// should result in an error. A mechanism is needed to determine ownership of each action.
 
 	deviceMgr := c.d.overlord.DeviceManager()
-	details, err := getSystemDetailsWithOptionalFixAction(deviceMgr, systemLabel, checkAction)
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, checkAction)
 	if err != nil {
 		return InternalError(err.Error())
 	}
 
+	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
 	return SyncResponse(*details)
 }
