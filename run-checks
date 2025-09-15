@@ -505,6 +505,16 @@ if [ "$STATIC" = 1 ]; then
         echo ">> [Go] Skipping golangci-lint check"
     fi
 
+    echo ">> [Go] checking the go.sum is up to date and tidy"
+    go mod tidy
+    # TODO:go: replace with go mod tidy -diff when we're running with Go 1.23+
+    # everywhere
+    if git status | grep -q go.sum ; then
+        echo "go.sum is not tidy, please run 'go mod tidy'"
+        git diff -- go.sum
+        exit 1
+    fi
+
     echo ">> [C] Checking C source code formatting"
     if command -v clang-format >/dev/null; then
         current=$(pwd)
