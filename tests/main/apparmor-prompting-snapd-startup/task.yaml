@@ -227,15 +227,9 @@ execute: |
     if ! tests.info is-reexec-in-use && os.query is-ubuntu-ge 25.04; then
         echo "Expect snapd to be built with go 1.24+, which supports omitzero,"
         echo "so remove the zero-valued fields from the rules."
-        # We need to remove the comma from the preceding line, and preserve the
-        # comma on the current line (if it exists), so we make everything appear
-        # on the same line so sed works. We'll re-jq it later to re-add newlines.
-        tr -d '\n' < expected.json > expected-modified.json
-        sed -E \
-            -e 's/, *"expiration": ?"0001-01-01T00:00:00Z"//g' \
-            -e 's/, *"session-id": ?"0000000000000000"//g' \
-            expected-modified.json | gojq | tee expected.json
-        rm -f expected-modified.json
+        gojq 'del(.rules.[].constraints.permissions.[]."expiration" | select(. == "0001-01-01T00:00:00Z"))' < expected.json | \
+        gojq 'del(.rules.[].constraints.permissions.[]."session-id" | select(. == "0000000000000000"))' | tee expected-modified.json
+        mv expected-modified.json expected.json
     fi
 
     echo "Check that rules on disk match what is expected"
