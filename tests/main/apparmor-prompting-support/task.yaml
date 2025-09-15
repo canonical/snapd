@@ -5,6 +5,9 @@ details: |
     is expected (non-core Ubuntu systems from mantic on), and unsupported on
     all other systems.
 
+systems:
+    - -ubuntu-14.04*
+
 prepare: |
     # Before enabling prompting, we must have a snap installed which provides
     # a prompting `handler-service` attribute with a connection via the
