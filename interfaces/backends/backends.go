@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
@@ -55,6 +56,7 @@ func All() []interfaces.SecurityBackend {
 		&polkit.Backend{},
 		&ldconfig.Backend{},
 		&configfiles.Backend{},
+		&symlinks.Backend{},
 	}
 
 	// TODO use something like:
