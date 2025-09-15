@@ -1338,6 +1338,8 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		SnapdVersions: systemAndSeeds.SystemSnapdVersions,
 	}
 
+	// do not use cached encryption information; perform a fresh encryption
+	// availability check
 	const encInfoFromCache = false
 	encryptInfo, err := m.encryptionSupportInfoLocked(systemLabel, constraints, encInfoFromCache)
 	if err != nil {
