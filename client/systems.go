@@ -365,6 +365,6 @@ type QualityCheckOptions struct {
 // omitted field (nil) from the empty string (""), which maps to secboot
 // constant ActionNone.
 type FixEncryptionSupportOptions struct {
-	FixAction *string                    `json:"fix-action",omitempty`
+	FixAction *string                    `json:"fix-action,omitempty"`
 	Args      map[string]json.RawMessage `json:"args,omitempty"`
 }
