@@ -359,3 +359,12 @@ type QualityCheckOptions struct {
 	Passphrase string `json:"passphrase,omitempty"`
 	PIN        string `json:"pin,omitempty"`
 }
+
+// FixEncryptionSupportOptions specifies the fix action to perform and its
+// optional arguments. FixAction is a pointer so the code can distinguish an
+// omitted field (nil) from the empty string (""), which maps to secboot
+// constant ActionNone.
+type FixEncryptionSupportOptions struct {
+	FixAction *string                    `json:"fix-action,omitempty"`
+	Args      map[string]json.RawMessage `json:"args,omitempty"`
+}

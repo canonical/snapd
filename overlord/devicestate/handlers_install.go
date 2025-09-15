@@ -995,6 +995,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// cache is used to transport encryptionSetupData between install steps
+	// "install-setup-storage-encryption" and "install-finish"
 	var encryptSetupData *install.EncryptionSetupData
 	cached := st.Cached(encryptionSetupDataKey{systemLabel})
 	if cached != nil {
@@ -1173,8 +1175,13 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encryptSetupData)
 		if trustedInstallObserver != nil {
-			// TODO:FDEM: pass preinstall check context that we get from encryptSetupData that is cached during install step install-setup-storage-encryption
-			if err := installLogic.PrepareEncryptedSystemData(systemAndSnaps.Model, bootstrappedContainersForRole, encryptSetupData.VolumesAuth(), nil, trustedInstallObserver); err != nil {
+			if err := installLogic.PrepareEncryptedSystemData(
+				systemAndSnaps.Model,
+				bootstrappedContainersForRole,
+				encryptSetupData.VolumesAuth(),
+				encryptSetupData.PreinstallCheckContext(),
+				trustedInstallObserver,
+			); err != nil {
 				return err
 			}
 		}
@@ -1250,7 +1257,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func checkVolumesAuth(volumesAuth *device.VolumesAuthOptions, encryptInfo installLogic.EncryptionSupportInfo) error {
+func checkVolumesAuth(volumesAuth *device.VolumesAuthOptions, encryptInfo *installLogic.EncryptionSupportInfo) error {
 	if volumesAuth == nil {
 		return nil
 	}
@@ -1331,7 +1338,10 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		SnapdVersions: systemAndSeeds.SystemSnapdVersions,
 	}
 
-	encryptInfo, err := m.encryptionSupportInfo(constraints)
+	// do not use cached encryption information; perform a fresh encryption
+	// availability check
+	const encInfoFromCache = false
+	encryptInfo, err := m.encryptionSupportInfoLocked(systemLabel, constraints, encInfoFromCache)
 	if err != nil {
 		return err
 	}
@@ -1350,7 +1360,16 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 
 	// TODO:ICE: support device.EncryptionTypeLUKSWithICE in the API
 	encType := device.EncryptionTypeLUKS
-	encryptionSetupData, err := installEncryptPartitions(onVolumes, volumesAuth, encType, systemAndSeeds.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	encryptionSetupData, err := installEncryptPartitions(
+		onVolumes,
+		volumesAuth,
+		encType,
+		encryptInfo.CheckContext(),
+		systemAndSeeds.Model,
+		mntPtForType[snap.TypeGadget],
+		mntPtForType[snap.TypeKernel],
+		perfTimings,
+	)
 	if err != nil {
 		return err
 	}
@@ -1362,6 +1381,8 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	chg := t.Change()
 	chg.Set("api-data", apiData)
 
+	// cache is used to transport encryptionSetupData between install steps
+	// "install-setup-storage-encryption" and "install-finish"
 	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
 
 	return nil

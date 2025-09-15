@@ -68,6 +68,10 @@ type EncryptionSetupData struct {
 	// corresponding recovery key should be used for all relevant
 	// volumes during installation.
 	recoveryKeyID string
+	// optional preinstall check context that includes the check result that
+	// reflects the outcome of the most recent check and contains information
+	// required for optimum PCR configuration and reseal post install
+	preinstallCheckContext *secboot.PreinstallCheckContext
 }
 
 // EncryptedDevices returns a map partition role -> LUKS mapper device.
@@ -92,6 +96,10 @@ func (esd *EncryptionSetupData) RecoveryKeyID() string {
 	return esd.recoveryKeyID
 }
 
+func (esd *EncryptionSetupData) PreinstallCheckContext() *secboot.PreinstallCheckContext {
+	return esd.preinstallCheckContext
+}
+
 // MockEncryptedDeviceAndRole is meant to be used for unit tests from other
 // packages.
 type MockEncryptedDeviceAndRole struct {
@@ -101,11 +109,17 @@ type MockEncryptedDeviceAndRole struct {
 
 // MockEncryptionSetupData is meant to be used for unit tests from other
 // packages.
-func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole, recoveryKeyID string, volumesAuth *device.VolumesAuthOptions) *EncryptionSetupData {
+func MockEncryptionSetupData(
+	labelToEncDevice map[string]*MockEncryptedDeviceAndRole,
+	recoveryKeyID string,
+	volumesAuth *device.VolumesAuthOptions,
+	checkContext *secboot.PreinstallCheckContext,
+) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
-		parts:         map[string]partEncryptionData{},
-		volumesAuth:   volumesAuth,
-		recoveryKeyID: recoveryKeyID,
+		parts:                  map[string]partEncryptionData{},
+		volumesAuth:            volumesAuth,
+		recoveryKeyID:          recoveryKeyID,
+		preinstallCheckContext: checkContext,
 	}
 	for label, encryptData := range labelToEncDevice {
 		//TODO:FDEM: we should use a mock for the bootstrap key. However,
