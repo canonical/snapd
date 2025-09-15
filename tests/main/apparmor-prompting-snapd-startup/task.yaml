@@ -224,6 +224,14 @@ execute: |
     }' | gojq | tee expected.json
     # Parse existing rules through (go)jq so they can be compared
 
+    if ! tests.info is-reexec-in-use && os.query is-ubuntu-ge 25.04; then
+        echo "Expect snapd to be built with go 1.24+, which supports omitzero,"
+        echo "so remove the zero-valued fields from the rules."
+        gojq 'del(.rules.[].constraints.permissions.[]."expiration" | select(. == "0001-01-01T00:00:00Z"))' < expected.json | \
+        gojq 'del(.rules.[].constraints.permissions.[]."session-id" | select(. == "0000000000000000"))' | tee expected-modified.json
+        mv expected-modified.json expected.json
+    fi
+
     echo "Check that rules on disk match what is expected"
     gojq < "$RULES_PATH" > current.json
     diff expected.json current.json
