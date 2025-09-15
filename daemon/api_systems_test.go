@@ -1975,13 +1975,13 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 			expectedStatus: 400, expectedErrMsg: "system action requires the system label to be provided",
 		},
 		{
-			fixAction:      "",
+			fixAction:      "omit", // omit instructs the test logic to not populate the fix action
 			expectedStatus: 400, expectedErrMsg: "fix action must be provided in request body for action \"fix-encryption-support\"",
 		},
 		{
 			fixAction:      "action-1",
-			args:           nil,
-			expectedStatus: 400, expectedErrMsg: "fix action args must be provided in request body for action \"fix-encryption-support\"",
+			args:           map[string]json.RawMessage{},
+			expectedStatus: 400, expectedErrMsg: "optional fix action args, when provided, must contain one or more arguments \"fix-encryption-support\"",
 		},
 		{
 			fixAction: "action-1",
@@ -1994,9 +1994,12 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 		},
 	} {
 		body := map[string]any{
-			"action":     "fix-encryption-support",
-			"fix-action": tc.fixAction,
-			"args":       tc.args,
+			"action": "fix-encryption-support",
+			"args":   tc.args,
+		}
+
+		if tc.fixAction != "omit" {
+			body["fix-action"] = tc.fixAction
 		}
 
 		route := "/v2/systems/20191119"

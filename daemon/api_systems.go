@@ -743,16 +743,20 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 		return BadRequest("system action requires the system label to be provided")
 	}
 
-	if req.FixAction == "" {
+	// FixAction set to "" is valid and maps to secboot constant ActionNone.
+	// Omission of FixAction is not allowed.
+	if req.FixAction == nil {
 		return BadRequest("fix action must be provided in request body for action %q", req.Action)
 	}
 
-	if req.Args == nil {
-		return BadRequest("fix action args must be provided in request body for action %q", req.Action)
+	// Args is optional, but when specified it must contain at least one
+	// argument entry.
+	if req.Args != nil && len(req.Args) == 0 {
+		return BadRequest("optional fix action args, when provided, must contain one or more arguments %q", req.Action)
 	}
 
 	checkAction := &secboot.PreinstallAction{
-		Action: req.FixAction,
+		Action: *req.FixAction,
 		Args:   req.Args,
 	}
 
