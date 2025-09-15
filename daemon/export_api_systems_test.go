@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -41,34 +42,36 @@ type (
 	SystemsResponse = systemsResponse
 )
 
-func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(*devicestate.DeviceManager, string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
-	restore = testutil.Backup(&deviceManagerSystemAndGadgetAndEncryptionInfo)
-	deviceManagerSystemAndGadgetAndEncryptionInfo = f
-	return restore
+func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+	string,
+	bool,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerSystemAndGadgetAndEncryptionInfo, f)
+}
+
+func MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+	string,
+	*secboot.PreinstallAction,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo, f)
 }
 
 func MockDevicestateInstallFinish(f func(*state.State, string, map[string]*gadget.Volume, *devicestate.OptionalContainers) (*state.Change, error)) (restore func()) {
-	restore = testutil.Backup(&devicestateInstallFinish)
-	devicestateInstallFinish = f
-	return restore
+	return testutil.Mock(&devicestateInstallFinish, f)
 }
 
 func MockDevicestateInstallSetupStorageEncryption(f func(*state.State, string, map[string]*gadget.Volume, *device.VolumesAuthOptions) (*state.Change, error)) (restore func()) {
-	restore = testutil.Backup(&devicestateInstallSetupStorageEncryption)
-	devicestateInstallSetupStorageEncryption = f
-	return restore
+	return testutil.Mock(&devicestateInstallSetupStorageEncryption, f)
 }
 
 func MockDevicestateCreateRecoverySystem(f func(*state.State, string, devicestate.CreateRecoverySystemOptions) (*state.Change, error)) (restore func()) {
-	restore = testutil.Backup(&devicestateCreateRecoverySystem)
-	devicestateCreateRecoverySystem = f
-	return restore
+	return testutil.Mock(&devicestateCreateRecoverySystem, f)
 }
 
 func MockDevicestateRemoveRecoverySystem(f func(*state.State, string) (*state.Change, error)) (restore func()) {
-	restore = testutil.Backup(&devicestateRemoveRecoverySystem)
-	devicestateRemoveRecoverySystem = f
-	return restore
+	return testutil.Mock(&devicestateRemoveRecoverySystem, f)
 }
 
 func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label string) (rkey keys.RecoveryKey, err error)) (restore func()) {
@@ -77,8 +80,4 @@ func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label 
 
 func MockDeviceValidatePassphrase(f func(mode device.AuthMode, passphrase string) (device.AuthQuality, error)) (restore func()) {
 	return testutil.Mock(&deviceValidatePassphrase, f)
-}
-
-func ClearCachedEncryptionSupportInfoForLabel(st *state.State, systemLabel string) {
-	st.Cache(encryptionSupportInfoKey{systemLabel}, nil)
 }

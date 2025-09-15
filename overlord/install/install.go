@@ -191,12 +191,13 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 
 // SetAvailabilityCheckContext is a test only helper for populating EncryptionSupportInfo field availabilityCheckContext.
 func (esi *EncryptionSupportInfo) SetAvailabilityCheckContext(checkContext *secboot.PreinstallCheckContext) {
-	osutil.MustBeTestBinary("secbootPreinstallCheck can only be mocked in tests")
+	osutil.MustBeTestBinary("secbootPreinstallCheck can only be used in tests")
 	esi.availabilityCheckContext = checkContext
 }
 
 // MockSecbootCheckTPMKeySealingSupported mocks secbootCheckTPMKeySealingSupported usage by the package for testing.
 func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
+	osutil.MustBeTestBinary("secbootCheckTPMKeySealingSupported can only be mocked in tests")
 	old := secbootCheckTPMKeySealingSupported
 	secbootCheckTPMKeySealingSupported = f
 	return func() {
@@ -658,7 +659,7 @@ func PrepareEncryptedSystemData(
 	if checkContext != nil {
 		// write check result containing information required
 		// for optimum PCR configuration and resealing
-		if err := saveCheckInfo(checkContext); err != nil {
+		if err := saveCheckResult(checkContext); err != nil {
 			return err
 		}
 	}
@@ -674,9 +675,9 @@ func PrepareEncryptedSystemData(
 	return nil
 }
 
-func saveCheckInfo(checkContext *secboot.PreinstallCheckContext) error {
-	saveCheckInfoPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
-	return secbootSaveCheckResult(checkContext, saveCheckInfoPath)
+func saveCheckResult(checkContext *secboot.PreinstallCheckContext) error {
+	saveCheckResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+	return secbootSaveCheckResult(checkContext, saveCheckResultPath)
 }
 
 // writeMarkers writes markers containing the same secret to pair data and save.

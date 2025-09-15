@@ -646,7 +646,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.tpm)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.tpm)
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
@@ -718,9 +718,15 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	s.settle(c)
 
-	// the install-system change is created
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt.checkCnt, Equals, 0)
+	c.Assert(callCnt.checkActionCnt, Equals, 0)
+	c.Assert(callCnt.sealingSupportedCnt <= 1, Equals, true)
+
+	// the install-system change is created
 	installSystem := s.findInstallSystem()
 	c.Assert(installSystem, NotNil)
 
@@ -746,7 +752,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		})
 	}
 	if tc.encrypt {
-		// inteface is not nil
+		// interface is not nil
 		c.Assert(installSealingObserver, NotNil)
 		// we expect a very specific type
 		trustedInstallObserver, ok := installSealingObserver.(boot.TrustedAssetsInstallObserver)
@@ -1773,7 +1779,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	})
 	defer restore()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=1234"), 0644)
@@ -1801,6 +1807,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
+
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `cannot perform the following tasks:
 - Ensure next boot to run mode \(bootloader goes boom\)`)
@@ -1812,7 +1821,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
@@ -1839,6 +1848,9 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, errMatch)
@@ -1996,13 +2008,16 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	defer restore()
 
 	// pretend we have a TPM
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	// must be a model that requires encryption to error
 	s.testInstallGadgetNoSave(c, "secured")
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
@@ -2024,12 +2039,15 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetWarn
 	defer restore()
 
 	// pretend we have a TPM
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	s.testInstallGadgetNoSave(c, "dangerous")
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), IsNil)
@@ -2047,12 +2065,15 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	defer restore()
 
 	// pretend we have a TPM
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, true)
 
 	s.testInstallGadgetNoSave(c, "dangerous")
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), IsNil)
@@ -2123,9 +2144,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 			makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 		}
 
-		mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.hasTPM)
+		callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.hasTPM)
 
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx, secboot.TPMProvisionFull)
+		c.Assert(callCnt.checkCnt, Equals, 0)
+		c.Assert(callCnt.checkActionCnt, Equals, 0)
+		c.Assert(callCnt.sealingSupportedCnt <= 1, Equals, true)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if !tc.hasTPM && !tc.hasFDESetupHook {
@@ -2288,7 +2312,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})
 	defer restore()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.tpm)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, tc.tpm)
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
@@ -2446,6 +2470,11 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	}
 
 	s.settle(c)
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt.checkCnt, Equals, 0)
+	c.Assert(callCnt.checkActionCnt, Equals, 0)
+	c.Assert(callCnt.sealingSupportedCnt <= 1, Equals, true)
 
 	// the factory-reset change is created
 	s.state.Lock()
@@ -3104,7 +3133,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
 		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
@@ -3132,6 +3161,9 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 
 	factoryReset := s.findFactoryReset()
 	c.Assert(factoryReset, NotNil)
@@ -3173,7 +3205,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
+	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, false, false)
 
 	hooksCalled := []*hookstate.Context{}
 	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
@@ -3211,6 +3243,9 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// ensure the expected encryption availability check was used
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 0, checkActionCnt: 0, sealingSupportedCnt: 1})
 
 	factoryReset := s.findFactoryReset()
 	c.Check(factoryReset.Err(), IsNil)
@@ -3573,7 +3608,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 }
 
 func (s *installStepSuite) TestGeneratePreInstallRecoveryKey(c *C) {
-	defer devicestate.MockEncryptionSetupDataInCache(s.state, "20250528", "", nil)()
+	defer devicestate.MockEncryptionSetupDataInCache(s.state, "20250528", "", nil, preinstallCheckContext)()
 
 	s.state.Lock()
 	defer s.state.Unlock()
