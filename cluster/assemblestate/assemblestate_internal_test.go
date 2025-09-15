@@ -99,13 +99,13 @@ func createTestAssembleConfig(c *check.C, signing *assertstest.StoreStack, secre
 	certPEM, keyPEM := createTestCertAndKey(c)
 	serial, deviceKey := createTestSerial(c, signing)
 	return AssembleConfig{
-		Secret:     secret,
-		RDT:        DeviceToken(rdt),
-		TLSCert:    certPEM,
-		TLSKey:     keyPEM,
-		Serial:     serial,
-		PrivateKey: deviceKey,
-		Clock:      time.Now,
+		Secret:  secret,
+		RDT:     DeviceToken(rdt),
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Serial:  serial,
+		Signer:  privateKeySigner(deviceKey),
+		Clock:   time.Now,
 	}
 }
 
@@ -121,6 +121,12 @@ func mockAssertDB(c *check.C) (*asserts.Database, *assertstest.StoreStack) {
 	c.Assert(err, check.IsNil)
 
 	return db, signing
+}
+
+func privateKeySigner(pk asserts.PrivateKey) func([]byte) ([]byte, error) {
+	return func(data []byte) ([]byte, error) {
+		return asserts.RawSignWithKey(data, pk)
+	}
 }
 
 // committer tracks commit calls and the session data that was committed
@@ -301,7 +307,7 @@ func newAssembleStateWithTestKeys(c *check.C, sel *selector, cfg AssembleConfig)
 	db, signing := mockAssertDB(c)
 	serial, key := createTestSerial(c, signing)
 	cfg.Serial = serial
-	cfg.PrivateKey = key
+	cfg.Signer = privateKeySigner(key)
 
 	cm := &committer{}
 	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
@@ -1335,13 +1341,13 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	cfg := AssembleConfig{
-		Secret:     "secret",
-		RDT:        local.rdt,
-		TLSCert:    certPEM,
-		TLSKey:     keyPEM,
-		Clock:      clock,
-		Serial:     serial,
-		PrivateKey: deviceKey,
+		Secret:  "secret",
+		RDT:     local.rdt,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Clock:   clock,
+		Serial:  serial,
+		Signer:  privateKeySigner(deviceKey),
 	}
 
 	// create AssembleState with imported session
@@ -1582,6 +1588,37 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
 		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
 	}
+}
+
+func (s *clusterSuite) TestNewAssembleStateInvalidSigner(c *check.C) {
+	db, signing := mockAssertDB(c)
+
+	serial, _ := createTestSerial(c, signing)
+
+	// create a different key that doesn't match the serial assertion
+	wrongKey, _ := assertstest.GenerateKey(752)
+
+	certPEM, keyPEM := createTestCertAndKey(c)
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     DeviceToken("local-device"),
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Serial:  serial,
+		Clock:   time.Now,
+
+		// use a signer that signs with the wrong key
+		Signer: privateKeySigner(wrongKey),
+	}
+
+	commit := func(AssembleSession) {}
+
+	_, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, commit, db)
+
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, ".*serial proof verification failed for device local-device.*invalid signature.*")
 }
 
 func (s *clusterSuite) TestRunTimeout(c *check.C) {

@@ -157,10 +157,10 @@ type AssembleConfig struct {
 	// assembly will not terminate automatically.
 	ExpectedSize int
 	// Serial is this device's serial assertion.
-	Serial *asserts.Serial `json:"serial"`
-	// PrivateKey is the private key that matches the public key embedded in the
-	// given serial assertion. Will be used to sign serial proof.
-	PrivateKey asserts.PrivateKey `json:"private_key"`
+	Serial *asserts.Serial
+	// Signer is a function that signs the given data with the private key that
+	// matches the public key embedded in the serial assertion.
+	Signer func([]byte) ([]byte, error)
 }
 
 const AssembleSessionLength = time.Hour
@@ -177,8 +177,8 @@ func NewAssembleState(
 	if config.Serial == nil {
 		return nil, errors.New("serial assertion is required")
 	}
-	if config.PrivateKey == nil {
-		return nil, errors.New("private key is required")
+	if config.Signer == nil {
+		return nil, errors.New("signer function is required")
 	}
 
 	// default clock to time.Now if not provided
@@ -202,7 +202,7 @@ func NewAssembleState(
 	hmac := CalculateHMAC(config.RDT, fp, config.Secret)
 
 	// sign the HMAC with our private key to create the SerialProof
-	proof, err := asserts.SignWithKey(hmac, config.PrivateKey)
+	proof, err := config.Signer(hmac)
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign hmac for serial proof: %v", err)
 	}
