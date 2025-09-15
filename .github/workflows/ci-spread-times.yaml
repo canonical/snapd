@@ -39,7 +39,7 @@ jobs:
           json_file="report.json"
 
           if [ ! -f "$json_file" ]; then
-              echo "The report files doesn't exist"
+              echo "The report file doesn't exist"
               exit 1
           fi
 
