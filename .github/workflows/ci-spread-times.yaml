@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  perf-metrics:
+  times-empty-test:
     runs-on: ["self-hosted", "spread-enabled"]
     steps:
       - name: Cleanup job workspace
