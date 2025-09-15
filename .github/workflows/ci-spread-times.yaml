@@ -1,0 +1,65 @@
+name: Performance metrics for spread tests
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  test basic test:
+    runs-on: ["self-hosted", "spread-enabled"]
+    steps:
+      - name: Cleanup job workspace
+        id: cleanup-job-workspace
+        run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # spread uses tags as delta reference
+          fetch-depth: 0
+
+      - name: create new empty test
+        run: |
+          mkdir tests/smoke/empty
+          echo -e "summary: test\nexecute: true\n" > tests/smoke/empty/task.yaml
+      
+      - name: run empty test with spread
+        run: |
+          # Run spread in all the systems defined for openstack-ps7 environment
+          spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
+
+      - name: Write the metrics to prometheus
+        env:
+          METRICS_HOST: ${{ secrets.METRICS_HOST }}
+          METRICS_PORT: ${{ secrets.METRICS_PORT }}
+        run: |
+          json_file="report.json"
+
+          if [ ! -f "$json_file" ]; then
+              echo "The report file doesn't exist"
+              exit 1
+          fi
+
+          jq -c '.items[]' "$json_file" | while read -r item; do
+              start=$(jq -r '.start' <<< "$item")
+              end=$(jq -r '.end' <<< "$item")
+              verb=$(jq -r '.verb' <<< "$item")
+              level=$(jq -r '.level' <<< "$item")
+              name=$(jq -r '.name' <<< "$item")
+              backend=$(jq -r '.backend' <<< "$item")
+              system=$(jq -r '.system' <<< "$item")
+              success=$(jq -r '.success' <<< "$item")
+
+              start_ms=$(date -d "$start" +%s%3N)
+              end_ms=$(date -d "$end" +%s%3N)
+              diff_ms=$(( end_ms - start_ms ))
+
+              if [ "$success" = true ]; then
+                ./tests/utils/metrics/post-metric "snapd_times_${verb}_${level}" "$diff_ms" --label "backend=$backend" --label "system=$system" --label "name=$name"
+              else
+                echo "Skipping failed execution $verb $name $level"
+              fi
+          done
