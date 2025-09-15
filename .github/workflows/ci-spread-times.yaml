@@ -1,4 +1,4 @@
-name: Performance metrics for spread tests
+name: Perf metrics for spread tests
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test basic test:
+  perf-metrics:
     runs-on: ["self-hosted", "spread-enabled"]
     steps:
       - name: Cleanup job workspace
