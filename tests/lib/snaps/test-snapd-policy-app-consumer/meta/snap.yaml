@@ -170,6 +170,9 @@ apps:
   nomad-support:
     command: bin/run
     plugs: [ nomad-support ]
+  nvme-control:
+    command: bin/run
+    plugs: [ nvme-control ]
   ofono:
     command: bin/run
     plugs: [ ofono ]
