@@ -42,7 +42,7 @@ var systemVolumesCmd = &Command{
 	POST: postSystemVolumesAction,
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "replace-recovery-key",
-		"check-passphrase", "check-pin", "change-passphrase"},
+		"replace-platform-key", "check-passphrase", "check-pin", "change-passphrase"},
 	// anyone can enumerate key slots.
 	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 	WriteAccess: byActionAccess{
@@ -70,6 +70,10 @@ var systemVolumesCmd = &Command{
 				Interfaces: []string{"snap-fde-control"},
 				Polkit:     polkitActionManageFDE,
 			},
+			"replace-platform-key": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
 		},
 		// by default, all actions are only allowed for root.
 		Default: rootAccess{},
@@ -77,10 +81,12 @@ var systemVolumesCmd = &Command{
 }
 
 var fdeReplaceRecoveryKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-recovery-key")
+var fdeReplacePlatformKeyChangeKind = swfeats.RegisterChangeKind("fde-replace-platform-key")
 var fdeChangePassphraseChangeKind = swfeats.RegisterChangeKind("fde-change-passphrase")
 
 var (
 	fdestateReplaceRecoveryKey = fdestate.ReplaceRecoveryKey
+	fdestateReplacePlatformKey = fdestate.ReplacePlatformKey
 	fdestateChangeAuth         = fdestate.ChangeAuth
 	fdeMgrGenerateRecoveryKey  = (*fdestate.FDEManager).GenerateRecoveryKey
 	fdeMgrCheckRecoveryKey     = (*fdestate.FDEManager).CheckRecoveryKey
@@ -205,7 +211,7 @@ type systemVolumesActionRequest struct {
 	// KeyID is the recovery key id.
 	KeyID string `json:"key-id"`
 
-	client.QualityCheckOptions
+	client.PlatformKeyOptions
 	client.ChangePassphraseOptions
 }
 
@@ -248,6 +254,8 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesActionCheckRecoveryKey(c, &req)
 	case "replace-recovery-key":
 		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
+	case "replace-platform-key":
+		return postSystemVolumesActionReplacePlatformKey(c, &req)
 	case "check-passphrase":
 		return postSystemVolumesCheckPassphrase(&req)
 	case "check-pin":
@@ -312,6 +320,42 @@ func postSystemVolumesActionReplaceRecoveryKey(c *Command, req *systemVolumesAct
 	}
 
 	chg := newChange(st, fdeReplaceRecoveryKeyChangeKind, "Replace recovery key", []*state.TaskSet{ts}, nil)
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func postSystemVolumesActionReplacePlatformKey(c *Command, req *systemVolumesActionRequest) Response {
+	// XXX: Only support passphrase auth mode for now?
+	if req.AuthMode == "" {
+		return BadRequest("system volume action requires auth-mode to be provided")
+	}
+
+	var volumesAuth *device.VolumesAuthOptions
+	if req.AuthMode != device.AuthModeNone {
+		volumesAuth = &device.VolumesAuthOptions{
+			Mode:       req.AuthMode,
+			PIN:        req.PIN,
+			Passphrase: req.Passphrase,
+			KDFType:    req.KDFType,
+			KDFTime:    req.KDFTime,
+		}
+		if err := volumesAuth.Validate(); err != nil {
+			return BadRequest("invalid platform key options: %v", err)
+		}
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := fdestateReplacePlatformKey(st, volumesAuth, req.Keyslots)
+	if err != nil {
+		return errToResponse(err, nil, BadRequest, "cannot replace platform key: %v")
+	}
+
+	chg := newChange(st, fdeReplacePlatformKeyChangeKind, "Replace platform key", []*state.TaskSet{ts}, nil)
 
 	st.EnsureBefore(0)
 

@@ -1327,7 +1327,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateTaskAffectedSnaps(c *C) {
 	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})
 }
 
-func (s *fdeMgrSuite) TestAddProtectedKeysTaskAffectedSnaps(c *C) {
+func (s *fdeMgrSuite) TestAddPlatformKeysTaskAffectedSnaps(c *C) {
 	onClassic := true
 	s.startedManager(c, onClassic)
 
@@ -1337,7 +1337,7 @@ func (s *fdeMgrSuite) TestAddProtectedKeysTaskAffectedSnaps(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	tsk := s.st.NewTask("fde-add-protected-keys", "")
+	tsk := s.st.NewTask("fde-add-platform-keys", "")
 	snaps, err := snapstate.SnapsAffectedByTask(tsk)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})
