@@ -28,7 +28,7 @@ jobs:
       
       - name: run empty test with spread
         run: |
-          # Run spread in all the systemd defined for openstack-ps7 environment
+          # Run spread in all the systems defined for openstack-ps7 environment
           spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
 
       - name: Write the metrics to prometheus
