@@ -1,8 +1,0 @@
-# SPDX-License-Identifier: Apache-2.0
-# SPDX-FileCopyrightText: Zygmunt Krynicki
-
-version = 1
-SPDX-PackageName = "plz-run"
-SPDX-PackageSupplier = "Zygmunt Krynicki <me@zygoon.pl>"
-SPDX-PackageDownloadLocation = "https://gitlab.com/zygoon/plz-run"
-annotations = []
