@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Zygmunt Krynicki
+summary: plz-run -same-dir preserves the current working directory
+artifacts:
+    - pwd.log
+prepare: |
+    plz-run -same-dir pwd >pwd.log
+execute: |
+    MATCH "^$(pwd)\$" <pwd.log
