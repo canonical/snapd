@@ -313,8 +313,10 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	var err error
 
 	kind := c.Entry.XSnapdKind()
-	// ensure-dir mounts attempts to create a potentially missing target directory during the ensureTarget step
-	// and does not require any low-level actions. Directories created with ensure-dir mounts should never be removed.
+	// ensure-dir mounts attempts to create a potentially missing target
+	// directory during the ensureTarget step and does not require any
+	// low-level actions. Directories created with ensure-dir mounts should
+	// never be removed.
 	if kind == "ensure-dir" {
 		return nil
 	}
