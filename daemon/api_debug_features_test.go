@@ -38,7 +38,7 @@ type featuresDebugSuite struct {
 func (s *featuresDebugSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 	s.daemonWithOverlordMock()
-	ifacemgr, err := ifacestate.Manager(s.d.Overlord().State(), s.d.Overlord().HookManager(), s.d.Overlord().NoticeManager(), s.d.Overlord().TaskRunner(), []interfaces.Interface{}, []interfaces.SecurityBackend{})
+	ifacemgr, err := ifacestate.Manager(s.d.Overlord().State(), s.d.Overlord().HookManager(), s.d.Overlord().TaskRunner(), []interfaces.Interface{}, []interfaces.SecurityBackend{})
 	c.Assert(err, IsNil)
 	s.d.Overlord().AddManager(ifacemgr)
 }
