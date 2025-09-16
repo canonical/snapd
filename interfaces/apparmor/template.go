@@ -1049,6 +1049,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # mount profile at a given moment.
   /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.fstab{,.*} rw,
 
+  # Allow writing to a log file for both per-snap and per-snap-and-user log files.
+  /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.log w,
+  /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.user.*.log w,
+
   # NOTE: at this stage the /snap directory is stable as we have called
   # pivot_root already.
 
