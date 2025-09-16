@@ -86,6 +86,8 @@ func run() error {
 	}
 
 	setupOptInLogging(opts.Positionals.SnapName, opts.UserMounts)
+	logger.Debugf("snap-update-ns invoked snap:%s, fromSnapConfine:%v, userMounts:%v",
+		opts.Positionals.SnapName, opts.FromSnapConfine, opts.UserMounts)
 
 	// Explicitly set the umask to 0 to prevent permission bits
 	// being masked out when creating files and directories.
