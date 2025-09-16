@@ -149,8 +149,7 @@ execute: |
   remote.exec "sudo systemctl restart snapd.service"
 
   # Requesting a fix action when there is no preinstall context available should result in error
-  remote.exec "echo '{ \"action\": \"fix-encryption-support\", \"fix-action\": \"\"}' | sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" > result
-
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" > result
   cat <<EOF > result.reference
   {
     "result": {
@@ -169,16 +168,24 @@ execute: |
   remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
 
   # Requesting a fix action with preinstall context available should succeed
-  remote.exec "echo '{ \"action\": \"fix-encryption-support\", \"fix-action\": \"\"}' | sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' |
+  remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" |
+  gojq '.result["storage-encryption"].support' | MATCH "available"
 
-  remote.exec "echo '{ \"action\": \"fix-encryption-support\", \"fix-action\": \"\"}' | sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "cryptsetup"
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' |
+  remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" |
+  gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
 
   # Cause an error by configuring bogus shim
   remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/bootx64.efi"
 
   # Check that when requesting and action encryption is not available for the targeted system and provides reason with error-kind
-  remote.exec "echo '{ \"action\": \"fix-encryption-support\", \"fix-action\": \"\"}' | sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+  echo '{"action": "fix-encryption-support", "fix-action": "miracle"}' |
+  remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" |
+  gojq '.result["storage-encryption"].support' | MATCH "unavailable"
 
-  remote.exec "echo '{ \"action\": \"fix-encryption-support\", \"fix-action\": \"\"}' | sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' > availability-check-errors
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' |
+  remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null" |
+  gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
   diff availability-check-errors availability-check-errors.reference
