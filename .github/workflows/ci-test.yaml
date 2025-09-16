@@ -55,97 +55,97 @@ jobs:
           - runs-on: '["ubuntu-22.04-arm"]'
             variant: pristine
 
-  create-vendor-dir:
-    runs-on: ubuntu-latest
-    name: Create go vendor
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # create-vendor-dir:
+  #   runs-on: ubuntu-latest
+  #   name: Create go vendor
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: vendor
-        run: |
-          sudo snap install --classic --channel 1.18/stable go
-          /snap/bin/go mod vendor
-          (
-            cd c-vendor
-            ./vendor.sh
-          )
-          mkdir /tmp/pkg
-          base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
-          version="1337.$base_version"
-          ./packaging/pack-source -v "$version" -o /tmp/pkg
-          ./packaging/pack-source -v "$version" -o /tmp/pkg -s
-          echo "$version" > /tmp/pkg/version
+  #     - name: vendor
+  #       run: |
+  #         sudo snap install --classic --channel 1.18/stable go
+  #         /snap/bin/go mod vendor
+  #         (
+  #           cd c-vendor
+  #           ./vendor.sh
+  #         )
+  #         mkdir /tmp/pkg
+  #         base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+  #         version="1337.$base_version"
+  #         ./packaging/pack-source -v "$version" -o /tmp/pkg
+  #         ./packaging/pack-source -v "$version" -o /tmp/pkg -s
+  #         echo "$version" > /tmp/pkg/version
 
-      - name: Upload vendors
-        uses: actions/upload-artifact@v4
-        with:
-          name: vendor-pkgs
-          path: /tmp/pkg
+  #     - name: Upload vendors
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: vendor-pkgs
+  #         path: /tmp/pkg
 
-  package-snapd-rpm-mock:
-    needs: create-vendor-dir
-    uses: ./.github/workflows/rpm-mock-builds.yaml
-    name: Package ${{ matrix.build-config.system }}
-    with:
-      runs-on: '["ubuntu-latest"]'
-      system: ${{ matrix.build-config.system }}
-      pkg-dir: ${{ matrix.build-config.pkg-dir }}
-      config: ${{ matrix.build-config.config }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build-config:
-          - { system: fedora-41-64,           pkg-dir: fedora-41,            config: fedora-41-x86_64           }
-          - { system: fedora-42-64,           pkg-dir: fedora-42,            config: fedora-42-x86_64           }
-          - { system: centos-9-64,            pkg-dir: centos-9,             config: centos-stream-9-x86_64     }
-          - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
-          - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
+  # package-snapd-rpm-mock:
+  #   needs: create-vendor-dir
+  #   uses: ./.github/workflows/rpm-mock-builds.yaml
+  #   name: Package ${{ matrix.build-config.system }}
+  #   with:
+  #     runs-on: '["ubuntu-latest"]'
+  #     system: ${{ matrix.build-config.system }}
+  #     pkg-dir: ${{ matrix.build-config.pkg-dir }}
+  #     config: ${{ matrix.build-config.config }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       build-config:
+  #         - { system: fedora-41-64,           pkg-dir: fedora-41,            config: fedora-41-x86_64           }
+  #         - { system: fedora-42-64,           pkg-dir: fedora-42,            config: fedora-42-x86_64           }
+  #         - { system: centos-9-64,            pkg-dir: centos-9,             config: centos-stream-9-x86_64     }
+  #         - { system: amazon-linux-2-64,      pkg-dir: amzn-2,               config: amazonlinux-2-x86_64       }
+  #         - { system: amazon-linux-2023-64,   pkg-dir: amzn-2023,            config: amazonlinux-2023-x86_64    }
 
-  package-snapd-rpm-rpmbuild:
-    needs: create-vendor-dir
-    uses: ./.github/workflows/rpm-rpmbuild-builds.yaml
-    secrets: inherit
-    name: Package ${{ matrix.build-config.system }}
-    with:
-      runs-on: '["ubuntu-latest"]'
-      pkg-dir: ${{ matrix.build-config.pkg-dir }}
-      system: ${{ matrix.build-config.system }}
-      image-name: ${{ matrix.build-config.image-name }}
-      image-tag: ${{ matrix.build-config.image-tag }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build-config:
-          - { system: "opensuse-tumbleweed-64", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
-          - { system: "opensuse-15.6-64",       image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
+  # package-snapd-rpm-rpmbuild:
+  #   needs: create-vendor-dir
+  #   uses: ./.github/workflows/rpm-rpmbuild-builds.yaml
+  #   secrets: inherit
+  #   name: Package ${{ matrix.build-config.system }}
+  #   with:
+  #     runs-on: '["ubuntu-latest"]'
+  #     pkg-dir: ${{ matrix.build-config.pkg-dir }}
+  #     system: ${{ matrix.build-config.system }}
+  #     image-name: ${{ matrix.build-config.image-name }}
+  #     image-tag: ${{ matrix.build-config.image-tag }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       build-config:
+  #         - { system: "opensuse-tumbleweed-64", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
+  #         - { system: "opensuse-15.6-64",       image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
 
-  package-snapd-arch:
-    needs: create-vendor-dir
-    uses: ./.github/workflows/arch-builds.yaml
-    name: Package arch-linux-64
-    with:
-      runs-on: '["ubuntu-latest"]'
+  # package-snapd-arch:
+  #   needs: create-vendor-dir
+  #   uses: ./.github/workflows/arch-builds.yaml
+  #   name: Package arch-linux-64
+  #   with:
+  #     runs-on: '["ubuntu-latest"]'
 
-  package-snapd-deb:
-    needs: create-vendor-dir
-    uses: ./.github/workflows/deb-builds.yaml
-    name: Package ${{ matrix.build-config.system }}
-    with:
-      runs-on: ${{ matrix.build-config.runs-on }}
-      system: ${{ matrix.build-config.system }}
-      os-version: ${{ matrix.build-config.os-version }}
-      os: ${{ matrix.build-config.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        build-config:
-          - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
-          - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }
-          - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04' }
-          - { system: "ubuntu-18.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '18.04' }
-          - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04' }
-          - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04' }
+  # package-snapd-deb:
+  #   needs: create-vendor-dir
+  #   uses: ./.github/workflows/deb-builds.yaml
+  #   name: Package ${{ matrix.build-config.system }}
+  #   with:
+  #     runs-on: ${{ matrix.build-config.runs-on }}
+  #     system: ${{ matrix.build-config.system }}
+  #     os-version: ${{ matrix.build-config.os-version }}
+  #     os: ${{ matrix.build-config.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       build-config:
+  #         - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
+  #         - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }
+  #         - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04' }
+  #         - { system: "ubuntu-18.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '18.04' }
+  #         - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04' }
+  #         - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04' }
 
   cache-build-deps:
     runs-on: ubuntu-latest
