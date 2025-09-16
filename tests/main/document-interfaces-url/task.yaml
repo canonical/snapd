@@ -50,6 +50,9 @@ execute: |
     exclusion_map["snap-fde-control"]="2026/02"
     exclusion_map["usb-gadget"]="2026/02"
     exclusion_map["kerberos-tickets"]="2026/02"
+    exclusion_map["gbm-driver-libs"]="2026/02"
+    exclusion_map["opengl-driver-libs"]="2026/02"
+    exclusion_map["opengles-driver-libs"]="2026/02"
 
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
