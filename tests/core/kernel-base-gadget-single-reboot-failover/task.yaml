@@ -65,23 +65,16 @@ execute: |
             echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
-        snap pack pc-snap --filename=pc_x1.snap
-
-        # break the pc-kernel snap if that is the last snap
-        unsquashfs -d pc-kernel-snap pc-kernel_*.snap
-    
-        if cat ./pc-kernel-snap/meta/snap.yaml | yq '.hooks'; then
-            cat ./pc-kernel-snap/meta/snap.yaml | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> ./pc-kernel-snap/meta/snap.yaml
+        if cat ./pc-snap/meta/snap.yaml | yq '.hooks'; then
+            cat ./pc-snap/meta/snap.yaml | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
         else
-            cat ./pc-kernel-snap/meta/snap.yaml | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> ./pc-kernel-snap/meta/snap.yaml
-            mkdir -p pc-kernel-snap/meta/hooks
+            cat ./pc-snap/meta/snap.yaml | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
+            mkdir -p pc-snap/meta/hooks
         fi
-        echo 'exit 1' >> ./pc-kernel-snap/meta/hooks/configure
-        chmod +x ./pc-kernel-snap/meta/hooks/configure
+        echo 'exit 1' >> ./pc-snap/meta/hooks/configure
+        chmod +x ./pc-snap/meta/hooks/configure
 
-        rm pc-kernel_*.snap pc-kernel_*.assert
-        snap pack pc-kernel-snap
-        rm -rf pc-kernel-snap
+        snap pack pc-snap --filename=pc_x1.snap
 
         snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
 
