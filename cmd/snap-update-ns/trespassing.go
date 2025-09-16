@@ -61,11 +61,13 @@ type ModeHint struct {
 // such as /tmp, $SNAP_DATA and $SNAP.
 func (as *Assumptions) AddUnrestrictedPaths(paths ...string) {
 	as.unrestrictedPaths = append(as.unrestrictedPaths, paths...)
+	logger.Debugf("Assumptions.AddUnrestrictedPaths: paths:%s", strings.Join(paths, ","))
 }
 
 // AddModeHint adds a path glob and mode used when creating path elements.
 func (as *Assumptions) AddModeHint(pathGlob string, mode os.FileMode) {
 	as.modeHints = append(as.modeHints, ModeHint{PathGlob: pathGlob, Mode: mode})
+	logger.Debugf("Assumptions.AddModeHint: glob:%s mode:%v", pathGlob, mode)
 }
 
 // ModeForPath returns the mode for creating a directory at a given path.
@@ -90,6 +92,7 @@ func (as *Assumptions) ModeForPath(path string) os.FileMode {
 			}
 		}
 	}
+	logger.Debugf("Assumptions.ModeForPath path:%s => %v", path, mode)
 	return mode
 }
 
