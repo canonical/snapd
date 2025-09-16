@@ -8,18 +8,27 @@ details: |
 # no iptables on core18+
 systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 
-restore: |
-    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
-        echo "Restoring iptables rules"
-        iptables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
-        iptables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable || true
-        ip6tables -D OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp6-port-unreachable || true
-        ip6tables -D OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp6-port-unreachable || true
+prepare: |
+    if [ -f /etc/systemd/system/snapd.service.d/proxy.conf ]; then
+        "$TESTSTOOLS"/fs-state mock-file /etc/systemd/system/snapd.service.d/proxy.conf
+        tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /etc/systemd/system/snapd.service.d/proxy.conf
     fi
 
+    if [ -f /etc/environment ]; then
+        "$TESTSTOOLS"/fs-state mock-file /etc/environment
+        tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /etc/environment
+    fi
+
+    systemd-run --service-type=notify --uid=test --unit tinyproxy-stalling -- \
+        python3 "$TESTSLIB/tinyproxy/tinyproxy.py" --stall-for-seconds=60
+    tests.systemd wait-for-service -n 30 --state active tinyproxy-stalling
+
+restore: |
+    systemctl stop tinyproxy-stalling || true
+    systemctl reset-failed tinyproxy-stalling || true
+
 debug: |
-    echo "iptables rules:"
-    iptables -L -n -v || true
+    systemctl status tinyproxy-stalling || true
 
 execute: |
     # Do a store op to avoid an unexpected device auth refresh on snap find
@@ -28,36 +37,21 @@ execute: |
 
     systemctl stop snapd.{socket,service}
 
-    if [ "${SNAPD_USE_PROXY:-}" != true ]; then
-        echo "Disabling DNS queries"
-        # DNS queries generally use port 53 through UDP protocol, but TCP could be used as well
-        iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
-        iptables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp-port-unreachable
-        ip6tables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp6-port-unreachable
-        ip6tables -I OUTPUT -p tcp --dport 53 -j REJECT --reject-with icmp6-port-unreachable
-    else
-        # The proxy is unset to produce a network error when snapd tries to contact the store
-        mv /etc/systemd/system/snapd.service.d/proxy.conf proxy.conf
-        cp /etc/environment environment
-        cp "$SNAPD_WORK_DIR"/environment.bak /etc/environment
-        systemctl daemon-reload
-
-        tests.cleanup defer mv proxy.conf /etc/systemd/system/snapd.service.d/proxy.conf
-        tests.cleanup defer mv environment /etc/environment
-        tests.cleanup defer systemctl daemon-reload
+    if [ -f /etc/environment ]; then
+        echo > /etc/environment
     fi
 
-    if systemctl is-active systemd-resolved; then
-        # before systemd 239, the tool was named systemd-resolve some systems do not support
-        if command -v resolvectl; then
-            resolvectl flush-caches
-        elif systemd-resolve -h | MATCH flush-caches; then
-            # centos 7: doesn't support caching dns, so no flushing required
-            # ubuntu-core 16: systemd-resolve doesn't support flush-caches
-            systemd-resolve --flush-caches
-        fi
-    fi
+    tinyproxy_addr=127.0.0.1:3128
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
+    [Service]
+    Environment=HTTPS_PROXY=$tinyproxy_addr
+    Environment=HTTP_PROXY=$tinyproxy_addr
+    Environment=https_proxy=$tinyproxy_addr
+    Environment=http_proxy=$tinyproxy_addr
+    EOF
 
+    systemctl daemon-reload
     systemctl start snapd.{socket,service}
 
     OUT=$(snap find test 2>&1 || true)

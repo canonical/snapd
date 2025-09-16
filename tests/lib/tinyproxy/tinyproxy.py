@@ -12,10 +12,14 @@ import socket
 import socketserver
 import sys
 import urllib.parse
+import argparse
+import time
 
 
 class ProxyHandler(http.server.BaseHTTPRequestHandler):
     server_version = "testsproxy/1.0"
+    block_all = False
+    stall_for_seconds = 0
 
     def log_request(self, m=""):
         super().log_request(m)
@@ -44,6 +48,15 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
         return True
 
     def do_CONNECT(self):
+        if self.block_all:
+            self.log_error("blocking all traffic")
+            self.send_error(400, "All traffic blocked")
+            return
+
+        if self.stall_for_seconds > 0:
+            self.log_message("stalling for %d seconds", self.stall_for_seconds)
+            time.sleep(self.stall_for_seconds)
+
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             if self._connect_to(self.path, soc):
@@ -130,7 +143,27 @@ class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         maybe_sd_notify("READY=1")
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="tiny proxy")
+    parser.add_argument("--block-all", help="block all requests", action="store_true")
+    parser.add_argument(
+        "--stall-for-seconds", help="block all requests", type=int, default=0
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    opts = parse_arguments()
     port = 3128
+
+    if opts.block_all:
+        print("blocking all traffic")
+        ProxyHandler.block_all = True
+
+    if opts.stall_for_seconds > 0:
+        print("stalling for", opts.stall_for_seconds, "seconds")
+        ProxyHandler.stall_for_seconds = opts.stall_for_seconds
+
     print("starting tinyproxy on port {}".format(port))
     http.server.test(ProxyHandler, ThreadingHTTPServer, port=port)
