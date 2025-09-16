@@ -418,7 +418,7 @@ jobs:
           fi
           RUN_TESTS_NEW=""
           for SYSTEM in ${{ inputs.systems }}; do
-            system_run="$(echo $RUN_TESTS | grep ${{ inputs.systems }})"
+            system_run="$(echo $spread_list | grep $SYSTEM)"
             system_run="${system_run%% *}"
             RUN_TESTS_NEW="$RUN_TESTS_NEW $system_run"
           done

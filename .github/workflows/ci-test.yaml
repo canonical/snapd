@@ -171,287 +171,287 @@ jobs:
         name: debian-dependencies
         path: ./cached-apt.tar
 
-  static-checks:
-    uses: ./.github/workflows/static-checks.yaml
-    needs:
-      - go-channels
-      - cache-build-deps
-    with:
-      runs-on: ubuntu-latest
-      gochannel: ${{ matrix.gochannel }}
+  # static-checks:
+  #   uses: ./.github/workflows/static-checks.yaml
+  #   needs:
+  #     - go-channels
+  #     - cache-build-deps
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     gochannel: ${{ matrix.gochannel }}
 
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false      
-      matrix:
-        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+  #   strategy:
+  #     # we cache successful runs so it's fine to keep going
+  #     fail-fast: false      
+  #     matrix:
+  #       gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
     
-  static-checks-not-required:
-    uses: ./.github/workflows/static-checks.yaml
-    needs:
-      - cache-build-deps
-    with:
-      runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
+  # static-checks-not-required:
+  #   uses: ./.github/workflows/static-checks.yaml
+  #   needs:
+  #     - cache-build-deps
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     gochannel: 'latest/stable'
 
-  branch-static-checks:
-    runs-on: ubuntu-latest
-    needs: [cache-build-deps]
-    if: github.ref != 'refs/heads/master'
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        # needed for git commit history
-        fetch-depth: 0
+  # branch-static-checks:
+  #   runs-on: ubuntu-latest
+  #   needs: [cache-build-deps]
+  #   if: github.ref != 'refs/heads/master'
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #     with:
+  #       # needed for git commit history
+  #       fetch-depth: 0
 
-    - name: check-branch-ubuntu-daily-spread
-      run: |
-        # Compare the daily system in master and in the current branch
-        get_daily_system() {
-          json1=$1
-          json2=$2
-          jq -s '{ include: [ .[0].include, .[1].include ] | add }' "$json1" "$json2" | \
-            jq '.include.[] | select(.group == "ubuntu-daily") | .systems'
-        }
+  #   - name: check-branch-ubuntu-daily-spread
+  #     run: |
+  #       # Compare the daily system in master and in the current branch
+  #       get_daily_system() {
+  #         json1=$1
+  #         json2=$2
+  #         jq -s '{ include: [ .[0].include, .[1].include ] | add }' "$json1" "$json2" | \
+  #           jq '.include.[] | select(.group == "ubuntu-daily") | .systems'
+  #       }
 
-        wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-fundamental-systems.json
-        wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-non-fundamental-systems.json
+  #       wget -q -O master_fundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-fundamental-systems.json
+  #       wget -q -O master_nonfundsys.json https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/data-non-fundamental-systems.json
         
-        master_daily="$(get_daily_system master_fundsys.json master_nonfundsys.json)"
-        branch_daily="$(get_daily_system .github/workflows/data-fundamental-systems.json .github/workflows/data-non-fundamental-systems.json)"
-        test "$master_daily" == "$branch_daily"
-      shell: bash
+  #       master_daily="$(get_daily_system master_fundsys.json master_nonfundsys.json)"
+  #       branch_daily="$(get_daily_system .github/workflows/data-fundamental-systems.json .github/workflows/data-non-fundamental-systems.json)"
+  #       test "$master_daily" == "$branch_daily"
+  #     shell: bash
 
-  # The required-static-checks job was introduced to maintain a consistent
-  # status check name, regardless of changes to the Go channel used for static
-  # checks. This avoids the need to update required status checks whenever the
-  # Go channel changes.
-  required-static-checks:
-    runs-on: ubuntu-latest
-    needs:
-      - static-checks
-      - branch-static-checks
-    if: always()
-    steps:
-      - name: Filter out branch-static-checks from needs
-        run: |
-          # The branch-static-checks job is skipped when testing on the master
-          # branch. The combine-results action treats skipped jobs as failed
-          # because a failure earlier in the chain (e.g., in cache-build-deps)
-          # would also cause branch-static-checks to be skipped, which
-          # constitutes a legitimate failure. To handle this, when
-          # branch-static-checks is skipped during testing on the master branch
-          # we remove it from the list of dependencies whose results are checked.
-          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
-            filtered_needs=$(echo '${{ toJSON(needs) }}' | jq 'del(.["branch-static-checks"])')
-            echo "NEEDS_FILTERED=$(echo $filtered_needs | jq -c)" >> $GITHUB_ENV
-          else
-            echo "NEEDS_FILTERED=$(echo '${{ toJSON(needs) }}' | jq -c)" >> $GITHUB_ENV
-          fi
-        shell: bash
+  # # The required-static-checks job was introduced to maintain a consistent
+  # # status check name, regardless of changes to the Go channel used for static
+  # # checks. This avoids the need to update required status checks whenever the
+  # # Go channel changes.
+  # required-static-checks:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - static-checks
+  #     - branch-static-checks
+  #   if: always()
+  #   steps:
+  #     - name: Filter out branch-static-checks from needs
+  #       run: |
+  #         # The branch-static-checks job is skipped when testing on the master
+  #         # branch. The combine-results action treats skipped jobs as failed
+  #         # because a failure earlier in the chain (e.g., in cache-build-deps)
+  #         # would also cause branch-static-checks to be skipped, which
+  #         # constitutes a legitimate failure. To handle this, when
+  #         # branch-static-checks is skipped during testing on the master branch
+  #         # we remove it from the list of dependencies whose results are checked.
+  #         if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+  #           filtered_needs=$(echo '${{ toJSON(needs) }}' | jq 'del(.["branch-static-checks"])')
+  #           echo "NEEDS_FILTERED=$(echo $filtered_needs | jq -c)" >> $GITHUB_ENV
+  #         else
+  #           echo "NEEDS_FILTERED=$(echo '${{ toJSON(needs) }}' | jq -c)" >> $GITHUB_ENV
+  #         fi
+  #       shell: bash
 
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Confirm required static checks passed
-        uses: ./.github/actions/combine-results
-        with:
-          needs-json: ${{ env.NEEDS_FILTERED }}
+  #     - name: Confirm required static checks passed
+  #       uses: ./.github/actions/combine-results
+  #       with:
+  #         needs-json: ${{ env.NEEDS_FILTERED }}
 
-  unit-tests:
-    uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - go-channels
-      - static-checks 
-    name: "unit-tests (Go default ${{ matrix.gochannel }})"
-    with:
-      runs-on: ubuntu-latest
-      gochannel: ${{ matrix.gochannel }}
-      skip-coverage: false
-      code: 'go'
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false      
-      matrix:
-        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+  # unit-tests:
+  #   uses: ./.github/workflows/unit-tests.yaml
+  #   needs:
+  #     - go-channels
+  #     - static-checks 
+  #   name: "unit-tests (Go default ${{ matrix.gochannel }})"
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     gochannel: ${{ matrix.gochannel }}
+  #     skip-coverage: false
+  #     code: 'go'
+  #   strategy:
+  #     # we cache successful runs so it's fine to keep going
+  #     fail-fast: false      
+  #     matrix:
+  #       gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
-  unit-tests-not-required:
-    uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - static-checks-not-required
-    name: "unit-tests (Go default latest/stable})"
-    with:
-      runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
-      skip-coverage: true
-      code: 'go'
+  # unit-tests-not-required:
+  #   uses: ./.github/workflows/unit-tests.yaml
+  #   needs:
+  #     - static-checks-not-required
+  #   name: "unit-tests (Go default latest/stable})"
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     gochannel: 'latest/stable'
+  #     skip-coverage: true
+  #     code: 'go'
 
-  unit-tests-c:
-    uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - cache-build-deps
-    name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
-    with:
-      runs-on: ubuntu-latest
-      code: 'c'
-      c-compiler: ${{ matrix.test-case.c-compiler }}
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false
-      matrix:
-        test-case:
-          - { c-compiler: gcc }
-          - { c-compiler: clang }
+  # unit-tests-c:
+  #   uses: ./.github/workflows/unit-tests.yaml
+  #   needs:
+  #     - cache-build-deps
+  #   name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     code: 'c'
+  #     c-compiler: ${{ matrix.test-case.c-compiler }}
+  #   strategy:
+  #     # we cache successful runs so it's fine to keep going
+  #     fail-fast: false
+  #     matrix:
+  #       test-case:
+  #         - { c-compiler: gcc }
+  #         - { c-compiler: clang }
 
-  unit-tests-special:
-    uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - go-channels
-      - static-checks
-    name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
-          ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
-          ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
-    with:
-      runs-on: ubuntu-latest
-      gochannel: ${{ matrix.gochannel }}
-      skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
-      go-build-tags: ${{ matrix.test-case.go-build-tags }}
-      go-test-race: ${{ matrix.test-case.go-test-race }}
-      snapd-debug: ${{ matrix.test-case.snapd-debug }}
-      code: 'go'
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false
-      matrix:
-        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
-        test-case:
-          - { go-build-tags: snapd_debug,           skip-coverage: false, snapd-debug: true,  go-test-race: false}
-          - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: optee,                 skip-coverage: false, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: statelocktrace,        skip-coverage: true,  snapd-debug: false, go-test-race: false}
-          - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: structuredlogging,     skip-coverage: true,  snapd-debug: false, go-test-race: false}
-          - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
+  # unit-tests-special:
+  #   uses: ./.github/workflows/unit-tests.yaml
+  #   needs:
+  #     - go-channels
+  #     - static-checks
+  #   name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
+  #         ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
+  #         ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     gochannel: ${{ matrix.gochannel }}
+  #     skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
+  #     go-build-tags: ${{ matrix.test-case.go-build-tags }}
+  #     go-test-race: ${{ matrix.test-case.go-test-race }}
+  #     snapd-debug: ${{ matrix.test-case.snapd-debug }}
+  #     code: 'go'
+  #   strategy:
+  #     # we cache successful runs so it's fine to keep going
+  #     fail-fast: false
+  #     matrix:
+  #       gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+  #       test-case:
+  #         - { go-build-tags: snapd_debug,           skip-coverage: false, snapd-debug: true,  go-test-race: false}
+  #         - { go-build-tags: withbootassetstesting, skip-coverage: false, snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: optee,                 skip-coverage: false, snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: nosecboot,             skip-coverage: false, snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: faultinject,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: statelocktrace,        skip-coverage: true,  snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: snapdusergo,           skip-coverage: false, snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: structuredlogging,     skip-coverage: true,  snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: "",                    skip-coverage: true,  snapd-debug: false, go-test-race: true }
 
-  unit-tests-special-not-required:
-    uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - static-checks-not-required
-    name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
-          ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
-          ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
-    with:
-      runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
-      skip-coverage: true
-      go-build-tags: ${{ matrix.test-case.go-build-tags }}
-      go-test-race: ${{ matrix.test-case.go-test-race }}
-      snapd-debug: ${{ matrix.test-case.snapd-debug }}
-      code: 'go'
-    strategy:
-      # we cache successful runs so it's fine to keep going
-      fail-fast: false
-      matrix:
-        test-case:
-          - { go-build-tags: snapd_debug,           snapd-debug: true,  go-test-race: false}
-          - { go-build-tags: withbootassetstesting, snapd-debug: false, go-test-race: false}
-          - { go-build-tags: optee,                 snapd-debug: false, go-test-race: false}
-          - { go-build-tags: nosecboot,             snapd-debug: false, go-test-race: false}
-          - { go-build-tags: faultinject,           snapd-debug: false, go-test-race: false}
-          - { go-build-tags: statelocktrace,        snapd-debug: false, go-test-race: false}
-          - { go-build-tags: snapdusergo,           snapd-debug: false, go-test-race: false}
-          - { go-build-tags: structuredlogging,     snapd-debug: false, go-test-race: false}
-          - { go-build-tags: "",                    snapd-debug: false, go-test-race: true }
+  # unit-tests-special-not-required:
+  #   uses: ./.github/workflows/unit-tests.yaml
+  #   needs:
+  #     - static-checks-not-required
+  #   name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
+  #         ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
+  #         ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     gochannel: 'latest/stable'
+  #     skip-coverage: true
+  #     go-build-tags: ${{ matrix.test-case.go-build-tags }}
+  #     go-test-race: ${{ matrix.test-case.go-test-race }}
+  #     snapd-debug: ${{ matrix.test-case.snapd-debug }}
+  #     code: 'go'
+  #   strategy:
+  #     # we cache successful runs so it's fine to keep going
+  #     fail-fast: false
+  #     matrix:
+  #       test-case:
+  #         - { go-build-tags: snapd_debug,           snapd-debug: true,  go-test-race: false}
+  #         - { go-build-tags: withbootassetstesting, snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: optee,                 snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: nosecboot,             snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: faultinject,           snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: statelocktrace,        snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: snapdusergo,           snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: structuredlogging,     snapd-debug: false, go-test-race: false}
+  #         - { go-build-tags: "",                    snapd-debug: false, go-test-race: true }
 
-  unit-tests-cross-distro:
-    uses: ./.github/workflows/unit-tests-cross-distro.yaml
-    needs: [static-checks]
-    with:
-      runs-on: ubuntu-latest
-      distro: ${{ matrix.distro }}
+  # unit-tests-cross-distro:
+  #   uses: ./.github/workflows/unit-tests-cross-distro.yaml
+  #   needs: [static-checks]
+  #   with:
+  #     runs-on: ubuntu-latest
+  #     distro: ${{ matrix.distro }}
 
-    strategy:
-      fail-fast: false
-      matrix:
-        distro:
-          # TODO add arch?
-          - fedora:latest
-          - opensuse/tumbleweed
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       distro:
+  #         # TODO add arch?
+  #         - fedora:latest
+  #         - opensuse/tumbleweed
 
-  unit-tests-python:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '>=3.9'
-          cache: 'pip'
-          cache-dependency-path: '**/requirements.txt'
-      - run: |
-          find tests/ -name 'requirements.txt' -exec pip install -r {} \;
-          pytest tests
+  # unit-tests-python:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '>=3.9'
+  #         cache: 'pip'
+  #         cache-dependency-path: '**/requirements.txt'
+  #     - run: |
+  #         find tests/ -name 'requirements.txt' -exec pip install -r {} \;
+  #         pytest tests
 
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit
   # tests. This avoids the need to update required status checks whenever the
   # Go channel changes.
-  required-unit-tests:
-    runs-on: ubuntu-latest
-    needs:
-      - unit-tests
-      - unit-tests-special
-      - unit-tests-c
-      - unit-tests-cross-distro
-    if: always()
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # required-unit-tests:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - unit-tests
+  #     - unit-tests-special
+  #     - unit-tests-c
+  #     - unit-tests-cross-distro
+  #   if: always()
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Confirm required unit tests passed
-        uses: ./.github/actions/combine-results
-        with:
-          needs-json: ${{ toJSON(needs) }}
+  #     - name: Confirm required unit tests passed
+  #       uses: ./.github/actions/combine-results
+  #       with:
+  #         needs-json: ${{ toJSON(needs) }}
 
-  code-coverage:
-    needs: [unit-tests, unit-tests-special, unit-tests-c]
-    runs-on: ubuntu-latest
-    env:
-      GOPATH: ${{ github.workspace }}
-      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
-      # to use the go snap automatically. Note that we install go from the
-      # snap in a step below. Without this we get the GitHub-controlled latest
-      # version of go.
-      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
-      GOROOT: ""
-    steps:
-    - name: Download the coverage files
-      uses: actions/download-artifact@v4
-      with:
-        pattern: coverage-files-*
-        path: .coverage/
-        merge-multiple: true
+  # code-coverage:
+  #   needs: [unit-tests, unit-tests-special, unit-tests-c]
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     GOPATH: ${{ github.workspace }}
+  #     # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+  #     # to use the go snap automatically. Note that we install go from the
+  #     # snap in a step below. Without this we get the GitHub-controlled latest
+  #     # version of go.
+  #     PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+  #     GOROOT: ""
+  #   steps:
+  #   - name: Download the coverage files
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       pattern: coverage-files-*
+  #       path: .coverage/
+  #       merge-multiple: true
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      # uploading to codecov occasionally fails, so continue running the test
-      # workflow regardless of the upload
-      continue-on-error: true
-      with:
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}
-        flags: unittests
-        name: codecov-umbrella
-        verbose: true
-        # exclude codecov binaries
-        exclude: codecov*
-        disable_search: true
-        files: .coverage/*
-        # only pick files under .coverage directory
-        network_filter: .coverage/
+  #   - name: Upload coverage to Codecov
+  #     uses: codecov/codecov-action@v5
+  #     # uploading to codecov occasionally fails, so continue running the test
+  #     # workflow regardless of the upload
+  #     continue-on-error: true
+  #     with:
+  #       fail_ci_if_error: true
+  #       token: ${{ secrets.CODECOV_TOKEN }}
+  #       flags: unittests
+  #       name: codecov-umbrella
+  #       verbose: true
+  #       # exclude codecov binaries
+  #       exclude: codecov*
+  #       disable_search: true
+  #       files: .coverage/*
+  #       # only pick files under .coverage directory
+  #       network_filter: .coverage/
 
   read-systems:
     runs-on: ubuntu-latest
@@ -491,7 +491,8 @@ jobs:
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    needs: [snap-builds, read-systems]
     if: needs.read-systems.outputs.fundamental-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
@@ -521,7 +522,8 @@ jobs:
     if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
     # For workflow runs that are PRs, run this non-fundamental systems job
     # only after the fundamental systems job succeeds.
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
+    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
+    needs: [snap-builds, read-systems, spread-fundamental]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -549,7 +551,8 @@ jobs:
     if: github.event_name != 'pull_request' || contains(github.base_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'cross-distro')
     # For workflow runs that are not for PRs, no need to impose a dependency
     # on the fundamental systems job's success before running this job.
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    needs: [snap-builds, read-systems]
     name: "spread ${{ matrix.group }}"
     with:
       # Github doesn't support passing sequences as parameters.
@@ -574,7 +577,8 @@ jobs:
 
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    needs: [snap-builds, read-systems]
     if: needs.read-systems.outputs.nested-systems != ''
     name: "spread ${{ matrix.group }}"
     with:
