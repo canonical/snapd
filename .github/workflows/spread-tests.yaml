@@ -411,14 +411,26 @@ jobs:
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
           fi
 
+          USE_ALTERNATIVE_BACKEND="$(curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/use_alternative_backend.json)"
+          SPREAD_BACKEND="${{ inputs.backend }}"
+          if [ -n "${{ inputs.alternative-backend }}" ] && [ $(jq -r ".\"${{ inputs.group }}\"" <<< "$USE_ALTERNATIVE_BACKEND") == true ]; then
+              SPREAD_BACKEND="${{ inputs.alternative-backend }}"
+          fi
+          RUN_TESTS_NEW=""
+          for SYSTEM in ${{ inputs.systems }}; do
+            system_run="$(echo $RUN_TESTS | grep ${{ inputs.systems }})"
+            system_run="${system_run%% *}"
+            RUN_TESTS_NEW="$RUN_TESTS_NEW $system_run"
+          done
+
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          echo "Running command: $SPREAD $RUN_TESTS"
+          echo "Running command: $SPREAD $RUN_TESTS_NEW"
           (
             set -o pipefail 
-            $SPREAD $SPREAD_FLAGS $RUN_TESTS | \
+            $SPREAD $SPREAD_FLAGS $RUN_TESTS_NEW | \
               ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
               tee spread.log
           )
