@@ -109,6 +109,17 @@ func run() error {
 	return executeMountProfileUpdate(upCtx)
 }
 
+// setupOptInLogging configures the logger to log to an existing file.
+//
+// Developers or users assisting in a debug session may be asked to touch empty
+// files at /run/snapd/ns/snap.$SNAP_NAME.log and
+// /run/snapd/ns/snap.$SNAP_NAME.user.$UID.log.
+//
+// Presence of either file activates verbose debug logging of mount namespace
+// operations of the specific snap, and snap-uid pair.
+//
+// Nothing in snapd creates or removes those files. The content may be attached
+// to bug reports to be investigated by snapd developers.
 func setupOptInLogging(snapName string, userMounts bool) {
 	var path string
 	if userMounts {
