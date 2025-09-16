@@ -28,6 +28,8 @@ jobs:
       
       - name: run empty test with spread
         run: |
+          export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
+          export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
           # Run spread in all the systems defined for openstack-ps7 environment
           spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
 
