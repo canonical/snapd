@@ -125,17 +125,17 @@ func (cs *clusterSuite) TestDecodeOK(c *C) {
 	c.Check(subclusters[0].Name, Equals, "default")
 	c.Check(subclusters[0].Devices, DeepEquals, []int{1, 2})
 	c.Assert(subclusters[0].Snaps, HasLen, 2)
-	c.Check(subclusters[0].Snaps[0].State, Equals, "clustered")
+	c.Check(subclusters[0].Snaps[0].State, Equals, asserts.ClusterSnapStateClustered)
 	c.Check(subclusters[0].Snaps[0].Instance, Equals, "clustered-snap")
 	c.Check(subclusters[0].Snaps[0].Channel, Equals, "stable")
-	c.Check(subclusters[0].Snaps[1].State, Equals, "evacuated")
+	c.Check(subclusters[0].Snaps[1].State, Equals, asserts.ClusterSnapStateEvacuated)
 	c.Check(subclusters[0].Snaps[1].Instance, Equals, "evacuated-snap")
 	c.Check(subclusters[0].Snaps[1].Channel, Equals, "edge")
 
 	c.Check(subclusters[1].Name, Equals, "additional-cluter")
 	c.Check(subclusters[1].Devices, DeepEquals, []int{2})
 	c.Assert(subclusters[1].Snaps, HasLen, 1)
-	c.Check(subclusters[1].Snaps[0].State, Equals, "removed")
+	c.Check(subclusters[1].Snaps[0].State, Equals, asserts.ClusterSnapStateRemoved)
 	c.Check(subclusters[1].Snaps[0].Instance, Equals, "removed-snap")
 	c.Check(subclusters[1].Snaps[0].Channel, Equals, "24/stable")
 }
@@ -184,7 +184,7 @@ func (cs *clusterSuite) TestDecodeInvalidSubclusters(c *C) {
 	encoded := strings.Replace(clusterExample, "TSLINE", cs.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"        state: clustered\n", "        state: invalid-state\n", `snap state must be one of \[clustered evacuated removed\]`},
+		{"        state: clustered\n", "        state: invalid-state\n", `snap state must be one of: "clustered", "evacuated", "removed"`},
 		{"      - 1\n", "      - not-a-number\n", `device id "not-a-number" is not an integer: not-a-number`},
 		{"    name: default\n", "", `"name" header is mandatory`},
 		{"        state: clustered\n", "", `"state" header is mandatory`},

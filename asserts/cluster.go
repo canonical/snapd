@@ -34,7 +34,7 @@ type Cluster struct {
 	assertionBase
 	seq         int
 	devices     []ClusterDevice
-	subclusters []ClusterSubcluster
+	subclusters []Subcluster
 }
 
 // ClusterDevice holds the details about a device in a cluster assertion.
@@ -51,9 +51,9 @@ type ClusterDevice struct {
 	Addresses []string
 }
 
-// ClusterSubcluster holds the details about a subcluster in a cluster
+// Subcluster holds the details about a subcluster in a cluster
 // assertion.
-type ClusterSubcluster struct {
+type Subcluster struct {
 	// Name is the subcluster's name.
 	Name string
 	// Devices lists device IDs that belong to this subcluster.
@@ -62,15 +62,35 @@ type ClusterSubcluster struct {
 	Snaps []ClusterSnap
 }
 
+// ClusterSnapState describes the relationship of a snap to the cluster.
+type ClusterSnapState string
+
+const (
+	ClusterSnapStateClustered ClusterSnapState = "clustered"
+	ClusterSnapStateEvacuated ClusterSnapState = "evacuated"
+	ClusterSnapStateRemoved   ClusterSnapState = "removed"
+)
+
 // ClusterSnap holds the details about a snap in a subcluster.
 type ClusterSnap struct {
 	// State describes the snap's state in the cluster (clustered, evacuated,
 	// removed).
-	State string
+	State ClusterSnapState
 	// Instance is the snap's instance name.
 	Instance string
 	// Channel is the channel the snap should track.
 	Channel string
+}
+
+func validateClusterSnapState(state string) error {
+	switch ClusterSnapState(state) {
+	case ClusterSnapStateClustered, ClusterSnapStateEvacuated, ClusterSnapStateRemoved:
+		return nil
+	default:
+		return fmt.Errorf("snap state must be one of: %s", strutil.Quoted([]string{
+			string(ClusterSnapStateClustered), string(ClusterSnapStateEvacuated), string(ClusterSnapStateRemoved),
+		}))
+	}
 }
 
 // ClusterID returns the cluster's ID.
@@ -89,11 +109,9 @@ func (c *Cluster) Devices() []ClusterDevice {
 }
 
 // Subclusters returns the list of subclusters.
-func (c *Cluster) Subclusters() []ClusterSubcluster {
+func (c *Cluster) Subclusters() []Subcluster {
 	return c.subclusters
 }
-
-var validClusterSnapStates = []string{"clustered", "evacuated", "removed"}
 
 func checkClusterDevice(device map[string]any) (ClusterDevice, error) {
 	id, err := checkInt(device, "id")
@@ -159,8 +177,8 @@ func checkClusterSnap(snap map[string]any) (ClusterSnap, error) {
 		return ClusterSnap{}, err
 	}
 
-	if !strutil.ListContains(validClusterSnapStates, state) {
-		return ClusterSnap{}, fmt.Errorf("snap state must be one of %v", validClusterSnapStates)
+	if err := validateClusterSnapState(state); err != nil {
+		return ClusterSnap{}, err
 	}
 
 	instance, err := checkNotEmptyString(snap, "instance")
@@ -182,7 +200,7 @@ func checkClusterSnap(snap map[string]any) (ClusterSnap, error) {
 	}
 
 	return ClusterSnap{
-		State:    state,
+		State:    ClusterSnapState(state),
 		Instance: instance,
 		Channel:  ch,
 	}, nil
@@ -206,45 +224,45 @@ func checkClusterSnaps(snaps []any) ([]ClusterSnap, error) {
 	return result, nil
 }
 
-func checkClusterSubcluster(subcluster map[string]any) (ClusterSubcluster, error) {
+func checkClusterSubcluster(subcluster map[string]any) (Subcluster, error) {
 	name, err := checkNotEmptyString(subcluster, "name")
 	if err != nil {
-		return ClusterSubcluster{}, err
+		return Subcluster{}, err
 	}
 
 	devices, err := checkStringList(subcluster, "devices")
 	if err != nil {
-		return ClusterSubcluster{}, err
+		return Subcluster{}, err
 	}
 
 	ids := make([]int, 0, len(devices))
 	for _, dev := range devices {
 		id, err := atoi(dev, "device id %q", dev)
 		if err != nil {
-			return ClusterSubcluster{}, err
+			return Subcluster{}, err
 		}
 		ids = append(ids, id)
 	}
 
 	list, err := checkList(subcluster, "snaps")
 	if err != nil {
-		return ClusterSubcluster{}, err
+		return Subcluster{}, err
 	}
 
 	snaps, err := checkClusterSnaps(list)
 	if err != nil {
-		return ClusterSubcluster{}, err
+		return Subcluster{}, err
 	}
 
-	return ClusterSubcluster{
+	return Subcluster{
 		Name:    name,
 		Devices: ids,
 		Snaps:   snaps,
 	}, nil
 }
 
-func checkClusterSubclusters(subclusters []any) ([]ClusterSubcluster, error) {
-	result := make([]ClusterSubcluster, 0, len(subclusters))
+func checkClusterSubclusters(subclusters []any) ([]Subcluster, error) {
+	result := make([]Subcluster, 0, len(subclusters))
 	for _, entry := range subclusters {
 		subcluster, ok := entry.(map[string]any)
 		if !ok {
@@ -262,7 +280,7 @@ func checkClusterSubclusters(subclusters []any) ([]ClusterSubcluster, error) {
 	return result, nil
 }
 
-func validateClusterDeviceIDs(devices []ClusterDevice, subclusters []ClusterSubcluster) error {
+func validateClusterDeviceIDs(devices []ClusterDevice, subclusters []Subcluster) error {
 	seen := make(map[int]bool, len(devices))
 	for _, device := range devices {
 		seen[device.ID] = true
@@ -270,7 +288,7 @@ func validateClusterDeviceIDs(devices []ClusterDevice, subclusters []ClusterSubc
 
 	for _, subcluster := range subclusters {
 		for _, id := range subcluster.Devices {
-			if seen[id] {
+			if !seen[id] {
 				return fmt.Errorf("\"subclusters\" references unknown device id %d", id)
 			}
 		}
