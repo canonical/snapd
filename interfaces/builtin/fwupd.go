@@ -172,6 +172,9 @@ const fwupdPermanentSlotAppArmor = `
   /sys/devices/**/cvs_ctrl_data_fwupd r,
   /sys/devices/**/cvs_ctrl_data_pre rw,
 
+  # Required by plugin intel-gsc
+  /sys/devices/**/power/control rw,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)
