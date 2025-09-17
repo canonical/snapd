@@ -38,14 +38,16 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
 
     echo "Check for presence of a the example snap service"
-    api-apps-client > response.txt
+    api-apps-client --url="/v2/apps" > response.txt
     gojq . < response.txt
 
     gojq -r '.result[] | select(.snap == "test-snapd-simple-service").enabled' < response.txt | MATCH '^true'
 
     echo "We can disable a snap service"
-    api-apps-client --method=POST '{"action": "stop", "disable": true, "names": ["test-snapd-simple-service"]}' > response.txt
+    api-apps-client --method=POST --url="/v2/apps" '{"action": "stop", "disable": true, "names": ["test-snapd-simple-service"]}' > response.txt
     gojq . < response.txt
 
+    CHANGE=$(gojq -r '.change' < response.txt)
+
     echo "Check if the service is now disabled"
-    retry -n 30 --wait 1 sh -c "api-apps-client | gojq -r '.result[] | select(.snap == \"test-snapd-simple-service\").enabled' | MATCH '^null'"
+    retry -n 30 --wait 1 sh -c "api-apps-client --url=\"/v2/changes/${CHANGE}\" | gojq -r '.result.status' | MATCH '^Done'"
