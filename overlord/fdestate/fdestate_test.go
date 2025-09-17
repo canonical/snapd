@@ -422,6 +422,9 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
 	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-fallback"\) not found`)
+	var notFoundErr *fdestate.KeyslotRefsNotFoundError
+	c.Assert(errors.As(err, &notFoundErr), Equals, true)
+	c.Check(notFoundErr.KeyslotRefs, DeepEquals, []fdestate.KeyslotRef{badKeyslot})
 
 	// bad keyslot auth mode
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
@@ -666,6 +669,9 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"}
 	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `key slot reference \(container-role: "system-save", name: "default-fallback"\) not found`)
+	var notFoundErr *fdestate.KeyslotRefsNotFoundError
+	c.Assert(errors.As(err, &notFoundErr), Equals, true)
+	c.Check(notFoundErr.KeyslotRefs, DeepEquals, []fdestate.KeyslotRef{badKeyslot})
 
 	// keyslot key data loading error
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"}

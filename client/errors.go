@@ -185,6 +185,9 @@ const (
 
 	// ErrorKindSystemKeyVersionUnsupported: snapd does not support the system key version sent by the client.
 	ErrorKindSystemKeyVersionUnsupported ErrorKind = "unsupported-system-key-version"
+
+	// ErrorKindKeyslotNotFound: keyslots cannot be found.
+	ErrorKindKeyslotsNotFound ErrorKind = "keyslots-not-found"
 )
 
 // Maintenance error kinds.
