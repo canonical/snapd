@@ -65,7 +65,7 @@ execute: |
             echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
-        if cat ./pc-snap/meta/snap.yaml | yq '.hooks'; then
+        if cat ./pc-snap/meta/snap.yaml | yq '. | has("hooks")' | MATCH "true"; then
             # shellcheck disable=SC2094
             cat ./pc-snap/meta/snap.yaml | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
         else
