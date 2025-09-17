@@ -66,8 +66,10 @@ execute: |
 
     inject_failure_configure_hook() {
         if cat "$1/meta/snap.yaml" | yq '.hooks'; then
+            # shellcheck disable=SC2094
             cat "$1/meta/snap.yaml" | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> "$1/meta/snap.yaml"
         else
+            # shellcheck disable=SC2094
             cat "$1/meta/snap.yaml" | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> "$1/meta/snap.yaml"
             mkdir -p "$1/meta/hooks"
         fi
