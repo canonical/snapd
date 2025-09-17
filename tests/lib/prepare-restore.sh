@@ -218,6 +218,7 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    exit 1
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
@@ -531,18 +532,12 @@ prepare_project() {
                     # currently expects 1.23, see:
                     # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                     best_golang=golang-1.23
-                    # quiet apt install -y golang-1.23
+                    quiet apt install -y golang-1.23
                     ;;
             esac
             # install any golang dependencies
-            quiet apt install -y $best_golang || true
-            # gdebi --quiet --apt-line ./debian/control | grep -oP '\bgolang\S+' | tr '\n' ' ' >deps.txt
-            # quiet xargs -r eatmydata apt-get install -y < deps.txt
-            # The go 1.18 backport is not using alternatives or anything else so
-            # we need to get it on path somehow. This is not perfect but simple.
-            if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.18/bin
-                ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+            if not quiet apt install -y "$best_golang"; then
+                quiet apt install -y golang
             fi
             ;;
     esac
@@ -607,6 +602,7 @@ prepare_project() {
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
     eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
+    exit 1
 
     # Build additional utilities we need for testing
     go install ./tests/lib/fakedevicesvc
