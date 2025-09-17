@@ -531,12 +531,13 @@ prepare_project() {
                     # currently expects 1.23, see:
                     # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                     best_golang=golang-1.23
-                    quiet apt install -y golang-1.23
+                    # quiet apt install -y golang-1.23
                     ;;
             esac
             # install any golang dependencies
-            gdebi --quiet --apt-line ./debian/control | grep -oP '\bgolang\S+' | tr '\n' ' ' >deps.txt
-            quiet xargs -r eatmydata apt-get install -y < deps.txt
+            quiet apt install -y $best_golang || true
+            # gdebi --quiet --apt-line ./debian/control | grep -oP '\bgolang\S+' | tr '\n' ' ' >deps.txt
+            # quiet xargs -r eatmydata apt-get install -y < deps.txt
             # The go 1.18 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
