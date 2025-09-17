@@ -299,6 +299,7 @@ backends:
                   workers: 6
                   storage: 30G
 
+    # TODO add garden-sru backend
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
