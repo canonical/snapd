@@ -17,6 +17,11 @@ environment:
   STORE_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
   #shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
   mkdir -p /tmp/tweaked-snapd-snap
@@ -37,6 +42,11 @@ prepare: |
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
 restore: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
   rm -rf /tmp/tweaked-snapd-snap
   rm -rf "$PREPARE_IMAGE_DIR"
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
@@ -45,6 +55,11 @@ debug: |
   cat preseed.log || true
 
 execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
   # have snap use the fakestore for assertions (but nothing else)
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
