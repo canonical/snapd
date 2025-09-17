@@ -1,6 +1,7 @@
 #!/bin/bash
 
-set -eu
+# TODO: add set -u once xenial is not supported anymore
+set -e
 shopt -s nullglob
 
 CREDS="${1}"
