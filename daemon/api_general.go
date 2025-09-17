@@ -67,7 +67,7 @@ var (
 		GET:         getChange,
 		POST:        abortChange,
 		Actions:     []string{"abort"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "ros-snapd-support"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
