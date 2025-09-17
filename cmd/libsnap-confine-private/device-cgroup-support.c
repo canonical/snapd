@@ -60,6 +60,7 @@ struct sc_device_cgroup {
             int devmap_fd;
             int prog_fd;
             char *tag;
+            char name[BPF_OBJ_NAME_LEN];
             struct rlimit old_limit;
         } v2;
     };
@@ -149,7 +150,7 @@ typedef struct sc_cgroup_v2_device_key sc_cgroup_v2_device_key;
 typedef uint8_t sc_cgroup_v2_device_value;
 
 #ifdef ENABLE_BPF
-static int load_devcgroup_prog(int map_fd) {
+static int load_devcgroup_prog(int map_fd, const char *name) {
     /* Basic rules about registers:
      * r0    - return value of built in functions and exit code of the program
      * r1-r5 - respective arguments to built in functions, clobbered by calls
@@ -239,7 +240,7 @@ static int load_devcgroup_prog(int map_fd) {
 
     char log_buf[4096] = {0};
 
-    int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog, SC_ARRAY_SIZE(prog), log_buf, sizeof(log_buf));
+    int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog, SC_ARRAY_SIZE(prog), log_buf, sizeof(log_buf), name);
     if (prog_fd < 0) {
         die("cannot load program:\n%s\n", log_buf);
     }
@@ -321,6 +322,30 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         *c = '_';
     }
 
+    /* BPF object names have a length limit of BPF_OBJ_NAME_LEN, which most of
+     * the time is too short to include the whole security tag, so attach a `s_`
+     * prefix and then best effort copy of what fits in the name from the part
+     * of security tag that follows the `snap_` prefix */
+    /* note the tag is valid */
+    const char *pref_end = strchr(self->v2.tag, '_');
+    if (pref_end == NULL) {
+        die("invalid position of separator in a valid tag");
+    }
+    /* this is where the name starts after snap_ */
+    const char *snap_name_start = pref_end + 1;
+
+    sc_must_snprintf(self->v2.name, sizeof(self->v2.name), "s_");
+    /* copy what fits into BPF_OBJ_NAME_LEN-2 ('s_' prefix) and truncate the
+       rest */
+    strncpy(self->v2.name + 2, snap_name_start, sizeof(self->v2.name) - 2 - 1);
+    /* replace all hyphens which are valid in security tags, but are invalid for
+     * BPF object names */
+    for (char *c = strchr(self->v2.name, '-'); c != NULL; c = strchr(c, '-')) {
+        *c = '_';
+    }
+
+    debug("bpf fs tag: %s, object names: %s", self->v2.tag, self->v2.name);
+
     char path[PATH_MAX] = {0};
     static const char bpf_base[] = "/sys/fs/bpf";
     sc_must_snprintf(path, sizeof path, "%s/snap/%s", bpf_base, self->v2.tag);
@@ -372,7 +397,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
          * thus on older kernels (seen on 5.10), the map effectively locks 11
          * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
         /* NOTE: the new file map must be owned by root:root. */
-        devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
+        devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries,
+                                   self->v2.name);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
         }
@@ -457,7 +483,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
 
     if (!from_existing) {
         /* load and attach the BPF program */
-        int prog_fd = load_devcgroup_prog(devmap_fd);
+        int prog_fd = load_devcgroup_prog(devmap_fd, self->v2.name);
         /* keep track of the program */
         self->v2.prog_fd = prog_fd;
     }
