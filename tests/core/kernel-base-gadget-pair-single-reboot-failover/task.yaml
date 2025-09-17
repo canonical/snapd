@@ -74,6 +74,11 @@ execute: |
             mkdir -p "$1/meta/hooks"
         fi
         echo 'exit 1' >> "$1/meta/hooks/configure"
+        cat <<EOF >"$1/meta/hooks/configure"
+    #!/bin/bash
+    # invalid hook
+    exit 1
+    EOF
         chmod +x "$1/meta/hooks/configure"
     }
 
@@ -183,7 +188,7 @@ execute: |
 
         # The gadget and kernel snap continue after the reboot, and then fails, the change reverts
         # and requests another reboot for a total of 2 reboots (one for do, one for undo)
-        if [ "$SPREAD_REBOOT" = 1 ] && { [ "$SNAP_TWO" = "pc" ] || [ "$SNAP_TWO" = "pc-kernel" ]; }; then
+        if [ "$SPREAD_REBOOT" = 1 ] && [ "$SNAP_TWO" != "core" ]; then
             # wait for a restart to be requested
             retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
             REBOOT

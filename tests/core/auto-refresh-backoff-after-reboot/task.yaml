@@ -21,6 +21,12 @@ prepare: |
         exit
     fi
 
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # use an asserted kernel
+        snap refresh pc-kernel --channel=18/beta --amend
+        REBOOT
+    fi
+    
     # Prevent refreshes until we have right snap revisions
     snap set system refresh.hold=forever
 

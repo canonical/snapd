@@ -24,16 +24,11 @@ environment:
     SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     if os.query is-arm; then
         echo "Test not supported on arm architecture, skipping..."
         exit
     fi
-    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+
     readlink /snap/pc/current > pc-revision.txt
     readlink /snap/pc-kernel/current > pc-kernel-revision.txt
     # create kernel-ref kernel/gadget pair
@@ -53,17 +48,6 @@ prepare: |
           - some-file
     EOF
     snap pack --filename=pc-kernel_x1.snap pc-kernel-snap
-    # has to be asserted
-    cat <<EOF > decl-headers.json
-    {"snap-id": "$PC_KERNEL_ID"}
-    EOF
-    cat <<EOF > rev-headers.json
-    {"snap-id": "$PC_KERNEL_ID", "snap-revision": "$START_REVISION"}
-    EOF
-    p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" pc-kernel --snap-decl-json decl-headers.json)
-    snap ack "$p"
-    p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json)
-    snap ack "$p"
     cp -av pc-kernel_x1.snap "$BLOB_DIR/"
 
     # new gadget
@@ -77,17 +61,6 @@ prepare: |
                 target: /
     EOF
     snap pack --filename=pc_x1.snap pc-snap
-    # has to be asserted
-    cat <<EOF > decl-headers.json
-    {"snap-id": "$PC_SNAP_ID"}
-    EOF
-    cat <<EOF > rev-headers.json
-    {"snap-id": "$PC_SNAP_ID", "snap-revision": "$START_REVISION"}
-    EOF
-    p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" pc --snap-decl-json decl-headers.json)
-    snap ack "$p"
-    p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
-    snap ack "$p"
     cp -av pc_x1.snap "$BLOB_DIR/"
 
     # make sure that the snapd daemon gives us time for comms before
@@ -96,15 +69,10 @@ prepare: |
     systemctl restart snapd
     
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     if os.query is-arm; then
         echo "Test not supported on arm architecture, skipping..."
         exit
     fi
-    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     # XXX: ideally we would restore the kernel/gadget here but the kernel
     #      restore requires a reboot :/
 
@@ -113,10 +81,6 @@ restore: |
     systemctl restart snapd
     
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     if os.query is-arm; then
         echo "Test not supported on arm architecture, skipping..."
         exit
@@ -125,14 +89,14 @@ execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # first install the gadget that knows about the kernel
         # (but no edition bump so this will install fine)
-        snap install pc_x1.snap
+        snap install pc_x1.snap --dangerous
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 1 ]; then
         # wait for change to complete
         snap watch --last=install\?
         # now install the kernel that has the kernel assets
-        snap install pc-kernel_x1.snap
+        snap install pc-kernel_x1.snap --dangerous
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 2 ]; then
