@@ -298,33 +298,7 @@ backends:
                   image: ubuntu-24.04-arm-64
                   workers: 6
                   storage: 30G
-
     # TODO add garden-sru backend
-    google-sru:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        halt-timeout: 2h
-        environment:
-            SRU_VALIDATION: 1
-            SNAP_REEXEC: 0
-            MODIFY_CORE_SNAP_FOR_REEXEC: 0
-            TRUST_TEST_KEYS: false
-            CORE_CHANNEL: stable
-        systems:
-            - ubuntu-20.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-22.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  storage: 12G
-                  workers: 8
-            - ubuntu-25.04-64:
-                  storage: 12G
-                  workers: 8
-
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -595,6 +569,41 @@ backends:
         volume-auto-delete: true
         environment: *openstack-ps7-env
         systems: *openstack-arm-systems
+
+
+    openstack-sru-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        plan: shared.xsmall
+        halt-timeout: 2h
+        wait-timeout: 5m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.96.0/21:5000]
+        volume-auto-delete: true
+        environment:
+            SNAPD_USE_PROXY: 'true'
+            HTTP_PROXY: 'http://egress.ps7.internal:3128'
+            HTTPS_PROXY: 'http://egress.ps7.internal:3128'
+            http_proxy: 'http://egress.ps7.internal:3128'
+            https_proxy: 'http://egress.ps7.internal:3128'
+            no_proxy: '127.0.0.1,127.0.0.53,localhost'
+            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
+            NTP_SERVER: 'ntp.ps7.internal'
+            SRU_VALIDATION: 1
+            SNAP_REEXEC: 0
+            MODIFY_CORE_SNAP_FOR_REEXEC: 0
+            TRUST_TEST_KEYS: false
+            CORE_CHANNEL: stable
+        systems:
+            - ubuntu-22.04-64:
+                  workers: 8
+            - ubuntu-24.04-64:
+                  workers: 8
+            - ubuntu-25.04-64:
+                  workers: 8
+            - ubuntu-25.10-64:
+                  workers: 8
 
     qemu-nested:
         memory: 4G
