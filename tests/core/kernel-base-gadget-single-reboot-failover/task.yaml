@@ -66,8 +66,10 @@ execute: |
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
         if cat ./pc-snap/meta/snap.yaml | yq '.hooks'; then
+            # shellcheck disable=SC2094
             cat ./pc-snap/meta/snap.yaml | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
         else
+            # shellcheck disable=SC2094
             cat ./pc-snap/meta/snap.yaml | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
             mkdir -p pc-snap/meta/hooks
         fi
