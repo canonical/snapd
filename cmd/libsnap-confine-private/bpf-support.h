@@ -45,7 +45,7 @@ int bpf_get_by_path(const char *path);
  * O_CLOEXEC flag set on it.
  */
 int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t insns_cnt, char *log_buf,
-                  size_t log_buf_size);
+                  size_t log_buf_size, const char *prog_name);
 
 int bpf_prog_attach(enum bpf_attach_type type, int cgroup_fd, int prog_fd);
 
@@ -53,7 +53,8 @@ int bpf_prog_attach(enum bpf_attach_type type, int cgroup_fd, int prog_fd);
  * bf_create_map creates a BPF map and returns a file descriptor handle to it.
  * The returned file descriptor has O_CLOEXEC flag set on it.
  */
-int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, size_t max_entries);
+int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, size_t max_entries,
+                   const char *map_name);
 
 /**
  * bpf_update_map updates the value of element with a given key (or adds it to
