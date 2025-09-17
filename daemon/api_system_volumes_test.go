@@ -354,6 +354,21 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyError(c *C
 	c.Assert(rsp.Status, Equals, 409)
 	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
 	c.Check(rsp.Message, Equals, "conflict error: boom!")
+
+	// typed keyslots not found error kind
+	mockErr = &fdestate.KeyslotRefsNotFoundError{
+		KeyslotRefs: []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}},
+	}
+	body = strings.NewReader(`{"action": "replace-recovery-key", "key-id": "some-key-id"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Kind, Equals, client.ErrorKindKeyslotsNotFound)
+	c.Check(rsp.Message, Equals, `key slot reference (container-role: "some-container-role", name: "some-name") not found`)
+	c.Check(rsp.Value, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}})
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKeyMissingKeyID(c *C) {
@@ -523,6 +538,21 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyError(c *C
 	c.Assert(rsp.Status, Equals, 409)
 	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
 	c.Check(rsp.Message, Equals, "conflict error: boom!")
+
+	// typed keyslots not found error kind
+	mockErr = &fdestate.KeyslotRefsNotFoundError{
+		KeyslotRefs: []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}},
+	}
+	body = strings.NewReader(`{"action": "replace-platform-key", "auth-mode": "none"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Kind, Equals, client.ErrorKindKeyslotsNotFound)
+	c.Check(rsp.Message, Equals, `key slot reference (container-role: "some-container-role", name: "some-name") not found`)
+	c.Check(rsp.Value, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}})
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplacePlatformKeyMissingAuthMode(c *C) {
@@ -663,6 +693,21 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthEr
 	c.Assert(rsp.Status, Equals, 409)
 	c.Check(rsp.Kind, Equals, client.ErrorKindSnapChangeConflict)
 	c.Check(rsp.Message, Equals, "conflict error: boom!")
+
+	// typed keyslots not found error kind
+	mockErr = &fdestate.KeyslotRefsNotFoundError{
+		KeyslotRefs: []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}},
+	}
+	body = strings.NewReader(`{"action": "change-passphrase", "old-passphrase": "old", "new-passphrase": "new"}`)
+	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
+	req.Header.Add("Content-Type", "application/json")
+
+	c.Assert(err, IsNil)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 400)
+	c.Check(rsp.Kind, Equals, client.ErrorKindKeyslotsNotFound)
+	c.Check(rsp.Message, Equals, `key slot reference (container-role: "some-container-role", name: "some-name") not found`)
+	c.Check(rsp.Value, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}})
 }
 
 type mockKeyData struct {
