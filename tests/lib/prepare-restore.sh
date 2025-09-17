@@ -70,6 +70,26 @@ create_test_user(){
 }
 
 build_deb(){
+    # debian-sid packaging is special
+    if os.query is-debian sid; then
+        if [ ! -d packaging/debian-sid ]; then
+            echo "no packaging/debian-sid/ directory "
+            echo "broken test setup"
+            exit 1
+        fi
+
+        # remove etckeeper
+        apt purge -y etckeeper
+
+        # debian has its own packaging
+        rm -f debian
+        # the debian dir must be a real dir, a symlink will make
+        # dpkg-buildpackage choke later.
+        mv packaging/debian-sid debian
+
+        # ensure we really build without vendored packages
+        mv ./vendor /tmp
+    fi
     newver="$(dpkg-parsechangelog --show-field Version)"
 
     case "$SPREAD_SYSTEM" in
@@ -80,11 +100,6 @@ build_deb(){
     esac
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$newver" "testing build"
-
-    if os.query is-debian sid; then
-        # ensure we really build without vendored packages
-        mv ./vendor /tmp
-    fi
 
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
@@ -218,7 +233,6 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
-    exit 1
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
@@ -335,36 +349,6 @@ prepare_project() {
             echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
-    fi
-
-    # debian-sid packaging is special
-    if os.query is-debian sid; then
-        if [ ! -d packaging/debian-sid ]; then
-            echo "no packaging/debian-sid/ directory "
-            echo "broken test setup"
-            exit 1
-        fi
-
-        # remove etckeeper
-        apt purge -y etckeeper
-
-        # debian has its own packaging
-        rm -f debian
-        # the debian dir must be a real dir, a symlink will make
-        # dpkg-buildpackage choke later.
-        mv packaging/debian-sid debian
-
-        # get the build-deps
-        apt build-dep -y ./
-
-        # and ensure we don't take any of the vendor deps
-        rm -rf vendor/*/
-
-        # and create a fake upstream tarball
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git --exclude='*.pyc' .
-
-        # and build a source package - this will be used during the sbuild test
-        dpkg-buildpackage -S -uc -us
     fi
 
     # so is ubuntu-14.04
@@ -532,11 +516,17 @@ prepare_project() {
                     # currently expects 1.23, see:
                     # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                     best_golang=golang-1.23
-                    quiet apt install -y golang-1.23
                     ;;
             esac
             # install any golang dependencies
-            if not quiet apt install -y "$best_golang"; then
+            if quiet apt install -y "$best_golang"; then
+                # When go is not using alternatives or anything else
+                # we need to get it on path somehow. This is not perfect but simple.
+                if [ -z "$(command -v go)" ]; then
+                    # the path filesystem path is: /usr/lib/go-<version>/bin
+                    ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+                fi    
+            else
                 quiet apt install -y golang
             fi
             ;;
@@ -602,7 +592,6 @@ prepare_project() {
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
     eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
-    exit 1
 
     # Build additional utilities we need for testing
     go install ./tests/lib/fakedevicesvc

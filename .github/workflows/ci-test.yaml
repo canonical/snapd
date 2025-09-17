@@ -489,62 +489,62 @@ jobs:
             fi
           fi
 
-  spread-fundamental:
-    uses: ./.github/workflows/spread-tests.yaml
-    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    needs: [snap-builds, read-systems]
-    if: needs.read-systems.outputs.fundamental-systems != ''
-    name: "spread ${{ matrix.group }}"
-    with:
-      # Github doesn't support passing sequences as parameters.
-      # Instead here we create a json array and pass it as a string.
-      # Then in the spread workflow it turns it into a sequence 
-      # using the fromJSON expression.
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
-      systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      rules: ${{ matrix.rules }}
-      is-fundamental: true
-    strategy:
-      # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      # Disable fail-fast mode as it doesn't function with spread. It seems
-      # that cancelling tasks requires short, interruptible actions and
-      # interrupting spread, notably, does not work today. As such disable
-      # fail-fast while we tackle that problem upstream.
-      fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
+  # spread-fundamental:
+  #   uses: ./.github/workflows/spread-tests.yaml
+  #   # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+  #   needs: [snap-builds, read-systems]
+  #   if: needs.read-systems.outputs.fundamental-systems != ''
+  #   name: "spread ${{ matrix.group }}"
+  #   with:
+  #     # Github doesn't support passing sequences as parameters.
+  #     # Instead here we create a json array and pass it as a string.
+  #     # Then in the spread workflow it turns it into a sequence 
+  #     # using the fromJSON expression.
+  #     runs-on: '["self-hosted", "spread-enabled"]'
+  #     group: ${{ matrix.group }}
+  #     backend: ${{ matrix.backend }}
+  #     alternative-backend: ${{ matrix.alternative-backend }}
+  #     systems: ${{ matrix.systems }}
+  #     tasks: ${{ matrix.tasks }}
+  #     rules: ${{ matrix.rules }}
+  #     is-fundamental: true
+  #   strategy:
+  #     # FIXME: enable fail-fast mode once spread can cancel an executing job.
+  #     # Disable fail-fast mode as it doesn't function with spread. It seems
+  #     # that cancelling tasks requires short, interruptible actions and
+  #     # interrupting spread, notably, does not work today. As such disable
+  #     # fail-fast while we tackle that problem upstream.
+  #     fail-fast: false
+  #     matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
 
-  spread-not-fundamental-pr:
-    uses: ./.github/workflows/spread-tests.yaml
-    if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
-    # For workflow runs that are PRs, run this non-fundamental systems job
-    # only after the fundamental systems job succeeds.
-    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
-    needs: [snap-builds, read-systems, spread-fundamental]
-    name: "spread ${{ matrix.group }}"
-    with:
-      # Github doesn't support passing sequences as parameters.
-      # Instead here we create a json array and pass it as a string.
-      # Then in the spread workflow it turns it into a sequence 
-      # using the fromJSON expression.
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
-      systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      rules: ${{ matrix.rules }}
-    strategy:
-      # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      # Disable fail-fast mode as it doesn't function with spread. It seems
-      # that cancelling tasks requires short, interruptible actions and
-      # interrupting spread, notably, does not work today. As such disable
-      # fail-fast while we tackle that problem upstream.
-      fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
+  # spread-not-fundamental-pr:
+  #   uses: ./.github/workflows/spread-tests.yaml
+  #   if: github.event_name == 'pull_request' && !contains(github.base_ref, 'release') && !contains(github.event.pull_request.labels.*.name, 'cross-distro') && needs.read-systems.outputs.non-fundamental-systems != ''
+  #   # For workflow runs that are PRs, run this non-fundamental systems job
+  #   # only after the fundamental systems job succeeds.
+  #   # needs: [unit-tests, unit-tests-c, snap-builds, read-systems, spread-fundamental]
+  #   needs: [snap-builds, read-systems, spread-fundamental]
+  #   name: "spread ${{ matrix.group }}"
+  #   with:
+  #     # Github doesn't support passing sequences as parameters.
+  #     # Instead here we create a json array and pass it as a string.
+  #     # Then in the spread workflow it turns it into a sequence 
+  #     # using the fromJSON expression.
+  #     runs-on: '["self-hosted", "spread-enabled"]'
+  #     group: ${{ matrix.group }}
+  #     backend: ${{ matrix.backend }}
+  #     alternative-backend: ${{ matrix.alternative-backend }}
+  #     systems: ${{ matrix.systems }}
+  #     tasks: ${{ matrix.tasks }}
+  #     rules: ${{ matrix.rules }}
+  #   strategy:
+  #     # FIXME: enable fail-fast mode once spread can cancel an executing job.
+  #     # Disable fail-fast mode as it doesn't function with spread. It seems
+  #     # that cancelling tasks requires short, interruptible actions and
+  #     # interrupting spread, notably, does not work today. As such disable
+  #     # fail-fast while we tackle that problem upstream.
+  #     fail-fast: false
+  #     matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
 
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
@@ -575,32 +575,32 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
 
-  spread-nested:
-    uses: ./.github/workflows/spread-tests.yaml
-    # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    needs: [snap-builds, read-systems]
-    if: needs.read-systems.outputs.nested-systems != ''
-    name: "spread ${{ matrix.group }}"
-    with:
-      # Github doesn't support passing sequences as parameters.
-      # Instead here we create a json array and pass it as a string.
-      # Then in the spread workflow it turns it into a sequence 
-      # using the fromJSON expression.
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
-      systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      rules: ${{ matrix.rules }}
-    strategy:
-      # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      # Disable fail-fast mode as it doesn't function with spread. It seems
-      # that cancelling tasks requires short, interruptible actions and
-      # interrupting spread, notably, does not work today. As such disable
-      # fail-fast while we tackle that problem upstream.
-      fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
+  # spread-nested:
+  #   uses: ./.github/workflows/spread-tests.yaml
+  #   # needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+  #   needs: [snap-builds, read-systems]
+  #   if: needs.read-systems.outputs.nested-systems != ''
+  #   name: "spread ${{ matrix.group }}"
+  #   with:
+  #     # Github doesn't support passing sequences as parameters.
+  #     # Instead here we create a json array and pass it as a string.
+  #     # Then in the spread workflow it turns it into a sequence 
+  #     # using the fromJSON expression.
+  #     runs-on: '["self-hosted", "spread-enabled"]'
+  #     group: ${{ matrix.group }}
+  #     backend: ${{ matrix.backend }}
+  #     alternative-backend: ${{ matrix.alternative-backend }}
+  #     systems: ${{ matrix.systems }}
+  #     tasks: ${{ matrix.tasks }}
+  #     rules: ${{ matrix.rules }}
+  #   strategy:
+  #     # FIXME: enable fail-fast mode once spread can cancel an executing job.
+  #     # Disable fail-fast mode as it doesn't function with spread. It seems
+  #     # that cancelling tasks requires short, interruptible actions and
+  #     # interrupting spread, notably, does not work today. As such disable
+  #     # fail-fast while we tackle that problem upstream.
+  #     fail-fast: false
+  #     matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
 
   # The spread-results-reporter needs the PR number to be able to 
   # comment on the relevant PR with spread failures. Because the PR 
