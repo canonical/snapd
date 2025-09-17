@@ -70,6 +70,10 @@ type RouteSelector interface {
 
 	// Routes returns all routes that are currently valid for publication.
 	Routes() Routes
+
+	// Complete returns true if the number of verified edges in the graph matches a
+	// fully connected graph of the given number of devices.
+	Complete(size int) (bool, error)
 }
 
 // PrioritySelector implements [RouteSelector].
@@ -433,6 +437,22 @@ func (p *PrioritySelector) Routes() Routes {
 		Devices:   converted,
 		Addresses: addrs,
 		Routes:    routes,
+	}
+}
+
+// Complete returns true if the number of verified edges in the graph matches a
+// fully connected graph of the given number of devices.
+func (p *PrioritySelector) Complete(size int) (bool, error) {
+	complete := size * (size - 1)
+	current := p.verifiedEdges.Count()
+
+	switch {
+	case complete == current:
+		return true, nil
+	case complete > current:
+		return false, nil
+	default:
+		return false, errors.New("number of devices in the cluster is greater than expected")
 	}
 }
 
