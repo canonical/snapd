@@ -33,13 +33,14 @@ var _ = Suite(&hardwareIdentitySuite{})
 
 const (
 	hardwareIdentityExample = `type: hardware-identity
+authority-id: account-id-1
 issuer-id: account-id-1
 manufacturer: some-manufacturer
 hardware-name: raspberry-pi-4gb
 sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
 hardware-id: random-id-1
 hardware-id-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlqcRew53puqlX/kB8GzyWWfYeAsDlx72Rss2Gu74G7rK6fgHGwcZaNVDg2Ka4qD04J7r6KS6GLqJOzr5AdEw94s1uoF/ugiFaJTKTIRHNANOTrhWr6RRSviowxlV67oOo0pA3EtQnNrgKtUbg0FDXp7/NhkGSIFCTLcTE/kIVr87BRyhTqjRO8dmzVVIZm3DQQEa39hdaHKncLmev1Uv+SdODtauEx10ITVX9ikyCEi/T1PzkNEoeuy5Bq7iqkz1ch0fnyty6Nic78hlcf+Wj16HxvnExWWHM/b0rAJqVp9zs/Ut6qKPsLsCVCvuZ0GF/0F+DAfegbNNVon9+bGA7QIDAQAB
-hardware-id-key-sha3-384: a6c08d57270eab22300e8428d91d27974624361d4ba6f0264114ddbb6a865c7b71f83f626bdaac952c002e1d19779387
+hardware-id-key-sha3-384: 93eb03fe6271d643e7c14031d0cbd506bb4133fdc8f13152456ce65a5d0ef2a350fd2209abdec684790b736bce6c9927
 
 AXNpZw==`
 )
@@ -57,7 +58,7 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 	c.Check(req.HardwareName(), Equals, "raspberry-pi-4gb")
 	c.Check(req.HardwareId(), Equals, "random-id-1")
 	c.Check(req.HardwareIdKey(), Equals, `MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlqcRew53puqlX/kB8GzyWWfYeAsDlx72Rss2Gu74G7rK6fgHGwcZaNVDg2Ka4qD04J7r6KS6GLqJOzr5AdEw94s1uoF/ugiFaJTKTIRHNANOTrhWr6RRSviowxlV67oOo0pA3EtQnNrgKtUbg0FDXp7/NhkGSIFCTLcTE/kIVr87BRyhTqjRO8dmzVVIZm3DQQEa39hdaHKncLmev1Uv+SdODtauEx10ITVX9ikyCEi/T1PzkNEoeuy5Bq7iqkz1ch0fnyty6Nic78hlcf+Wj16HxvnExWWHM/b0rAJqVp9zs/Ut6qKPsLsCVCvuZ0GF/0F+DAfegbNNVon9+bGA7QIDAQAB`)
-	c.Check(req.HardwareIdKeySha3384(), Equals, "a6c08d57270eab22300e8428d91d27974624361d4ba6f0264114ddbb6a865c7b71f83f626bdaac952c002e1d19779387")
+	c.Check(req.HardwareIdKeySha3384(), Equals, "93eb03fe6271d643e7c14031d0cbd506bb4133fdc8f13152456ce65a5d0ef2a350fd2209abdec684790b736bce6c9927")
 
 	
 
@@ -67,16 +68,19 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 	const errPrefix = "assertion hardware-identity: "
 	hardwareKeyId := "hardware-id-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlqcRew53puqlX/kB8GzyWWfYeAsDlx72Rss2Gu74G7rK6fgHGwcZaNVDg2Ka4qD04J7r6KS6GLqJOzr5AdEw94s1uoF/ugiFaJTKTIRHNANOTrhWr6RRSviowxlV67oOo0pA3EtQnNrgKtUbg0FDXp7/NhkGSIFCTLcTE/kIVr87BRyhTqjRO8dmzVVIZm3DQQEa39hdaHKncLmev1Uv+SdODtauEx10ITVX9ikyCEi/T1PzkNEoeuy5Bq7iqkz1ch0fnyty6Nic78hlcf+Wj16HxvnExWWHM/b0rAJqVp9zs/Ut6qKPsLsCVCvuZ0GF/0F+DAfegbNNVon9+bGA7QIDAQAB\n"
-	hardwareKeyIdSha3384 := "hardware-id-key-sha3-384: a6c08d57270eab22300e8428d91d27974624361d4ba6f0264114ddbb6a865c7b71f83f626bdaac952c002e1d19779387\n"
+	hardwareKeyIdSha3384 := "hardware-id-key-sha3-384: 93eb03fe6271d643e7c14031d0cbd506bb4133fdc8f13152456ce65a5d0ef2a350fd2209abdec684790b736bce6c9927\n"
+	wrongHardwareKeyIdSha3384 := "hardware-id-key-sha3-384: 688f327ac9f23406aa6e367de5a9e85c8278f83bc2ff4fd973b341df452cbde9e99f1221e6de39d781cbebda11c5c0d2\n"
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"issuer-id: account-id-1\n", "", `"issuer-id" header is mandatory`},
 		{"issuer-id: account-id-1\n", "issuer-id: \n", `"issuer-id" header should not be empty`},
 		{"issuer-id: account-id-1\n", "issuer-id: @9\n", `invalid issuer id: @9`},
+		{"issuer-id: account-id-1\n", "issuer-id: account-id-2\n", `issuer id must match authority id`},
 		{"manufacturer: some-manufacturer\n", "", `"manufacturer" header is mandatory`},
 		{"manufacturer: some-manufacturer\n", "manufacturer: \n", `"manufacturer" header should not be empty`},
 		{"hardware-name: raspberry-pi-4gb\n", "", `"hardware-name" header is mandatory`},
 		{"hardware-name: raspberry-pi-4gb\n", "hardware-name: \n", `"hardware-name" header should not be empty`},
+		{"hardware-name: raspberry-pi-4gb\n", "hardware-name: raspberry&pi\n", `"hardware-name" header contains invalid characters: "raspberry&pi"`},
 		{"hardware-id: random-id-1\n", "", `"hardware-id" header is mandatory`},
 		{"hardware-id: random-id-1\n", "hardware-id: \n", `"hardware-id" header should not be empty`},
 		{hardwareKeyId, "", `"hardware-id-key" header is mandatory`},
@@ -85,6 +89,7 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		{hardwareKeyId, "hardware-id-key: -----BEGIN\n", `"hardware-id-key" header should be the body of a PEM`},
 		{hardwareKeyIdSha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
 		{hardwareKeyIdSha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
+		{hardwareKeyIdSha3384, wrongHardwareKeyIdSha3384, `hardware id key does not match provided sha3 digest`},
 		{hardwareKeyIdSha3384, hardwareKeyIdSha3384+"body-length: 1\n\na\n", `body must be empty`},
 
 	}

@@ -149,6 +149,7 @@ var (
 	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
 	ConfdbSchemaType         = &AssertionType{"confdb-schema", []string{"account-id", "name"}, nil, assembleConfdbSchema, jsonBody}
+	HardwareIdentityType     = &AssertionType{"hardware-identity", []string{"hardware-id-key-sha3-384"}, nil, assembleHardwareIdentity, 0}
 	// ...
 )
 
@@ -158,7 +159,6 @@ var (
 	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
 	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
 	ConfdbControlType        = &AssertionType{"confdb-control", []string{"brand-id", "model", "serial"}, nil, assembleConfdbControl, noAuthority}
-	HardwareIdentityType     = &AssertionType{"hardware-identity", []string{"hardware-id-key-sha3-384"}, nil, assembleHardwareIdentity, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -180,12 +180,12 @@ var typeRegistry = map[string]*AssertionType{
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
 	SnapResourcePairType.Name:     SnapResourcePairType,
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
+	HardwareIdentityType.Name:     HardwareIdentityType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
 	ConfdbControlType.Name:        ConfdbControlType,
-	HardwareIdentityType.Name:     HardwareIdentityType,
 }
 
 // Type returns the AssertionType with name or nil

@@ -1203,14 +1203,15 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"model",
 		"preseed",
 		"confdb-schema",
+		"hardware-identity",
 		"serial",
 		"system-user",
 		"validation",
 		"validation-set",
 		"repair",
 	}
-	// excluding device-session-request, serial-request, account-key-request, confdb-control, hardware-identity
-	c.Check(withAuthority, HasLen, asserts.NumAssertionType-5)
+	// excluding device-session-request, serial-request, account-key-request, confdb-control
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-4)
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
 		_, err := asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1)
