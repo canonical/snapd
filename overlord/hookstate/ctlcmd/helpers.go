@@ -67,20 +67,20 @@ func init() {
 // properly organize the hook tasks in the chain of tasks in the change.
 const finalSeedTask = "mark-seeded"
 
-func currentSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
+func currentSnapInfo(st *state.State, snapInstance string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+	if err := snapstate.Get(st, snapInstance, &snapst); err != nil {
 		return nil, err
 	}
 
 	return snapst.CurrentInfo()
 }
 
-func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([]*snap.AppInfo, error) {
+func getServiceInfos(st *state.State, snapInstance string, serviceNames []string) ([]*snap.AppInfo, error) {
 	st.Lock()
 	defer st.Unlock()
 
-	info, err := currentSnapInfo(st, snapName)
+	info, err := currentSnapInfo(st, snapInstance)
 	if err != nil {
 		return nil, err
 	}
@@ -92,15 +92,15 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 
 	var svcs []*snap.AppInfo
 	for _, svcName := range serviceNames {
-		if svcName == snapName {
-			// all the services
+		if svcName == snapInstance {
+			// implicit all services restart
 			return info.Services(), nil
 		}
-		if !strings.HasPrefix(svcName, snapName+".") {
+		if !strings.HasPrefix(svcName, snapInstance+".") {
 			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
 		}
 		// this doesn't support service aliases
-		app, ok := info.Apps[svcName[1+len(snapName):]]
+		app, ok := info.Apps[svcName[1+len(snapInstance):]]
 		if !(ok && app.IsService()) {
 			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
 		}
@@ -228,9 +228,72 @@ func queueDefaultConfigureHookCommand(context *hookstate.Context, tts []*state.T
 	return nil
 }
 
+func maybePatchServiceNames(snapInstance string, serviceNames []string) ([]string, error) {
+	snapName, snapKey := snap.SplitInstanceName(snapInstance)
+	hasInstanceKey := snapKey != ""
+
+	if !hasInstanceKey {
+		// no patching needed, return names as they are
+		return serviceNames, nil
+	}
+
+	// Backward compatibility path for a scenario when snapctl service operation
+	// is called in a context of a snap with instance key. It is possible that
+	// the request uses service names of form 'snap.app' which does not include
+	// an instance key. We want to 'patch' them to 'snap_foo.app', such that
+	// existing snaps that aren't completely aware of parallel installs work
+	// correctly.
+
+	updatedServiceNames := make([]string, 0, len(serviceNames))
+	keyedCnt := 0
+	for _, svcN := range serviceNames {
+		if svcN == snapName {
+			// same as base snap name (without instance key), a short hand
+			// syntax for restart all services of a snap
+			updatedServiceNames = append(updatedServiceNames, snapInstance)
+			continue
+		}
+
+		svcSnapInstanceName, svcApp := snap.SplitSnapApp(svcN)
+		svcSnapName, svcSnapKey := snap.SplitInstanceName(svcSnapInstanceName)
+
+		if svcSnapName == snapName {
+			// only apply patching if the snap name matches
+
+			if svcSnapKey == "" {
+				// snap name used in the full service name does not include instance
+				// key, needs patching
+				updatedServiceNames = append(updatedServiceNames, snap.JoinSnapApp(snapInstance, svcApp))
+				continue
+			}
+
+			keyedCnt++
+
+			if svcSnapKey != snapKey {
+				return nil, fmt.Errorf(i18n.G("unexpected snap instance key: %q"), svcSnapKey)
+			}
+		}
+
+		updatedServiceNames = append(updatedServiceNames, svcN)
+	}
+
+	if keyedCnt != 0 && keyedCnt != len(serviceNames) {
+		return nil, fmt.Errorf(i18n.G("inconsistent use of snap instance key"))
+	}
+
+	return updatedServiceNames, nil
+}
+
 func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction) error {
 	if context == nil {
 		return &MissingContextError{inst.Action}
+	}
+
+	// patch service names for parallel installed snap if needed
+	var err error
+	inst.Names, err = maybePatchServiceNames(context.InstanceName(), inst.Names)
+	if err != nil {
+		return err
 	}
 
 	st := context.State()
