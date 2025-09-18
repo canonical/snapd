@@ -79,7 +79,7 @@ func (n *Node[T]) linkAfter(other *Node[T]) {
 	next.prev = other
 }
 
-// linkBefore arranges points so that [other] is before [n].
+// linkBefore arranges pointers so that [other] is before [n].
 func (n *Node[T]) linkBefore(other *Node[T]) {
 	n.lazyInit()
 	other.lazyInit()
