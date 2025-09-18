@@ -1474,7 +1474,7 @@ EOF
             # When running in openstack backend and uc18 it is required to use an specific
             # kernel snap which is using the 5.4.0 instead of the 4.15 because this
             # version has a fix for https://bugs.launchpad.net/qemu/+bug/1844053
-            wget -O pc-kernel.snap https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_5.4.0-221.241.1_amd64.snap
+            wget -q -O pc-kernel.snap https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_5.4.0-221.241.1_amd64.snap
         else
             # download pc-kernel snap for the specified channel and set
             # ubuntu-image channel to that of the gadget, so that we don't
