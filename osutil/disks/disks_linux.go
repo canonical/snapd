@@ -1041,6 +1041,10 @@ func SectorSize(devname string) (uint64, error) {
 	return blockDeviceSectorSize(devname)
 }
 
+func SizeInBytes(devname string) (uint64, error) {
+	return blockDeviceSize(devname)
+}
+
 // filesystemTypeForPartition returns the filesystem type for a
 // partition passed by device name. The type might be an empty string
 // if no filesystem has been detected.
