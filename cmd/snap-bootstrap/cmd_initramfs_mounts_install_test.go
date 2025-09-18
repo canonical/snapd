@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -87,7 +88,35 @@ WantedBy=multi-user.target
 	c.Assert(target, Equals, "1")
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeHappy(c *C, opts *testSnapOpts) {
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-seed", "install"),
+		opts.snaps[snap.TypeKernel],
+		opts.snaps[snap.TypeBase],
+		opts.snaps[snap.TypeGadget],
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	s._testInitramfsMountsInstallMode(c, nil)
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsInstallModeError(c *C, expErr error) {
+	restore := s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-seed", "recover"),
+	}, nil)
+	defer restore()
+
+	s._testInitramfsMountsInstallMode(c, expErr)
+}
+
+func (s *initramfsMountsSuite) _testInitramfsMountsInstallMode(c *C, expErr error) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
@@ -103,22 +132,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 		return nil
 	})()
 
-	restore = s.mockSystemdMountSequence(c, []systemdMount{
-		s.ubuntuLabelMount("ubuntu-seed", "install"),
-		s.makeSeedSnapSystemdMount(snap.TypeKernel),
-		s.makeSeedSnapSystemdMount(snap.TypeBase),
-		s.makeSeedSnapSystemdMount(snap.TypeGadget),
-		{
-			"tmpfs",
-			boot.InitramfsDataDir,
-			tmpfsMountOpts,
-			nil,
-		},
-	}, nil)
-	defer restore()
-
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, IsNil)
+	if expErr != nil {
+		c.Check(err, ErrorMatches, expErr.Error())
+		return
+	} else {
+		c.Assert(err, IsNil)
+	}
 
 	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
@@ -136,6 +156,19 @@ grade=signed
 	c.Check(logbuf.String(), testutil.Contains, "snap-bootstrap version 1.2.3 starting\n")
 
 	checkSnapdMountUnit(c)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		snaps[typ] = s.makeSeedSnapSystemdMount(typ)
+	}
+
+	s.testInitramfsMountsInstallModeHappy(c, &testSnapOpts{
+		snaps: snaps,
+		base:  "core20",
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeWithCompsHappy(c *C) {
@@ -355,6 +388,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 				Private:   true,
 				Ephemeral: true},
 			nil,
+			nil,
 		},
 		{
 			filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
@@ -363,11 +397,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 				Private:   true,
 				Ephemeral: true},
 			nil,
+			nil,
 		},
 		{
 			filepath.Join(s.tmpDir, "/run/mnt/ubuntu-data"),
 			boot.InitramfsDataDir,
 			bindDataOpts,
+			nil,
 			nil,
 		}}
 	if failMount {
@@ -382,6 +418,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 					Private:   true,
 					Ephemeral: true},
 				nil,
+				nil,
 			},
 			{
 				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp2_77.comp"),
@@ -390,6 +427,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 					Private:   true,
 					Ephemeral: true},
 				errors.New("error mounting"),
+				nil,
 			},
 		}
 	}
@@ -529,6 +567,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
 				nil,
+				nil,
 			},
 		}, nil)
 		defer restore()
@@ -594,6 +633,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
 				nil,
+				nil,
 			},
 		}, nil)
 		cleanups = append(cleanups, restore)
@@ -638,6 +678,7 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -691,6 +732,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
+			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
@@ -699,6 +741,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -920,4 +963,86 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) 
 	// snapd_recovery_mode="" and interpreted it as install mode, so test that
 	// case too
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityAssertionAndDataFound(c *C) {
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	for _, typ := range []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+
+	// mock calls to veritysetup just to verify that it wasn't called if data were found on disk
+	cmd := testutil.MockCommand(c, "veritysetup", ``)
+	defer cmd.Restore()
+
+	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		return snapPath + ".verity", nil
+	})
+	defer restore()
+
+	s.testInitramfsMountsInstallModeHappy(c, &testSnapOpts{
+		snaps: snaps,
+	})
+
+	c.Assert(len(cmd.Calls()), Equals, 0)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityAssertionAndUnassertedDataFound(c *C) {
+	assertedRootHash := "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	asid := []asserts.SnapIntegrityData{
+		{
+			Type:          "dm-verity",
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        assertedRootHash,
+			Salt:          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}
+
+	c.Assert(os.RemoveAll(s.seedDir), IsNil)
+
+	s.setupSeedWithIntegrityData(c, asid)
+
+	snaps := make(map[snap.Type]systemdMount)
+
+	// no need to create other snaps as snapd is mounted first during install so failure
+	// when accessing its integrity data will cause the execution to stop.
+	for _, typ := range []snap.Type{snap.TypeSnapd} {
+		sn := s.makeSeedSnapSystemdMount(typ)
+		snaps[typ] = sn.addIntegrityData(&asid[0])
+	}
+	// mock calls to veritysetup just to verify that it wasn't called if data were found on disk
+	cmd := testutil.MockCommand(c, "veritysetup", ``)
+	defer cmd.Restore()
+
+	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		return "", integrity.ErrUnexpectedDmVerityData
+	})
+	defer restore()
+
+	s.testInitramfsMountsInstallModeError(c,
+		fmt.Errorf("cannot generate mount for snap %s: unexpected dm-verity data", snaps[snap.TypeSnapd].what),
+	)
+
+	c.Assert(len(cmd.Calls()), Equals, 0)
 }

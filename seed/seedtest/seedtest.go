@@ -90,11 +90,15 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, nil, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
+}
+
+func (ss *SeedSnaps) MakeAssertedSnapWithIntegrityData(c *C, snapYaml string, files [][]string, revision snap.Revision, integrityData []asserts.SnapIntegrityData, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, integrityData, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
 }
 
 func (ss *SeedSnaps) MakeAssertedSnapWithComps(c *C, snapYaml string, files [][]string, revision snap.Revision, compRevisions map[string]snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, nil, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
 }
 
 func (ss *SeedSnaps) MakeAssertedDelegatedSnapWithComps(
@@ -107,7 +111,7 @@ func (ss *SeedSnaps) MakeAssertedDelegatedSnapWithComps(
 	revisionAuthority map[string]any,
 	dbs ...*asserts.Database,
 ) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceRevProvenance, revisionAuthority, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, compRevisions, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceRevProvenance, revisionAuthority, dbs...)
 }
 
 func (ss *SeedSnaps) makeAssertedSnap(
@@ -116,6 +120,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 	files [][]string,
 	revision snap.Revision,
 	compRevisions map[string]snap.Revision,
+	integrityData []asserts.SnapIntegrityData,
 	developerID string,
 	revSigning *assertstest.SigningDB,
 	revProvenance string,
@@ -158,6 +163,25 @@ func (ss *SeedSnaps) makeAssertedSnap(
 	if revProvenance != "" {
 		revHeaders["provenance"] = revProvenance
 	}
+
+	var intData []any
+
+	for _, id := range integrityData {
+		intData = append(intData, map[string]any{
+			"type":            id.Type,
+			"version":         fmt.Sprintf("%d", id.Version),
+			"hash-algorithm":  id.HashAlg,
+			"data-block-size": fmt.Sprintf("%d", id.DataBlockSize),
+			"hash-block-size": fmt.Sprintf("%d", id.HashBlockSize),
+			"digest":          id.Digest,
+			"salt":            id.Salt,
+		})
+	}
+
+	if len(intData) > 0 {
+		revHeaders["integrity"] = intData
+	}
+
 	revA, err := revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
 
@@ -297,7 +321,7 @@ func (ss *SeedSnaps) MakeAssertedDelegatedSnap(
 	revisionAuthority map[string]any,
 	dbs ...*asserts.Database,
 ) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
-	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceProvenance, revisionAuthority, dbs...)
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, nil, developerID, ss.Brands.Signing(delegateID), revProvenance, resourceProvenance, revisionAuthority, dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {

@@ -315,7 +315,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		// UC20/22 initramfs. Note that a transient unit is not used as
 		// it tries to be restarted after the switch root, and fails.
 		rootfsDir := boot.InitramfsDataDir
-		if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+		if err := writeSysrootMountUnit(rootfsDir, "", nil); err != nil {
 			return fmt.Errorf("cannot write sysroot.mount (what: %s): %w", rootfsDir, err)
 		}
 		if err := recalculateRootfsTarget(); err != nil {
