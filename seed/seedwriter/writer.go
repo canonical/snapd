@@ -439,7 +439,7 @@ func (w *Writer) validateComponent(optComp *OptionsComponent) error {
 		if !strings.HasSuffix(optComp.Path, ".comp") && !w.opts.IgnoreOptionFileExtentions {
 			return fmt.Errorf("local option component %q does not end in .comp", optComp.Path)
 		}
-		if !osutil.FileExists(optComp.Path) {
+		if !osutil.CanStat(optComp.Path) {
 			return fmt.Errorf("local option component %q does not exist", optComp.Path)
 		}
 	}
@@ -481,7 +481,7 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 			if !strings.HasSuffix(sn.Path, ".snap") && !w.opts.IgnoreOptionFileExtentions {
 				return fmt.Errorf("local option snap %q does not end in .snap", sn.Path)
 			}
-			if !osutil.FileExists(sn.Path) {
+			if !osutil.CanStat(sn.Path) {
 				return fmt.Errorf("local option snap %q does not exist", sn.Path)
 			}
 
@@ -1634,7 +1634,7 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				if sn.Path != expectedPath {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
 				}
-				if !osutil.FileExists(expectedPath) {
+				if !osutil.CanStat(expectedPath) {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
 				}
 			} else {

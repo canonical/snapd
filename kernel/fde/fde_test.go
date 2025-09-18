@@ -201,7 +201,7 @@ cat - > %s
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, `{"op":"lock"}`)
 
 	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *fdeSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
@@ -248,7 +248,7 @@ printf '{"key": "%s"}'
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":{"some":"handle"},"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString(sealedKey)))
 
 	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *fdeSuite) TestRevealV1(c *C) {
@@ -278,7 +278,7 @@ printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key"))))
 
 	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *fdeSuite) TestRevealV2PayloadV1Hook(c *C) {
@@ -312,7 +312,7 @@ printf %q
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString(sealedKey)))
 
 	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *fdeSuite) TestRevealV2BadJSON(c *C) {
@@ -347,7 +347,7 @@ printf 'invalid-json'
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":{"some":"handle"},"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString(sealedKey)))
 
 	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *fdeSuite) TestRevealV1BadOutputSize(c *C) {
@@ -370,7 +370,7 @@ printf "bad-size"
 	_, err := fde.Reveal(&p)
 	c.Assert(err, ErrorMatches, `cannot decode fde-reveal-key \"reveal\" result: .*`)
 
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
 func (s *fdeSuite) TestRevealErr(c *C) {
@@ -403,5 +403,5 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 		},
 	})
 	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }

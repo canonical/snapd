@@ -683,7 +683,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	// registration is blocked until reboot
-	if osutil.FileExists(filepath.Join(dirs.SnapRunDir, "noregister")) {
+	if osutil.CanStat(filepath.Join(dirs.SnapRunDir, "noregister")) {
 		m.noRegister = true
 		return nil
 	}
@@ -1748,14 +1748,14 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	m.ensurePostFactoryResetRan = true
 
 	factoryResetMarker := filepath.Join(dirs.SnapDeviceDir, "factory-reset")
-	if !osutil.FileExists(factoryResetMarker) {
+	if !osutil.CanStat(factoryResetMarker) {
 		// marker is gone already
 		return nil
 	}
 
 	encrypted := true
 	// XXX have a helper somewhere for this?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+	if !osutil.CanStat(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		encrypted = false
 	}
 
@@ -2931,7 +2931,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
-	if osutil.FileExists(reinstallKeyFile) {
+	if osutil.CanStat(reinstallKeyFile) {
 		rkey, err := keys.RecoveryKeyFromFile(device.RecoveryKeyUnder(fdeDir))
 		if err != nil {
 			return nil, err
@@ -3006,7 +3006,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	}] = rkey
 	// reinstall.key is deprecated, there is no path helper for it
 	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-	if !osutil.FileExists(reinstallKeyFile) {
+	if !osutil.CanStat(reinstallKeyFile) {
 		reinstallKeyFile = rkey
 	}
 	authKeyDir := dataMountPoints[0]

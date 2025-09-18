@@ -144,7 +144,7 @@ func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (strin
 }
 
 func (g *grub) Present() (bool, error) {
-	return osutil.FileExists(filepath.Join(g.dir(), "grub.cfg")), nil
+	return osutil.CanStat(filepath.Join(g.dir(), "grub.cfg")), nil
 }
 
 func (g *grub) envFile() string {
@@ -229,7 +229,7 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 	// check that the kernel snap has been extracted already so we don't
 	// inadvertently create a dangling symlink
 	// expand the relative symlink from g.dir()
-	if !osutil.FileExists(filepath.Join(g.dir(), target)) {
+	if !osutil.CanStat(filepath.Join(g.dir(), target)) {
 		return fmt.Errorf(
 			"cannot enable %s at %s: %v",
 			name,
@@ -262,7 +262,7 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 	link := filepath.Join(g.dir(), name)
 
 	// check that the symlink is not dangling before continuing
-	if !osutil.FileExists(link) {
+	if !osutil.CanStat(link) {
 		return nil, fmt.Errorf("cannot read dangling symlink %s", name)
 	}
 

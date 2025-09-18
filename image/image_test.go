@@ -1357,7 +1357,7 @@ func (s *imageSuite) testSetupSeedWithBaseWithCustomizationsAndDefaults(c *C, wi
 
 	// ssh file should be there if and only if the defaults are used
 	sshConfigExpected := withDefaults
-	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, sshConfigExpected)
+	c.Check(osutil.CanStat(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, sshConfigExpected)
 }
 
 func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
@@ -1690,7 +1690,7 @@ func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
 
 	err := image.InstallCloudConfig(targetDir, emptyGadgetDir)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(targetDir, "etc/cloud")), Equals, false)
 }
 
 func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
@@ -2648,7 +2648,7 @@ func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
 
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Check(osutil.CanStat(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
 }
 
 func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
@@ -2881,7 +2881,7 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
-	c.Check(osutil.FileExists(blobdir), Equals, false)
+	c.Check(osutil.CanStat(blobdir), Equals, false)
 }
 
 func (s *imageSuite) TestSetupSeedClassicUC20(c *C) {
@@ -3123,7 +3123,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
-	c.Check(osutil.FileExists(blobdir), Equals, false)
+	c.Check(osutil.CanStat(blobdir), Equals, false)
 }
 
 func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
@@ -3166,7 +3166,7 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
-	c.Check(osutil.FileExists(blobdir), Equals, false)
+	c.Check(osutil.CanStat(blobdir), Equals, false)
 }
 
 func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
@@ -5280,9 +5280,9 @@ func (s *imageSuite) TestSetupSeedLocalComponents(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	c.Check(osutil.FileExists(filepath.Join(extraSnapsDir, "required20+comp1_1.0.comp")),
+	c.Check(osutil.CanStat(filepath.Join(extraSnapsDir, "required20+comp1_1.0.comp")),
 		Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(extraSnapsDir, "required20+comp2_2.0.comp")),
+	c.Check(osutil.CanStat(filepath.Join(extraSnapsDir, "required20+comp2_2.0.comp")),
 		Equals, true)
 
 	l, err := os.ReadDir(seedsnapsdir)

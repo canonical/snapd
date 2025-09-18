@@ -375,7 +375,7 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// validity check
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, false)
 }
 
 func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
@@ -458,7 +458,7 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// validity check
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(dirs.SnapBinariesDir, "alias1")), check.Equals, false)
 }
 
 func (s *aliasesSuite) TestPreferSuccess(c *check.C) {

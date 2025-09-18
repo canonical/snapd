@@ -62,7 +62,7 @@ type fdeSetupJSONStrictBase64 struct {
 }
 
 func runFdeSetup() error {
-	fromInitrd := osutil.FileExists("/etc/initrd-release")
+	fromInitrd := osutil.CanStat("/etc/initrd-release")
 
 	var input []byte
 
@@ -104,7 +104,7 @@ func runFdeSetup() error {
 	switch js.Op {
 	case "features":
 		fdeSetupResult = []byte(`{"features":[]}`)
-		if osutil.FileExists(filepath.Join(filepath.Dir(os.Args[0]), "enable-ice-support")) {
+		if osutil.CanStat(filepath.Join(filepath.Dir(os.Args[0]), "enable-ice-support")) {
 			fdeSetupResult = []byte(`{"features":["inline-crypto-engine"]}`)
 		}
 	case "initial-setup":

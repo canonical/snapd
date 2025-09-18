@@ -212,7 +212,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 	}
 
 	// no system-key yet -> Error
-	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	c.Assert(osutil.CanStat(dirs.SnapSystemKeyFile), Equals, false)
 	_, my, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 	c.Assert(my, NotNil)
@@ -259,7 +259,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 	extraData := interfaces.SystemKeyExtraData{}
 
 	// no system-key yet -> Error
-	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	c.Assert(osutil.CanStat(dirs.SnapSystemKeyFile), Equals, false)
 	_, _, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 
@@ -303,7 +303,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchAppArmorPromptingHappy(c 
 	}
 
 	// no system-key yet -> Error
-	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	c.Assert(osutil.CanStat(dirs.SnapSystemKeyFile), Equals, false)
 	_, _, err := interfaces.SystemKeyMismatch(extraData)
 	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
 

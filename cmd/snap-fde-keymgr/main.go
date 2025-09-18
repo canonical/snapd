@@ -80,7 +80,7 @@ func validateAuthorizations(authorizations []string) error {
 		case strings.HasPrefix(authz, "file:"):
 			// file must exist
 			kf := authz[len("file:"):]
-			if !osutil.FileExists(kf) {
+			if !osutil.CanStat(kf) {
 				return fmt.Errorf("authorization file %v does not exist", kf)
 			}
 		default:

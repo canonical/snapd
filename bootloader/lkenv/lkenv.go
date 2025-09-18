@@ -334,7 +334,7 @@ func (l *Env) Save() error {
 		logger.Noticef("failed to save primary bootloader environment: %v", err)
 	}
 	// if there is backup environment file save to it as well
-	if osutil.FileExists(l.pathbak) {
+	if osutil.CanStat(l.pathbak) {
 		// TODO: if the primary succeeds but saving to the backup fails, we
 		// don't return non-nil error here, should we?
 		if err := l.saveEnv(l.pathbak, buf); err != nil {

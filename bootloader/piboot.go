@@ -110,7 +110,7 @@ func (p *piboot) envFile() string {
 
 // piboot enabled if env file exists
 func (p *piboot) Present() (bool, error) {
-	return osutil.FileExists(p.envFile()), nil
+	return osutil.CanStat(p.envFile()), nil
 }
 
 // Variables stored in ubuntu-seed:

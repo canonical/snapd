@@ -63,10 +63,10 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 	err = s.be.RemoveSnapData(info, nil)
 
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(homeData), Equals, false)
-	c.Assert(osutil.FileExists(filepath.Dir(homeData)), Equals, true)
-	c.Assert(osutil.FileExists(varData), Equals, false)
-	c.Assert(osutil.FileExists(filepath.Dir(varData)), Equals, true)
+	c.Assert(osutil.CanStat(homeData), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Dir(homeData)), Equals, true)
+	c.Assert(osutil.CanStat(varData), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Dir(varData)), Equals, true)
 }
 
 // same as TestRemoveSnapData but with multiple homedirs
@@ -95,13 +95,13 @@ func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
 
 	for _, v := range snapHomeDataDirs {
 		c.Assert(err, IsNil)
-		c.Assert(osutil.FileExists(v), Equals, false)
-		c.Assert(osutil.FileExists(filepath.Dir(v)), Equals, true)
+		c.Assert(osutil.CanStat(v), Equals, false)
+		c.Assert(osutil.CanStat(filepath.Dir(v)), Equals, true)
 
 	}
 
-	c.Assert(osutil.FileExists(varData), Equals, false)
-	c.Assert(osutil.FileExists(filepath.Dir(varData)), Equals, true)
+	c.Assert(osutil.CanStat(varData), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Dir(varData)), Equals, true)
 }
 
 func (s *snapdataSuite) TestSnapDataDirs(c *C) {
@@ -162,11 +162,11 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 
 	err = s.be.RemoveSnapCommonData(info, nil)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(homeCommonData), Equals, false)
-	c.Assert(osutil.FileExists(filepath.Dir(homeCommonData)), Equals, true)
-	c.Assert(osutil.FileExists(varCommonData), Equals, false)
-	c.Assert(osutil.FileExists(filepath.Dir(varCommonData)), Equals, true)
-	c.Assert(osutil.FileExists(rootCommonDir), Equals, false)
+	c.Assert(osutil.CanStat(homeCommonData), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Dir(homeCommonData)), Equals, true)
+	c.Assert(osutil.CanStat(varCommonData), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Dir(varCommonData)), Equals, true)
+	c.Assert(osutil.CanStat(rootCommonDir), Equals, false)
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
@@ -185,11 +185,11 @@ func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
 
 	err = s.be.RemoveSnapSaveData(info, mockDev)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(varSaveData), Equals, false)
-	c.Check(osutil.FileExists(filepath.Dir(varSaveData)), Equals, true)
-	c.Check(osutil.FileExists(varCommonData), Equals, true)
-	c.Check(osutil.FileExists(filepath.Dir(varCommonData)), Equals, true)
-	c.Check(osutil.FileExists(rootCommonDir), Equals, true)
+	c.Check(osutil.CanStat(varSaveData), Equals, false)
+	c.Check(osutil.CanStat(filepath.Dir(varSaveData)), Equals, true)
+	c.Check(osutil.CanStat(varCommonData), Equals, true)
+	c.Check(osutil.CanStat(filepath.Dir(varCommonData)), Equals, true)
+	c.Check(osutil.CanStat(rootCommonDir), Equals, true)
 }
 
 func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts *dirs.SnapDirOptions) {
@@ -238,10 +238,10 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 	err := s.be.RemoveSnapDataDir(info, true, opts)
 	c.Assert(err, IsNil)
 	for _, dir := range baseDataInstanceDirs {
-		c.Assert(osutil.FileExists(dir), Equals, true)
+		c.Assert(osutil.CanStat(dir), Equals, true)
 	}
 	for _, dir := range baseDataDirs {
-		c.Assert(osutil.FileExists(dir), Equals, true)
+		c.Assert(osutil.CanStat(dir), Equals, true)
 	}
 
 	// now with instance key
@@ -250,11 +250,11 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 	c.Assert(err, IsNil)
 	// instance directories are gone
 	for _, dir := range baseDataInstanceDirs {
-		c.Assert(osutil.FileExists(dir), Equals, false)
+		c.Assert(osutil.CanStat(dir), Equals, false)
 	}
 	// but the snap-name one is still around if there are other instances
 	for _, dir := range baseDataDirs {
-		c.Assert(osutil.FileExists(dir), Equals, hasOtherInstances)
+		c.Assert(osutil.CanStat(dir), Equals, hasOtherInstances)
 	}
 
 	if hasOtherInstances {
@@ -264,7 +264,7 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 		c.Assert(err, IsNil)
 		// the snap-name directory is gone now too
 		for _, dir := range baseDataDirs {
-			c.Assert(osutil.FileExists(dir), Equals, false)
+			c.Assert(osutil.CanStat(dir), Equals, false)
 		}
 	}
 }

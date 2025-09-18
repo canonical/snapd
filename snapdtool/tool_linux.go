@@ -221,10 +221,10 @@ func ExecInSnapdOrCoreSnap() {
 	// Is this executable in the core snap too?
 	coreOrSnapdPath := snapdSnap
 	full := filepath.Join(snapdSnap, exeInSnapd)
-	if !osutil.FileExists(full) {
+	if !osutil.CanStat(full) {
 		coreOrSnapdPath = coreSnap
 		full = filepath.Join(coreSnap, exeInSnapd)
-		if !osutil.FileExists(full) {
+		if !osutil.CanStat(full) {
 			return
 		}
 	}

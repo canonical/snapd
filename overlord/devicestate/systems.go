@@ -662,7 +662,7 @@ func createSystemForModelFromValidatedSnaps(
 	copySnap := func(name, src, dst string) error {
 		// if the destination snap is in the asserted snaps dir and already
 		// exists, we don't need to copy it since asserted snaps are shared
-		if strings.HasPrefix(dst, assertedSnapsDir+"/") && osutil.FileExists(dst) {
+		if strings.HasPrefix(dst, assertedSnapsDir+"/") && osutil.CanStat(dst) {
 			return nil
 		}
 		// otherwise, unasserted snaps are not shared, so even if the

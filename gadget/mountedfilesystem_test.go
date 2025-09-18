@@ -281,7 +281,7 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, partRole,
 		m.content = make(map[string][]*mockContentChange)
 	}
 	// the file with content that will be written must exist
-	m.c.Check(osutil.FileExists(data.After) && !osutil.IsDirectory(data.After), Equals, true,
+	m.c.Check(osutil.CanStat(data.After) && !osutil.IsDirectory(data.After), Equals, true,
 		Commentf("path %q does not exist or is a directory", data.After))
 	// all files are treated as new by the writer
 	m.c.Check(data.Before, Equals, "")
@@ -566,7 +566,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 	err = rw.Write(outDir, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(filepath.Join(outDir, "foo")), Equals, false)
+	c.Check(osutil.CanStat(filepath.Join(outDir, "foo")), Equals, false)
 	// overwritten
 	c.Check(filepath.Join(outDir, "bar"), testutil.FileEquals, "foo foo foo")
 }
@@ -938,11 +938,11 @@ func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, partRole
 	m.c.Assert(data, NotNil)
 
 	// the after content must always be set
-	m.c.Check(osutil.FileExists(data.After) && !osutil.IsDirectory(data.After), Equals, true,
+	m.c.Check(osutil.CanStat(data.After) && !osutil.IsDirectory(data.After), Equals, true,
 		Commentf("after reference path %q does not exist or is a directory", data.After))
 	// they may be no before content for new files
 	if data.Before != "" {
-		m.c.Check(osutil.FileExists(data.Before) && !osutil.IsDirectory(data.Before), Equals, true,
+		m.c.Check(osutil.CanStat(data.Before) && !osutil.IsDirectory(data.Before), Equals, true,
 			Commentf("before reference path %q does not exist or is a directory", data.Before))
 	}
 	m.c.Check(filepath.IsAbs(relativeTargetPath), Equals, false,
@@ -1044,10 +1044,10 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 		same := filepath.Join(s.backup, "struct-0", en.target+".same")
 		switch en.content {
 		case "preserved":
-			c.Check(osutil.FileExists(backup), Equals, false, Commentf("file: %v", backup))
-			c.Check(osutil.FileExists(same), Equals, false, Commentf("file: %v", same))
+			c.Check(osutil.CanStat(backup), Equals, false, Commentf("file: %v", backup))
+			c.Check(osutil.CanStat(same), Equals, false, Commentf("file: %v", same))
 		case "same":
-			c.Check(osutil.FileExists(same), Equals, true, Commentf("file: %v", same))
+			c.Check(osutil.CanStat(same), Equals, true, Commentf("file: %v", same))
 		default:
 			c.Check(backup, testutil.FileEquals, "can't touch this")
 		}
@@ -3416,40 +3416,40 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRemoveFiles(c *C) {
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/bar")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/remove-me")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/to-be-removed")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/bar")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/remove-me")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/to-be-removed")), Equals, true)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-other-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-other-dir/foo")), Equals, true)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/preserved")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/preserved")), Equals, true)
 
 	err = rw.Update()
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/bar")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/remove-me")), Equals, false)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/to-be-removed")), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/bar")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/remove-me")), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/to-be-removed")), Equals, false)
 
 	// We do not support removal of directories
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-other-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-other-dir/foo")), Equals, true)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/preserved")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/preserved")), Equals, true)
 
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/bar")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/remove-me")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/to-be-removed")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/bar")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/remove-me")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/to-be-removed")), Equals, true)
 
 	// It has always been there, but we can still check
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-other-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-other-dir/foo")), Equals, true)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/preserved")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/preserved")), Equals, true)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRemoveFilesFiltered(c *C) {
@@ -3533,14 +3533,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRemoveFilesFiltered(c *C)
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/bar")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/bar")), Equals, true)
 
 	err = rw.Update()
 	// No file should have been removed
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/foo")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(outDir, "some-dir/bar")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/foo")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(outDir, "some-dir/bar")), Equals, true)
 }

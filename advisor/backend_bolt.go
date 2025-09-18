@@ -216,7 +216,7 @@ func Open() (Finder, error) {
 	// bolt.Open() is using os.OpenFile(.., os.O_RDONLY |
 	// os.O_CREATE) even if ReadOnly mode is used. So we would get
 	// a misleading "permission denied" error without this check.
-	if !osutil.FileExists(dirs.SnapCommandsDB) {
+	if !osutil.CanStat(dirs.SnapCommandsDB) {
 		return nil, os.ErrNotExist
 	}
 	db, err := bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{

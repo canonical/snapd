@@ -36,23 +36,23 @@ type StatTestSuite struct{}
 var _ = Suite(&StatTestSuite{})
 
 func (ts *StatTestSuite) TestFileDoesNotExist(c *C) {
-	c.Assert(osutil.FileExists("/i-do-not-exist"), Equals, false)
+	c.Assert(osutil.CanStat("/i-do-not-exist"), Equals, false)
 }
 
-func (ts *StatTestSuite) TestFileExistsSimple(c *C) {
+func (ts *StatTestSuite) TestCanStatSimple(c *C) {
 	fname := filepath.Join(c.MkDir(), "foo")
 	err := os.WriteFile(fname, []byte(fname), 0644)
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(fname), Equals, true)
+	c.Assert(osutil.CanStat(fname), Equals, true)
 }
 
-func (ts *StatTestSuite) TestFileExistsExistsOddPermissions(c *C) {
+func (ts *StatTestSuite) TestCanStatExistsOddPermissions(c *C) {
 	fname := filepath.Join(c.MkDir(), "foo")
 	err := os.WriteFile(fname, []byte(fname), 0100)
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(fname), Equals, true)
+	c.Assert(osutil.CanStat(fname), Equals, true)
 }
 
 func (ts *StatTestSuite) TestIsDirectoryDoesNotExist(c *C) {

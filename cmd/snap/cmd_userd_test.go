@@ -158,7 +158,7 @@ func (s *userdSuite) TestSessionAgentSocket(c *C) {
 
 		// Wait for command to create socket file
 		for i := 0; i < 1000; i++ {
-			if osutil.FileExists(s.agentSocketPath) {
+			if osutil.CanStat(s.agentSocketPath) {
 				break
 			}
 			time.Sleep(10 * time.Millisecond)

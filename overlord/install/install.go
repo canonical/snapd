@@ -289,7 +289,7 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
+	if dangerous && osutil.CanStat(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
 		res.Disabled = true
 		return res, nil
 	}
@@ -842,7 +842,7 @@ func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
 	if err := os.MkdirAll(filepath.Dir(clockDst), 0755); err != nil {
 		return fmt.Errorf("cannot store the clock: %v", err)
 	}
-	if !osutil.FileExists(clockSrc) {
+	if !osutil.CanStat(clockSrc) {
 		logger.Noticef("timesyncd clock timestamp %v does not exist", clockSrc)
 		return nil
 	}

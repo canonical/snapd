@@ -42,7 +42,7 @@ func validateAssetsContent(kernelRoot string, info *Info) error {
 				return fmt.Errorf("asset %q: invalid content %q", name, assetContent)
 			}
 			realSource := filepath.Join(kernelRoot, c)
-			if !osutil.FileExists(realSource) {
+			if !osutil.CanStat(realSource) {
 				return fmt.Errorf("asset %q: content %q source path does not exist", name, assetContent)
 			}
 			if isDir {

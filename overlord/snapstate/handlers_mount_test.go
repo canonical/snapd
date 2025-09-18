@@ -66,7 +66,7 @@ func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
-	c.Assert(osutil.FileExists(testSnap), Equals, true)
+	c.Assert(osutil.CanStat(testSnap), Equals, true)
 }
 
 func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {

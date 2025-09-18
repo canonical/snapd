@@ -1480,7 +1480,7 @@ func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	// If the fallback save key exists, then it is the new
 	// key. That means the default save key is the old save key
 	// that needs to be removed.
-	if osutil.FileExists(saveFallbackKeyFactory) {
+	if osutil.CanStat(saveFallbackKeyFactory) {
 		oldKeys = append(oldKeys, defaultSaveKey)
 		renameKey = true
 	}

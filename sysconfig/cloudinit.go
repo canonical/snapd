@@ -42,7 +42,7 @@ import (
 // HasGadgetCloudConf takes a gadget directory and returns whether there is
 // cloud-init config in the form of a cloud.conf file in the gadget.
 func HasGadgetCloudConf(gadgetDir string) bool {
-	return osutil.FileExists(filepath.Join(gadgetDir, "cloud.conf"))
+	return osutil.CanStat(filepath.Join(gadgetDir, "cloud.conf"))
 }
 
 func ubuntuDataCloudDir(rootdir string) string {
@@ -732,14 +732,14 @@ const (
 func CloudInitStatus() (CloudInitState, error) {
 	// if cloud-init has been restricted by snapd, check that first
 	snapdRestrictingFile := filepath.Join(dirs.GlobalRootDir, cloudInitSnapdRestrictFile)
-	if osutil.FileExists(snapdRestrictingFile) {
+	if osutil.CanStat(snapdRestrictingFile) {
 		return CloudInitRestrictedBySnapd, nil
 	}
 
 	// if it was explicitly disabled via the cloud-init disable file, then
 	// return special status for that
 	disabledFile := filepath.Join(dirs.GlobalRootDir, cloudInitDisabledFile)
-	if osutil.FileExists(disabledFile) {
+	if osutil.CanStat(disabledFile) {
 		return CloudInitDisabledPermanently, nil
 	}
 

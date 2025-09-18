@@ -56,7 +56,7 @@ func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) error {
 }
 
 func (a *androidboot) Present() (bool, error) {
-	return osutil.FileExists(a.configFile()), nil
+	return osutil.CanStat(a.configFile()), nil
 }
 
 func (a *androidboot) configFile() string {

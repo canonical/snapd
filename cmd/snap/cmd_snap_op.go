@@ -1309,7 +1309,7 @@ func hasSnapcraftYaml() bool {
 		"snapcraft.yaml",
 		".snapcraft.yaml",
 	} {
-		if osutil.FileExists(loc) {
+		if osutil.CanStat(loc) {
 			return true
 		}
 	}
@@ -1329,7 +1329,7 @@ func (x *cmdTry) Execute([]string) error {
 		if hasSnapcraftYaml() && osutil.IsDirectory("prime") {
 			name = "prime"
 		} else {
-			if osutil.FileExists("meta/snap.yaml") {
+			if osutil.CanStat("meta/snap.yaml") {
 				name = "./"
 			}
 		}

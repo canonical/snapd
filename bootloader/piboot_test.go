@@ -359,7 +359,7 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		"kernel_status":       boot.DefaultStatus})
 	c.Assert(err, IsNil)
 
-	c.Assert(osutil.FileExists(filepath.Join(s.rootdir, "tryboot.txt")), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Join(s.rootdir, "tryboot.txt")), Equals, false)
 
 	files = []struct {
 		path string
@@ -601,7 +601,7 @@ func (s *pibootTestSuite) testExtractKernelAssetsAndRemove(c *C, dtbDir string) 
 	err = p.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+	c.Check(osutil.CanStat(kernelAssetsDir), Equals, false)
 }
 
 func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
@@ -670,7 +670,7 @@ func (s *pibootTestSuite) testExtractKernelAssetsOnRPi4CheckEeprom(c *C, rpiRevi
 	err = p.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+	c.Check(osutil.CanStat(kernelAssetsDir), Equals, false)
 }
 
 func (s *pibootTestSuite) TestExtractKernelAssetsOnRPi4CheckEeprom(c *C) {

@@ -364,7 +364,7 @@ func snapIcon(info snap.PlaceInfo, snapID string) string {
 	}
 
 	// Look in the snap icons directory as a fallback
-	if fallback := snapstate.IconInstallFilename(snapID); fallback != "" && osutil.FileExists(fallback) {
+	if fallback := snapstate.IconInstallFilename(snapID); fallback != "" && osutil.CanStat(fallback) {
 		return fallback
 	}
 

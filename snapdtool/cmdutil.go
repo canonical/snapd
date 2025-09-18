@@ -104,7 +104,7 @@ func parseLdSoConf(root string, confPath string) []string {
 func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	from := "snapd"
 	root := filepath.Join(dirs.SnapMountDir, "/snapd/current")
-	if !osutil.FileExists(root) {
+	if !osutil.CanStat(root) {
 		from = "core"
 		root = filepath.Join(dirs.SnapMountDir, "/core/current")
 	}

@@ -1460,7 +1460,7 @@ func (app *AppInfo) DesktopFile() string {
 	// have deterministic output
 	for _, desktopFileID := range desktopFileIDs {
 		desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, desktopFileID+".desktop")
-		if !osutil.FileExists(desktopFile) {
+		if !osutil.CanStat(desktopFile) {
 			continue
 		}
 		// No need to also check instance name because we already filter by the

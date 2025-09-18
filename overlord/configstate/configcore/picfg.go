@@ -174,7 +174,7 @@ func handlePiConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyCont
 	if err != nil {
 		return err
 	}
-	if osutil.FileExists(configFile) {
+	if osutil.CanStat(configFile) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}

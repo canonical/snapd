@@ -197,7 +197,7 @@ func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 
 	// kernel is *not* here
 	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
-	c.Assert(osutil.FileExists(kernimg), Equals, false)
+	c.Assert(osutil.CanStat(kernimg), Equals, false)
 }
 
 func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
@@ -228,10 +228,10 @@ func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 
 	// kernel is extracted
 	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
-	c.Assert(osutil.FileExists(kernimg), Equals, true)
+	c.Assert(osutil.CanStat(kernimg), Equals, true)
 	// initrd
 	initrdimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "initrd.img")
-	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+	c.Assert(osutil.CanStat(initrdimg), Equals, true)
 
 	// ensure that removal of assets also works
 	err = g.RemoveKernelAssets(info)

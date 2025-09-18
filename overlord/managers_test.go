@@ -658,7 +658,7 @@ apps:
 	// snap file and its mounting
 
 	// after install the snap file is in the right dir
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
@@ -801,16 +801,16 @@ apps:
 
 	// ensure that the binary wrapper file got removed
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
+	c.Assert(osutil.CanStat(binaryWrapper), Equals, false)
 
 	// data dirs
-	c.Assert(osutil.FileExists(snapInfo.DataDir()), Equals, false)
-	c.Assert(osutil.FileExists(snapInfo.CommonDataDir()), Equals, false)
+	c.Assert(osutil.CanStat(snapInfo.DataDir()), Equals, false)
+	c.Assert(osutil.CanStat(snapInfo.CommonDataDir()), Equals, false)
 
 	// snap file and its mount
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
+	c.Assert(osutil.CanStat(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
-	c.Assert(osutil.FileExists(mup), Equals, false)
+	c.Assert(osutil.CanStat(mup), Equals, false)
 
 	// automatic snapshot was created
 	c.Assert(s.automaticSnapshots, DeepEquals, []automaticSnapshotCall{{"foo", map[string]any{"key": "value"}, nil, nil}})
@@ -1412,7 +1412,7 @@ apps:
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
-	c.Assert(osutil.FileExists(info.MountFile()), Equals, true)
+	c.Assert(osutil.CanStat(info.MountFile()), Equals, true)
 
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
@@ -1428,7 +1428,7 @@ apps:
 
 	// check service was setup properly
 	svcFile := filepath.Join(dirs.SnapServicesDir, "snap.foo.svc.service")
-	c.Assert(osutil.FileExists(svcFile), Equals, true)
+	c.Assert(osutil.CanStat(svcFile), Equals, true)
 	stat, err := os.Stat(svcFile)
 	c.Assert(err, IsNil)
 	// should _not_ be executable
@@ -2076,7 +2076,7 @@ apps:
 	// snap file and its mounting
 
 	// after install the snap file is in the right dir
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
+	c.Assert(osutil.CanStat(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/55"))
@@ -3218,7 +3218,7 @@ apps:
 	// pointer
 	for _, fn := range []string{"foo_x2.snap", "foo_x1.snap"} {
 		p := filepath.Join(dirs.SnapBlobDir, fn)
-		c.Assert(osutil.FileExists(p), Equals, true)
+		c.Assert(osutil.CanStat(p), Equals, true)
 	}
 }
 
@@ -13788,7 +13788,7 @@ func (s *mgrsSuite) TestDownload(c *C) {
 
 	snapPath := filepath.Join(expectedDownloadDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
 
-	exists := osutil.FileExists(snapPath)
+	exists := osutil.CanStat(snapPath)
 	c.Check(exists, Equals, true)
 
 	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
@@ -13845,7 +13845,7 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
 
 	snapPath := filepath.Join(dir, fmt.Sprintf("%s_%s.snap", "foo", snapOldRev))
-	exists := osutil.FileExists(snapPath)
+	exists := osutil.CanStat(snapPath)
 	c.Check(exists, Equals, true)
 
 	info, err = snap.ReadInfoFromSnapFile(squashfs.New(snapPath), nil)

@@ -32,7 +32,7 @@ func labelFromPid(pid int) (string, error) {
 	// first check new kernel path, /proc/<pid>/attr/apparmor/current, falling
 	// back to the old path if that doesn't exist
 	procFile := filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/apparmor/current", pid))
-	if !osutil.FileExists(procFile) {
+	if !osutil.CanStat(procFile) {
 		// fallback
 		procFile = filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
 	}

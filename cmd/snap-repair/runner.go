@@ -702,7 +702,7 @@ func (run *Runner) findTimeLowerBound() error {
 }
 
 func findBrandAndModel() (*deviceInfo, error) {
-	if osutil.FileExists(dirs.SnapModeenvFile) {
+	if osutil.CanStat(dirs.SnapModeenvFile) {
 		return findDevInfo20()
 	}
 	return findDevInfo16()

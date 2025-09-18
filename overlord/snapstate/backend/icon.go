@@ -59,7 +59,7 @@ func linkSnapIcon(snapID string) error {
 	poolPath := IconDownloadFilename(snapID)
 	installPath := IconInstallFilename(snapID)
 
-	if !osutil.FileExists(poolPath) {
+	if !osutil.CanStat(poolPath) {
 		return fmt.Errorf("icon for snap: %w", fs.ErrNotExist)
 	}
 

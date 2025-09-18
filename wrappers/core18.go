@@ -136,7 +136,7 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 	mountUnit := "usr-lib-snapd.mount"
 	mountUnitPath := filepath.Join(dirs.SnapServicesDir, mountUnit)
 
-	if !osutil.FileExists(mountUnitPath) {
+	if !osutil.CanStat(mountUnitPath) {
 		return nil
 	}
 	units := []string{mountUnit}
@@ -424,10 +424,10 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 		sysdUnit := filepath.Base(snapdUnit)
 		coreUnit := filepath.Join(dirs.GlobalRootDir, "lib/systemd/system", sysdUnit)
 		writtenUnitPath := filepath.Join(dirs.SnapServicesDir, sysdUnit)
-		if !osutil.FileExists(writtenUnitPath) {
+		if !osutil.CanStat(writtenUnitPath) {
 			continue
 		}
-		existsInCore := osutil.FileExists(coreUnit)
+		existsInCore := osutil.CanStat(coreUnit)
 
 		unit := []string{sysdUnit}
 		if !existsInCore {
@@ -584,11 +584,11 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
 	for _, srcUnit := range units {
 		unit := filepath.Base(srcUnit)
 		writtenUnitPath := filepath.Join(dirs.SnapUserServicesDir, unit)
-		if !osutil.FileExists(writtenUnitPath) {
+		if !osutil.CanStat(writtenUnitPath) {
 			continue
 		}
 		coreUnit := filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user", unit)
-		existsInCore := osutil.FileExists(coreUnit)
+		existsInCore := osutil.CanStat(coreUnit)
 
 		if err := sysd.DisableNoReload([]string{unit}); err != nil {
 			logger.Noticef("failed to disable %q: %v", unit, err)
@@ -704,7 +704,7 @@ func writeSnapdDbusActivationOnCore(s *snap.Info) error {
 	content := make(map[string]osutil.FileState, len(dbusSessionServices)+1)
 	for _, service := range dbusSessionServices {
 		filePathInSnap := filepath.Join(s.MountDir(), "usr/share/dbus-1/services", service)
-		if !osutil.FileExists(filePathInSnap) {
+		if !osutil.CanStat(filePathInSnap) {
 			continue
 		}
 		content[service] = &osutil.FileReference{
@@ -747,7 +747,7 @@ func writeSnapdDesktopFilesOnCore(s *snap.Info) error {
 	desktopFiles := make(map[string]osutil.FileState, len(snapdDesktopFileNames))
 	for _, fileName := range snapdDesktopFileNames {
 		filePathInSnap := filepath.Join(s.MountDir(), "usr/share/applications", fileName)
-		if !osutil.FileExists(filePathInSnap) {
+		if !osutil.CanStat(filePathInSnap) {
 			continue
 		}
 		desktopFiles[fileName] = &osutil.FileReference{Path: filePathInSnap}

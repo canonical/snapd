@@ -98,7 +98,7 @@ func selectGadgetSnap(modeenv *Modeenv, rootfsDir string) (snap.PlaceInfo, error
 	// check that the current snap actually exists
 	file := modeenv.Gadget
 	snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), file)
-	if !osutil.FileExists(snapPath) {
+	if !osutil.CanStat(snapPath) {
 		// somehow the gadget snap doesn't exist in ubuntu-data
 		// this could happen if the modeenv is manipulated
 		// out-of-band from snapd
@@ -771,7 +771,7 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, rootfsDir stri
 	// check that the current snap actually exists
 	file := curSnap.Filename()
 	snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), file)
-	if !osutil.FileExists(snapPath) {
+	if !osutil.CanStat(snapPath) {
 		// somehow the boot snap doesn't exist in ubuntu-data
 		// for a kernel, this could happen if we have some bug where ubuntu-boot
 		// isn't properly updated and never changes, but snapd thinks it was
@@ -807,7 +807,7 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, rootfsDir stri
 		return curSnap, nil, errTrySnapFallback
 	}
 	trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), trySnap.Filename())
-	if !osutil.FileExists(trySnapPath) {
+	if !osutil.CanStat(trySnapPath) {
 		// or when the snap file does not exist
 		logger.Noticef("try-%s snap %q does not exist", typeString, trySnap.Filename())
 		return curSnap, nil, errTrySnapFallback

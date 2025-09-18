@@ -875,7 +875,7 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
-	if !osutil.FileExists(snapPath) {
+	if !osutil.CanStat(snapPath) {
 		return fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 

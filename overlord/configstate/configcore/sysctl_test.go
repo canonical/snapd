@@ -74,7 +74,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockSysctlConfPath), Equals, false)
 	c.Check(s.systemdSysctlArgs, DeepEquals, [][]string{
 		{"--prefix", "kernel.printk"},
 	})
@@ -87,7 +87,7 @@ func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
 			"system.kernel.printk.console-loglevel": "-1",
 		},
 	})
-	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockSysctlConfPath), Equals, false)
 	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not: -1`)
 }
 
@@ -98,7 +98,7 @@ func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
 			"system.kernel.printk.console-loglevel": "8",
 		},
 	})
-	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockSysctlConfPath), Equals, false)
 	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not: 8`)
 }
 
@@ -109,7 +109,7 @@ func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
 			"system.kernel.printk.console-loglevel": "invalid",
 		},
 	})
-	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockSysctlConfPath), Equals, false)
 	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not: invalid`)
 }
 
@@ -119,7 +119,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegrationNoSetting(c *C) {
 		conf:  map[string]any{},
 	})
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(s.mockSysctlConfPath), Equals, false)
+	c.Check(osutil.CanStat(s.mockSysctlConfPath), Equals, false)
 }
 
 func (s *sysctlSuite) TestFilesystemOnlyApply(c *C) {
