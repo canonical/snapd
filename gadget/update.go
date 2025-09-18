@@ -663,20 +663,17 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 func diskTraitsFromEMMCDevice(diskLayout *OnDiskVolume, mmc disks.Disk, vol *Volume) (res DiskVolumeDeviceTraits, err error) {
 	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(vol.Structure))
 	for _, vs := range vol.Structure {
-		mmcPartDev := fmt.Sprintf("%s%s", mmc.KernelDeviceNode(), vs.Name)
-		mmcPart, err := disks.DiskFromDeviceName(mmcPartDev)
-		if err != nil {
-			return res, fmt.Errorf("cannot get disk for device %s: %v", mmcPartDev, err)
-		}
+		devPath := fmt.Sprintf("%s%s", mmc.KernelDevicePath(), vs.Name)
+		devNode := fmt.Sprintf("%s%s", mmc.KernelDeviceNode(), vs.Name)
 
-		sz, err := mmcPart.SizeInBytes()
+		sz, err := disks.SizeInBytes(devNode)
 		if err != nil {
-			return res, fmt.Errorf("cannot get size of device %s: %v", mmcPartDev, err)
+			return res, fmt.Errorf("cannot get size of device %s: %v", devNode, err)
 		}
 
 		mappedStructures = append(mappedStructures, DiskStructureDeviceTraits{
-			OriginalDevicePath: mmcPart.KernelDevicePath(),
-			OriginalKernelPath: mmcPart.KernelDeviceNode(),
+			OriginalDevicePath: devPath,
+			OriginalKernelPath: devNode,
 			Size:               quantity.Size(sz),
 		})
 	}
