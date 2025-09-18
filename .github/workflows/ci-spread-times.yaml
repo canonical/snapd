@@ -35,6 +35,7 @@ jobs:
           spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
 
       - name: Write the metrics to prometheus
+        if: always()
         env:
           METRICS_HOST: ${{ secrets.METRICS_HOST }}
           METRICS_PORT: ${{ secrets.METRICS_PORT }}
@@ -65,4 +66,138 @@ jobs:
               else
                 echo "Skipping failed execution $verb $name $level"
               fi
+          done
+
+  times-spread-list:
+    runs-on: ["self-hosted", "spread-enabled"]
+    steps:
+      - name: Cleanup job workspace
+        id: cleanup-job-workspace
+        run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # spread uses tags as delta reference
+          fetch-depth: 0
+
+      - name: list spread task
+        run: |
+          # spread -list is measured because this is the time any spread execution takes to compute
+          # all the backend:system:tasks combinations and filter based on the expressions used.
+          start_ms=$(date +%s%3N)
+          spread -list openstack-ps7:tests/smoke/install &> /dev/null
+          end_ms=$(date +%s%3N)
+          diff_ms=$(( end_ms - start_ms ))
+
+          echo "Spread took $diff_ms ms to list tests"
+          ./tests/utils/metrics/post-metric "snapd_times_spread_list" "$diff_ms"
+
+  avg-task-times:
+    runs-on: ["self-hosted", "spread-enabled"]
+    steps:
+      - name: Cleanup job workspace
+        id: cleanup-job-workspace
+        run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # spread uses tags as delta reference
+          fetch-depth: 0
+
+      - name: create new empty test
+        run: |
+          mkdir tests/smoke/empty
+          echo -e "summary: test\nexecute: true\n" > tests/smoke/empty/task.yaml
+
+      - name: run repeated empty test with spread
+        env:
+          SPREAD_USE_SNAPD_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+          SPREAD_USE_PREBUILT_SNAPD_SNAP: true
+        run: |
+          # Run spread several times to get the avg time for the prepare/restore task
+          # Test task is executed just in the some systems
+          spread -no-debug-output -repeat 10 -json report.json openstack-arm-ps7:ubuntu-24.04-arm-64:tests/smoke/empty openstack-ps7:ubuntu-24.04-64:tests/smoke/empty openstack-ps7:ubuntu-core-24-64:tests/smoke/empty openstack-ps7:arch-linux-64:tests/smoke/empty openstack-ps7:amazon-linux-2023-64:tests/smoke/empty
+
+      - name: Write the metrics to prometheus
+        if: always()
+        env:
+          METRICS_HOST: ${{ secrets.METRICS_HOST }}
+          METRICS_PORT: ${{ secrets.METRICS_PORT }}
+        run: |
+          json_file="report.json"
+
+          if [ ! -f "$json_file" ]; then
+              echo "The report file doesn't exist"
+              exit 1
+          fi
+
+          # Step 1: Add duration_ms to each item
+          # To calculate the duration we use 
+          #   sub: command to remove the fractional seconds
+          #   strptime: command to parse the string into a structured date object
+          #   mktime: converts that structured date into seconds
+          #   capture: is used to retrieve the milliseconds part of the date string
+          #   * 1000: converts seconds to milliseconds
+          jq -r '
+            .items[]
+            | select(
+                .success == true
+                and (.verb == "preparing" or .verb == "restoring")
+                and .level == "task"
+              )
+            | {
+                verb,
+                backend,
+                system,
+                level,
+                name,
+                duration: (
+                  (
+                    ((.end | sub("\\.[0-9]+";"") | strptime("%Y-%m-%dT%H:%M:%S") | mktime) * 1000)
+                  + ((.end | capture("\\.(?<ms>[0-9]+)") | .ms | tonumber))
+                  -
+                    ((.start | sub("\\.[0-9]+";"") | strptime("%Y-%m-%dT%H:%M:%S") | mktime) * 1000)
+                  - ((.start | capture("\\.(?<ms>[0-9]+)") | .ms | tonumber))
+                  )
+                )
+              }
+          ' report.json > report-with-duration.json
+
+          # Step 2: Group and calculate averages
+          # jq -s: instead of processing inputs one at a time, it slurps everything into one big array
+          #        before running the filter
+          jq -s '
+              group_by(.verb, .backend, .system, .level, .name)
+              | map({
+                  verb: .[0].verb,
+                  backend: .[0].backend,
+                  system: .[0].system,
+                  level: .[0].level,
+                  name: .[0].name,
+                  avg_ms: (map(.duration) | add / length | round)
+                })
+              | .[]
+          ' report-with-duration.json > report-with-avg.json
+
+          # Step 3: Post metrics
+          # jq -c: change output mode to compact
+          jq -c '.' report-with-avg.json \
+          | while IFS= read -r row; do
+              verb=$(jq -r '.verb' <<<"$row")
+              backend=$(jq -r '.backend' <<<"$row")
+              system=$(jq -r '.system' <<<"$row")
+              level=$(jq -r '.level' <<<"$row")
+              name=$(jq -r '.name' <<<"$row")
+              avg_ms=$(jq -r '.avg_ms' <<<"$row")
+
+              ./tests/utils/metrics/post-metric "snapd_times_avg_${verb}_${level}" "$avg_ms" \
+                --label "backend=$backend" \
+                --label "system=$system" \
+                --label "name=$name"
           done
