@@ -1,0 +1,18 @@
+#!/bin/bash -e
+
+set -o pipefail
+
+(
+    set -x
+    set -e
+    echo "restarting using aliased name"
+    snapctl restart test-snapd-service-with-configure.svc1
+
+    echo "restarting using instance name: $SNAP_INSTANCE_NAME"
+    snapctl restart "$SNAP_INSTANCE_NAME".svc2
+
+    echo "restarting using snap name: $SNAP_NAME"
+    snapctl restart "$SNAP_NAME".svc3
+
+    echo "ALL DONE"
+) 2>&1 | tee "$SNAP_COMMON"/hook.log
