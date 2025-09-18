@@ -91,7 +91,7 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	snapstate.ConfdbstateIsConfdbHookname = confdbstate.IsConfdbHookname
+	snapstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 }
 
 func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {

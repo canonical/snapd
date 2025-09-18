@@ -49,7 +49,7 @@ func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError boo
 type ConfdbManager struct{}
 
 func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner) *ConfdbManager {
-	snapstate.ConfdbstateIsConfdbHookname = IsConfdbHookname
+	snapstate.IsConfdbHookname = IsConfdbHookname
 
 	m := &ConfdbManager{}
 

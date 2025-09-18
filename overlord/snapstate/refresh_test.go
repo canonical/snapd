@@ -72,7 +72,7 @@ hooks:
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	s.state = state.New(nil)
 
-	snapstate.ConfdbstateIsConfdbHookname = confdbstate.IsConfdbHookname
+	snapstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 }
 
 func (s *refreshSuite) TestRefreshCheck(c *C) {
