@@ -405,7 +405,7 @@ jobs:
             exit 0
           fi
 
-          SPREAD_FLAGS='-no-debug-output -logs spread-logs'
+          SPREAD_FLAGS='-no-debug-output -logs spread-logs -json results.json'
           if [ "${{ inputs.upload-artifacts }}" = true ]; then
             SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
@@ -437,6 +437,14 @@ jobs:
       with:
         name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
+        if-no-files-found: ignore
+  
+    - name: Upload spread results file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        path: "results.json"
         if-no-files-found: ignore
 
     - name: Report spread errors
@@ -525,12 +533,4 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
-
-    - name: Save spread.json as an artifact
-      if: ${{ failure() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
-        path: "spread-results.json"
-        if-no-files-found: ignore
 
