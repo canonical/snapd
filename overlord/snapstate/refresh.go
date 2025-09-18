@@ -38,7 +38,8 @@ import (
 // pidsOfSnap is a mockable version of PidsOfSnap
 var pidsOfSnap = cgroup.PidsOfSnap
 
-var ConfdbstateIsConfdbHookname = func(string) bool {
+// IsConfdbHookname is a hook set by confdbstate (see confdbstate.go).
+var IsConfdbHookname = func(string) bool {
 	panic("internal error: confdbstate.IsConfdbHookname is unset")
 }
 
@@ -56,9 +57,9 @@ var refreshAppsCheck = func(info *snap.Info) error {
 	var busyPIDs []int
 
 	canHookRunDuringRefresh := func(hook *snap.HookInfo) bool {
-		// refreshes and changes that unlink snaps can conflict with confdb accesses
-		// that run custodian hooks but those are dealt with before running hooks/unlinking
-		return ConfdbstateIsConfdbHookname(hook.Name)
+		// changes that unlink snaps can conflict with confdb accesses that run those
+		// snaps' hooks, but we deal with that in the unlink/run-hook tasks
+		return IsConfdbHookname(hook.Name)
 	}
 
 	for name, app := range info.Apps {
