@@ -739,6 +739,7 @@ var defaultCoreRuntimeTemplateRules = `
 
   # Allow all snaps to chroot
   /{,usr/}sbin/chroot ixr,
+  /usr/lib/cargo/bin/coreutils/chroot ixr,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
