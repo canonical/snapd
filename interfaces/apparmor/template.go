@@ -740,6 +740,7 @@ var defaultCoreRuntimeTemplateRules = `
 
   # Allow all snaps to chroot
   /{,usr/}sbin/chroot ixr,
+  /usr/lib/cargo/bin/coreutils/chroot ixr,
 
   # Allow pidof (and killall5, as pidof can be a symlink to killall5 in some distros)
   /{,usr/}bin/pidof ixr,
