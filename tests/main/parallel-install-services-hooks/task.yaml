@@ -1,0 +1,78 @@
+summary: Check parallel installation of sideloaded snaps with hooks
+
+details: |
+    Check that hooks of parallel installed snap can restart the snap's services
+    using either the full snap instance name or an implicit snap name without
+    the instance key.
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+
+restore: |
+    snap remove --purge test-snapd-service-with-configure || true
+    snap remove --purge test-snapd-service-with-configure_foo || true
+    snap unset system experimental.parallel-instances
+
+execute: |
+    function service_start_time {
+        systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+    }
+
+    # note the configure hook is set up such that it will fail if a snapctl
+    # command fails to execute
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service-with-configure
+
+    log_f=/var/snap/test-snapd-service-with-configure/common/hook.log
+    MATCH '^restarting using aliased name$' < "$log_f"
+    MATCH '^restarting using instance name: test-snapd-service-with-configure$' < "$log_f"
+    MATCH '^restarting using snap name: test-snapd-service-with-configure$' < "$log_f"
+    MATCH '^ALL DONE$' < "$log_f"
+
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service-with-configure test-snapd-service-with-configure_foo
+    log_f_foo=/var/snap/test-snapd-service-with-configure_foo/common/hook.log
+
+    MATCH '^restarting using aliased name$' < "$log_f_foo"
+    MATCH '^restarting using instance name: test-snapd-service-with-configure_foo$' < "$log_f_foo"
+    MATCH '^restarting using snap name: test-snapd-service-with-configure$' < "$log_f_foo"
+    MATCH '^ALL DONE$' < "$log_f_foo"
+
+    rm -v "$log_f" "$log_f_foo"
+
+    snap set test-snapd-service-with-configure option=value
+    MATCH '^ALL DONE$' < "$log_f"
+    snap set test-snapd-service-with-configure_foo option=value
+    MATCH '^ALL DONE$' < "$log_f_foo"
+
+    rm -v "$log_f" "$log_f_foo"
+
+    snap unset test-snapd-service-with-configure option
+    MATCH '^ALL DONE$' < "$log_f"
+    snap unset test-snapd-service-with-configure_foo option
+    MATCH '^ALL DONE$' < "$log_f_foo"
+
+    svc3_nokey="$(service_start_time snap.test-snapd-service-with-configure.svc3)"
+    svc3_key="$(service_start_time snap.test-snapd-service-with-configure_foo.svc3)"
+
+    # restart all services of test-snapd-service-with-configure_foo using the
+    # implicit name
+    snap run --shell test-snapd-service-with-configure_foo.svc1 -c 'snapctl restart test-snapd-service-with-configure'
+
+    svc3_nokey_after1="$(service_start_time snap.test-snapd-service-with-configure.svc3)"
+    svc3_key_after1="$(service_start_time snap.test-snapd-service-with-configure_foo.svc3)"
+
+    # unkeyed service was not restarted
+    test "$svc3_nokey" = "$svc3_nokey_after1"
+    # but the keyed one was
+    test "$svc3_key" -lt "$svc3_key_after1"
+
+    # restart services of unkeyed snap only
+    snap run --shell test-snapd-service-with-configure.svc1 -c 'snapctl restart test-snapd-service-with-configure'
+
+    svc3_nokey_after2="$(service_start_time snap.test-snapd-service-with-configure.svc3)"
+    svc3_key_after2="$(service_start_time snap.test-snapd-service-with-configure_foo.svc3)"
+
+    # this time, unkeyed service was restarted
+    test "$svc3_nokey_after1" -lt "$svc3_nokey_after2"
+    # but the keyed one was not
+    test "$svc3_key_after1" = "$svc3_key_after2"

@@ -1,0 +1,19 @@
+name: test-snapd-service-with-configure
+version: 1337
+summary: Basic snap with configure hook
+description: |
+  This snap for testing parallel installs and hooks which operate on services
+base: core24
+
+apps:
+    svc1:
+        command: service
+        daemon: simple
+
+    svc2:
+        command: service
+        daemon: simple
+
+    svc3:
+        command: service
+        daemon: simple
