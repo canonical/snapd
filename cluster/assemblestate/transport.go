@@ -35,6 +35,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"golang.org/x/time/rate"
 )
@@ -362,18 +363,16 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 		return nil
 	}
 
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify:    true,
-				VerifyPeerCertificate: verify,
-				Certificates:          []tls.Certificate{c.cert},
-			},
-		},
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("redirects are not expected")
-		},
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout: time.Minute,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify:    true,
+			VerifyPeerCertificate: verify,
+			Certificates:          []tls.Certificate{c.cert},
+		},
+	})
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return errors.New("redirects are not expected")
 	}
 
 	payload, err := json.Marshal(data)
@@ -389,7 +388,7 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 		}
 	}
 
-	tx, err := send(ctx, &client, addr, kind, payload)
+	tx, err := send(ctx, client, addr, kind, payload)
 	if err != nil {
 		return err
 	}
@@ -405,17 +404,15 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 // certificate that the peer presented. This is used for initial authentication
 // exchanges where the peer's identity hasn't been verified yet.
 func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, data any) ([]byte, error) {
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-				Certificates:       []tls.Certificate{c.cert},
-			},
-		},
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("redirects are not expected")
-		},
+	client := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Timeout: time.Minute,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			Certificates:       []tls.Certificate{c.cert},
+		},
+	})
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return errors.New("redirects are not expected")
 	}
 
 	payload, err := json.Marshal(data)
@@ -431,7 +428,7 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 		}
 	}
 
-	res, tx, err := sendWithResponse(ctx, &client, addr, kind, payload)
+	res, tx, err := sendWithResponse(ctx, client, addr, kind, payload)
 	if err != nil {
 		return nil, err
 	}
