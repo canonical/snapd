@@ -1,0 +1,43 @@
+summary: Ensure that the checkbox-support interface works.
+
+details: |
+    The checkbox-support interface grants access to systemd APIs that allow
+    starting and killing processes outside of the sandbox. A Go implementation
+    calling those interfaces is bundled in snapd git repository, in the
+    directory tests/lib/plz-run.
+
+systems:
+    # This works on pretty much all the releases, but we test only on one that
+    # has recent-enough Go to build plz-run without modifications.
+    - ubuntu-24.04-64
+
+prepare: |
+    ( cd  "$TESTSLIB"/plz-run && CGO_ENABLED=0 go build )
+    mkdir -p test-snapd-checkbox-support/bin/
+    cp -a "$TESTSLIB"/plz-run/plz-run test-snapd-checkbox-support/bin/plz-run
+    snap pack test-snapd-checkbox-support
+    snap install --dangerous ./test-snapd-checkbox-support_0.3_all.snap
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i checkbox-support | MATCH -- '- +test-snapd-checkbox-support:checkbox-support'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-checkbox-support:checkbox-support
+
+    echo "Then the snap is able to start apps outside of the sandbox"
+    test-snapd-checkbox-support.plz-run /usr/bin/systemctl status snapd.service >status.txt
+    MATCH 'Active: active' <status.txt
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-checkbox-support:checkbox-support
+
+    echo "Then the snap is not able to launch applications anymore"
+    if test-snapd-checkbox-support.plz-run /usr/bin/systemctl status snapd.service 2>call.error; then
+        echo "Unexpectedly succeeded calling systemd APIs"
+        exit 1
+    fi
+    MATCH 'plz-run error: dial unix /run/dbus/system_bus_socket: connect: permission denied' < call.error
