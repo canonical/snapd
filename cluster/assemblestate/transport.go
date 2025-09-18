@@ -381,6 +381,8 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 		return err
 	}
 
+	// rate limit based on the number of bytes/second that we're sending. this
+	// will block until we have enough bytes in our budget to send the payload.
 	if c.limiter != nil {
 		if err := c.limiter.WaitN(ctx, len(payload)); err != nil {
 			return err
@@ -421,6 +423,8 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 		return nil, err
 	}
 
+	// rate limit based on the number of bytes/second that we're sending. this
+	// will block until we have enough bytes in our budget to send the payload.
 	if c.limiter != nil {
 		if err := c.limiter.WaitN(ctx, len(payload)); err != nil {
 			return nil, err
