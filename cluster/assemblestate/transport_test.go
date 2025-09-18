@@ -734,7 +734,7 @@ func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsUnverifiedPeers(
 	}
 
 	stats := transport.Stats()
-	c.Assert(stats.Received, check.Equals, int64(0))
+	c.Assert(stats.Received, check.Equals, int64(3))
 
 	cancel()
 	wg.Wait()
@@ -776,7 +776,7 @@ func (s *transportSuite) TestHTTPSTransportServeAuthRejectsFailedAuthentication(
 	c.Assert(err.Error(), check.Equals, "got non-200 status code in response to auth message: 403")
 
 	stats := transport.Stats()
-	c.Assert(stats.Received, check.Equals, int64(0))
+	c.Assert(stats.Received, check.Equals, int64(1))
 
 	cancel()
 	wg.Wait()
@@ -883,7 +883,7 @@ func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsMultipleCertific
 	}
 
 	stats := transport.Stats()
-	c.Assert(stats.Received, check.Equals, int64(0))
+	c.Assert(stats.Received, check.Equals, int64(4))
 
 	cancel()
 	wg.Wait()
@@ -954,7 +954,7 @@ func (s *transportSuite) TestHTTPSTransportRejectsNonPOSTRequests(c *check.C) {
 	}
 
 	stats := transport.Stats()
-	c.Assert(stats.Received, check.Equals, int64(0))
+	c.Assert(stats.Received, check.Equals, int64(4))
 
 	cancel()
 	wg.Wait()
@@ -1053,7 +1053,7 @@ func (s *transportSuite) TestHTTPSTransportVerifiedPeerErrors(c *check.C) {
 	}
 
 	stats := transport.Stats()
-	c.Assert(stats.Received, check.Equals, int64(0))
+	c.Assert(stats.Received, check.Equals, int64(3))
 
 	cancel()
 	wg.Wait()
@@ -1113,7 +1113,7 @@ func (s *transportSuite) TestHTTPSTransportAuthenticateAndCommitError(c *check.C
 	c.Assert(resp.StatusCode, check.Equals, 403)
 
 	stats := transport.Stats()
-	c.Assert(stats.Received, check.Equals, int64(0))
+	c.Assert(stats.Received, check.Equals, int64(1))
 
 	cancel()
 	wg.Wait()

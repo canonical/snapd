@@ -149,12 +149,12 @@ func NewHTTPSTransport() *HTTPSTransport {
 // The server runs until the context is cancelled.
 func (t *HTTPSTransport) Serve(ctx context.Context, ln net.Listener, cert tls.Certificate, pa PeerAuthenticator) error {
 	mux := http.NewServeMux()
-	mux.Handle("/assemble/auth", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/assemble/auth", http.HandlerFunc(t.statsHandler(func(w http.ResponseWriter, r *http.Request) {
 		t.handleAuth(w, r, pa)
-	}))
-	mux.Handle("/assemble/routes", t.trustedHandler(t.handleRoutes, pa))
-	mux.Handle("/assemble/unknown", t.trustedHandler(t.handleUnknown, pa))
-	mux.Handle("/assemble/devices", t.trustedHandler(t.handleDevices, pa))
+	})))
+	mux.Handle("/assemble/routes", t.statsHandler(t.trustedHandler(t.handleRoutes, pa)))
+	mux.Handle("/assemble/unknown", t.statsHandler(t.trustedHandler(t.handleUnknown, pa)))
+	mux.Handle("/assemble/devices", t.statsHandler(t.trustedHandler(t.handleDevices, pa)))
 
 	server := &http.Server{
 		Handler: mux,
@@ -189,7 +189,7 @@ func (t *HTTPSTransport) Serve(ctx context.Context, ln net.Listener, cert tls.Ce
 }
 
 type countingReader struct {
-	r     io.Reader
+	r     io.ReadCloser
 	count int64
 }
 
@@ -199,8 +199,57 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+func (c *countingReader) Close() error {
+	return c.r.Close()
+}
+
+func (t *HTTPSTransport) statsHandler(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		counter := countingReader{r: r.Body}
+		r.Body = &counter
+
+		next(w, r)
+
+		t.stats.recv(counter.count)
+	}
+}
+
+func (t *HTTPSTransport) handleAuth(w http.ResponseWriter, r *http.Request, pa PeerAuthenticator) {
+	if r.Method != "POST" {
+		w.WriteHeader(405)
+		return
+	}
+
+	if r.TLS == nil || len(r.TLS.PeerCertificates) != 1 {
+		w.WriteHeader(403)
+		return
+	}
+
+	// set a max size so an untrusted peer can't send some massive JSON
+	const maxAuthSize = 1024 * 4
+	body := http.MaxBytesReader(w, r.Body, maxAuthSize)
+
+	var auth Auth
+	if err := json.NewDecoder(body).Decode(&auth); err != nil {
+		w.WriteHeader(400)
+		return
+	}
+
+	cert := r.TLS.PeerCertificates[0].Raw
+	if err := pa.AuthenticateAndCommit(auth, cert); err != nil {
+		w.WriteHeader(403)
+		logger.Debugf("cannot authenticate peer: %v", err)
+		return
+	}
+}
+
 func (t *HTTPSTransport) trustedHandler(next func(http.ResponseWriter, *http.Request, VerifiedPeer), pa PeerAuthenticator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(405)
+			return
+		}
+
 		if r.TLS == nil || len(r.TLS.PeerCertificates) != 1 {
 			w.WriteHeader(403)
 			return
@@ -218,49 +267,9 @@ func (t *HTTPSTransport) trustedHandler(next func(http.ResponseWriter, *http.Req
 	}
 }
 
-func (t *HTTPSTransport) handleAuth(w http.ResponseWriter, r *http.Request, pa PeerAuthenticator) {
-	if r.Method != "POST" {
-		w.WriteHeader(405)
-		return
-	}
-
-	if r.TLS == nil || len(r.TLS.PeerCertificates) != 1 {
-		w.WriteHeader(403)
-		return
-	}
-
-	// set a max size so an untrusted peer can't send some massive JSON
-	const maxAuthSize = 1024 * 4
-	counter := countingReader{
-		r: http.MaxBytesReader(w, r.Body, maxAuthSize),
-	}
-
-	var auth Auth
-	if err := json.NewDecoder(&counter).Decode(&auth); err != nil {
-		w.WriteHeader(400)
-		return
-	}
-
-	cert := r.TLS.PeerCertificates[0].Raw
-	if err := pa.AuthenticateAndCommit(auth, cert); err != nil {
-		w.WriteHeader(403)
-		logger.Debugf("cannot authenticate peer: %v", err)
-		return
-	}
-
-	t.stats.recv(counter.count)
-}
-
 func (t *HTTPSTransport) handleRoutes(w http.ResponseWriter, r *http.Request, peer VerifiedPeer) {
-	if r.Method != "POST" {
-		w.WriteHeader(405)
-		return
-	}
-
-	counter := countingReader{r: r.Body}
-
 	var routes Routes
-	if err := json.NewDecoder(&counter).Decode(&routes); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&routes); err != nil {
 		w.WriteHeader(400)
 		return
 	}
@@ -271,20 +280,11 @@ func (t *HTTPSTransport) handleRoutes(w http.ResponseWriter, r *http.Request, pe
 		logger.Debugf("cannot commit routes: %v", err)
 		return
 	}
-
-	t.stats.recv(counter.count)
 }
 
 func (t *HTTPSTransport) handleUnknown(w http.ResponseWriter, r *http.Request, peer VerifiedPeer) {
-	if r.Method != "POST" {
-		w.WriteHeader(405)
-		return
-	}
-
-	counter := countingReader{r: r.Body}
-
 	var unknown UnknownDevices
-	if err := json.NewDecoder(&counter).Decode(&unknown); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&unknown); err != nil {
 		w.WriteHeader(400)
 		return
 	}
@@ -294,20 +294,11 @@ func (t *HTTPSTransport) handleUnknown(w http.ResponseWriter, r *http.Request, p
 		logger.Debugf("cannot commit queries for device info: %v", err)
 		return
 	}
-
-	t.stats.recv(counter.count)
 }
 
 func (t *HTTPSTransport) handleDevices(w http.ResponseWriter, r *http.Request, peer VerifiedPeer) {
-	if r.Method != "POST" {
-		w.WriteHeader(405)
-		return
-	}
-
-	counter := countingReader{r: r.Body}
-
 	var devices Devices
-	if err := json.NewDecoder(&counter).Decode(&devices); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&devices); err != nil {
 		w.WriteHeader(400)
 		return
 	}
@@ -317,8 +308,6 @@ func (t *HTTPSTransport) handleDevices(w http.ResponseWriter, r *http.Request, p
 		logger.Debugf("cannot commit device info: %v", err)
 		return
 	}
-
-	t.stats.recv(counter.count)
 }
 
 // NewClient creates a Client compatible with this [HTTPSTransport] for sending
