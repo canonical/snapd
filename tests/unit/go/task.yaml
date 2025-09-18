@@ -40,7 +40,7 @@ execute: |
     chown -R test:12345 /tmp/static-unit-tests
 
     # remove leftovers
-    rm -r /tmp/static-unit-tests/src/github.com/snapcore/snapd/vendor/*/
+    rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/vendor/*/
     rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
 
     # The format of code produced by "gofmt" drifts over time. Perform checks
