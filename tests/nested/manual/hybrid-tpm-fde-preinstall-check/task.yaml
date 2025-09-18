@@ -157,7 +157,8 @@ execute: |
   # Restart snapd to clear preinstall context from cache
   remote.exec "sudo systemctl restart snapd.service"
 
-  # Requesting a fix action when there is no preinstall context available should result in error
+  # Requesting a fix action when there is no preinstall context available should result in error.
+  # Note fix action "" maps to secboot constant ActionNone which is always allowed.
   echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic > result
   cat <<EOF > result.reference
   {
@@ -183,13 +184,34 @@ execute: |
   echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
   gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
 
+  # Request a fix action that does not exist
+  echo '{"action": "fix-encryption-support", "fix-action": "miracle"}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+
+  echo '{"action": "fix-encryption-support", "fix-action": "miracle"}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"]."availability-check-errors"' > result
+  cat <<EOF > result.reference
+  [
+    {
+      "kind": "unexpected-action",
+      "message": "specified action is not expected"
+    }
+  ]
+  EOF
+
+  diff result result.reference
+
   # Cause an error by configuring bogus shim
   remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/bootx64.efi"
 
   # Check that when requesting and action encryption is not available for the targeted system and provides reason with error-kind
-  echo '{"action": "fix-encryption-support", "fix-action": "miracle"}' | api_post_v2_systems_classic |
-  gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+  # - First create new context
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
+  diff availability-check-errors availability-check-errors.reference
+
+  # - Then request an action
   echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
   gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
