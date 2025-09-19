@@ -168,7 +168,7 @@ func CheckCompatibility(compat1, compat2 string) bool {
 	// define separate sets - and expressions can always be formatted into
 	// OR expressions joined by ANDs). Exp. 1 is compatible with 2 if all
 	// sets defined by 1 have an intersection with one of the labels
-	// defined in 2, and the other way around. If compatibily happens on
+	// defined in 2, and the other way around. If compatibility happens on
 	// both directions, we consider the expressions compatible.
 	return checkExpressionCompatibility(expr1, labels2) &&
 		checkExpressionCompatibility(expr2, labels1)
