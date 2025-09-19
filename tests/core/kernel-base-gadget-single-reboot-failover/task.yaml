@@ -5,7 +5,9 @@ details: |
     other essential snaps (boot-base, gadget, kernel specifically), then all of
     them are rolled back.
 
-systems: [ubuntu-core-18-*, ubuntu-core-2*]
+# TODO: enable again for 18 once rest of the tests support
+# testing using unasserted gadget/kernel
+systems: [ubuntu-core-2*]
 
 environment:
     # We are uploading too much in terms of size for the snaps

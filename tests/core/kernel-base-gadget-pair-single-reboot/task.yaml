@@ -5,12 +5,9 @@ details: |
     together with a single reboot. The test then reverts each of the snaps to ensure system is left
     in untouched state. (Otherwise our spread checks will complain).
 
-systems: [ubuntu-core-18-*, ubuntu-core-2*]
-
-# run before remodel test, unfortunately some tests mess with snaps installed
-# and this causes this test to be messed with
-# we can remove this once we don't support UC18
-priority: 600
+# TODO: enable again for 18 once rest of the tests support
+# testing using unasserted gadget/kernel
+systems: [ubuntu-core-2*]
 
 environment:
     SNAP_ONE/kernel_base: core
