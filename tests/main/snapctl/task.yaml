@@ -5,8 +5,8 @@ details: |
     error messages and that the snapd API is only available via the snapd socket.
 
 prepare: |
-    snap pack "$TESTSLIB"/snaps/snapctl-hooks
-    snap install --dangerous snapctl-hooks_1.0_all.snap
+    "$TESTSTOOLS"/snaps-state install-local snapctl-hooks
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
 
 execute: |
     echo "Verify that snapctl -h runs without a context"
@@ -45,3 +45,15 @@ execute: |
         echo "Expected snapd API to be forbidden on the snap socket"
         exit 1
     fi
+
+    echo "Verify snapctl version reports the same version as snap version"
+
+    snapd_version="$(snap version | awk '/snapd / { print $2 }')"
+    test -n "$snapd_version"
+    snapctl_version="$(snapctl version |   awk '/snapd / { print $2 }')"
+    snapctl_user_version="$(su -c 'snapctl version' test | awk '/snapd / { print $2 }')"
+    snapctl_snap_shell_version="$(test-snapd-sh-core24.sh -c 'snapctl version' | awk '/snapd / { print $2 }')"
+
+    test "$snapd_version" = "$snapctl_version"
+    test "$snapd_version" = "$snapctl_user_version"
+    test "$snapd_version" = "$snapctl_snap_shell_version"
