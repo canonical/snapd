@@ -19,9 +19,6 @@ prepare: |
     # To get VERSION_ID defined
     . /etc/os-release
 
-    # we need yq for editing yaml files
-    snap install yq 
-
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
 
@@ -67,12 +64,12 @@ execute: |
             echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
-        if cat ./pc-snap/meta/snap.yaml | yq '. | has("hooks")' | MATCH "true"; then
+        if cat ./pc-snap/meta/snap.yaml | gojq --yaml-input --yaml-output '. | has("hooks")' | MATCH "true"; then
             # shellcheck disable=SC2094
-            cat ./pc-snap/meta/snap.yaml | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
+            cat ./pc-snap/meta/snap.yaml | gojq --yaml-input --yaml-output '.hooks += {"configure"}' >> ./pc-snap/meta/snap.yaml
         else
             # shellcheck disable=SC2094
-            cat ./pc-snap/meta/snap.yaml | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> ./pc-snap/meta/snap.yaml
+            cat ./pc-snap/meta/snap.yaml | gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' >> ./pc-snap/meta/snap.yaml
             mkdir -p pc-snap/meta/hooks
         fi
         echo 'exit 1' >> ./pc-snap/meta/hooks/configure
