@@ -235,6 +235,7 @@ func (v *VFS) Unmount(mountPoint string) error {
 		return &fs.PathError{Op: op, Path: mountPoint, Err: errNotMounted}
 	}
 
+	// TODO: replace this with emptiness check on the list of children.
 	// Is this mount point a parent of any other mount? By special case of the
 	// rootfs mount, it cannot ever be unmounted as it is its own parent.
 	for _, m := range v.mounts {
