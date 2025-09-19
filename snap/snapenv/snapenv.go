@@ -47,18 +47,18 @@ var userCurrent = user.Current
 //
 // It ensures all SNAP_* override any pre-existing environment
 // variables.
-func ExtendEnvForRun(env osutil.Environment, info *snap.Info, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) {
+func ExtendEnvForRun(env osutil.Environment, info *snap.Info, app *snap.AppInfo, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) {
 	// Set various SNAP_ environment variables as well as some non-SNAP variables,
 	// depending on snap confinement mode. Note that this does not include environment
 	// set by snap-exec.
-	for k, v := range snapEnv(info, component, opts) {
+	for k, v := range snapEnv(info, app, component, opts) {
 		env[k] = v
 	}
 }
 
-func snapEnv(info *snap.Info, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) osutil.Environment {
+func snapEnv(info *snap.Info, app *snap.AppInfo, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) osutil.Environment {
 	// Environment variables with basic properties of a snap.
-	env := basicEnv(info)
+	env := basicEnv(info, app)
 
 	if component != nil {
 		for k, v := range componentEnv(info, component) {
@@ -99,7 +99,7 @@ func componentEnv(info *snap.Info, component *snap.ComponentInfo) osutil.Environ
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func basicEnv(info *snap.Info) osutil.Environment {
+func basicEnv(info *snap.Info, app *snap.AppInfo) osutil.Environment {
 	env := osutil.Environment{
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
@@ -136,6 +136,22 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
 			info.InstanceName(), err)
 	}
+
+	if app == nil {
+		return env
+	}
+
+	env["SNAP_APP_NAME"] = app.Name
+	if app.CommonID != "" {
+		env["SNAP_COMMON_ID"] = app.CommonID
+	}
+	if df := app.DesktopFile(); df != "" && osutil.FileExists(df) {
+		env["SNAP_DESKTOP_FILE"] = df
+	}
+	if app.BusName != "" {
+		env["SNAP_BUS_NAME"] = app.BusName
+	}
+
 	return env
 }
 
