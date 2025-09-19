@@ -77,7 +77,7 @@ func (c *Constraints) ContainPermissions(permissions []string) bool {
 // interface, returns an error.
 func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, error) {
 	if c.PathPattern == nil {
-		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+		// PathPattern can only be nil if the interface doesn't use path patterns
 	}
 	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, at)
 	if err != nil {
@@ -107,7 +107,7 @@ type RuleConstraints struct {
 // rule is If the rule is invalid, returns an error.
 func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
 	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+		// PathPattern can only be nil if the interface doesn't use path patterns
 	}
 	return c.Permissions.validateForInterface(iface, at)
 }
