@@ -158,10 +158,12 @@ type VFS struct {
 // NewVFS returns a VFS with the given root file system mounted.
 func NewVFS(rootFS fs.StatFS) *VFS {
 	return &VFS{mounts: []*mount{{
+		// TODO: this should be zero, the RootMountID value is special only when searching.
 		mountID:  RootMountID,
 		parentID: RootMountID, // The rootfs is its own parent to prevent being unmounted.
-		isDir:    true,
-		fsFS:     rootFS,
+		// FIXME: [mount.parent] is nil but perhaps should not be, for consistency with the logic above.
+		isDir: true,
+		fsFS:  rootFS,
 	}}}
 }
 
