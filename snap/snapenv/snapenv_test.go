@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -111,7 +112,45 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_VERSION":       "1.0",
 		"SNAP_REVISION":      "17",
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
-		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
+		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
+	})
+}
+
+func (ts *HTestSuite) TestBasicWithSources(c *C) {
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(c.MkDir())
+
+	// Write some sources files
+	eglDirs := []string{"/snap/kernel/33/egllibs1", "/snap/kernel/33/egllibs2", "/snap/kernel/33/duplicate"}
+	vulkanDirs := []string{"/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2", "/snap/kernel/33/duplicate"}
+	exportDir := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/export")
+	c.Assert(os.MkdirAll(exportDir, os.ModePerm), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_eglslot_egl-driver-libs.source"),
+		[]byte(strings.Join(eglDirs, "\n")+"\n"), 0644), Equals, nil)
+	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_vulkanslot_vulkan-driver-libs.source"),
+		[]byte(strings.Join(vulkanDirs, "\n")+"\n"), 0644), Equals, nil)
+	var exportedPaths []string
+	for _, d := range []string{"/snap/kernel/33/egllibs1", "/snap/kernel/33/egllibs2",
+		"/snap/kernel/33/duplicate", "/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2"} {
+		exportedPaths = append(exportedPaths, filepath.Join(
+			dirs.GlobalRootDir, "var/lib/snapd/lib", d))
+	}
+
+	env := basicEnv(mockSnapInfo)
+	c.Assert(env, DeepEquals, osutil.Environment{
+		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
+		"SNAP_COMMON":        filepath.Join(dirs.GlobalRootDir, "var/snap/foo/common"),
+		"SNAP_DATA":          filepath.Join(dirs.GlobalRootDir, "var/snap/foo/17"),
+		"SNAP_NAME":          "foo",
+		"SNAP_INSTANCE_NAME": "foo",
+		"SNAP_INSTANCE_KEY":  "",
+		"SNAP_VERSION":       "1.0",
+		"SNAP_REVISION":      "17",
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
+		"SNAP_LIBRARY_PATH":  strings.Join(exportedPaths, ":"),
 		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
 		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
@@ -205,7 +244,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_VERSION":       "1.0",
 			"SNAP_REVISION":      "42",
 			"SNAP_ARCH":          arch.DpkgArchitecture(),
-			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
 			"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 			"SNAP_USER_COMMON":   fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
 			"SNAP_USER_DATA":     fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
@@ -250,7 +289,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP_VERSION":       "1.0",
 			"SNAP_REVISION":      "42",
 			"SNAP_ARCH":          arch.DpkgArchitecture(),
-			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
 			"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 			// User's data directories are not mapped to
 			// snap-specific ones

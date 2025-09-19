@@ -27,11 +27,14 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -114,6 +117,7 @@ func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 
 var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})
 var _ = symlinks.ConnectedPlugCallback(&gbmDriverLibsInterface{})
+var _ = interfaces.ConfigfilesUser(&gbmDriverLibsInterface{})
 
 func gbmVendorPath() string {
 	// TODO consider alternative architectures?
@@ -138,6 +142,28 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 	return spec.AddSymlink(path, filepath.Join(gbmVendorPath(), clientDriver))
 }
 
+const gbmDriverLibs = "gbm-driver-libs"
+
+func (t *gbmDriverLibsInterface) PathPatterns() []string {
+	// We need to add the interface name as a suffix in the files written
+	// in the export dir as other interfaces also write there and we need
+	// to differentiate the files maintained by each interface.
+	return []string{filepath.Join(dirs.SnapExportDirUnder("/"), "*_*_"+gbmDriverLibs+".source")}
+}
+
+func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// The plug can only be the system plug for the time being
+
+	// Files used by snap-confine on classic
+	if release.OnClassic {
+		if err := addConfigfilesSourcePaths(gbmDriverLibs, spec, slot); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (iface *gbmDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// TODO This might need changes when we support plugs in non-system
 	// snaps for this interface.
@@ -147,7 +173,7 @@ func (iface *gbmDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 func init() {
 	registerIface(&gbmDriverLibsInterface{
 		commonInterface: commonInterface{
-			name:                 "gbm-driver-libs",
+			name:                 gbmDriverLibs,
 			summary:              gbmDriverLibsSummary,
 			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
