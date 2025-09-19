@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -70,6 +71,8 @@ hooks:
 	s.AddCleanup(restore)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	s.state = state.New(nil)
+
+	snapstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 }
 
 func (s *refreshSuite) TestRefreshCheck(c *C) {
@@ -301,4 +304,22 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	// In addition, the fake backend recorded that a lock was established.
 	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
 	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
+}
+
+func (s *refreshSuite) TestRefreshCheckIgnoresConfdbHooks(c *C) {
+	s.pids = map[string][]int{
+		"snap.pkg.hook.change-view-setup":  {101},
+		"snap.pkg.hook.save-view-setup":    {102},
+		"snap.pkg.hook.load-view-setup":    {103},
+		"snap.pkg.hook.query-view-setup":   {104},
+		"snap.pkg.hook.observe-view-setup": {105},
+	}
+	err := snapstate.RefreshCheck(s.info)
+	c.Assert(err, IsNil)
+
+	s.pids["snap.pkg.hook.configure"] = []int{100}
+	err = snapstate.RefreshCheck(s.info)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure), pids: 100`)
+	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{100})
 }
