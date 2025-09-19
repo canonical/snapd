@@ -310,8 +310,8 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys, rawConstraints []strin
 
 	for _, constraint := range rawConstraints {
 		splitConstr := strings.Split(constraint, "=")
-		if len(splitConstr) != 1 {
-			return nil, fmt.Errorf(`constraint provided to "--with" must be in the form <name>=<value>`)
+		if len(splitConstr) != 2 {
+			return nil, fmt.Errorf(`constraint provided to "--with" must be in the form <name>=<value>: %v`, constraint)
 		}
 
 		constraints[splitConstr[0]] = splitConstr[1]
