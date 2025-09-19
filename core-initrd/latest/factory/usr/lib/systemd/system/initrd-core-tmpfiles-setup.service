@@ -4,6 +4,7 @@ ConditionPathExists=!/sysroot/etc/system-image/writable-paths
 DefaultDependencies=no
 Conflicts=shutdown.target
 Before=initrd-root-fs.target shutdown.target
+Before=initrd-core-system-defaults.service
 RefuseManualStop=yes
 RequiresMountsFor=/sysroot/writable
 
