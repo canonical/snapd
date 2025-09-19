@@ -150,7 +150,7 @@ func checkClusterDevice(device map[string]any) (ClusterDevice, error) {
 
 func checkClusterDevices(devices []any) ([]ClusterDevice, error) {
 	result := make([]ClusterDevice, 0, len(devices))
-	seenIDs := make(map[int]struct{}, len(devices))
+	seenIDs := make(map[int]bool, len(devices))
 	for _, entry := range devices {
 		device, ok := entry.(map[string]any)
 		if !ok {
@@ -161,10 +161,11 @@ func checkClusterDevices(devices []any) ([]ClusterDevice, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, found := seenIDs[d.ID]; found {
+
+		if seenIDs[d.ID] {
 			return nil, fmt.Errorf(`"devices" field contains duplicate device id %d`, d.ID)
 		}
-		seenIDs[d.ID] = struct{}{}
+		seenIDs[d.ID] = true
 
 		result = append(result, d)
 	}
@@ -298,11 +299,6 @@ func validateClusterDeviceIDs(devices []ClusterDevice, subclusters []Subcluster)
 }
 
 func assembleCluster(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "cluster-id")
-	if err != nil {
-		return nil, err
-	}
-
 	seq, err := checkSequence(assert.headers, "sequence")
 	if err != nil {
 		return nil, err
