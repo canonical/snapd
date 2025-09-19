@@ -700,37 +700,21 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 					// we've read the start of a field filter [.foo={foo}]. Continue reading
 					pathBytes = pathBytes[width:]
 
-					constraintSb := &strings.Builder{}
-					for len(pathBytes) > 0 {
-						nextChar, width = utf8.DecodeRune(pathBytes)
-						if nextChar == utf8.RuneError {
-							return nil, fmt.Errorf("non UTF-8 character")
-						}
-						pathBytes = pathBytes[width:]
-
-						if nextChar == ']' {
-							// we're done reading the field filter, don't store the terminating ']'
-							break
-						}
-						constraintSb.WriteRune(nextChar)
+					field, filter, n, err := parseFieldFilter(pathBytes)
+					if err != nil {
+						return nil, err
 					}
-
-					constraintPair := constraintSb.String()
-					parts := strings.Split(constraintPair, "=")
-					if len(parts) != 2 || !strings.HasPrefix(parts[1], "{") || !strings.HasSuffix(parts[1], "}") {
-						return nil, fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
-					}
-					field, constraint := parts[0], strings.Trim(parts[1], "{}")
+					pathBytes = pathBytes[n:]
 
 					if constraints == nil {
 						constraints = make(map[string]string)
 					}
 
-					if storedConstr, ok := constraints[parts[0]]; ok {
-						return nil, fmt.Errorf("path subkey cannot have several field constraints for same field: [.%[1]s=%[2]s] and [.%[1]s=%[3]s]", field, storedConstr, constraint)
+					if storedConstr, ok := constraints[field]; ok {
+						return nil, fmt.Errorf("path subkey cannot have several field constraints for same field: [.%[1]s=%[2]s] and [.%[1]s=%[3]s]", field, storedConstr, filter)
 					}
 
-					constraints[field] = constraint
+					constraints[field] = filter
 					continue
 				}
 			}
@@ -752,6 +736,33 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 	}
 
 	return subkeys, nil
+}
+
+func parseFieldFilter(pathBytes []byte) (field, filter string, n int, err error) {
+	constraintSb := &strings.Builder{}
+	for len(pathBytes) > 0 {
+		nextChar, width := utf8.DecodeRune(pathBytes)
+		if nextChar == utf8.RuneError {
+			return "", "", 0, fmt.Errorf("non UTF-8 character")
+		}
+		pathBytes = pathBytes[width:]
+		n += width
+
+		if nextChar == ']' {
+			// we're done reading the field filter, don't store the terminating ']'
+			break
+		}
+		constraintSb.WriteRune(nextChar)
+	}
+
+	constraintPair := constraintSb.String()
+	parts := strings.Split(constraintPair, "=")
+	if len(parts) != 2 || !strings.HasPrefix(parts[1], "{") || !strings.HasSuffix(parts[1], "}") {
+		return "", "", 0, fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
+	}
+
+	field, filter = parts[0], strings.Trim(parts[1], "{}")
+	return field, filter, n, nil
 }
 
 // countAccessorsOfType returns the number of occurrences of path sub-keys of
