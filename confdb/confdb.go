@@ -1493,20 +1493,20 @@ func filter(match requestMatch, constraints map[string]string, val any) (any, er
 	if len(constraints) == 0 {
 		return val, nil
 	}
-
-	// check if the last part of the matched prefix of the request path has some
-	// field filter that could constrain the top level result
-	var filters map[string]string
-	pref := match.matchedPrefix
-	if len(pref) > 0 {
-		filters = pref[len(pref)-1].FieldFilters()
-	}
-
 	// NOTE: if there are field filters in matched parts of the path (other than the
 	// the immediate level above the unmatched suffix), then they're ignored because
 	// they would be filtering the part of the result that we built around the
 	// result (the namespace) which doesn't make sense to me
-	filtered, err := filterLevel(match.unmatchedSuffix, 0, constraints, filters, val)
+
+	// check if the last part of the matched prefix of the request path has some
+	// field filter that could constrain the top level result
+	pref := match.matchedPrefix
+	var prevAcc Accessor
+	if len(pref) > 0 {
+		prevAcc = pref[len(pref)-1]
+	}
+
+	filtered, err := filterLevel(prevAcc, match.unmatchedSuffix, constraints, val)
 	if err != nil {
 		return nil, err
 	}
@@ -1517,11 +1517,17 @@ func filter(match requestMatch, constraints map[string]string, val any) (any, er
 	return filtered, nil
 }
 
-func filterLevel(suffix []Accessor, index int, constraints map[string]string, prevFilters map[string]string, val any) (any, error) {
-	// constrain the map according to the field filters defined in the
-	// accessor leading to it
+// filterLevel filters the value based on the constrained filters of the
+// previous accessor (the one leading up to it).
+func filterLevel(prevAcc Accessor, accessors []Accessor, constraints map[string]string, val any) (any, error) {
 	fieldsMatchConstraints := func(mapVal map[string]any) bool {
-		for field, filterName := range prevFilters {
+		if prevAcc == nil || prevAcc.FieldFilters() == nil {
+			// no filters to apply to this value
+			return true
+		}
+
+		filters := prevAcc.FieldFilters()
+		for field, filterName := range filters {
 			constrVal, ok := constraints[filterName]
 			if !ok {
 				// no constraint value was provided for this filter, ignore
@@ -1536,7 +1542,8 @@ func filterLevel(suffix []Accessor, index int, constraints map[string]string, pr
 		return true
 	}
 
-	if index == len(suffix) {
+	// we only have the accessor leading up to this, it's the last level
+	if len(accessors) == 0 {
 		// TODO: once we stop deserializing the JSON below the last accessor in
 		// getMap/getList, we need to do it here
 		if mapVal, ok := val.(map[string]any); ok && !fieldsMatchConstraints(mapVal) {
@@ -1547,12 +1554,13 @@ func filterLevel(suffix []Accessor, index int, constraints map[string]string, pr
 		return val, nil
 	}
 
-	acc := suffix[index]
+	acc := accessors[0]
 	switch acc.Type() {
 	case KeyPlaceholderType:
 		mapVal, ok := val.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf(`cannot traverse result with suffix %q: expected map but got %T`, JoinAccessors(suffix[:index]), val)
+			// shouldn't be possible save for programmer error
+			return nil, fmt.Errorf(`internal error: expected map but got %T`, val)
 		}
 
 		if !fieldsMatchConstraints(mapVal) {
@@ -1565,7 +1573,7 @@ func filterLevel(suffix []Accessor, index int, constraints map[string]string, pr
 		}
 
 		for key, val := range mapVal {
-			filteredVal, err := filterLevel(suffix, index+1, constraints, acc.FieldFilters(), val)
+			filteredVal, err := filterLevel(acc, accessors[1:], constraints, val)
 			if err != nil && !errors.Is(err, &NoDataError{}) {
 				return nil, err
 			}
@@ -1585,14 +1593,15 @@ func filterLevel(suffix []Accessor, index int, constraints map[string]string, pr
 	case MapKeyType:
 		mapVal, ok := val.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf(`cannot traverse result with suffix %q: expected map but got %T`, JoinAccessors(suffix[:index]), val)
+			// shouldn't be possible save for programmer error
+			return nil, fmt.Errorf(`internal error: expected map but got %T`, val)
 		}
 
 		if !fieldsMatchConstraints(mapVal) {
 			return nil, nil
 		}
 
-		filteredVal, err := filterLevel(suffix, index+1, constraints, acc.FieldFilters(), mapVal[acc.Name()])
+		filteredVal, err := filterLevel(acc, accessors[1:], constraints, mapVal[acc.Name()])
 		if err != nil {
 			return nil, err
 		}
@@ -1611,17 +1620,13 @@ func filterLevel(suffix []Accessor, index int, constraints map[string]string, pr
 	case IndexPlaceholderType:
 		listVal, ok := val.([]any)
 		if !ok {
-			return nil, fmt.Errorf(`cannot traverse result with suffix %q: expected list but got %T`, JoinAccessors(suffix), val)
-		}
-
-		if prevFilters != nil {
-			// TODO: we should catch this earlier on assertion declaration
-			return nil, fmt.Errorf(`cannot apply field filters on lists: %s`, JoinAccessors(suffix[:index]))
+			// shouldn't be possible save for programmer error
+			return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
 		}
 
 		filteredList := make([]any, 0, len(listVal))
 		for _, el := range listVal {
-			filteredVal, err := filterLevel(suffix, index+1, constraints, acc.FieldFilters(), el)
+			filteredVal, err := filterLevel(acc, accessors[1:], constraints, el)
 			if err != nil {
 				return nil, err
 			}
@@ -1640,8 +1645,7 @@ func filterLevel(suffix []Accessor, index int, constraints map[string]string, pr
 		// unmatched suffixes cannot have literal index accessors (e.g., "[1]")
 		fallthrough
 	default:
-		// should be impossible to reach this
-		return nil, fmt.Errorf("cannot filter value based on accessor %T", acc)
+		return nil, fmt.Errorf("internal error: cannot filter value based on accessor %T", acc)
 	}
 }
 

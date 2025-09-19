@@ -294,7 +294,7 @@ func (x *cmdGet) Execute(args []string) error {
 	}
 }
 
-func (x *cmdGet) getConfdb(confdbViewID string, confKeys, constraints []string) (map[string]any, error) {
+func (x *cmdGet) getConfdb(confdbViewID string, confKeys, rawConstraints []string) (map[string]any, error) {
 	if err := validateConfdbFeatureFlag(); err != nil {
 		return nil, err
 	}
@@ -303,10 +303,18 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys, constraints []string) 
 		return nil, err
 	}
 
-	for _, constraint := range constraints {
-		if !strings.ContainsRune(constraint, '=') {
+	var constraints map[string]string
+	if len(rawConstraints) > 0 {
+		constraints = make(map[string]string, len(rawConstraints))
+	}
+
+	for _, constraint := range rawConstraints {
+		splitConstr := strings.Split(constraint, "=")
+		if len(splitConstr) != 1 {
 			return nil, fmt.Errorf(`constraint provided to "--with" must be in the form <name>=<value>`)
 		}
+
+		constraints[splitConstr[0]] = splitConstr[1]
 	}
 
 	if x.Default != "" && len(confKeys) > 1 {
