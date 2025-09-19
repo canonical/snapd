@@ -380,15 +380,7 @@ func (c *HTTPSClient) Trusted(ctx context.Context, addr string, cert []byte, kin
 		return err
 	}
 
-	// rate limit based on the number of bytes/second that we're sending. this
-	// will block until we have enough bytes in our budget to send the payload.
-	if c.limiter != nil {
-		if err := c.limiter.WaitN(ctx, len(payload)); err != nil {
-			return err
-		}
-	}
-
-	tx, err := send(ctx, client, addr, kind, payload)
+	tx, err := send(ctx, client, addr, kind, payload, c.limiter)
 	if err != nil {
 		return err
 	}
@@ -420,15 +412,7 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 		return nil, err
 	}
 
-	// rate limit based on the number of bytes/second that we're sending. this
-	// will block until we have enough bytes in our budget to send the payload.
-	if c.limiter != nil {
-		if err := c.limiter.WaitN(ctx, len(payload)); err != nil {
-			return nil, err
-		}
-	}
-
-	res, tx, err := sendWithResponse(ctx, client, addr, kind, payload)
+	res, tx, err := sendWithResponse(ctx, client, addr, kind, payload, c.limiter)
 	if err != nil {
 		return nil, err
 	}
@@ -455,8 +439,15 @@ func (c *HTTPSClient) Untrusted(ctx context.Context, addr string, kind string, d
 	return res.TLS.PeerCertificates[0].Raw, nil
 }
 
-func send(ctx context.Context, client *http.Client, addr string, kind string, payload []byte) (int64, error) {
-	res, count, err := sendWithResponse(ctx, client, addr, kind, payload)
+func send(
+	ctx context.Context,
+	client *http.Client,
+	addr string,
+	kind string,
+	payload []byte,
+	rl *rate.Limiter,
+) (int64, error) {
+	res, count, err := sendWithResponse(ctx, client, addr, kind, payload, rl)
 	if err != nil {
 		return 0, err
 	}
@@ -469,11 +460,26 @@ func send(ctx context.Context, client *http.Client, addr string, kind string, pa
 	return count, nil
 }
 
-func sendWithResponse(ctx context.Context, client *http.Client, addr string, kind string, payload []byte) (*http.Response, int64, error) {
+func sendWithResponse(
+	ctx context.Context,
+	client *http.Client,
+	addr string,
+	kind string,
+	payload []byte,
+	rl *rate.Limiter,
+) (*http.Response, int64, error) {
 	url := fmt.Sprintf("https://%s/assemble/%s", addr, kind)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// rate limit based on the number of bytes/second that we're sending. this
+	// will block until we have enough bytes in our budget to send the payload.
+	if rl != nil {
+		if err := rl.WaitN(ctx, len(payload)); err != nil {
+			return nil, 0, err
+		}
 	}
 
 	res, err := client.Do(req)
