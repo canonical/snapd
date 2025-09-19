@@ -81,22 +81,13 @@ func (s *constraintsSuite) TestConstraintsMatch(c *C) {
 	}
 }
 
-func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
-	badPath := `bad\path\`
+func (s *constraintsSuite) TestConstraintsMatchNoPathPattern(c *C) {
+	path := `some\path\`
 
-	badConstraints := &prompting.Constraints{
-		PathPattern: nil,
-	}
-	matches, err := badConstraints.Match(badPath)
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
-	c.Check(matches, Equals, false)
-
-	badRuleConstraints := &prompting.RuleConstraints{
-		PathPattern: nil,
-	}
-	matches, err = badRuleConstraints.Match(badPath)
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
-	c.Check(matches, Equals, false)
+	constraints := &prompting.Constraints{}
+	matches, err := constraints.Match(path)
+	c.Check(err, IsNil)
+	c.Check(matches, Equals, true)
 }
 
 func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
@@ -243,7 +234,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 	badConstraints := &prompting.Constraints{}
 	result, err := badConstraints.ToRuleConstraints("home", at)
 	c.Check(result, IsNil)
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern.*`)
+	c.Check(err, ErrorMatches, `invalid permissions for home interface: permissions empty`)
 
 	constraints := &prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, "/path/to/foo"),
@@ -498,7 +489,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 		},
 	}
 	_, err = constraints.ValidateForInterface("home", at)
-	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(err, IsNil)
 }
 
 func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *C) {
@@ -726,7 +717,6 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 			outcome:     prompting.OutcomeAllow,
 			lifespan:    prompting.LifespanSession,
 			expected: &prompting.Constraints{
-				PathPattern: pathPattern,
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,

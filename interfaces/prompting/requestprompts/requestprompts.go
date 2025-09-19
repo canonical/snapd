@@ -86,7 +86,7 @@ type jsonPrompt struct {
 
 // jsonPromptConstraints defines the marshalled json structure of promptConstraints.
 type jsonPromptConstraints struct {
-	Path                 string   `json:"path"`
+	Path                 string   `json:"path,omitempty"`
 	RequestedPermissions []string `json:"requested-permissions"`
 	AvailablePermissions []string `json:"available-permissions"`
 }
@@ -678,6 +678,9 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		outstandingPermissions: outstandingPermissions,
 		availablePermissions:   availablePermissions,
 		originalPermissions:    requestedPermissions,
+	}
+	if metadata.Interface == "camera" {
+		constraints.path = ""
 	}
 
 	needToSave := false
