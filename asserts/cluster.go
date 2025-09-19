@@ -119,6 +119,8 @@ func checkClusterDevice(device map[string]any) (ClusterDevice, error) {
 		return ClusterDevice{}, err
 	}
 
+	// TODO: revisit how we represent/parse this information once the
+	// request-message assertion has been merged
 	brandID, err := checkStringMatches(device, "brand-id", validAccountID)
 	if err != nil {
 		return ClusterDevice{}, err
