@@ -17,10 +17,10 @@ details: |
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
-  INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-24.json
-  SECOND_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-rev-1-24.json
-  THIRD_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-rev-2-24.json
-  FOURTH_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-rev-3-24.json
+  INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-VERSION.json
+  SECOND_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-rev-1-VERSION.json
+  THIRD_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-rev-2-VERSION.json
+  FOURTH_MODEL_JSON: $TESTSLIB/assertions/test-snapd-remodel-to-installed-kernel-rev-3-VERSION.json
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -44,7 +44,8 @@ prepare: |
 
     "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
-    gendeveloper1 sign-model < "${INITIAL_MODEL_JSON}" > initial-model.assert
+    VERSION="$(tests.nested show version)"
+    gendeveloper1 sign-model < "${INITIAL_MODEL_JSON/VERSION/${VERSION}}" > initial-model.assert
 
     cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
     cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
@@ -127,7 +128,8 @@ restore: |
 
 execute: |
   echo 'Swap to the first new kernel and component pc-kernel-mac80211-hwsim+wifi-comp'
-  gendeveloper1 sign-model < "${SECOND_MODEL_JSON}" > second-model.assert
+  VERSION="$(tests.nested show version)"
+  gendeveloper1 sign-model < "${SECOND_MODEL_JSON/VERSION/${VERSION}}" > second-model.assert
   remote.push second-model.assert
 
   boot_id="$(tests.nested boot-id)"
@@ -150,7 +152,7 @@ execute: |
   remote.exec modinfo --filename mac80211_hwsim | MATCH '/lib/modules/.*/updates/wifi-comp'
 
   echo 'Swap to the second new kernel and component pc-kernel-efi-pstore+efi-comp'
-  gendeveloper1 sign-model < "${THIRD_MODEL_JSON}" > third-model.assert
+  gendeveloper1 sign-model < "${THIRD_MODEL_JSON/VERSION/${VERSION}}" > third-model.assert
   remote.push third-model.assert
 
   boot_id="$(tests.nested boot-id)"
@@ -169,7 +171,7 @@ execute: |
   remote.exec modinfo --filename efi_pstore | MATCH '/lib/modules/.*/updates/efi-comp'
 
   echo 'Swap back to the first new kernel and component pc-kernel-mac80211-hwsim+wifi-comp again'
-  gendeveloper1 sign-model < "${FOURTH_MODEL_JSON}" > fourth-model.assert
+  gendeveloper1 sign-model < "${FOURTH_MODEL_JSON/VERSION/${VERSION}}" > fourth-model.assert
   remote.push fourth-model.assert
 
   boot_id="$(tests.nested boot-id)"

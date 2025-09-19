@@ -14,7 +14,11 @@ details: |
   We do not cover the case where a kernel snap is too old for the
   snapd in the seed that was used to install Ubuntu Core.
 
-systems: [ -ubuntu-1* ]
+systems:
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
+  # FIXME: this expect stable and beta channel of kernel
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/ubuntu-core-{VERSION}-amd64.model

@@ -83,7 +83,15 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$version/edge" pc-kernel
+  case "${version}" in
+    26)
+      kernel_version=25.10
+      ;;
+    *)
+      kernel_version="${version}"
+      ;;
+  esac
+  snap download --basename=pc-kernel-from-store --channel="${kernel_version}/edge" pc-kernel
   # the fakestore needs this assertion
   snap ack pc-kernel-from-store.assert
   # Build kernel with initramfs with the compiled snap-bootstrap
@@ -111,6 +119,12 @@ execute: |
   start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
   EOF
   fi
+
+  remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/shimx64.efi /cdrom/EFI/boot/bootx64.efi"
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/grubx64.efi"
+  remote.exec "sudo mkdir -p /cdrom/casper"
+  remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
