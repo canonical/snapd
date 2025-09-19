@@ -89,6 +89,14 @@ type Node struct {
 	Exp   Expression
 }
 
+func (n *Node) isLeaf() bool {
+	return n.Left == nil && n.Right == nil
+}
+
+func (n *Node) hasBothChildren() bool {
+	return n.Left != nil && n.Right != nil
+}
+
 // parser for compatibility expressions
 type parser struct {
 	tokens []Item
