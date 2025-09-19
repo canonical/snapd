@@ -1912,7 +1912,7 @@ func (s *requestpromptsSuite) TestPromptMarshalJSONCamera(c *C) {
 	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
 	c.Assert(err, IsNil)
 
-	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`
+	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"cgroup":"","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`
 
 	marshalled, err := json.Marshal(prompt)
 	c.Assert(err, IsNil)
