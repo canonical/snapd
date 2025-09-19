@@ -18,8 +18,6 @@ environment:
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-
     # We are uploading too much in terms of size for the snaps
     # we sideload. On UC18 this is disabled automatically, but
     # on UC20+ this has proved to be an issue
@@ -28,9 +26,6 @@ environment:
 prepare: |
     # To get VERSION_ID defined
     . /etc/os-release
-
-    # we need yq for editing yaml files
-    snap install yq 
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
@@ -67,15 +62,19 @@ execute: |
     . "$TESTSLIB/prepare.sh"
 
     inject_failure_configure_hook() {
-        if cat "$1/meta/snap.yaml" | yq '. | has("hooks")' | MATCH "true"; then
+        if cat "$1/meta/snap.yaml" | gojq --yaml-input --yaml-output '. | has("hooks")' | MATCH "true"; then
             # shellcheck disable=SC2094
-            cat "$1/meta/snap.yaml" | yq '.hooks += {"configure": ""} | .hooks.configure tag="!!null"' >> "$1/meta/snap.yaml"
+            cat "$1/meta/snap.yaml" | gojq --yaml-input --yaml-output '.hooks += {"configure"}' >> "$1/meta/snap.yaml"
         else
             # shellcheck disable=SC2094
-            cat "$1/meta/snap.yaml" | yq '. += {"hooks": {"configure": ""}} | .hooks.configure tag="!!null"' >> "$1/meta/snap.yaml"
+            cat "$1/meta/snap.yaml" | gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' >> "$1/meta/snap.yaml"
             mkdir -p "$1/meta/hooks"
         fi
-        echo 'exit 1' >> "$1/meta/hooks/configure"
+        cat <<EOF >"$1/meta/hooks/configure"
+    #!/bin/bash
+    # invalid hook
+    exit 1
+    EOF
         chmod +x "$1/meta/hooks/configure"
     }
 
