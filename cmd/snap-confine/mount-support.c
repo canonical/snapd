@@ -41,6 +41,7 @@
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/snap-dir.h"
@@ -52,6 +53,49 @@
 
 #define MAX_BUF 1000
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
+
+/* max wait time for /var/lib/snapd/mount/snap.<snap>.info to appear */
+static const size_t MOUNT_FILE_MAX_WAIT = 120;
+
+void sc_get_mount_ns_setup(const sc_invocation *inv, struct sc_mount_ns_options *nssetup) {
+    if (nssetup == NULL) {
+        die("internal error: nssetup is NULL");
+    }
+
+    char info_path[PATH_MAX] = {0};
+    sc_must_snprintf(info_path, sizeof info_path, "/var/lib/snapd/mount/snap.%s.info", inv->snap_instance);
+
+    if (!sc_wait_for_file(info_path, MOUNT_FILE_MAX_WAIT)) {
+        debug("timeout waiting for mount info file at %s", info_path);
+    }
+
+    FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+    stream = fopen(info_path, "r");
+    if (stream == NULL) {
+        die("cannot open %s", info_path);
+    }
+
+    sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+    char *mount_ns_type SC_CLEANUP(sc_cleanup_string) = NULL;
+    if (sc_infofile_get_key(stream, "mount-namespace", &mount_ns_type, &err) < 0) {
+        sc_die_on_error(err);
+    }
+    rewind(stream);
+
+    if (mount_ns_type == NULL) {
+        die("mount-namespace not found in %s", info_path);
+    }
+
+    if (sc_streq(mount_ns_type, "persistent")) {
+        nssetup->mount_ns_type = SC_MOUNT_NS_PERSISTENT;
+    } else if (sc_streq(mount_ns_type, "ephemeral")) {
+        nssetup->mount_ns_type = SC_MOUNT_NS_EPHEMERAL;
+    } else if (sc_streq(mount_ns_type, "host")) {
+        nssetup->mount_ns_type = SC_MOUNT_NS_HOST;
+    } else {
+        die("unknown mount-namespace %s", mount_ns_type);
+    }
+}
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
