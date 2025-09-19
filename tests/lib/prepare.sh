@@ -1311,6 +1311,9 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
+    # make sure we use the same timesync configuration than in the host machine
+    cp /etc/systemd/timesyncd.conf /mnt/system-data/etc/systemd/timesyncd.conf
+
     mkdir -p /mnt/system-data/var/lib/console-conf
 
     # NOTE: The here-doc below must use tabs for proper operation.
