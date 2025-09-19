@@ -163,6 +163,7 @@ func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
 func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 	pd := v.pathDominator(sourcePoint)
 	// TODO(propagation): fail loudly if source point is unbindable.
+	// TODO: replace this with lists.DepthFirstSearch on the original mount tree.
 
 	// Create the initial bind mount from source to mount point.
 	if m, err := v.unlockedBindMount(sourcePoint, mountPoint); err != nil || !m.isDir {
