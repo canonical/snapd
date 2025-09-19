@@ -173,6 +173,10 @@ func (t *HTTPSTransport) Serve(ctx context.Context, ln net.Listener, cert tls.Ce
 		listener := tls.NewListener(ln, &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			ClientAuth:   tls.RequireAnyClientCert,
+
+			// we support TLS 1.2 as the minimum version. this aligns with the
+			// configuration set in httputil.NewHTTPClient.
+			MinVersion: tls.VersionTLS12,
 		})
 
 		// serve always returns a non-nil error, nothing to handle here
