@@ -25,6 +25,10 @@ execute: |
        systemctl is-active "snap.$1.test-snapd-other-service.service"
     }
 
+    function service_start_time {
+        systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+    }
+
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for instance in foo longname; do
         echo "Install a snap as instance named test-snapd-service_$instance"
@@ -75,8 +79,48 @@ execute: |
         systemctl is-active "snap.test-snapd-service_${instance}.test-snapd-other-service" | MATCH "^active"
     done
 
+    svc_other_nokey="$(service_start_time snap.test-snapd-service.test-snapd-other-service)"
+    svc_other_foo="$(service_start_time snap.test-snapd-service_foo.test-snapd-other-service)"
+
     echo "Verifying snap can only manage its own services"
-    snap run --shell test-snapd-service_foo -c "snapctl stop test-snapd-service.test-snapd-other-service" |& MATCH "snapctl: unknown service"
+    snap run --shell test-snapd-service_foo -c "snapctl restart test-snapd-service_longname.test-snapd-other-service" |& \
+        MATCH 'snapctl: unexpected snap instance key: "longname"'
+    snap run --shell test-snapd-service_foo -c "snapctl restart other-snap.test-snapd-other-service" |& \
+        MATCH 'snapctl: unknown service: "other-snap.test-snapd-other-service"'
+    echo "But requests to manage snap name services are silently remapped to instance specific ones"
+    snap run --shell test-snapd-service_foo -c "snapctl restart test-snapd-service.test-snapd-other-service"
+
+    svc_other_nokey_after="$(service_start_time snap.test-snapd-service.test-snapd-other-service)"
+    svc_other_foo_after="$(service_start_time snap.test-snapd-service_foo.test-snapd-other-service)"
+    # test-snapd-service.other-service was not restarted
+    test "$svc_other_nokey_after" = "$svc_other_nokey"
+    # but test-snapd-service_foo.other-service was
+    test "$svc_other_foo_after" -gt "$svc_other_foo"
+
+    echo "Service statuses of all services are reported"
+    snap run --shell test-snapd-service_foo -c "snapctl services" |\
+        tee no-name.statuses
+    MATCH "test-snapd-service_foo.test-snapd-other-service .* active" < no-name.statuses
+    echo ".. when using aliased snap name"
+    snap run --shell test-snapd-service_foo -c "snapctl services test-snapd-service" |\
+        tee aliased.statuses
+    echo ".. when using explicit snap instance name"
+    snap run --shell test-snapd-service_foo -c "snapctl services test-snapd-service_foo" |\
+        tee explicit.statuses
+
+    # the contents are the same
+    diff no-name.statuses explicit.statuses
+    diff no-name.statuses aliased.statuses
+
+    echo "And for single service queries"
+    snap run --shell test-snapd-service_foo -c "snapctl services test-snapd-service.test-snapd-other-service" |\
+        tee single-aliased.statuses
+    echo ".. when using explicit snap instance name"
+    snap run --shell test-snapd-service_foo -c "snapctl services test-snapd-service_foo.test-snapd-other-service" |\
+        tee single-explicit.statuses
+
+    MATCH "test-snapd-service_foo.test-snapd-other-service .* active" < single-explicit.statuses
+    diff single-aliased.statuses single-explicit.statuses
 
     echo "Removing one instance does not remove services from other instances"
     snap remove --purge test-snapd-service_foo
