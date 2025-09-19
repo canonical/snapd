@@ -168,7 +168,7 @@ func MockComponentCurrent(c *check.C, yamlText string, info *snap.Info, csi snap
 // and for altering the overlord state if required.
 func MockSnapInstanceCurrent(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	si := MockSnapInstance(c, instanceName, yamlText, sideInfo)
-	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	err := os.Symlink(filepath.Base(si.MountDir()), filepath.Join(si.MountDir(), "../current"))
 	c.Assert(err, check.IsNil)
 	return si
 }
