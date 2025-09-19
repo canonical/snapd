@@ -101,7 +101,7 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
-    # restart the service (it pulls up the socket)
+    # restart the service (it pulls up the socket)    
     systemctl restart snapd.service
 }
 
@@ -1842,6 +1842,7 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
+    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd'
     setup_snapd_proxy
 
     disable_journald_rate_limiting
