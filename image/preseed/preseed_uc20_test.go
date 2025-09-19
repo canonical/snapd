@@ -92,7 +92,7 @@ var sysFsOverlaysGood = []string{"class/backlight", "class/bluetooth", "class/gp
 
 var sysFsOverlaysBad = []string{"class/backlight-xxx", "class/spi", "devices/pci"}
 
-func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay string) {
+func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay string, handleWritablePaths bool) {
 
 	testKey, _ := assertstest.GenerateKey(752)
 
@@ -239,8 +239,21 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	c.Assert(os.MkdirAll(filepath.Join(preseedTmpDir, "usr/lib/snapd"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
 
-	mockWritablePaths := testutil.MockCommand(c, filepath.Join(preseedTmpDir, "/usr/lib/core/handle-writable-paths"), "")
-	defer mockWritablePaths.Restore()
+	mockWritablePaths := testutil.MockCommand(c, "handle-writable-paths-outer", "")
+
+	var mockWritablePathsInner *testutil.MockCmd
+	if handleWritablePaths {
+		// preseedTmpDir gets removed before we can check logs, we forward calls
+		mockWritablePathsInner = testutil.MockCommand(c, filepath.Join(preseedTmpDir, "/usr/lib/core/handle-writable-paths"), "exec handle-writable-paths-outer \"$0\" \"$@\"")
+		defer mockWritablePathsInner.Restore()
+	} else {
+		coreWritableConf := filepath.Join(preseedTmpDir, "/usr/lib/tmpfiles.d/core-writable.conf")
+		c.Assert(os.MkdirAll(filepath.Dir(coreWritableConf), 0755), IsNil)
+		c.Assert(os.WriteFile(coreWritableConf, nil, 0644), IsNil)
+	}
+
+	mockTmpFiles := testutil.MockCommand(c, "systemd-tmpfiles", "")
+	defer mockTmpFiles.Restore()
 
 	restore := osutil.MockMountInfo(fmt.Sprintf(`130 30 42:1 / %s/somepath rw,relatime shared:54 - ext4 /some/path rw
 `, preseedTmpDir))
@@ -264,6 +277,16 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	}
 
 	c.Assert(preseed.Core20(opts), IsNil)
+
+	if handleWritablePaths {
+		c.Check(mockTmpFiles.Calls(), HasLen, 0)
+		fmt.Printf("START\n")
+		c.Assert(mockWritablePaths.Calls(), HasLen, 1)
+		c.Check(mockWritablePaths.Calls()[0], DeepEquals, []string{"handle-writable-paths-outer", fmt.Sprintf("%s/usr/lib/core/handle-writable-paths", preseedTmpDir), preseedTmpDir})
+	} else {
+		c.Assert(mockTmpFiles.Calls(), HasLen, 1)
+		c.Check(mockTmpFiles.Calls()[0], DeepEquals, []string{"systemd-tmpfiles", fmt.Sprintf("--root=%s", preseedTmpDir), "--create", "core-writable.conf"})
+	}
 
 	c.Check(mockChootCmd.Calls()[0], DeepEquals, []string{"chroot", preseedTmpDir, "/usr/lib/snapd/snapd"})
 
@@ -415,11 +438,18 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 }
 
 func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
-	s.testRunPreseedUC20Happy(c, "", "")
+	const handleWritablePaths = false
+	s.testRunPreseedUC20Happy(c, "", "", handleWritablePaths)
+}
+
+func (s *preseedSuite) TestRunPreseedUC20HappyWritablePaths(c *C) {
+	const handleWritablePaths = true
+	s.testRunPreseedUC20Happy(c, "", "", handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappyCustomApparmorFeaturesDir(c *C) {
-	s.testRunPreseedUC20Happy(c, "/custom-aa-features", "")
+	const handleWritablePaths = false
+	s.testRunPreseedUC20Happy(c, "/custom-aa-features", "", handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
@@ -460,7 +490,8 @@ func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	s.testRunPreseedUC20Happy(c, "", tmpdir)
+	const handleWritablePaths = false
+	s.testRunPreseedUC20Happy(c, "", tmpdir, handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
