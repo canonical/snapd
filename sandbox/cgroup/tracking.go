@@ -93,7 +93,7 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	unitName := fmt.Sprintf("%s-%s.scope", securityTagUnitName, uuid)
+	unitName := fmt.Sprintf("%s.%s.scope", securityTagUnitName, uuid)
 
 	pid := osGetpid()
 	start := time.Now()
