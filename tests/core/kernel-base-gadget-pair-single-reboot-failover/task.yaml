@@ -4,7 +4,9 @@ details: |
     Test ensures that if any two of the essential snaps (base, gadget and kernel) can be refreshed
     together with a single reboot, and will also revert with no more than a single reboot.
 
-systems: [ubuntu-core-18-*, ubuntu-core-2*]
+# TODO: enable again for 18 once rest of the tests support
+# testing using unasserted gadget/kernel
+systems: [ubuntu-core-2*]
 
 environment:
     SNAP_ONE/kernel_base: core
