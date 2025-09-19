@@ -1059,9 +1059,8 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 
 	for _, t := range []T{
 		{in: "", out: 10},
-		{in: "0", out: 0},
 		{in: "-1", out: -1},
-		{in: strconv.Itoa(math.MinInt32), out: math.MinInt32},
+		{in: "42", out: 42},
 		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
 	} {
 
@@ -1082,6 +1081,16 @@ func (s *appsSuite) TestLogsBadN(c *check.C) {
 	s.expectLogsAccess()
 
 	req, err := http.NewRequest("GET", "/v2/logs?n=hello", nil)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rspe.Status, check.Equals, 400)
+}
+
+func (s *appsSuite) TestLogsNegativeN(c *check.C) {
+	s.expectLogsAccess()
+	// -1 is allowed and is tested in TestLogsN.
+	req, err := http.NewRequest("GET", "/v2/logs?n=-2", nil)
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
