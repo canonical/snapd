@@ -58,6 +58,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"model",
 		"preseed",
 		"repair",
+		"request-message",
 		"serial",
 		"serial-request",
 		"snap-build",
@@ -1207,6 +1208,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"validation",
 		"validation-set",
 		"repair",
+		"request-message",
 	}
 	// excluding device-session-request, serial-request, account-key-request, confdb-control
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-4)
