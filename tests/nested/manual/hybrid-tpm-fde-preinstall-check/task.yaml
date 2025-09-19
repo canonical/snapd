@@ -2,8 +2,9 @@ summary: Test secboot efi preinstall check used for TPM backed FDE on hybrid Ubu
 
 details: |
   This test prepares an encrypted hybrid Ubuntu system seed and test that the
-  snapd API endpoint /v2/systems/{system-label} can be used to determine
-  encryption availability.
+  snapd API endpoint /v2/systems/{system-label} (1) can be used to determine
+  encryption availability as well as (2) request actions to recover from errors
+  preventing the use of encryption.
 
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
@@ -103,16 +104,26 @@ execute: |
   remote.exec "sudo mkdir -p /cdrom/casper"
   remote.exec "sudo cp /boot/vmlinuz /cdrom/casper/vmlinuz"
 
+  # Helper functions for remote API calls
+  api_get_v2_systems_classic() {
+    remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null"
+  }
+
+  api_post_v2_systems_classic() {
+    remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems/classic 2>/dev/null"
+  }
+
   # Check that encryption is available for the targeted system
   remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
   remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
 
   # Cause an error by configuring bogus shim
+  remote.exec "sudo cp /cdrom/EFI/boot/bootx64.efi /cdrom/EFI/boot/bootx64.efi.orig"
   remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/bootx64.efi"
 
   # Check that encryption is not available for the targeted system and provides reason with error-kind
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
   cat <<EOF > availability-check-errors.reference
   [
@@ -133,4 +144,75 @@ execute: |
 
   # Check that the basic availability check that do not consider shim, grub and kernel still works
   remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.04/' /etc/os-release"
-  remote.exec "sudo snap debug api /v2/systems/classic 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "available"
+
+  # Revert back to working preinstall check
+  remote.exec "sudo cp /cdrom/EFI/boot/bootx64.efi.orig /cdrom/EFI/boot/bootx64.efi" # restore correct shim
+  remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=25.10/' /etc/os-release"     # enable secboot preinstall check
+
+  # Check that encryption is again available for the targeted system
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "available"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
+
+  # Restart snapd to clear preinstall context from cache
+  remote.exec "sudo systemctl restart snapd.service"
+
+  # Requesting a fix action when there is no preinstall context available should result in error.
+  # Note fix action "" maps to secboot constant ActionNone which is always allowed.
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic > result
+  cat <<EOF > result.reference
+  {
+    "result": {
+      "message": "cannot use check action without cached encryption information"
+    },
+    "status": "Internal Server Error",
+    "status-code": 500,
+    "type": "error"
+  }
+  EOF
+
+  diff result result.reference
+
+  # Run preinstall check to provide cached context
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "available"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
+
+  # Requesting a fix action with preinstall context available should succeed
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"].support' | MATCH "available"
+
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"]."encryption-type"' | MATCH "cryptsetup"
+
+  # Request a fix action that does not exist
+  echo '{"action": "fix-encryption-support", "fix-action": "miracle"}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+
+  echo '{"action": "fix-encryption-support", "fix-action": "miracle"}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"]."availability-check-errors"' > result
+  cat <<EOF > result.reference
+  [
+    {
+      "kind": "unexpected-action",
+      "message": "specified action is not expected"
+    }
+  ]
+  EOF
+
+  diff result result.reference
+
+  # Cause an error by configuring bogus shim
+  remote.exec "sudo cp /boot/efi/EFI/ubuntu/grubx64.efi /cdrom/EFI/boot/bootx64.efi"
+
+  # Check that when requesting and action encryption is not available for the targeted system and provides reason with error-kind
+  # - First create new context
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
+  api_get_v2_systems_classic | gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
+
+  diff availability-check-errors availability-check-errors.reference
+
+  # - Then request an action
+  echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
+  gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
+
+  diff availability-check-errors availability-check-errors.reference
