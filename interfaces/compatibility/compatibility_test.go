@@ -256,6 +256,9 @@ func (s *CompatSuite) TestCompatibilityExpressions(c *C) {
 		{"(foo AND bar) OR (oof AND rab)", "foo AND oof", false},
 		{"foo-3 OR bar-rab-6", "foo-(1..3) AND bar-rab-(6..99)", true},
 		{"foo-3 OR bar-rab-6", "foo-(1..3) AND bar-rab-1", false},
+		{"foo-0-blah-5 AND (bar OR baz)", "foo-blah-(4..5) OR baz", true},
+		{"foo-0-blah-5 AND (bar OR baz)", "(foo-blah-(4..5) OR baz) AND boo", false},
+		{"foo-0-blah-5 AND (bar OR baz)", "(foo-blah-(4..5) OR blah OR baz) AND (boo OR bar)", true},
 	} {
 		c.Logf("tc %d: %+v", i, tc)
 

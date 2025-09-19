@@ -161,7 +161,15 @@ func CheckCompatibility(compat1, compat2 string) bool {
 		return false
 	}
 
-	// Check cross-compatibility
+	// Check cross-compatibility. This ensures that what is
+	// provided/expected on both of the sides fulfills the requirements
+	// expressed with ORs/ANDs of the other side. A way to visualize this
+	// is to view the expressions as sets (ORs are unions of labels, ANDs
+	// define separate sets - and expressions can always be formatted into
+	// OR expressions joined by ANDs). Exp. 1 is compatible with 2 if all
+	// sets defined by 1 have an intersection with one of the labels
+	// defined in 2, and the other way around. If compatibily happens on
+	// both directions, we consider the expressions compatible.
 	return checkExpressionCompatibility(expr1, labels2) &&
 		checkExpressionCompatibility(expr2, labels1)
 }
@@ -193,11 +201,11 @@ func areLabelsCompatible(compat1, compat2 CompatField) bool {
 // checkExpressionCompatibility check if the provided labels fulfill the
 // conditions expressed in the abstract syntz tree root.
 func checkExpressionCompatibility(node *Node, labels []CompatField) bool {
-	if (node.Left == nil && node.Right != nil) || node.Left != nil && node.Right == nil {
+	if !node.isLeaf() && !node.hasBothChildren() {
 		logger.Noticef("internal error: both nodes must be filled or both must be nil")
 		return false
 	}
-	if node.Left == nil && node.Right == nil {
+	if node.isLeaf() {
 		// Must be a label
 		nodeLabel, ok := node.Exp.(*CompatField)
 		if !ok {
