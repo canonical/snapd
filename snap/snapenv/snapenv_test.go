@@ -62,6 +62,16 @@ var mockSnapInfo = &snap.Info{
 		Revision: snap.R(17),
 	},
 }
+var mockAppInfo = &snap.AppInfo{
+	Snap:     mockSnapInfo,
+	Name:     "bar",
+	CommonID: "io.snapcraft.foo.bar",
+	BusName:  "io.snapcraft.foo.bar.bus",
+}
+var mockAppInfoMinimal = &snap.AppInfo{
+	Snap: mockSnapInfo,
+	Name: "bar",
+}
 var mockComponentInfo = &snap.ComponentInfo{
 	Component: naming.ComponentRef{
 		SnapName:      "foo",
@@ -115,6 +125,15 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
 		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
+	})
+}
+
+func (ts *HTestSuite) TesApp(c *C) {
+	env := appEnv(mockSnapInfo, mockAppInfo)
+	c.Assert(env, DeepEquals, osutil.Environment{
+		"SNAP_APP_NAME":  "bar",
+		"SNAP_COMMON_ID": "io.snapcraft.foo.bar",
+		"SNAP_BUS_NAME":  "io.snapcraft.foo.bar.bus",
 	})
 }
 
@@ -194,7 +213,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			os.Setenv("HOME", "")
 		}
 
-		env := snapEnv(info, nil, nil)
+		env := snapEnv(info, mockAppInfo, nil, nil)
 		c.Assert(env, DeepEquals, osutil.Environment{
 			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON":        "/var/snap/snapname/common",
@@ -214,6 +233,9 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_REAL_HOME":     usr.HomeDir,
 			"SNAP_UID":           fmt.Sprint(sys.Getuid()),
 			"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
+			"SNAP_COMMON_ID":     "io.snapcraft.foo.bar",
+			"SNAP_BUS_NAME":      "io.snapcraft.foo.bar.bus",
+			"SNAP_APP_NAME":      "bar",
 		})
 	}
 }
@@ -237,7 +259,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			os.Setenv("HOME", "")
 		}
 
-		env := snapEnv(info, nil, nil)
+		env := snapEnv(info, mockAppInfoMinimal, nil, nil)
 		c.Check(env, DeepEquals, osutil.Environment{
 			// Those are mapped to snap-specific directories by
 			// mount namespace setup
@@ -261,6 +283,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP_REAL_HOME":   usr.HomeDir,
 			"SNAP_UID":         fmt.Sprint(sys.Getuid()),
 			"SNAP_EUID":        fmt.Sprint(sys.Geteuid()),
+			"SNAP_APP_NAME":    "bar",
 		})
 	}
 }
@@ -313,11 +336,14 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockSnapInfo, nil, nil)
+	ExtendEnvForRun(env, mockSnapInfo, mockAppInfo, nil, nil)
 
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
+	c.Assert(env["SNAP_APP_NAME"], Equals, "bar")
+	c.Assert(env["SNAP_COMMON_ID"], Equals, "io.snapcraft.foo.bar")
+	c.Assert(env["SNAP_BUS_NAME"], Equals, "io.snapcraft.foo.bar.bus")
 
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 }
@@ -325,11 +351,14 @@ func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockClassicSnapInfo, nil, nil)
+	ExtendEnvForRun(env, mockClassicSnapInfo, mockAppInfoMinimal, nil, nil)
 
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
+	c.Assert(env["SNAP_APP_NAME"], Equals, "bar")
+	c.Assert(func() bool { _, ok := env["SNAP_COMMON_ID"]; return ok }(), Equals, false)
+	c.Assert(func() bool { _, ok := env["SNAP_BUS_NAME"]; return ok }(), Equals, false)
 
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 }
@@ -350,7 +379,7 @@ func checkEnvWithComp(c *C, env osutil.Environment, compVersion string) {
 func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfo, nil)
+	ExtendEnvForRun(env, mockSnapInfo, nil, mockComponentInfo, nil)
 	compVersion := "1.1"
 	checkEnvWithComp(c, env, compVersion)
 }
@@ -358,7 +387,7 @@ func (s *HTestSuite) TestExtendEnvForRunWithComponent(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunWithComponentNoVersion(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockSnapInfo, mockComponentInfoNoVersion, nil)
+	ExtendEnvForRun(env, mockSnapInfo, nil, mockComponentInfoNoVersion, nil)
 	// Same as snap in this case
 	compVersion := "1.0"
 	checkEnvWithComp(c, env, compVersion)
@@ -383,7 +412,7 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
 		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}}} {
 		env := osutil.Environment{}
-		ExtendEnvForRun(env, mockSnapInfo, nil, t.opts)
+		ExtendEnvForRun(env, mockSnapInfo, mockAppInfo, nil, t.opts)
 
 		c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, "common"))
 		c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
