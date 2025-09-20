@@ -1488,7 +1488,7 @@ EOF
             EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
         fi
     fi
-
+    
     if is_test_target_core_ge 20; then
         if is_test_target_core 20; then
             BRANCH=20
@@ -1511,7 +1511,7 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         # TODO: it would be desirable when we need to do in-depth debugging of
