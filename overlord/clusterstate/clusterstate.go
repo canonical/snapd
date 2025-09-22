@@ -56,8 +56,6 @@ type assembleClusterSetup struct {
 	// ExpectedSize is the expected number of devices in the cluster.
 	// If set to 0, cluster assembly will run indefinitely until cancelled.
 	ExpectedSize int `json:"expected-size,omitempty"`
-	// Domain is the mDNS domain for device discovery. Defaults to "local" if empty.
-	Domain string `json:"domain,omitempty"`
 	// Period is the route publication period duration.
 	Period time.Duration `json:"period,omitempty"`
 	// TLSCert is the TLS certificate in PEM format for secure communication
@@ -76,8 +74,6 @@ type AssembleConfig struct {
 	// ExpectedSize is the expected number of devices in the cluster. If set to
 	// 0, cluster assembly will run indefinitely until cancelled.
 	ExpectedSize int
-	// Domain is the mDNS domain for device discovery. Defaults to "local" if empty.
-	Domain string
 	// Period is the route publication period duration.
 	Period time.Duration
 }
@@ -155,7 +151,6 @@ func Assemble(st *state.State, config AssembleConfig) (*state.TaskSet, error) {
 		IP:           ip.String(),
 		Port:         p,
 		ExpectedSize: config.ExpectedSize,
-		Domain:       config.Domain,
 		Period:       config.Period,
 		TLSCert:      certPEM,
 		TLSKey:       keyPEM,

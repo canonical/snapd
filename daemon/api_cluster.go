@@ -73,7 +73,6 @@ func postClusterAction(c *Command, r *http.Request, user *auth.UserState) Respon
 			Secret:       req.Secret,
 			Address:      req.Address,
 			ExpectedSize: req.ExpectedSize,
-			Domain:       req.Domain,
 			Period:       req.Period,
 		}
 
