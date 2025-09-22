@@ -234,7 +234,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 	badConstraints := &prompting.Constraints{}
 	result, err := badConstraints.ToRuleConstraints("home", at)
 	c.Check(result, IsNil)
-	c.Check(err, ErrorMatches, `invalid permissions for home interface: permissions empty`)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern.*`)
 
 	constraints := &prompting.Constraints{
 		PathPattern: mustParsePathPattern(c, "/path/to/foo"),
@@ -489,7 +489,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 		},
 	}
 	_, err = constraints.ValidateForInterface("home", at)
-	c.Check(err, IsNil)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 }
 
 func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *C) {
