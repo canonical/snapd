@@ -99,11 +99,7 @@ execute: |
       kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
       pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
-      if command -v python3 > /dev/null; then
-          percentChg="$(python3 -c "$pyCmd")"
-      else 
-          percentChg="$(python -c "$pyCmd")"
-      fi
+      percentChg="$(python3 -c "$pyCmd")"
 
       if [ "$percentChg" -le 10 ]; then
           break
