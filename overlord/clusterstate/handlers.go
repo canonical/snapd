@@ -266,11 +266,9 @@ func assemble(
 	discoveries, stop, err := assemblestate.MulticastDiscovery(
 		ctx,
 		iface,
-		ip,
+		ip.String(),
 		setup.Port,
 		assemblestate.DeviceToken(config.RDT),
-		setup.Domain,
-		false,
 	)
 	if err != nil {
 		return nil, assemblestate.Routes{}, fmt.Errorf("cannot start multicast discovery: %v", err)
