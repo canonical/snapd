@@ -21,10 +21,10 @@ package osutil_test
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -221,24 +221,34 @@ func (s *flockSuite) TestUsingClosedLock(c *C) {
 func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	sleeperKillerPath := filepath.Join(c.MkDir(), "pid")
 	// we can't use --no-fork because we still support 14.04
-	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", fmt.Sprintf(`echo "kill $$" > %s && exec sleep 30`, sleeperKillerPath))
-
+	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", `exec sleep 30`)
+	// create new process group so that we may kill everything in one go
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
 	// flock uses the env variable 'SHELL' to run the passed in command. a non-posix
 	// shell will not understand $$. we can force flock to use its default by unsetting
 	// the variable
 	cmd.Env = append(cmd.Env, "SHELL=")
 
 	c.Assert(cmd.Start(), IsNil)
-	defer func() { exec.Command("/bin/sh", sleeperKillerPath).Run() }()
+	defer func() {
+		// kill the whole group
+		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		// be nice and wait
+		cmd.Wait()
+	}()
 
 	// Give flock some chance to create the lock file.
-	for i := 0; i < 10; i++ {
-		if osutil.FileExists(lockPath) {
-			break
+	checkTickC := time.Tick(300 * time.Millisecond)
+	tmoutC := time.After(1 * time.Minute)
+	for !osutil.FileExists(lockPath) {
+		select {
+		case <-checkTickC:
+		case <-tmoutC:
+			c.Fatalf("timeout awaiting lock file %s", lockPath)
 		}
-		time.Sleep(time.Millisecond * 300)
 	}
 
 	// Try to acquire the same lock file and see that it is busy.
