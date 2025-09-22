@@ -252,7 +252,7 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 		return err
 	}
 
-	if confdbstate.IsConfdbHook(ctx) && !confdbstate.CanHookSetConfdb(ctx) {
+	if confdbstate.IsConfdbHookCtx(ctx) && !confdbstate.CanHookSetConfdb(ctx) {
 		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
 	}
 

@@ -27,6 +27,9 @@ jobs:
           echo -e "summary: test\nexecute: true\n" > tests/smoke/empty/task.yaml
       
       - name: run empty test with spread
+        env:
+          SPREAD_USE_SNAPD_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
+          SPREAD_USE_PREBUILT_SNAPD_SNAP: true
         run: |
           # Run spread in all the systems defined for openstack-ps7 environment
           spread -no-debug-output -json report.json openstack-ps7:tests/smoke/empty
