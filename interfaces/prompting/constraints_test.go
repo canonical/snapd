@@ -81,13 +81,22 @@ func (s *constraintsSuite) TestConstraintsMatch(c *C) {
 	}
 }
 
-func (s *constraintsSuite) TestConstraintsMatchNoPathPattern(c *C) {
-	path := `some\path\`
+func (s *constraintsSuite) TestConstraintsMatchUnhappy(c *C) {
+	badPath := `bad\path\`
 
-	constraints := &prompting.Constraints{}
-	matches, err := constraints.Match(path)
-	c.Check(err, IsNil)
-	c.Check(matches, Equals, true)
+	badConstraints := &prompting.Constraints{
+		PathPattern: nil,
+	}
+	matches, err := badConstraints.Match(badPath)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(matches, Equals, false)
+
+	badRuleConstraints := &prompting.RuleConstraints{
+		PathPattern: nil,
+	}
+	matches, err = badRuleConstraints.Match(badPath)
+	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
+	c.Check(matches, Equals, false)
 }
 
 func (s *constraintsSuite) TestConstraintsContainPermissions(c *C) {
@@ -717,6 +726,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 			outcome:     prompting.OutcomeAllow,
 			lifespan:    prompting.LifespanSession,
 			expected: &prompting.Constraints{
+				PathPattern: pathPattern,
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,

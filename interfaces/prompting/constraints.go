@@ -35,7 +35,7 @@ import (
 // particular paths and permissions. When creating a new rule, snapd converts
 // Constraints to RuleConstraints.
 type Constraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
+	PathPattern *patterns.PathPattern `json:"path-pattern"`
 	Permissions PermissionMap         `json:"permissions"`
 }
 
@@ -47,12 +47,11 @@ type Constraints struct {
 // been created from a reply, to check that the reply covers the request.
 func (c *Constraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
-		// PathPattern can only be nil if the interface doesn't use path patterns
-		return true, nil
+		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
 	match, err := c.PathPattern.Match(path)
 	if err != nil {
-		// Error should not occur, since pattern was parsed internally
+		// Error should not occur, since it was parsed internally
 		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
 	}
 	return match, nil
@@ -97,7 +96,7 @@ func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, 
 // in the permission map, or all of the requested permissions are allowed in the
 // map.
 type RuleConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
+	PathPattern *patterns.PathPattern `json:"path-pattern"`
 	Permissions RulePermissionMap     `json:"permissions"`
 }
 
@@ -117,8 +116,7 @@ func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired boo
 // If the constraints or path are invalid, returns an error.
 func (c *RuleConstraints) Match(path string) (bool, error) {
 	if c.PathPattern == nil {
-		// PathPattern can only be nil if the interface doesn't use path patterns
-		return true, nil
+		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
 	match, err := c.PathPattern.Match(path)
 	if err != nil {
@@ -132,7 +130,7 @@ func (c *RuleConstraints) Match(path string) (bool, error) {
 // particular paths and permissions. Upon receiving the reply, snapd converts
 // ReplyConstraints to Constraints.
 type ReplyConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
+	PathPattern *patterns.PathPattern `json:"path-pattern"`
 	Permissions []string              `json:"permissions"`
 }
 
@@ -147,16 +145,8 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	if _, err := lifespan.ParseDuration(duration, time.Now()); err != nil {
 		return nil, err
 	}
-	switch iface {
-	case "camera":
-		if c.PathPattern != nil {
-			// client should not include path pattern in reply, but if so, ignore it
-			c.PathPattern = nil
-		}
-	default:
-		if c.PathPattern == nil {
-			return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-		}
+	if c.PathPattern == nil {
+		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
 	}
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
