@@ -3,11 +3,11 @@ name: Nightly spread executions
 # See https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onschedule
 on:
   schedule:
-    # usual nitghtly run
+    # usual nitghtly run, google tests, and experimental features
     - cron: '0 2 * * *'
-    # from current
+    # spread run from json fundamental, non-fundamental, and nested
     - cron: '0 3 * * *'
-    # experimental features and openstack
+    # from current
     - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
@@ -39,7 +39,7 @@ jobs:
       use-snapd-snap-from-master: true
 
   spread-nightly-google:
-    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-google') }}
+    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-google') }}
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
@@ -98,7 +98,7 @@ jobs:
             systems: 'debian-sid-64'
 
   spread-test-experimental:
-    if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}
+    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}
     uses: ./.github/workflows/spread-tests.yaml
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
