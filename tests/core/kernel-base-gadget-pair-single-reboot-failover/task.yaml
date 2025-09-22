@@ -62,12 +62,12 @@ execute: |
     . "$TESTSLIB/prepare.sh"
 
     inject_failure_configure_hook() {
-        if cat "$1/meta/snap.yaml" | gojq --yaml-input --yaml-output '. | has("hooks")' | MATCH "true"; then
+        if gojq --yaml-input --yaml-output '. | has("hooks")' "$1/meta/snap.yaml" | MATCH "true"; then
             # shellcheck disable=SC2094
-            cat "$1/meta/snap.yaml" | gojq --yaml-input --yaml-output '.hooks += {"configure"}' >> "$1/meta/snap.yaml"
+            gojq --yaml-input --yaml-output '.hooks += {"configure"}' "$1/meta/snap.yaml" >> "$1/meta/snap.yaml"
         else
             # shellcheck disable=SC2094
-            cat "$1/meta/snap.yaml" | gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' >> "$1/meta/snap.yaml"
+            gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' "$1/meta/snap.yaml" >> "$1/meta/snap.yaml"
             mkdir -p "$1/meta/hooks"
         fi
         cat <<EOF >"$1/meta/hooks/configure"

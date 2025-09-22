@@ -64,12 +64,12 @@ execute: |
             echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
-        if cat ./pc-snap/meta/snap.yaml | gojq --yaml-input --yaml-output '. | has("hooks")' | MATCH "true"; then
+        if gojq --yaml-input --yaml-output '. | has("hooks")' ./pc-snap/meta/snap.yaml | MATCH "true"; then
             # shellcheck disable=SC2094
-            cat ./pc-snap/meta/snap.yaml | gojq --yaml-input --yaml-output '.hooks += {"configure"}' >> ./pc-snap/meta/snap.yaml
+            gojq --yaml-input --yaml-output '.hooks += {"configure"}' ./pc-snap/meta/snap.yaml >> ./pc-snap/meta/snap.yaml
         else
             # shellcheck disable=SC2094
-            cat ./pc-snap/meta/snap.yaml | gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' >> ./pc-snap/meta/snap.yaml
+            gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' ./pc-snap/meta/snap.yaml >> ./pc-snap/meta/snap.yaml
             mkdir -p pc-snap/meta/hooks
         fi
         echo 'exit 1' >> ./pc-snap/meta/hooks/configure
