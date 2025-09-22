@@ -2134,7 +2134,7 @@ func (m *DeviceManager) SignWithDeviceKey(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return asserts.SignWithKey(data, pk)
+	return asserts.RawSignWithKey(data, pk)
 }
 
 // ConfdbControl returns the device's confdb-control assertion.
