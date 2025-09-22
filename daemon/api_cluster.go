@@ -43,7 +43,6 @@ type clusterActionRequest struct {
 	Secret       string        `json:"secret,omitempty"`
 	Address      string        `json:"address,omitempty"`
 	ExpectedSize int           `json:"expected-size,omitempty"`
-	Domain       string        `json:"domain,omitempty"`
 	Period       time.Duration `json:"period,omitempty"`
 }
 
