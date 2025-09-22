@@ -3,7 +3,7 @@ name: Nightly spread executions
 # See https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onschedule
 on:
   schedule:
-    # usual nitghtly run, google tests, and experimental features
+    # usual nightly run, google tests, and experimental features
     - cron: '0 2 * * *'
     # spread run from json fundamental, non-fundamental, and nested
     - cron: '0 3 * * *'
