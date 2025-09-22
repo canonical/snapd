@@ -17,8 +17,10 @@ environment:
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
+    fi
+    if os.query is-core18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+        tests.exec skip-test "The kernel snap used for openstack cannot be refreshed with Canonical model" && exit 0
     fi
 
     # Prevent refreshes until we have right snap revisions
@@ -43,10 +45,7 @@ prepare: |
     snap ack "$BLOB_DIR/asserts/developer1.account-key"
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    tests.exec is-skipped && exit 0
 
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
@@ -54,13 +53,12 @@ restore: |
     snap set system refresh.hold!
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     snap debug api /v2/changes?select=ready | gojq "[.result[] | select(.kind == \"auto-refresh\")] | sort_by(.id|tonumber)"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    tests.exec is-skipped && exit 0
 
     # The daemon is configured to point to the fake store
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"

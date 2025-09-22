@@ -1499,6 +1499,7 @@ EOF
         rm -rf pc-kernel
         mv pc-kernel-repacked.snap pc-kernel.snap
         EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
+        chmod 0600 pc-kernel.snap
     fi
 
     if is_test_target_core_ge 20; then
