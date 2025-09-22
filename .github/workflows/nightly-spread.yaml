@@ -49,6 +49,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ''
       use-snapd-snap-from-master: true
+      skip-tests: 'ubuntu-14.04-64 ubuntu-core-16'
     strategy:
       fail-fast: false
       matrix:
