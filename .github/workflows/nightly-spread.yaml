@@ -65,6 +65,10 @@ jobs:
             backend: google-core
             systems: 'ALL'
             tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
+          - group: ubuntu-core-18
+            backend: google-core
+            systems: 'ubuntu-core-18-64'
+            tasks: 'tests/core/auto-refresh-backoff-after-reboot:kernel tests/core/failover:emptyinitrd tests/core/gadget-kernel-refs-update-pc tests/core/kernel-base-gadget-pair-single-reboot-failover tests/core/kernel-base-gadget-pair-single-reboot tests/core/kernel-base-gadget-single-reboot tests/core/kernel-base-gadget-single-reboot-failover'
           - group: google-distro
             backend: google-distro
             systems: 'ALL'
