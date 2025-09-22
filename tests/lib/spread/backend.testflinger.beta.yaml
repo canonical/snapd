@@ -2,17 +2,17 @@
     testflinger:
         environment:
             TRUST_TEST_KEYS: "false"
-        halt-timeout: 15h
+        halt-timeout: 13h
         wait-timeout: 3h
         warn-timeout: 5m
-        kill-timeout: 14h
+        kill-timeout: 5h
         systems:
             - ubuntu-core-16-arm-32-rpi2:
                   queue: cert-rpi2
                   image: https://storage.googleapis.com/snapd-spread-tests/images/pi2-16-stable-core_beta/pi2.img.xz
                   workers: 1
                   username: ubuntu
-                  password: ubuntu            
+                  password: ubuntu
             - ubuntu-core-18-arm-32-rpi2:
                   queue: cert-rpi2
                   image: https://storage.googleapis.com/snapd-spread-tests/images/pi2-18-stable-snapd_beta/pi.img.xz
@@ -24,7 +24,7 @@
                   image: https://storage.googleapis.com/snapd-spread-tests/images/dragonboard-16-stable-core_beta/dragonboard.img.xz
                   workers: 1
                   username: ubuntu
-                  password: ubuntu            
+                  password: ubuntu
             - ubuntu-core-18-arm-64-dragonboard:
                   queue: dragonboard
                   image: https://storage.googleapis.com/snapd-spread-tests/images/dragonboard-18-stable-snapd_beta/dragonboard.img.xz
