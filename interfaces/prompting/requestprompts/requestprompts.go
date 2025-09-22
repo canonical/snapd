@@ -86,9 +86,7 @@ type jsonPrompt struct {
 
 // jsonPromptConstraints defines the marshalled json structure of promptConstraints.
 type jsonPromptConstraints struct {
-	Path                 string   `json:"path"`
-	Name                 string   `json:"name,omitempty"`
-	Subsystem            string   `json:"subsystem,omitempty"`
+	Path                 string   `json:"path,omitempty"`
 	RequestedPermissions []string `json:"requested-permissions"`
 	AvailablePermissions []string `json:"available-permissions"`
 }
@@ -102,8 +100,8 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		AvailablePermissions: p.Constraints.availablePermissions,
 	}
 	if p.Interface == "camera" {
-		constraints.Name = "Imaginary HD Camera"
-		constraints.Subsystem = "video4linux"
+		// omit "path" from constraints
+		constraints.Path = ""
 	}
 	toMarshal := &jsonPrompt{
 		ID:          p.ID,

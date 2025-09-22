@@ -726,7 +726,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 			outcome:     prompting.OutcomeAllow,
 			lifespan:    prompting.LifespanSession,
 			expected: &prompting.Constraints{
-				PathPattern: pathPattern,
+				PathPattern: mustParsePathPattern(c, "/**"),
 				Permissions: prompting.PermissionMap{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
