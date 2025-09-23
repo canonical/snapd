@@ -83,7 +83,7 @@ type SealingParameters struct {
 }
 
 type parametersKey struct {
-	role string
+	role          string
 	containerRole string
 }
 
@@ -112,7 +112,7 @@ func (u *updatedParameters) setTpmPCRProfile(role, containerRole string, tpmPCRP
 }
 
 // find returns the parameters for the first container role it finds
-func (u *updatedParameters) find(role string, containerRoles... string) *SealingParameters {
+func (u *updatedParameters) find(role string, containerRoles ...string) *SealingParameters {
 	for _, cr := range containerRoles {
 		params, ok := u.catalog[parametersKey{role: role, containerRole: cr}]
 		if ok {
@@ -130,7 +130,6 @@ func (u *updatedParameters) apply(manager FDEStateManager) error {
 	}
 	return nil
 }
-
 
 // EncryptedContainer gives information on the role, path and path to
 // extra legacy keys.
