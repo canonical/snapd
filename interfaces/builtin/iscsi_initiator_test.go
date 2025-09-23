@@ -101,8 +101,8 @@ func (s *iscsiInitiatorInterfaceSuite) TestKModConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
-		"iscsi-tcp":       true,
-		"target-core-mod": true,
+		"iscsi_tcp":       true,
+		"target_core_mod": true,
 	})
 }
 

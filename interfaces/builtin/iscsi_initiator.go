@@ -25,7 +25,7 @@ package builtin
  * block storage access.
  *
  * The interface loads kernel modules required for iSCSI operations including
- * iscsi-tcp for transport and target-core-mod for LIO functionality.
+ * iscsi_tcp for transport and target_core_mod for LIO functionality.
  */
 
 const iscsiInitiatorSummary = `allows access to iSCSI initiator functionality for block storage operations`
@@ -88,8 +88,8 @@ type iscsiInitiatorInterface struct {
 }
 
 var iscsiInitiatorConnectedPlugKmod = []string{
-	`iscsi-tcp`,       // A module providing iscsi initiator functionality.
-	`target-core-mod`, // A module providing ConfigFS infrastructure utilized in LIO (which is used by Cinder for iSCSI targets).
+	`iscsi_tcp`,       // A module providing iscsi initiator functionality.
+	`target_core_mod`, // A module providing ConfigFS infrastructure utilized in LIO (which is used by Cinder for iSCSI targets).
 }
 
 func init() {
