@@ -80,7 +80,6 @@ func init() {
 	registerIface(&multipathControlInterface{commonInterface{
 		name:                     "multipath-control",
 		summary:                  multipathControlSummary,
-		implicitOnCore:           true,
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     multipathControlBaseDeclarationSlots,
 		baseDeclarationPlugs:     multipathControlBaseDeclarationPlugs,

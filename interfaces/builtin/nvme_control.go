@@ -85,7 +85,6 @@ func init() {
 	registerIface(&nvmeControlInterface{commonInterface{
 		name:                     "nvme-control",
 		summary:                  nvmeControlSummary,
-		implicitOnCore:           true,
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     nvmeControlBaseDeclarationSlots,
 		baseDeclarationPlugs:     nvmeControlBaseDeclarationPlugs,

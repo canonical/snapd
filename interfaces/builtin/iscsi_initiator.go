@@ -96,7 +96,6 @@ func init() {
 	registerIface(&iscsiInitiatorInterface{commonInterface{
 		name:                     "iscsi-initiator",
 		summary:                  iscsiInitiatorSummary,
-		implicitOnCore:           true,
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     iscsiInitiatorBaseDeclarationSlots,
 		baseDeclarationPlugs:     iscsiInitiatorBaseDeclarationPlugs,
