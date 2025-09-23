@@ -171,7 +171,7 @@ func (cm *CacheManager) cleanup() error {
 	}
 
 	// most of the entries will have more than one hardlink, but a minority may
-	// be referenced only the cache and thus be a candidate for pruning
+	// be referenced only from the cache and thus be a candidate for pruning
 	pruneCandidates := make([]os.FileInfo, 0, len(entries)/5)
 	pruneCandidatesSize := int64(0)
 
@@ -238,4 +238,54 @@ func hardLinkCount(fi os.FileInfo) (uint64, error) {
 		return uint64(stat.Nlink), nil
 	}
 	return 0, fmt.Errorf("internal error: cannot read hardlink count from %s", fi.Name())
+}
+
+// StoreCacheStats contains some statistics about the store cache.
+type StoreCacheStats struct {
+	// TotalEntries is a count of all entries in the cache.
+	TotalEntries int
+	// TotalSize is a sum of sizes of all entries in the cache.
+	TotalSize uint64
+	// PruneCandidates is a list of files which are candidates for removal.
+	PruneCandidates []os.FileInfo
+}
+
+// Status returns statistics about the store cache.
+func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
+	entries, err := os.ReadDir(cm.cacheDir)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := StoreCacheStats{
+		TotalEntries: len(entries),
+	}
+
+	// most of the entries will have more than one hardlink, but a minority may
+	// be referenced only from the cache and thus be a candidate for pruning
+	stats.PruneCandidates = make([]os.FileInfo, 0, len(entries)/5)
+
+	for _, entry := range entries {
+		fi, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+
+		n, err := hardLinkCount(fi)
+		if err != nil {
+			return nil, err
+		}
+
+		// If the file is referenced in the filesystem somewhere else our copy
+		// is "free" so skip it.
+		if n <= 1 {
+			stats.PruneCandidates = append(stats.PruneCandidates, fi)
+		}
+
+		stats.TotalSize += uint64(fi.Size())
+	}
+
+	sort.Sort(changesByMtime(stats.PruneCandidates))
+
+	return &stats, nil
 }
