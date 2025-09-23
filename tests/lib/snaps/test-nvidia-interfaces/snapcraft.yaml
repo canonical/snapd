@@ -9,6 +9,7 @@ confinement: strict
 grade: stable
 base: core24
 
+# This repo will be used only for amd64 builds
 package-repositories:
   - type: apt
     architectures: [i386]
@@ -37,18 +38,21 @@ slots:
     icd-source: $SNAP/usr/share/glvnd/egl_vendor.d/
     library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      # Empty folder for arm64
       - $SNAP/usr/lib/i386-linux-gnu
   opengl-dl:
     interface: opengl-driver-libs
     compatibility: opengl-4-6-ubuntu-2510
     library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      # Empty folder for arm64
       - $SNAP/usr/lib/i386-linux-gnu
   opengles-dl:
     interface: opengles-driver-libs
     compatibility: opengles-4-6-ubuntu-2510
     library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
+      # Empty folder for arm64
       - $SNAP/usr/lib/i386-linux-gnu
 
 parts:
@@ -70,19 +74,23 @@ parts:
       pkgs=(
           libnvidia-cfg1-570
           libnvidia-common-570
-          libnvidia-compute-570:amd64
-          libnvidia-compute-570:i386
-          libnvidia-decode-570:amd64
-          libnvidia-decode-570:i386
-          libnvidia-encode-570:amd64
-          libnvidia-encode-570:i386
-          libnvidia-extra-570:amd64
-          libnvidia-fbc1-570:amd64
-          libnvidia-fbc1-570:i386
-          libnvidia-gl-570:amd64
-          libnvidia-gl-570:i386
+          libnvidia-compute-570
+          libnvidia-decode-570
+          libnvidia-encode-570
+          libnvidia-extra-570
+          libnvidia-fbc1-570
+          libnvidia-gl-570
           nvidia-compute-utils-570
       )
+      if [ "$CRAFT_ARCH_BUILD_FOR" = amd64 ]; then
+          pkgs+=(
+              libnvidia-compute-570:i386
+              libnvidia-decode-570:i386
+              libnvidia-encode-570:i386
+              libnvidia-fbc1-570:i386
+              libnvidia-gl-570:i386
+          )
+      fi
       for p in "${pkgs[@]}"; do
           apt-get download "$p"
       done
