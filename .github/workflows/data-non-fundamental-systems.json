@@ -119,6 +119,14 @@
         "systems": "ubuntu-fips-22.04-64",
         "tasks": "tests/fips-deb/...",
         "rules": "fips"
+      },
+      {
+        "group": "ubuntu-deb",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google",
+        "systems": "ubuntu-24.04-64",
+        "tasks": "tests/...",
+        "rules": "main"
       }
     ]
   }
