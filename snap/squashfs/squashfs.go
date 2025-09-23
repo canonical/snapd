@@ -198,7 +198,6 @@ func (u *unsquashfsStderrWriter) Err() error {
 	}
 }
 
-
 // Unpack unpacks the snap to the given directory.
 //
 // Extended attributes are not preserved. This affects capabilities granted to specific executables.
