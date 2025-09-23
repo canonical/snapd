@@ -613,7 +613,7 @@ autoreconf --force --install --verbose
 %if 0%{?with_selinux}
     --enable-selinux \
 %endif
-%if 0%{?rhel} == 7
+%if 0%{?rhel} == 7 || 0%{?amzn2} == 1
     --disable-bpf \
 %endif
     --libexecdir=%{_libexecdir}/snapd/ \
