@@ -22,8 +22,10 @@ environment:
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
+    fi
+    if os.query is-core18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+        tests.exec skip-test "The kernel snap used for openstack cannot be refreshed with Canonical model" && exit 0
     fi
 
     core_snap=core20
@@ -37,17 +39,12 @@ prepare: |
     readlink "/snap/pc/current" > pc.rev
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    tests.exec is-skipped && exit 0
+
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    tests.exec is-skipped && exit 0
 
     core_snap=core20
     if os.query is-core18; then

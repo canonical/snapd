@@ -101,7 +101,7 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
-    # restart the service (it pulls up the socket)
+    # restart the service (it pulls up the socket)    
     systemctl restart snapd.service
 }
 
@@ -1311,6 +1311,9 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
+    # make sure we use the same timesync configuration than in the host machine
+    cp /etc/systemd/timesyncd.conf /mnt/system-data/etc/systemd/timesyncd.conf
+
     mkdir -p /mnt/system-data/var/lib/console-conf
 
     # NOTE: The here-doc below must use tabs for proper operation.
@@ -1467,17 +1470,29 @@ EOF
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
         IMAGE_CHANNEL="$GADGET_CHANNEL"
-        if is_test_target_core_le 18; then
-            if is_test_target_core 16; then
-                BRANCH=latest
-            elif is_test_target_core 18; then
-                BRANCH=18
-            fi
+    fi
+
+    if is_test_target_core_le 18; then
+        if is_test_target_core 16; then
+            BRANCH=latest
+        else
+            BRANCH=18
+        fi
+
+        if is_test_target_core 18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+            # When running in openstack backend and uc18 it is required to use an specific
+            # kernel snap which is using the 5.4.0 instead of the 4.15 because this
+            # version has a fix for https://bugs.launchpad.net/qemu/+bug/1844053
+            wget -q -O pc-kernel.snap https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_5.4.0-221.241.1_amd64.snap
+        elif [ "$KERNEL_CHANNEL" != "$GADGET_CHANNEL" ]; then
             # download pc-kernel snap for the specified channel and set
             # ubuntu-image channel to that of the gadget, so that we don't
             # need to download it. Do this only for UC16/18 as the UC20+
             # case is considered a few lines below.
-            snap download --basename=pc-kernel --channel="$BRANCH/$KERNEL_CHANNEL" pc-kernel
+            snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+        fi
+
+        if [ -f pc-kernel.snap ]; then
             # Repack to prevent reboots as the image channel (which will become
             # the tracked channel) is different to the kernel channel.
             unsquashfs -d pc-kernel pc-kernel.snap
@@ -1486,6 +1501,7 @@ EOF
             rm -rf pc-kernel
             mv pc-kernel-repacked.snap pc-kernel.snap
             EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
+            chmod 0600 pc-kernel.snap
         fi
     fi
 
@@ -1833,6 +1849,7 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
+    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd'
     setup_snapd_proxy
 
     disable_journald_rate_limiting

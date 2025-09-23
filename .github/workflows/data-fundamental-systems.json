@@ -34,7 +34,7 @@
       },
       {
         "group": "ubuntu-core-18 (fundamental)",
-        "backend": "google-core",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-18-64",
         "tasks": "tests/...",

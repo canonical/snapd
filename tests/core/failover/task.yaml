@@ -37,14 +37,14 @@ environment:
     SNAP_ID_pc_kernel: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
 
 prepare: |
-    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
-        echo "variant not supported on ARM architectures"
-        exit 0
-    fi
-
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
+    fi
+    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
+        tests.exec skip-test "variant not supported on ARM architectures" && exit 0
+    fi
+    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-core18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+        tests.exec skip-test "The kernel snap used for openstack cannot be refreshed with Canonical model" && exit 0
     fi
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -55,34 +55,21 @@ prepare: |
     mkdir -p "$BUILD_DIR"
 
 restore: |
-    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
-        echo "variant not supported on ARM architectures"
-        exit 0
-    fi
+    tests.exec is-skipped && exit 0
 
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
     rm -rf "$BUILD_DIR"
 
 debug: |
+    tests.exec is-skipped && exit 0
+
     snap debug boot-vars || true
     snap list || true
     snap changes || true
 
 execute: |
-    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
-        echo "variant not supported on ARM architectures"
-        exit 0
-    fi
-
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    tests.exec is-skipped && exit 0
 
     inject_rclocalcrash_failure(){
         chmod a+x "$BUILD_DIR/unpack/etc/rc.local"
