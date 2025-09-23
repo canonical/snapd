@@ -962,13 +962,13 @@ func (s *serviceUnitGenSuite) TestSuccessExitStatus(c *C) {
 		Command:           "bin/foo start",
 		Daemon:            "simple",
 		DaemonScope:       snap.SystemDaemon,
-		SuccessExitStatus: []string{"TEMPFAIL", "250", "SIGKILL"},
+		SuccessExitStatus: []string{"42", "250"},
 	}
 
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=TEMPFAIL 250 SIGKILL\n.*`)
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=42 250\n.*`)
 }
 
 func (s *serviceUnitGenSuite) TestSuccessExitStatusEmpty(c *C) {
@@ -982,12 +982,10 @@ func (s *serviceUnitGenSuite) TestSuccessExitStatusEmpty(c *C) {
 		Command:     "bin/foo start",
 		Daemon:      "simple",
 		DaemonScope: snap.SystemDaemon,
-		// No SuccessExitStatus specified
 	}
 
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
 	c.Assert(err, IsNil)
 
-	// Should not contain SuccessExitStatus line
 	c.Check(string(generatedWrapper), Not(Matches), `(?s).*SuccessExitStatus.*`)
 }

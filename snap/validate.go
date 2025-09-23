@@ -813,8 +813,6 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
-var isValidStatusName = regexp.MustCompile("^[A-Z_12]{3,}$").MatchString
-
 func validateAppSuccessExitStatus(app *AppInfo) error {
 	if len(app.SuccessExitStatus) == 0 {
 		return nil
@@ -833,8 +831,8 @@ func validateAppSuccessExitStatus(app *AppInfo) error {
 			if code < 0 || code > 255 {
 				return fmt.Errorf("exit code %d is out of range. Exit codes must be between 0 and 255", code)
 			}
-		} else if !isValidStatusName(status) {
-			return errors.New("success exit status must be a number (0-255) or uppercase symbolic name")
+		} else {
+			return errors.New("success exit status must be a number between 0 and 255")
 		}
 	}
 

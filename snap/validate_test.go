@@ -2017,7 +2017,7 @@ version: 1.0
 apps:
   foo:
     daemon: simple
-    success-exit-status: [TEMPFAIL, 250, SIGKILL]
+    success-exit-status: [42, 250]
 `)
 	fooSuccessExitStatusNotADaemon := []byte(`
 apps:
@@ -2065,7 +2065,7 @@ apps:
 	}, {
 		name: "foo success-exit-status with wrong status name",
 		desc: fooSuccessExitStatusWrongName,
-		err:  `success exit status must be a number \(0-255\) or uppercase symbolic name`,
+		err:  `success exit status must be a number between 0 and 255`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)

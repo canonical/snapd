@@ -1976,13 +1976,13 @@ apps:
  foo:
   command: bin/foo
   daemon: simple
-  success-exit-status: [TEMPFAIL, 250, SIGKILL]
+  success-exit-status: [42, 250]
 `)
 	info, err := snap.InfoFromSnapYaml(ySuccessExitStatus)
 	c.Assert(err, IsNil)
 	app := info.Apps["foo"]
 	c.Assert(app, NotNil)
-	c.Check(app.SuccessExitStatus, DeepEquals, []string{"TEMPFAIL", "250", "SIGKILL"})
+	c.Check(app.SuccessExitStatus, DeepEquals, []string{"42", "250"})
 }
 
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsing(c *C) {
