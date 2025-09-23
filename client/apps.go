@@ -38,11 +38,11 @@ import (
 // AppActivator is a thing that activates the app that is a service in the
 // system.
 type AppActivator struct {
-	Name string
-	// Type describes the type of the unit, either timer or socket
-	Type    string
-	Active  bool
-	Enabled bool
+	Name string `json:"name"`
+	// Type describes the type of the unit, either dbus, socket, or timer
+	Type    string `json:"type"`
+	Active  bool   `json:"active"`
+	Enabled bool   `json:"enabled"`
 }
 
 // AppInfo describes a single snap application.

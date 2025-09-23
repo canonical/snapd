@@ -77,6 +77,37 @@ func testClientAppsGlobal(cs *clientSuite, c *check.C) ([]*client.AppInfo, error
 	return services, err
 }
 
+func testClientAppsActivators(cs *clientSuite, c *check.C) {
+	expected := []*client.AppInfo{
+		{
+			Snap:    "hello-world",
+			Name:    "hello-world",
+			Daemon:  "simple",
+			Active:  true,
+			Enabled: true,
+			Activators: []client.AppActivator{
+				{
+					Name:    "test-activator",
+					Type:    "dbus",
+					Active:  false,
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	buf, err := json.Marshal(expected)
+	c.Assert(err, check.IsNil)
+
+	cs.rsp = fmt.Sprintf(`{"type": "sync", "result": %s}`, buf)
+
+	for _, chkr := range appcheckers {
+		actual, err := chkr(cs, c)
+		c.Assert(err, check.IsNil)
+		c.Check(actual, check.DeepEquals, expected)
+	}
+}
+
 var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService, testClientAppsGlobal}
 
 func (cs *clientSuite) TestClientServiceGetHappy(c *check.C) {
