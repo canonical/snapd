@@ -56,6 +56,7 @@ struct sc_device_cgroup {
         struct {
             sc_cgroup_fds fds;
         } v1;
+#ifdef ENABLE_BPF
         struct {
             int devmap_fd;
             int prog_fd;
@@ -63,6 +64,7 @@ struct sc_device_cgroup {
             char name[BPF_OBJ_NAME_LEN];
             struct rlimit old_limit;
         } v2;
+#endif
     };
 };
 
