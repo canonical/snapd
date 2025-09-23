@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 // overridden in the unit tests
@@ -172,6 +173,7 @@ func (cm *CacheManager) cleanup() error {
 	// most of the entries will have more than one hardlink, but a minority may
 	// be referenced only the cache and thus be a candidate for pruning
 	pruneCandidates := make([]os.FileInfo, 0, len(entries)/5)
+	pruneCandidatesSize := int64(0)
 
 	for _, entry := range entries {
 		fi, err := entry.Info()
@@ -187,6 +189,15 @@ func (cm *CacheManager) cleanup() error {
 		// is "free" so skip it.
 		if n <= 1 {
 			pruneCandidates = append(pruneCandidates, fi)
+			pruneCandidatesSize += fi.Size()
+		}
+	}
+
+	if len(pruneCandidates) > 0 {
+		logger.Debugf("store cache cleanup candidates %v total %v", len(pruneCandidates),
+			quantity.FormatAmount(uint64(pruneCandidatesSize), -1))
+		for _, c := range pruneCandidates {
+			logger.Debugf("%s, size: %v, mod %s", c.Name(), quantity.FormatAmount(uint64(c.Size()), -1), c.ModTime())
 		}
 	}
 
@@ -201,6 +212,7 @@ func (cm *CacheManager) cleanup() error {
 	deleted := 0
 	for _, fi := range pruneCandidates {
 		path := cm.path(fi.Name())
+		logger.Debugf("removing %v", path)
 		if err := osRemove(path); err != nil {
 			if !os.IsNotExist(err) {
 				// If there is any error we cleanup the file (it is just a cache
@@ -211,7 +223,9 @@ func (cm *CacheManager) cleanup() error {
 			continue
 		}
 		deleted++
-		if numOwned-deleted <= cm.maxItems {
+		remaining := numOwned - deleted
+		if remaining <= cm.maxItems {
+			logger.Debugf("cache size satisfied, remaining items: %v", remaining)
 			break
 		}
 	}
