@@ -24,6 +24,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -46,6 +47,7 @@ func (c *versionCommand) Execute(args []string) error {
 	w := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)
 
 	fmt.Fprintf(w, "snapd\t%s\n", snapdtool.Version)
+	fmt.Fprintf(w, "series\t%s\n", release.Series)
 
 	return w.Flush()
 }
