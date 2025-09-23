@@ -57,3 +57,9 @@ execute: |
     test "$snapd_version" = "$snapctl_version"
     test "$snapd_version" = "$snapctl_user_version"
     test "$snapd_version" = "$snapctl_snap_shell_version"
+
+    snapd_series="$(snap version | awk '/series / { print $2 }')"
+    snapctl_snap_shell_series="$(test-snapd-sh-core24.sh -c 'snapctl version' | awk '/series / { print $2 }')"
+
+    test -n "$snapd_series"
+    test "$snapd_series" = "$snapctl_snap_shell_series"
