@@ -1049,6 +1049,86 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	c.Check(buf.String(), Equals, string(expectedContent[2:]))
 }
 
+func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("test cannot be run by root")
+	}
+
+	expectedContent := []byte("I was downloaded")
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
+		panic("unexpected call")
+	})
+	defer restore()
+
+	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
+	defer s.store.MockCacher(cache)()
+
+	// mock something that OpenFile will fail on
+	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), nil, 0000), IsNil)
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.DownloadURL = "URL"
+	snap.Size = int64(len(expectedContent))
+	snap.Sha3_384 = "sha3_384-of-foo"
+
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	c.Assert(err, ErrorMatches, "open .*/sha3_384-of-foo: permission denied")
+	c.Check(status, Equals, 0)
+	c.Check(stream, IsNil)
+}
+
+type fakeCacher struct {
+	getPathCalls []string
+}
+
+func (co *fakeCacher) Get(cacheKey, targetPath string) bool {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) GetPath(cacheKey string) string {
+	co.getPathCalls = append(co.getPathCalls, cacheKey)
+	return "not-found"
+}
+
+func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (s *storeDownloadSuite) TestDownloadStreamGoneFromCache(c *C) {
+	expectedContent := []byte("I was downloaded")
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
+		c.Check(url.String(), Equals, "URL")
+		r := &http.Response{
+			Body: io.NopCloser(bytes.NewReader(expectedContent[resume:])),
+		}
+
+		r.StatusCode = 200
+		return r, nil
+	})
+	defer restore()
+
+	fc := &fakeCacher{}
+	defer s.store.MockCacher(fc)()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.DownloadURL = "URL"
+	snap.Size = int64(len(expectedContent))
+	snap.Sha3_384 = "sha3_384-of-foo"
+
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(status, Equals, 200)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent))
+
+	c.Check(fc.getPathCalls, DeepEquals, []string{"sha3_384-of-foo"})
+}
+
 func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 	var mockServer *httptest.Server
 
