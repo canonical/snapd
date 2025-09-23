@@ -116,6 +116,9 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 // ErrDmVerityDataParamsNotFound is returned when the passed in integrityDataParams object is empty.
 var ErrIntegrityDataParamsNotFound = errors.New("integrity data parameters not found")
 
+// ErrUnexpectedIntegrityDataType is returned when the type of the passed in integrityDataParams is not .
+var ErrUnexpectedIntegrityDataType = errors.New("unexpected integrity data type")
+
 // ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
 var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
 
@@ -128,6 +131,10 @@ var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
 func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
 	if params == nil {
 		return "", ErrIntegrityDataParamsNotFound
+	}
+
+	if params.Type != "dm-verity" {
+		return "", fmt.Errorf("%w: expected %q but found %q.", ErrUnexpectedIntegrityDataType, "dm-verity", params.Type)
 	}
 
 	hashFileName := fmt.Sprintf("%s.dmverity_%s", snapPath, params.Digest)
