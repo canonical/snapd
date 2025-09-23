@@ -806,7 +806,6 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 
 	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
-		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
 		if err != nil {
 			// There's a TOCTOU race between getting a path from the cache and
@@ -817,6 +816,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 			}
 			// file not found, proceed to store download
 		} else {
+			logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 			if resume == 0 {
 				return file, 200, nil
 			}
