@@ -77,7 +77,9 @@ func testClientAppsGlobal(cs *clientSuite, c *check.C) ([]*client.AppInfo, error
 	return services, err
 }
 
-func testClientAppsActivators(cs *clientSuite, c *check.C) {
+var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService, testClientAppsGlobal}
+
+func (cs *clientSuite) TestClientAppActivators(c *check.C) {
 	expected := []*client.AppInfo{
 		{
 			Snap:    "hello-world",
@@ -96,19 +98,12 @@ func testClientAppsActivators(cs *clientSuite, c *check.C) {
 		},
 	}
 
+	activatorString := `[{"snap":"hello-world","name":"hello-world","daemon":"simple","enabled":true,"active":true,"activators":[{"name":"test-activator","type":"dbus","active":false,"enabled":true}]}]`
+
 	buf, err := json.Marshal(expected)
 	c.Assert(err, check.IsNil)
-
-	cs.rsp = fmt.Sprintf(`{"type": "sync", "result": %s}`, buf)
-
-	for _, chkr := range appcheckers {
-		actual, err := chkr(cs, c)
-		c.Assert(err, check.IsNil)
-		c.Check(actual, check.DeepEquals, expected)
-	}
+	c.Check(activatorString, check.DeepEquals, string(buf))
 }
-
-var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService, testClientAppsGlobal}
 
 func (cs *clientSuite) TestClientServiceGetHappy(c *check.C) {
 	expected := []*client.AppInfo{mksvc("foo", "foo"), mksvc("bar", "bar1")}
