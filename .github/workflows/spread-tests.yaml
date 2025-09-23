@@ -364,6 +364,8 @@ jobs:
           if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
             if [[ "${{ inputs.group }}" == *"-arm64"* ]]; then
               export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_arm64.snap
+            elif [[ "${{ inputs.group }}" =~ "-fips-" ]]; then
+              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64-fips.snap
             else
               export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
             fi
