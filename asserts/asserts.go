@@ -161,6 +161,7 @@ var (
 	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
 	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
 	ConfdbControlType        = &AssertionType{"confdb-control", []string{"brand-id", "model", "serial"}, nil, assembleConfdbControl, noAuthority}
+	HardwareIdentityType     = &AssertionType{"hardware-identity", []string{"hardware-id-key-sha3-384"}, nil, assembleHardwareIdentity, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -183,15 +184,19 @@ var typeRegistry = map[string]*AssertionType{
 	SnapResourcePairType.Name:     SnapResourcePairType,
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
 <<<<<<< HEAD
+<<<<<<< HEAD
 	ClusterType.Name:              ClusterType,
 =======
 	HardwareIdentityType.Name:     HardwareIdentityType,
 >>>>>>> a46401fcfa (asserts: add format for hardware identity assertion)
+=======
+>>>>>>> 8e183b06b5 (asserts: add unit tests for hardware identity assertion)
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
 	ConfdbControlType.Name:        ConfdbControlType,
+	HardwareIdentityType.Name:     HardwareIdentityType,
 }
 
 // Type returns the AssertionType with name or nil
