@@ -1,0 +1,21 @@
+name: test-iscsi-initiator-interfaces
+version: "1.0"
+type: app
+summary: Test for iSCSI initiator interfaces
+description: |
+  This snap is for testing iSCSI initiator interfaces.
+confinement: strict
+grade: stable
+base: core24
+
+apps:
+  client:
+    command: bin/sh
+    plugs: [iscsi-initiator]
+
+parts:
+  iscsi:
+    plugin: dump
+    source: .
+    stage-packages:
+      - socat
