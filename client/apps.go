@@ -72,7 +72,7 @@ func (aa AppActivator) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(activatorWrapper{
 		appActivator:  appActivator(aa),
-		NameLegacy:    aa.Name,
+		NameLegacy:    aa.Name, // TODO remove in a future release
 		TypeLegacy:    aa.Type,
 		ActiveLegacy:  aa.Active,
 		EnabledLegacy: aa.Enabled,
