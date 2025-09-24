@@ -116,7 +116,8 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 // ErrDmVerityDataParamsNotFound is returned when the passed in integrityDataParams object is empty.
 var ErrIntegrityDataParamsNotFound = errors.New("integrity data parameters not found")
 
-// ErrUnexpectedIntegrityDataType is returned when the type of the passed in integrityDataParams is not .
+// ErrUnexpectedIntegrityDataType is returned when the type of the passed in integrityDataParams is not
+// the one expected by this particular function.
 var ErrUnexpectedIntegrityDataType = errors.New("unexpected integrity data type")
 
 // ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
