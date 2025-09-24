@@ -13,8 +13,6 @@ details: |
   configuration files, ConfigFS for Linux-IO (LIO) target management,
   and communicate with the iSCSI daemon.
 
-systems: [ubuntu-2*]
-
 environment:
   TEST_SNAP: test-iscsi-initiator-interfaces
 
