@@ -59,7 +59,7 @@ func (s *interfaceSuite) TestConfigureInterfaceUnhappyOptionValue(c *C) {
 			"interface.x11.allow-auto-connection": "test",
 		},
 	})
-	c.Assert(err, ErrorMatches, `core.interface.x11.allow-auto-connection can only be set to 'true', 'false' or 'verifed'`)
+	c.Assert(err, ErrorMatches, `core.interface.x11.allow-auto-connection can only be set to 'true', 'false' or 'verified'`)
 }
 
 func (s *interfaceSuite) TestConfigureInterfaceHappy(c *C) {

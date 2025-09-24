@@ -7950,7 +7950,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -7979,7 +7981,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8015,7 +8019,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8047,7 +8053,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8082,7 +8090,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetAlreadyConnected(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8187,7 +8197,9 @@ volumes:
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -11901,7 +11913,11 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-content-plug:shared-content-plug, candidates found: snap-content-slot:shared-content-slot`)
 }
 
-func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerified(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedUnhappy(c *C) {
+	r := ifacestate.MockIsSnapVerified(func(si *snap.Info) bool {
+		return false
+	})
+	defer r()
 	s.setAutoConnectionAllowed(c, "content", "verified")
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
@@ -11918,4 +11934,34 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	})
 	c.Check(logs, HasLen, 1)
 	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-content-plug:shared-content-plug, candidates found: snap-content-slot:shared-content-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedHappy(c *C) {
+	r := ifacestate.MockIsSnapVerified(func(si *snap.Info) bool {
+		return true
+	})
+	defer r()
+	s.setAutoConnectionAllowed(c, "content", "verified")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 2)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-content-plug:shared-content-plug snap-content-slot:shared-content-slot": map[string]any{
+			"auto": true, "interface": "content", "plug-static": map[string]any{
+				"content": "shared-content", "default-provider": "snap-content-slot",
+			},
+			"slot-static": map[string]any{
+				"content": "shared-content",
+			},
+		},
+		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Assert(logs, HasLen, 0)
 }

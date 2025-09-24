@@ -220,3 +220,7 @@ func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, o
 func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
 	return m.setupSecurityByBackend(task, appSets, opts, tm)
 }
+
+func MockIsSnapVerified(new func(si *snap.Info) bool) (restore func()) {
+	return testutil.Mock(&isSnapVerified, new)
+}

@@ -82,7 +82,7 @@ func validateAllowAutoConnectionValue(tr RunTransaction) error {
 		case "", "verified", "true", "false":
 			// thats ok
 		default:
-			return fmt.Errorf("%s can only be set to 'true', 'false' or 'verifed'", name)
+			return fmt.Errorf("%s can only be set to 'true', 'false' or 'verified'", name)
 		}
 	}
 	return nil

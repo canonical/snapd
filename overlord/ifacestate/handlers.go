@@ -25,6 +25,7 @@ import (
 	"path"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1383,28 +1384,50 @@ func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap
 	}
 }
 
-func isSnapSlotAllowed(si *snap.Info, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
-	var status string
-	option := fmt.Sprintf("interface.%s.allow-auto-connection", slot.Interface)
-	err := tr.Get("core", option, &status)
+// Keep this separate to allow mocking
+var isSnapVerified = func(si *snap.Info) bool {
+	switch si.Publisher.Validation {
+	case "verified", "starred":
+		return true
+	}
+	return false
+}
+
+func getAllowOptionAsString(inter string, tr *config.Transaction) (string, error) {
+	var value any
+	option := fmt.Sprintf("interface.%s.allow-auto-connection", inter)
+	err := tr.Get("core", option, &value)
 	if err != nil && !config.IsNoOption(err) {
+		return "", err
+	}
+
+	switch option := value.(type) {
+	case string:
+		return option, nil
+	case bool:
+		return strconv.FormatBool(option), nil
+	}
+	return "", nil
+}
+
+func isSnapSlotAllowed(si *snap.Info, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
+	option, err := getAllowOptionAsString(slot.Interface, tr)
+	if err != nil {
 		return false, err
 	}
-	switch status {
+	switch option {
 	case "", "true":
 		return true, nil
 	case "false":
 		return false, nil
 	case "verified":
-		switch si.Publisher.Validation {
-		case "verified", "starred":
-			return true, nil
+		if option == "verified" {
+			return isSnapVerified(si), nil
 		}
-		return false, nil
 	}
 	return false, fmt.Errorf(
 		"internal error: invalid allow-auto-connection status %s for %s",
-		status, slot.Snap.RealName)
+		option, slot.Snap.RealName)
 }
 
 func filterAllowedAutoConnectionSlots(st *state.State, si *snap.Info, css []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
