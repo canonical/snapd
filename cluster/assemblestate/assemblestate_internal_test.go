@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -53,7 +54,7 @@ func createTestIdentity(
 	fp Fingerprint,
 	secret string,
 ) Identity {
-	assertion, key := createTestSerial(c, signing)
+	_, bundle, key := createTestSerialBundle(c, signing)
 
 	// create SerialProof using the same device key
 	hmac := CalculateHMAC(rdt, fp, secret)
@@ -61,16 +62,16 @@ func createTestIdentity(
 	c.Assert(err, check.IsNil)
 
 	return Identity{
-		RDT:         rdt,
-		FP:          fp,
-		Serial:      string(asserts.Encode(assertion)),
-		SerialProof: proof,
+		RDT:          rdt,
+		FP:           fp,
+		SerialBundle: bundle,
+		SerialProof:  proof,
 	}
 }
 
 func createTestSerial(
 	c *check.C,
-	signing *assertstest.StoreStack,
+	signing assertstest.SignerDB,
 ) (*asserts.Serial, asserts.PrivateKey) {
 	// create a device key for the serial assertion
 	key, _ := assertstest.GenerateKey(752)
@@ -95,9 +96,19 @@ func createTestSerial(
 	return s, key
 }
 
+func createTestSerialBundle(
+	c *check.C,
+	signing *assertstest.StoreStack,
+) (*asserts.Serial, string, asserts.PrivateKey) {
+	serial, key := createTestSerial(c, signing)
+	bundle, err := buildSerialBundle(serial, signing.Database)
+	c.Assert(err, check.Equals, nil)
+	return serial, bundle, key
+}
+
 func createTestAssembleConfig(c *check.C, signing *assertstest.StoreStack, secret, rdt string) AssembleConfig {
 	certPEM, keyPEM := createTestCertAndKey(c)
-	serial, deviceKey := createTestSerial(c, signing)
+	serial, _, deviceKey := createTestSerialBundle(c, signing)
 	return AssembleConfig{
 		Secret:  secret,
 		RDT:     DeviceToken(rdt),
@@ -899,9 +910,19 @@ func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 
 		d := devices.Devices[0]
 		c.Assert(d.RDT, check.Equals, DeviceToken("self"))
-		// verify the serial contains the full assertion, not just the serial number
-		c.Assert(len(d.Serial) > 0, check.Equals, true)
-		c.Assert(len(d.SerialProof) > 0, check.Equals, true)
+
+		var sawSerial, sawAccountKey bool
+		commitBundleAndObserve(c, signing.Trusted, d.SerialBundle, func(a asserts.Assertion) {
+			switch asn := a.(type) {
+			case *asserts.Serial:
+				sawSerial = true
+				c.Assert(asn.DeviceKey().ID(), check.Equals, key.PublicKey().ID())
+			case *asserts.AccountKey:
+				sawAccountKey = true
+			}
+		})
+		c.Assert(sawSerial, check.Equals, true)
+		c.Assert(sawAccountKey, check.Equals, true)
 
 		// verify the serial proof contains a valid signature of the expected HMAC
 		expectedHMAC := CalculateHMAC("self", d.FP, "secret")
@@ -920,6 +941,113 @@ func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline+1)
 }
 
+func (s *clusterSuite) TestPublishDevicesIncludesAccountAndAccountKey(c *check.C) {
+	assertDB, store := mockAssertDB(c)
+
+	const brand = "external-brand"
+	brandAccount := assertstest.NewAccount(store.RootSigning, brand, map[string]any{
+		"account-id": brand,
+	}, "")
+	brandPK, _ := assertstest.GenerateKey(752)
+	brandAccountKey := assertstest.NewAccountKey(store.RootSigning, brandAccount, map[string]any{
+		"name": "default",
+	}, brandPK.PublicKey(), "")
+
+	assertstest.AddMany(assertDB, brandAccount, brandAccountKey)
+
+	deviceKey, _ := assertstest.GenerateKey(752)
+	devicePub, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	brandSigning := assertstest.NewSigningDB(brand, brandPK)
+	serialHeaders := map[string]any{
+		"authority-id":        brand,
+		"brand-id":            brand,
+		"model":               "test-model",
+		"serial":              randutil.RandomString(10),
+		"device-key":          string(devicePub),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+
+	serialAssertion, err := brandSigning.Sign(asserts.SerialType, serialHeaders, nil, "")
+	c.Assert(err, check.IsNil)
+	serial := serialAssertion.(*asserts.Serial)
+
+	certPEM, keyPEM := createTestCertAndKey(c)
+	cfg := AssembleConfig{
+		Secret:  "secret",
+		RDT:     DeviceToken("self"),
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Serial:  serial,
+		Signer:  privateKeySigner(deviceKey),
+		Clock:   time.Now,
+	}
+
+	cm := &committer{}
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, cm.commit, assertDB)
+	c.Assert(err, check.IsNil)
+
+	peer, peerAddr, peerCert := trustedAndDiscoveredPeer(c, as, DeviceToken("peer"))
+	peer.CommitDeviceQueries(UnknownDevices{
+		Devices: []DeviceToken{"self"},
+	})
+
+	var called int
+	client := testClient{
+		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
+			called++
+			c.Assert(addr, check.Equals, peerAddr)
+			c.Assert(cert, check.DeepEquals, peerCert)
+			c.Assert(kind, check.Equals, "devices")
+
+			devices := message.(Devices)
+			c.Assert(devices.Devices, check.HasLen, 1)
+			d := devices.Devices[0]
+			c.Assert(d.RDT, check.Equals, DeviceToken("self"))
+
+			var sawAccount, sawAccountKey bool
+			commitBundleAndObserve(c, store.Trusted, d.SerialBundle, func(a asserts.Assertion) {
+				switch asn := a.(type) {
+				case *asserts.Account:
+					if asn.AccountID() == brand {
+						sawAccount = true
+					}
+				case *asserts.AccountKey:
+					if asn.AccountID() == brand && asn.PublicKeyID() == brandPK.PublicKey().ID() {
+						sawAccountKey = true
+					}
+				}
+			})
+
+			c.Assert(sawAccount, check.Equals, true)
+			c.Assert(sawAccountKey, check.Equals, true)
+			return nil
+		},
+	}
+
+	as.publishDevicesAndCommit(context.Background(), &client)
+	c.Assert(called, check.Equals, 1)
+}
+
+func commitBundleAndObserve(c *check.C, trusted []asserts.Assertion, bundle string, observe func(asserts.Assertion)) {
+	batch := asserts.NewBatch(nil)
+	_, err := batch.AddStream(strings.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = batch.CommitToAndObserve(db, observe, &asserts.CommitOptions{Precheck: true})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *clusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
 	as, cm, _, _, _ := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
@@ -936,9 +1064,9 @@ func (s *clusterSuite) TestCommitDevicesFingerprintMismatch(c *check.C) {
 
 	err := peer.CommitDevices(Devices{
 		Devices: []Identity{{
-			RDT:    peerRDT,
-			FP:     wrongFP,
-			Serial: "peer-serial",
+			RDT:          peerRDT,
+			FP:           wrongFP,
+			SerialBundle: "peer-serial",
 		}},
 	})
 
@@ -976,6 +1104,62 @@ func (s *clusterSuite) TestCommitDevicesInconsistentIdentity(c *check.C) {
 	c.Assert(len(cm.commits), check.Equals, baseline, check.Commentf("commit should not be called on identity inconsistency"))
 }
 
+func (s *clusterSuite) TestCommitDevicesMissingBundlePrerequisites(c *check.C) {
+	assertDB, store := mockAssertDB(c)
+	cfg := createTestAssembleConfig(c, store, "secret", "self")
+
+	cm := &committer{}
+	as, err := NewAssembleState(cfg, AssembleSession{}, func(DeviceToken, Identifier) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, cm.commit, assertDB)
+	c.Assert(err, check.IsNil)
+
+	const brand = "external-brand"
+
+	deviceKey, _ := assertstest.GenerateKey(752)
+	devicePub, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	serialHeaders := map[string]any{
+		"authority-id":        brand,
+		"brand-id":            brand,
+		"model":               "test-model",
+		"serial":              randutil.RandomString(10),
+		"device-key":          string(devicePub),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+
+	brandPK, _ := assertstest.GenerateKey(752)
+	brandSigning := assertstest.NewSigningDB(brand, brandPK)
+
+	serial, err := brandSigning.Sign(asserts.SerialType, serialHeaders, nil, "")
+	c.Assert(err, check.IsNil)
+
+	// note that we only encode the serial assertion. should trigger an error
+	// about missing prereqs when attempting to commit the identity
+	bundle := asserts.Encode(serial)
+
+	fp := CalculateFP([]byte("cert"))
+	hmac := CalculateHMAC("rdt", fp, "secret")
+
+	proof, err := asserts.RawSignWithKey(hmac, deviceKey)
+	c.Assert(err, check.IsNil)
+
+	id := Identity{
+		RDT:          "rdt",
+		FP:           fp,
+		SerialBundle: string(bundle),
+		SerialProof:  proof,
+	}
+
+	peer, _, _ := trustedAndDiscoveredPeer(c, as, DeviceToken("peer"))
+	err = peer.CommitDevices(Devices{
+		Devices: []Identity{id},
+	})
+	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device rdt: invalid identity for device rdt: cannot resolve prerequisite assertion: .*")
+}
+
 func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 	as, _, _, _, signing := newAssembleStateWithTestKeys(c, statelessSelector(), AssembleConfig{
 		Secret: "secret",
@@ -993,7 +1177,7 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 			name: "wrong device key in serial proof",
 			identity: func() Identity {
 				// create a valid serial assertion
-				serial, _ := createTestSerial(c, signing)
+				_, bundle, _ := createTestSerialBundle(c, signing)
 
 				// but sign the proof with a completely different key
 				attackerKey, _ := assertstest.GenerateKey(752)
@@ -1007,10 +1191,10 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -1019,7 +1203,7 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 			name: "modified serial assertion",
 			identity: func() Identity {
 				// create a valid serial assertion and device key
-				serial, deviceKey := createTestSerial(c, signing)
+				serial, bundle, deviceKey := createTestSerialBundle(c, signing)
 
 				rdt := DeviceToken("victim-rdt")
 				fp := CalculateFP([]byte("victim-cert"))
@@ -1032,20 +1216,21 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 				// but modify the serial assertion after signing
 				validSerial := string(asserts.Encode(serial))
 				modifiedSerial := validSerial[:len(validSerial)-10] + "HACKED" + validSerial[len(validSerial)-6:]
+				tamperedBundle := strings.Replace(bundle, validSerial, modifiedSerial, 1)
 
 				return Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      modifiedSerial,
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: tamperedBundle,
+					SerialProof:  proof,
 				}
 			},
-			err: ".*invalid serial assertion.*",
+			err: "(?s).*cannot decode signature.*",
 		},
 		{
 			name: "wrong secret in hmac",
 			identity: func() Identity {
-				serial, deviceKey := createTestSerial(c, signing)
+				_, bundle, deviceKey := createTestSerialBundle(c, signing)
 
 				rdt := DeviceToken("victim-rdt")
 				fp := CalculateFP([]byte("victim-cert"))
@@ -1058,10 +1243,10 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -1069,7 +1254,7 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 		{
 			name: "mismatched rdt in proof",
 			identity: func() Identity {
-				serial, deviceKey := createTestSerial(c, signing)
+				_, bundle, deviceKey := createTestSerialBundle(c, signing)
 
 				rdt := DeviceToken("real-rdt")
 				attackerRDT := DeviceToken("attacker-rdt")
@@ -1081,10 +1266,10 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return Identity{
-					RDT:         rdt, // claim this RDT
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof, // but proof is for different RDT
+					RDT:          rdt, // claim this RDT
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof, // but proof is for different RDT
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -1092,16 +1277,16 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 		{
 			name: "invalid signature data",
 			identity: func() Identity {
-				serial, _ := createTestSerial(c, signing)
+				_, bundle, _ := createTestSerialBundle(c, signing)
 
 				rdt := DeviceToken("victim-rdt")
 				fp := CalculateFP([]byte("victim-cert"))
 
 				return Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: []byte("garbage-signature-data"),
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  []byte("garbage-signature-data"),
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -1109,8 +1294,6 @@ func (s *clusterSuite) TestRecordDevicesForgedIdentity(c *check.C) {
 	}
 
 	for _, tc := range cases {
-		c.Logf("testing forged identity case: %s", tc.name)
-
 		id := tc.identity()
 
 		// attempt to record the forged identity
@@ -1336,7 +1519,7 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 		},
 	}
 
-	serial, deviceKey := createTestSerial(c, signing)
+	serial, bundle, deviceKey := createTestSerialBundle(c, signing)
 	proof, err := asserts.RawSignWithKey(CalculateHMAC(local.rdt, local.fp, "secret"), deviceKey)
 	c.Assert(err, check.IsNil)
 
@@ -1425,11 +1608,24 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 			publications = append(publications, addr)
 			devices := message.(Devices)
 			c.Check(devices.Devices, check.DeepEquals, []Identity{{
-				RDT:         local.rdt,
-				FP:          local.fp,
-				Serial:      string(asserts.Encode(serial)),
-				SerialProof: proof,
+				RDT:          local.rdt,
+				FP:           local.fp,
+				SerialBundle: bundle,
+				SerialProof:  proof,
 			}})
+
+			var sawSerial, sawAccountKey bool
+			commitBundleAndObserve(c, signing.Trusted, devices.Devices[0].SerialBundle, func(a asserts.Assertion) {
+				switch asn := a.(type) {
+				case *asserts.Serial:
+					sawSerial = true
+					c.Assert(asn.DeviceKey().ID(), check.Equals, deviceKey.PublicKey().ID())
+				case *asserts.AccountKey:
+					sawAccountKey = true
+				}
+			})
+			c.Assert(sawSerial, check.Equals, true)
+			c.Assert(sawAccountKey, check.Equals, true)
 			return nil
 		},
 	}
@@ -1456,6 +1652,21 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 	cfg := createTestAssembleConfig(c, signing, "secret", "rdt")
 
 	commit := func(AssembleSession) {}
+
+	cert, err := tls.X509KeyPair([]byte(cfg.TLSCert), []byte(cfg.TLSKey))
+	c.Assert(err, check.IsNil)
+	localFP := CalculateFP(cert.Certificate[0])
+	bundle, err := buildSerialBundle(cfg.Serial, db)
+	c.Assert(err, check.IsNil)
+	proof, err := cfg.Signer(CalculateHMAC(cfg.RDT, localFP, cfg.Secret))
+	c.Assert(err, check.IsNil)
+
+	expectedID := Identity{
+		RDT:          cfg.RDT,
+		FP:           localFP,
+		SerialBundle: bundle,
+		SerialProof:  proof,
+	}
 
 	cases := []struct {
 		name    string
@@ -1566,17 +1777,41 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 		{
 			name: "local device fingerprint mismatch",
 			session: func() AssembleSession {
-				// use a different fingerprint than what the test cert would generate
-				wrongFP := CalculateFP([]byte("wrong-cert"))
+				identity := expectedID
+				identity.FP = CalculateFP([]byte("wrong-cert"))
 				return AssembleSession{
 					Devices: DeviceQueryTrackerData{
-						IDs: []Identity{
-							createTestIdentity(c, signing, cfg.RDT, wrongFP, "secret"),
-						},
+						IDs: []Identity{identity},
 					},
 				}
 			}(),
 			err: "fingerprint mismatch for local device.*",
+		},
+		{
+			name: "local device serial bundle mismatch",
+			session: func() AssembleSession {
+				identity := expectedID
+				identity.SerialBundle = expectedID.SerialBundle + "-different"
+				return AssembleSession{
+					Devices: DeviceQueryTrackerData{
+						IDs: []Identity{identity},
+					},
+				}
+			}(),
+			err: "serial bundle mismatch for local device.*",
+		},
+		{
+			name: "local device serial proof mismatch",
+			session: func() AssembleSession {
+				identity := expectedID
+				identity.SerialProof = []byte("wrong-proof")
+				return AssembleSession{
+					Devices: DeviceQueryTrackerData{
+						IDs: []Identity{identity},
+					},
+				}
+			}(),
+			err: "serial proof mismatch for local device.*",
 		},
 	}
 

@@ -207,11 +207,16 @@ func NewAssembleState(
 		return nil, fmt.Errorf("cannot sign hmac for serial proof: %v", err)
 	}
 
+	bundle, err := buildSerialBundle(config.Serial, assertDB)
+	if err != nil {
+		return nil, fmt.Errorf("cannot build serial bundle: %w", err)
+	}
+
 	if err := ensureLocalDevicePresent(&validated.devices, Identity{
-		RDT:         config.RDT,
-		FP:          CalculateFP(cert.Certificate[0]),
-		Serial:      string(asserts.Encode(config.Serial)),
-		SerialProof: proof,
+		RDT:          config.RDT,
+		FP:           CalculateFP(cert.Certificate[0]),
+		SerialBundle: bundle,
+		SerialProof:  proof,
 	}); err != nil {
 		return nil, err
 	}
@@ -801,7 +806,7 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 
 	for _, id := range devices.Devices {
 		if current, ok := h.as.devices.Lookup(id.RDT); ok {
-			if current.RDT != id.RDT || current.FP != id.FP || current.Serial != id.Serial || !bytes.Equal(current.SerialProof, id.SerialProof) {
+			if current.RDT != id.RDT || current.FP != id.FP || current.SerialBundle != id.SerialBundle || !bytes.Equal(current.SerialProof, id.SerialProof) {
 				return errors.New("got inconsistent device identity")
 			}
 		}
@@ -867,6 +872,22 @@ func untrustedSend(
 	return client.Untrusted(ctx, addr, kind, data)
 }
 
+func buildSerialBundle(serial *asserts.Serial, db asserts.RODatabase) (string, error) {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	fetcher := asserts.NewFetcher(db, retrieve, enc.Encode)
+	if err := fetcher.Save(serial); err != nil {
+		return "", fmt.Errorf("cannot bundle serial prerequisites: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
 // ensureLocalDevicePresent adds the local device identity to the IDs slice if
 // not present, or validates consistency if already present.
 func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error {
@@ -874,6 +895,14 @@ func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error
 		if existing.RDT == self.RDT {
 			if existing.FP != self.FP {
 				return fmt.Errorf("fingerprint mismatch for local device %q", self.RDT)
+			}
+
+			if !bytes.Equal(existing.SerialProof, self.SerialProof) {
+				return fmt.Errorf("serial proof mismatch for local device %q", self.RDT)
+			}
+
+			if existing.SerialBundle != self.SerialBundle {
+				return fmt.Errorf("serial bundle mismatch for local device %q", self.RDT)
 			}
 
 			return nil

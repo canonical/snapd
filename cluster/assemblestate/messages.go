@@ -74,8 +74,9 @@ type Identity struct {
 	// FP is the TLS certificate fingerprint used by this device.
 	FP Fingerprint `json:"fp"`
 
-	// Serial is this device's serial assertion.
-	Serial string `json:"serial"`
+	// SerialBundle is the bundle of assertions required to validate this
+	// device's serial assertion, including the serial assertion itself.
+	SerialBundle string `json:"serial-bundle"`
 
 	// SerialProof is the HMAC that this device would use to authenticate
 	// itself, signed by this device's private key. This signature can be

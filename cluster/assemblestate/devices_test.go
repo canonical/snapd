@@ -20,6 +20,7 @@
 package assemblestate_test
 
 import (
+	"bytes"
 	"sort"
 	"time"
 
@@ -58,7 +59,7 @@ func createTestIdentity(
 	fp assemblestate.Fingerprint,
 	secret string,
 ) assemblestate.Identity {
-	assertion, key := createTestSerial(c, signing)
+	_, bundle, key := createTestSerialBundle(c, signing)
 
 	// create SerialProof using the same device key
 	hmac := assemblestate.CalculateHMAC(rdt, fp, secret)
@@ -66,10 +67,10 @@ func createTestIdentity(
 	c.Assert(err, check.IsNil)
 
 	return assemblestate.Identity{
-		RDT:         rdt,
-		FP:          fp,
-		Serial:      string(asserts.Encode(assertion)),
-		SerialProof: proof,
+		RDT:          rdt,
+		FP:           fp,
+		SerialBundle: bundle,
+		SerialProof:  proof,
 	}
 }
 
@@ -101,8 +102,32 @@ func createTestSerial(
 	return s, key
 }
 
+func createTestSerialBundle(
+	c *check.C,
+	signing *assertstest.StoreStack,
+) (*asserts.Serial, string, asserts.PrivateKey) {
+	serial, key := createTestSerial(c, signing)
+	bundle := buildSerialBundle(c, serial, signing.Database)
+	return serial, bundle, key
+}
+
+func buildSerialBundle(c *check.C, serial *asserts.Serial, db asserts.RODatabase) string {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	fetcher := asserts.NewFetcher(db, retrieve, enc.Encode)
+	err := fetcher.Save(serial)
+	c.Assert(err, check.IsNil)
+
+	return buf.String()
+}
+
 // createExpiredSerial creates a serial assertion with an expired timestamp
-func createExpiredSerial(c *check.C, signing *assertstest.StoreStack) (asserts.Assertion, asserts.PrivateKey) {
+func createExpiredSerial(c *check.C, signing *assertstest.StoreStack) (*asserts.Serial, asserts.PrivateKey) {
 	// create a device key for the serial assertion
 	key, _ := assertstest.GenerateKey(752)
 	pubkey, err := asserts.EncodePublicKey(key.PublicKey())
@@ -373,7 +398,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	ids, ack := dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 1)
 	c.Assert(ids[0].RDT, check.Equals, one.RDT)
-	c.Assert(ids[0].Serial, check.Equals, one.Serial)
+	c.Assert(ids[0].SerialBundle, check.Equals, one.SerialBundle)
 
 	// ack with false indicates that we could not send the query
 	const failure = false
@@ -386,7 +411,7 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	ids, ack = dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 1)
 	c.Assert(ids[0].RDT, check.Equals, one.RDT)
-	c.Assert(ids[0].Serial, check.Equals, one.Serial)
+	c.Assert(ids[0].SerialBundle, check.Equals, one.SerialBundle)
 
 	const success = true
 	ack(success)
@@ -719,20 +744,20 @@ func (s *deviceTrackerSuite) TestDeviceTrackerWithAssertionValidation(c *check.C
 	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
 	c.Assert(err, check.IsNil)
 
-	// should reject empty serial assertion
+	// should reject empty serial bundle
 	empty := assemblestate.Identity{
-		RDT:    assemblestate.DeviceToken("empty-serial"),
-		Serial: "",
+		RDT:          assemblestate.DeviceToken("empty-serial"),
+		SerialBundle: "",
 	}
 	err = dt.RecordIdentity(empty)
-	c.Assert(err, check.ErrorMatches, ".*cannot decode serial assertion.*")
+	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device empty-serial: invalid identity for device empty-serial: serial bundle is empty")
 
 	malformed := assemblestate.Identity{
-		RDT:    assemblestate.DeviceToken("malformed-serial"),
-		Serial: "not-a-valid-assertion",
+		RDT:          assemblestate.DeviceToken("malformed-serial"),
+		SerialBundle: "not-a-valid-assertion",
 	}
 	err = dt.RecordIdentity(malformed)
-	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device malformed-serial: .*")
+	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device malformed-serial: invalid identity for device malformed-serial: unexpected EOF")
 }
 
 func (s *deviceTrackerSuite) TestRecordIdentityWithValidAssertion(c *check.C) {
@@ -741,20 +766,9 @@ func (s *deviceTrackerSuite) TestRecordIdentityWithValidAssertion(c *check.C) {
 	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
 	c.Assert(err, check.IsNil)
 
-	serial, key := createTestSerial(c, signing)
 	rdt := assemblestate.DeviceToken("test-device")
 	f := assemblestate.Fingerprint{1, 2, 3, 4, 5}
-
-	hmac := assemblestate.CalculateHMAC(rdt, f, "test-secret")
-	proof, err := asserts.RawSignWithKey(hmac, key)
-	c.Assert(err, check.IsNil)
-
-	identity := assemblestate.Identity{
-		RDT:         rdt,
-		FP:          f,
-		Serial:      string(asserts.Encode(serial)),
-		SerialProof: assemblestate.Proof(proof),
-	}
+	identity := createTestIdentity(c, signing, rdt, f, "test-secret")
 
 	// should successfully record identity with valid assertion
 	err = dt.RecordIdentity(identity)
@@ -765,7 +779,7 @@ func (s *deviceTrackerSuite) TestRecordIdentityWithValidAssertion(c *check.C) {
 	recorded, ok := dt.Lookup("test-device")
 	c.Assert(ok, check.Equals, true)
 	c.Assert(recorded.RDT, check.Equals, assemblestate.DeviceToken("test-device"))
-	c.Assert(recorded.Serial, check.Equals, string(asserts.Encode(serial)))
+	c.Assert(recorded.SerialBundle, check.Equals, identity.SerialBundle)
 }
 
 func (s *deviceTrackerSuite) TestRecordIdentityUntrustedKeys(c *check.C) {
@@ -776,11 +790,11 @@ func (s *deviceTrackerSuite) TestRecordIdentityUntrustedKeys(c *check.C) {
 
 	// create assertion signed by untrusted authority
 	untrusted := assertstest.NewStoreStack("untrusted-authority", nil)
-	serial, _ := createTestSerial(c, untrusted)
+	_, bundle, _ := createTestSerialBundle(c, untrusted)
 
 	identity := assemblestate.Identity{
-		RDT:    assemblestate.DeviceToken("test-device"),
-		Serial: string(asserts.Encode(serial)),
+		RDT:          assemblestate.DeviceToken("test-device"),
+		SerialBundle: bundle,
 	}
 	err = dt.RecordIdentity(identity)
 
@@ -800,7 +814,7 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 	)
 	c.Assert(err, check.IsNil)
 
-	serial, key := createTestSerial(c, signing)
+	_, bundle, key := createTestSerialBundle(c, signing)
 	cases := []struct {
 		name     string
 		identity func() assemblestate.Identity
@@ -817,10 +831,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return assemblestate.Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: "",
@@ -829,10 +843,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 			name: "empty proof",
 			identity: func() assemblestate.Identity {
 				return assemblestate.Identity{
-					RDT:         assemblestate.DeviceToken("empty-proof"),
-					FP:          assemblestate.Fingerprint{1, 2, 3, 4, 5},
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: nil,
+					RDT:          assemblestate.DeviceToken("empty-proof"),
+					FP:           assemblestate.Fingerprint{1, 2, 3, 4, 5},
+					SerialBundle: bundle,
+					SerialProof:  nil,
 				}
 			},
 			err: ".*empty serial proof.*",
@@ -849,10 +863,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return assemblestate.Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -868,10 +882,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return assemblestate.Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -887,10 +901,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return assemblestate.Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -907,10 +921,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				return assemblestate.Identity{
-					RDT:         rdt,
-					FP:          fp,
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: proof,
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -919,10 +933,10 @@ func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
 			name: "invalid signature",
 			identity: func() assemblestate.Identity {
 				return assemblestate.Identity{
-					RDT:         assemblestate.DeviceToken("corrupted"),
-					FP:          assemblestate.Fingerprint{1, 2, 3, 4, 5},
-					Serial:      string(asserts.Encode(serial)),
-					SerialProof: []byte{0x00, 0x01, 0x02, 0x03, 0xFF},
+					RDT:          assemblestate.DeviceToken("corrupted"),
+					FP:           assemblestate.Fingerprint{1, 2, 3, 4, 5},
+					SerialBundle: bundle,
+					SerialProof:  []byte{0x00, 0x01, 0x02, 0x03, 0xFF},
 				}
 			},
 			err: ".*serial proof verification failed.*",
@@ -946,6 +960,7 @@ func (s *deviceTrackerSuite) TestExpiredAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	serial, key := createExpiredSerial(c, signing)
+	bundle := buildSerialBundle(c, serial, signing.Database)
 	rdt := assemblestate.DeviceToken("test-device")
 	f := assemblestate.Fingerprint{1, 2, 3, 4, 5}
 
@@ -954,14 +969,14 @@ func (s *deviceTrackerSuite) TestExpiredAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	identity := assemblestate.Identity{
-		RDT:         rdt,
-		FP:          f,
-		Serial:      string(asserts.Encode(serial)),
-		SerialProof: assemblestate.Proof(proof),
+		RDT:          rdt,
+		FP:           f,
+		SerialBundle: bundle,
+		SerialProof:  assemblestate.Proof(proof),
 	}
 
 	err = dt.RecordIdentity(identity)
-	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device test-device: .*")
+	c.Assert(err, check.ErrorMatches, "(?s).*outside of signing key validity.*")
 	c.Assert(dt.Identified("test-device"), check.Equals, false)
 }
 

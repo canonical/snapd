@@ -20,7 +20,9 @@
 package assemblestate
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -273,26 +275,38 @@ func (d *DeviceQueryTracker) Lookup(rdt DeviceToken) (Identity, bool) {
 	return id, ok
 }
 
-func verifySerialAssertion(str string, db asserts.RODatabase) (*asserts.Serial, error) {
-	a, err := asserts.Decode([]byte(str))
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode serial assertion: %w", err)
+func verifySerialBundle(bundle string, db asserts.RODatabase) (*asserts.Serial, error) {
+	if bundle == "" {
+		return nil, errors.New("serial bundle is empty")
 	}
 
-	serial, ok := a.(*asserts.Serial)
-	if !ok {
-		return nil, fmt.Errorf("assertion is not a serial assertion, got %s", a.Type().Name)
+	tmpDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	batch := asserts.NewBatch(nil)
+
+	if _, err := batch.AddStream(strings.NewReader(bundle)); err != nil {
+		return nil, err
 	}
 
-	if err := db.Check(a); err != nil {
-		return nil, fmt.Errorf("serial assertion verification failed: %w", err)
+	var serials []*asserts.Serial
+	observe := func(a asserts.Assertion) {
+		if s, ok := a.(*asserts.Serial); ok {
+			serials = append(serials, s)
+		}
 	}
 
-	return serial, nil
+	if err := batch.CommitToAndObserve(tmpDB, observe, nil); err != nil {
+		return nil, err
+	}
+
+	if len(serials) != 1 {
+		return nil, errors.New("exactly one serial assertion expected in bundle")
+	}
+
+	return serials[0], nil
 }
 
 func (d *DeviceQueryTracker) validateID(id Identity) error {
-	serial, err := verifySerialAssertion(id.Serial, d.assertDB)
+	serial, err := verifySerialBundle(id.SerialBundle, d.assertDB)
 	if err != nil {
 		return fmt.Errorf("invalid identity for device %s: %w", id.RDT, err)
 	}
