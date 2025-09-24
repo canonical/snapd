@@ -73,10 +73,7 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 	c.Check(req.HardwareName(), Equals, "raspberry-pi-4gb")
 	c.Check(req.HardwareId(), Equals, "random-id-1")
 	c.Check(req.HardwareIdKey(), Equals, s.encodedDevKey)
-	c.Check(req.HardwareIdKeySha3384(), Equals, s.deviceKey.PublicKey().ID())
-
-	
-
+	c.Check(req.HardwareIdKeySha3384(), Equals, s.deviceKey.PublicKey().ID())	
 	c.Check(string(req.Body()), Equals, "")
 }
 
