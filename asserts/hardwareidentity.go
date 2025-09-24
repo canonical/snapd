@@ -20,12 +20,8 @@
 package asserts
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
-
-	"golang.org/x/crypto/sha3"
 )
 
 type HardwareIdentity struct {
@@ -64,15 +60,12 @@ func (h *HardwareIdentity) HardwareIdKeySha3384() string {
 }
 
 func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
-	issuerId, err := checkNotEmptyString(assert.headers, "issuer-id")         
+	issuerId, err := checkStringMatches(assert.headers, "issuer-id", validAccountID)
 	if err != nil {
 		return nil, err
 	}
-	if !validAccountID.MatchString(issuerId) {
-		return nil, fmt.Errorf("invalid issuer id: %s", issuerId)
-	}
 
-	if issuerId != assert.headers["authority-id"] {
+	if issuerId != assert.HeaderString("authority-id") {
 		return nil, errors.New("issuer id must match authority id")
 	}
 
@@ -96,21 +89,15 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	
-	if !IsParsablePemPublicKeyBody(hardwareIdKey) {
-		return nil, errors.New(`"hardware-id-key" header should be the body of a PEM`)
+	decodedHardwareIdKey, err := DecodePublicKey([]byte(hardwareIdKey))
+	if err != nil {
+		return nil, err
 	}
-
-	// don't check if non-empty as check was done for primary key
-	hardwareIdKeySha3384, _ := checkNotEmptyString(assert.headers, "hardware-id-key-sha3-384") 
-
 	
-    // Compute hash and display as hexadecimal
-	hash := sha3.New384()
-    hash.Write([]byte(hardwareIdKey))
-    hashedHardwareIdKey := hash.Sum(nil)
+	hardwareIdKeySha3384 := assert.HeaderString("hardware-id-key-sha3-384")
 
-	if hardwareIdKeySha3384 != fmt.Sprintf("%x", hashedHardwareIdKey) {
-		return nil, fmt.Errorf("hardware id key does not match provided sha3 digest")
+	if hardwareIdKeySha3384 != decodedHardwareIdKey.ID() {
+		return nil, fmt.Errorf("hardware id key does not match provided hash")
 	}
 
 	if len(assert.body) != 0 {
@@ -126,22 +113,4 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 		hardwareIdKey: hardwareIdKey,
 		hardwareIdKeySha3384: hardwareIdKeySha3384,
 	}, nil
-}
-
-
-// IsParsablePemPublicKeyBody checks if s is a valid PEM body for RFC 7468 "PUBLIC KEY"
-func IsParsablePemPublicKeyBody(s string) bool {
-    cleaned := strings.ReplaceAll(s, "\n", "")
-    cleaned = strings.ReplaceAll(cleaned, "\r", "")
-    cleaned = strings.TrimSpace(cleaned)
-
-    // Must not contain encapsulation boundaries
-    if strings.Contains(cleaned, "-----BEGIN") || strings.Contains(cleaned, "-----END") {
-        return false
-    }
-
-    // Base64 decode: PEM may have whitespace, so we ignore it above
-    _, err := base64.StdEncoding.DecodeString(cleaned)
-
-    return err == nil
 }
