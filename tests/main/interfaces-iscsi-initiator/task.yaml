@@ -1,0 +1,111 @@
+summary: Ensure that the iscsi-initiator interface works.
+
+details: |
+  The iscsi-initiator interface allows snaps to act as iSCSI initiators,
+  enabling them to discover, connect to, and manage iSCSI targets for
+  block storage access.
+
+  A snap which defines an iscsi-initiator plug must be shown in the interfaces
+  list. The plug must not be auto-connected on install and, as usual, must be
+  able to be reconnected.
+
+  A snap declaring a plug on this interface must be able to access iSCSI
+  configuration files, ConfigFS for Linux-IO (LIO) target management,
+  and communicate with the iSCSI daemon.
+
+systems: [ubuntu-2*]
+
+environment:
+  TEST_SNAP: test-iscsi-initiator-interfaces
+
+prepare: |
+  echo "Create test iSCSI configuration directory structure"
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
+  "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/initiatorname.iscsi
+  "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/iscsid.conf
+  echo "InitiatorName=iqn.1993-08.org.debian:01:abcdef123" > /etc/iscsi/initiatorname.iscsi
+  echo "node.startup = automatic" > /etc/iscsi/iscsid.conf
+
+  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
+  (cd "$TESTSLIB"/snaps/"$TEST_SNAP" && snapcraft)
+  snap install --dangerous "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
+
+  apt install -y socat
+  nohup socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
+
+restore: |
+  pkill socat || true
+  apt remove --purge --yes socat
+  snap remove --purge "$TEST_SNAP"
+
+  snap remove --purge snapcraft || true
+  rm -f "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
+
+  echo "Clean up test iSCSI configuration if created"
+  "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/iscsid.conf
+  "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/initiatorname.iscsi
+  "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
+
+execute: |
+  echo "The interface is not connected by default"
+  snap interfaces -i iscsi-initiator | MATCH -- '- +'"$TEST_SNAP"':iscsi-initiator'
+
+  echo "When the interface is connected"
+  snap connect "$TEST_SNAP":iscsi-initiator
+
+  echo "Then the snap is able to access iSCSI configuration files"
+  "$TEST_SNAP".client -c "test -r /etc/iscsi/initiatorname.iscsi"
+  "$TEST_SNAP".client -c "test -r /etc/iscsi/iscsid.conf"
+
+  echo "And the snap is able to access iSCSI nodes directory"
+  "$TEST_SNAP".client -c "test -d /etc/iscsi/nodes"
+
+  echo "And the snap is able to access ConfigFS for LIO target management"
+  if [ -d /sys/kernel/config/target ]; then
+      "$TEST_SNAP".client -c "test -d /sys/kernel/config/target"
+  fi
+
+  echo "And the snap is able to access iSCSI runtime directories"
+  "$TEST_SNAP".client -c "mkdir -p /run/lock/iscsi"
+  "$TEST_SNAP".client -c "test -d /run/lock/iscsi"
+
+  echo "And the snap is able to access iSCSI transport information"
+  if [ -d /sys/devices/virtual/iscsi_transport/tcp ]; then
+      "$TEST_SNAP".client -c "test -d /sys/devices/virtual/iscsi_transport/tcp"
+  fi
+
+  echo "And the snap is able to communicate with the iSCSI abstract socket"
+  if ! "$TEST_SNAP".client -c "echo test | socat -v - abstract-connect:ISCSIADM_ABSTRACT_NAMESPACE"; then
+      echo "Expected to be able to communicate with the iSCSI abstract socket"
+      exit 1
+  fi
+
+  if [ "$(snap debug confinement)" = partial ] ; then
+      exit 0
+  fi
+
+  echo "When the plug is disconnected"
+  snap disconnect "$TEST_SNAP":iscsi-initiator
+
+  echo "Then the snap is not able to access iSCSI configuration files"
+  if ! "$TEST_SNAP".client -c "test -r /etc/iscsi/initiatorname.iscsi"; then
+      echo "Expected permission error accessing iSCSI configuration with disconnected plug"
+      exit 1
+  fi
+
+  echo "And the snap is not able to access ConfigFS"
+  if [ -d /sys/kernel/config/target ]; then
+      if ! "$TEST_SNAP".client -c "test -d /sys/kernel/config/target"; then
+          echo "Expected permission error accessing ConfigFS with disconnected plug"
+          exit 1
+      fi
+  fi
+
+  echo "And the snap is not able to communicate with the iSCSI abstract socket"
+  if "$TEST_SNAP".client -c "echo test | socat -v - abstract-connect:ISCSIADM_ABSTRACT_NAMESPACE"; then
+      echo "Expected not to be able to communicate with the iSCSI abstract socket"
+      exit 1
+  fi
+
+  echo "Then the interface can be connected again"
+  snap connect "$TEST_SNAP":iscsi-initiator
