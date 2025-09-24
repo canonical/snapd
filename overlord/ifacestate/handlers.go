@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -1382,6 +1383,47 @@ func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap
 	}
 }
 
+func isSnapSlotAllowed(slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
+	var status string
+	option := fmt.Sprintf("interface.%s.allow-auto-connection", slot.Interface)
+	err := tr.Get("core", option, &status)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+	switch status {
+	case "", "true":
+		return true, nil
+	case "false":
+		return false, nil
+	case "verified":
+		storeAccount := slot.Snap.Publisher
+		switch storeAccount.Validation {
+		case "verified", "starred":
+			return true, nil
+		}
+		return false, nil
+	}
+	return false, fmt.Errorf(
+		"internal error: invalid allow-auto-connection status %s for %s",
+		status, slot.Snap.RealName)
+}
+
+func filterAllowedAutoConnectionSlots(st *state.State, css []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
+	var filtered []*snap.SlotInfo
+	tr := config.NewTransaction(st)
+	for _, slot := range css {
+		if allowed, err := isSnapSlotAllowed(slot, tr); err != nil {
+			return css, err
+		} else if allowed {
+			filtered = append(filtered, slot)
+		} else {
+			logger.Debugf("Interface %s was configured to be disallowed auto-connection, skipping connection",
+				slot.Interface)
+		}
+	}
+	return filtered, nil
+}
+
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -1483,11 +1525,19 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	// Auto-connect all the plugs
+	// Auto-connect all the plugs unless specifically disallowed
+	checkAutoConnectAllowed := func(css []*snap.SlotInfo) []*snap.SlotInfo {
+		filtered, err := filterAllowedAutoConnectionSlots(st, css)
+		if err != nil {
+			task.Logf("failed to filter slots: %v", err)
+		}
+		return filtered
+	}
+
 	cannotAutoConnectLog := func(plug *snap.PlugInfo, candRefs []string) string {
 		return fmt.Sprintf("cannot auto-connect plug %s, candidates found: %s", plug, strings.Join(candRefs, ", "))
 	}
-	if err := autochecker.addAutoConnections(task, newconns, plugs, nil, conns, cannotAutoConnectLog, conflictError); err != nil {
+	if err := autochecker.addAutoConnections(task, newconns, plugs, checkAutoConnectAllowed, conns, cannotAutoConnectLog, conflictError); err != nil {
 		return err
 	}
 	// Auto-connect all the slots
