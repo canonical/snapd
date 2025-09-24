@@ -514,14 +514,14 @@ type setupSeedOpts struct {
 	hasKModsComps bool
 	// integrityData is an array of integrity data because multiple integrity data
 	// can be found in a single snap-revision assertion
-	integrityData *[]asserts.SnapIntegrityData
+	integrityData *[]asserts.IntegrityData
 }
 
 func (s *baseInitramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string, opts setupSeedOpts) {
 	s.setupSeedGeneric(c, modelAssertTime, gadgetSnapFiles, opts)
 }
 
-func (s *baseInitramfsMountsSuite) setupSeedWithIntegrityData(c *C, integrityData []asserts.SnapIntegrityData) {
+func (s *baseInitramfsMountsSuite) setupSeedWithIntegrityData(c *C, integrityData []asserts.IntegrityData) {
 	s.setupSeedGeneric(c, time.Time{}, nil, setupSeedOpts{
 		integrityData: &integrityData,
 	})
@@ -685,10 +685,10 @@ type systemdMount struct {
 	where         string
 	opts          *main.SystemdMountOptions
 	err           error
-	integrityData *asserts.SnapIntegrityData
+	integrityData *asserts.IntegrityData
 }
 
-func (mnt *systemdMount) addIntegrityData(integrityData *asserts.SnapIntegrityData) systemdMount {
+func (mnt *systemdMount) addIntegrityData(integrityData *asserts.IntegrityData) systemdMount {
 	mnt.integrityData = integrityData
 
 	mnt.opts = &main.SystemdMountOptions{

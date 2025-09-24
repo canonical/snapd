@@ -38,7 +38,7 @@ type SnapResourceRevision struct {
 	resourceRevision int
 	timestamp        time.Time
 
-	resourceIntegrityData []SnapIntegrityData
+	resourceIntegrityData []IntegrityData
 }
 
 // ResourceSHA3_384 returns the SHA3-384 digest of the snap resource.
@@ -83,7 +83,7 @@ func (resrev *SnapResourceRevision) Timestamp() time.Time {
 }
 
 // SnapIntegrityData returns the snap integrity data associated with the snap-resource-revision assertion if any.
-func (resrev *SnapResourceRevision) ResourceIntegrityData() []SnapIntegrityData {
+func (resrev *SnapResourceRevision) ResourceIntegrityData() []IntegrityData {
 	return resrev.resourceIntegrityData
 }
 

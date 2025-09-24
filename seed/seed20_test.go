@@ -5328,7 +5328,7 @@ func (s *seed20Suite) TestSeedWithComponentsInModelAndOptions(c *C) {
 }
 
 func (s *seed20Suite) TestLoadMetaCore20WithIntegrityData(c *C) {
-	asid := []asserts.SnapIntegrityData{
+	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
 			Version:       1,
@@ -5429,7 +5429,7 @@ func (s *seed20Suite) TestLoadMetaCore20WithIntegrityDataMultiple(c *C) {
 	selected := "0000000000000000000000000000000000000000000000000000000000000000"
 	ignored := "1111111111111111111111111111111111111111111111111111111111111111"
 
-	asid := []asserts.SnapIntegrityData{
+	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
 			Version:       1,

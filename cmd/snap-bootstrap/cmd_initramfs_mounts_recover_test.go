@@ -481,7 +481,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRecoverModeError(c *C, expErr 
 	s._testInitramfsMountsRecoverMode(c, "core24", nil, f)
 }
 
-func (s *initramfsMountsSuite) _testInitramfsMountsRecoverMode(c *C, base string, baseIntegrityData *asserts.SnapIntegrityData, testFunc func() error) {
+func (s *initramfsMountsSuite) _testInitramfsMountsRecoverMode(c *C, base string, baseIntegrityData *asserts.IntegrityData, testFunc func() error) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 	var systemctlArgs [][]string
 	systemctlNumCalls := 0
@@ -3634,7 +3634,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyWithIntegrityAssertionAndDataFound(c *C) {
-	asid := []asserts.SnapIntegrityData{
+	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
 			Version:       1,
@@ -3676,7 +3676,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyWithIntegrityA
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeErrorWithIntegrityAssertionAndUnassertedDataFound(c *C) {
 	assertedRootHash := "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	asid := []asserts.SnapIntegrityData{
+	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
 			Version:       1,
