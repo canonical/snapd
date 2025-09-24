@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -67,6 +68,16 @@ type ffsMountInfo struct {
 	persistent bool
 }
 
+// Until we have a clear picture of how this should work, disallow creating
+// persistent mounts into $SNAP_DATA or $SNAP_USER_DATA
+func validatePersistentWhere(where string) error {
+	if strings.HasPrefix(where, "$SNAP_DATA") ||
+		strings.HasPrefix(where, "$SNAP_USER_DATA") {
+		return errors.New(`usb-gadget "persistent" attribute cannot be used to mount onto $SNAP_DATA or $SNAP_USER_DATA`)
+	}
+	return nil
+}
+
 func (mi *ffsMountInfo) validate() error {
 	// for ffs the name is the name of the function, which is not a path so we
 	// just need to ensure it doesn't contain any AppArmor regex characters.
@@ -79,12 +90,11 @@ func (mi *ffsMountInfo) validate() error {
 		return err
 	}
 
-	// Until we have a clear picture of how this should work, disallow creating
-	// persistent mounts into $SNAP_DATA
-	if mi.persistent && strings.HasPrefix(mi.where, "$SNAP_DATA") {
-		return errors.New(`mount-control "persistent" attribute cannot be used to mount onto $SNAP_DATA`)
+	if mi.persistent {
+		if err := validatePersistentWhere(mi.where); err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -97,38 +107,41 @@ func ffsMounts(plug interfaces.Attrer) ([]map[string]any, error) {
 	return mounts, nil
 }
 
-func enumerateFFSMounts(mounts []map[string]any, fn func(mi *ffsMountInfo) error) error {
-	for _, mount := range mounts {
-		name, ok := mount["name"].(string)
-		if !ok {
-			return fmt.Errorf(`usb-gadget FunctionFS mount "name" must be a string`)
-		}
+func enumerateFFSMounts(mounts []map[string]any) iter.Seq2[*ffsMountInfo, error] {
+	return func(yield func(*ffsMountInfo, error) bool) {
+		for _, mount := range mounts {
+			name, ok := mount["name"].(string)
+			if !ok {
+				yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "name" must be a string`))
+				return
+			}
 
-		where, ok := mount["where"].(string)
-		if !ok {
-			return fmt.Errorf(`usb-gadget FunctionFS mount "where" must be a string`)
-		}
+			where, ok := mount["where"].(string)
+			if !ok {
+				yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "where" must be a string`))
+				return
+			}
 
-		persistent := false
-		persistentValue, ok := mount["persistent"]
-		if ok {
-			if persistent, ok = persistentValue.(bool); !ok {
-				return fmt.Errorf(`usb-gadget FunctionFS mount "persistent" must be a boolean`)
+			persistent := false
+			persistentValue, ok := mount["persistent"]
+			if ok {
+				if persistent, ok = persistentValue.(bool); !ok {
+					yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "persistent" must be a boolean`))
+					return
+				}
+			}
+
+			mountInfo := &ffsMountInfo{
+				name:       name,
+				where:      where,
+				persistent: persistent,
+			}
+
+			if !yield(mountInfo, nil) {
+				return
 			}
 		}
-
-		mountInfo := &ffsMountInfo{
-			name:       name,
-			where:      where,
-			persistent: persistent,
-		}
-
-		if err := fn(mountInfo); err != nil {
-			return err
-		}
 	}
-
-	return nil
 }
 
 func (iface *usbGadgetInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
@@ -142,9 +155,19 @@ func (iface *usbGadgetInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlu
 	if err != nil {
 		return err
 	}
-	return enumerateFFSMounts(mounts, func(mi *ffsMountInfo) error {
-		return mi.validate()
+
+	enumerateFFSMounts(mounts)(func(m *ffsMountInfo, merr error) bool {
+		if merr != nil {
+			err = merr
+			return false
+		}
+		if err2 := m.validate(); err2 != nil {
+			err = err2
+			return false
+		}
+		return true
 	})
+	return err
 }
 
 func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -164,7 +187,7 @@ func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
   # directories
   /sys/kernel/config/usb_gadget/** rw,
 
-  # Allow access to UDC
+  # Allow access to UDC (USB Device Controller)
   /sys/class/udc/ r,
 `)
 
@@ -186,36 +209,31 @@ func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
   /{,usr/}bin/mount ixr,
   /{,usr/}bin/umount ixr,
   # mount/umount (via libmount) track some mount info in these files
-  /run/mount/utab* wrlk,
+  # deny this for /run as /run comes from the host
+  deny /run/mount/utab* wrlk,
 `)
 
 		// No validation is occurring here, as it was already performed in
 		// BeforeConnectPlug()
-		enumerateFFSMounts(mounts, func(mountInfo *ffsMountInfo) error {
-			source := mountInfo.name
-			target := mountInfo.where
-			if target[0] == '$' {
-				matches := whereRegexp.FindStringSubmatchIndex(target)
-				if len(matches) < 4 {
-					// This cannot really happen, as the string wouldn't pass the validation
-					return fmt.Errorf(`internal error: "where" fails to match regexp: %q`, mountInfo.where)
-				}
-				// the first two elements in "matches" are the boundaries of the whole
-				// string; the next two are the boundaries of the first match, which is
-				// what we care about as it contains the environment variable we want
-				// to expand:
-				variableStart, variableEnd := matches[2], matches[3]
-				variable := target[variableStart:variableEnd]
-				expanded := snapInfo.ExpandSnapVariables(variable)
-				target = expanded + target[variableEnd:]
+		var err error
+		enumerateFFSMounts(mounts)(func(m *ffsMountInfo, _ error) bool {
+			source := m.name
+			target, e := expandMountWhereVariable(m.where, snapInfo)
+			if e != nil {
+				// should never happen, should have been caught
+				err = e
+				return false
 			}
 
 			// mount -t functionfs <name> <where>
-			emit("  mount fstype=(functionfs) \"%s\" -> \"%s{,/}\",\n", source, target)
-			emit("  umount \"%s{,/}\",\n", target)
-			emit("  %s{,/} rw,", target)
-			return nil
+			emit("  mount fstype=(functionfs) \"%s\" -> \"%s\",\n", source, target)
+			emit("  umount \"%s\",\n", target)
+			emit("  %s rw,", target)
+			return true
 		})
+		if err != nil {
+			return err
+		}
 	}
 
 	spec.AddSnippet(usbGadgetSnippet.String())
