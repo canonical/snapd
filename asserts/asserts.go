@@ -150,6 +150,7 @@ var (
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
 	ConfdbSchemaType         = &AssertionType{"confdb-schema", []string{"account-id", "name"}, nil, assembleConfdbSchema, jsonBody}
 	ClusterType              = &AssertionType{"cluster", []string{"cluster-id", "sequence"}, nil, assembleCluster, sequenceForming}
+	HardwareIdentityType     = &AssertionType{"hardware-identity", []string{"hardware-id-key-sha3-384"}, nil, assembleHardwareIdentity, 0}
 
 	// ...
 )
@@ -181,7 +182,11 @@ var typeRegistry = map[string]*AssertionType{
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
 	SnapResourcePairType.Name:     SnapResourcePairType,
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
+<<<<<<< HEAD
 	ClusterType.Name:              ClusterType,
+=======
+	HardwareIdentityType.Name:     HardwareIdentityType,
+>>>>>>> a46401fcfa (asserts: add format for hardware identity assertion)
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
