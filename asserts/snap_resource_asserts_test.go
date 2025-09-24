@@ -145,13 +145,13 @@ func (s *snapResourceRevSuite) TestDecodeOKWithIntegrity(c *C) {
 	c.Check(snapResourceRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapResourceRev.Revision(), Equals, 1)
 	c.Check(snapResourceRev.Provenance(), Equals, "global-upload")
-	c.Check(snapResourceRev.SnapIntegrityData()[0].Type, Equals, "dm-verity")
-	c.Check(snapResourceRev.SnapIntegrityData()[0].Version, Equals, uint(1))
-	c.Check(snapResourceRev.SnapIntegrityData()[0].HashAlg, Equals, "sha256")
-	c.Check(snapResourceRev.SnapIntegrityData()[0].DataBlockSize, Equals, uint(4096))
-	c.Check(snapResourceRev.SnapIntegrityData()[0].HashBlockSize, Equals, uint(4096))
-	c.Check(snapResourceRev.SnapIntegrityData()[0].Digest, Equals, hexSHA256)
-	c.Check(snapResourceRev.SnapIntegrityData()[0].Salt, Equals, hexSHA256)
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].Type, Equals, "dm-verity")
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].Version, Equals, uint(1))
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].HashAlg, Equals, "sha256")
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].DataBlockSize, Equals, uint(4096))
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].HashBlockSize, Equals, uint(4096))
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].Digest, Equals, hexSHA256)
+	c.Check(snapResourceRev.ResourceIntegrityData()[0].Salt, Equals, hexSHA256)
 }
 
 func (s *snapResourceRevSuite) TestDecodeOKWithProvenance(c *C) {
