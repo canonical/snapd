@@ -181,18 +181,8 @@ var typeRegistry = map[string]*AssertionType{
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
 	SnapResourcePairType.Name:     SnapResourcePairType,
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 	ClusterType.Name:              ClusterType,
-=======
 	HardwareIdentityType.Name:     HardwareIdentityType,
->>>>>>> a46401fcfa (asserts: add format for hardware identity assertion)
-=======
->>>>>>> 8e183b06b5 (asserts: add unit tests for hardware identity assertion)
-=======
-	HardwareIdentityType.Name:     HardwareIdentityType,
->>>>>>> fd1b181d59 (asserts: add validation for hardware-name and hardware-id-key in hardware identity assertion)
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
