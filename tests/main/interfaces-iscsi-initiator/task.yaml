@@ -21,30 +21,28 @@ environment:
 prepare: |
   echo "Create test iSCSI configuration directory structure"
   "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
   "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/initiatorname.iscsi
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/initiatorname.iscsi
   "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/iscsid.conf
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/iscsid.conf
   echo "InitiatorName=iqn.1993-08.org.debian:01:abcdef123" > /etc/iscsi/initiatorname.iscsi
   echo "node.startup = automatic" > /etc/iscsi/iscsid.conf
 
   snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
+  tests.cleanup defer snap remove --purge snapcraft
   (cd "$TESTSLIB"/snaps/"$TEST_SNAP" && snapcraft)
+  tests.cleanup defer rm -f "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
   snap install --dangerous "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
+  tests.cleanup defer snap remove --purge "$TEST_SNAP"
 
   apt install -y socat
+  tests.cleanup defer apt remove --purge --yes socat
   nohup socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
+  tests.cleanup defer bash -c "pkill socat || true"
 
 restore: |
-  pkill socat || true
-  apt remove --purge --yes socat
-  snap remove --purge "$TEST_SNAP"
-
-  snap remove --purge snapcraft || true
-  rm -f "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
-
-  echo "Clean up test iSCSI configuration if created"
-  "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/iscsid.conf
-  "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/initiatorname.iscsi
-  "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
+  tests.cleanup restore
 
 execute: |
   echo "The interface is not connected by default"
