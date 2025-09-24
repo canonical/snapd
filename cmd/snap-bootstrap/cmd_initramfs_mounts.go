@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/subtle"
 	"encoding/json"
@@ -29,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -203,6 +205,10 @@ func generateInitramfsMounts() (err error) {
 	isRunMode := (mode == "run")
 	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
 
+	// parse the modprobe.d settings from kernel and write them in /run
+	// for the system to pick them up later
+ 	generateRunModprobed()
+
 	// finally, the initramfs is responsible for reading the boot flags and
 	// copying them to /run, so that userspace has an unambiguous place to read
 	// the boot flags for the current boot from
@@ -227,6 +233,45 @@ func generateInitramfsMounts() (err error) {
 	}
 
 	return nil
+}
+
+func generateRunModprobed() () {
+	// Write things in /run/modprobe.d, create that folder first
+	os.Mkdir("/run/modprobe.d", 0755)
+
+	// Read the kernel snap modprobe.d folder, and for each file write to run/modprobe.d
+	files, err := os.ReadDir("/snap/kernel/current/modprobe.d")
+	if err != nil {
+		return
+	}
+
+	for _, file := range files {
+		fmt.Println(file.Name())
+
+		file_in, err := os.Open("/snap/kernel/current/modprobe.d/" + file.Name())
+		if err != nil {
+			logger.Noticef("error accessing kernel modprobe.d configuration: %v", err)
+		} else {
+			defer file_in.Close()
+
+			file_out, err := os.Open("/run/modprobe.d/" + file.Name())
+			if err != nil {
+				logger.Noticef("error creating kernel modprobe.d configuration: %v", err)
+			} else {
+				defer file_out.Close()
+
+				scanner := bufio.NewScanner(file_in)
+				// optionally, resize scanner's capacity for lines over 64K, see next example
+				for scanner.Scan() {
+					line := scanner.Text()
+					match, _ := regexp.MatchString("^(options|blacklist|alias|softdep|#).*", line)
+					if match {
+						file_out.WriteString(line + "\n")
+					}
+				}
+			}
+		}
+	}
 }
 
 func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
