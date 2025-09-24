@@ -1031,7 +1031,11 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
 	})()
 
 	err = mgr.CheckRecoveryKey(keys.RecoveryKey{}, []string{"system-data"})
-	c.Assert(err, ErrorMatches, `recovery key failed for "system-data": boom!`)
+	c.Assert(err, ErrorMatches, `invalid recovery key: no match found for "system-data"`)
+	var rkeyErr *fdestate.InvalidRecoveryKeyError
+	c.Assert(errors.As(err, &rkeyErr), Equals, true)
+	c.Assert(rkeyErr.Reason, Equals, fdestate.InvalidRecoveryKeyReasonNoMatchFound)
+	c.Assert(rkeyErr.Message, Equals, `invalid recovery key: no match found for "system-data"`)
 }
 
 type mockKeyData struct {

@@ -188,6 +188,9 @@ const (
 
 	// ErrorKindKeyslotNotFound: keyslots cannot be found.
 	ErrorKindKeyslotsNotFound ErrorKind = "keyslots-not-found"
+
+	// ErrorKindInvalidRecoveryKey: recovery key itself or its ID is invalid.
+	ErrorKindInvalidRecoveryKey ErrorKind = "invalid-recovery-key"
 )
 
 // Maintenance error kinds.

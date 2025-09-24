@@ -277,6 +277,17 @@ func KeyslotsNotFound(err *fdestate.KeyslotRefsNotFoundError) *apiError {
 	}
 }
 
+func InvalidRecoveryKey(err *fdestate.InvalidRecoveryKeyError) *apiError {
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    client.ErrorKindInvalidRecoveryKey,
+		Value: map[string]any{
+			"reason": err.Reason,
+		},
+	}
+}
+
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
 func AppNotFound(format string, v ...any) *apiError {
@@ -367,6 +378,8 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			return InsufficientSpace(err)
 		case *fdestate.KeyslotRefsNotFoundError:
 			return KeyslotsNotFound(err)
+		case *fdestate.InvalidRecoveryKeyError:
+			return InvalidRecoveryKey(err)
 		case net.Error:
 			if err.Timeout() {
 				kind = client.ErrorKindNetworkTimeout
