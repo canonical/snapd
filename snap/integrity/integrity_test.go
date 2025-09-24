@@ -74,7 +74,7 @@ func (s *IntegrityTestSuite) testGenerateDmVerityData(c *C, params *generateDmVe
 	defer restore()
 
 	restore = integrity.MockOsRename(func(src, dst string) error {
-		c.Assert(src, Equals, snapPath+".dmverity")
+		c.Assert(src, Equals, snapPath+".dmverity_tmp")
 		c.Assert(dst, Equals, snapPath+".dmverity_"+rootHash)
 		return nil
 	})
