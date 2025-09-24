@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"iter"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -107,39 +106,37 @@ func ffsMounts(plug interfaces.Attrer) ([]map[string]any, error) {
 	return mounts, nil
 }
 
-func enumerateFFSMounts(mounts []map[string]any) iter.Seq2[*ffsMountInfo, error] {
-	return func(yield func(*ffsMountInfo, error) bool) {
-		for _, mount := range mounts {
-			name, ok := mount["name"].(string)
-			if !ok {
-				yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "name" must be a string`))
+func enumerateFFSMounts(mounts []map[string]any, yield func(*ffsMountInfo, error) bool) {
+	for _, mount := range mounts {
+		name, ok := mount["name"].(string)
+		if !ok {
+			yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "name" must be a string`))
+			return
+		}
+
+		where, ok := mount["where"].(string)
+		if !ok {
+			yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "where" must be a string`))
+			return
+		}
+
+		persistent := false
+		persistentValue, ok := mount["persistent"]
+		if ok {
+			if persistent, ok = persistentValue.(bool); !ok {
+				yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "persistent" must be a boolean`))
 				return
 			}
+		}
 
-			where, ok := mount["where"].(string)
-			if !ok {
-				yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "where" must be a string`))
-				return
-			}
+		mountInfo := &ffsMountInfo{
+			name:       name,
+			where:      where,
+			persistent: persistent,
+		}
 
-			persistent := false
-			persistentValue, ok := mount["persistent"]
-			if ok {
-				if persistent, ok = persistentValue.(bool); !ok {
-					yield(nil, fmt.Errorf(`usb-gadget FunctionFS mount "persistent" must be a boolean`))
-					return
-				}
-			}
-
-			mountInfo := &ffsMountInfo{
-				name:       name,
-				where:      where,
-				persistent: persistent,
-			}
-
-			if !yield(mountInfo, nil) {
-				return
-			}
+		if !yield(mountInfo, nil) {
+			return
 		}
 	}
 }
@@ -156,7 +153,7 @@ func (iface *usbGadgetInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlu
 		return err
 	}
 
-	enumerateFFSMounts(mounts)(func(m *ffsMountInfo, merr error) bool {
+	enumerateFFSMounts(mounts, func(m *ffsMountInfo, merr error) bool {
 		if merr != nil {
 			err = merr
 			return false
@@ -216,7 +213,7 @@ func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
 		// No validation is occurring here, as it was already performed in
 		// BeforeConnectPlug()
 		var err error
-		enumerateFFSMounts(mounts)(func(m *ffsMountInfo, _ error) bool {
+		enumerateFFSMounts(mounts, func(m *ffsMountInfo, _ error) bool {
 			source := m.name
 			target, e := expandMountWhereVariable(m.where, snapInfo)
 			if e != nil {
