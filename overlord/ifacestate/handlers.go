@@ -1383,7 +1383,7 @@ func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap
 	}
 }
 
-func isSnapSlotAllowed(slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
+func isSnapSlotAllowed(si *snap.Info, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
 	var status string
 	option := fmt.Sprintf("interface.%s.allow-auto-connection", slot.Interface)
 	err := tr.Get("core", option, &status)
@@ -1396,8 +1396,7 @@ func isSnapSlotAllowed(slot *snap.SlotInfo, tr *config.Transaction) (bool, error
 	case "false":
 		return false, nil
 	case "verified":
-		storeAccount := slot.Snap.Publisher
-		switch storeAccount.Validation {
+		switch si.Publisher.Validation {
 		case "verified", "starred":
 			return true, nil
 		}
@@ -1408,11 +1407,11 @@ func isSnapSlotAllowed(slot *snap.SlotInfo, tr *config.Transaction) (bool, error
 		status, slot.Snap.RealName)
 }
 
-func filterAllowedAutoConnectionSlots(st *state.State, css []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
+func filterAllowedAutoConnectionSlots(st *state.State, si *snap.Info, css []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
 	var filtered []*snap.SlotInfo
 	tr := config.NewTransaction(st)
 	for _, slot := range css {
-		if allowed, err := isSnapSlotAllowed(slot, tr); err != nil {
+		if allowed, err := isSnapSlotAllowed(si, slot, tr); err != nil {
 			return css, err
 		} else if allowed {
 			filtered = append(filtered, slot)
@@ -1525,9 +1524,14 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+	if err != nil {
+		return err
+	}
+
 	// Auto-connect all the plugs unless specifically disallowed
 	checkAutoConnectAllowed := func(css []*snap.SlotInfo) []*snap.SlotInfo {
-		filtered, err := filterAllowedAutoConnectionSlots(st, css)
+		filtered, err := filterAllowedAutoConnectionSlots(st, snapInfo, css)
 		if err != nil {
 			task.Logf("failed to filter slots: %v", err)
 		}
