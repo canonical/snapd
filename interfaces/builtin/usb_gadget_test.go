@@ -162,22 +162,22 @@ func (s *UsbGadgetInterfaceSuite) TestAppArmorSpecWithMounts(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability sys_admin,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/{,usr/}bin/mount ixr,`)
 
-	expectedMountLine1 := `mount fstype=(functionfs) "ffs-dev0" -> "/media/**{,/}",`
+	expectedMountLine1 := `mount fstype=(functionfs) "ffs-dev0" -> "/media/**",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine1)
 
-	expectedAccessLine1 := `/media/**{,/} rw,`
+	expectedAccessLine1 := `/media/** rw,`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedAccessLine1)
 
-	expectedMountLine2 := `mount fstype=(functionfs) "ffs-dev1" -> "/dev/ffs-dev1{,/}",`
+	expectedMountLine2 := `mount fstype=(functionfs) "ffs-dev1" -> "/dev/ffs-dev1",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine2)
-	expectedAccessLine2 := `/dev/ffs-dev1{,/} rw,`
+	expectedAccessLine2 := `/dev/ffs-dev1 rw,`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedAccessLine2)
 
-	expectedMountLine3 := `mount fstype=(functionfs) "ffs-mtp" -> "/var/snap/consumer/common/**{,/}",`
+	expectedMountLine3 := `mount fstype=(functionfs) "ffs-mtp" -> "/var/snap/consumer/common/**",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine3)
-	expectedUmountLine3 := `umount "/var/snap/consumer/common/**{,/}",`
+	expectedUmountLine3 := `umount "/var/snap/consumer/common/**",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine3)
-	expectedAccessLine3 := `/var/snap/consumer/common/**{,/} rw,`
+	expectedAccessLine3 := `/var/snap/consumer/common/** rw,`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedAccessLine3)
 }
 
