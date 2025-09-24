@@ -107,6 +107,9 @@ func (u *updatedParameters) setTpmPCRProfile(role, containerRole string, tpmPCRP
 	if !ok {
 		return false
 	}
+	if len(params.TpmPCRProfile) > 0 && len(tpmPCRProfile) == 0 {
+		panic("bad setTpmPCRProfile")
+	}
 	params.TpmPCRProfile = tpmPCRProfile
 	return true
 }

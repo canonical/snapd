@@ -295,7 +295,15 @@ func (s *FdeState) updateParameters(role string, containerRole string, bootModes
 
 	if roleInfo.Parameters == nil {
 		roleInfo.Parameters = make(map[string]KeyslotRoleParameters)
+	} else {
+		oldParams, hasOldParams := roleInfo.Parameters[containerRole]
+		if hasOldParams {
+			if len(oldParams.TPM2PCRProfile) > 0 && len(tpmPCRProfile) == 0 {
+				panic("bad updateParameters")
+			}
+		}
 	}
+
 	roleInfo.Parameters[containerRole] = KeyslotRoleParameters{
 		Models:         convertedModels,
 		BootModes:      bootModes,
