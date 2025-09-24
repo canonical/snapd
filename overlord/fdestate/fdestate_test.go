@@ -233,11 +233,16 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 
 	// invalid recovery key id
 	_, err := fdestate.ReplaceRecoveryKey(s.st, "bad-key-id", keyslots)
-	c.Assert(err, ErrorMatches, "invalid recovery key ID: no recovery key entry for key-id")
+	c.Assert(err, ErrorMatches, "invalid recovery key: not found")
+	var rkeyErr *fdestate.InvalidRecoveryKeyError
+	c.Assert(errors.As(err, &rkeyErr), Equals, true)
+	c.Assert(rkeyErr.Reason, Equals, fdestate.InvalidRecoveryKeyReasonNotFound)
 
 	// expired recovery key id
 	_, err = fdestate.ReplaceRecoveryKey(s.st, "expired-key-id", keyslots)
-	c.Assert(err, ErrorMatches, "invalid recovery key ID: recovery key has expired")
+	c.Assert(err, ErrorMatches, "invalid recovery key: expired")
+	c.Assert(errors.As(err, &rkeyErr), Equals, true)
+	c.Assert(rkeyErr.Reason, Equals, fdestate.InvalidRecoveryKeyReasonExpired)
 
 	// invalid keyslot
 	badKeyslot := fdestate.KeyslotRef{ContainerRole: "", Name: "some-name"}

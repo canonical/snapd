@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -445,10 +446,13 @@ func tmpKeyslotRef(ref KeyslotRef) KeyslotRef {
 func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
+		if errors.Is(err, backend.ErrNoRecoveryKey) {
+			return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonNotFound}
+		}
 		return err
 	}
 	if rkeyInfo.Expired(time.Now()) {
-		return errors.New("recovery key has expired")
+		return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonExpired}
 	}
 	return nil
 }
@@ -460,6 +464,8 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 // If keyslotRefs is empty, the "default-recovery" key slot is
 // used by default for both the "system-data" and "system-save"
 // container roles.
+//
+// If the recovery key ID is invalid, an InvalidRecoveryKeyError is returned.
 //
 // If any key slot from keyslotRefs does not exist, a KeyslotRefsNotFoundError is returned.
 func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
@@ -498,7 +504,8 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	fdemgr := fdeMgr(st)
 
 	if err := checkRecoveryKeyIDExists(fdemgr, recoveryKeyID); err != nil {
-		return nil, fmt.Errorf("invalid recovery key ID: %v", err)
+		// don't wrap to expose InvalidRecoveryKeyError to the caller.
+		return nil, err
 	}
 
 	currentKeyslots, missing, err := fdemgr.GetKeyslots(keyslotRefs)

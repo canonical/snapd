@@ -22,6 +22,7 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -288,7 +289,11 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 
 	rkey, err := keys.ParseRecoveryKey(req.RecoveryKey)
 	if err != nil {
-		return BadRequest("cannot parse recovery key: %v", err)
+		rkeyErr := &fdestate.InvalidRecoveryKeyError{
+			Reason:  fdestate.InvalidRecoveryKeyReasonInvalidFormat,
+			Message: fmt.Sprintf("cannot parse recovery key: %v", err),
+		}
+		return InvalidRecoveryKey(rkeyErr)
 	}
 
 	st := c.d.overlord.State()
@@ -297,9 +302,7 @@ func postSystemVolumesActionCheckRecoveryKey(c *Command, req *systemVolumesActio
 
 	fdemgr := c.d.overlord.FDEManager()
 	if err := fdeMgrCheckRecoveryKey(fdemgr, rkey, req.ContainerRoles); err != nil {
-		// TODO:FDEM: distinguish between failure due to a bad key and an
-		// actual internal error where snapd fails to do the check.
-		return BadRequest("cannot find matching recovery key: %v", err)
+		return errToResponse(err, nil, BadRequest, "%v")
 	}
 
 	return SyncResponse(nil)
