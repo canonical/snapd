@@ -1470,26 +1470,6 @@ EOF
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
         IMAGE_CHANNEL="$GADGET_CHANNEL"
-        if is_test_target_core_le 18; then
-            if is_test_target_core 16; then
-                BRANCH=latest
-            elif is_test_target_core 18; then
-                BRANCH=18
-            fi
-            # download pc-kernel snap for the specified channel and set
-            # ubuntu-image channel to that of the gadget, so that we don't
-            # need to download it. Do this only for UC16/18 as the UC20+
-            # case is considered a few lines below.
-            snap download --basename=pc-kernel --channel="$BRANCH/$KERNEL_CHANNEL" pc-kernel
-            # Repack to prevent reboots as the image channel (which will become
-            # the tracked channel) is different to the kernel channel.
-            unsquashfs -d pc-kernel pc-kernel.snap
-            touch pc-kernel/repacked
-            snap pack --filename=pc-kernel-repacked.snap pc-kernel
-            rm -rf pc-kernel
-            mv pc-kernel-repacked.snap pc-kernel.snap
-            EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
-        fi
     fi
 
     if is_test_target_core_le 18; then
