@@ -9,6 +9,9 @@ details: |
 # testing using unasserted gadget/kernel
 systems: [ubuntu-core-2*]
 
+# run early to avoid being messed with
+priority: 600
+
 environment:
     # We are uploading too much in terms of size for the snaps
     # we sideload. On UC18 this is disabled automatically, but

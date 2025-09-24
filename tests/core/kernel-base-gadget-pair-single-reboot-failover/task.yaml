@@ -8,6 +8,9 @@ details: |
 # testing using unasserted gadget/kernel
 systems: [ubuntu-core-2*]
 
+# run early to avoid being messed with
+priority: 600
+
 environment:
     SNAP_ONE/kernel_base: core
     SNAP_TWO/kernel_base: pc-kernel
