@@ -44,6 +44,10 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
+
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
 		return err
@@ -158,6 +162,10 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
+
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
 		return err
@@ -217,6 +225,10 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
 
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
@@ -338,6 +350,10 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 			return fmt.Errorf("internal error: cannot find parameters (key role: %s, container role: %s)", role, ref.ContainerRole)
 		}
 
+		if pcrProfile == nil || len(pcrProfile) == 0 {
+			return fmt.Errorf("No PCR profile for role %s", ref.String())
+		}
+
 		params := secboot.ProtectKeyParams{
 			PCRProfile:             pcrProfile,
 			PCRPolicyCounterHandle: fdeKeyslotRoles[role].TPM2PCRPolicyRevocationCounter,
@@ -361,6 +377,10 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	if err := m.isFunctional(); err != nil {
+		return fmt.Errorf("internal error: fde manager not started: %w", err)
+	}
 
 	var keyslotRefs []KeyslotRef
 	if err := t.Get("keyslots", &keyslotRefs); err != nil {
