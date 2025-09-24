@@ -624,7 +624,8 @@ func (s *fdeMgrSuite) TestDoRenameKeysMissingMapping(c *C) {
 
 func (s *fdeMgrSuite) TestDoRenameKeysRenameError(c *C) {
 	const onClassic = true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
+	c.Assert(m.IsFunctional(), IsNil)
 	s.mockCurrentKeys(c, nil, nil)
 
 	defer fdestate.MockSecbootRenameContainerKey(func(devicePath, oldName, newName string) error {
