@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -50,6 +51,34 @@ func (s *snapResourceRevSuite) makeValidEncoded() string {
 		"resource-name: comp-name\n" +
 		"resource-sha3-384: " + blobSHA3_384 + "\n" +
 		"resource-revision: 4\n" +
+		"resource-size: 127\n" +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		s.tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+}
+
+func (s *snapResourceRevSuite) makeValidEncodedWithIntegrity() string {
+	integrityData := "integrity:\n" +
+		"  -\n" +
+		"    type: dm-verity\n" +
+		"    digest: " + hexSHA256 + "\n" +
+		"    version: 1\n" +
+		"    hash-algorithm: sha256\n" +
+		"    data-block-size: 4096\n" +
+		"    hash-block-size: 4096\n" +
+		"    salt: " + hexSHA256 + "\n"
+
+	return "type: snap-resource-revision\n" +
+		"authority-id: store-id1\n" +
+		"snap-id: snap-id-1\n" +
+		"resource-name: comp-name\n" +
+		"resource-sha3-384: " + blobSHA3_384 + "\n" +
+		"resource-revision: 4\n" +
+		integrityData +
 		"resource-size: 127\n" +
 		"developer-id: dev-id1\n" +
 		"revision: 1\n" +
@@ -98,6 +127,31 @@ func (s *snapResourceRevSuite) TestDecodeOK(c *C) {
 	c.Check(snapResourceRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapResourceRev.Revision(), Equals, 1)
 	c.Check(snapResourceRev.Provenance(), Equals, "global-upload")
+}
+
+func (s *snapResourceRevSuite) TestDecodeOKWithIntegrity(c *C) {
+	encoded := s.makeValidEncodedWithIntegrity()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapResourceRevisionType)
+	snapResourceRev := a.(*asserts.SnapResourceRevision)
+	c.Check(snapResourceRev.AuthorityID(), Equals, "store-id1")
+	c.Check(snapResourceRev.Timestamp(), Equals, s.ts)
+	c.Check(snapResourceRev.SnapID(), Equals, "snap-id-1")
+	c.Check(snapResourceRev.ResourceName(), Equals, "comp-name")
+	c.Check(snapResourceRev.ResourceSHA3_384(), Equals, blobSHA3_384)
+	c.Check(snapResourceRev.ResourceSize(), Equals, uint64(127))
+	c.Check(snapResourceRev.ResourceRevision(), Equals, 4)
+	c.Check(snapResourceRev.DeveloperID(), Equals, "dev-id1")
+	c.Check(snapResourceRev.Revision(), Equals, 1)
+	c.Check(snapResourceRev.Provenance(), Equals, "global-upload")
+	c.Check(snapResourceRev.SnapIntegrityData()[0].Type, Equals, "dm-verity")
+	c.Check(snapResourceRev.SnapIntegrityData()[0].Version, Equals, uint(1))
+	c.Check(snapResourceRev.SnapIntegrityData()[0].HashAlg, Equals, "sha256")
+	c.Check(snapResourceRev.SnapIntegrityData()[0].DataBlockSize, Equals, uint(4096))
+	c.Check(snapResourceRev.SnapIntegrityData()[0].HashBlockSize, Equals, uint(4096))
+	c.Check(snapResourceRev.SnapIntegrityData()[0].Digest, Equals, hexSHA256)
+	c.Check(snapResourceRev.SnapIntegrityData()[0].Salt, Equals, hexSHA256)
 }
 
 func (s *snapResourceRevSuite) TestDecodeOKWithProvenance(c *C) {
@@ -153,6 +207,58 @@ func (s *snapResourceRevSuite) TestDecodeInvalid(c *C) {
 		{s.tsLine, "", `"timestamp" header is mandatory`},
 		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapResourceRevErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *snapResourceRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
+	encoded := s.makeValidEncodedWithIntegrity()
+
+	integrityHdr := "integrity:\n" +
+		"  -\n" +
+		"    type: dm-verity\n" +
+		"    digest: " + hexSHA256 + "\n" +
+		"    version: 1\n" +
+		"    hash-algorithm: sha256\n" +
+		"    data-block-size: 4096\n" +
+		"    hash-block-size: 4096\n" +
+		"    salt: " + hexSHA256 + "\n"
+
+	integrityTypeHdr := "    type: dm-verity\n"
+	integrityVersionHdr := "    version: 1\n"
+	integrityHashAlgHdr := "    hash-algorithm: sha256\n"
+	integrityDataBlockSizeHdr := "    data-block-size: 4096\n"
+	integrityHashBlockSizeHdr := "    hash-block-size: 4096\n"
+	integrityDigestHdr := "    digest: " + hexSHA256 + "\n"
+	integritySaltHdr := "    salt: " + hexSHA256 + "\n"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{integrityHdr, "integrity: test\n", `"integrity" header must contain a list of integrity data`},
+		{integrityTypeHdr, "", `"type" of integrity data \[0\] is mandatory`},
+		{integrityTypeHdr, "    type: foo\n", `"type" of integrity data \[0\] must be one of \(dm-verity\)`},
+		{integrityVersionHdr, "", `"version" of integrity data \[0\] of type "dm-verity" is mandatory`},
+		{integrityVersionHdr, "    version: a\n", `"version" of integrity data \[0\] of type "dm-verity" is not an unsigned integer: a`},
+		{integrityVersionHdr, "    version: 2\n", `version of integrity data \[0\] of type "dm-verity" must be one of ` + regexp.QuoteMeta("[1]")},
+		{integrityHashAlgHdr, "", `"hash-algorithm" of integrity data \[0\] of type "dm-verity" is mandatory`},
+		{integrityHashAlgHdr, "    hash-algorithm: 0\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: a\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: sha384\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
+		{integrityHashAlgHdr, "    hash-algorithm: sm3\n", `hash algorithm of integrity data \[0\] of type "dm-verity" must be one of .*`},
+		{integrityDataBlockSizeHdr, "", `"data-block-size" of integrity data \[0\] of type "dm-verity" \(sha256\) is mandatory`},
+		{integrityDataBlockSizeHdr, "    data-block-size: a\n", `"data-block-size" of integrity data \[0\] of type "dm-verity" \(sha256\) is not an unsigned integer: a`},
+		{integrityHashBlockSizeHdr, "", `"hash-block-size" of integrity data \[0\] of type "dm-verity" \(sha256\) is mandatory`},
+		{integrityHashBlockSizeHdr, "    hash-block-size: a\n", `"hash-block-size" of integrity data \[0\] of type "dm-verity" \(sha256\) is not an unsigned integer: a`},
+		{integrityDigestHdr, "", `"digest" of integrity data \[0\] of type "dm-verity" \(sha256\) is mandatory`},
+		{integrityDigestHdr, "    digest: a\n", `"digest" of integrity data \[0\] of type "dm-verity" \(sha256\) cannot be decoded: encoding/hex: odd length hex string`},
+		{integrityDigestHdr, "    digest: ab\n", `"digest" of integrity data \[0\] of type "dm-verity" \(sha256\) does not have the expected bit length: 8`},
+		{integritySaltHdr, "", `"salt" of integrity data \[0\] of type "dm-verity" \(sha256\) is mandatory`},
+		{integritySaltHdr, "    salt: a\n", `"salt" of integrity data \[0\] of type "dm-verity" \(sha256\) cannot be decoded: encoding/hex: odd length hex string`},
+		{integritySaltHdr, "    salt: ab\n", `"salt" of integrity data \[0\] of type "dm-verity" \(sha256\) does not have the expected bit length: 8`},
 	}
 
 	for _, test := range invalidTests {
