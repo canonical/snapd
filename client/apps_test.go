@@ -79,7 +79,7 @@ func testClientAppsGlobal(cs *clientSuite, c *check.C) ([]*client.AppInfo, error
 
 var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService, testClientAppsGlobal}
 
-func (cs *clientSuite) TestClientAppActivators(c *check.C) {
+func (cs *clientSuite) TestClientAppActivatorsMarshalJSON(c *check.C) {
 	expected := []*client.AppInfo{
 		{
 			Snap:    "hello-world",
