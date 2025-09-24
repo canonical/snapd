@@ -35,8 +35,13 @@ prepare: |
 execute: |
     # We cannot create a queue before connecting the can-create slot.
     not test-snapd-posix-mq.mqctl create /test read-only 600 max-size=16,max-count=10
-    # We cannot probe /dev/mqueue
-    not snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
+
+    # TODO: remove this check once distro apparmor fixes the issue
+    # When re-exec is not used, the distro apparmor allows to stat /dev/mqueue
+    if tests.info is-reexec-in-use; then
+        # We cannot probe /dev/mqueue
+        not snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
+    fi
 
     snap connect test-snapd-posix-mq:posix-mq test-snapd-posix-mq:can-create
     # Technically the read permission is required because there's no way to
