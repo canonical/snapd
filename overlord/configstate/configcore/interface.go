@@ -72,7 +72,8 @@ func validateAllowAutoConnectionValue(tr RunTransaction) error {
 			continue
 		}
 
-		value, err := coreCfg(tr, name)
+		nameWithoutSnap := strings.SplitN(name, ".", 2)[1]
+		value, err := coreCfg(tr, nameWithoutSnap)
 		if err != nil {
 			return fmt.Errorf("internal error: cannot get data for %s: %v", name, err)
 		}
