@@ -107,10 +107,8 @@ static int create_early_mount(const char *normal_dir, const char *what, const ch
 #define SNAPD_DRIVERS_TREE_DIR "/var/lib/snapd/kernel"
 #define FIRMWARE_DIR "firmware"
 #define MODULES_DIR "modules"
-#define MODPROBED_DIR "modprobe.d"
 #define FIRMWARE_MNTPOINT "/usr/lib/" FIRMWARE_DIR
 #define MODULES_MNTPOINT "/usr/lib/" MODULES_DIR
-#define MODPROBED_MNTPOINT "/usr/lib/" MODPROBED_DIR
 
 static int ensure_kernel_drivers_mounts(const char *normal_dir) {
     const char *const kern_mnt_dir = "/run/mnt/kernel";
@@ -125,7 +123,7 @@ static int ensure_kernel_drivers_mounts(const char *normal_dir) {
     // case for an old initramfs) - otherwise systemd-fstab-generator
     // complains, and older initramfs won't come in a kernel snap with
     // support for components anyway.
-    const char *const kern_mntpts[] = {FIRMWARE_MNTPOINT, MODULES_MNTPOINT, MODPROBED_MNTPOINT};
+    const char *const kern_mntpts[] = {FIRMWARE_MNTPOINT, MODULES_MNTPOINT};
     for (size_t i = 0; i < SC_ARRAY_SIZE(kern_mntpts); ++i) {
         sc_mountinfo_entry *minfo = find_dir_mountinfo(mounts, kern_mntpts[i]);
         // If the mounts already exist (old initramfs), do not create them -
@@ -193,11 +191,6 @@ static int ensure_kernel_drivers_mounts(const char *normal_dir) {
     char what[PATH_MAX + 1] = {0};
     sc_must_snprintf(what, sizeof what, SNAPD_DRIVERS_TREE_DIR "/%s/%s/lib/" MODULES_DIR, snap_name, snap_rev);
     res = create_early_mount(normal_dir, what, MODULES_MNTPOINT);
-    if (res != 0) {
-        return res;
-    }
-    sc_must_snprintf(what, sizeof what, SNAPD_DRIVERS_TREE_DIR "/%s/%s/lib/" MODPROBED_DIR, snap_name, snap_rev);
-    res = create_early_mount(normal_dir, what, MODPROBED_MNTPOINT);
     if (res != 0) {
         return res;
     }

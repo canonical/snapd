@@ -2305,8 +2305,8 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 		return false, err
 	}
 
-	// 3. Mount units for /lib/{modules,firmware,modprobe.d}
-	for _, subDir := range []string{"modules", "firmware", "modprobe.d"} {
+	// 3. Mount units for /lib/{modules,firmware}
+	for _, subDir := range []string{"modules", "firmware"} {
 		what := filepath.Join(driversStandardDir, "lib", subDir)
 		where := filepath.Join(dirs.GlobalRootDir, "sysroot", "usr", "lib", subDir)
 		if err := writeInitramfsMountUnit(what, where, bindUnit); err != nil {
