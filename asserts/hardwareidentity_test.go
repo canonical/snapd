@@ -82,13 +82,14 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		{hardwareKeyId, "", `"hardware-id-key" header is mandatory`},
 		{hardwareKeyId, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
 		{hardwareKeyId, "hardware-id-key: something\n", `"hardware-id-key" header should be the body of a PEM`},
+		{hardwareKeyId, "hardware-id-key: -----BEGIN\n", `"hardware-id-key" header should be the body of a PEM`},
 		{hardwareKeyIdSha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
 		{hardwareKeyIdSha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
+		{hardwareKeyIdSha3384, hardwareKeyIdSha3384+"body-length: 1\n\na\n", `body must be empty`},
 
 	}
 
 	for i, test := range invalidTests {
-		
 		invalid := strings.Replace(hardwareIdentityExample, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Assert(err, ErrorMatches, errPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))

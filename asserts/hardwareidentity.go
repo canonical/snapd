@@ -91,15 +91,12 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	
-	hardwareIdKeySha3384, err := checkNotEmptyString(assert.headers, "hardware-id-key-sha3-384") 
-	if err != nil {
-		return nil, err
-	}
-
 	if !IsParsablePemPublicKeyBody(hardwareIdKey) {
 		return nil, errors.New(`"hardware-id-key" header should be the body of a PEM`)
 	}
-	
+
+	// don't check if non-empty as check was done for primary key
+	hardwareIdKeySha3384, _ := checkNotEmptyString(assert.headers, "hardware-id-key-sha3-384") 
 
 	if len(assert.body) != 0 {
 		return nil, errors.New("body must be empty")
