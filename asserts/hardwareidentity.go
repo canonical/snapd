@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"golang.org/x/crypto/sha3"
 )
 
 type HardwareIdentity struct {
@@ -70,13 +72,16 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("invalid issuer id: %s", issuerId)
 	}
 
+	if issuerId != assert.headers["authority-id"] {
+		return nil, errors.New("issuer id must match authority id")
+	}
 
 	manufacturer, err := checkNotEmptyString(assert.headers, "manufacturer")         
 	if err != nil {
 		return nil, err
 	}
 	
-	hardwareName, err := checkNotEmptyString(assert.headers, "hardware-name")         
+	hardwareName, err := checkStringMatches(assert.headers, "hardware-name", validModel)         
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +102,16 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 
 	// don't check if non-empty as check was done for primary key
 	hardwareIdKeySha3384, _ := checkNotEmptyString(assert.headers, "hardware-id-key-sha3-384") 
+
+	
+    // Compute hash and display as hexadecimal
+	hash := sha3.New384()
+    hash.Write([]byte(hardwareIdKey))
+    hashedHardwareIdKey := hash.Sum(nil)
+
+	if hardwareIdKeySha3384 != fmt.Sprintf("%x", hashedHardwareIdKey) {
+		return nil, fmt.Errorf("hardware id key does not match provided sha3 digest")
+	}
 
 	if len(assert.body) != 0 {
 		return nil, errors.New("body must be empty")
