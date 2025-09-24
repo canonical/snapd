@@ -58,6 +58,27 @@ type AppInfo struct {
 	Activators  []AppActivator   `json:"activators,omitempty"`
 }
 
+// Retains backward-compatibility with previous implementation of AppActivator
+func (aa AppActivator) MarshalJSON() ([]byte, error) {
+	type appActivator AppActivator
+
+	type activatorWrapper struct {
+		appActivator
+		NameLegacy    string `json:"Name"`
+		TypeLegacy    string `json:"Type"`
+		ActiveLegacy  bool   `json:"Active"`
+		EnabledLegacy bool   `json:"Enabled"`
+	}
+
+	return json.Marshal(activatorWrapper{
+		appActivator:  appActivator(aa),
+		NameLegacy:    aa.Name,
+		TypeLegacy:    aa.Type,
+		ActiveLegacy:  aa.Active,
+		EnabledLegacy: aa.Enabled,
+	})
+}
+
 // IsService returns true if the application is a background daemon.
 func (a *AppInfo) IsService() bool {
 	if a == nil {

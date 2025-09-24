@@ -98,7 +98,7 @@ func (cs *clientSuite) TestClientAppActivators(c *check.C) {
 		},
 	}
 
-	activatorString := `[{"snap":"hello-world","name":"hello-world","daemon":"simple","enabled":true,"active":true,"activators":[{"name":"test-activator","type":"dbus","active":false,"enabled":true}]}]`
+	activatorString := `[{"snap":"hello-world","name":"hello-world","daemon":"simple","enabled":true,"active":true,"activators":[{"name":"test-activator","type":"dbus","active":false,"enabled":true,"Name":"test-activator","Type":"dbus","Active":false,"Enabled":true}]}]`
 
 	buf, err := json.Marshal(expected)
 	c.Assert(err, check.IsNil)
