@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/subtle"
 	"encoding/json"
@@ -29,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -227,6 +229,44 @@ func generateInitramfsMounts() (err error) {
 	}
 
 	return nil
+}
+
+func generateRunModprobed() {
+	// Write things in /run/modprobe.d, create that folder first
+	os.Mkdir("/run/modprobe.d", 0755)
+
+	// Read the modprobe.d folder from initramfs, and for each file write to run/modprobe.d
+	kernelModprobePath := "/etc/modprobe.d"
+	files, err := os.ReadDir(kernelModprobePath)
+	if err != nil {
+		logger.Noticef("no initramfs modprobe.d folder: %v", err)
+		return
+	}
+
+	for _, file := range files {
+		file_in, err := os.Open(filepath.Join(kernelModprobePath, file.Name()))
+		if err != nil {
+			logger.Noticef("error accessing kernel modprobe.d configuration: %v", err)
+		} else {
+			defer file_in.Close()
+
+			file_out, err := os.OpenFile("/run/modprobe.d/"+file.Name(), os.O_CREATE|os.O_RDWR, 0444)
+			if err != nil {
+				logger.Noticef("error creating kernel modprobe.d configuration: %v", err)
+			} else {
+				defer file_out.Close()
+
+				scanner := bufio.NewScanner(file_in)
+				for scanner.Scan() {
+					line := scanner.Text()
+					match, _ := regexp.MatchString("^(options|blacklist|alias|softdep|#).*", line)
+					if match {
+						file_out.WriteString(line + "\n")
+					}
+				}
+			}
+		}
+	}
 }
 
 func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
@@ -2269,6 +2309,10 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 				what, where, err)
 		}
 	}
+
+	// parse the modprobe.d settings from initramfs and write them in /run
+	// for the system to pick them up later
+	generateRunModprobed()
 
 	return true, nil
 }
