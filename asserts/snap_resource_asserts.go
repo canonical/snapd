@@ -82,7 +82,7 @@ func (resrev *SnapResourceRevision) Timestamp() time.Time {
 	return resrev.timestamp
 }
 
-// ResourceIntegrityData returns the integrity data associated with the snap-resource-revision assertion if any.
+// ResourceIntegrityData returns the integrity data associated with the snap resource revision assertion if any.
 func (resrev *SnapResourceRevision) ResourceIntegrityData() []IntegrityData {
 	return resrev.resourceIntegrityData
 }
