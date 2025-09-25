@@ -76,6 +76,7 @@ ptrace (read),
 @{PROC}/pressure/cpu r,
 @{PROC}/pressure/io r,
 @{PROC}/pressure/memory r,
+# Allow reading ZFS filesystem statistics
 @{PROC}/spl/kstat/zfs/{,**} r,
 @{PROC}/sys/kernel/panic r,
 @{PROC}/sys/kernel/panic_on_oops r,
