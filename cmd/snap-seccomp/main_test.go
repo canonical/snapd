@@ -285,6 +285,8 @@ faccessat
 restart_syscall
 # libc6 2.31/gcc-9.3
 mprotect
+# libc6 2.42
+getrandom
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompAllowlist), bpfPath)
