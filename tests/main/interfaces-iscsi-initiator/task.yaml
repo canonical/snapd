@@ -16,6 +16,9 @@ details: |
 environment:
   TEST_SNAP: test-iscsi-initiator-interfaces
 
+# Disable tests for core environments
+systems: [-ubuntu-core-*]
+
 prepare: |
   echo "Create test iSCSI configuration directory structure"
   "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
