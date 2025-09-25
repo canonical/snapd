@@ -367,6 +367,11 @@ func SnapBlobDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "snaps")
 }
 
+// SnapAssertionDirUnder returns the path to the assertions dir under rootdir.
+func SnapAssertionsDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "assertions")
+}
+
 // SnapSeedDirUnder returns the path to the snap seed dir under rootdir.
 func SnapSeedDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "seed")
