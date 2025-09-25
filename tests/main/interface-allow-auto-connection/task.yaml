@@ -1,0 +1,45 @@
+summary: Verify that the interface.allow-auto-connection setting works
+
+details: |
+    Using different snaps that require interface connections, check each of the options
+    for interface.<if>.allow-auto-connection works like they are expected. The supported
+    interfaces are the builtin ones in snapd.
+
+restore: |
+    snap set system interface.network.allow-auto-connection=true
+    snap remove test-snapd-curl || true
+    snap remove network-consumer || true
+
+execute: |
+    # We can install a snap with an interface by default
+    snap install test-snapd-curl --edge --revision=22
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+
+    # Disallowing that interface does not break current connection
+    snap set system interface.network.allow-auto-connection=false
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+
+    # Refreshing keeps the connection
+    snap refresh test-snapd-curl --edge
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+
+    # Remove snap
+    snap remove test-snapd-curl
+
+    # Trying to reinstall it does not establish the connection
+    snap install test-snapd-curl --edge
+    snap connections test-snapd-curl | tr -s ' ' | NOMATCH "test-snapd-curl:network :network"
+
+    # Remove snap
+    snap remove test-snapd-curl
+
+    # Switching to verified
+    snap set system interface.network.allow-auto-connection=verified
+
+    # Installing a local snap wont connect it
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
+    snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
+
+    # Installing a verified one connects it
+    snap install test-snapd-curl --edge
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
