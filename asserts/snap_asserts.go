@@ -646,7 +646,7 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 	return snaprev.timestamp
 }
 
-// SnapIntegrityData returns the snap integrity data associated with the snap revision if any.
+// SnapIntegrityData returns the integrity data associated with the snap revision if any.
 func (snaprev *SnapRevision) SnapIntegrityData() []IntegrityData {
 	return snaprev.snapIntegrityData
 }
