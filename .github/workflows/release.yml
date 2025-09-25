@@ -1,0 +1,116 @@
+name: Release prepare
+
+on:
+  push:
+    tags:
+      # x.y or x.y.z
+      - "[0-9]+.[0-9]+(.[0-9]+)?"
+
+  # for debugging only
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+            fetch-tags: true
+
+      - name: Get the release version from tag push
+        if: "${{ env.VERSION == '' && github.event_name == 'push' }}"
+        shell: bash
+        run: |
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: Get the release version from input
+        if: "${{ env.VERSION == '' && github.event_name == 'workflow_dispatch' }}"
+        shell: bash
+        run: |
+            echo "VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+
+      - name: Show the version and sanitize
+        run: |
+            echo "version is: $VERSION"
+
+            if [ -z "$VERSION" ]; then
+                echo "VERSION is unset"
+                exit 1
+            fi
+
+      - name: Checkout tag
+        shell: bash
+        run: |
+            git checkout "$VERSION"
+
+      - name: Check that tag version matches the reference packaging
+        shell: bash
+        run: |
+            set -o pipefail
+
+            if ! head -1 ./packaging/ubuntu-16.04/changelog | grep -q "snapd (\"$VERSION\")" ; then
+                 echo "version does not match Ubuntu packaging" >&2
+                 exit 1
+            fi
+
+            # TODO verify other packaging?
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+            gh release create $VERSION --draft --verify-tag --title $VERSION
+
+    outputs:
+      version: ${{ env.VERSION }}
+
+  build-release:
+    name: build-release
+    needs: [create-release]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install the Go snap
+      run: |
+          sudo snap install --classic --channel=latest/stable go
+
+    - name: Fetch dependencies
+      shell: bash
+      run: |
+          ./get-deps.sh
+
+    - name: Prepare assets
+      shell: bash
+      run: |
+          mkdir $PWD/out-dir
+          ./packaging/pack-source -o $PWD/out-dir -v "$VERSION"
+          ./packaging/pack-source -o $PWD/out-dir -v "$VERSION" -s
+
+    - name: Checksums
+      shell: bash
+      run: |
+          cd $PWD/out-dir
+          for f in *.tar.xz; do
+               sha256sum "$f"
+          done
+
+    - name: Upload assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+          version="${{ needs.create-release.outputs.version }}"
+          cd $PWD/out-dir
+          for f in *.tar.xz; do
+              gh release upload "$version" "$f"
+          done
