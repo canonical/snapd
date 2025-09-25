@@ -88,6 +88,7 @@ jobs:
         env:
           METRICS_HOST: ${{ secrets.METRICS_HOST }}
           METRICS_PORT: ${{ secrets.METRICS_PORT }}
+        run: |
           # spread -list is measured because this is the time any spread execution takes to compute
           # all the backend:system:tasks combinations and filter based on the expressions used.
           start_ms=$(date +%s%3N)
