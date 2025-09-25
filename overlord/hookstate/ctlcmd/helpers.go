@@ -228,13 +228,15 @@ func queueDefaultConfigureHookCommand(context *hookstate.Context, tts []*state.T
 	return nil
 }
 
-func maybePatchServiceNames(snapInstance string, serviceNames []string) ([]string, error) {
+func maybePatchServiceNames(snapInstance string, serviceNames []string) (
+	updatedServiceNames []string, patched bool, err error,
+) {
 	snapName, snapKey := snap.SplitInstanceName(snapInstance)
 	hasInstanceKey := snapKey != ""
 
 	if !hasInstanceKey {
 		// no patching needed, return names as they are
-		return serviceNames, nil
+		return serviceNames, false, nil
 	}
 
 	// Backward compatibility path for a scenario when snapctl service operation
@@ -244,13 +246,14 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) ([]strin
 	// existing snaps that aren't completely aware of parallel installs work
 	// correctly.
 
-	updatedServiceNames := make([]string, 0, len(serviceNames))
+	updatedServiceNames = make([]string, 0, len(serviceNames))
 	keyedCnt := 0
 	for _, svcN := range serviceNames {
 		if svcN == snapName {
 			// same as base snap name (without instance key), a short hand
 			// syntax for restart all services of a snap
 			updatedServiceNames = append(updatedServiceNames, snapInstance)
+			patched = true
 			continue
 		}
 
@@ -264,13 +267,14 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) ([]strin
 				// snap name used in the full service name does not include instance
 				// key, needs patching
 				updatedServiceNames = append(updatedServiceNames, snap.JoinSnapApp(snapInstance, svcApp))
+				patched = true
 				continue
 			}
 
 			keyedCnt++
 
 			if svcSnapKey != snapKey {
-				return nil, fmt.Errorf(i18n.G("unexpected snap instance key: %q"), svcSnapKey)
+				return nil, false, fmt.Errorf(i18n.G("unexpected snap instance key: %q"), svcSnapKey)
 			}
 		}
 
@@ -278,10 +282,10 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) ([]strin
 	}
 
 	if keyedCnt != 0 && keyedCnt != len(serviceNames) {
-		return nil, fmt.Errorf(i18n.G("inconsistent use of snap instance key"))
+		return nil, false, fmt.Errorf(i18n.G("inconsistent use of snap instance key"))
 	}
 
-	return updatedServiceNames, nil
+	return updatedServiceNames, patched, nil
 }
 
 func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction) error {
@@ -291,7 +295,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 
 	// patch service names for parallel installed snap if needed
 	var err error
-	inst.Names, err = maybePatchServiceNames(context.InstanceName(), inst.Names)
+	inst.Names, _, err = maybePatchServiceNames(context.InstanceName(), inst.Names)
 	if err != nil {
 		return err
 	}
