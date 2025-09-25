@@ -72,10 +72,11 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		keys = strutil.CommaSeparatedList(keysStr)
 	}
 
-	constraintsStr := r.URL.Query().Get("constraints")
 	var constraints map[string]string
-	if constraintsStr != "" {
-		constraintPairs := strutil.CommaSeparatedList(constraintsStr)
+	if cstrsRaw := r.URL.Query().Get("constraints"); cstrsRaw != "" {
+		constraintPairs := strutil.CommaSeparatedList(cstrsRaw)
+		constraints := make(map[string]string, len(constraintPairs))
+
 		for _, pair := range constraintPairs {
 			parts := strings.Split(pair, "=")
 			if len(parts) != 2 {

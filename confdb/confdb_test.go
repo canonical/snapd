@@ -49,7 +49,7 @@ func (f *failingSchema) Ephemeral() bool         { return false }
 func (f *failingSchema) NestedEphemeral() bool   { return false }
 
 func parsePath(c *C, path string) []confdb.Accessor {
-	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	accs, err := confdb.ParsePathIntoAccessors(path, nil, confdb.ParseOptions{})
 	c.Assert(err, IsNil)
 	return accs
 }
@@ -2261,10 +2261,10 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 	for i, tc := range tcs {
 		cmt := Commentf("failed test number %d", i+1)
 		opts := confdb.ParseOptions{AllowPlaceholders: true}
-		suffix, err := confdb.ParsePathIntoAccessors(tc.suffix, opts)
+		suffix, err := confdb.ParsePathIntoAccessors(tc.suffix, nil, opts)
 		c.Assert(err, IsNil)
 
-		path, err := confdb.ParsePathIntoAccessors(tc.path, opts)
+		path, err := confdb.ParsePathIntoAccessors(tc.path, nil, opts)
 		c.Assert(err, IsNil)
 
 		pathValuePairs, err := confdb.GetValuesThroughPaths(path, suffix, tc.value)
@@ -3163,7 +3163,7 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 		cmt := Commentf("failed test number %d", i+1)
 		var paths [][]confdb.Accessor
 		for _, req := range tc.requests {
-			path, err := confdb.ParsePathIntoAccessors(req, confdb.ParseOptions{})
+			path, err := confdb.ParsePathIntoAccessors(req, nil, confdb.ParseOptions{})
 			c.Assert(err, IsNil)
 			paths = append(paths, path)
 		}
@@ -3901,4 +3901,59 @@ func (*viewSuite) TestSubkeyFiltering(c *C) {
 			"status": "disabled",
 		},
 	})
+}
+
+func (*viewSuite) TestListFiltering(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "vm[{n}][.path={path}][.value={value}]", "storage": "sys.vm[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+
+	err = bag.Set(parsePath(c, "sys.vm"),
+		[]any{
+			map[string]any{
+				"path":  "dirty_bytes",
+				"value": "0",
+			},
+			map[string]any{
+				"path":  "dirty_ratio",
+				"value": "20",
+			},
+			map[string]any{
+				"path":  "dirty_background_bytes",
+				"value": "0",
+			},
+		})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(bag, "vm", map[string]string{"path": "dirty_bytes"})
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals,
+		[]any{
+			map[string]any{
+				"path":  "dirty_bytes",
+				"value": "0",
+			},
+		})
+
+	val, err = view.Get(bag, "vm", map[string]string{"value": "0"})
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals,
+		[]any{
+			map[string]any{
+				"path":  "dirty_bytes",
+				"value": "0",
+			},
+			map[string]any{
+				"path":  "dirty_background_bytes",
+				"value": "0",
+			},
+		})
 }

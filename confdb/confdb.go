@@ -278,6 +278,31 @@ func pathChangeAffects(modified, affected []Accessor) bool {
 	return true
 }
 
+type paramPresence string
+
+const (
+	mandatory       paramPresence = "false"
+	optional        paramPresence = "true"
+	optionalOnRead  paramPresence = "on-read"
+	optionalOnWrite paramPresence = "on-write"
+)
+
+func newOptionalValue(opt string) (paramPresence, error) {
+	switch opt {
+	case "false":
+		return mandatory, nil
+	case "", "true":
+		// default to true so we can use placeholders w/o a parameters block
+		return optional, nil
+	case "on-read":
+		return optionalOnRead, nil
+	case "on-write":
+		return optionalOnWrite, nil
+	default:
+		return paramPresence(""), fmt.Errorf("unexpected 'optional' value: %s", opt)
+	}
+}
+
 // NewSchema returns a new confdb schema with the specified views (and their
 // rules) and storage schema.
 func NewSchema(account string, dbSchemaName string, views map[string]any, schema DatabagSchema) (*Schema, error) {
@@ -313,7 +338,30 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 			return nil, fmt.Errorf("cannot define view %q: view rules must be non-empty list", name)
 		}
 
-		view, err := newView(dbSchema, name, rules)
+		// map under "parameters" only has the "optional" field, so flatten for simplicity.
+		var params map[string]paramPresence
+		if parameters, ok := viewMap["parameters"]; ok {
+			paramsMap, ok := parameters.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf(`expected "parameters" to be a map`)
+			}
+
+			params = make(map[string]paramPresence, len(paramsMap))
+			for paramName, attributes := range paramsMap {
+				attrMap, ok := attributes.(map[string]string)
+				if !ok {
+					return nil, fmt.Errorf(`expected parameter %q to have map value but got %T`, paramName, attributes)
+				}
+
+				optVal, err := newOptionalValue(attrMap["optional"])
+				if err != nil {
+					return nil, err
+				}
+				params[paramName] = optVal
+			}
+		}
+
+		view, err := newView(dbSchema, name, rules, params)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define view %q: %w", name, err)
 		}
@@ -324,7 +372,7 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 	return dbSchema, nil
 }
 
-func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
+func newView(dbSchema *Schema, name string, viewRules []any, params map[string]paramPresence) (*View, error) {
 	view := &View{
 		Name:   name,
 		rules:  make([]*viewRule, 0, len(viewRules)),
@@ -332,7 +380,7 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	}
 
 	for _, ruleRaw := range viewRules {
-		rules, err := parseRule(nil, ruleRaw)
+		rules, err := parseRule(nil, ruleRaw, params)
 		if err != nil {
 			return nil, err
 		}
@@ -371,7 +419,7 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	return view, nil
 }
 
-func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
+func parseRule(parent *viewRule, ruleRaw any, params map[string]paramPresence) ([]*viewRule, error) {
 	ruleMap, ok := ruleRaw.(map[string]any)
 	if !ok {
 		return nil, errors.New("each view rule should be a map")
@@ -415,7 +463,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		access = parent.access
 	}
 
-	reqAccessors, storageAccessors, err := validateRequestStoragePair(request, storage)
+	reqAccessors, storageAccessors, err := validateRequestStoragePair(request, storage, params)
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +503,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		}
 
 		for _, contentRule := range contentRulesRaw {
-			nestedRules, err := parseRule(rule, contentRule)
+			nestedRules, err := parseRule(rule, contentRule, params)
 			if err != nil {
 				return nil, err
 			}
@@ -474,15 +522,15 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 //
 // If the validation succeeds, it returns lists of typed representations of each
 // path.
-func validateRequestStoragePair(request, storage string) (reqAccessors []Accessor, storageAccessors []Accessor, err error) {
+func validateRequestStoragePair(request, storage string, params map[string]paramPresence) (reqAccessors []Accessor, storageAccessors []Accessor, err error) {
 	opts := ParseOptions{AllowPlaceholders: true, ForbidIndexes: true}
-	reqAccessors, err = ParsePathIntoAccessors(request, opts)
+	reqAccessors, err = ParsePathIntoAccessors(request, params, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
 	opts.ForbidIndexes = false
-	storageAccessors, err = ParsePathIntoAccessors(storage, opts)
+	storageAccessors, err = ParsePathIntoAccessors(storage, params, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
@@ -569,7 +617,7 @@ type ParseOptions struct {
 //
 // If the validation succeeds, it returns an []accessor which contains typed
 // representations of each type of subkey (e.g., key placeholder, index, etc).
-func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) {
+func ParsePathIntoAccessors(path string, params map[string]paramPresence, opts ParseOptions) ([]Accessor, error) {
 	if path == "" {
 		return nil, nil
 	}
@@ -582,24 +630,29 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 	accessors := make([]Accessor, 0, len(pathParts))
 	for _, part := range pathParts {
 		subkey := part.value
-		constr := part.constraints
-		// TODO: check the placeholders used in the field filters against the
-		// confdb-schema's declared parameters
+		cstrs := part.filters
+
+		for _, cstr := range cstrs {
+			opt, ok := params[cstr]
+			if ok && opt == mandatory {
+				return nil, fmt.Errorf("%q cannot be used as filter: parameter is not optional", cstr)
+			}
+			// parameter presence defaults to optional
+		}
 
 		isKey := validSubkey.MatchString(subkey)
 		isIndex := validIndexSubkey.MatchString(subkey)
 		isKeyPlaceholder := validPlaceholder.MatchString(subkey)
 		isIndexPlaceholder := validIndexPlaceholder.MatchString(subkey)
 
-		// TODO: add the constraints to the accessor somehow so we can access it in Get()
 		switch {
 		case isKey:
-			accessors = append(accessors, newKey(subkey, constr))
+			accessors = append(accessors, newKey(subkey, cstrs))
 		case isIndex:
 			if opts.ForbidIndexes {
 				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
 			}
-			accessors = append(accessors, newIndex(subkey[1:len(subkey)-1], constr))
+			accessors = append(accessors, newIndex(subkey[1:len(subkey)-1], cstrs))
 
 		case !opts.AllowPlaceholders:
 			// user supplied paths cannot contain placeholders
@@ -610,9 +663,9 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 			return nil, fmt.Errorf("invalid subkey %q%s", subkey, errSuffix)
 
 		case isKeyPlaceholder:
-			accessors = append(accessors, newKeyPlaceholder(subkey[1:len(subkey)-1], constr))
+			accessors = append(accessors, newKeyPlaceholder(subkey[1:len(subkey)-1], cstrs))
 		case isIndexPlaceholder:
-			accessors = append(accessors, newIndexPlaceholder(subkey[2:len(subkey)-2], constr))
+			accessors = append(accessors, newIndexPlaceholder(subkey[2:len(subkey)-2], cstrs))
 		default:
 			return nil, fmt.Errorf("invalid subkey %q", subkey)
 		}
@@ -647,13 +700,13 @@ type Accessor interface {
 }
 
 type splitSubkey struct {
-	value       string
-	constraints map[string]string
+	value   string
+	filters map[string]string
 }
 
 func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 	var subkeys []splitSubkey
-	var constraints map[string]string
+	var filters map[string]string
 	sb := &strings.Builder{}
 
 	finishSubkey := func() error {
@@ -666,12 +719,12 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 			return errors.New("cannot have empty subkeys")
 		}
 		subkeys = append(subkeys, splitSubkey{
-			value:       sb.String(),
-			constraints: constraints,
+			value:   sb.String(),
+			filters: filters,
 		})
 
 		sb.Reset()
-		constraints = nil
+		filters = nil
 		return nil
 	}
 
@@ -690,39 +743,42 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 			}
 
 		case '[':
-			if len(pathBytes) > 0 {
-				nextChar, width := utf8.DecodeRune(pathBytes)
-				if nextChar == utf8.RuneError {
-					return nil, fmt.Errorf("non UTF-8 character")
-				}
-
-				if nextChar == '.' {
-					// we've read the start of a field filter [.foo={foo}]. Continue reading
-					pathBytes = pathBytes[width:]
-
-					field, filter, n, err := parseFieldFilter(pathBytes)
-					if err != nil {
-						return nil, err
-					}
-					pathBytes = pathBytes[n:]
-
-					if constraints == nil {
-						constraints = make(map[string]string)
-					}
-
-					if storedConstr, ok := constraints[field]; ok {
-						return nil, fmt.Errorf("path subkey cannot have several field constraints for same field: [.%[1]s=%[2]s] and [.%[1]s=%[3]s]", field, storedConstr, filter)
-					}
-
-					constraints[field] = filter
-					continue
-				}
+			if len(pathBytes) == 0 {
+				return nil, fmt.Errorf(`invalid subkey "["`)
 			}
 
+			// both field filters and list accesses start with '[', check the next character
+			nextChar, width := utf8.DecodeRune(pathBytes)
+			if nextChar == utf8.RuneError {
+				return nil, fmt.Errorf("non UTF-8 character")
+			}
+
+			if nextChar == '.' {
+				// we're parsing a field filter [.foo={foo}], let's parse the entire thing
+				pathBytes = pathBytes[width:]
+				field, filter, n, err := parseFieldFilter(pathBytes)
+				if err != nil {
+					return nil, err
+				}
+				pathBytes = pathBytes[n:]
+
+				if filters == nil {
+					filters = make(map[string]string)
+				}
+
+				if prevFilter, ok := filters[field]; ok {
+					return nil, fmt.Errorf("cannot apply more than one filter to the same field: [.%[1]s=%[2]s] and [.%[1]s=%[3]s]", field, prevFilter, filter)
+				}
+
+				filters[field] = filter
+				continue
+			}
+
+			// we're parsing a new list accessor (e.g, [{n}]), save the previous
+			// sub-key and continue
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
-			// include the square brackets as they imply a different type of placeholder
 			fallthrough
 
 		default:
@@ -860,7 +916,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	}
 
 	opts := ParseOptions{AllowPlaceholders: false}
-	accessors, err := ParsePathIntoAccessors(request, opts)
+	accessors, err := ParsePathIntoAccessors(request, nil, opts)
 	if err != nil {
 		return badRequestErrorFrom(v, "set", request, err.Error())
 	}
@@ -965,7 +1021,7 @@ func byAccessor[T match](matches []T, getAccs accGetter) func(x, y int) bool {
 
 func (v *View) Unset(databag Databag, request string) error {
 	opts := ParseOptions{AllowPlaceholders: false}
-	accessors, err := ParsePathIntoAccessors(request, opts)
+	accessors, err := ParsePathIntoAccessors(request, nil, opts)
 	if err != nil {
 		return badRequestErrorFrom(v, "unset", request, err.Error())
 	}
@@ -1012,6 +1068,9 @@ func (v *View) matchWriteRequest(request []Accessor) ([]requestMatch, error) {
 			continue
 		}
 
+		// TODO: check that any unmatched placeholders in the suffix are optional
+		// on writing per the "parameters" block
+
 		reqAccs := make([]Accessor, 0, len(rule.request))
 		for _, m := range rule.request {
 			reqAccs = append(reqAccs, Accessor(m))
@@ -1034,7 +1093,7 @@ out:
 	for _, rule := range rules {
 		path := rule.originalStorage
 		opts := ParseOptions{AllowPlaceholders: true}
-		pathParts, err := ParsePathIntoAccessors(path, opts)
+		pathParts, err := ParsePathIntoAccessors(path, nil, opts)
 		if err != nil {
 			return err
 		}
@@ -1231,7 +1290,7 @@ func checkForUnusedBranches(value any, paths map[string]struct{}) error {
 
 		if path != "" {
 			opts := ParseOptions{AllowPlaceholders: true, AllowPartialPath: true}
-			pathParts, err = ParsePathIntoAccessors(path, opts)
+			pathParts, err = ParsePathIntoAccessors(path, nil, opts)
 			if err != nil {
 				return err
 			}
@@ -1444,7 +1503,7 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 	if request != "" {
 		var err error
 		opts := ParseOptions{AllowPlaceholders: false}
-		accessors, err = ParsePathIntoAccessors(request, opts)
+		accessors, err = ParsePathIntoAccessors(request, nil, opts)
 		if err != nil {
 			return nil, badRequestErrorFrom(v, "get", request, err.Error())
 		}
@@ -1741,7 +1800,7 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 	opts := ParseOptions{AllowPlaceholders: false}
 	var matches []requestMatch
 	for _, request := range requests {
-		accessors, err := ParsePathIntoAccessors(request, opts)
+		accessors, err := ParsePathIntoAccessors(request, nil, opts)
 		if err != nil {
 			return false, err
 		}
@@ -1858,6 +1917,9 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		if !rule.isReadable() {
 			continue
 		}
+
+		// TODO: check that any unmatched placeholders in the suffix are optional
+		// on reading per the "parameters" block
 
 		reqAccs := make([]Accessor, 0, len(rule.request))
 		for _, m := range rule.request {
