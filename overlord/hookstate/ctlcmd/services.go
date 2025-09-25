@@ -100,7 +100,7 @@ func (c *servicesCommand) Execute([]string) error {
 
 	serviceNames := c.Positional.ServiceNames
 
-	serviceNames, err = maybePatchServiceNames(ctx.InstanceName(), serviceNames)
+	serviceNames, patched, err := maybePatchServiceNames(ctx.InstanceName(), serviceNames)
 	if err != nil {
 		return err
 	}
@@ -122,10 +122,14 @@ func (c *servicesCommand) Execute([]string) error {
 	w := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)
 	defer w.Flush()
 
-	// XXX should service names be remapped back from snap-name_key to snap-name if needed?
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 	for _, svc := range services {
-		fmt.Fprintln(w, clientutil.FmtServiceStatus(&svc, isGlobal))
+		fmt.Fprintln(w, clientutil.FmtServiceStatus(&svc, clientutil.FmtServiceStatusOptions{
+			IsUserGlobal: isGlobal,
+			// snap name in services may be subject to patching if the calling
+			// snap has an instance key but the query used $SNAP_NAME
+			DropSnapInstanceKey: patched,
+		}))
 	}
 
 	return nil

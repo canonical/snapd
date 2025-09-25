@@ -1318,8 +1318,8 @@ NeedDaemonReload=no
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"services", "test-snap.test-service"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, `
-Service                     Startup  Current  Notes
-test-snap_foo.test-service  enabled  active   -
+Service                 Startup  Current  Notes
+test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
 }
