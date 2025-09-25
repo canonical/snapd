@@ -41,6 +41,10 @@ execute: |
     if tests.info is-reexec-in-use; then
         # We cannot probe /dev/mqueue
         not snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
+    else
+        # No known distro apparmor version supports this mediation, so the
+        # access will be successful
+        snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
     fi
 
     snap connect test-snapd-posix-mq:posix-mq test-snapd-posix-mq:can-create
