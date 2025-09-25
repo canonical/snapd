@@ -86,7 +86,7 @@ launch() {
 
     # wait for cloud-init to finish before doing any apt operations
     local ret=0
-    cloud-init status --wait || ret=$?
+    lxc exec "$name" -- sh -c "cloud-init status --wait" || ret=$?
     if [ "$ret" -ne 0 ] && [ "$ret" -ne 2 ]; then
         echo "cloud-init finished with error $ret"
         exit 1
