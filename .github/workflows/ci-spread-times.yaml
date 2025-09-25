@@ -47,7 +47,7 @@ jobs:
               exit 1
           fi
 
-          jq -c '.items[]' "$json_file" | while read -r item; do
+          jq -c '.items[] | select(.verb != null and .level != null)' "$json_file" | while read -r item; do
               start=$(jq -r '.start' <<< "$item")
               end=$(jq -r '.end' <<< "$item")
               verb=$(jq -r '.verb' <<< "$item")
@@ -62,6 +62,7 @@ jobs:
               diff_ms=$(( end_ms - start_ms ))
 
               if [ "$success" = true ]; then
+                echo "pushing metric snapd_times_${verb}_${level} with value $diff_ms"
                 ./tests/utils/metrics/post-metric "snapd_times_${verb}_${level}" "$diff_ms" --label "backend=$backend" --label "system=$system" --label "name=$name"
               else
                 echo "Skipping failed execution $verb $name $level"
@@ -84,7 +85,9 @@ jobs:
           fetch-depth: 0
 
       - name: list spread task
-        run: |
+        env:
+          METRICS_HOST: ${{ secrets.METRICS_HOST }}
+          METRICS_PORT: ${{ secrets.METRICS_PORT }}
           # spread -list is measured because this is the time any spread execution takes to compute
           # all the backend:system:tasks combinations and filter based on the expressions used.
           start_ms=$(date +%s%3N)
@@ -196,6 +199,7 @@ jobs:
               name=$(jq -r '.name' <<<"$row")
               avg_ms=$(jq -r '.avg_ms' <<<"$row")
 
+              echo "pushing metric snapd_times_avg_${verb}_${level} with value $avg_ms"
               ./tests/utils/metrics/post-metric "snapd_times_avg_${verb}_${level}" "$avg_ms" \
                 --label "backend=$backend" \
                 --label "system=$system" \
