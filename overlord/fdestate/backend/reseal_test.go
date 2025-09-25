@@ -577,7 +577,6 @@ func (s *resealTestSuite) TestTPMResealHappyRevokeMissingParams(c *C) {
 func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 	var prevPbc boot.PredictableBootChains
 	var prevRecoveryPbc boot.PredictableBootChains
-	myState := &fakeState{}
 
 	for idx, tc := range []struct {
 		reuseRunPbc      bool
@@ -612,6 +611,7 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("/")
 
+		myState := &fakeState{}
 		myState.EncryptedContainers = []backend.EncryptedContainer{
 			&encryptedContainer{
 				uuid:          "123",
@@ -911,6 +911,10 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 				checkRecoveryParamsSave()
 			default:
 				c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
+			}
+
+			if profileErr != nil {
+				return nil, profileErr
 			}
 
 			return nil, tc.resealErr
@@ -1218,6 +1222,23 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		}
 		prevRecoveryPbc = recoveryPbc
 		c.Check(recoveryPbc, DeepEquals, boot.PredictableBootChains(removeKernelBootFiles(recoveryBootChains)))
+
+		if tc.reuseRunPbc {
+			sealingParams, err := myState.Get("run", "all")
+			c.Assert(err, IsNil)
+			c.Assert(sealingParams, IsNil)
+			sealingParams, err = myState.Get("run+recover", "all")
+			c.Assert(err, IsNil)
+			c.Assert(sealingParams, IsNil)
+		}
+		if tc.reuseRecoveryPbc {
+			sealingParams, err := myState.Get("recover", "system-data")
+			c.Assert(err, IsNil)
+			c.Assert(sealingParams, IsNil)
+			sealingParams, err = myState.Get("recover", "system-save")
+			c.Assert(err, IsNil)
+			c.Assert(sealingParams, IsNil)
+		}
 	}
 }
 
