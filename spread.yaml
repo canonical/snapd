@@ -1647,6 +1647,8 @@ suites:
             - garden
             - openstack-ext-ps7
             - openstack-arm-ext-ps7
+            - openstack-dev-ps7
+            - openstack-arm-dev-ps7
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1727,6 +1729,8 @@ suites:
             - google-nested-arm
             - openstack-ext-ps7
             - openstack-arm-ext-ps7
+            - openstack-dev-ps7
+            - openstack-arm-dev-ps7
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1789,6 +1793,8 @@ suites:
             - google-nested-arm
             - openstack-ext-ps7
             - openstack-arm-ext-ps7
+            - openstack-dev-ps7
+            - openstack-arm-dev-ps7
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1862,6 +1868,8 @@ suites:
             - google-nested-arm
             - openstack-ext-ps7
             - openstack-arm-ext-ps7
+            - openstack-dev-ps7
+            - openstack-arm-dev-ps7
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
