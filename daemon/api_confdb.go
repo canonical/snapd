@@ -75,7 +75,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var constraints map[string]string
 	if cstrsRaw := r.URL.Query().Get("constraints"); cstrsRaw != "" {
 		constraintPairs := strutil.CommaSeparatedList(cstrsRaw)
-		constraints := make(map[string]string, len(constraintPairs))
+		constraints = make(map[string]string, len(constraintPairs))
 
 		for _, pair := range constraintPairs {
 			parts := strings.Split(pair, "=")
@@ -98,6 +98,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
+	fmt.Printf("constraints: %v\n", constraints)
 	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
 	if err != nil {
 		return toAPIError(err)
