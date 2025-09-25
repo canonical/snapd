@@ -221,6 +221,6 @@ func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*i
 	return m.setupSecurityByBackend(task, appSets, opts, tm)
 }
 
-func MockIsSnapVerified(new func(si *snap.Info) bool) (restore func()) {
+func MockIsSnapVerified(new func(st *state.State, snapID string) bool) (restore func()) {
 	return testutil.Mock(&isSnapVerified, new)
 }

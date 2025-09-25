@@ -11914,7 +11914,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedUnhappy(c *C) {
-	r := ifacestate.MockIsSnapVerified(func(si *snap.Info) bool {
+	r := ifacestate.MockIsSnapVerified(func(_ *state.State, _ string) bool {
 		return false
 	})
 	defer r()
@@ -11937,7 +11937,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedHappy(c *C) {
-	r := ifacestate.MockIsSnapVerified(func(si *snap.Info) bool {
+	r := ifacestate.MockIsSnapVerified(func(_ *state.State, _ string) bool {
 		return true
 	})
 	defer r()
