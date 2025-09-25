@@ -1,7 +1,66 @@
 #!/bin/bash
-set -xeu
+set -eu
+
+help() {
+    echo "usage: $0 [--mode MODE] [--no-rebuild] [--] [ARGS]"
+    echo
+    echo "Options:"
+    echo "   --mode MODE    - use selected mode:"
+    echo "                        sru-validation   - Ubuntu SRU validation"
+    echo "                        native-package   - Use native package"
+    echo "   --no-rebuild   - do not rebuild snapd snap"
+    echo "   --             - delimiter for arguments parsed by this script"
+    echo "   ARGS           - arguments passed to spread"
+    echo
+}
 
 need_rebuild=1
+mode=""
+no_rebuild=0
+
+while true; do
+    case "${1-}" in
+        --help|-h)
+            help
+            exit 0
+            ;;
+        --mode)
+            shift
+            maybe_mode="$1"
+            shift
+            if [ "$mode" != "" ]; then
+                echo "already using mode $mode"
+                exit 1
+            fi
+
+            case "$maybe_mode" in
+                sru-validation)
+                    mode="sru-validation"
+                    ;;
+                native-package)
+                    mode="native-package"
+                    ;;
+                *)
+                    echo "unsupported mode: $maybe_mode"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        --no-rebuild)
+            no_rebuild=1
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+set -x
 
 shopt -s nullglob
 
@@ -18,6 +77,11 @@ if [ "${NO_REBUILD:-0}" = "1" ]; then
         done
     else
         echo "-- $(date) -- no prebuilt snaps found"
+        if [ "$no_rebuild" = "1" ]; then
+           # no rebuild explicitly requested
+           echo "use ./tests/build-test-snapd-snap to build the snap"
+           exit 1
+        fi
         need_rebuild=1
     fi
 fi
@@ -32,5 +96,36 @@ if [ -t 1 ]; then
     export SPREAD_DEBUG_EACH=0
 fi
 
+case "$mode" in
+    sru-validation)
+        echo "-- SRU validation mode"
+        export SPREAD_SNAP_REEXEC=0
+        export SPREAD_SRU_VALIDATION=1
+        ;;
+    native-package)
+        echo "-- native package mode"
+        export SPREAD_SNAP_REEXEC=0
+        export SPREAD_SNAPD_DEB_FROM_REPO=false
+        ;;
+esac
+
+export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
+
+# check that we are passing a test suite (in the form of
+# <backend>:<system>:<test>) to spread, otherwise this would turn into a very
+# annoyng spread invocation
+maybe_has_ts=0
+for arg in "$@"; do
+    if [ "${arg/://}" != "$arg" ]; then
+        maybe_has_ts=1
+        break
+    fi
+done
+
+if [ "$maybe_has_ts" = "0" ]; then
+    echo "error: attempting to run spread without any arguments, this would launch all test suites"
+    exit 1
+fi
+
 # Run spread
-SPREAD_USE_PREBUILT_SNAPD_SNAP=true exec spread "$@"
+exec spread "$@"
