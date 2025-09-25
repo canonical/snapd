@@ -816,6 +816,11 @@ def create_initrd(parser, args):
                 "/usr/bin/.kcapi-hasher.hmac",
             ] + glob.glob("/usr/lib/*/.libkcapi.so.*.hmac"), main, rootfs)
 
+        if "tee" in args.features:
+            install_files([
+                    "/usr/sbin/tee-supplicant",
+            ], main, rootfs)
+
         # Update epoch
         pathlib.Path("%s/main/usr/lib/clock-epoch" % d).touch()
         # Should iterate all the .conf drop ins

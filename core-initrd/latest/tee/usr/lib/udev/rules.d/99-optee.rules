@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Adapted from https://github.com/OP-TEE/optee_client/blob/6486773583b5983af8250a47cf07eca938e0e422/tee-supplicant/optee-udev.rules.in
+KERNEL=="tee[0-9]*", MODE="0660", OWNER="root", GROUP="root", TAG+="systemd"
+KERNEL=="teepriv[0-9]*", MODE="0660", OWNER="root", GROUP="root", TAG+="systemd"
