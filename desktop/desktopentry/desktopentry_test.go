@@ -77,6 +77,7 @@ func (s *desktopentrySuite) TestParse(c *C) {
 	c.Check(de.Name, Equals, "Web Browser")
 	c.Check(de.Icon, Equals, "${SNAP}/default256.png")
 	c.Check(de.Exec, Equals, "browser %u")
+	c.Check(de.NoDisplay, Equals, false)
 	c.Check(de.SnapInstanceName, Equals, "browser")
 	c.Check(de.SnapAppName, Equals, "browser-app")
 	c.Check(de.SnapCommonID, Equals, "")
@@ -178,6 +179,28 @@ func (s *desktopentrySuite) TestReadNotFound(c *C) {
 	path := filepath.Join(c.MkDir(), "foo.desktop")
 	_, err := desktopentry.Read(path)
 	c.Check(err, ErrorMatches, `open .*: no such file or directory`)
+}
+
+func (s *desktopentrySuite) TestNoDisplay(c *C) {
+	entry := `[Desktop Entry]
+Exec=foo --bar
+NoDisplay=true
+`
+	r := bytes.NewBufferString(entry)
+	de, err := desktopentry.Parse("/path/browser.desktop", r)
+	c.Assert(err, IsNil)
+	c.Assert(de.NoDisplay, Equals, true)
+}
+
+func (s *desktopentrySuite) TestNoDisplayFalse(c *C) {
+	entry := `[Desktop Entry]
+Exec=foo --bar
+NoDisplay=false
+`
+	r := bytes.NewBufferString(entry)
+	de, err := desktopentry.Parse("/path/browser.desktop", r)
+	c.Assert(err, IsNil)
+	c.Assert(de.NoDisplay, Equals, false)
 }
 
 func (s *desktopentrySuite) TestShouldAutostart(c *C) {

@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -215,12 +216,37 @@ func EnsureSnapBinaries(s *snap.Info) (err error) {
 	completeSh, completionVariant := detectCompletion(s.Base)
 
 	for _, app := range s.Apps {
+		appBase := filepath.Base(app.WrapperPath())
+		target := "/usr/bin/snap"
 		if app.IsService() {
-			continue
+			found := false
+
+			// If the daemon has a desktop file at /meta/gui, create
+			// the symlink to ensure that the dock will find the icon
+			// if the daemon creates a window (like snapd-desktop-integration
+			// or the security prompting client do).
+			desktop_files, _ := s.DesktopFilesFromInstalledSnap(snap.DesktopFilesFromInstalledSnapOptions{MangleFileNames: false})
+			for _, desktopFile := range desktop_files {
+				de, err := desktopentry.Read(desktopFile)
+				if err != nil {
+					continue
+				}
+				// The symlink must point to /usr/bin/false to avoid
+				// allowing to launch the daemon manually. Also, only
+				// create it if the .desktop file has the NoDisplay
+				// property set to True
+				if (de.Exec == appBase) && (de.NoDisplay) {
+					target = "/usr/bin/false"
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
 		}
 
-		appBase := filepath.Base(app.WrapperPath())
-		binariesContent[appBase] = &osutil.SymlinkFileState{Target: "/usr/bin/snap"}
+		binariesContent[appBase] = &osutil.SymlinkFileState{Target: target}
 
 		if completionVariant != noCompletion && app.Completer != "" {
 			completersContent[appBase] = &osutil.SymlinkFileState{Target: completeSh}
