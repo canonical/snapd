@@ -98,7 +98,6 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	fmt.Printf("constraints: %v\n", constraints)
 	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
 	if err != nil {
 		return toAPIError(err)
