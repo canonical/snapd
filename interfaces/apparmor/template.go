@@ -561,6 +561,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/dbus-daemon ixr,
   /{,usr/}bin/dbus-run-session ixr,
   /{,usr/}bin/dbus-send ixr,
+  /{,usr/}bin/dbus-monitor ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,

@@ -185,6 +185,14 @@ dbus (send)
     member={GetUnit,ListUnits}
     peer=(label=unconfined),
 
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/systemd1{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+
+
 # Allow reading if protected hardlinks are enabled, but don't allow enabling or
 # disabling them
 @{PROC}/sys/fs/protected_hardlinks r,
