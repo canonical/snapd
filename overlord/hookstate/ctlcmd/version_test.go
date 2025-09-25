@@ -22,7 +22,6 @@ package ctlcmd_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -51,11 +50,6 @@ func (s *versionSuite) SetUpTest(c *C) {
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-
-	// Initialize configuration
-	tr := config.NewTransaction(state)
-	tr.Set("test-snap", "initial-key", "initial-value")
-	tr.Commit()
 }
 
 func (s *setSuite) TestVersion(c *C) {
