@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -805,19 +806,26 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 
 	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
-		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
 		if err != nil {
-			return nil, 0, err
+			// There's a TOCTOU race between getting a path from the cache and
+			// opening the file. It is possible that a cache cleanup running in
+			// parallel may have removed the file by the time we try to open it.
+			if !errors.Is(err, fs.ErrNotExist) {
+				return nil, 0, err
+			}
+			// file not found, proceed to store download
+		} else {
+			logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+			if resume == 0 {
+				return file, 200, nil
+			}
+			_, err = file.Seek(resume, io.SeekStart)
+			if err != nil {
+				return nil, 0, err
+			}
+			return file, 206, nil
 		}
-		if resume == 0 {
-			return file, 200, nil
-		}
-		_, err = file.Seek(resume, io.SeekStart)
-		if err != nil {
-			return nil, 0, err
-		}
-		return file, 206, nil
 	}
 
 	storeURL, err := url.Parse(downloadInfo.DownloadURL)
