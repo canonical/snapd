@@ -80,7 +80,7 @@ func testClientAppsGlobal(cs *clientSuite, c *check.C) ([]*client.AppInfo, error
 var appcheckers = []func(*clientSuite, *check.C) ([]*client.AppInfo, error){testClientApps, testClientAppsService, testClientAppsGlobal}
 
 func (cs *clientSuite) TestClientAppActivatorsMarshalJSON(c *check.C) {
-	expected := []*client.AppInfo{
+	appInfo := []*client.AppInfo{
 		{
 			Snap:    "hello-world",
 			Name:    "hello-world",
@@ -100,7 +100,7 @@ func (cs *clientSuite) TestClientAppActivatorsMarshalJSON(c *check.C) {
 
 	activatorString := `[{"snap":"hello-world","name":"hello-world","daemon":"simple","enabled":true,"active":true,"activators":[{"name":"test-activator","type":"dbus","active":false,"enabled":true,"Name":"test-activator","Type":"dbus","Active":false,"Enabled":true}]}]`
 
-	buf, err := json.Marshal(expected)
+	buf, err := json.Marshal(appInfo)
 	c.Assert(err, check.IsNil)
 	c.Check(activatorString, check.DeepEquals, string(buf))
 }
