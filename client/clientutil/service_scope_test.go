@@ -22,6 +22,8 @@ package clientutil_test
 import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/snap"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -79,4 +81,58 @@ func (s *serviceScopeSuite) TestInvalidOptions(c *C) {
 	for _, t := range tests {
 		c.Check(t.opts.Validate(), ErrorMatches, t.expected)
 	}
+}
+
+func (s *serviceScopeSuite) TestFmtServiceStatus(c *C) {
+	out := clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap: "test-snap",
+		Name: "bar",
+	}, clientutil.FmtServiceStatusOptions{})
+	c.Check(out, Equals, "test-snap.bar\tdisabled\tinactive\t-")
+
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:    "test-snap",
+		Name:    "bar",
+		Active:  true,
+		Enabled: true,
+	}, clientutil.FmtServiceStatusOptions{})
+	c.Check(out, Equals, "test-snap.bar\tenabled\tactive\t-")
+
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:        "test-snap",
+		Name:        "bar",
+		Active:      true,
+		Enabled:     true,
+		DaemonScope: snap.UserDaemon,
+	}, clientutil.FmtServiceStatusOptions{})
+	c.Check(out, Equals, "test-snap.bar\tenabled\tactive\t-")
+
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:        "test-snap",
+		Name:        "bar",
+		Active:      true,
+		Enabled:     true,
+		DaemonScope: snap.UserDaemon,
+	}, clientutil.FmtServiceStatusOptions{
+		IsUserGlobal: true,
+	})
+	c.Check(out, Equals, "test-snap.bar\tenabled\t-\t-")
+
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:    "test-snap_foo",
+		Name:    "bar",
+		Active:  true,
+		Enabled: true,
+	}, clientutil.FmtServiceStatusOptions{})
+	c.Check(out, Equals, "test-snap_foo.bar\tenabled\tactive\t-")
+
+	out = clientutil.FmtServiceStatus(&client.AppInfo{
+		Snap:    "test-snap_foo",
+		Name:    "bar",
+		Active:  true,
+		Enabled: true,
+	}, clientutil.FmtServiceStatusOptions{
+		DropSnapInstanceKey: true,
+	})
+	c.Check(out, Equals, "test-snap.bar\tenabled\tactive\t-")
 }
