@@ -6,7 +6,12 @@ details: |
     https://git.launchpad.net/ubuntu/+source/sssd/tree/debian/tests
 
 systems: 
-    - +ubuntu-*
+    - -fedora-*
+    - -debian-*
+    - -arch-*
+    - -opensuse-*
+    - -centos-9-*
+    - -amazon-*
     - -ubuntu-core*
 
 environment:
@@ -40,6 +45,7 @@ prepare: |
     backup_if_exists /var/lib/ldap
 
     backup_if_exists /etc/nsswitch.conf
+    backup_if_exists /etc/nslcd.conf
     backup_if_exists /etc/pam.d
     backup_if_exists /var/lib/sss
     backup_if_exists /etc/sssd/sssd.conf
@@ -48,7 +54,18 @@ prepare: |
     backup_if_exists /etc/krb5kdc
     backup_if_exists /var/lib/krb5kdc
 
-    retry -n 15 --wait 1 tests.pkgs install slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc
+    packages=
+    case ${AUTHTYPE} in
+        ldap)
+            packages="slapd libnss-ldapd debconf-utils"
+            ;;
+        krb5)
+            packages="slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc"
+            ;;
+    esac
+
+    # shellcheck disable=SC2086
+    retry -n 20 --wait 1 tests.pkgs install $packages
 
     echo "${host_name}" > /etc/hostname
     hostname "${host_name}"
@@ -67,78 +84,53 @@ prepare: |
     EOF
     dpkg-reconfigure -fnoninteractive -pcritical slapd
 
+    # generate certificates
+    envsubst < openssl.cnf > /etc/ldap/openssl.cnf
+    cert="/etc/ldap/server.pem"
+    key="/etc/ldap/server.key"
+    openssl req -new -x509 -nodes -out "$cert" -keyout "$key" -config /etc/ldap/openssl.cnf
+    chmod 0640 "$key"
+    chgrp openldap "$key"
+    [ ! -f "$cert" ] && echo "ERROR, failed to generate certificate for ldap test" && exit 1
+    [ ! -f "$key" ] && echo "ERROR, failed to generate key for ldap test" && exit 1
+
+    # configure ldap to use the generated certificates
+    cat > /etc/ldap/ldap.conf <<EOF
+    BASE ${ldap_suffix}
+    URI ldap://${host_name}
+    TLS_CACERT /etc/ldap/server.pem
+    EOF
+
+    cat <<EOF | ldapmodify -H ldapi:/// -Y EXTERNAL -Q 
+    dn: cn=config
+    add: olcTLSCACertificateFile
+    olcTLSCACertificateFile: /etc/ldap/server.pem
+    -
+    add: olcTLSCertificateFile
+    olcTLSCertificateFile: /etc/ldap/server.pem
+    -
+    add: olcTLSCertificateKeyFile
+    olcTLSCertificateKeyFile: /etc/ldap/server.key
+    EOF
+
+
     # populate ldap 
-    cat <<EOF | ldapadd -x -D "${admin_dn}" -w "${admin_pw}"
-    dn: ou=People,${ldap_suffix}
-    ou: People
-    objectClass: organizationalUnit
+    envsubst < data.ldif | ldapadd -x -D "${admin_dn}" -w "${admin_pw}"
 
-    dn: ou=Group,${ldap_suffix}
-    ou: Group
-    objectClass: organizationalUnit
+    if [ "$AUTHTYPE" = "ldap" ]; then
 
-    dn: uid=${ldap_user},ou=People,${ldap_suffix}
-    uid: ${ldap_user}
-    objectClass: inetOrgPerson
-    objectClass: posixAccount
-    cn: ${ldap_user}
-    sn: ${ldap_user}
-    givenName: ${ldap_user}
-    mail: ${ldap_user}@${domain_name}
-    userPassword: ${ldap_user_pw}
-    uidNumber: 10001
-    gidNumber: 10001
-    loginShell: /bin/bash
-    homeDirectory: /home/${ldap_user}
+        sed -i "s/^uri.*ldap.*/uri ldap\:\/\/${host_name}/" /etc/nslcd.conf
+        sed -i "s/^base.*/base ${ldap_suffix}/" /etc/nslcd.conf
+        sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
+        sed -i "s/^group\:.*/& ldap/" /etc/nsswitch.conf
+        sed -i "s/^shadow\:.*/& ldap/" /etc/nsswitch.conf
+        systemctl restart nslcd nscd
 
-    dn: cn=${ldap_user},ou=Group,${ldap_suffix}
-    cn: ${ldap_user}
-    objectClass: posixGroup
-    gidNumber: 10001
-    memberUid: ${ldap_user}
+    elif [ "$AUTHTYPE" = "krb5" ]; then
 
-    dn: cn=${ldap_group},ou=Group,${ldap_suffix}
-    cn: ${ldap_group}
-    objectClass: posixGroup
-    gidNumber: 10100
-    memberUid: ${ldap_user}
-    EOF
-
-    if [ "$AUTHTYPE" = "krb5" ]; then
         # setup some defaults
-        cat > /etc/krb5kdc/kdc.conf <<EOF
-    [kdcdefaults]
-        kdc_ports = 750,88
-    [realms]
-        ${realm_name} = {
-            database_name = /var/lib/krb5kdc/principal
-            admin_keytab = FILE:/etc/krb5kdc/kadm5.keytab
-            acl_file = /etc/krb5kdc/kadm5.acl
-            key_stash_file = /etc/krb5kdc/stash
-            kdc_ports = 750,88
-            max_life = 10h 0m 0s
-            max_renewable_life = 7d 0h 0m 0s
-            master_key_type = des3-hmac-sha1
-            #supported_enctypes = aes256-cts:normal aes128-cts:normal
-            default_principal_flags = +preauth
-        }
-    EOF
-
-        cat > /etc/krb5.conf <<EOF
-    [libdefaults]
-        default_realm = ${realm_name}
-        kdc_timesync = 1
-        ccache_type = 4
-        forwardable = true
-        proxiable = true
-        fcc-mit-ticketflags = true
-    [realms]
-        ${realm_name} = {
-            kdc = ${host_name}
-            admin_server = ${host_name}
-        }
-    EOF
-
+        envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
+        envsubst < krb5.conf > /etc/krb5.conf
         touch /etc/krb5kdc/kadm5.acl
 
         # create the realm
@@ -149,36 +141,24 @@ prepare: |
 
         # create the kerberos prinicpal
         kadmin.local -q "addprinc -pw ${kerberos_principal_pw} ${ldap_user}"
-
+        
+        # configure sssd to use ldap/kerberos
+        envsubst < sssd.conf > /etc/sssd/sssd.conf
+        chmod 0600 /etc/sssd/sssd.conf
+        chown root:root /etc/sssd/sssd.conf
+        systemctl restart sssd || {
+            systemctl status --lines 100 sssd
+            false
+        }
     fi
-
-    # configure sssd to use ldap/kerberos
-    cat > /etc/sssd/sssd.conf <<EOF
-    [sssd]
-    config_file_version = 2
-    services = nss, pam
-    domains = LDAP
-
-    [domain/LDAP]
-    id_provider = ldap
-    ldap_uri = ldap://${host_name}
-    cache_credentials = True
-    ldap_search_base = ${ldap_suffix}
-    EOF
-    if [ "$AUTHTYPE" = "krb5" ]; then
-        echo "auth_provider = krb5" >> /etc/sssd/sssd.conf
-        echo "krb5_server = ${host_name}" >> /etc/sssd/sssd.conf
-        echo "krb5_realm = ${realm_name}" >> /etc/sssd/sssd.conf
-    fi
-    chmod 0600 /etc/sssd/sssd.conf
-    chown root:root /etc/sssd/sssd.conf
-    systemctl restart sssd || {
-        systemctl status --lines 100 sssd
-        false
-    }
 
     # enable home directory creation
     pam-auth-update --enable mkhomedir
+    # pam-auth-update --enable mkhomedir isn't enough for 16.04
+    # so add the mkhomedir module manually here if not already present
+    if ! grep -qE "^session.*pam_mkhomedir\.so" /etc/pam.d/common-session; then
+        echo "session optional pam_mkhomedir.so" >> /etc/pam.d/common-session
+    fi
     tests.cleanup defer rm -rf /home/${ldap_user}
 
     snap install test-snapd-sh
@@ -188,10 +168,14 @@ restore: |
     tests.pkgs list-installed > installed-final.pkgs
     diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
     packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
-    retry -n 15 --wait 1 tests.pkgs remove $packages
-    # purge install traces of the packages so that if installed again
-    # sssd will modify the /etc/nsswitch.conf file
-    retry -n 15 --wait 1 apt purge -y $packages
+    if [ -n "$packages" ]; then
+        # shellcheck disable=SC2086
+        retry -n 20 --wait 1 tests.pkgs remove $packages
+        # purge install traces of the packages so that if installed again
+        # sssd will modify the /etc/nsswitch.conf file
+        # shellcheck disable=SC2086
+        retry -n 20 --wait 1 apt purge -y $packages
+    fi
 
 execute: |
     su -l -c "test-snapd-sh.sh -c 'echo hello'" ${ldap_user} 2>errors
@@ -203,9 +187,9 @@ execute: |
         exit 1
     fi
 
-    # check that an LDAP user can be seen also inside a snap
-    getent passwd "$ldap_user" > expected.txt
-    snap run --shell test-snapd-sh.sh -c "getent passwd $ldap_user" > actual.txt
 
     # TODO enable this check when snapd is able to see users by other NSS ID providers
+    # # check that an LDAP user can be seen also inside a snap
+    # getent passwd "$ldap_user" > expected.txt
+    # snap run --shell test-snapd-sh.sh -c "getent passwd $ldap_user" > actual.txt
     # diff -u actual.txt expected.txt
