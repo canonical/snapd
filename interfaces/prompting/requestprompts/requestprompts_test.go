@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
-	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -322,15 +321,16 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 		Cgroup:    "some-cgroup-name",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
+	const otherPath = "/home/test/Documents/other.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	listenerReq1 := &listener.Request{ID: 1}
-	listenerReq2 := &listener.Request{ID: 2}
-	listenerReq3 := &listener.Request{ID: 3}
-	listenerReq4 := &listener.Request{ID: 4}
-	listenerReq5 := &listener.Request{ID: 5}
-	listenerReq6 := &listener.Request{ID: 6}
+	listenerReq1 := &listener.Request{ID: 1, Path: path}
+	listenerReq2 := &listener.Request{ID: 2, Path: path}
+	listenerReq3 := &listener.Request{ID: 3, Path: path}
+	listenerReq4 := &listener.Request{ID: 4, Path: path}
+	listenerReq5 := &listener.Request{ID: 5, Path: otherPath}
+	listenerReq6 := &listener.Request{ID: 6, Path: path}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadataTemplate.User, clientActivity)
@@ -339,7 +339,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	metadata := metadataTemplate
 	before := time.Now()
-	prompt1, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	after := time.Now()
 	c.Assert(merged, Equals, false)
@@ -351,8 +351,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt1.PID, Equals, metadata.PID)
 	c.Check(prompt1.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
-	c.Check(prompt1.Constraints.Path(), Equals, path)
-	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt1.ListenerReqs(), HasLen, 1)
 	c.Check(prompt1.ListenerReqs()[0].ID, Equals, uint64(1))
 
@@ -379,7 +377,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	metadata = metadataTemplate
 	metadata.Snap = "firefox"
-	prompt2, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq2)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	c.Assert(prompt2, Not(Equals), prompt1)
@@ -388,8 +386,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt2.PID, Equals, metadata.PID)
 	c.Check(prompt2.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt2.Interface, Equals, metadata.Interface)
-	c.Check(prompt2.Constraints.Path(), Equals, path)
-	c.Check(prompt2.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 
 	// Request was added to the listener requests list
 	c.Assert(prompt2.ListenerReqs(), HasLen, 1)
@@ -420,7 +416,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	metadata = metadataTemplate
 	metadata.PID = 1337
-	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq3)
+	prompt3, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt3, Not(Equals), prompt1)
@@ -430,8 +426,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt3.PID, Equals, metadata.PID)
 	c.Check(prompt3.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt3.Interface, Equals, metadata.Interface)
-	c.Check(prompt3.Constraints.Path(), Equals, path)
-	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt3.ListenerReqs(), HasLen, 1)
 	c.Check(prompt3.ListenerReqs()[0].ID, Equals, uint64(3))
 
@@ -461,7 +455,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 
 	metadata = metadataTemplate
 	metadata.Cgroup = "another/cgroup"
-	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq4)
+	prompt4, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq4)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt4, Not(Equals), prompt1)
@@ -472,8 +466,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt4.PID, Equals, metadata.PID)
 	c.Check(prompt4.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt4.Interface, Equals, metadata.Interface)
-	c.Check(prompt4.Constraints.Path(), Equals, path)
-	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt4.ListenerReqs(), HasLen, 1)
 	c.Check(prompt4.ListenerReqs()[0].ID, Equals, uint64(4))
 
@@ -503,8 +495,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	// Add fifth prompt, this time with different path
 
 	metadata = metadataTemplate
-	path = "/home/test/Documents/other.txt"
-	prompt5, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq5)
+	prompt5, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq5)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt5, Not(Equals), prompt1)
@@ -516,8 +507,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt5.PID, Equals, metadata.PID)
 	c.Check(prompt5.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt5.Interface, Equals, metadata.Interface)
-	c.Check(prompt5.Constraints.Path(), Equals, path)
-	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt5.ListenerReqs(), HasLen, 1)
 	c.Check(prompt5.ListenerReqs()[0].ID, Equals, uint64(5))
 
@@ -548,9 +537,8 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	// Add sixth prompt, this time with different requested permissions
 
 	metadata = metadataTemplate
-	path = "/home/test/Documents/foo.txt"
 	requestedPermissions := permissions[:2]
-	prompt6, merged, err := pdb.AddOrMerge(&metadata, path, requestedPermissions, permissions, listenerReq6)
+	prompt6, merged, err := pdb.AddOrMerge(&metadata, requestedPermissions, permissions, listenerReq6)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt6, Not(Equals), prompt1)
@@ -563,8 +551,6 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt6.PID, Equals, metadata.PID)
 	c.Check(prompt6.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt6.Interface, Equals, metadata.Interface)
-	c.Check(prompt6.Constraints.Path(), Equals, path)
-	c.Check(prompt6.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt6.ListenerReqs(), HasLen, 1)
 	c.Check(prompt6.ListenerReqs()[0].ID, Equals, uint64(6))
 
@@ -612,12 +598,12 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 		Cgroup:    "some/cgroup/path",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	listenerReq1 := &listener.Request{ID: 1}
-	listenerReq2 := &listener.Request{ID: 2}
-	listenerReq3 := &listener.Request{ID: 3}
+	listenerReq1 := &listener.Request{ID: 1, Path: path}
+	listenerReq2 := &listener.Request{ID: 2, Path: path}
+	listenerReq3 := &listener.Request{ID: 3, Path: path}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
@@ -625,7 +611,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	c.Assert(stored, IsNil)
 
 	before := time.Now()
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	after := time.Now()
 	c.Assert(merged, Equals, false)
@@ -641,7 +627,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenIDMap(c, expectedMap)
 
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq2)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, true)
 	c.Assert(prompt2, Equals, prompt1)
@@ -667,8 +653,6 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	c.Check(prompt1.PID, Equals, metadata.PID)
 	c.Check(prompt1.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
-	c.Check(prompt1.Constraints.Path(), Equals, path)
-	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 
 	stored, err = pdb.Prompts(metadata.User, clientActivity)
 	c.Assert(err, IsNil)
@@ -682,7 +666,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	// Looking up prompt should not record notice
 	s.checkNewNoticesSimple(c, []prompting.IDType{}, nil)
 
-	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq3)
+	prompt3, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
@@ -720,17 +704,17 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 		Cgroup:    "some-cgroup-path",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	listenerReq1 := &listener.Request{ID: 1}
+	listenerReq1 := &listener.Request{ID: 1, Path: path}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
 	c.Assert(err, IsNil)
 	c.Assert(stored, IsNil)
 
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 
@@ -745,7 +729,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 	s.checkWrittenMaxID(c, expectedID)
 	s.checkWrittenIDMap(c, expectedMap)
 
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, true)
 	c.Assert(prompt2, Equals, prompt1)
@@ -761,7 +745,7 @@ func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
 	// Identical requests should not affect mapping
 	s.checkWrittenIDMap(c, expectedMap)
 
-	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	prompt3, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
@@ -857,8 +841,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		listenerReq := &listener.Request{}
-		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
+		listenerReq := &listener.Request{Path: path}
+		prompt, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
 		c.Assert(merged, Equals, false)
@@ -868,7 +852,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	}
 
 	path := fmt.Sprintf("/home/test/Documents/%d.txt", requestprompts.MaxOutstandingPromptsPerUser)
-	lr := &listener.Request{}
+	lr := &listener.Request{Path: path}
 
 	restore = requestprompts.MockSendReply(func(listenerReq *listener.Request, allowedPermission notify.AppArmorPermission) error {
 		c.Assert(listenerReq, Equals, lr)
@@ -879,7 +863,7 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 
 	// Check that adding a new unmerged prompt fails once limit is reached
 	for i := 0; i < 5; i++ {
-		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, lr)
+		prompt, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, lr)
 		c.Check(err, Equals, prompting_errors.ErrTooManyPrompts)
 		c.Check(prompt, IsNil)
 		c.Check(merged, Equals, false)
@@ -894,8 +878,8 @@ func (s *requestpromptsSuite) TestAddOrMergeTooMany(c *C) {
 	// Check that new requests can still merge into existing prompts
 	for i := 0; i < requestprompts.MaxOutstandingPromptsPerUser; i++ {
 		path := fmt.Sprintf("/home/test/Documents/%d.txt", i)
-		listenerReq := &listener.Request{}
-		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
+		listenerReq := &listener.Request{Path: path}
+		prompt, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
 		c.Assert(prompt, NotNil)
 		c.Assert(merged, Equals, true)
@@ -924,12 +908,12 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/foo.scope",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	listenerReq := &listener.Request{}
+	listenerReq := &listener.Request{Path: path}
 
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
@@ -973,17 +957,17 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/foo.scope",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	promptID := prompting.IDType(0)
 
 	for _, outcome := range []prompting.OutcomeType{prompting.OutcomeAllow, prompting.OutcomeDeny} {
 		promptID++
-		listenerReq1 := &listener.Request{ID: 1}
-		listenerReq2 := &listener.Request{ID: 2}
+		listenerReq1 := &listener.Request{ID: 1, Path: path}
+		listenerReq2 := &listener.Request{ID: 2, Path: path}
 
-		prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+		prompt1, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 		c.Assert(err, IsNil)
 		c.Check(merged, Equals, false)
 		c.Assert(prompt1.ListenerReqs(), HasLen, 1)
@@ -993,7 +977,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		expectedMap := map[uint64]requestprompts.IDMapEntry{1: {PromptID: promptID, UserID: s.defaultUser}}
 		s.checkWrittenIDMap(c, expectedMap)
 
-		prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq2)
+		prompt2, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq2)
 		c.Assert(err, IsNil)
 		c.Check(merged, Equals, true)
 		c.Check(prompt2, Equals, prompt1)
@@ -1007,7 +991,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 		s.checkWrittenIDMap(c, expectedMap)
 
 		// Re-send original request again to make sure we don't get duplicate replies
-		prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+		prompt3, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 		c.Assert(err, IsNil)
 		c.Check(merged, Equals, true)
 		c.Check(prompt3, Equals, prompt1)
@@ -1036,9 +1020,9 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 				// Check that permissions in response map to prompt's permissions
 				abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(prompt1.Interface, allowedPermission)
 				c.Check(err, IsNil)
-				c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.OutstandingPermissions())
+				c.Check(abstractPermissions, DeepEquals, permissions)
 				// Check that prompt's permissions map to response's permissions
-				expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.OutstandingPermissions())
+				expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, permissions)
 				c.Check(err, IsNil)
 				c.Check(allowedPermission, DeepEquals, expectedPerm)
 			} else {
@@ -1106,20 +1090,20 @@ func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup-id.scope",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 	outcome := prompting.OutcomeAllow
 
-	listenerReq1 := &listener.Request{ID: 1}
-	listenerReq2 := &listener.Request{ID: 2}
+	listenerReq1 := &listener.Request{ID: 1, Path: path}
+	listenerReq2 := &listener.Request{ID: 2, Path: path}
 
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt1.ID}, nil)
 
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq2)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, true)
 	c.Check(prompt2, Equals, prompt1)
@@ -1138,9 +1122,9 @@ func (s *requestpromptsSuite) TestReplyTimedOut(c *C) {
 		// Check that permissions in response map to prompt's permissions
 		abstractPermissions, err := prompting.AbstractPermissionsFromAppArmorPermissions(prompt1.Interface, allowedPermission)
 		c.Check(err, IsNil)
-		c.Check(abstractPermissions, DeepEquals, prompt1.Constraints.OutstandingPermissions())
+		c.Check(abstractPermissions, DeepEquals, permissions)
 		// Check that prompt's permissions map to response's permissions
-		expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, prompt1.Constraints.OutstandingPermissions())
+		expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(prompt1.Interface, permissions)
 		c.Check(err, IsNil)
 		c.Check(allowedPermission, DeepEquals, expectedPerm)
 	}
@@ -1171,12 +1155,12 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 		Cgroup:    "some-cgroup-path",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
-	listenerReq := &listener.Request{ID: 0xabc}
+	listenerReq := &listener.Request{ID: 0xabc, Path: path}
 
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
+	prompt, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
@@ -1216,36 +1200,38 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
+	const iface = "home"
+
 	metadata := &prompting.Metadata{
 		User:      s.defaultUser,
 		Snap:      "nextcloud",
 		PID:       123,
 		Cgroup:    "some-cgroup-path",
-		Interface: "home",
+		Interface: iface,
 	}
-	path := "/home/test/Documents/foo.txt"
+	const path = "/home/test/Documents/foo.txt"
 
 	permissions1 := []string{"read", "write", "execute"}
-	listenerReq1 := &listener.Request{ID: 12}
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions1, permissions1, listenerReq1)
+	listenerReq1 := &listener.Request{ID: 12, Path: path}
+	prompt1, merged, err := pdb.AddOrMerge(metadata, permissions1, permissions1, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions2 := []string{"read", "write"}
-	listenerReq2 := &listener.Request{ID: 34}
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions2, permissions2, listenerReq2)
+	listenerReq2 := &listener.Request{ID: 34, Path: path}
+	prompt2, merged, err := pdb.AddOrMerge(metadata, permissions2, permissions2, listenerReq2)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions3 := []string{"read"}
-	listenerReq3 := &listener.Request{ID: 56}
-	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions3, permissions3, listenerReq3)
+	listenerReq3 := &listener.Request{ID: 56, Path: path}
+	prompt3, merged, err := pdb.AddOrMerge(metadata, permissions3, permissions3, listenerReq3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions4 := []string{"open"}
-	listenerReq4 := &listener.Request{ID: 78}
-	prompt4, merged, err := pdb.AddOrMerge(metadata, path, permissions4, permissions4, listenerReq4)
+	listenerReq4 := &listener.Request{ID: 78, Path: path}
+	prompt4, merged, err := pdb.AddOrMerge(metadata, permissions4, permissions4, listenerReq4)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
@@ -1263,16 +1249,17 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 4)
 
-	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
+	pathPattern := "/home/test/Documents/**"
 	c.Assert(err, IsNil)
-	constraints := &prompting.RuleConstraints{
-		PathPattern: pathPattern,
-		Permissions: prompting.RulePermissionMap{
-			"read":    &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
-			"execute": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeDeny},
-			"append":  &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
-		},
+	permissions := prompting.RulePermissionMap{
+		"read":    &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow, Lifespan: prompting.LifespanForever},
+		"execute": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeDeny, Lifespan: prompting.LifespanForever},
+		"append":  &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow, Lifespan: prompting.LifespanForever},
 	}
+	permissionsJSON, err := json.Marshal(permissions)
+	c.Assert(err, IsNil)
+	constraints, err := prompting.UnmarshalRuleConstraints(iface, json.RawMessage(fmt.Sprintf(`{"path-pattern":"%s","permissions":%s}`, pathPattern, string(permissionsJSON))))
+	c.Assert(err, IsNil)
 
 	// For completeness, set PID and Cgroup to empty since they would not be populated for rules
 	metadata.PID = 0
@@ -1323,13 +1310,12 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 
 	// Check that allowing the final missing permission of prompt2 satisfies it
 	// with an allow response.
-	constraints = &prompting.RuleConstraints{
-		PathPattern: pathPattern,
-		Permissions: prompting.RulePermissionMap{
-			"write": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
-		},
+
+	writePermissions := prompting.RulePermissionMap{
+		"write": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 	}
-	satisfied, err = pdb.HandleNewRule(metadata, constraints)
+	writeConstraints := constraints.CloneWithPermissions(writePermissions)
+	satisfied, err = pdb.HandleNewRule(metadata, writeConstraints)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
@@ -1382,10 +1368,10 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: iface,
 	}
-	path := "/home/test/Documents/foo.txt"
-	permissions := []string{"read"}
-	listenerReq := &listener.Request{}
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
+	const path = "/home/test/Documents/foo.txt"
+	permissionList := []string{"read"}
+	listenerReq := &listener.Request{Path: path}
+	prompt, merged, err := pdb.AddOrMerge(metadata, permissionList, permissionList, listenerReq)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
@@ -1395,33 +1381,25 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	metadata.PID = 0
 	metadata.Cgroup = ""
 
-	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
+	pathPattern := "/home/test/Documents/**"
+	permissions := prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow, Lifespan: prompting.LifespanForever},
+	}
+	permissionsJSON, err := json.Marshal(permissions)
 	c.Assert(err, IsNil)
-	constraints := &prompting.RuleConstraints{
-		PathPattern: pathPattern,
-		Permissions: prompting.RulePermissionMap{
-			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
-		},
-	}
+	constraints, err := prompting.UnmarshalRuleConstraints(iface, json.RawMessage(fmt.Sprintf(`{"path-pattern":"%s","permissions":%s}`, pathPattern, string(permissionsJSON))))
+	c.Assert(err, IsNil)
 
-	badOutcomeConstraints := &prompting.RuleConstraints{
-		PathPattern: pathPattern,
-		Permissions: prompting.RulePermissionMap{
-			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeType("foo")},
-		},
-	}
+	badOutcomeConstraints := constraints.CloneWithPermissions(prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeType("foo")},
+	})
 
 	otherUser := user + 1
 	otherSnap := "ldx"
 	otherInterface := "system-files"
-	otherPattern, err := patterns.ParsePathPattern("/home/test/Pictures/**.png")
+	otherPattern := "/home/test/Pictures/**.png"
+	otherConstraints, err := prompting.UnmarshalRuleConstraints(iface, json.RawMessage(fmt.Sprintf(`{"path-pattern":"%s","permissions":%s}`, otherPattern, string(permissionsJSON))))
 	c.Assert(err, IsNil)
-	otherConstraints := &prompting.RuleConstraints{
-		PathPattern: otherPattern,
-		Permissions: prompting.RulePermissionMap{
-			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
-		},
-	}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 	stored, err := pdb.Prompts(metadata.User, clientActivity)
@@ -1484,7 +1462,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	satisfiedReq, allowedPermission, err := s.waitForListenerReqAndReply(c, listenerReqChan, replyChan)
 	c.Check(err, IsNil)
 	c.Check(satisfiedReq, Equals, listenerReq)
-	expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(metadata.Interface, permissions)
+	expectedPerm, err := prompting.AbstractPermissionsToAppArmorPermissions(metadata.Interface, permissionList)
 	c.Check(err, IsNil)
 	c.Check(allowedPermission, DeepEquals, expectedPerm)
 
@@ -1530,8 +1508,8 @@ func (s *requestpromptsSuite) TestClose(c *C) {
 
 	prompts := make([]*requestprompts.Prompt, 0, 3)
 	for i, path := range paths {
-		listenerReq := &listener.Request{ID: uint64(i)}
-		prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, listenerReq)
+		listenerReq := &listener.Request{ID: uint64(i), Path: path}
+		prompt, merged, err := pdb.AddOrMerge(metadata, permissions, permissions, listenerReq)
 		c.Assert(err, IsNil)
 		c.Assert(merged, Equals, false)
 		prompts = append(prompts, prompt)
@@ -1598,7 +1576,7 @@ func (s *requestpromptsSuite) TestCloseThenOperate(c *C) {
 	c.Check(nextID, Equals, prompting.IDType(0))
 
 	metadata := prompting.Metadata{Interface: "home"}
-	result, merged, err := pdb.AddOrMerge(&metadata, "", nil, nil, nil)
+	result, merged, err := pdb.AddOrMerge(&metadata, nil, nil, nil)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	c.Check(result, IsNil)
 	c.Check(merged, Equals, false)
@@ -1631,11 +1609,13 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 	})
 	defer restore()
 
-	listenerReq1 := &listener.Request{ID: 1}
-	listenerReq2 := &listener.Request{ID: 2}
-	listenerReq3 := &listener.Request{ID: 3}
-	listenerReq4 := &listener.Request{ID: 5}
-	listenerReq5 := &listener.Request{ID: 8}
+	const path = "/home/test/Documents/foo.txt"
+
+	listenerReq1 := &listener.Request{ID: 1, Path: path}
+	listenerReq2 := &listener.Request{ID: 2, Path: path}
+	listenerReq3 := &listener.Request{ID: 3, Path: path}
+	listenerReq4 := &listener.Request{ID: 5, Path: path}
+	listenerReq5 := &listener.Request{ID: 8, Path: path}
 
 	// Write initial mappings from request IDs to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
@@ -1665,13 +1645,12 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 
 	metadata := metadataTemplate
-	prompt1, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt1.ID, Equals, prompting.IDType(1))
@@ -1679,7 +1658,7 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 	// Add second request, this time with different snap
 	metadata = metadataTemplate
 	metadata.Snap = "firefox"
-	prompt2, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq2)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt2, Not(Equals), prompt1)
@@ -1687,7 +1666,7 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 
 	// Add third request, this time identical to the first
 	metadata = metadataTemplate
-	prompt3, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq3)
+	prompt3, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
@@ -1697,7 +1676,7 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 	// Add fourth request, this time with different PID but same Cgroup
 	metadata = metadataTemplate
 	metadata.PID = 5000
-	prompt4, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq4)
+	prompt4, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq4)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt4, Not(Equals), prompt1)
@@ -1707,7 +1686,7 @@ func (s *requestpromptsSuite) TestIDMappingAcrossRestarts(c *C) {
 	// Add fifth request, this time identical to prompt2
 	metadata = metadataTemplate
 	metadata.Snap = "firefox"
-	prompt5, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq5)
+	prompt5, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq5)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, true)
 	c.Check(prompt5, Equals, prompt2)
@@ -1742,8 +1721,10 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	})
 	defer restore()
 
-	listenerReq1 := &listener.Request{ID: 1}
-	listenerReq2 := &listener.Request{ID: 2}
+	const path = "/home/test/Documents/foo.txt"
+
+	listenerReq1 := &listener.Request{ID: 1, Path: path}
+	listenerReq2 := &listener.Request{ID: 2, Path: path}
 
 	// Write initial mappings from request IDs to prompt IDs
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
@@ -1775,14 +1756,13 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	clientActivity := false // doesn't matter if it's true or false for this test
 
 	// Receive first request
 	metadata := metadataTemplate
-	prompt1, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq1)
+	prompt1, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt1.ID, Equals, prompting.IDType(1))
@@ -1790,7 +1770,7 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	// Receive second request, this time with different snap
 	metadata = metadataTemplate
 	metadata.Snap = "firefox"
-	prompt2, merged, err := pdb.AddOrMerge(&metadata, path, permissions, permissions, listenerReq2)
+	prompt2, merged, err := pdb.AddOrMerge(&metadata, permissions, permissions, listenerReq2)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 	c.Check(prompt2, Not(Equals), prompt1)
@@ -1853,15 +1833,16 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
-	path := "/home/test/foo"
+	const path = "/home/test/foo"
 	requestedPermissions := []string{"read", "write", "execute"}
 	outstandingPermissions := []string{"write", "execute"}
 
 	fakeRequest := listener.Request{
-		ID: 0x1234,
+		ID:   0x1234,
+		Path: path,
 	}
 
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, &fakeRequest)
+	prompt, merged, err := pdb.AddOrMerge(metadata, requestedPermissions, outstandingPermissions, &fakeRequest)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 
@@ -1905,7 +1886,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
-	path := "/home/test/foo"
+	const path = "/home/test/foo"
 	requestedPermissions := []string{"read", "write", "execute"}
 	outstandingPermissions := []string{"write", "execute"}
 
@@ -1922,8 +1903,8 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	defer pdb.Close()
 
 	// Add prompt
-	listenerReq := &listener.Request{ID: 123}
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
+	listenerReq := &listener.Request{ID: 123, Path: path}
+	prompt, merged, err := pdb.AddOrMerge(metadata, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
@@ -1938,9 +1919,9 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	c.Assert(timer.FireCount(), Equals, 0)
 
 	// Add another prompt, check that it does not bump the activity timeout
-	listenerReq = &listener.Request{ID: 456}
-	otherPath := "/home/test/bar"
-	prompt2, merged, err := pdb.AddOrMerge(metadata, otherPath, requestedPermissions, outstandingPermissions, listenerReq)
+	const otherPath = "/home/test/bar"
+	listenerReq = &listener.Request{ID: 456, Path: otherPath}
+	prompt2, merged, err := pdb.AddOrMerge(metadata, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt2.ID, nil)
@@ -1959,8 +1940,8 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	s.checkWrittenIDMap(c, expectedMap)
 
 	// Add prompt again
-	listenerReq = &listener.Request{ID: 789}
-	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
+	listenerReq = &listener.Request{ID: 789, Path: path}
+	prompt, merged, err = pdb.AddOrMerge(metadata, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
@@ -2006,8 +1987,8 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	s.checkWrittenIDMap(c, expectedMap)
 
 	// Add prompt again
-	listenerReq = &listener.Request{ID: 101112}
-	prompt, merged, err = pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
+	listenerReq = &listener.Request{ID: 101112, Path: path}
+	prompt, merged, err = pdb.AddOrMerge(metadata, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)
@@ -2071,7 +2052,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: "home",
 	}
-	path := "/home/test/foo"
+	const path = "/home/test/foo"
 	requestedPermissions := []string{"read", "write", "execute"}
 	outstandingPermissions := []string{"write", "execute"}
 
@@ -2088,8 +2069,8 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	defer pdb.Close()
 
 	// Add prompt
-	listenerReq := &listener.Request{}
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, listenerReq)
+	listenerReq := &listener.Request{Path: path}
+	prompt, merged, err := pdb.AddOrMerge(metadata, requestedPermissions, outstandingPermissions, listenerReq)
 	c.Assert(err, IsNil)
 	c.Assert(merged, Equals, false)
 	checkCurrentNotices(c, noticeChan, prompt.ID, nil)

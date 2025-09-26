@@ -21,6 +21,7 @@ package apparmorprompting_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -144,7 +145,7 @@ func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 }
 
 func (s *apparmorpromptingSuite) TestStop(c *C) {
-	_, reqChan, _, restore := apparmorprompting.MockListener()
+	readyChan, reqChan, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
 	mgr, err := apparmorprompting.New(s.st)
@@ -154,6 +155,31 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Assert(promptDB, NotNil)
 	ruleDB := mgr.RuleDB()
 	c.Assert(ruleDB, NotNil)
+
+	// Add rule so it can be found and patched
+	close(readyChan)
+	constraints := &prompting.ConstraintsHome{
+		PathPattern: mustParsePathPattern(c, "/home/test/foo"),
+		PermissionMap: prompting.PermissionMap{
+			"read": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+	}
+	rule, err := mgr.AddRule(s.defaultUser, "foo", "home", constraints)
+	c.Assert(err, IsNil)
+
+	constraintsPatch := &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
+			"write": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeDeny,
+				Lifespan: prompting.LifespanForever,
+			},
+		},
+	}
+	constraintsPatchJSON, err := json.Marshal(constraintsPatch)
+	c.Assert(err, IsNil)
 
 	err = mgr.Stop()
 	c.Check(err, IsNil)
@@ -166,9 +192,9 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	// Check that calls to API methods don't panic after backends have been closed
 	_, err = mgr.Prompts(1000, false)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
-	_, err = mgr.PromptWithID(1000, 1, false)
+	_, err = mgr.PromptWithID(1000, rule.ID, false)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
-	_, err = mgr.HandleReply(1000, 1, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
+	_, err = mgr.HandleReply(1000, rule.ID, nil, prompting.OutcomeAllow, prompting.LifespanSingle, "", true)
 	c.Check(err, Equals, prompting_errors.ErrPromptsClosed)
 	_, err = mgr.Rules(1000, "foo", "bar")
 	c.Check(err, IsNil) // rule backend supports getting rules even after closed
@@ -176,11 +202,12 @@ func (s *apparmorpromptingSuite) TestStop(c *C) {
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 	_, err = mgr.RemoveRules(1000, "foo", "bar")
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
-	_, err = mgr.RuleWithID(1000, 1)
-	c.Check(err, Equals, prompting_errors.ErrRuleNotFound) // rule backend supports getting rules even after closed
-	_, err = mgr.PatchRule(1000, 1, nil)
+	result, err := mgr.RuleWithID(1000, rule.ID)
+	c.Check(err, IsNil) // rule backend supports getting rules even after closed
+	c.Check(result, Equals, rule)
+	_, err = mgr.PatchRule(1000, rule.ID, constraintsPatchJSON) // send real JSON so it can be unmarshalled and actually hits the rules backend
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
-	_, err = mgr.RemoveRule(1000, 1)
+	_, err = mgr.RemoveRule(1000, rule.ID)
 	c.Check(err, Equals, prompting_errors.ErrRulesClosed)
 }
 
@@ -399,12 +426,9 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	req, prompt := s.simulateRequest(c, reqChan, mgr, &listener.Request{}, false)
 
 	// Reply to the request
-	constraints := prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: []string{"read"},
-	}
+	constraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/**","permissions":["read"]}`)
 	clientActivity := true
-	satisfied, err := mgr.HandleReply(s.defaultUser, prompt.ID, &constraints, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
+	satisfied, err := mgr.HandleReply(s.defaultUser, prompt.ID, constraintsJSON, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
@@ -413,7 +437,7 @@ func (s *apparmorpromptingSuite) TestHandleReplySimple(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(resp.Request, Equals, req)
-	aaPerms, err := prompting.AbstractPermissionsToAppArmorPermissions("home", constraints.Permissions)
+	aaPerms, err := prompting.AbstractPermissionsToAppArmorPermissions("home", []string{"read"})
 	c.Check(err, IsNil)
 	c.Check(resp.AllowedPermission, Equals, aaPerms)
 
@@ -483,7 +507,6 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *listener.Re
 	c.Check(prompt.PID, Equals, req.PID)
 	c.Check(prompt.Cgroup, Equals, req.Cgroup)
 	c.Check(prompt.Interface, Equals, "home") // assumes InterfaceFromTagsets returns "home" or ErrNoInterfaceTags
-	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can query that prompt by ID
 	promptByID, err := mgr.PromptWithID(s.defaultUser, prompt.ID, clientActivity)
@@ -561,38 +584,29 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 	c.Check(result, IsNil)
 
 	// Invalid constraints
-	invalidConstraints := prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: []string{"foo"},
-	}
-	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &invalidConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
+	invalidConstraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/**","permissions":["foo"]}`)
+	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, invalidConstraintsJSON, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
 	c.Check(err, ErrorMatches, "invalid permissions for home interface:.*")
 	c.Check(result, IsNil)
 
 	// Path not matched
-	badPatternConstraints := prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/other"),
-		Permissions: []string{"read"},
-	}
-	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &badPatternConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
+	badPatternConstraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/other","permissions":["read"]}`)
+	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, badPatternConstraintsJSON, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
 	c.Check(err, ErrorMatches, "path pattern in reply constraints does not match originally requested path.*")
 	c.Check(result, IsNil)
 
 	// Permissions not matched
-	badPermissionConstraints := prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/foo"),
-		Permissions: []string{"write"},
-	}
-	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &badPermissionConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
+	badPermissionConstraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/foo","permissions":["write"]}`)
+	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, badPermissionConstraintsJSON, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
 	c.Check(err, ErrorMatches, "permissions in reply constraints do not include all requested permissions.*")
 	c.Check(result, IsNil)
 
 	// Conflicting rule
 	// For this, need to add another rule to the DB first, then try to reply
 	// with a rule which conflicts with it. Reuse badPatternConstraints.
-	anotherConstraints := prompting.Constraints{
+	anotherConstraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/other"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanTimespan,
@@ -600,15 +614,12 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 			},
 		},
 	}
-	newRule, err := mgr.AddRule(s.defaultUser, "firefox", "home", &anotherConstraints)
+	newRule, err := mgr.AddRule(s.defaultUser, "firefox", "home", anotherConstraints)
 	c.Assert(err, IsNil)
 	c.Assert(newRule, NotNil)
 	conflictingOutcome := prompting.OutcomeDeny
-	conflictingConstraints := prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/{foo,other}"),
-		Permissions: []string{"read"},
-	}
-	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, &conflictingConstraints, conflictingOutcome, prompting.LifespanForever, "", clientActivity)
+	conflictingConstraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/{foo,other}","permissions":["read"]}`)
+	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, conflictingConstraintsJSON, conflictingOutcome, prompting.LifespanForever, "", clientActivity)
 	c.Check(err, ErrorMatches, "cannot add rule.*")
 	c.Check(result, IsNil)
 
@@ -630,9 +641,9 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	close(readyChan)
 
 	// Add allow rule to match read permission
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -643,9 +654,9 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	c.Assert(err, IsNil)
 
 	// Add allow rule to match write permission
-	constraints = &prompting.Constraints{
+	constraints = &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"write": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -715,9 +726,9 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	close(readyChan)
 
 	// Add rule to match read permission
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -736,7 +747,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyAllowsNewPrompt(c *C) 
 	_, prompt := s.simulateRequest(c, reqChan, mgr, partialReq, false)
 
 	// Check that prompt was created for outstanding "write" permission
-	c.Check(prompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"write"})
+	c.Check(prompt.Constraints.Permissions().OutstandingPermissions, DeepEquals, []string{"write"})
 
 	c.Assert(mgr.Stop(), IsNil)
 }
@@ -752,9 +763,9 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	close(readyChan)
 
 	// Add deny rule to match read permission
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -804,9 +815,9 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	close(readyChan)
 
 	// Add deny rule to match read permission
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -817,9 +828,9 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	c.Assert(err, IsNil)
 
 	// Add allow rule for write permissions
-	constraints = &prompting.Constraints{
+	constraints = &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"write": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -893,9 +904,9 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 
 	// Add rule to allow read request
 	whenSent := time.Now()
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -919,7 +930,7 @@ func (s *apparmorpromptingSuite) TestNewRuleAllowExistingPrompt(c *C) {
 	c.Check(err, NotNil)
 
 	// Check that rwPrompt only has write permission left
-	c.Check(rwPrompt.Constraints.OutstandingPermissions(), DeepEquals, []string{"write"})
+	c.Check(rwPrompt.Constraints.Permissions().OutstandingPermissions, DeepEquals, []string{"write"})
 
 	// Check that two prompts still exist
 	prompts, err := mgr.Prompts(s.defaultUser, clientActivity)
@@ -975,9 +986,9 @@ func (s *apparmorpromptingSuite) TestNewRuleDenyExistingPrompt(c *C) {
 
 	// Add rule to deny read request
 	whenSent := time.Now()
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -1053,12 +1064,9 @@ func (s *apparmorpromptingSuite) TestReplyNewRuleHandlesExistingPrompt(c *C) {
 
 	// Reply to read prompt with denial
 	whenSent := time.Now()
-	constraints := &prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: []string{"read"},
-	}
+	constraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/**","permissions":["read"]}`)
 	clientActivity := true
-	satisfiedPromptIDs, err := mgr.HandleReply(s.defaultUser, readPrompt.ID, constraints, prompting.OutcomeDeny, prompting.LifespanTimespan, "10s", clientActivity)
+	satisfiedPromptIDs, err := mgr.HandleReply(s.defaultUser, readPrompt.ID, constraintsJSON, prompting.OutcomeDeny, prompting.LifespanTimespan, "10s", clientActivity)
 	c.Check(err, IsNil)
 
 	// Check that rw prompt was also satisfied
@@ -1139,12 +1147,9 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 
 	// Reply to read prompt with denial
 	whenSent := time.Now()
-	constraints := &prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: []string{"read", "write"},
-	}
+	constraintsJSON := json.RawMessage(`{"path-pattern":"/home/test/**","permissions":["read","write"]}`)
 	clientActivity := false
-	satisfiedPromptIDs, err := mgr.HandleReply(s.defaultUser, readPrompt.ID, constraints, outcome, lifespan, duration, clientActivity)
+	satisfiedPromptIDs, err := mgr.HandleReply(s.defaultUser, readPrompt.ID, constraintsJSON, outcome, lifespan, duration, clientActivity)
 	c.Check(err, IsNil)
 
 	// Check that kernel received reply
@@ -1244,9 +1249,9 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 	s.simulateRequest(c, reqChan, mgr, identicalReq, true)
 
 	// Add rule to satisfy the read permission
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -1312,9 +1317,9 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 	whenAdded := time.Now()
 
 	// Add rule for firefox and home
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/1"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -1326,9 +1331,9 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 	rules = append(rules, rule1)
 
 	// Add rule for thunderbird and home
-	constraints = &prompting.Constraints{
+	constraints = &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/2"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -1340,9 +1345,9 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 	rules = append(rules, rule2)
 
 	// Add rule for firefox and camera
-	constraints = &prompting.Constraints{
+	constraints = &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/3"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -1354,13 +1359,14 @@ func (s *apparmorpromptingSuite) prepManagerWithRules(c *C) (mgr *apparmorprompt
 	// Since camera interface isn't supported yet, must adjust the interface
 	// after the rule has been created. This abuses implementation details of
 	// the requestrules backend.
+	// XXX: TODO: use ConstraintsCamera once camera has a constraints type
 	rule3.Interface = "camera"
 	rules = append(rules, rule3)
 
 	// Add rule for firefox and home, but for a different user
-	constraints = &prompting.Constraints{
+	constraints = &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/4"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -1473,9 +1479,9 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Add write rule
 	whenAdded := time.Now()
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/**"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"write": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -1504,20 +1510,8 @@ func (s *apparmorpromptingSuite) TestAddRuleWithIDPatchRemove(c *C) {
 
 	// Patch rule to now cover the outstanding prompt
 	whenPatched := time.Now()
-	constraintsPatch := &prompting.RuleConstraintsPatch{
-		PathPattern: mustParsePathPattern(c, "/home/test/{foo,bar,baz}"),
-		Permissions: prompting.PermissionMap{
-			"read": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-			"write": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-		},
-	}
-	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, constraintsPatch)
+	constraintsPatchJSON := json.RawMessage(`{"path-pattern":"/home/test/{foo,bar,baz}","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"allow","lifespan":"forever"}}}`)
+	patched, err := mgr.PatchRule(s.defaultUser, rule.ID, constraintsPatchJSON)
 	c.Assert(err, IsNil)
 	s.checkRecordedRuleUpdateNotices(c, whenPatched, 1)
 
@@ -1628,7 +1622,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyBlocksRepliesNewRules(c *C) {
 	})
 
 	s.testReadyBlocks(c, func(mgr *apparmorprompting.InterfacesRequestsManager) {
-		_, err := mgr.AddRule(1000, "foo", "bar", &prompting.Constraints{})
+		_, err := mgr.AddRule(1000, "foo", "bar", &prompting.ConstraintsHome{})
 		c.Check(err, NotNil)
 	})
 

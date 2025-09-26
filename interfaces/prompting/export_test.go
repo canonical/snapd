@@ -31,3 +31,15 @@ var (
 func MockApparmorInterfaceForMetadataTag(f func(tag string) (string, bool)) (restore func()) {
 	return testutil.Mock(&apparmorInterfaceForMetadataTag, f)
 }
+
+func (pm PermissionMap) ToRulePermissionMap(iface string, at At) (RulePermissionMap, error) {
+	return pm.toRulePermissionMap(iface, at)
+}
+
+func (pm PermissionMap) PatchRulePermissions(existing RulePermissionMap, iface string, at At) (RulePermissionMap, error) {
+	return pm.patchRulePermissions(existing, iface, at)
+}
+
+func (pm RulePermissionMap) ValidateForInterface(iface string, at At) (bool, error) {
+	return pm.validateForInterface(iface, at)
+}
