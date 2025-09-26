@@ -93,7 +93,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, nil, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
 }
 
-func (ss *SeedSnaps) MakeAssertedSnapWithIntegrityData(c *C, snapYaml string, files [][]string, revision snap.Revision, integrityData []asserts.SnapIntegrityData, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+func (ss *SeedSnaps) MakeAssertedSnapWithIntegrityData(c *C, snapYaml string, files [][]string, revision snap.Revision, integrityData []asserts.IntegrityData, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	return ss.makeAssertedSnap(c, snapYaml, files, revision, nil, integrityData, developerID, ss.StoreSigning.SigningDB, "", "", nil, dbs...)
 }
 
@@ -120,7 +120,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 	files [][]string,
 	revision snap.Revision,
 	compRevisions map[string]snap.Revision,
-	integrityData []asserts.SnapIntegrityData,
+	integrityData []asserts.IntegrityData,
 	developerID string,
 	revSigning *assertstest.SigningDB,
 	revProvenance string,

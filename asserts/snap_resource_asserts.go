@@ -38,7 +38,7 @@ type SnapResourceRevision struct {
 	resourceRevision int
 	timestamp        time.Time
 
-	// TODO: integrity when the format is stabilized again
+	resourceIntegrityData []IntegrityData
 }
 
 // ResourceSHA3_384 returns the SHA3-384 digest of the snap resource.
@@ -80,6 +80,11 @@ func (resrev *SnapResourceRevision) DeveloperID() string {
 // Timestamp returns the time when the snap-resource-revision was issued.
 func (resrev *SnapResourceRevision) Timestamp() time.Time {
 	return resrev.timestamp
+}
+
+// ResourceIntegrityData returns the integrity data associated with the snap resource revision assertion if any.
+func (resrev *SnapResourceRevision) ResourceIntegrityData() []IntegrityData {
+	return resrev.resourceIntegrityData
 }
 
 // Implement further consistency checks.
@@ -186,13 +191,17 @@ func assembleSnapResourceRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// TODO: implement integrity stanza when format is stabilized again
+	resourceIntegrityData, err := checkSnapIntegrity(assert.headers)
+	if err != nil {
+		return nil, err
+	}
 
 	return &SnapResourceRevision{
-		assertionBase:    assert,
-		resourceSize:     resourceSize,
-		resourceRevision: resourceRevision,
-		timestamp:        timestamp,
+		assertionBase:         assert,
+		resourceSize:          resourceSize,
+		resourceRevision:      resourceRevision,
+		timestamp:             timestamp,
+		resourceIntegrityData: resourceIntegrityData,
 	}, nil
 }
 
