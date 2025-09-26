@@ -308,6 +308,7 @@ type ResealKeyParams struct {
 	// FallbackPrimaryKeyFiles is the list of files that might contain
 	// the primary key.
 	FallbackPrimaryKeyFiles []string
+	VerifyPrimaryKey func([]byte)
 	// The allowed boot modes (run, recover, factory-reset)
 	BootModes []string
 	// The allowed models
