@@ -40,7 +40,7 @@ prepare: |
 
 debug: |
     change_id="$(cat refresh-change-id)"
-    snap debug state --change "$change_id" /var/lib/snapd/state.json
+    snap debug state --change "$change_id" /var/lib/snapd/state.json || true
 
 execute: |
     # To get VERSION_ID defined
@@ -177,7 +177,7 @@ execute: |
         # Because it's the configure hook we expect the error to happen after
         # system comes up, where-as with the kernel failure it happens before
         # we're able to observe it
-        if [ "$SPREAD_REBOOT" = 2 ] && [[ "$SNAP_TWO" == "core" ]]; then
+        if [ "$SPREAD_REBOOT" = 2 ] && [[ "$SNAP_TWO" = "core" ]]; then
             echo "unexpected reboot"
             exit 1
         fi
@@ -185,7 +185,7 @@ execute: |
         change_id="$(cat refresh-change-id)"
         snap watch "$change_id" || true
 
-        # The gadget and kernel snap continue after the reboot, and then fails, the change reverts
+        # The gadget and kernel snaps continue after the reboot, one fails, the change reverts
         # and requests another reboot for a total of 2 reboots (one for do, one for undo)
         if [ "$SPREAD_REBOOT" = 1 ] && { [ "$SNAP_TWO" = "pc" ] || [ "$SNAP_TWO" = "pc-kernel" ]; }; then
             # wait for a restart to be requested

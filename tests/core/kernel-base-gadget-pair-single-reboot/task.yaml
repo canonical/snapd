@@ -38,7 +38,7 @@ prepare: |
 
 debug: |
     change_id="$(cat refresh-change-id)"
-    snap debug state --change "$change_id" /var/lib/snapd/state.json
+    snap debug state --change "$change_id" /var/lib/snapd/state.json || true
 
 execute: |
     # To get VERSION_ID defined
