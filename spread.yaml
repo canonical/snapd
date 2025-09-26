@@ -1240,6 +1240,7 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
+        pro refresh
         pro status
 
         if [[ "$SPREAD_REBOOT" = 0 ]]; then
