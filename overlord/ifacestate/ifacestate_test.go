@@ -7950,7 +7950,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -7979,7 +7981,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8015,7 +8019,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8047,7 +8053,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8082,7 +8090,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetAlreadyConnected(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8187,7 +8197,9 @@ volumes:
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -11745,4 +11757,211 @@ slots:
 		ifaces := repo.Interfaces()
 		c.Assert(ifaces.Connections, HasLen, 0)
 	})
+}
+
+func (s *interfaceManagerSuite) testAutoConnectSupportsConfigurableAutoConnect(c *C) []string {
+	s.MockModel(c, nil)
+
+	restore := ifacestate.MockContentLinkRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
+	s.mockIfaces(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+
+	s.MockSnapDecl(c, "snap-content-plug", "publisher1", nil)
+	s.mockSnap(c, `name: snap-content-plug
+version: 1
+plugs:
+ shared-content-plug:
+  interface: content
+  default-provider: snap-content-slot
+  content: shared-content
+ test-plug:
+  interface: test
+`)
+	s.MockSnapDecl(c, "snap-content-slot", "publisher1", nil)
+	s.mockSnap(c, `name: snap-content-slot
+version: 1
+slots:
+ shared-content-slot:
+  interface: content
+  content: shared-content
+ test-slot:
+  interface: test
+`)
+	s.manager(c)
+
+	s.state.Lock()
+
+	supContentPlug := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "snap-content-plug"},
+	}
+	supContentSlot := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "snap-content-slot"},
+	}
+	chg := s.state.NewChange("install", "...")
+
+	tInstSlot := s.state.NewTask("link-snap", "Install snap-content-slot")
+	tInstSlot.Set("snap-setup", supContentSlot)
+	chg.AddTask(tInstSlot)
+
+	tConnectSlot := s.state.NewTask("auto-connect", "...slot")
+	tConnectSlot.Set("snap-setup", supContentSlot)
+	tConnectSlot.WaitFor(tInstSlot)
+	chg.AddTask(tConnectSlot)
+
+	tInstPlug := s.state.NewTask("link-snap", "Install snap-content-plug")
+	tInstPlug.Set("snap-setup", supContentPlug)
+	tInstPlug.WaitFor(tConnectSlot)
+	chg.AddTask(tInstPlug)
+
+	tConnectPlug := s.state.NewTask("auto-connect", "...plug")
+	tConnectPlug.Set("snap-setup", supContentPlug)
+	tConnectPlug.WaitFor(tInstPlug)
+	chg.AddTask(tConnectPlug)
+
+	// pretend slot install was done by snapstate
+	tInstSlot.SetStatus(state.DoneStatus)
+
+	// run the change, this will trigger the auto-connect of the plug
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// check that auto-connect did finish and not hang
+	s.state.Lock()
+	c.Check(tInstSlot.Status(), Equals, state.DoneStatus)
+	c.Check(tConnectSlot.Status(), Equals, state.DoneStatus)
+	c.Check(tConnectPlug.Status(), Equals, state.DoStatus)
+
+	// pretend snapstate finished installing the slot
+	tInstPlug.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+
+	// run again
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// and now the slot side auto-connected
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(tInstPlug.Status(), Equals, state.DoneStatus)
+	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
+	return tConnectPlug.Log()
+}
+
+func (s *interfaceManagerSuite) setAutoConnectionAllowed(c *C, inter string, set string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", fmt.Sprintf("interface.%s.allow-auto-connection", inter), set), IsNil)
+	tr.Commit()
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectDefault(c *C) {
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 2)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-content-plug:shared-content-plug snap-content-slot:shared-content-slot": map[string]any{
+			"auto": true, "interface": "content", "plug-static": map[string]any{
+				"content": "shared-content", "default-provider": "snap-content-slot",
+			},
+			"slot-static": map[string]any{
+				"content": "shared-content",
+			},
+		},
+		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalse(c *C) {
+	s.setAutoConnectionAllowed(c, "content", "false")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-content-plug:shared-content-plug, candidates found: snap-content-slot:shared-content-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedUnhappy(c *C) {
+	r := ifacestate.MockIsSnapVerified(func(_ *state.State, _ string) bool {
+		return false
+	})
+	defer r()
+	s.setAutoConnectionAllowed(c, "content", "verified")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-content-plug:shared-content-plug, candidates found: snap-content-slot:shared-content-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedHappy(c *C) {
+	r := ifacestate.MockIsSnapVerified(func(_ *state.State, _ string) bool {
+		return true
+	})
+	defer r()
+	s.setAutoConnectionAllowed(c, "content", "verified")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 2)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-content-plug:shared-content-plug snap-content-slot:shared-content-slot": map[string]any{
+			"auto": true, "interface": "content", "plug-static": map[string]any{
+				"content": "shared-content", "default-provider": "snap-content-slot",
+			},
+			"slot-static": map[string]any{
+				"content": "shared-content",
+			},
+		},
+		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Assert(logs, HasLen, 0)
 }
