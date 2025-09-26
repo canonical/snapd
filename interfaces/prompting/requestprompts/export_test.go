@@ -39,23 +39,6 @@ type (
 	IDMapEntry    = idMapEntry
 )
 
-func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, outstandingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
-	constraints := &promptConstraints{
-		path:                   path,
-		outstandingPermissions: outstandingPermissions,
-		availablePermissions:   availablePermissions,
-		originalPermissions:    originalPermissions,
-	}
-	return &Prompt{
-		ID:           id,
-		Timestamp:    timestamp,
-		Snap:         snap,
-		Interface:    iface,
-		Constraints:  constraints,
-		listenerReqs: nil,
-	}
-}
-
 func (p *Prompt) ListenerReqs() []*listener.Request {
 	return p.listenerReqs
 }

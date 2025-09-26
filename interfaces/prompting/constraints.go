@@ -20,6 +20,7 @@
 package prompting
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -28,116 +29,283 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 )
 
-// Constraints hold information about the applicability of a new rule to
-// particular paths and permissions. When creating a new rule, snapd converts
-// Constraints to RuleConstraints.
-type Constraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
-	Permissions PermissionMap         `json:"permissions"`
+// PromptConstraints store details about the object of the request and the
+// requested permissions.
+type PromptConstraints interface {
+	Permissions() *PromptPermissions
+	// Equal returns true if the fields of the receiver match those of the
+	// given constraints, other than the outstanding permissions, as some
+	// permissions may have been satisfied by existing rules.
+	Equal(other PromptConstraints) bool
 }
 
-// Match returns true if the constraints match the given path, otherwise false.
-//
-// If the constraints or path are invalid, returns an error.
-//
-// This method is only intended to be called on constraints which have just
-// been created from a reply, to check that the reply covers the request.
-func (c *Constraints) Match(path string) (bool, error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
-	match, err := c.PathPattern.Match(path)
+func NewPromptConstraints(iface string, originalPermissions []string, outstandingPermissions []string, req *listener.Request) (PromptConstraints, error) {
+	availablePermissions, err := AvailablePermissions(iface)
 	if err != nil {
-		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
+		return nil, err
 	}
-	return match, nil
+	switch iface {
+	case "home":
+		return &PromptConstraintsHome{
+			Path: req.Path,
+			PromptPermissions: PromptPermissions{
+				OriginalPermissions:    originalPermissions,
+				OutstandingPermissions: outstandingPermissions,
+				AvailablePermissions:   availablePermissions,
+			},
+		}, nil
+	default:
+		// This should be impossible, since AvailablePermissions should throw
+		// an error for unknown interfaces.
+		return nil, fmt.Errorf("internal error: cannot create prompt constraints for unrecognized interface: %s", iface)
+	}
 }
 
-// ContainPermissions returns true if the permission map in the constraints
-// includes every one of the given permissions.
+type ReplyConstraints interface {
+	Permissions() []string
+	ToConstraints(outcome OutcomeType, lifespan LifespanType, duration string) (Constraints, error)
+}
+
+func UnmarshalReplyConstraints(iface string, rawJSON json.RawMessage) (ReplyConstraints, error) {
+	var replyConstraints ReplyConstraints
+	switch iface {
+	case "home":
+		replyConstraints = &ReplyConstraintsHome{}
+	default:
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	if err := json.Unmarshal(rawJSON, replyConstraints); err != nil {
+		return nil, err
+	}
+	return replyConstraints, nil
+}
+
+type Constraints interface {
+	Permissions() PermissionMap
+	// MatchPromptConstraints returns an error if the constraints do not match
+	// the given prompt constraints.
+	// XXX: for "home" interface, this should be RequestedPathNotMatchedError
+	MatchPromptConstraints(promptConstraints PromptConstraints) error
+	// ToRuleConstraints validates the receiver and converts it to RuleConstraints.
+	ToRuleConstraints(at At) (RuleConstraints, error)
+}
+
+func UnmarshalConstraints(iface string, rawJSON json.RawMessage) (Constraints, error) {
+	var constraints Constraints
+	switch iface {
+	case "home":
+		constraints = &ConstraintsHome{}
+	default:
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	if err := json.Unmarshal(rawJSON, constraints); err != nil {
+		return nil, err
+	}
+	return constraints, nil
+}
+
+type RuleConstraints interface {
+	// Validate checks that the rule constraints are valid, and prunes any
+	// permissions which are expired at the given point in time. If all
+	// permissions have expired, then returns true. If the rule is invalid,
+	// returns an error.
+	Validate(at At) (expired bool, err error)
+	// Permissions returns the permission map embedded in the rule constraints.
+	Permissions() RulePermissionMap
+	// MatchPromptConstraints returns true if the rule constraints match the
+	// given prompt constraints.
+	MatchPromptConstraints(pc PromptConstraints) (bool, error)
+	// CloneWithPermissions returns a copy of the constraints with the given
+	// permission map set as its permissions.
+	CloneWithPermissions(permissions RulePermissionMap) RuleConstraints
+	// PathPattern returns the path pattern which should be used to match
+	// incoming requests. For interfaces which don't use path patterns, this
+	// should return patterns.ParsePathPattern("/**").
+	//
+	// XXX: this is rather nonsensical. It would better to remove this method
+	// from the generic RuleConstraints interface and instead have a more
+	// specific RuleConstraintsWithPathPattern interface, which the concrete
+	// constraints types can implement if relevant. Then the callers can try
+	// to do a type assertion into that more specific interface and use the
+	// method, else proceed without assuming a relevant path pattern exists.
+	PathPattern() *patterns.PathPattern
+}
+
+// UnmarshalRuleConstraints unmarshals the given json message into the concrete
+// type which implements RuleConstraints for the given interface.
 //
-// This method is only intended to be called on constraints which have just
-// been created from a reply, to check that the reply covers the request.
-func (c *Constraints) ContainPermissions(permissions []string) bool {
-	for _, perm := range permissions {
-		if _, exists := c.Permissions[perm]; !exists {
+// The caller is responsible for validating the contents of the constraints.
+// XXX: should they be validated here? Probably... split Validate() and Expired() ?
+func UnmarshalRuleConstraints(iface string, rawJSON json.RawMessage) (RuleConstraints, error) {
+	var ruleConstraints RuleConstraints
+	switch iface {
+	case "home":
+		ruleConstraints = &RuleConstraintsHome{}
+	default:
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	if err := json.Unmarshal(rawJSON, ruleConstraints); err != nil {
+		return nil, err
+	}
+	return ruleConstraints, nil
+}
+
+type RuleConstraintsPatch interface {
+	// PatchRuleConstraints validates the receiving RuleConstraintsPatch and
+	// uses the given existing rule constraints to construct new rule
+	// constraints.
+	//
+	// If any top-level fields are omitted, they are left unchanged from the
+	// existing rule. If the permissions field is present in the patch, then
+	// any permissions which are omitted from the patch's permission map are
+	// left unchanged from the existing rule. To remove an existing permission
+	// from the rule, the permission should map to null in the permission map
+	// of the patch.
+	//
+	// The the given at information is used to prune any existing expired
+	// permissions and compute any expirations for new permissions.
+	//
+	// The existing rule constraints are not mutated.
+	PatchRuleConstraints(existing RuleConstraints, at At) (RuleConstraints, error)
+}
+
+func UnmarshalRuleConstraintsPatch(iface string, rawJSON json.RawMessage) (RuleConstraintsPatch, error) {
+	var constraintsPatch RuleConstraintsPatch
+	switch iface {
+	case "home":
+		constraintsPatch = &RuleConstraintsPatchHome{}
+	default:
+		// This is an internal error, not a BadRequest error, and should never
+		// occur, since the caller derives the interface from the existing rule.
+		return nil, fmt.Errorf("internal error: cannot decode constraints patch: unsupported interface: %s", iface)
+	}
+	if err := json.Unmarshal(rawJSON, constraintsPatch); err != nil {
+		return nil, err
+	}
+	return constraintsPatch, nil
+}
+
+type PromptPermissions struct {
+	// OriginalPermissions preserve the permissions corresponding to the
+	// original request. A prompt's permissions may be partially satisfied over
+	// time as new rules are added, but we need to keep track of the originally
+	// requested permissions so that we can still send back a response to the
+	// kernel with all of the originally requested permissions which were
+	// explicitly allowed by the user, even if some of those permissions were
+	// allowed by rules instead of by the direct reply to the prompt.
+	// XXX: this is only expored so that o/i/a/prompting.go can use it to build
+	// a nice error message...
+	OriginalPermissions []string `json:"-"`
+	// OutstandingPermissions are the outstanding unsatisfied permissions for
+	// which the application is requesting access.
+	OutstandingPermissions []string `json:"requested-permissions"`
+	// AvailablePermissions are the permissions which are supported by the
+	// interface associated with the prompt to which the constraints apply.
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+func (pp *PromptPermissions) OriginalPermissionsEqual(other *PromptPermissions) bool {
+	if len(pp.OriginalPermissions) != len(other.OriginalPermissions) {
+		return false
+	}
+	// Avoid using reflect.DeepEquals to compare []string contents
+	for i := range pp.OriginalPermissions {
+		if pp.OriginalPermissions[i] != other.OriginalPermissions[i] {
 			return false
 		}
 	}
 	return true
 }
 
-// ToRuleConstraints validates the receiving Constraints and converts it to
-// RuleConstraints. If the constraints are not valid with respect to the given
-// interface, returns an error.
-func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, error) {
-	if c.PathPattern == nil {
-		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
-	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, at)
-	if err != nil {
-		return nil, err
-	}
-	ruleConstraints := &RuleConstraints{
-		PathPattern: c.PathPattern,
-		Permissions: rulePermissions,
-	}
-	return ruleConstraints, nil
-}
-
-// RuleConstraints hold information about the applicability of an existing rule
-// to particular paths and permissions. A request will be matched by the rule
-// constraints if the requested path is matched by the path pattern (according
-// to bash's globstar matching) and one or more requested permissions are denied
-// in the permission map, or all of the requested permissions are allowed in the
-// map.
-type RuleConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
-	Permissions RulePermissionMap     `json:"permissions"`
-}
-
-// ValidateForInterface checks that the rule constraints are valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// rule is If the rule is invalid, returns an error.
-func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
-	return c.Permissions.validateForInterface(iface, at)
-}
-
-// Match returns true if the constraints match the given path, otherwise false.
+// ApplyRulePermissions modifies the prompt permissions, removing any outstanding
+// permissions which are allowed by the given rule permissions.
 //
-// If the constraints or path are invalid, returns an error.
-func (c *RuleConstraints) Match(path string) (bool, error) {
-	if c.PathPattern == nil {
-		return false, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+// Returns whether the prompt permissions were affected by the rule permissions,
+// whether the prompt requires a response (either because all permissions were
+// allowed or at least one permission was denied), and the permissions which
+// should be included in that response, if necessary.
+//
+// If the rule permissions do not include any of the outstanding prompt
+// permissions, then affectedByRule is false, and no changes are made to the
+// prompt permissions.
+func (pp *PromptPermissions) ApplyRulePermissions(iface string, rulePerms RulePermissionMap) (affectedByRule, respond bool, responsePerms notify.AppArmorPermission, err error) {
+	newOutstandingPermissions := make([]string, 0, len(pp.OutstandingPermissions))
+	for _, perm := range pp.OutstandingPermissions {
+		entry, exists := rulePerms[perm]
+		if !exists {
+			// Permission not covered by rule permissions, so permission
+			// should continue to be in OutstandingPermissions.
+			newOutstandingPermissions = append(newOutstandingPermissions, perm)
+			continue
+		}
+		affectedByRule = true
+		allow, err := entry.Outcome.AsBool()
+		if err != nil {
+			// This should not occur, as rule constraints are built internally
+			return false, false, nil, err
+		}
+		if allow {
+			continue
+		}
+		respond = true
+		// Re-add denied permission to outstanding permissions so it will be
+		// denied in the response.
+		newOutstandingPermissions = append(newOutstandingPermissions, perm)
 	}
-	match, err := c.PathPattern.Match(path)
+	if !affectedByRule {
+		return false, false, nil, nil
+	}
+
+	pp.OutstandingPermissions = newOutstandingPermissions
+
+	if len(pp.OutstandingPermissions) == 0 {
+		respond = true
+	}
+
+	if respond {
+		const allowRemaining = false
+		responsePerms = pp.BuildResponsePermissions(iface, allowRemaining)
+	}
+
+	return affectedByRule, respond, responsePerms, nil
+}
+
+// BuildResponsePermissions returns an AppArmor permission mask of the
+// permissions to be allowed.
+//
+// If allowRemaining is true, then all originally-requested permissions are
+// allowed. Otherwise, any originally-requested permissions which are not still
+// outstanding are allowed. The allowed permissions are then converted to
+// AppArmor permissions corresponding to the given interface and returned.
+func (pp *PromptPermissions) BuildResponsePermissions(iface string, allowRemaining bool) notify.AppArmorPermission {
+	allowedPerms := pp.OriginalPermissions
+	if !allowRemaining {
+		allowedPerms = make([]string, 0, len(pp.OriginalPermissions)-len(pp.OutstandingPermissions))
+		for _, perm := range pp.OriginalPermissions {
+			if !strutil.ListContains(pp.OutstandingPermissions, perm) {
+				allowedPerms = append(allowedPerms, perm)
+			}
+		}
+	}
+	allowedPermission, err := AbstractPermissionsToAppArmorPermissions(iface, allowedPerms)
 	if err != nil {
-		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.PathPattern.String(), err.Error())
+		// This should not occur, but if so, permission should be set to the
+		// empty value for its corresponding permission type.
+		logger.Noticef("internal error: cannot convert abstract permissions to AppArmor permissions: %v", err)
 	}
-	return match, nil
+	return allowedPermission
 }
 
-// ReplyConstraints hold information about the applicability of a reply to
-// particular paths and permissions. Upon receiving the reply, snapd converts
-// ReplyConstraints to Constraints.
-type ReplyConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
-	Permissions []string              `json:"permissions"`
-}
+// PermissionMap is a map from permissions to their corresponding entries,
+// which contain information about the outcome and lifespan for those
+// permissions.
+type PermissionMap map[string]*PermissionEntry
 
-// ToConstraints validates the receiving ReplyConstraints with respect to the
-// given interface, along with the given outcome, lifespan, and duration, and
-// constructs an equivalent Constraints from the ReplyConstraints.
-func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, lifespan LifespanType, duration string) (*Constraints, error) {
+func NewPermissionMap(iface string, replyPermissions []string, outcome OutcomeType, lifespan LifespanType, duration string) (PermissionMap, error) {
 	if _, err := outcome.AsBool(); err != nil {
 		// Should not occur, as outcome is validated when unmarshalled
 		return nil, err
@@ -145,19 +313,16 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	if _, err := lifespan.ParseDuration(duration, time.Now()); err != nil {
 		return nil, err
 	}
-	if c.PathPattern == nil {
-		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
-	}
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
-	if len(c.Permissions) == 0 {
+	if len(replyPermissions) == 0 {
 		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var invalidPerms []string
-	permissionMap := make(PermissionMap, len(c.Permissions))
-	for _, perm := range c.Permissions {
+	permissionMap := make(PermissionMap, len(replyPermissions))
+	for _, perm := range replyPermissions {
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
 			continue
@@ -171,103 +336,19 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	if len(invalidPerms) > 0 {
 		return nil, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms)
 	}
-	constraints := &Constraints{
-		PathPattern: c.PathPattern,
-		Permissions: permissionMap,
-	}
-	return constraints, nil
+	return permissionMap, nil
 }
 
-// RuleConstraintsPatch hold partial rule contents which will be used to modify
-// an existing rule. When snapd modifies the rule using RuleConstraintsPatch,
-// it converts the RuleConstraintsPatch to RuleConstraints, using the rule's
-// existing constraints wherever a field is omitted from the
-// RuleConstraintsPatch.
-//
-// Any permissions which are omitted from the new permission map are left
-// unchanged from the existing rule. To remove an existing permission from the
-// rule, the permission should map to null.
-type RuleConstraintsPatch struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
-	Permissions PermissionMap         `json:"permissions,omitempty"`
+// ContainsOutstandingPermissions returns true if the permission map includes
+// every one of the outstanding permissions in the given prompt permissions.
+func (pm PermissionMap) ContainsOutstandingPermissions(promptPerms *PromptPermissions) bool {
+	for _, perm := range promptPerms.OutstandingPermissions {
+		if _, ok := pm[perm]; !ok {
+			return false
+		}
+	}
+	return true
 }
-
-// PatchRuleConstraints validates the receiving RuleConstraintsPatch and uses
-// the given existing rule constraints to construct a new RuleConstraints.
-//
-// If the path pattern or permissions fields are omitted, they are left
-// unchanged from the existing rule. If the permissions field is present in
-// the patch, then any permissions which are omitted from the patch's
-// permission map are left unchanged from the existing rule. To remove an
-// existing permission from the rule, the permission should map to null in the
-// permission map of the patch.
-//
-// The the given at information is used to prune any existing expired
-// permissions and compute any expirations for new permissions.
-//
-// The existing rule constraints are not mutated.
-func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, at At) (*RuleConstraints, error) {
-	ruleConstraints := &RuleConstraints{
-		PathPattern: c.PathPattern,
-	}
-	if c.PathPattern == nil {
-		ruleConstraints.PathPattern = existing.PathPattern
-	}
-	if c.Permissions == nil {
-		ruleConstraints.Permissions = existing.Permissions
-		return ruleConstraints, nil
-	}
-	// Permissions are specified in the patch, need to merge them
-	newPermissions := make(RulePermissionMap, len(c.Permissions)+len(existing.Permissions))
-	// Pre-populate newPermissions with all the non-expired existing permissions
-	for perm, entry := range existing.Permissions {
-		if !entry.Expired(at) {
-			newPermissions[perm] = entry
-		}
-	}
-	availablePerms, ok := interfacePermissionsAvailable[iface]
-	if !ok {
-		// Should not occur, as we should use the interface from the existing rule
-		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
-	}
-	var errs []error
-	var invalidPerms []string
-	for perm, entry := range c.Permissions {
-		if !strutil.ListContains(availablePerms, perm) {
-			invalidPerms = append(invalidPerms, perm)
-			continue
-		}
-		if entry == nil {
-			// nil value for permission indicates that it should be removed.
-			// (In contrast, omitted permissions are left unchanged from the
-			// original constraints.)
-			delete(newPermissions, perm)
-			continue
-		}
-		ruleEntry, err := entry.toRulePermissionEntry(at)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		newPermissions[perm] = ruleEntry
-	}
-	if len(invalidPerms) > 0 {
-		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
-	}
-	if len(errs) > 0 {
-		return nil, strutil.JoinErrors(errs...)
-	}
-	if len(newPermissions) == 0 {
-		return nil, prompting_errors.ErrPatchedRuleHasNoPerms
-	}
-	ruleConstraints.Permissions = newPermissions
-	return ruleConstraints, nil
-}
-
-// PermissionMap is a map from permissions to their corresponding entries,
-// which contain information about the outcome and lifespan for those
-// permissions.
-type PermissionMap map[string]*PermissionEntry
 
 // toRulePermissionMap validates the receiving PermissionMap and converts it
 // to a RulePermissionMap, using the given at information to convert each
@@ -305,6 +386,64 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 	return rulePermissionMap, nil
 }
 
+// patchRulePermissions uses the receiving permissions map to patch the given
+// existing rule permissions map, returning a new rule permissions map.
+//
+// Any permissions which are omitted from the receiver are left unchanged from
+// the existing rule. To remove an existing permission from the rule, the
+// receiver should map that permission to null.
+//
+// The given at information is used to prune any existing expired permissions
+// and compute any expirations for new permissions.
+//
+// The existing rule constraints are not mutated.
+func (pm PermissionMap) patchRulePermissions(existing RulePermissionMap, iface string, at At) (RulePermissionMap, error) {
+	newPermissions := make(RulePermissionMap, len(pm)+len(existing))
+	// Pre-populate newPermissions with all the non-expired existing permissions
+	for perm, entry := range existing {
+		if !entry.Expired(at) {
+			newPermissions[perm] = entry
+		}
+	}
+	availablePerms, ok := interfacePermissionsAvailable[iface]
+	if !ok {
+		// Should not occur, as the caller should be a method on an
+		// interface-specific type with hard-coded known interface.
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+	}
+	var errs []error
+	var invalidPerms []string
+	for perm, entry := range pm {
+		if !strutil.ListContains(availablePerms, perm) {
+			invalidPerms = append(invalidPerms, perm)
+			continue
+		}
+		if entry == nil {
+			// nil value for permission indicates that it should be removed.
+			// (In contrast, omitted permissions are left unchanged from the
+			// original constraints.)
+			delete(newPermissions, perm)
+			continue
+		}
+		ruleEntry, err := entry.toRulePermissionEntry(at)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		newPermissions[perm] = ruleEntry
+	}
+	if len(invalidPerms) > 0 {
+		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
+	}
+	if len(errs) > 0 {
+		return nil, strutil.JoinErrors(errs...)
+	}
+	if len(newPermissions) == 0 {
+		return nil, prompting_errors.ErrPatchedRuleHasNoPerms
+	}
+	return newPermissions, nil
+}
+
 // RulePermissionMap is a map from permissions to their corresponding entries,
 // which contain information about the outcome and lifespan for those
 // permissions.
@@ -314,6 +453,10 @@ type RulePermissionMap map[string]*RulePermissionEntry
 // given interface. Any permissions which have expired at the given point in
 // time are pruned. If all permissions have expired, then returns true. If the
 // permission map is invalid, returns an error.
+//
+// XXX: this should be split into validate(), which calls validate() on each
+// entry and is called during Unmarshal, and this function, which also checks
+// that permissions are valid and removes expired permissions.
 func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired bool, err error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
@@ -366,6 +509,63 @@ func (pm RulePermissionMap) Expired(at At) bool {
 	return true
 }
 
+// CloneNonExpired returns a new RulePermissionMap with every non-expired
+// permission entry copied from the receiver.
+//
+// The entries are pointer copies, not deep copies, so internally mutating a
+// permission entry in the copy will affect that entry in the receiver, and
+// vice versa.
+func (pm RulePermissionMap) CloneNonExpired(at At) RulePermissionMap {
+	newPermissions := make(RulePermissionMap)
+	for perm, entry := range pm {
+		if !entry.Expired(at) {
+			newPermissions[perm] = entry
+		}
+	}
+	return newPermissions
+}
+
+// MergePermissionMap merges the receiver and the given existing permission map
+// into a new permission map containing the non-expired permission entries from
+// both maps at the given point in time.
+//
+// For any permissions which occur in both maps, preserves whichever
+// corresponding entry has a lifespan which supersedes that of the other.
+//
+// If any permissions have conflicting outcomes in the two maps, returns those
+// conflicting permissions so they can be converted into an error by the caller.
+// If so, the returned newPermissions map will be nil.
+func (pm RulePermissionMap) MergePermissionMap(existing RulePermissionMap, at At) (newPermissions RulePermissionMap, conflictingPerms []string) {
+	// Keep any non-expired permissions from the existing map. Each might later
+	// be overridden by a permission entry in the new rule, if the latter has a
+	// broader lifespan (and doesn't otherwise conflict).
+	newPermissions = existing.CloneNonExpired(at)
+	// Check whether the receiver has outcomes which conflict with the existing
+	// map, otherwise add them to the new permission map.
+	for perm, entry := range pm {
+		existingEntry, exists := newPermissions[perm]
+		if !exists {
+			newPermissions[perm] = entry
+			continue
+		}
+		if entry.Outcome != existingEntry.Outcome {
+			conflictingPerms = append(conflictingPerms, perm)
+			continue
+		}
+		// Both new and existing map has the same outcome for this perm, so
+		// preserve whichever entry has the greater lifespan.
+		// Since newPermissions[perm] already has the existing entry, only
+		// override it if the receiver has a greater lifespan.
+		if entry.Supersedes(existingEntry, at.SessionID) {
+			newPermissions[perm] = entry
+		}
+	}
+	if len(conflictingPerms) > 0 {
+		return nil, conflictingPerms
+	}
+	return newPermissions, nil
+}
+
 // PermissionEntry holds the outcome associated with a particular permission
 // and the lifespan for which that outcome is applicable.
 //
@@ -374,7 +574,7 @@ func (pm RulePermissionMap) Expired(at At) bool {
 type PermissionEntry struct {
 	Outcome  OutcomeType  `json:"outcome"`
 	Lifespan LifespanType `json:"lifespan"`
-	Duration string       `json:"duration,omitempty"`
+	Duration string       `json:"duration,omitempty"` // XXX: could be time.Duration
 }
 
 // toRulePermissionEntry validates the receiving PermissionEntry and converts

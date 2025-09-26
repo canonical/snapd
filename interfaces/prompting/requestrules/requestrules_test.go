@@ -216,9 +216,17 @@ func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
 	dbPath := s.prepDBPath(c)
 	good1 := s.ruleTemplateWithRead(c, prompting.IDType(1))
 	bad := s.ruleTemplateWithRead(c, prompting.IDType(2))
-	bad.Interface = "foo" // will cause validate() to fail with invalid constraints
+	// Setting invalid interface will cause unmarshal to fail now, since rule
+	// constraints can only be unmarshalled based on interface, and then we
+	// can't iterate over rules to send notices, so need to set something else
+	// bad (e.g. permission) which is able to be unmarshalled and then fail on
+	// validate().
+	bad.Constraints.Permissions()["bad"] = &prompting.RulePermissionEntry{
+		Outcome:  prompting.OutcomeAllow,
+		Lifespan: prompting.LifespanForever,
+	}
 	good2 := s.ruleTemplateWithRead(c, prompting.IDType(3))
-	good2.Constraints.Permissions["read"].Outcome = prompting.OutcomeDeny
+	good2.Constraints.Permissions()["read"].Outcome = prompting.OutcomeDeny
 	// Doesn't matter that rules have conflicting patterns/permissions,
 	// validate() should catch invalid rule and exit before attempting to add.
 
@@ -226,46 +234,52 @@ func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, `internal error: invalid interface: "foo".*`, rules, checkWritten)
+	s.testLoadError(c, `internal error: invalid permissions for home interface: "bad"`, rules, checkWritten)
 }
 
+const ruleTemplatePathPattern = "/home/test/foo"
+
 func (s *requestrulesSuite) ruleTemplateWithReadPathPattern(c *C, id prompting.IDType, pattern string) *requestrules.Rule {
-	rule := s.ruleTemplateWithRead(c, id)
-	rule.Constraints.PathPattern = mustParsePathPattern(c, pattern)
-	return rule
+	permissions := prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
+	}
+	return s.ruleTemplateWithPathPatternPermissions(c, id, time.Now(), pattern, permissions)
 }
 
 // ruleTemplateWithRead returns a rule with valid contents, intended to be customized.
 func (s *requestrulesSuite) ruleTemplateWithRead(c *C, id prompting.IDType) *requestrules.Rule {
-	rule := s.ruleTemplate(c, id)
-	rule.Constraints.Permissions["read"] = &prompting.RulePermissionEntry{
-		Outcome:  prompting.OutcomeAllow,
-		Lifespan: prompting.LifespanForever,
-		// No expiration for lifespan forever
+	permissions := prompting.RulePermissionMap{
+		"read": &prompting.RulePermissionEntry{
+			Outcome:  prompting.OutcomeAllow,
+			Lifespan: prompting.LifespanForever,
+		},
 	}
-	return rule
+	return s.ruleTemplateWithPathPatternPermissions(c, id, time.Now(), ruleTemplatePathPattern, permissions)
 }
 
 // ruleTemplateWithPathPattern returns a rule with valid contents, intended to be customized.
 func (s *requestrulesSuite) ruleTemplateWithPathPattern(c *C, id prompting.IDType, pattern string) *requestrules.Rule {
-	rule := s.ruleTemplate(c, id)
-	rule.Constraints.PathPattern = mustParsePathPattern(c, pattern)
-	return rule
+	return s.ruleTemplateWithPathPatternPermissions(c, id, time.Now(), pattern, nil)
 }
 
-// ruleTemplate returns a rule with valid contents, intended to be customized.
-func (s *requestrulesSuite) ruleTemplate(c *C, id prompting.IDType) *requestrules.Rule {
-	constraints := prompting.RuleConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/foo"),
-		Permissions: make(prompting.RulePermissionMap),
+func (s *requestrulesSuite) ruleTemplateWithPathPatternPermissions(c *C, id prompting.IDType, timestamp time.Time, pattern string, permissions prompting.RulePermissionMap) *requestrules.Rule {
+	if permissions == nil {
+		permissions = make(prompting.RulePermissionMap)
+	}
+	constraints := &prompting.RuleConstraintsHome{
+		Pattern:       mustParsePathPattern(c, pattern),
+		PermissionMap: permissions,
 	}
 	rule := requestrules.Rule{
 		ID:          id,
-		Timestamp:   time.Now(),
+		Timestamp:   timestamp,
 		User:        s.defaultUser,
 		Snap:        "firefox",
 		Interface:   "home",
-		Constraints: &constraints,
+		Constraints: constraints,
 	}
 	return &rule
 }
@@ -288,9 +302,11 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	expired := s.ruleTemplateWithPathPattern(c, prompting.IDType(2), "/home/test/other")
 	setPermissionsOutcomeLifespanExpirationSession(c, expired, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second), 0)
 	// Add rule which conflicts with IDs but doesn't otherwise conflict
-	conflicting := s.ruleTemplateWithRead(c, prompting.IDType(1))
-	conflicting.Constraints.PathPattern = mustParsePathPattern(c, "/home/test/another")
+	conflicting := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(1), "/home/test/another")
 
+	c.Assert(good.Constraints.Permissions(), Not(HasLen), 0)
+	c.Assert(expired.Constraints.Permissions(), Not(HasLen), 0)
+	c.Assert(conflicting.Constraints.Permissions(), Not(HasLen), 0)
 	rules := []*requestrules.Rule{good, expired, conflicting}
 	s.writeRules(c, dbPath, rules)
 
@@ -300,7 +316,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 
 func setPermissionsOutcomeLifespanExpirationSession(c *C, rule *requestrules.Rule, permissions []string, outcome prompting.OutcomeType, lifespan prompting.LifespanType, expiration time.Time, userSessionID prompting.IDType) {
 	for _, perm := range permissions {
-		rule.Constraints.Permissions[perm] = &prompting.RulePermissionEntry{
+		rule.Constraints.Permissions()[perm] = &prompting.RulePermissionEntry{
 			Outcome:    outcome,
 			Lifespan:   lifespan,
 			Expiration: expiration,
@@ -314,8 +330,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	currTime := time.Now()
 	good := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(1), "/home/test/{foo,bar}")
 	// Expired rules should still get a {"removed": "expired"} notice, even if they don't conflict
-	expired := s.ruleTemplateWithRead(c, prompting.IDType(2))
-	expired.Constraints.PathPattern = mustParsePathPattern(c, "/home/test/other")
+	expired := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(2), "/home/test/other")
 	setPermissionsOutcomeLifespanExpirationSession(c, expired, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-10*time.Second), 0)
 	// Add rule with conflicting permissions but not conflicting ID.
 	conflicting := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(3), "/home/test/{bar,foo}")
@@ -351,8 +366,7 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	setPermissionsOutcomeLifespanExpirationSession(c, expired2, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanTimespan, currTime.Add(-time.Nanosecond), 0)
 
 	// Rules with different pattern and conflicting permissions do not conflict
-	good3 := s.ruleTemplateWithRead(c, prompting.IDType(5))
-	good3.Constraints.PathPattern = mustParsePathPattern(c, "/home/test/no-conflict")
+	good3 := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(5), "/home/test/no-conflict")
 
 	rules := []*requestrules.Rule{good1, expired1, good2, expired2, good3}
 	s.writeRules(c, dbPath, rules)
@@ -407,24 +421,22 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 	expected1.Timestamp = identical1.Timestamp // Timestamp should be the second timestamp
 
 	// Rules with identical pattern but non-overlapping permissions do not conflict
-	good2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(3), "/home/test/something")
-	good2.Constraints.Permissions = prompting.RulePermissionMap{
+	good2 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(3), time.Now(), "/home/test/something", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanForever,
 		},
-	}
-	nonOverlap2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(4), "/home/test/something")
-	nonOverlap2.Constraints.Permissions = prompting.RulePermissionMap{
+	})
+	nonOverlap2Timestamp := time.Now()
+	nonOverlap2 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(4), nonOverlap2Timestamp, "/home/test/something", prompting.RulePermissionMap{
 		"write": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeDeny,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: nonOverlap2.Timestamp.Add(10 * time.Second),
+			Expiration: nonOverlap2Timestamp.Add(10 * time.Second),
 		},
-	}
-	expected2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(3), "/home/test/something")
-	expected2.Timestamp = nonOverlap2.Timestamp // Timestamp should be the second timestamp
-	expected2.Constraints.Permissions = prompting.RulePermissionMap{
+	})
+	// Timestamp should be nonOverlap2Timestamp
+	expected2 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(3), nonOverlap2Timestamp, "/home/test/something", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanForever,
@@ -433,13 +445,13 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 			Outcome:  prompting.OutcomeDeny,
 			Lifespan: prompting.LifespanTimespan,
 			// Expiration should be based on nonOverlap2 timestamp
-			Expiration: nonOverlap2.Timestamp.Add(10 * time.Second),
+			Expiration: nonOverlap2Timestamp.Add(10 * time.Second),
 		},
-	}
+	})
 
 	// Rules which overlap but don't conflict preserve longer lifespan
-	good3 := s.ruleTemplateWithPathPattern(c, prompting.IDType(5), "/home/test/another")
-	good3.Constraints.Permissions = prompting.RulePermissionMap{
+	good3Timestamp := time.Now()
+	good3 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(5), good3Timestamp, "/home/test/another", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeDeny,
 			Lifespan: prompting.LifespanForever,
@@ -447,29 +459,28 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 		"write": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeAllow,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: good3.Timestamp.Add(10 * time.Second),
+			Expiration: good3Timestamp.Add(10 * time.Second),
 		},
 		"execute": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeAllow,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: good3.Timestamp.Add(time.Second),
+			Expiration: good3Timestamp.Add(time.Second),
 		},
-	}
-	overlap3 := s.ruleTemplateWithPathPattern(c, prompting.IDType(6), "/home/test/another")
-	overlap3.Constraints.Permissions = prompting.RulePermissionMap{
+	})
+	overlap3Timestamp := time.Now()
+	overlap3 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(6), overlap3Timestamp, "/home/test/another", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeDeny,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: overlap3.Timestamp.Add(10 * time.Second),
+			Expiration: overlap3Timestamp.Add(10 * time.Second),
 		},
 		"write": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanForever,
 		},
-	}
-	expected3 := s.ruleTemplateWithPathPattern(c, prompting.IDType(5), "/home/test/another")
-	expected3.Timestamp = overlap3.Timestamp // Timestamp should be the second timestamp
-	expected3.Constraints.Permissions = prompting.RulePermissionMap{
+	})
+	// Timestamp should be overlap3Timestamp
+	expected3 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(5), overlap3Timestamp, "/home/test/another", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeDeny,
 			Lifespan: prompting.LifespanForever,
@@ -482,57 +493,56 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanTimespan,
 			// Expiration should be based on good3 timestamp
-			Expiration: good3.Timestamp.Add(time.Second),
+			Expiration: good3Timestamp.Add(time.Second),
 		},
-	}
+	})
 
 	// Rules which overlap but don't conflict preserve longer lifespan, and
 	// will be merged into existing rule even if that rule is completely
 	// superseded.
-	good4 := s.ruleTemplateWithPathPattern(c, prompting.IDType(7), "/home/test/one/more")
-	good4.Constraints.Permissions = prompting.RulePermissionMap{
+	good4Timestamp := time.Now()
+	good4 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(7), good4Timestamp, "/home/test/one/more", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeDeny,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: good4.Timestamp.Add(10 * time.Second),
+			Expiration: good4Timestamp.Add(10 * time.Second),
 		},
 		"write": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeAllow,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: good4.Timestamp.Add(10 * time.Second),
+			Expiration: good4Timestamp.Add(10 * time.Second),
 		},
 		"execute": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeAllow,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: good4.Timestamp.Add(time.Nanosecond), // will expire
+			Expiration: good4Timestamp.Add(time.Nanosecond), // will expire
 		},
-	}
-	overlap4 := s.ruleTemplateWithPathPattern(c, prompting.IDType(8), "/home/test/one/more")
-	overlap4.Constraints.Permissions = prompting.RulePermissionMap{
+	})
+	overlap4Timestamp := time.Now()
+	overlap4 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(8), overlap4Timestamp, "/home/test/one/more", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:    prompting.OutcomeDeny,
 			Lifespan:   prompting.LifespanTimespan,
-			Expiration: overlap4.Timestamp.Add(20 * time.Second),
+			Expiration: overlap4Timestamp.Add(20 * time.Second),
 		},
 		"write": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanForever,
 		},
-	}
-	expected4 := s.ruleTemplateWithPathPattern(c, prompting.IDType(7), "/home/test/one/more")
-	expected4.Timestamp = overlap4.Timestamp // Timestamp should be the second timestamp
-	expected4.Constraints.Permissions = prompting.RulePermissionMap{
+	})
+	// Timestamp should be overlap4Timestamp
+	expected4 := s.ruleTemplateWithPathPatternPermissions(c, prompting.IDType(7), overlap4Timestamp, "/home/test/one/more", prompting.RulePermissionMap{
 		"read": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeDeny,
 			Lifespan: prompting.LifespanTimespan,
 			// Expiration should be based on overlap4 timestamp
-			Expiration: overlap4.Timestamp.Add(20 * time.Second),
+			Expiration: overlap4Timestamp.Add(20 * time.Second),
 		},
 		"write": &prompting.RulePermissionEntry{
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanForever,
 		},
-	}
+	})
 
 	rules := []*requestrules.Rule{good1, identical1, good2, nonOverlap2, good3, overlap3, good4, overlap4}
 	s.writeRules(c, dbPath, rules)
@@ -681,9 +691,9 @@ func (s *requestrulesSuite) TestCloseSaves(c *C) {
 
 	// Add a rule, then mutate it in memory, then check that it is saved to
 	// disk when DB is closed.
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/foo"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -697,7 +707,7 @@ func (s *requestrulesSuite) TestCloseSaves(c *C) {
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule})
 
 	// Mutate rule in memory
-	rule.Constraints.Permissions["read"].Outcome = prompting.OutcomeDeny
+	rule.Constraints.Permissions()["read"].Outcome = prompting.OutcomeDeny
 
 	// Close DB
 	c.Check(rdb.Close(), IsNil)
@@ -999,11 +1009,11 @@ func addRuleFromTemplate(c *C, rdb *requestrules.RuleDB, template *addRuleConten
 		partial.Lifespan = template.Lifespan
 	}
 	// Duration default is empty string, so just use partial.Duration
-	replyConstraints := &prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, partial.PathPattern),
-		Permissions: partial.Permissions,
+	replyConstraints := &prompting.ReplyConstraintsHome{
+		PathPattern:    mustParsePathPattern(c, partial.PathPattern),
+		PermissionList: partial.Permissions,
 	}
-	constraints, err := replyConstraints.ToConstraints(partial.Interface, partial.Outcome, partial.Lifespan, partial.Duration)
+	constraints, err := replyConstraints.ToConstraints(partial.Outcome, partial.Lifespan, partial.Duration)
 	if err != nil {
 		return nil, err
 	}
@@ -1040,9 +1050,9 @@ func (s *requestrulesSuite) TestAddRuleRemoveRuleDuplicateVariants(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(found, DeepEquals, rule)
 	// Test that the rule's path pattern really renders to duplicate variants
-	variantList := make([]string, 0, found.Constraints.PathPattern.NumVariants())
-	variantSet := make(map[string]int, found.Constraints.PathPattern.NumVariants())
-	found.Constraints.PathPattern.RenderAllVariants(func(index int, variant patterns.PatternVariant) {
+	variantList := make([]string, 0, found.Constraints.PathPattern().NumVariants())
+	variantSet := make(map[string]int, found.Constraints.PathPattern().NumVariants())
+	found.Constraints.PathPattern().RenderAllVariants(func(index int, variant patterns.PatternVariant) {
 		variantStr := variant.String()
 		variantList = append(variantList, variantStr)
 		variantSet[variantStr] += 1
@@ -1500,9 +1510,9 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 
 		// Add all the rules
 		for _, perms := range testCase.input {
-			constraints := &prompting.Constraints{
-				PathPattern: pathPattern,
-				Permissions: perms,
+			constraints := &prompting.ConstraintsHome{
+				PathPattern:   pathPattern,
+				PermissionMap: perms,
 			}
 			_, err = rdb.AddRule(user, snap, iface, constraints)
 			c.Assert(err, IsNil, Commentf("\ntestCase: %+v\nperms: %+v", testCase, perms))
@@ -1514,22 +1524,22 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 			// Build RuleConstraints based on output perms using the timestamp
 			// of the corresponding rule.
 			rule := rules[i]
-			constraints := &prompting.Constraints{
-				PathPattern: pathPattern,
-				Permissions: perms,
+			constraints := &prompting.ConstraintsHome{
+				PathPattern:   pathPattern,
+				PermissionMap: perms,
 			}
 			at := prompting.At{
 				Time:      rule.Timestamp,
 				SessionID: prompting.IDType(0x12345),
 			}
-			ruleConstraints, err := constraints.ToRuleConstraints(iface, at)
+			ruleConstraints, err := constraints.ToRuleConstraints(at)
 			c.Assert(err, IsNil)
-			expectedPerms := ruleConstraints.Permissions
+			expectedPerms := ruleConstraints.Permissions()
 			// Check that the permissions match what is expected.
 			// Other parameters should be trivially identical.
 			// Need to be careful because timestamps aren't "DeepEqual", so
 			// first set equivalent timestamps equal to each other.
-			for perm, entry := range rule.Constraints.Permissions {
+			for perm, entry := range rule.Constraints.Permissions() {
 				expectedEntry, exists := expectedPerms[perm]
 				c.Assert(exists, Equals, true, Commentf("\ntestCase: %+v\nrules: %+v\npermission not found: %s", testCase, rules, perm))
 				c.Check(entry.Lifespan, Equals, expectedEntry.Lifespan, Commentf("\ntestCase: %+v\nrules: %+v\nlifespans not equal: %v != %v", testCase, rules, entry.Lifespan, expectedEntry.Lifespan))
@@ -1548,7 +1558,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 				c.Check(difference < 100*time.Millisecond, Equals, true, Commentf("\ntestCase: %+v\nrules: %+v\nexpirations not within 100ms: %v != %v", testCase, rules, entry.Expiration, expectedEntry.Expiration))
 				expectedEntry.Expiration = entry.Expiration
 			}
-			c.Check(rule.Constraints.Permissions, DeepEquals, expectedPerms)
+			c.Check(rule.Constraints.Permissions(), DeepEquals, expectedPerms)
 		}
 
 		c.Assert(rdb.Close(), IsNil)
@@ -1720,9 +1730,9 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	iface := "home"
 
 	currSession = prompting.IDType(0x12345)
-	constraints1 := &prompting.Constraints{
+	constraints1 := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/path/to/{foo,bar}"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanTimespan,
@@ -1747,9 +1757,9 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	// execute permission is treated as expired
 	currSession = prompting.IDType(0xf00)
 
-	constraints2 := &prompting.Constraints{
+	constraints2 := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/path/to/{bar,baz}"), // overlap
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny, // conflicting
 				Lifespan: prompting.LifespanTimespan,
@@ -1769,23 +1779,23 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	s.checkNewNoticesSimple(c, nil, rule2)
 
 	// Check that "read" and "execute" were removed from rule1
-	_, exists := rule1.Constraints.Permissions["read"]
+	_, exists := rule1.Constraints.Permissions()["read"]
 	c.Check(exists, Equals, false)
 	// Even though "execute" did not conflict, expired entries are removed from
 	// the variant entry's rule entries whenever a new entry is added to it.
-	_, exists = rule1.Constraints.Permissions["execute"]
+	_, exists = rule1.Constraints.Permissions()["execute"]
 	c.Check(exists, Equals, false)
 
 	// Check that "write" was not removed from rule1
-	_, exists = rule1.Constraints.Permissions["write"]
+	_, exists = rule1.Constraints.Permissions()["write"]
 	c.Check(exists, Equals, true)
 
 	// Check that "read" was not removed from rule2 (even though it's since expired)
-	_, exists = rule2.Constraints.Permissions["read"]
+	_, exists = rule2.Constraints.Permissions()["read"]
 	c.Check(exists, Equals, true)
 
 	// Check that "execute" was not removed from rule2
-	_, exists = rule2.Constraints.Permissions["execute"]
+	_, exists = rule2.Constraints.Permissions()["execute"]
 	c.Check(exists, Equals, true)
 }
 
@@ -2183,7 +2193,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 
 	for i := len(addedRules) - 1; i >= 0; i-- {
 		rule := addedRules[i]
-		expectedOutcome, err := rule.Constraints.Permissions["read"].Outcome.AsBool()
+		expectedOutcome, err := rule.Constraints.Permissions()["read"].Outcome.AsBool()
 		c.Check(err, IsNil)
 
 		// Check that the outcome of the most specific unexpired rule has precedence
@@ -2275,7 +2285,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 	// that the second to last rule has precedence, etc.
 	for i := len(addedRules) - 1; i >= 0; i-- {
 		rule := addedRules[i]
-		expectedOutcome, err := rule.Constraints.Permissions["read"].Outcome.AsBool()
+		expectedOutcome, err := rule.Constraints.Permissions()["read"].Outcome.AsBool()
 		c.Check(err, IsNil)
 
 		// Check that the outcome of the most specific unexpired rule has precedence
@@ -2288,7 +2298,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 
 		// Expire the highest precedence rule by changing its session to be
 		// different from the session at the current point in time
-		rule.Constraints.Permissions["read"].SessionID = otherSession
+		rule.Constraints.Permissions()["read"].SessionID = otherSession
 	}
 
 	// Now that currSession is different from the session of any of the rules,
@@ -2416,14 +2426,14 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 
 	// Set some rules to be expired
 	// This is brittle, relies on details of the rules added by prepRuleDBForRulesForSnapInterface
-	rules[0].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
-	rules[0].Constraints.Permissions["read"].Expiration = time.Now()
-	rules[1].Constraints.Permissions["write"].Lifespan = prompting.LifespanSession
-	rules[1].Constraints.Permissions["write"].SessionID = currSession // not expired
-	rules[2].Constraints.Permissions["read"].Lifespan = prompting.LifespanSession
-	rules[2].Constraints.Permissions["read"].SessionID = currSession + 1 // expired
-	rules[4].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
-	rules[4].Constraints.Permissions["read"].Expiration = time.Now()
+	rules[0].Constraints.Permissions()["read"].Lifespan = prompting.LifespanTimespan
+	rules[0].Constraints.Permissions()["read"].Expiration = time.Now()
+	rules[1].Constraints.Permissions()["write"].Lifespan = prompting.LifespanSession
+	rules[1].Constraints.Permissions()["write"].SessionID = currSession // not expired
+	rules[2].Constraints.Permissions()["read"].Lifespan = prompting.LifespanSession
+	rules[2].Constraints.Permissions()["read"].SessionID = currSession + 1 // expired
+	rules[4].Constraints.Permissions()["read"].Lifespan = prompting.LifespanTimespan
+	rules[4].Constraints.Permissions()["read"].Expiration = time.Now()
 
 	// Expired rules are excluded from the Rules*() functions
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, []*requestrules.Rule{rules[1], rules[3]})
@@ -2564,7 +2574,9 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, addedRules[1])
 	// Cause "variant not found in rule tree"
-	addedRules[2].Constraints.PathPattern = mustParsePathPattern(c, "/path/to/nowhere")
+	internalConstraintsHome, ok := addedRules[2].Constraints.(*prompting.RuleConstraintsHome)
+	c.Assert(ok, Equals, true)
+	internalConstraintsHome.Pattern = mustParsePathPattern(c, "/path/to/nowhere")
 	result, err = rdb.RemoveRule(addedRules[2].User, addedRules[2].ID)
 	c.Check(err, IsNil)
 	c.Check(result, DeepEquals, addedRules[2])
@@ -2800,12 +2812,12 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rule = patched
 
 	// Check that patching with identical content works fine, and updates timestamp
-	constraintsPatch := &prompting.RuleConstraintsPatch{
-		PathPattern: rule.Constraints.PathPattern,
-		Permissions: prompting.PermissionMap{
+	constraintsPatch := &prompting.RuleConstraintsPatchHome{
+		Pattern: rule.Constraints.PathPattern(),
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
-				Outcome:  rule.Constraints.Permissions["read"].Outcome,
-				Lifespan: rule.Constraints.Permissions["read"].Lifespan,
+				Outcome:  rule.Constraints.Permissions()["read"].Outcome,
+				Lifespan: rule.Constraints.Permissions()["read"].Lifespan,
 			},
 		},
 	}
@@ -2821,11 +2833,11 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	rule = patched
 
-	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+	constraintsPatch = &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
 			"execute": &prompting.PermissionEntry{
-				Outcome:  rule.Constraints.Permissions["read"].Outcome,
-				Lifespan: rule.Constraints.Permissions["read"].Lifespan,
+				Outcome:  rule.Constraints.Permissions()["read"].Outcome,
+				Lifespan: rule.Constraints.Permissions()["read"].Lifespan,
 			},
 		},
 	}
@@ -2837,16 +2849,16 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
 	patched.Timestamp = rule.Timestamp
-	rule.Constraints = &prompting.RuleConstraints{
-		PathPattern: patched.Constraints.PathPattern,
-		Permissions: prompting.RulePermissionMap{
+	rule.Constraints = &prompting.RuleConstraintsHome{
+		Pattern: patched.Constraints.PathPattern(),
+		PermissionMap: prompting.RulePermissionMap{
 			"read": &prompting.RulePermissionEntry{
-				Outcome:  patched.Constraints.Permissions["read"].Outcome,
-				Lifespan: patched.Constraints.Permissions["read"].Lifespan,
+				Outcome:  patched.Constraints.Permissions()["read"].Outcome,
+				Lifespan: patched.Constraints.Permissions()["read"].Lifespan,
 			},
 			"execute": &prompting.RulePermissionEntry{
-				Outcome:  patched.Constraints.Permissions["read"].Outcome,
-				Lifespan: patched.Constraints.Permissions["read"].Lifespan,
+				Outcome:  patched.Constraints.Permissions()["read"].Outcome,
+				Lifespan: patched.Constraints.Permissions()["read"].Lifespan,
 			},
 		},
 	}
@@ -2854,8 +2866,8 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	rule = patched
 
-	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+	constraintsPatch = &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -2874,14 +2886,14 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
 	patched.Timestamp = rule.Timestamp
-	rule.Constraints.Permissions["read"].Outcome = prompting.OutcomeDeny
-	rule.Constraints.Permissions["execute"].Outcome = prompting.OutcomeDeny
+	rule.Constraints.Permissions()["read"].Outcome = prompting.OutcomeDeny
+	rule.Constraints.Permissions()["execute"].Outcome = prompting.OutcomeDeny
 	c.Check(patched, DeepEquals, rule)
 
 	rule = patched
 
-	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+	constraintsPatch = &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanTimespan,
@@ -2901,19 +2913,19 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp the same again, check that the rules are identical
 	patched.Timestamp = rule.Timestamp
-	rule.Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
-	rule.Constraints.Permissions["read"].Expiration = patched.Constraints.Permissions["read"].Expiration
-	rule.Constraints.Permissions["execute"].Lifespan = prompting.LifespanSession
-	rule.Constraints.Permissions["execute"].SessionID = currSession
+	rule.Constraints.Permissions()["read"].Lifespan = prompting.LifespanTimespan
+	rule.Constraints.Permissions()["read"].Expiration = patched.Constraints.Permissions()["read"].Expiration
+	rule.Constraints.Permissions()["execute"].Lifespan = prompting.LifespanSession
+	rule.Constraints.Permissions()["execute"].SessionID = currSession
 	c.Check(patched, DeepEquals, rule)
 
 	rule = patched
 
-	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+	constraintsPatch = &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
-				Outcome:  origRule.Constraints.Permissions["read"].Outcome,
-				Lifespan: origRule.Constraints.Permissions["read"].Lifespan,
+				Outcome:  origRule.Constraints.Permissions()["read"].Outcome,
+				Lifespan: origRule.Constraints.Permissions()["read"].Lifespan,
 			},
 			"execute": nil,
 		},
@@ -2932,8 +2944,8 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 	// Patch rule so it has the same path pattern as an existing rule, and check
 	// that this results in the rules being merged
-	constraintsPatch = &prompting.RuleConstraintsPatch{
-		PathPattern: mustParsePathPattern(c, "/home/test/foo"),
+	constraintsPatch = &prompting.RuleConstraintsPatchHome{
+		Pattern: mustParsePathPattern(c, "/home/test/foo"),
 	}
 	patched, err = rdb.PatchRule(rule.User, rule.ID, constraintsPatch)
 	c.Assert(err, IsNil)
@@ -2993,8 +3005,8 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 
 	// Invalid lifespan
-	badPatch := &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+	badPatch := &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanSingle,
@@ -3008,9 +3020,9 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 
 	// Conflicting with other rule
-	conflictingPatch := &prompting.RuleConstraintsPatch{
-		PathPattern: mustParsePathPattern(c, "/home/test/{foo,{Downloads,Documents}/**/*.{ical,mail,txt,gpg}}"),
-		Permissions: prompting.PermissionMap{
+	conflictingPatch := &prompting.RuleConstraintsPatchHome{
+		Pattern: mustParsePathPattern(c, "/home/test/{foo,{Downloads,Documents}/**/*.{ical,mail,txt,gpg}}"),
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -3092,9 +3104,9 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 
 	// Patching doesn't conflict with already-expired rules
 	rule := rules[2]
-	constraintsPatch := &prompting.RuleConstraintsPatch{
-		PathPattern: mustParsePathPattern(c, "/{foo,bar}"),
-		Permissions: prompting.PermissionMap{
+	constraintsPatch := &prompting.RuleConstraintsPatchHome{
+		Pattern: mustParsePathPattern(c, "/{foo,bar}"),
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanSession,
@@ -3134,9 +3146,9 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 	c.Check(patched.Timestamp.Equal(rule.Timestamp), Equals, false)
 	// After making timestamp and constraints the same again, check that the rules are identical
 	patched.Timestamp = rule.Timestamp
-	rule.Constraints = &prompting.RuleConstraints{
-		PathPattern: mustParsePathPattern(c, "/{foo,bar}"),
-		Permissions: prompting.RulePermissionMap{
+	rule.Constraints = &prompting.RuleConstraintsHome{
+		Pattern: mustParsePathPattern(c, "/{foo,bar}"),
+		PermissionMap: prompting.RulePermissionMap{
 			"read": &prompting.RulePermissionEntry{
 				Outcome:   prompting.OutcomeDeny,
 				Lifespan:  prompting.LifespanSession,
@@ -3156,8 +3168,8 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 
 	// If the user session ends, any entries with LifespanSession expire
 	currSession = 0
-	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+	constraintsPatch = &prompting.RuleConstraintsPatchHome{
+		PermissionMap: prompting.PermissionMap{
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -3173,8 +3185,8 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 	// Update the timestamp and check that the patched rule no longer has the
 	// permission entry for "read", which was LifespanSession for expired session
 	patched.Timestamp = rule.Timestamp
-	rule.Constraints.Permissions["execute"].Outcome = prompting.OutcomeAllow
-	delete(rule.Constraints.Permissions, "read")
+	rule.Constraints.Permissions()["execute"].Outcome = prompting.OutcomeAllow
+	delete(rule.Constraints.Permissions(), "read")
 	c.Check(patched, DeepEquals, rule)
 }
 
