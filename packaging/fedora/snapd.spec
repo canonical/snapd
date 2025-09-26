@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.71
+Version:        2.71.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -991,6 +991,11 @@ fi
 %endif
 
 %changelog
+* Fri Sep 26 2025 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.71.1
+ - LP: #2125439 FDE: update secboot to revision f8400226f49a to fix
+   possible preinstall secboot panic when secure boot is disabled
+
 * Fri Jul 25 2025 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.71
  - FDE: auto-repair when recovery key is used
