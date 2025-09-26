@@ -21,6 +21,7 @@
 package secboot_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,12 +83,12 @@ func (s *authRequestorSuite) TestRequestPassphrase(c *C) {
 	s.setInput(c, "thepassphrase\n")
 	s.setSystemdVersion(c, "256")
 
-	input, err := authRequestor.RequestPassphrase("some-volume", "some-device")
+	input, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, IsNil)
 	c.Check(input, Equals, "thepassphrase")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.passphrase", "Please enter the passphrase for volume some-volume for device some-device"},
+		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.fde.password", "Enter passphrase for some-volume (some-device):"},
 	})
 }
 
@@ -96,12 +97,12 @@ func (s *authRequestorSuite) TestRequestPassphraseOldSystemd(c *C) {
 	s.setInput(c, "thepassphrase\n")
 	s.setSystemdVersion(c, "248")
 
-	input, err := authRequestor.RequestPassphrase("some-volume", "some-device")
+	input, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, IsNil)
 	c.Check(input, Equals, "thepassphrase")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "Please enter the passphrase for volume some-volume for device some-device"},
+		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "Enter passphrase for some-volume (some-device):"},
 	})
 }
 
@@ -110,11 +111,11 @@ func (s *authRequestorSuite) TestRequestPassphraseFailure(c *C) {
 	s.setError(c, "blah blah\n")
 	s.setSystemdVersion(c, "256")
 
-	_, err := authRequestor.RequestPassphrase("some-volume", "some-device")
+	_, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, ErrorMatches, "cannot execute systemd-ask-password: exit status 1")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.passphrase", "Please enter the passphrase for volume some-volume for device some-device"},
+		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.fde.password", "Enter passphrase for some-volume (some-device):"},
 	})
 }
 
@@ -123,11 +124,11 @@ func (s *authRequestorSuite) TestRequestPassphraseMissingNewLine(c *C) {
 	s.setInput(c, "blah blah")
 	s.setSystemdVersion(c, "256")
 
-	_, err := authRequestor.RequestPassphrase("some-volume", "some-device")
+	_, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypePassphrase)
 	c.Assert(err, ErrorMatches, "systemd-ask-password output is missing terminating newline")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.passphrase", "Please enter the passphrase for volume some-volume for device some-device"},
+		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.fde.password", "Enter passphrase for some-volume (some-device):"},
 	})
 }
 
@@ -136,26 +137,11 @@ func (s *authRequestorSuite) TestRequestRecoveryKey(c *C) {
 	s.setInput(c, "00001-00002-00003-00004-00005-00006-00007-00008\n")
 	s.setSystemdVersion(c, "256")
 
-	input, err := authRequestor.RequestRecoveryKey("some-volume", "some-device")
+	input, err := authRequestor.RequestUserCredential(context.Background(), "some-volume", "some-device", sb.UserAuthTypeRecoveryKey)
 	c.Assert(err, IsNil)
-	var expected sb.RecoveryKey
-	copy(expected[:], []byte{1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0})
-	c.Check(input, DeepEquals, expected)
+	c.Check(input, Equals, "00001-00002-00003-00004-00005-00006-00007-00008")
 
 	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.recovery", "Please enter the recovery key for volume some-volume for device some-device"},
-	})
-}
-
-func (s *authRequestorSuite) TestRequestRecoveryKeyParseFailure(c *C) {
-	authRequestor := secboot.NewSystemdAuthRequestor()
-	s.setInput(c, "broken\n")
-	s.setSystemdVersion(c, "256")
-
-	_, err := authRequestor.RequestRecoveryKey("some-volume", "some-device")
-	c.Assert(err, ErrorMatches, `cannot parse recovery key: .*`)
-
-	c.Check(s.systemdAskPasswordCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.recovery", "Please enter the recovery key for volume some-volume for device some-device"},
+		{"systemd-ask-password", "--icon", "drive-harddisk", "--id", "secboot.test:some-device", "--credential=snapd.fde.password", "Enter recovery key for some-volume (some-device):"},
 	})
 }
