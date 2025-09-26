@@ -104,7 +104,7 @@ execute: |
         test "$cloud_region" = "$snap_cloud_region"
 
         # verify that the region and availability zone is set in HTTP requests
-        journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=\\\\\"[a-z]+\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+        journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"[a-z]+[\]*\" region=[\]*\"${cloud_region}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
 
     elif [[ "$SPREAD_BACKEND" =~ openstack ]]; then
         # Openstack sets the following in Ubuntu images:
@@ -121,8 +121,8 @@ execute: |
         # }
         # verify that the availability zone is set in HTTP requests
         if [ "$cloud_region" == null ]; then
-            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=\\\\\"${cloud_name}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"${cloud_name}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
         else
-            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=\\\\\"${cloud_name}\\\\\" region=\\\\\"${cloud_region}\\\\\" availability-zone=\\\\\"${cloud_avzone}\\\\\""
+            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"${cloud_name}[\]*\" region=[\]*\"${cloud_region}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
         fi
     fi
