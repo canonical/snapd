@@ -68,23 +68,23 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.HardwareIdentityType)
 
 	req := a.(*asserts.HardwareIdentity)
-	c.Check(req.IssuerId(), Equals, "account-id-1")
+	c.Check(req.IssuerID(), Equals, "account-id-1")
 	c.Check(req.Manufacturer(), Equals, "some-manufacturer")
 	c.Check(req.HardwareName(), Equals, "raspberry-pi-4gb")
-	c.Check(req.HardwareId(), Equals, "random-id-1")
-	c.Check(req.HardwareIdKey(), Equals, s.encodedDevKey)
-	c.Check(req.HardwareIdKeySha3384(), Equals, s.deviceKey.PublicKey().ID())	
+	c.Check(req.HardwareID(), Equals, "random-id-1")
+	c.Check(req.HardwareIDKey(), Equals, s.encodedDevKey)
+	c.Check(req.HardwareIDKeySha3384(), Equals, s.deviceKey.PublicKey().ID())	
 	c.Check(string(req.Body()), Equals, "")
 }
 
 func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 	const (
-		hardwareKeyId        = "hardware-id-key:\n    DEVICEKEY\n"
-		hardwareKeyIdSha3384 = "hardware-id-key-sha3-384: KEYID\n"
+		hardwareKeyID        = "hardware-id-key:\n    DEVICEKEY\n"
+		hardwareKeyIDSha3384 = "hardware-id-key-sha3-384: KEYID\n"
 	)
 
-	encodedHardwareKeyId := strings.Replace(hardwareKeyId, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
-	encodedHardwareKeyIdSha3384 := strings.Replace(hardwareKeyIdSha3384, "KEYID", s.deviceKey.PublicKey().ID(), 1)
+	encodedHardwareKeyID := strings.Replace(hardwareKeyID, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
+	encodedHardwareKeyIDSha3384 := strings.Replace(hardwareKeyIDSha3384, "KEYID", s.deviceKey.PublicKey().ID(), 1)
 
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
@@ -99,12 +99,12 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		{"hardware-name: raspberry-pi-4gb\n", "hardware-name: raspberry&pi\n", `"hardware-name" header contains invalid characters: "raspberry&pi"`},
 		{"hardware-id: random-id-1\n", "", `"hardware-id" header is mandatory`},
 		{"hardware-id: random-id-1\n", "hardware-id: \n", `"hardware-id" header should not be empty`},
-		{hardwareKeyId, "", `"hardware-id-key" header is mandatory`},
-		{hardwareKeyId, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
-		{hardwareKeyId, "hardware-id-key: something\n", `cannot decode public key: .*`},
-		{hardwareKeyIdSha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
-		{hardwareKeyIdSha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
-		{hardwareKeyId+hardwareKeyIdSha3384, encodedHardwareKeyId+encodedHardwareKeyIdSha3384+"body-length: 2\n\nHW\n", `body must be empty`},
+		{hardwareKeyID, "", `"hardware-id-key" header is mandatory`},
+		{hardwareKeyID, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
+		{hardwareKeyID, "hardware-id-key: something\n", `cannot decode public key: .*`},
+		{hardwareKeyIDSha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
+		{hardwareKeyIDSha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
+		{hardwareKeyID+hardwareKeyIDSha3384, encodedHardwareKeyID+encodedHardwareKeyIDSha3384+"body-length: 2\n\nHW\n", `body must be empty`},
 	}
 
 	for i, test := range invalidTests {
