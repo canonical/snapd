@@ -215,6 +215,8 @@ func (m *ClusterManager) Ensure() error {
 var (
 	installWithGoal   = snapstate.InstallWithGoal
 	removeMany        = snapstate.RemoveMany
+	updateWithGoal    = snapstate.UpdateWithGoal
+	storeUpdateGoal   = snapstate.StoreUpdateGoal
 	devicestateSerial = devicestate.Serial
 )
 
@@ -231,12 +233,12 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 		return nil, nil
 	}
 
-	installs, removals, err := snapsForClusterDevice(st, cluster, deviceID)
+	installs, removals, updates, err := snapsForClusterDevice(st, cluster, deviceID)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(installs) == 0 && len(removals) == 0 {
+	if len(installs) == 0 && len(removals) == 0 && len(updates) == 0 {
 		return nil, nil
 	}
 
@@ -248,6 +250,16 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 			return nil, fmt.Errorf("cannot create snap removal tasks: %w", err)
 		}
 		tasksets = append(tasksets, removeTS...)
+	}
+
+	if len(updates) > 0 {
+		goal := storeUpdateGoal(updates...)
+		_, updateTS, err := updateWithGoal(context.Background(), st, goal, nil, snapstate.Options{})
+		if err != nil {
+			return nil, fmt.Errorf("cannot create snap update tasks: %w", err)
+		}
+		tasksets = append(tasksets, updateTS.PreDownload...)
+		tasksets = append(tasksets, updateTS.Refresh...)
 	}
 
 	if len(installs) > 0 {
@@ -291,9 +303,9 @@ func readClusterAssertion(path string) (*asserts.Cluster, error) {
 	return cluster, nil
 }
 
-func snapsForClusterDevice(st *state.State, cluster *asserts.Cluster, deviceID int) (installs []snapstate.StoreSnap, removals []string, err error) {
+func snapsForClusterDevice(st *state.State, cluster *asserts.Cluster, deviceID int) (installs []snapstate.StoreSnap, removals []string, updates []snapstate.StoreUpdate, err error) {
 	if !devicePresent(cluster, deviceID) {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	for _, subcluster := range cluster.Subclusters() {
@@ -314,12 +326,20 @@ func snapsForClusterDevice(st *state.State, cluster *asserts.Cluster, deviceID i
 			var snapst snapstate.SnapState
 			err := snapstate.Get(st, sn.Instance, &snapst)
 			if err != nil && !errors.Is(err, state.ErrNoState) {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 
 			switch sn.State {
 			case "clustered":
 				if snapst.IsInstalled() {
+					if sn.Channel != "" && snapst.TrackingChannel != sn.Channel {
+						updates = append(updates, snapstate.StoreUpdate{
+							InstanceName: sn.Instance,
+							RevOpts: snapstate.RevisionOptions{
+								Channel: sn.Channel,
+							},
+						})
+					}
 					continue
 				}
 
@@ -341,7 +361,7 @@ func snapsForClusterDevice(st *state.State, cluster *asserts.Cluster, deviceID i
 		}
 	}
 
-	return installs, removals, nil
+	return installs, removals, updates, nil
 }
 
 func clusterDeviceIDBySerial(cluster *asserts.Cluster, serial string) (int, bool) {

@@ -49,6 +49,12 @@ func MockRemoveMany(f func(*state.State, []string, *snapstate.RemoveFlags) ([]st
 	return restore
 }
 
+func MockSnapstateUpdateWithGoal(f func(context.Context, *state.State, snapstate.UpdateGoal, func(*snap.Info, *snapstate.SnapState) bool, snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error)) func() {
+	restore := testutil.Backup(&updateWithGoal)
+	updateWithGoal = f
+	return restore
+}
+
 func MockDevicestateSerial(f func(*state.State) (*asserts.Serial, error)) func() {
 	restore := testutil.Backup(&devicestateSerial)
 	devicestateSerial = f

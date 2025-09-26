@@ -48,13 +48,11 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 			"serial":    "serial-1",
 			"addresses": []any{"192.168.0.10"},
 		},
-	}, []map[string]any{
-		{
-			"name":    "default",
-			"devices": []any{"1"},
-			"snaps":   []any{},
-		},
-	})
+	}, []map[string]any{{
+		"name":    "default",
+		"devices": []any{"1"},
+		"snaps":   []any{},
+	}})
 
 	st := state.New(nil)
 	st.Lock()
@@ -78,12 +76,18 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 	})
 	defer restore()
 
+	restore = clusterstate.MockSnapstateUpdateWithGoal(func(context.Context, *state.State, snapstate.UpdateGoal, func(*snap.Info, *snapstate.SnapState) bool, snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		c.Fatal("unexpected update")
+		return nil, nil, errors.New("unexpected")
+	})
+	defer restore()
+
 	tss, err := clusterstate.ApplyClusterState(st, cluster)
 	c.Assert(err, check.IsNil)
 	c.Assert(tss, check.HasLen, 0)
 }
 
-func (s *managerSuite) TestApplyClusterStateInstallAndRemove(c *check.C) {
+func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	cluster := makeClusterAssertion(c, []map[string]any{
 		{
 			"id":        "1",
@@ -92,24 +96,27 @@ func (s *managerSuite) TestApplyClusterStateInstallAndRemove(c *check.C) {
 			"serial":    "serial-1",
 			"addresses": []any{"192.168.0.10"},
 		},
-	}, []map[string]any{
-		{
-			"name":    "default",
-			"devices": []any{"1"},
-			"snaps": []any{
-				map[string]any{
-					"state":    "clustered",
-					"instance": "to-install",
-					"channel":  "latest/stable",
-				},
-				map[string]any{
-					"state":    "removed",
-					"instance": "to-remove",
-					"channel":  "latest/stable",
-				},
+	}, []map[string]any{{
+		"name":    "default",
+		"devices": []any{"1"},
+		"snaps": []any{
+			map[string]any{
+				"state":    "clustered",
+				"instance": "to-install",
+				"channel":  "latest/stable",
+			},
+			map[string]any{
+				"state":    "removed",
+				"instance": "to-remove",
+				"channel":  "latest/stable",
+			},
+			map[string]any{
+				"state":    "clustered",
+				"instance": "to-update",
+				"channel":  "latest/stable",
 			},
 		},
-	})
+	}})
 
 	st := state.New(nil)
 	st.Lock()
@@ -124,9 +131,27 @@ func (s *managerSuite) TestApplyClusterStateInstallAndRemove(c *check.C) {
 		},
 	})
 
+	snapstate.Set(st, "to-update", &snapstate.SnapState{
+		Current:         snap.R(2),
+		TrackingChannel: "latest/edge",
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&snap.SideInfo{Revision: snap.R(2)}, nil),
+			},
+		},
+	})
+
 	serial := newSerialAssertion(c, "serial-1")
 	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
 		return serial, nil
+	})
+	defer restore()
+
+	restore = clusterstate.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		task := st.NewTask("update", "update channel")
+		return []string{"to-update"}, &snapstate.UpdateTaskSets{
+			Refresh: []*state.TaskSet{state.NewTaskSet(task)},
+		}, nil
 	})
 	defer restore()
 
@@ -144,7 +169,7 @@ func (s *managerSuite) TestApplyClusterStateInstallAndRemove(c *check.C) {
 
 	tss, err := clusterstate.ApplyClusterState(st, cluster)
 	c.Assert(err, check.IsNil)
-	c.Assert(tss, check.HasLen, 2)
+	c.Assert(tss, check.HasLen, 3)
 }
 
 func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
