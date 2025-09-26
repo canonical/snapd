@@ -135,6 +135,16 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 	return a.(*asserts.Serial), nil
 }
 
+// Serial returns the device serial assertion if available.
+func Serial(st *state.State) (*asserts.Serial, error) {
+	return findSerial(st, nil)
+}
+
+// SignWithDeviceKey signs the given data using the device's private key.
+func SignWithDeviceKey(st *state.State, data []byte) ([]byte, error) {
+	return deviceMgr(st).SignWithDeviceKey(data)
+}
+
 // findKnownRevisionOfModel returns the model assertion revision if any in the
 // assertion database for the given model, otherwise it returns -1.
 func findKnownRevisionOfModel(st *state.State, mod *asserts.Model) (modRevision int, err error) {

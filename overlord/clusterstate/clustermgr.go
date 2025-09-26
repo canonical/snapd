@@ -179,7 +179,7 @@ func (m *ClusterManager) Ensure() error {
 
 	// check if there's already a cluster configuration change in progress
 	for _, chg := range m.state.Changes() {
-		if (chg.Kind() == "install-cluster-snaps" || chg.Kind() == "apply-cluster-config") && !chg.IsReady() {
+		if chg.Kind() == "apply-cluster-state" && !chg.IsReady() {
 			return nil
 		}
 	}
@@ -193,44 +193,73 @@ func (m *ClusterManager) Ensure() error {
 		return err
 	}
 
-	serial, err := devicestate.DeviceMgr(m.state).Serial()
+	tasksets, err := ApplyClusterState(m.state, cluster)
 	if err != nil {
+		return err
+	}
+
+	if len(tasksets) == 0 {
 		return nil
-	}
-
-	installs, removals, err := findSnapsForDevice(m.state, cluster, serial.Serial())
-	if err != nil {
-		return err
-	}
-
-	if len(installs) == 0 && len(removals) == 0 {
-		return nil
-	}
-
-	// get removal tasksets first
-	removeTasksets, err := m.remove(removals)
-	if err != nil {
-		return err
-	}
-
-	// get installation tasksets
-	installTasksets, err := m.install(installs)
-	if err != nil {
-		return err
 	}
 
 	// create a single change for all operations
-	chg := m.state.NewChange("apply-cluster-config", "Apply cluster configuration (install and remove snaps)")
+	chg := m.state.NewChange("apply-cluster-state", "Apply cluster configuration (install and remove snaps)")
 
-	// add removal tasks first, then installation tasks
-	for _, ts := range removeTasksets {
-		chg.AddAll(ts)
-	}
-	for _, ts := range installTasksets {
+	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
 
 	return nil
+}
+
+var (
+	installWithGoal   = snapstate.InstallWithGoal
+	removeMany        = snapstate.RemoveMany
+	devicestateSerial = devicestate.Serial
+)
+
+// ApplyClusterState calculates the snap install/remove task sets needed to align
+// the given state with the cluster definition for the local device.
+func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.TaskSet, error) {
+	serial, err := devicestateSerial(st)
+	if err != nil {
+		return nil, nil
+	}
+
+	deviceID, ok := clusterDeviceIDBySerial(cluster, serial.Serial())
+	if !ok {
+		return nil, nil
+	}
+
+	installs, removals, err := snapsForClusterDevice(st, cluster, deviceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(installs) == 0 && len(removals) == 0 {
+		return nil, nil
+	}
+
+	var tasksets []*state.TaskSet
+
+	if len(removals) > 0 {
+		_, removeTS, err := removeMany(st, removals, &snapstate.RemoveFlags{})
+		if err != nil {
+			return nil, fmt.Errorf("cannot create snap removal tasks: %w", err)
+		}
+		tasksets = append(tasksets, removeTS...)
+	}
+
+	if len(installs) > 0 {
+		goal := snapstate.StoreInstallGoal(installs...)
+		_, installTS, err := installWithGoal(context.Background(), st, goal, snapstate.Options{})
+		if err != nil {
+			return nil, fmt.Errorf("cannot create snap installation tasks: %w", err)
+		}
+		tasksets = append(tasksets, installTS...)
+	}
+
+	return tasksets, nil
 }
 
 func readClusterAssertion(path string) (*asserts.Cluster, error) {
@@ -262,18 +291,8 @@ func readClusterAssertion(path string) (*asserts.Cluster, error) {
 	return cluster, nil
 }
 
-func findSnapsForDevice(st *state.State, cluster *asserts.Cluster, serial string) (installs []snapstate.StoreSnap, removals []string, err error) {
-	var deviceID int
-	found := false
-	for _, dev := range cluster.Devices() {
-		if dev.Serial == serial {
-			deviceID = dev.ID
-			found = true
-			break
-		}
-	}
-
-	if !found {
+func snapsForClusterDevice(st *state.State, cluster *asserts.Cluster, deviceID int) (installs []snapstate.StoreSnap, removals []string, err error) {
+	if !devicePresent(cluster, deviceID) {
 		return nil, nil, nil
 	}
 
@@ -325,29 +344,20 @@ func findSnapsForDevice(st *state.State, cluster *asserts.Cluster, serial string
 	return installs, removals, nil
 }
 
-func (m *ClusterManager) install(snaps []snapstate.StoreSnap) ([]*state.TaskSet, error) {
-	if len(snaps) == 0 {
-		return nil, nil
+func clusterDeviceIDBySerial(cluster *asserts.Cluster, serial string) (int, bool) {
+	for _, dev := range cluster.Devices() {
+		if dev.Serial == serial {
+			return dev.ID, true
+		}
 	}
-
-	goal := snapstate.StoreInstallGoal(snaps...)
-	_, tasksets, err := snapstate.InstallWithGoal(context.Background(), m.state, goal, snapstate.Options{})
-	if err != nil {
-		return nil, fmt.Errorf("cannot create snap installation tasks: %w", err)
-	}
-
-	return tasksets, nil
+	return 0, false
 }
 
-func (m *ClusterManager) remove(names []string) ([]*state.TaskSet, error) {
-	if len(names) == 0 {
-		return nil, nil
+func devicePresent(cluster *asserts.Cluster, deviceID int) bool {
+	for _, dev := range cluster.Devices() {
+		if dev.ID == deviceID {
+			return true
+		}
 	}
-
-	_, tasksets, err := snapstate.RemoveMany(m.state, names, &snapstate.RemoveFlags{})
-	if err != nil {
-		return nil, fmt.Errorf("cannot create snap removal tasks: %w", err)
-	}
-
-	return tasksets, nil
+	return false
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2024 Canonical Ltd
+ * Copyright (C) 2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,9 +20,13 @@
 package clusterstate
 
 import (
-	"gopkg.in/tomb.v2"
+	"context"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // export for tests
@@ -33,7 +37,20 @@ var (
 // AssembleClusterSetup is exported for tests
 type AssembleClusterSetup = assembleClusterSetup
 
-// DoAssembleCluster is exported for tests
-func (m *ClusterManager) DoAssembleCluster(t *state.Task, tb *tomb.Tomb) error {
-	return m.doAssembleCluster(t, tb)
+func MockInstallWithGoal(f func(context.Context, *state.State, snapstate.InstallGoal, snapstate.Options) ([]*snap.Info, []*state.TaskSet, error)) func() {
+	restore := testutil.Backup(&installWithGoal)
+	installWithGoal = f
+	return restore
+}
+
+func MockRemoveMany(f func(*state.State, []string, *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error)) func() {
+	restore := testutil.Backup(&removeMany)
+	removeMany = f
+	return restore
+}
+
+func MockDevicestateSerial(f func(*state.State) (*asserts.Serial, error)) func() {
+	restore := testutil.Backup(&devicestateSerial)
+	devicestateSerial = f
+	return restore
 }

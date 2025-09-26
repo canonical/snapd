@@ -162,9 +162,7 @@ func assemble(
 ) ([]assemblestate.ClusterDevice, assemblestate.Routes, error) {
 	st := t.State()
 
-	deviceMgr := devicestate.DeviceMgr(st)
-
-	serial, err := deviceMgr.Serial()
+	serial, err := devicestate.Serial(st)
 	if err != nil {
 		return nil, assemblestate.Routes{}, fmt.Errorf("cannot get device serial: %v", err)
 	}
@@ -172,7 +170,7 @@ func assemble(
 	signer := func(data []byte) ([]byte, error) {
 		st.Lock()
 		defer st.Unlock()
-		return deviceMgr.SignWithDeviceKey(data)
+		return devicestate.SignWithDeviceKey(st, data)
 	}
 
 	assertDB := assertstate.DB(st)
