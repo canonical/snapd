@@ -120,8 +120,7 @@ func (c *ConstraintsHome) MatchPromptConstraints(promptConstraints PromptConstra
 }
 
 // ToRuleConstraints validates the receiving Constraints and converts it to
-// RuleConstraints. If the constraints are not valid with respect to the given
-// interface, returns an error.
+// RuleConstraints. If the constraints are not valid, returns an error.
 func (c *ConstraintsHome) ToRuleConstraints(at At) (RuleConstraints, error) {
 	if c.PathPattern == nil {
 		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
