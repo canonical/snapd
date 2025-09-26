@@ -140,10 +140,13 @@ jobs:
       fail-fast: false
       matrix:
         build-config:
+          - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10' }
+          - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04' }
           - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }
           - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04' }
           - { system: "ubuntu-18.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '18.04' }
+          - { system: "debian-sid-64",       runs-on: '["ubuntu-latest"]',     os: debian, os-version: 'sid'   }
           - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04' }
 
