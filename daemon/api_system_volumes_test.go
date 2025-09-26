@@ -275,7 +275,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 
 	// typed no matching recovery key error kind
 	mockErr = &fdestate.InvalidRecoveryKeyError{
-		Reason: fdestate.InvalidRecoveryKeyReasonNoMatchFound,
+		Reason: fdestate.InvalidRecoveryKeyReasonInvalidValue,
 	}
 	body = strings.NewReader(`{"action": "check-recovery-key", "recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593"}`)
 	req, err = http.NewRequest("POST", "/v2/system-volumes", body)
@@ -285,8 +285,8 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckRecoveryKeyError(c *C) 
 	rsp = s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 400)
 	c.Check(rsp.Kind, Equals, client.ErrorKindInvalidRecoveryKey)
-	c.Check(rsp.Message, Equals, "invalid recovery key: no match found")
-	c.Assert(rsp.Value, DeepEquals, map[string]any{"reason": fdestate.InvalidRecoveryKeyReasonNoMatchFound})
+	c.Check(rsp.Message, Equals, "invalid recovery key: bad value")
+	c.Assert(rsp.Value, DeepEquals, map[string]any{"reason": fdestate.InvalidRecoveryKeyReasonInvalidValue})
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {

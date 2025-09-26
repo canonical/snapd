@@ -447,6 +447,11 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
 		if errors.Is(err, backend.ErrNoRecoveryKey) {
+			// this might mean the recovery key id not valid or snapd restarted
+			// and the associated recovery key was lost from the cache.
+			//
+			// TODO: mitigate snapd restart case by introducing an alternative secrets
+			// backend that survives restarts.
 			return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonNotFound}
 		}
 		return err

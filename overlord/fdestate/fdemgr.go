@@ -648,8 +648,8 @@ func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []st
 			if err := secbootCheckRecoveryKey(container.DevPath(), rkey); err != nil {
 				logger.Noticef("invalid recovery key: no match found for %q: %v", container.ContainerRole(), err)
 				return &InvalidRecoveryKeyError{
-					Reason:  InvalidRecoveryKeyReasonNoMatchFound,
-					Message: fmt.Sprintf("invalid recovery key: no match found for %q", container.ContainerRole()),
+					Reason:  InvalidRecoveryKeyReasonInvalidValue,
+					Message: fmt.Sprintf("invalid recovery key: recovery key does not work for %q", container.ContainerRole()),
 				}
 			}
 			found[container.ContainerRole()] = true
