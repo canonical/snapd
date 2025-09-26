@@ -1,0 +1,148 @@
+summary: Run a snap as an LDAP user
+
+details: |
+    Test that a user defined in LDAP can run a snap without errors or warnings.
+    The system setup is mostly taken from the sssd tests found at 
+    https://git.launchpad.net/ubuntu/+source/sssd/tree/debian/tests
+
+systems: 
+    - +ubuntu-*
+    - -ubuntu-core*
+
+environment:
+    domain_name: example.com
+    host_name: ldap.${domain_name}
+    ldap_suffix: dc=example,dc=com
+    admin_dn: cn=admin,${ldap_suffix}
+    admin_pw: secret
+    ldap_user: ldaptestuser1
+    ldap_user_pw: testuser1secret
+    ldap_group: ldapusers
+    realm_name: EXAMPLE.COM
+    kerberos_principal_pw: testuser1kerberos
+    AUTHTYPE/ldap: ldap
+    AUTHTYPE/krb5: krb5
+
+prepare: |
+    backup_if_exists() {
+        local item=$1
+        if [ -f "$item" ]; then
+            cp "$item" "$item.bak"
+            tests.cleanup defer mv "$item.bak" "$item"
+        elif [ -d "$item" ]; then
+            tests.backup prepare "$item"
+            tests.cleanup defer tests.backup restore "$item"
+        fi
+    }
+
+    backup_if_exists /etc/hostname
+    backup_if_exists /etc/hosts
+    backup_if_exists /var/lib/ldap
+
+    backup_if_exists /etc/nsswitch.conf
+    backup_if_exists /etc/nslcd.conf
+    backup_if_exists /etc/pam.d
+    backup_if_exists /var/lib/sss
+    backup_if_exists /etc/sssd/sssd.conf
+
+    backup_if_exists /etc/krb5.conf
+    backup_if_exists /etc/krb5kdc
+    backup_if_exists /var/lib/krb5kdc
+
+    packages=
+    case ${AUTHTYPE} in
+        ldap)
+            packages="slapd libnss-ldapd debconf-utils"
+            ;;
+        krb5)
+            packages="slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc"
+            ;;
+    esac
+
+    retry -n 20 --wait 1 tests.pkgs install $packages
+
+    echo "${host_name}" > /etc/hostname
+    hostname "${host_name}"
+    echo "127.0.1.10 ${host_name}" >> /etc/hosts
+
+    # backup debconf
+    debconf-get-selections > debconf_selections.bak
+    tests.cleanup defer 'debconf-set-selections < debconf_selections.bak'
+
+    # configure slapd with ldap values
+    debconf-set-selections << EOF
+    slapd	slapd/domain	string	${domain_name}
+    slapd	shared/organization	string	${domain_name}
+    slapd	slapd/password1	password	${admin_pw}
+    slapd	slapd/password2	password	${admin_pw}
+    EOF
+    dpkg-reconfigure -fnoninteractive -pcritical slapd
+
+    # populate ldap 
+    envsubst < ldap-data | ldapadd -x -D "${admin_dn}" -w "${admin_pw}"
+
+    if [ "$AUTHTYPE" = "ldap" ]; then
+
+        sed -i "s/^uri.*ldap.*/uri ldap\:\/\/${host_name}/" /etc/nslcd.conf
+        systemctl restart nslcd
+        sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
+        sed -i "s/^group\:.*/& ldap/" /etc/nsswitch.conf
+        sed -i "s/^shadow\:.*/& ldap/" /etc/nsswitch.conf
+
+    elif [ "$AUTHTYPE" = "krb5" ]; then
+        # setup some defaults
+        envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
+        envsubst < krb5.conf > /etc/krb5.conf
+        touch /etc/krb5kdc/kadm5.acl
+
+        # create the realm
+        kdb5_util create -s -P secretpassword
+
+        # restart services
+        systemctl restart krb5-kdc.service krb5-admin-server.service
+
+        # create the kerberos prinicpal
+        kadmin.local -q "addprinc -pw ${kerberos_principal_pw} ${ldap_user}"
+        
+        # configure sssd to use ldap/kerberos
+        envsubst < sssd.conf > /etc/sssd/sssd.conf
+        chmod 0600 /etc/sssd/sssd.conf
+        chown root:root /etc/sssd/sssd.conf
+        systemctl restart sssd || {
+            systemctl status --lines 100 sssd
+            false
+        }
+    fi
+
+    # enable home directory creation
+    pam-auth-update --enable mkhomedir
+    tests.cleanup defer rm -rf /home/${ldap_user}
+
+    snap install test-snapd-sh
+    tests.cleanup defer snap remove --purge test-snapd-sh
+
+restore: |
+    tests.pkgs list-installed > installed-final.pkgs
+    diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
+    packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
+    retry -n 20 --wait 1 tests.pkgs remove $packages
+    # purge install traces of the packages so that if installed again
+    # sssd will modify the /etc/nsswitch.conf file
+    retry -n 20 --wait 1 apt purge -y $packages
+
+execute: |
+    su -l -c "test-snapd-sh.sh -c 'echo hello'" ${ldap_user} 2>errors
+
+    # there should be no warnings nor errors like seen in https://bugs.launchpad.net/snapd/+bug/2083890
+    if [ -n "$(cat errors)" ]; then
+        echo "got errors/warnings when running a snap as an ldap user"
+        cat errors
+        exit 1
+    fi
+
+
+    # TODO enable this check when snapd is able to see users by other NSS ID providers
+    # # check that an LDAP user can be seen also inside a snap
+    # getent passwd "$ldap_user" > expected.txt
+    # snap run --shell test-snapd-sh.sh -c "getent passwd $ldap_user" > actual.txt
+    # diff -u actual.txt expected.txt
