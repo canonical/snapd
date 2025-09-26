@@ -299,16 +299,16 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 }
 
 type postPromptBody struct {
-	Outcome     prompting.OutcomeType  `json:"action"`
-	Lifespan    prompting.LifespanType `json:"lifespan"`
-	Duration    string                 `json:"duration,omitempty"`
-	Constraints json.RawMessage        `json:"constraints"`
+	Outcome         prompting.OutcomeType  `json:"action"`
+	Lifespan        prompting.LifespanType `json:"lifespan"`
+	Duration        string                 `json:"duration,omitempty"`
+	ConstraintsJSON json.RawMessage        `json:"constraints"`
 }
 
 type addRuleContents struct {
-	Snap        string          `json:"snap"`
-	Interface   string          `json:"interface"`
-	Constraints json.RawMessage `json:"constraints"`
+	Snap            string          `json:"snap"`
+	Interface       string          `json:"interface"`
+	ConstraintsJSON json.RawMessage `json:"constraints"`
 }
 
 type removeRulesSelector struct {
@@ -317,7 +317,7 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints json.RawMessage `json:"constraints,omitempty"`
+	ConstraintsJSON json.RawMessage `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {
@@ -408,7 +408,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	clientActivity := isClientActivity(c, r)
 
-	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration, clientActivity)
+	satisfiedPromptIDs, err := getInterfaceManager(c).InterfacesRequestsManager().HandleReply(userID, promptID, reply.ConstraintsJSON, reply.Outcome, reply.Lifespan, reply.Duration, clientActivity)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -468,9 +468,10 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
-		constraints, err := prompting.UnmarshalConstraints(postBody.AddRule.Interface, postBody.AddRule.Constraints)
+		constraints, err := prompting.UnmarshalConstraints(postBody.AddRule.Interface, postBody.AddRule.ConstraintsJSON)
 		if err != nil {
-			return promptingError(fmt.Errorf("cannot decode request body into constraints for %s interface: %w", postBody.AddRule.Interface, err))
+			// XXX: does this need to match the error above? It's less consistent but more precise
+			return promptingError(fmt.Errorf("cannot decode request body into constraints: %w", err))
 		}
 		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, constraints)
 		if err != nil {
@@ -549,7 +550,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.PatchRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "patch"`)
 		}
-		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints)
+		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.ConstraintsJSON)
 		if err != nil {
 			return promptingError(err)
 		}

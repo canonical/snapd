@@ -426,7 +426,8 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 
 	replyConstraints, err := prompting.UnmarshalReplyConstraints(prompt.Interface, replyConstraintsJSON)
 	if err != nil {
-		return nil, err
+		// Match the error prefix from api_prompting.go:postPrompt()
+		return nil, fmt.Errorf("cannot decode request body into prompt reply: %w", err)
 	}
 
 	// Validate reply constraints and convert them to Constraints, which have
@@ -600,7 +601,8 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 	}
 	constraintsPatch, err := prompting.UnmarshalRuleConstraintsPatch(origRule.Interface, constraintsPatchJSON)
 	if err != nil {
-		return nil, err
+		// XXX: does this need to match what's in api_prompting.go:postRule() ?
+		return nil, fmt.Errorf("cannot decode request body into constraints patch: %w", err)
 	}
 
 	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraintsPatch)

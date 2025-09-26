@@ -52,17 +52,17 @@ type fakeInterfacesRequestsManager struct {
 	err          error
 
 	// Store most recent received values
-	userID           uint32
-	snap             string
-	iface            string
-	id               prompting.IDType // used for prompt ID or rule ID
-	ruleConstraints  prompting.Constraints
-	constraintsPatch json.RawMessage
-	replyConstraints json.RawMessage
-	outcome          prompting.OutcomeType
-	lifespan         prompting.LifespanType
-	duration         string
-	clientActivity   bool
+	userID               uint32
+	snap                 string
+	iface                string
+	id                   prompting.IDType // used for prompt ID or rule ID
+	addRuleConstraints   prompting.Constraints
+	constraintsPatchJSON json.RawMessage
+	replyConstraintsJSON json.RawMessage
+	outcome              prompting.OutcomeType
+	lifespan             prompting.LifespanType
+	duration             string
+	clientActivity       bool
 }
 
 func (m *fakeInterfacesRequestsManager) Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error) {
@@ -81,7 +81,7 @@ func (m *fakeInterfacesRequestsManager) PromptWithID(userID uint32, promptID pro
 func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraintsJSON json.RawMessage, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error) {
 	m.userID = userID
 	m.id = promptID
-	m.replyConstraints = constraintsJSON
+	m.replyConstraintsJSON = constraintsJSON
 	m.outcome = outcome
 	m.lifespan = lifespan
 	m.duration = duration
@@ -100,7 +100,7 @@ func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, ifac
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
-	m.ruleConstraints = constraints
+	m.addRuleConstraints = constraints
 	return m.rule, m.err
 }
 
@@ -120,7 +120,7 @@ func (m *fakeInterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompti
 func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatchJSON json.RawMessage) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.id = ruleID
-	m.constraintsPatch = constraintsPatchJSON
+	m.constraintsPatchJSON = constraintsPatchJSON
 	return m.rule, m.err
 }
 
@@ -728,10 +728,10 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 
 	constraintsJSON := json.RawMessage(`{"foo":"bar"}`)
 	contents := &daemon.PostPromptBody{
-		Outcome:     prompting.OutcomeAllow,
-		Lifespan:    prompting.LifespanTimespan,
-		Duration:    "10m",
-		Constraints: constraintsJSON,
+		Outcome:         prompting.OutcomeAllow,
+		Lifespan:        prompting.LifespanTimespan,
+		Duration:        "10m",
+		ConstraintsJSON: constraintsJSON,
 	}
 	marshalled, err := json.Marshal(contents)
 	c.Assert(err, IsNil)
@@ -741,7 +741,7 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(1000))
 	c.Check(s.manager.id, Equals, prompting.IDType(0x0123456789abcdef))
-	c.Check(s.manager.replyConstraints, DeepEquals, contents.Constraints)
+	c.Check(s.manager.replyConstraintsJSON, DeepEquals, contents.ConstraintsJSON)
 	c.Check(s.manager.outcome, Equals, contents.Outcome)
 	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
 	c.Check(s.manager.duration, Equals, contents.Duration)
@@ -767,10 +767,10 @@ func (s *promptingSuite) TestPostPromptDenyHappy(c *C) {
 
 	constraintsJSON := json.RawMessage(`{"foo":"bar"}`)
 	contents := &daemon.PostPromptBody{
-		Outcome:     prompting.OutcomeDeny,
-		Lifespan:    prompting.LifespanTimespan,
-		Duration:    "10m",
-		Constraints: constraintsJSON,
+		Outcome:         prompting.OutcomeDeny,
+		Lifespan:        prompting.LifespanTimespan,
+		Duration:        "10m",
+		ConstraintsJSON: constraintsJSON,
 	}
 	marshalled, err := json.Marshal(contents)
 	c.Assert(err, IsNil)
@@ -780,7 +780,7 @@ func (s *promptingSuite) TestPostPromptDenyHappy(c *C) {
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(1000))
 	c.Check(s.manager.id, Equals, prompting.IDType(0x0123456789abcdef))
-	c.Check(s.manager.replyConstraints, DeepEquals, contents.Constraints)
+	c.Check(s.manager.replyConstraintsJSON, DeepEquals, contents.ConstraintsJSON)
 	c.Check(s.manager.outcome, Equals, contents.Outcome)
 	c.Check(s.manager.lifespan, Equals, contents.Lifespan)
 	c.Check(s.manager.duration, Equals, contents.Duration)
@@ -902,9 +902,9 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 	constraintsJSON, err := json.Marshal(constraints)
 	c.Assert(err, IsNil)
 	contents := &daemon.AddRuleContents{
-		Snap:        "thunderbird",
-		Interface:   "home",
-		Constraints: json.RawMessage(constraintsJSON),
+		Snap:            "thunderbird",
+		Interface:       "home",
+		ConstraintsJSON: json.RawMessage(constraintsJSON),
 	}
 	postBody := &daemon.PostRulesRequestBody{
 		Action:  "add",
@@ -919,7 +919,7 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 	c.Check(s.manager.userID, Equals, uint32(11235))
 	c.Check(s.manager.snap, Equals, contents.Snap)
 	c.Check(s.manager.iface, Equals, contents.Interface)
-	c.Check(s.manager.ruleConstraints, DeepEquals, constraints)
+	c.Check(s.manager.addRuleConstraints, DeepEquals, constraints)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
@@ -1079,7 +1079,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 
 	constraintsPatchJSON := json.RawMessage(`{"foo":"bar"}`)
 	contents := &daemon.PatchRuleContents{
-		Constraints: constraintsPatchJSON,
+		ConstraintsJSON: constraintsPatchJSON,
 	}
 	postBody := &daemon.PostRuleRequestBody{
 		Action:    "patch",
@@ -1092,7 +1092,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(999))
-	c.Check(s.manager.constraintsPatch, DeepEquals, contents.Constraints)
+	c.Check(s.manager.constraintsPatchJSON, DeepEquals, contents.ConstraintsJSON)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
