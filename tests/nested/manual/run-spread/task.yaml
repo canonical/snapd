@@ -4,7 +4,7 @@ details: |
     Verify that it is possible to run the full test suite in ubuntu core system
     using a nested vm. The test can be used to validate specific pre-built images.
 
-backends: [google-nested-dev]
+backends: [google-nested-dev, openstack-ext-ps7]
 
 systems: [ubuntu-*]
 
@@ -36,6 +36,11 @@ execute: |
 
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+    export SPREAD_HTTP_PROXY="$HTTP_PROXY"
+    export SPREAD_HTTPS_PROXY="$HTTPS_PROXY"
+    export SPREAD_NO_PROXY="$NO_PROXY"
+    export SPREAD_SNAPD_USE_PROXY="$SNAPD_USE_PROXY"
+
     RUN_TESTS="external:$NESTED_SPREAD_SYSTEM:$TESTS"
     if [ "$SPREAD_VARIANT" = "custom" ]; then
         RUN_TESTS="$NESTED_SPREAD_TESTS"
