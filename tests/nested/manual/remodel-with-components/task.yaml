@@ -10,8 +10,8 @@ details: |
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
-  INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-initial-pc-24.json
-  NEW_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-new-pc-24.json
+  INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-initial-pc-VERSION.json
+  NEW_MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-remodel-new-pc-VERSION.json
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -35,7 +35,8 @@ prepare: |
 
     "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
-    gendeveloper1 sign-model < "${INITIAL_MODEL_JSON}" > initial-model.assert
+    VERSION="$(tests.nested show version)"
+    gendeveloper1 sign-model < "${INITIAL_MODEL_JSON/VERSION/${VERSION}}" > initial-model.assert
 
     cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
     cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
@@ -95,7 +96,8 @@ execute: |
     "${NESTED_FAKESTORE_BLOB_DIR}" \
     ./pc-kernel+wifi-comp.comp
 
-  gendeveloper1 sign-model < "${NEW_MODEL_JSON}" > new-model.assert
+  VERSION="$(tests.nested show version)"
+  gendeveloper1 sign-model < "${NEW_MODEL_JSON/VERSION/${VERSION}}" > new-model.assert
   remote.push new-model.assert
 
   boot_id="$(tests.nested boot-id)"
