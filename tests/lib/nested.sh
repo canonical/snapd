@@ -1388,11 +1388,8 @@ nested_start_core_vm_unit() {
 
     rm -rf "${NESTED_ASSETS_DIR}"/qemu-creds
     mkdir -p "${NESTED_ASSETS_DIR}"/qemu-creds
-    if [ "${NESTED_RECOVERY_KEY+set}" = set ]; then
-        echo -n "${NESTED_RECOVERY_KEY}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.recovery"
-    fi
-    if [ "${NESTED_PASSPHRASE+set}" = set ]; then
-        echo -n "${NESTED_PASSPHRASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
+    if [ "${NESTED_FDE_PASSWORD+set}" = set ]; then
+        echo -n "${NESTED_FDE_PASSWORD}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
     fi
 
     # ensure we have a log dir
@@ -1613,11 +1610,11 @@ nested_vm_clear_uefi() {
 }
 
 nested_vm_set_passphrase() {
-    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
+    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
 }
 
 nested_vm_set_recovery_key() {
-    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.recovery"
+    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
 }
 
 nested_create_classic_vm() {
@@ -1744,11 +1741,8 @@ nested_start_classic_vm() {
 
     rm -rf "${NESTED_ASSETS_DIR}"/qemu-creds
     mkdir -p "${NESTED_ASSETS_DIR}"/qemu-creds
-    if [ "${NESTED_RECOVERY_KEY+set}" = set ]; then
-        echo -n "${NESTED_RECOVERY_KEY}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.recovery"
-    fi
-    if [ "${NESTED_PASSPHRASE+set}" = set ]; then
-        echo -n "${NESTED_PASSPRHASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
+    if [ "${NESTED_FDE_PASSWORD+set}" = set ]; then
+        echo -n "${NESTED_FDE_PASSWORD}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters 
