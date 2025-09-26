@@ -133,6 +133,12 @@ ptrace (read),
 # Allow reading the system max CPU resource constraints
 /sys/fs/cgroup/system.slice/cpu.max r,
 
+# Allow reading ext4 and btrfs filesystems information
+/sys/fs/{btrfs,ext4}/{,**} r,
+
+# Allow reading zfs filesystem information
+@{PROC}/spl/kstat/zfs/{,**} r,
+
 #include <abstractions/dbus-strict>
 
 # do not use peer=(label=unconfined) here since this is DBus activated
