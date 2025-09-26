@@ -69,7 +69,7 @@ const (
 	InvalidRecoveryKeyReasonExpired       InvalidRecoveryKeyReason = "expired"
 	InvalidRecoveryKeyReasonNotFound      InvalidRecoveryKeyReason = "not-found"
 	InvalidRecoveryKeyReasonInvalidFormat InvalidRecoveryKeyReason = "invalid-format"
-	InvalidRecoveryKeyReasonNoMatchFound  InvalidRecoveryKeyReason = "no-match-found"
+	InvalidRecoveryKeyReasonInvalidValue  InvalidRecoveryKeyReason = "invalid-value"
 )
 
 type InvalidRecoveryKeyError struct {
@@ -90,8 +90,8 @@ func (e *InvalidRecoveryKeyError) Error() string {
 		return "invalid recovery key: not found"
 	case InvalidRecoveryKeyReasonInvalidFormat:
 		return "invalid recovery key: bad format"
-	case InvalidRecoveryKeyReasonNoMatchFound:
-		return "invalid recovery key: no match found"
+	case InvalidRecoveryKeyReasonInvalidValue:
+		return "invalid recovery key: bad value"
 	default:
 		return "internal error: unexpected recovery key error"
 	}
