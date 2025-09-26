@@ -1,3 +1,6 @@
+# New in snapd 2.71.1
+* LP: #2125439 FDE: update secboot to revision f8400226f49a to fix possible preinstall secboot panic when secure boot is disabled
+
 # New in snapd 2.71
 * FDE: auto-repair when recovery key is used
 * FDE: revoke keys on shim update

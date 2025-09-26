@@ -1,3 +1,11 @@
+snapd (2.71.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2118396
+    - LP: #2125439 FDE: update secboot to revision f8400226f49a to fix
+      possible preinstall secboot panic when secure boot is disabled
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 26 Sep 2025 07:39:49 +0200
+
 snapd (2.71~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2118396
