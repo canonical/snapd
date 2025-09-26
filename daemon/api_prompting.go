@@ -299,16 +299,16 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 }
 
 type postPromptBody struct {
-	Outcome     prompting.OutcomeType       `json:"action"`
-	Lifespan    prompting.LifespanType      `json:"lifespan"`
-	Duration    string                      `json:"duration,omitempty"`
-	Constraints *prompting.ReplyConstraints `json:"constraints"`
+	Outcome     prompting.OutcomeType  `json:"action"`
+	Lifespan    prompting.LifespanType `json:"lifespan"`
+	Duration    string                 `json:"duration,omitempty"`
+	Constraints json.RawMessage        `json:"constraints"`
 }
 
 type addRuleContents struct {
-	Snap        string                 `json:"snap"`
-	Interface   string                 `json:"interface"`
-	Constraints *prompting.Constraints `json:"constraints"`
+	Snap        string          `json:"snap"`
+	Interface   string          `json:"interface"`
+	Constraints json.RawMessage `json:"constraints"`
 }
 
 type removeRulesSelector struct {
@@ -317,7 +317,7 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints *prompting.RuleConstraintsPatch `json:"constraints,omitempty"`
+	Constraints json.RawMessage `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {
@@ -468,7 +468,11 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
-		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints)
+		constraints, err := prompting.UnmarshalConstraints(postBody.AddRule.Interface, postBody.AddRule.Constraints)
+		if err != nil {
+			return promptingError(fmt.Errorf("cannot decode request body into constraints for %s interface: %w", postBody.AddRule.Interface, err))
+		}
+		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, constraints)
 		if err != nil {
 			return promptingError(err)
 		}

@@ -56,9 +56,9 @@ type fakeInterfacesRequestsManager struct {
 	snap             string
 	iface            string
 	id               prompting.IDType // used for prompt ID or rule ID
-	ruleConstraints  *prompting.Constraints
-	constraintsPatch *prompting.RuleConstraintsPatch
-	replyConstraints *prompting.ReplyConstraints
+	ruleConstraints  prompting.Constraints
+	constraintsPatch json.RawMessage
+	replyConstraints json.RawMessage
 	outcome          prompting.OutcomeType
 	lifespan         prompting.LifespanType
 	duration         string
@@ -78,10 +78,10 @@ func (m *fakeInterfacesRequestsManager) PromptWithID(userID uint32, promptID pro
 	return m.prompt, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error) {
+func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, constraintsJSON json.RawMessage, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error) {
 	m.userID = userID
 	m.id = promptID
-	m.replyConstraints = constraints
+	m.replyConstraints = constraintsJSON
 	m.outcome = outcome
 	m.lifespan = lifespan
 	m.duration = duration
@@ -96,7 +96,7 @@ func (m *fakeInterfacesRequestsManager) Rules(userID uint32, snap string, iface 
 	return m.rules, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints prompting.Constraints) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
@@ -117,10 +117,10 @@ func (m *fakeInterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompti
 	return m.rule, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatchJSON json.RawMessage) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.id = ruleID
-	m.constraintsPatch = constraintsPatch
+	m.constraintsPatch = constraintsPatchJSON
 	return m.rule, m.err
 }
 
@@ -726,15 +726,12 @@ func (s *promptingSuite) TestPostPromptHappy(c *C) {
 		prompting.IDType(0xF00BA4),
 	}
 
-	constraints := &prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,svg}"),
-		Permissions: []string{"read", "execute"},
-	}
+	constraintsJSON := json.RawMessage(`{"foo":"bar"}`)
 	contents := &daemon.PostPromptBody{
 		Outcome:     prompting.OutcomeAllow,
 		Lifespan:    prompting.LifespanTimespan,
 		Duration:    "10m",
-		Constraints: constraints,
+		Constraints: constraintsJSON,
 	}
 	marshalled, err := json.Marshal(contents)
 	c.Assert(err, IsNil)
@@ -768,15 +765,12 @@ func (s *promptingSuite) TestPostPromptDenyHappy(c *C) {
 		prompting.IDType(0xF00BA4),
 	}
 
-	constraints := &prompting.ReplyConstraints{
-		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,svg}"),
-		Permissions: []string{"read", "execute"},
-	}
+	constraintsJSON := json.RawMessage(`{"foo":"bar"}`)
 	contents := &daemon.PostPromptBody{
 		Outcome:     prompting.OutcomeDeny,
 		Lifespan:    prompting.LifespanTimespan,
 		Duration:    "10m",
-		Constraints: constraints,
+		Constraints: constraintsJSON,
 	}
 	marshalled, err := json.Marshal(contents)
 	c.Assert(err, IsNil)
@@ -844,9 +838,9 @@ func (s *promptingSuite) TestGetRulesHappy(c *C) {
 				User:      1234,
 				Snap:      "firefox",
 				Interface: "home",
-				Constraints: &prompting.RuleConstraints{
-					PathPattern: mustParsePathPattern(c, "/foo/bar"),
-					Permissions: prompting.RulePermissionMap{
+				Constraints: &prompting.RuleConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/foo/bar"),
+					PermissionMap: prompting.RulePermissionMap{
 						"write": &prompting.RulePermissionEntry{
 							Outcome:  prompting.OutcomeDeny,
 							Lifespan: prompting.LifespanForever,
@@ -881,9 +875,9 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 		User:      11235,
 		Snap:      "firefox",
 		Interface: "home",
-		Constraints: &prompting.RuleConstraints{
-			PathPattern: mustParsePathPattern(c, "/foo/bar/baz"),
-			Permissions: prompting.RulePermissionMap{
+		Constraints: &prompting.RuleConstraintsHome{
+			Pattern: mustParsePathPattern(c, "/foo/bar/baz"),
+			PermissionMap: prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeDeny,
 					Lifespan: prompting.LifespanForever,
@@ -892,9 +886,9 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 		},
 	}
 
-	constraints := &prompting.Constraints{
+	constraints := &prompting.ConstraintsHome{
 		PathPattern: mustParsePathPattern(c, "/home/test/{foo,bar,baz}/**/*.{png,svg}"),
-		Permissions: prompting.PermissionMap{
+		PermissionMap: prompting.PermissionMap{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,
@@ -905,10 +899,12 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 			},
 		},
 	}
+	constraintsJSON, err := json.Marshal(constraints)
+	c.Assert(err, IsNil)
 	contents := &daemon.AddRuleContents{
 		Snap:        "thunderbird",
 		Interface:   "home",
-		Constraints: constraints,
+		Constraints: json.RawMessage(constraintsJSON),
 	}
 	postBody := &daemon.PostRulesRequestBody{
 		Action:  "add",
@@ -923,7 +919,7 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 	c.Check(s.manager.userID, Equals, uint32(11235))
 	c.Check(s.manager.snap, Equals, contents.Snap)
 	c.Check(s.manager.iface, Equals, contents.Interface)
-	c.Check(s.manager.ruleConstraints, DeepEquals, contents.Constraints)
+	c.Check(s.manager.ruleConstraints, DeepEquals, constraints)
 
 	// Check return value
 	rule, ok := rsp.Result.(*requestrules.Rule)
@@ -964,9 +960,9 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 				User:      1001,
 				Snap:      "thunderird",
 				Interface: "home",
-				Constraints: &prompting.RuleConstraints{
-					PathPattern: mustParsePathPattern(c, "/foo/bar/baz/qux"),
-					Permissions: prompting.RulePermissionMap{
+				Constraints: &prompting.RuleConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/foo/bar/baz/qux"),
+					PermissionMap: prompting.RulePermissionMap{
 						"write": &prompting.RulePermissionEntry{
 							Outcome:  prompting.OutcomeDeny,
 							Lifespan: prompting.LifespanForever,
@@ -980,9 +976,9 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 				User:      1001,
 				Snap:      "thunderbird",
 				Interface: "home",
-				Constraints: &prompting.RuleConstraints{
-					PathPattern: mustParsePathPattern(c, "/fizz/buzz"),
-					Permissions: prompting.RulePermissionMap{
+				Constraints: &prompting.RuleConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/fizz/buzz"),
+					PermissionMap: prompting.RulePermissionMap{
 						"read": &prompting.RulePermissionEntry{
 							Outcome:  prompting.OutcomeAllow,
 							Lifespan: prompting.LifespanTimespan,
@@ -1031,9 +1027,9 @@ func (s *promptingSuite) TestGetRuleHappy(c *C) {
 		User:      1005,
 		Snap:      "thunderbird",
 		Interface: "home",
-		Constraints: &prompting.RuleConstraints{
-			PathPattern: mustParsePathPattern(c, "/home/test/Videos/**/*.{mkv,mp4,mov}"),
-			Permissions: prompting.RulePermissionMap{
+		Constraints: &prompting.RuleConstraintsHome{
+			Pattern: mustParsePathPattern(c, "/home/test/Videos/**/*.{mkv,mp4,mov}"),
+			PermissionMap: prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
@@ -1066,9 +1062,9 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 		User:      999,
 		Snap:      "gimp",
 		Interface: "home",
-		Constraints: &prompting.RuleConstraints{
-			PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
-			Permissions: prompting.RulePermissionMap{
+		Constraints: &prompting.RuleConstraintsHome{
+			Pattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
+			PermissionMap: prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
 					Lifespan: prompting.LifespanForever,
@@ -1081,21 +1077,9 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 		},
 	}
 
-	constraintsPatch := &prompting.RuleConstraintsPatch{
-		PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
-		Permissions: prompting.PermissionMap{
-			"read": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-			"write": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-		},
-	}
+	constraintsPatchJSON := json.RawMessage(`{"foo":"bar"}`)
 	contents := &daemon.PatchRuleContents{
-		Constraints: constraintsPatch,
+		Constraints: constraintsPatchJSON,
 	}
 	postBody := &daemon.PostRuleRequestBody{
 		Action:    "patch",
@@ -1127,9 +1111,9 @@ func (s *promptingSuite) TestPostRuleRemoveHappy(c *C) {
 		User:      100,
 		Snap:      "gimp",
 		Interface: "home",
-		Constraints: &prompting.RuleConstraints{
-			PathPattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
-			Permissions: prompting.RulePermissionMap{
+		Constraints: &prompting.RuleConstraintsHome{
+			Pattern: mustParsePathPattern(c, "/home/test/Pictures/**/*.{png,jpg}"),
+			PermissionMap: prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
 					Lifespan: prompting.LifespanForever,

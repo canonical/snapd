@@ -20,6 +20,7 @@
 package apparmorprompting
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -60,12 +61,12 @@ var (
 type Manager interface {
 	Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
-	HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
+	HandleReply(userID uint32, promptID prompting.IDType, replyConstraints json.RawMessage, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
 	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
-	AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface string, constraints prompting.Constraints) (*requestrules.Rule, error)
 	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
 	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
-	PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error)
+	PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch json.RawMessage) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 }
 
@@ -326,7 +327,7 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		Interface: iface,
 	}
 
-	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, path, permissions, outstandingPerms, req)
+	newPrompt, merged, err := m.prompts.AddOrMerge(metadata, permissions, outstandingPerms, req)
 	if err != nil {
 		logger.Noticef("error while checking request against prompt DB: %v", err)
 
@@ -410,7 +411,7 @@ func (m *InterfacesRequestsManager) PromptWithID(userID uint32, promptID prompti
 //
 // If clientActivity is true, reset the expiration timeout for prompts for
 // the given user.
-func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraints *prompting.ReplyConstraints, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
+func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID prompting.IDType, replyConstraintsJSON json.RawMessage, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) (satisfiedPromptIDs []prompting.IDType, retErr error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
 	<-m.ready
@@ -423,40 +424,31 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 		return nil, err
 	}
 
+	replyConstraints, err := prompting.UnmarshalReplyConstraints(prompt.Interface, replyConstraintsJSON)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate reply constraints and convert them to Constraints, which have
 	// dedicated PermissionEntry values for each permission in the reply.
 	// Outcome and lifespan are validated while unmarshalling, and duration is
 	// validated against the given lifespan when constructing the Constraints.
-	constraints, err := replyConstraints.ToConstraints(prompt.Interface, outcome, lifespan, duration)
+	constraints, err := replyConstraints.ToConstraints(outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check that constraints matches original requested path.
-	// AppArmor is responsible for pre-vetting that all paths which appear
-	// in requests from the kernel are allowed by the appropriate
-	// interfaces, so we do not assert anything else particular about the
-	// constraints, such as check that the path pattern does not match
-	// any paths not granted by the interface.
-	// TODO: Should this be reconsidered?
-	matches, err := constraints.Match(prompt.Constraints.Path())
-	if err != nil {
+	// Constraints from the reply must match the prompt constraints.
+	if err = constraints.MatchPromptConstraints(prompt.Constraints); err != nil {
 		return nil, err
-	}
-	if !matches {
-		return nil, &prompting_errors.RequestedPathNotMatchedError{
-			Requested: prompt.Constraints.Path(),
-			Replied:   constraints.PathPattern.String(),
-		}
 	}
 
 	// XXX: do we want to allow only replying to a select subset of permissions, and
 	// auto-deny the rest?
-	contained := constraints.ContainPermissions(prompt.Constraints.OutstandingPermissions())
-	if !contained {
+	if !constraints.Permissions().ContainsOutstandingPermissions(prompt.Constraints.Permissions()) {
 		return nil, &prompting_errors.RequestedPermissionsNotMatchedError{
-			Requested: prompt.Constraints.OutstandingPermissions(),
-			Replied:   replyConstraints.Permissions, // equivalent to keys of constraints.Permissions
+			Requested: prompt.Constraints.Permissions().OutstandingPermissions,
+			Replied:   replyConstraints.Permissions(),
 		}
 	}
 
@@ -537,7 +529,7 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
-func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints *prompting.Constraints) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraints prompting.Constraints) (*requestrules.Rule, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
 	<-m.ready
@@ -592,13 +584,24 @@ func (m *InterfacesRequestsManager) RuleWithID(userID uint32, ruleID prompting.I
 
 // PatchRule updates the rule with the given ID using the provided contents.
 // Any of the given fields which are empty/nil are not updated in the rule.
-func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatch *prompting.RuleConstraintsPatch) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatchJSON json.RawMessage) (*requestrules.Rule, error) {
 	// Wait until the listener has re-sent pending requests and prompts have
 	// been re-created.
 	<-m.ready
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	// Lookup existing rule only so we can get its interface, so we can
+	// unmarshal the constraints patch
+	origRule, err := m.rules.RuleWithID(userID, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	constraintsPatch, err := prompting.UnmarshalRuleConstraintsPatch(origRule.Interface, constraintsPatchJSON)
+	if err != nil {
+		return nil, err
+	}
 
 	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraintsPatch)
 	if err != nil {
