@@ -58,6 +58,14 @@ func NewPromptConstraints(iface string, originalPermissions []string, outstandin
 				AvailablePermissions:   availablePermissions,
 			},
 		}, nil
+	case "camera":
+		return &PromptConstraintsCamera{
+			PromptPermissions: PromptPermissions{
+				OriginalPermissions:    originalPermissions,
+				OutstandingPermissions: outstandingPermissions,
+				AvailablePermissions:   availablePermissions,
+			},
+		}, nil
 	default:
 		// This should be impossible, since AvailablePermissions should throw
 		// an error for unknown interfaces.
@@ -75,6 +83,8 @@ func UnmarshalReplyConstraints(iface string, rawJSON json.RawMessage) (ReplyCons
 	switch iface {
 	case "home":
 		replyConstraints = &ReplyConstraintsHome{}
+	case "camera":
+		replyConstraints = &ReplyConstraintsCamera{}
 	default:
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
@@ -99,6 +109,8 @@ func UnmarshalConstraints(iface string, rawJSON json.RawMessage) (Constraints, e
 	switch iface {
 	case "home":
 		constraints = &ConstraintsHome{}
+	case "camera":
+		constraints = &ConstraintsCamera{}
 	default:
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
@@ -145,6 +157,8 @@ func UnmarshalRuleConstraints(iface string, rawJSON json.RawMessage) (RuleConstr
 	switch iface {
 	case "home":
 		ruleConstraints = &RuleConstraintsHome{}
+	case "camera":
+		ruleConstraints = &RuleConstraintsCamera{}
 	default:
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
@@ -178,6 +192,8 @@ func UnmarshalRuleConstraintsPatch(iface string, rawJSON json.RawMessage) (RuleC
 	switch iface {
 	case "home":
 		constraintsPatch = &RuleConstraintsPatchHome{}
+	case "camera":
+		constraintsPatch = &RuleConstraintsPatchCamera{}
 	default:
 		// This is an internal error, not a BadRequest error, and should never
 		// occur, since the caller derives the interface from the existing rule.

@@ -69,6 +69,15 @@ func (s *constraintsSuite) TestNewPromptConstraintsMarshalJSONPermissions(c *C) 
 			expectedJSON:           `{"path":"/path/to/foo","requested-permissions":["read"],"available-permissions":["read","write","execute"]}`,
 			expectedAvailablePerms: []string{"read", "write", "execute"},
 		},
+		{
+			iface:                  "camera",
+			originalPermissions:    []string{"access"},
+			outstandingPermissions: []string{"access"},
+			req:                    &listener.Request{},
+			expectedType:           "*prompting.PromptConstraintsCamera",
+			expectedJSON:           `{"requested-permissions":["access"],"available-permissions":["access"]}`,
+			expectedAvailablePerms: []string{"access"},
+		},
 	} {
 		promptConstraints, err := prompting.NewPromptConstraints(testCase.iface, testCase.originalPermissions, testCase.outstandingPermissions, testCase.req)
 		c.Assert(err, IsNil)
@@ -101,6 +110,12 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraints(c *C) {
 			rawJSON:             `{"path-pattern":"/path/to/foo","permissions":["read","write"]}`,
 			expectedType:        "*prompting.ReplyConstraintsHome",
 			expectedPermissions: []string{"read", "write"},
+		},
+		{
+			iface:               "camera",
+			rawJSON:             `{"permissions":["access"]}`,
+			expectedType:        "*prompting.ReplyConstraintsCamera",
+			expectedPermissions: []string{"access"},
 		},
 	} {
 		rawJSON := json.RawMessage([]byte(testCase.rawJSON))
@@ -145,6 +160,17 @@ func (s *constraintsSuite) TestUnmarshalConstraints(c *C) {
 					Outcome:  prompting.OutcomeAllow,
 					Lifespan: prompting.LifespanTimespan,
 					Duration: "10s",
+				},
+			},
+		},
+		{
+			iface:        "camera",
+			rawJSON:      `{"permissions":{"access":{"outcome":"deny","lifespan":"session"}}}`,
+			expectedType: "*prompting.ConstraintsCamera",
+			expectedPermissions: prompting.PermissionMap{
+				"access": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeDeny,
+					Lifespan: prompting.LifespanSession,
 				},
 			},
 		},
@@ -197,6 +223,19 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraints(c *C) {
 			},
 			expectedPathPattern: mustParsePathPattern(c, "/path/to/foo"),
 		},
+		{
+			iface:        "camera",
+			rawJSON:      `{"permissions":{"access":{"outcome":"deny","lifespan":"session","session-id":"0123456789ABCDEF"}}}`,
+			expectedType: "*prompting.RuleConstraintsCamera",
+			expectedPermissions: prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeDeny,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: prompting.IDType(0x0123456789ABCDEF),
+				},
+			},
+			expectedPathPattern: mustParsePathPattern(c, "/**"),
+		},
 	} {
 		rawJSON := json.RawMessage([]byte(testCase.rawJSON))
 		ruleConstraints, err := prompting.UnmarshalRuleConstraints(testCase.iface, rawJSON)
@@ -227,6 +266,11 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatch(c *C) {
 			iface:        "home",
 			rawJSON:      `{"path-pattern":"/path/to/foo","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"session"},"execute":{"outcome":"allow","lifespan":"timespan","duration":"10s"}}}`,
 			expectedType: "*prompting.RuleConstraintsPatchHome",
+		},
+		{
+			iface:        "camera",
+			rawJSON:      `{"permissions":{"access":{"outcome":"allow","lifespan":"forever"}}}`,
+			expectedType: "*prompting.RuleConstraintsPatchCamera",
 		},
 	} {
 		rawJSON := json.RawMessage([]byte(testCase.rawJSON))
@@ -546,6 +590,22 @@ func (s *constraintsSuite) TestPermissionMapToRulePermissionMapHappy(c *C) {
 				},
 			},
 		},
+		{
+			permissionMap: prompting.PermissionMap{
+				"access": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanSession,
+				},
+			},
+			iface: "camera",
+			expected: prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID,
+				},
+			},
+		},
 	} {
 		result, err := testCase.permissionMap.ToRulePermissionMap(testCase.iface, at)
 		c.Check(err, IsNil)
@@ -588,9 +648,19 @@ func (s *constraintsSuite) TestPermissionMapToRulePermissionMapUnhappy(c *C) {
 			expectedErr:   `invalid permissions for home interface: permissions empty`,
 		},
 		{
+			permissionMap: nil,
+			iface:         "camera",
+			expectedErr:   `invalid permissions for camera interface: permissions empty`,
+		},
+		{
 			permissionMap: prompting.PermissionMap{},
 			iface:         "home",
 			expectedErr:   `invalid permissions for home interface: permissions empty`,
+		},
+		{
+			permissionMap: prompting.PermissionMap{},
+			iface:         "camera",
+			expectedErr:   `invalid permissions for camera interface: permissions empty`,
 		},
 		{
 			permissionMap: prompting.PermissionMap{
@@ -606,6 +676,16 @@ func (s *constraintsSuite) TestPermissionMapToRulePermissionMapUnhappy(c *C) {
 			permissionMap: prompting.PermissionMap{
 				"read": &prompting.PermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			iface:       "camera",
+			expectedErr: `invalid permissions for camera interface: "read"`,
+		},
+		{
+			permissionMap: prompting.PermissionMap{
+				"read": &prompting.PermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
 					Lifespan: prompting.LifespanTimespan,
 				},
 			},
@@ -614,13 +694,13 @@ func (s *constraintsSuite) TestPermissionMapToRulePermissionMapUnhappy(c *C) {
 		},
 		{
 			permissionMap: prompting.PermissionMap{
-				"write": &prompting.PermissionEntry{
+				"access": &prompting.PermissionEntry{
 					Outcome:  prompting.OutcomeDeny,
 					Lifespan: prompting.LifespanSession,
 					Duration: "5s",
 				},
 			},
-			iface:       "home",
+			iface:       "camera",
 			expectedErr: `invalid duration: cannot have specified duration when lifespan is "session":.*`,
 		},
 		{
@@ -887,7 +967,7 @@ func (s *constraintsSuite) TestPermissionMapPatchRulePermissionsUnhappy(c *C) {
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanForever,
 		},
-		"lock": nil, // even if invalid permission is meant to be removed, include it
+		"lock": nil, // even if invalid permission is meant to be removed, error on it
 		"execute": &prompting.PermissionEntry{
 			Outcome:  prompting.OutcomeAllow,
 			Lifespan: prompting.LifespanTimespan,
@@ -1703,6 +1783,16 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 		},
 		{
 			"home",
+			notify.FilePermission(0),
+			"cannot get abstract permissions from empty AppArmor permissions.*",
+		},
+		{
+			"camera",
+			fakeAaPerm("not a file permission"),
+			"cannot parse the given permissions as file permissions.*",
+		},
+		{
+			"camera",
 			notify.FilePermission(0),
 			"cannot get abstract permissions from empty AppArmor permissions.*",
 		},
