@@ -2061,7 +2061,7 @@ apps:
 	}, {
 		name: "foo success-exit-status with status code out of range",
 		desc: fooSuccessExitStatusCodeOutOfRange,
-		err:  `exit code 400 is out of range. Exit codes must be between 0 and 255`,
+		err:  `exit code 400 is out of range, exit codes must be between 0 and 255`,
 	}, {
 		name: "foo success-exit-status with wrong status name",
 		desc: fooSuccessExitStatusWrongName,

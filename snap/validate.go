@@ -829,7 +829,7 @@ func validateAppSuccessExitStatus(app *AppInfo) error {
 
 		if code, err := strconv.Atoi(status); err == nil {
 			if code < 0 || code > 255 {
-				return fmt.Errorf("exit code %d is out of range. Exit codes must be between 0 and 255", code)
+				return fmt.Errorf("exit code %d is out of range, exit codes must be between 0 and 255", code)
 			}
 		} else {
 			return errors.New("success exit status must be a number between 0 and 255")
