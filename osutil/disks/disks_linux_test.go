@@ -2097,3 +2097,41 @@ func (s *diskSuite) TestFindMatchingPartitionWithPartUUID(c *C) {
 	_, err = d.FindMatchingPartitionWithPartUUID("fe1ec853-15b1-4c72-a207-6a9b185dcbbb")
 	c.Assert(err, ErrorMatches, "partition uuid \"fe1ec853-15b1-4c72-a207-6a9b185dcbbb\" not found")
 }
+
+func (s *diskSuite) TestSectorSize(c *C) {
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getss" ]; then
+	echo 512
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	sectorSz, err := disks.SectorSize("/dev/sda")
+	c.Check(err, IsNil)
+	c.Check(sectorSz, Equals, uint64(512))
+	c.Check(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/sda"},
+	})
+}
+
+func (s *diskSuite) TestSizeInBytes(c *C) {
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsize64" ]; then
+	echo 5120000
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	sectorSz, err := disks.SizeInBytes("/dev/sda")
+	c.Check(err, IsNil)
+	c.Check(sectorSz, Equals, uint64(5120000))
+	c.Check(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsize64", "/dev/sda"},
+	})
+}
