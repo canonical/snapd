@@ -20,6 +20,5 @@ Environment="CORE24_PLUS_INITRAMFS=1"
 ExecStart=/usr/lib/snapd/snap-bootstrap initramfs-mounts
 StandardOutput=journal+console
 StandardError=journal+console
-ImportCredential=snapd.passphrase
-ImportCredential=snapd.recovery
+ImportCredential=snapd.fde.password
 KeyringMode=inherit
