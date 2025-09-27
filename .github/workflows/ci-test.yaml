@@ -146,8 +146,6 @@ jobs:
           - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }
           - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04' }
           - { system: "ubuntu-18.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '18.04' }
-          - { system: "ubuntu-16.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '16.04' }
-          - { system: "debian-12-64",        runs-on: '["ubuntu-latest"]',     os: debian, os-version: '12'    }
           - { system: "debian-sid-64",       runs-on: '["ubuntu-latest"]',     os: debian, os-version: 'sid'   }
           - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04' }
