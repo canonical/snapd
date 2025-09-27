@@ -57,6 +57,8 @@ var (
 	secbootListContainerUnlockKeyNames   = secboot.ListContainerUnlockKeyNames
 )
 
+var ErrNotInitialized = errors.New("fde state was not initialized")
+
 // FDEManager is responsible for managing full disk encryption keys.
 type FDEManager struct {
 	state   *state.State
@@ -88,6 +90,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	m := &FDEManager{
 		state:   st,
 		preseed: snapdenv.Preseeding(),
+		initErr: ErrNotInitialized,
 	}
 
 	boot.ResealKeyForBootChains = m.resealKeyForBootChains
@@ -155,11 +158,9 @@ func (m *FDEManager) Ensure() error {
 	return nil
 }
 
-// StartUp implements StateStarterUp.Startup
-func (m *FDEManager) StartUp() error {
-	if m.initErr != nil {
-		// FDE manager was already disabled in constructor
-		return nil
+func (m *FDEManager) DeviceInitialized() {
+	if m.initErr != ErrNotInitialized {
+		return
 	}
 
 	m.state.Lock()
@@ -178,11 +179,9 @@ func (m *FDEManager) StartUp() error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cannot complete FDE state manager startup: %v\n", err)
 		logger.Noticef("cannot complete FDE state manager startup: %v", err)
-		// keep track of the error
-		m.initErr = err
 	}
-
-	return nil
+	// keep track of the error
+	m.initErr = err
 }
 
 func (m *FDEManager) isFunctional() error {
@@ -195,6 +194,12 @@ func (m *FDEManager) isFunctional() error {
 func (m *FDEManager) ReloadModeenv() error {
 	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
 	return initModeFromModeenv(m)
+}
+
+func (m *FDEManager) Reinitialize() {
+	osutil.MustBeTestBinary("Reinitialize can only be called from tests")
+	m.initErr = ErrNotInitialized
+	m.DeviceInitialized()
 }
 
 type unlockedStateManager struct {
