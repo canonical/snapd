@@ -20,12 +20,27 @@
 package vfs_test
 
 import (
+	"errors"
 	"io/fs"
 	"testing"
 	"testing/fstest"
 
 	"github.com/snapcore/snapd/osutil/vfs"
 )
+
+func assertSuccess(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func assertErrorIs(t *testing.T, actual, expected error) {
+	t.Helper()
+	if !errors.Is(actual, expected) {
+		t.Fatalf("Unexpected error value: %v", actual)
+	}
+}
 
 func assertVFS(t *testing.T, v *vfs.VFS, expected string) {
 	t.Helper()

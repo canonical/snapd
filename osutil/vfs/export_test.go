@@ -19,6 +19,10 @@
 
 package vfs
 
+var (
+	ErrNotMounted = errNotMounted
+)
+
 func (v *VFS) FindMount(id MountID) *mount {
 	for _, m := range v.mounts {
 		if m.mountID == id {
