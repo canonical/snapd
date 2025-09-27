@@ -20,7 +20,12 @@
 package assemblestate
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 // DeviceQueryTracker manages device identity information and query/response
@@ -57,6 +62,13 @@ type DeviceQueryTracker struct {
 	// peers.
 	ids map[DeviceToken]Identity
 
+	// assertDB is used to verify the cryptographic signatures and format
+	// of serial assertions in device identities
+	assertDB asserts.RODatabase
+
+	// secret is the shared secret used for HMAC calculation during SerialProof validation
+	secret string
+
 	// clock enables injecting a implementation to return the current time.
 	clock func() time.Time
 }
@@ -65,11 +77,15 @@ type DeviceQueryTracker struct {
 // data. A timeout can be provided, which will prevent queries from being
 // re-sent for the duration of that timeout. Additionally, a clock function can
 // can be provided in the case that time.Now needs to be overridden.
+// The assertDB parameter is required and must not be nil - all device identities
+// will be validated against this assertion database.
 func NewDeviceQueryTracker(
 	data DeviceQueryTrackerData,
 	timeout time.Duration,
 	clock func() time.Time,
-) DeviceQueryTracker {
+	assertDB asserts.RODatabase,
+	secret string,
+) (DeviceQueryTracker, error) {
 	dt := DeviceQueryTracker{
 		timeout:                timeout,
 		pendingResponses:       make(chan struct{}, 1),
@@ -78,12 +94,16 @@ func NewDeviceQueryTracker(
 		known:                  make(map[DeviceToken]map[DeviceToken]struct{}),
 		inflight:               make(map[DeviceToken]time.Time),
 		ids:                    make(map[DeviceToken]Identity),
+		assertDB:               assertDB,
+		secret:                 secret,
 		clock:                  clock,
 	}
 
 	// seed with any provided data
 	for _, identity := range data.IDs {
-		dt.RecordIdentity(identity)
+		if err := dt.RecordIdentity(identity); err != nil {
+			return DeviceQueryTracker{}, fmt.Errorf("cannot initialize device query tracker: %w", err)
+		}
 	}
 
 	for peer, devices := range data.Queries {
@@ -94,7 +114,7 @@ func NewDeviceQueryTracker(
 		dt.RecordDevicesKnownBy(peer, devices)
 	}
 
-	return dt
+	return dt, nil
 }
 
 // PendingResponses returns a channel that signals when there are device query
@@ -255,9 +275,68 @@ func (d *DeviceQueryTracker) Lookup(rdt DeviceToken) (Identity, bool) {
 	return id, ok
 }
 
+func verifySerialBundle(bundle string, db asserts.RODatabase) (*asserts.Serial, error) {
+	if bundle == "" {
+		return nil, errors.New("serial bundle is empty")
+	}
+
+	tmpDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	batch := asserts.NewBatch(nil)
+
+	if _, err := batch.AddStream(strings.NewReader(bundle)); err != nil {
+		return nil, err
+	}
+
+	var serials []*asserts.Serial
+	observe := func(a asserts.Assertion) {
+		if s, ok := a.(*asserts.Serial); ok {
+			serials = append(serials, s)
+		}
+	}
+
+	if err := batch.CommitToAndObserve(tmpDB, observe, nil); err != nil {
+		return nil, err
+	}
+
+	if len(serials) != 1 {
+		return nil, errors.New("exactly one serial assertion expected in bundle")
+	}
+
+	return serials[0], nil
+}
+
+func (d *DeviceQueryTracker) validateID(id Identity) error {
+	serial, err := verifySerialBundle(id.SerialBundle, d.assertDB)
+	if err != nil {
+		return fmt.Errorf("invalid identity for device %s: %w", id.RDT, err)
+	}
+
+	if len(id.SerialProof) == 0 {
+		return fmt.Errorf("device %s has empty serial proof", id.RDT)
+	}
+
+	// extract device public key from serial assertion
+	key := serial.DeviceKey()
+
+	// calculate the HMAC that should have been signed
+	expectedHMAC := CalculateHMAC(id.RDT, id.FP, d.secret)
+
+	// verify the SerialProof is a valid signature of the HMAC
+	if err := asserts.RawVerifyWithKey(expectedHMAC, id.SerialProof, key); err != nil {
+		return fmt.Errorf("serial proof verification failed for device %s: %w", id.RDT, err)
+	}
+
+	return nil
+}
+
 // RecordIdentity records identity information for a device.
-func (d *DeviceQueryTracker) RecordIdentity(id Identity) {
+func (d *DeviceQueryTracker) RecordIdentity(id Identity) error {
+	if err := d.validateID(id); err != nil {
+		return fmt.Errorf("invalid serial assertion for device %s: %w", id.RDT, err)
+	}
+
 	d.ids[id.RDT] = id
+	return nil
 }
 
 // DeviceQueryTrackerData represents the serializable state of

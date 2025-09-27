@@ -20,6 +20,7 @@
 package assemblestate
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha512"
@@ -31,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -154,6 +156,11 @@ type AssembleConfig struct {
 	// ExpectedSize is the expected size of the cluster. If unset, cluster
 	// assembly will not terminate automatically.
 	ExpectedSize int
+	// Serial is this device's serial assertion.
+	Serial *asserts.Serial
+	// Signer is a function that signs the given data with the private key that
+	// matches the public key embedded in the serial assertion.
+	Signer func([]byte) ([]byte, error)
 }
 
 const AssembleSessionLength = time.Hour
@@ -165,7 +172,15 @@ func NewAssembleState(
 	session AssembleSession,
 	selector func(self DeviceToken, identified func(DeviceToken) bool) (RouteSelector, error),
 	commit func(AssembleSession),
+	assertDB asserts.RODatabase,
 ) (*AssembleState, error) {
+	if config.Serial == nil {
+		return nil, errors.New("serial assertion is required")
+	}
+	if config.Signer == nil {
+		return nil, errors.New("signer function is required")
+	}
+
 	// default clock to time.Now if not provided
 	if config.Clock == nil {
 		config.Clock = time.Now
@@ -182,14 +197,34 @@ func NewAssembleState(
 		return nil, err
 	}
 
+	// calculate the HMAC that this device would use to authenticate itself
+	fp := CalculateFP(cert.Certificate[0])
+	hmac := CalculateHMAC(config.RDT, fp, config.Secret)
+
+	// sign the HMAC with our private key to create the SerialProof
+	proof, err := config.Signer(hmac)
+	if err != nil {
+		return nil, fmt.Errorf("cannot sign hmac for serial proof: %v", err)
+	}
+
+	bundle, err := buildSerialBundle(config.Serial, assertDB)
+	if err != nil {
+		return nil, fmt.Errorf("cannot build serial bundle: %w", err)
+	}
+
 	if err := ensureLocalDevicePresent(&validated.devices, Identity{
-		RDT: config.RDT,
-		FP:  CalculateFP(cert.Certificate[0]),
+		RDT:          config.RDT,
+		FP:           CalculateFP(cert.Certificate[0]),
+		SerialBundle: bundle,
+		SerialProof:  proof,
 	}); err != nil {
 		return nil, err
 	}
 
-	devices := NewDeviceQueryTracker(validated.devices, time.Minute*5, config.Clock)
+	devices, err := NewDeviceQueryTracker(validated.devices, time.Minute*5, config.Clock, assertDB, config.Secret)
+	if err != nil {
+		return nil, err
+	}
 
 	sel, err := selector(config.RDT, devices.Identified)
 	if err != nil {
@@ -771,7 +806,7 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 
 	for _, id := range devices.Devices {
 		if current, ok := h.as.devices.Lookup(id.RDT); ok {
-			if current != id {
+			if current.RDT != id.RDT || current.FP != id.FP || current.SerialBundle != id.SerialBundle || !bytes.Equal(current.SerialProof, id.SerialProof) {
 				return errors.New("got inconsistent device identity")
 			}
 		}
@@ -783,7 +818,9 @@ func (h *peerHandle) CommitDevices(devices Devices) error {
 	}
 
 	for _, id := range devices.Devices {
-		h.as.devices.RecordIdentity(id)
+		if err := h.as.devices.RecordIdentity(id); err != nil {
+			return err
+		}
 	}
 
 	// TODO: i don't really love the implicit connection of as.devices and
@@ -835,6 +872,22 @@ func untrustedSend(
 	return client.Untrusted(ctx, addr, kind, data)
 }
 
+func buildSerialBundle(serial *asserts.Serial, db asserts.RODatabase) (string, error) {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	fetcher := asserts.NewFetcher(db, retrieve, enc.Encode)
+	if err := fetcher.Save(serial); err != nil {
+		return "", fmt.Errorf("cannot bundle serial prerequisites: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
 // ensureLocalDevicePresent adds the local device identity to the IDs slice if
 // not present, or validates consistency if already present.
 func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error {
@@ -842,6 +895,14 @@ func ensureLocalDevicePresent(data *DeviceQueryTrackerData, self Identity) error
 		if existing.RDT == self.RDT {
 			if existing.FP != self.FP {
 				return fmt.Errorf("fingerprint mismatch for local device %q", self.RDT)
+			}
+
+			if !bytes.Equal(existing.SerialProof, self.SerialProof) {
+				return fmt.Errorf("serial proof mismatch for local device %q", self.RDT)
+			}
+
+			if existing.SerialBundle != self.SerialBundle {
+				return fmt.Errorf("serial bundle mismatch for local device %q", self.RDT)
 			}
 
 			return nil

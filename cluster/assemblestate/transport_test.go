@@ -541,14 +541,14 @@ func (s *transportSuite) TestHTTPSTransportServeDevicesRoute(c *check.C) {
 	msg := assemblestate.Devices{
 		Devices: []assemblestate.Identity{
 			{
-				RDT:    assemblestate.DeviceToken("device-1"),
-				FP:     assemblestate.CalculateFP([]byte("fingerprint-1")),
-				Serial: "serial1",
+				RDT:          assemblestate.DeviceToken("device-1"),
+				FP:           assemblestate.CalculateFP([]byte("fingerprint-1")),
+				SerialBundle: "serial1",
 			},
 			{
-				RDT:    assemblestate.DeviceToken("device-2"),
-				FP:     assemblestate.CalculateFP([]byte("fingerprint-2")),
-				Serial: "serial2",
+				RDT:          assemblestate.DeviceToken("device-2"),
+				FP:           assemblestate.CalculateFP([]byte("fingerprint-2")),
+				SerialBundle: "serial2",
 			},
 		},
 	}
@@ -852,9 +852,9 @@ func (s *transportSuite) TestHTTPSTransportTrustedHandlerRejectsMultipleCertific
 			data: assemblestate.Devices{
 				Devices: []assemblestate.Identity{
 					{
-						RDT:    assemblestate.DeviceToken("device-1"),
-						FP:     assemblestate.CalculateFP([]byte("fp")),
-						Serial: "serial1",
+						RDT:          assemblestate.DeviceToken("device-1"),
+						FP:           assemblestate.CalculateFP([]byte("fp")),
+						SerialBundle: "serial1",
 					},
 				},
 			},
@@ -1022,9 +1022,9 @@ func (s *transportSuite) TestHTTPSTransportVerifiedPeerErrors(c *check.C) {
 			data: assemblestate.Devices{
 				Devices: []assemblestate.Identity{
 					{
-						RDT:    assemblestate.DeviceToken("device-1"),
-						FP:     assemblestate.CalculateFP([]byte("fp")),
-						Serial: "serial1",
+						RDT:          assemblestate.DeviceToken("device-1"),
+						FP:           assemblestate.CalculateFP([]byte("fp")),
+						SerialBundle: "serial1",
 					},
 				},
 			},
