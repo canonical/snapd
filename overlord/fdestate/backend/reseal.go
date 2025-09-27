@@ -102,6 +102,10 @@ func (u *updatedParameters) set(role, containerRole string, params *SealingParam
 	u.catalog[parametersKey{role: role, containerRole: containerRole}] = params
 }
 
+func (u *updatedParameters) unset(role, containerRole string) {
+	delete(u.catalog, parametersKey{role: role, containerRole: containerRole})
+}
+
 func (u *updatedParameters) setTpmPCRProfile(role, containerRole string, tpmPCRProfile []byte) bool {
 	params, ok := u.catalog[parametersKey{role: role, containerRole: containerRole}]
 	if !ok {
@@ -316,6 +320,9 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 				if !errors.Is(err, errNoPCRProfileCalculated) {
 					return err
 				}
+				// remove incomplete state to avoid applying it to the global FDE state
+				newParameters.unset("run", "all")
+				newParameters.unset("run+recover", "all")
 			}
 		}
 
@@ -338,6 +345,8 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 				if !errors.Is(err, errNoPCRProfileCalculated) {
 					return err
 				}
+				// remove incomplete state to avoid applying it to the global FDE state
+				newParameters.unset("recover", container.ContainerRole())
 			}
 		}
 	}
