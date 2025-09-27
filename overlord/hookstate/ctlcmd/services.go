@@ -98,8 +98,15 @@ func (c *servicesCommand) Execute([]string) error {
 		return err
 	}
 
+	serviceNames := c.Positional.ServiceNames
+
+	serviceNames, patched, err := maybePatchServiceNames(ctx.InstanceName(), serviceNames)
+	if err != nil {
+		return err
+	}
+
 	st := ctx.State()
-	svcInfos, err := getServiceInfos(st, ctx.InstanceName(), c.Positional.ServiceNames)
+	svcInfos, err := getServiceInfos(st, ctx.InstanceName(), serviceNames)
 	if err != nil {
 		return err
 	}
@@ -117,7 +124,12 @@ func (c *servicesCommand) Execute([]string) error {
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 	for _, svc := range services {
-		fmt.Fprintln(w, clientutil.FmtServiceStatus(&svc, isGlobal))
+		fmt.Fprintln(w, clientutil.FmtServiceStatus(&svc, clientutil.FmtServiceStatusOptions{
+			IsUserGlobal: isGlobal,
+			// snap name in services may be subject to patching if the calling
+			// snap has an instance key but the query used $SNAP_NAME
+			DropSnapInstanceKey: patched,
+		}))
 	}
 
 	return nil
