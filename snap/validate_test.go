@@ -2017,6 +2017,80 @@ apps:
 	}
 }
 
+func (s *ValidateSuite) TestValidateAppSuccessExitStatus(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    success-exit-status: [42, 250]
+`)
+	fooSuccessExitStatusNotADaemon := []byte(`
+apps:
+  foo:
+    success-exit-status: [0, 1]
+`)
+	fooSuccessExitStatusEmpty := []byte(`
+apps:
+  foo:
+    daemon: simple
+    success-exit-status: [""]
+`)
+	fooSuccessExitStatusCodeOutOfRange := []byte(`
+apps:
+  foo:
+    daemon: simple
+    success-exit-status: [400]
+`)
+	fooSuccessExitStatusWrongName := []byte(`
+apps:
+  foo:
+    daemon: simple
+    success-exit-status: [bar]
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo success-exit-status all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo success-exit-status but not a service",
+		desc: fooSuccessExitStatusNotADaemon,
+		err:  `success exit status is only applicable to services`,
+	}, {
+		name: "foo success-exit-status with empty value",
+		desc: fooSuccessExitStatusEmpty,
+		err:  `success exit status cannot contain empty values`,
+	}, {
+		name: "foo success-exit-status with status code out of range",
+		desc: fooSuccessExitStatusCodeOutOfRange,
+		err:  `exit code 400 is out of range, exit codes must be between 0 and 255`,
+	}, {
+		name: "foo success-exit-status with wrong status name",
+		desc: fooSuccessExitStatusWrongName,
+		err:  `success exit status must be a number between 0 and 255`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, `invalid definition of application "foo": `+tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
 func (s *ValidateSuite) TestValidateSystemUsernames(c *C) {
 	const yaml1 = `name: binary
 version: 1.0
