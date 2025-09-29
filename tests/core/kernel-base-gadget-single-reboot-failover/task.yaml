@@ -75,7 +75,7 @@ execute: |
             gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' ./pc-snap/meta/snap.yaml >> ./pc-snap/meta/snap.yaml
             mkdir -p pc-snap/meta/hooks
         fi
-        cat <<EOF >/pc-snap/meta/hooks/configure
+        cat <<EOF >./pc-snap/meta/hooks/configure
     #!/bin/bash
     # invalid hook
     exit 1
