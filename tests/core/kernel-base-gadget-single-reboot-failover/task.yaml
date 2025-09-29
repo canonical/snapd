@@ -75,7 +75,11 @@ execute: |
             gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' ./pc-snap/meta/snap.yaml >> ./pc-snap/meta/snap.yaml
             mkdir -p pc-snap/meta/hooks
         fi
-        echo 'exit 1' >> ./pc-snap/meta/hooks/configure
+        cat <<EOF >/pc-snap/meta/hooks/configure
+    #!/bin/bash
+    # invalid hook
+    exit 1
+    EOF
         chmod +x ./pc-snap/meta/hooks/configure
 
         snap pack pc-snap --filename=pc_x1.snap
