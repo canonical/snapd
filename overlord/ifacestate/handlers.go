@@ -1419,9 +1419,7 @@ func isSnapSlotAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *
 	case "false":
 		return false, nil
 	case "verified":
-		if option == "verified" {
-			return isSnapVerified(st, snapID), nil
-		}
+		return isSnapVerified(st, snapID), nil
 	}
 	return false, fmt.Errorf(
 		"internal error: invalid allow-auto-connection status %s for %s",
@@ -1433,6 +1431,9 @@ func filterAllowedAutoConnectionSlots(st *state.State, snapID string, css []*sna
 	tr := config.NewTransaction(st)
 	for _, slot := range css {
 		if allowed, err := isSnapSlotAllowed(st, snapID, slot, tr); err != nil {
+			// In case there is any error of filtering auto-connections, assume something is horribly
+			// wrong and return to the default behaviour. However make sure we log this error from the
+			// caller.
 			return css, err
 		} else if allowed {
 			filtered = append(filtered, slot)
@@ -1549,7 +1550,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	checkAutoConnectAllowed := func(css []*snap.SlotInfo) []*snap.SlotInfo {
 		filtered, err := filterAllowedAutoConnectionSlots(st, snapsup.SideInfo.SnapID, css)
 		if err != nil {
-			task.Logf("failed to filter slots: %v", err)
+			// Log the error that we failed to filter out the auto-connections. We do not
+			// want to mess up auto-connections because we failed this 'opt-in' support.
+			task.Logf("failed to filter auto-connection slots: %v", err)
 		}
 		return filtered
 	}

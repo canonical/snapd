@@ -42,6 +42,16 @@ func (s *interfaceSuite) TestConfigureInterfaceUnhappyName(c *C) {
 	c.Assert(err, ErrorMatches, `unsupported interface "invalid" for configuration change`)
 }
 
+func (s *interfaceSuite) TestConfigureInterfaceUnhappyIncompleteName(c *C) {
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		changes: map[string]any{
+			"interface.": "xxx",
+		},
+	})
+	c.Assert(err, ErrorMatches, `interface must be specified for "core.interface."`)
+}
+
 func (s *interfaceSuite) TestConfigureInterfaceUnhappyOption(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
@@ -50,6 +60,16 @@ func (s *interfaceSuite) TestConfigureInterfaceUnhappyOption(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `unsupported interface option: "test"`)
+}
+
+func (s *interfaceSuite) TestConfigureInterfaceUnhappyIncompleteOption(c *C) {
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		changes: map[string]any{
+			"interface.x11.": "xxx",
+		},
+	})
+	c.Assert(err, ErrorMatches, `interface option must be specified for "core.interface.x11."`)
 }
 
 func (s *interfaceSuite) TestConfigureInterfaceUnhappyOptionValue(c *C) {

@@ -49,11 +49,21 @@ func isInterfaceChange(opt string) bool {
 }
 
 func validateInterfaceChange(opt string) error {
+	// Double check this to make sure, even though we should have this called
+	// prior to validate
+	if !isInterfaceChange(opt) {
+		return fmt.Errorf("wrongly formatted interface option: %q", opt)
+	}
+
 	// core.interface.<interface>.<option>
 	tokens := strings.SplitN(opt, ".", 4)
-	if tokens[0] != "core" && tokens[1] != "interface" {
-		return fmt.Errorf("unsupported or wrongly formatted interface change: %s", opt)
+	if len(tokens) < 3 || tokens[2] == "" {
+		return fmt.Errorf("interface must be specified for %q", opt)
 	}
+	if len(tokens) < 4 || tokens[3] == "" {
+		return fmt.Errorf("interface option must be specified for %q", opt)
+	}
+
 	if !isValidInterface(tokens[2]) {
 		return fmt.Errorf("unsupported interface %q for configuration change", tokens[2])
 	}
@@ -65,7 +75,7 @@ func validateInterfaceChange(opt string) error {
 
 func validateAllowAutoConnectionValue(tr RunTransaction) error {
 	for _, name := range tr.Changes() {
-		if !strings.HasPrefix(name, "core.interface.") {
+		if !isInterfaceChange(name) {
 			continue
 		}
 		if !strings.HasSuffix(name, ".allow-auto-connection") {
