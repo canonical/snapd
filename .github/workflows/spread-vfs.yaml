@@ -30,7 +30,7 @@ jobs:
                 ip addr list
                 ls -l /dev/kvm || true
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
             - name: Make permissions on /dev/kvm more lax
               run: sudo chmod -v 666 /dev/kvm
             - name: Install image-garden snap
