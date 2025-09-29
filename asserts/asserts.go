@@ -1404,3 +1404,17 @@ func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 	}
 	return nil
 }
+
+// RequestIDCheck checks the signature of the nonce against the given public key. Used by model service to verify nonce of the request-id.
+func RequestIDCheck(nonce []byte, signature []byte, pubKey PublicKey) error {
+	sig, err := decodeSignature(signature)
+	if err != nil {
+		return err
+	}
+	err = pubKey.verify(nonce, sig)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+	return nil
+}
+
