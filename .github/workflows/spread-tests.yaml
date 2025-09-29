@@ -402,6 +402,14 @@ jobs:
               export NO_DELTA=1
           fi
 
+          case "${{ inputs.group }}" in
+              ubuntu-deb)
+                  echo "Setting up ubuntu with deb execution"
+                  export SPREAD_SNAP_REEXEC=0
+                  export SPREAD_SNAPD_DEB_FROM_REPO=false
+                  ;;
+          esac
+
           if grep -q "nothing matches provider filter" <<< "$spread_list"; then
             echo "No tests to run, exiting..."
             exit 0
