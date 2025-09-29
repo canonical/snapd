@@ -22,12 +22,17 @@ package hookstate
 import (
 	"encoding/json"
 	"os"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type contextSuite struct {
@@ -281,4 +286,128 @@ func (s *contextSuite) TestChangeErrorfHookSetupNilPointerDoesNotCausePanic(c *C
 	context.Lock()
 	context.Errorf("some error")
 	context.Unlock()
+}
+
+func (s *contextSuite) TestPendingValidationSets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	headers := map[string]any{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "set-one",
+		"sequence":     "3",
+		"snaps": []any{
+			map[string]any{
+				"name":     "snap-1",
+				"id":       snaptest.AssertedSnapID("snap-1"),
+				"presence": "required",
+			},
+		},
+	}
+
+	assertion, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := assertion.(*asserts.ValidationSet)
+
+	encode := func(vs *asserts.ValidationSet) map[string][]byte {
+		key := string(snapasserts.NewValidationSetKey(vs))
+		return map[string][]byte{key: asserts.Encode(vs)}
+	}
+
+	tests := []struct {
+		name    string
+		context func() *Context
+		keys    []snapasserts.ValidationSetKey
+	}{
+		{
+			name: "ephemeral context returns nil",
+			context: func() *Context {
+				ctx, err := NewContext(nil, s.state, s.setup, nil, "")
+				c.Assert(err, IsNil)
+				return ctx
+			},
+		},
+		{
+			name: "no change associated returns nil",
+			context: func() *Context {
+				task := s.state.NewTask("hook-task", "")
+				ctx, err := NewContext(task, s.state, s.setup, nil, "")
+				c.Assert(err, IsNil)
+				return ctx
+			},
+		},
+		{
+			name: "no enforce task returns nil",
+			context: func() *Context {
+				task := s.state.NewTask("hook-task", "")
+				chg := s.state.NewChange("test-change", "")
+				chg.AddTask(task)
+				ctx, err := NewContext(task, s.state, s.setup, nil, "")
+				c.Assert(err, IsNil)
+				return ctx
+			},
+		},
+		{
+			name: "enforce task without validation-sets returns nil",
+			context: func() *Context {
+				task := s.state.NewTask("hook-task", "")
+				chg := s.state.NewChange("test-change", "")
+				chg.AddTask(task)
+				chg.AddTask(s.state.NewTask("enforce-validation-sets", "enforce"))
+				ctx, err := NewContext(task, s.state, s.setup, nil, "")
+				c.Assert(err, IsNil)
+				return ctx
+			},
+		},
+		{
+			name: "enforce task with empty validatio sets returns nil",
+			context: func() *Context {
+				task := s.state.NewTask("hook-task", "")
+				chg := s.state.NewChange("test-change", "")
+				chg.AddTask(task)
+
+				enforce := s.state.NewTask("enforce-validation-sets", "enforce")
+				enforce.Set("validation-sets", map[string][]byte{})
+				chg.AddTask(enforce)
+
+				ctx, err := NewContext(task, s.state, s.setup, nil, "")
+				c.Assert(err, IsNil)
+				return ctx
+			},
+		},
+		{
+			name: "valid case",
+			context: func() *Context {
+				task := s.state.NewTask("hook-task", "")
+				chg := s.state.NewChange("test-change", "")
+				chg.AddTask(task)
+
+				enforce := s.state.NewTask("enforce-validation-sets", "enforce")
+				enforce.Set("validation-sets", encode(vs))
+				chg.AddTask(enforce)
+
+				ctx, err := NewContext(task, s.state, s.setup, nil, "")
+				c.Assert(err, IsNil)
+				return ctx
+			},
+			keys: []snapasserts.ValidationSetKey{snapasserts.NewValidationSetKey(vs)},
+		},
+	}
+
+	for _, tc := range tests {
+		ctx := tc.context()
+		pending, err := ctx.PendingValidationSets()
+		c.Assert(err, IsNil, Commentf(tc.name))
+		if tc.keys == nil {
+			c.Check(pending, IsNil, Commentf(tc.name))
+		} else {
+			c.Assert(pending, NotNil, Commentf(tc.name))
+			c.Check(pending.Keys(), DeepEquals, tc.keys, Commentf(tc.name))
+		}
+	}
 }

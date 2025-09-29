@@ -318,11 +318,18 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 	st.Lock()
 	defer st.Unlock()
 
+	// note, vsets might be nil if no validation sets are going to be enforced
+	// by the current change
+	vsets, err := hctx.PendingValidationSets()
+	if err != nil {
+		return nil, err
+	}
+
 	info, err := currentSnapInfo(st, hctx.InstanceName())
 	if err != nil {
 		return nil, err
 	}
-	return snapstateInstallComponents(context.TODO(), st, cmd.components, info, nil,
+	return snapstateInstallComponents(context.TODO(), st, cmd.components, info, vsets,
 		snapstate.Options{ExpectOneSnap: true, FromChange: changeIDIfNotEphemeral(hctx)})
 }
 

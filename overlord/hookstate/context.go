@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -143,6 +145,68 @@ func (c *Context) ComponentRevision() snap.Revision {
 // and task is not available.
 func (c *Context) Task() (*state.Task, bool) {
 	return c.task, c.task != nil
+}
+
+// PendingValidationSets returns the validation sets that are being enforced by
+// the current change, if there are any. The change associated with the hook's
+// task is introspected for an "enforce-validation-sets" task and decodes the
+// assertions stored in the "validation-sets" field. If no such task exists, or
+// the field is missing, the function returns (nil, nil).
+//
+// Ephemeral hooks always return (nil, nil).
+func (c *Context) PendingValidationSets() (*snapasserts.ValidationSets, error) {
+	task, ok := c.Task()
+	if !ok {
+		return nil, nil
+	}
+
+	change := task.Change()
+	if change == nil {
+		return nil, nil
+	}
+
+	var enforce *state.Task
+	for _, t := range change.Tasks() {
+		if t.Kind() == "enforce-validation-sets" {
+			enforce = t
+			break
+		}
+	}
+	if enforce == nil {
+		return nil, nil
+	}
+
+	encoded := make(map[string][]byte)
+	if err := enforce.Get("validation-sets", &encoded); err != nil {
+		// TODO: this could happen when we're enforcing validation sets during first
+		// boot. we might need to handle that case as well?
+		if errors.Is(err, &state.NoStateError{}) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if len(encoded) == 0 {
+		return nil, nil
+	}
+
+	sets := snapasserts.NewValidationSets()
+	for _, data := range encoded {
+		decoded, err := asserts.Decode(data)
+		if err != nil {
+			return nil, err
+		}
+
+		vs, ok := decoded.(*asserts.ValidationSet)
+		if !ok {
+			return nil, errors.New("expected encoded assertion to be of type ValidationSet")
+		}
+
+		if err := sets.Add(vs); err != nil {
+			return nil, err
+		}
+	}
+	return sets, nil
 }
 
 // HookName returns the name of the hook in this context.

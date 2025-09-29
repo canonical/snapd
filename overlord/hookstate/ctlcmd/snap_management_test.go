@@ -25,6 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -146,6 +148,59 @@ func (s *installSuite) TestInstallCommand(c *C) {
 
 func (s *installSuite) TestRemoveCommand(c *C) {
 	s.testMngmtCommand(c, "remove")
+}
+
+func (s *installSuite) TestInstallCommandUsesPendingValidationSets(c *C) {
+	signer := assertstest.NewStoreStack("can0nical", nil)
+	headers := map[string]any{
+		"authority-id": "can0nical",
+		"account-id":   "can0nical",
+		"name":         "set-one",
+		"series":       "16",
+		"sequence":     "1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+		"snaps": []any{
+			map[string]any{
+				"id":       snaptest.AssertedSnapID("test-snap"),
+				"name":     "test-snap",
+				"presence": "required",
+			},
+		},
+	}
+
+	assertion, err := signer.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := assertion.(*asserts.ValidationSet)
+
+	encoded := map[string][]byte{
+		string(snapasserts.NewValidationSetKey(vs)): asserts.Encode(assertion),
+	}
+
+	s.st.Lock()
+	enforce := s.st.NewTask("enforce-validation-sets", "enforce validation sets")
+	enforce.Set("validation-sets", encoded)
+	s.chg.AddTask(enforce)
+	task := s.st.NewTask("queued", "queued task")
+	s.st.Unlock()
+
+	var called bool
+	restore := ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
+		called = true
+		c.Assert(vsets, NotNil)
+		c.Assert(vsets.Keys(), DeepEquals, []snapasserts.ValidationSetKey{snapasserts.NewValidationSetKey(vs)})
+		c.Check(names, DeepEquals, []string{"comp1", "comp2"})
+		c.Check(opts, DeepEquals, snapstate.Options{
+			ExpectOneSnap: true,
+			FromChange:    s.mockContext.ChangeID(),
+		})
+
+		return []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})
+	defer restore()
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"install", "test-snap+comp1", "+comp2"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
 }
 
 func (s *installSuite) testEphemeralMngmtCommand(c *C, cmd string) {
