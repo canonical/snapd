@@ -177,8 +177,8 @@ func (s *cacheSuite) TestStats(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(int(stats.TotalSize), Equals, 24)
-	c.Check(stats.TotalEntries, Equals, s.maxItems+2)
-	c.Check(stats.PruneCandidates, Equals, s.maxItems+12)
+	c.Check(stats.TotalEntries, Equals, s.maxItems+12)
+	c.Check(len(stats.PruneCandidates), Equals, s.maxItems+12)
 	candidates := map[string]bool{}
 	for _, en := range stats.PruneCandidates {
 		_, ok := candidates[en.Name()]
