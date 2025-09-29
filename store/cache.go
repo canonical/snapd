@@ -171,7 +171,7 @@ func (cm *CacheManager) cleanup() error {
 	}
 
 	// most of the entries will have more than one hardlink, but a minority may
-	// be referenced only the cache and thus be a candidate for pruning
+	// be referenced only from the cache and thus be a candidate for pruning
 	pruneCandidates := make([]os.FileInfo, 0, len(entries)/5)
 	pruneCandidatesSize := int64(0)
 
@@ -262,7 +262,7 @@ func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
 	}
 
 	// most of the entries will have more than one hardlink, but a minority may
-	// be referenced only the cache and thus be a candidate for pruning
+	// be referenced only from the cache and thus be a candidate for pruning
 	stats.PruneCandidates = make([]os.FileInfo, 0, len(entries)/5)
 
 	for _, entry := range entries {

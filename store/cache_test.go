@@ -177,14 +177,14 @@ func (s *cacheSuite) TestStats(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(int(stats.TotalSize), Equals, 24)
-	c.Check(stats.TotalEntries, Equals, 17)
+	c.Check(stats.TotalEntries, Equals, s.maxItems+2)
+	c.Check(stats.PruneCandidates, Equals, s.maxItems+12)
 	candidates := map[string]bool{}
 	for _, en := range stats.PruneCandidates {
 		_, ok := candidates[en.Name()]
 		c.Check(ok, Equals, false)
 		candidates[en.Name()] = true
 	}
-
 }
 
 func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
