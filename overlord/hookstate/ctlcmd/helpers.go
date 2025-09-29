@@ -93,7 +93,7 @@ func getServiceInfos(st *state.State, snapInstance string, serviceNames []string
 	var svcs []*snap.AppInfo
 	for _, svcName := range serviceNames {
 		if svcName == snapInstance {
-			// implicit all services restart
+			// implicit all services
 			return info.Services(), nil
 		}
 		if !strings.HasPrefix(svcName, snapInstance+".") {
@@ -231,8 +231,8 @@ func queueDefaultConfigureHookCommand(context *hookstate.Context, tts []*state.T
 func maybePatchServiceNames(snapInstance string, serviceNames []string) (
 	updatedServiceNames []string, patched bool, err error,
 ) {
-	snapName, snapKey := snap.SplitInstanceName(snapInstance)
-	hasInstanceKey := snapKey != ""
+	snapName, snapInstanceKey := snap.SplitInstanceName(snapInstance)
+	hasInstanceKey := snapInstanceKey != ""
 
 	if !hasInstanceKey {
 		// no patching needed, return names as they are
@@ -258,12 +258,12 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) (
 		}
 
 		svcSnapInstanceName, svcApp := snap.SplitSnapApp(svcN)
-		svcSnapName, svcSnapKey := snap.SplitInstanceName(svcSnapInstanceName)
+		svcSnapName, svcSnapInstanceKey := snap.SplitInstanceName(svcSnapInstanceName)
 
 		if svcSnapName == snapName {
 			// only apply patching if the snap name matches
 
-			if svcSnapKey == "" {
+			if svcSnapInstanceKey == "" {
 				// snap name used in the full service name does not include instance
 				// key, needs patching
 				updatedServiceNames = append(updatedServiceNames, snap.JoinSnapApp(snapInstance, svcApp))
@@ -273,8 +273,8 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) (
 
 			keyedCnt++
 
-			if svcSnapKey != snapKey {
-				return nil, false, fmt.Errorf(i18n.G("unexpected snap instance key: %q"), svcSnapKey)
+			if svcSnapInstanceKey != snapInstanceKey {
+				return nil, false, fmt.Errorf(i18n.G("unexpected snap instance key: %q"), svcSnapInstanceKey)
 			}
 		}
 
