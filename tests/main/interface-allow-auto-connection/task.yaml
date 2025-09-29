@@ -45,3 +45,13 @@ execute: |
     # Installing a verified one connects it
     snap install test-snapd-curl --edge
     snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+
+    # Changing the option to true does not change any existing connection
+    snap set system interface.network.allow-auto-connection=true
+    snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
+
+    # However, removing and reinstalling will
+    snap remove network-consumer
+
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
+    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
