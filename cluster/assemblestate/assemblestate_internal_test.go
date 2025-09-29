@@ -533,7 +533,7 @@ func (s *clusterSuite) TestAuthenticateErrorCases(c *check.C) {
 		err := as.AuthenticateAndCommit(tc.auth, tc.cert)
 		c.Assert(err, check.NotNil, check.Commentf("test case %q", tc.name))
 		c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
-		c.Assert(len(cm.commits), check.Equals, 0)
+		c.Assert(cm.commits, check.HasLen, 0)
 	}
 }
 
@@ -938,7 +938,7 @@ func (s *clusterSuite) TestPublishDevicesAndCommit(c *check.C) {
 	baseline = len(cm.commits)
 	as.publishDevicesAndCommit(context.Background(), &client)
 	c.Assert(called, check.Equals, 1)
-	c.Assert(len(cm.commits), check.Equals, baseline+1)
+	c.Assert(cm.commits, check.HasLen, baseline+1)
 }
 
 func (s *clusterSuite) TestPublishDevicesIncludesAccountAndAccountKey(c *check.C) {
