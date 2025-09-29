@@ -130,7 +130,7 @@ func (c *RuleConstraints) Match(path string) (bool, error) {
 // particular paths and permissions. Upon receiving the reply, snapd converts
 // ReplyConstraints to Constraints.
 type ReplyConstraints struct {
-	PathPattern *patterns.PathPattern `json:"path-pattern"`
+	PathPattern *patterns.PathPattern `json:"path-pattern,omitempty"`
 	Permissions []string              `json:"permissions"`
 }
 
@@ -145,8 +145,14 @@ func (c *ReplyConstraints) ToConstraints(iface string, outcome OutcomeType, life
 	if _, err := lifespan.ParseDuration(duration, time.Now()); err != nil {
 		return nil, err
 	}
-	if c.PathPattern == nil {
-		return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+	switch iface {
+	case "camera":
+		// Ignore path pattern in reply, always use "/**"
+		c.PathPattern, _ = patterns.ParsePathPattern("/**")
+	case "home":
+		if c.PathPattern == nil {
+			return nil, prompting_errors.NewInvalidPathPatternError("", "no path pattern")
+		}
 	}
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
