@@ -158,6 +158,7 @@ func (m *FDEManager) Ensure() error {
 	return nil
 }
 
+// TODO: move this back to StartUp once we have StartUp dependencies.
 func (m *FDEManager) DeviceInitialized() {
 	if m.initErr != ErrNotInitialized {
 		return

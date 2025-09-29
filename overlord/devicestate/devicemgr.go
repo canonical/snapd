@@ -117,7 +117,12 @@ func (e *noDeviceIdentityYetError) Is(err error) bool {
 	return ok || errors.Is(err, state.ErrNoState)
 }
 
+// StateDeviceInitialized represents another manager that can be
+// notified when the device manager has been started.
 type StateDeviceInitialized interface {
+	// DeviceInitialized is called when StartUp has finished on
+	// DeviceManager. There are no use case for returning an error
+	// so far.
 	DeviceInitialized()
 }
 
