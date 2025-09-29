@@ -35,7 +35,7 @@ Show statistics of the local snap downloads cache.
 
 type cmdSnapDownloadsCache struct {
 	Dir      string `long:"cache"`
-	MaxItems int    `long:"max-items"`
+	MaxItems *uint  `long:"max-items"`
 }
 
 func init() {
@@ -59,9 +59,10 @@ func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 		cacheDir = x.Dir
 	}
 
-	if x.MaxItems != 0 {
-		maxItems = x.MaxItems
+	if x.MaxItems != nil {
+		maxItems = int(*x.MaxItems)
 	}
+
 	cm := store.NewCacheManager(cacheDir, maxItems)
 	stats, err := cm.Stats()
 	if err != nil {
@@ -74,14 +75,28 @@ func (x *cmdSnapDownloadsCache) Execute(args []string) error {
 	fmt.Fprintf(Stdout, "Max cache-unique items: %v\n", maxItems)
 	fmt.Fprintf(Stdout, "Cache entries: %v\n", stats.TotalEntries)
 	fmt.Fprintf(Stdout, "Total size: %v\n", quantity.FormatAmount(stats.TotalSize, -1))
+	wouldRemoveCount := 0
 	fmt.Printf("Prune candidates: %v\n", len(stats.PruneCandidates))
-	if len(stats.PruneCandidates) > 0 {
+	if candidatesCount := len(stats.PruneCandidates); candidatesCount > 0 {
 		tw := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
-		fmt.Fprintf(tw, "Name\tSize\tMod time\n")
+
+		fmt.Fprintf(tw, "Name\tSize\tMod time\tWould remove\n")
 		for _, c := range stats.PruneCandidates {
-			fmt.Fprintf(tw, "%s\t%v\t%s\n", c.Name(), quantity.FormatAmount(uint64(c.Size()), -1), c.ModTime())
+			wouldRemove := "no"
+			if remaining := candidatesCount - wouldRemoveCount; remaining > maxItems {
+				wouldRemove = "yes"
+				wouldRemoveCount++
+			}
+
+			fmt.Fprintf(tw, "%s\t%v\t%s\t%s\n",
+				c.Name(),
+				quantity.FormatAmount(uint64(c.Size()), -1),
+				c.ModTime(),
+				wouldRemove,
+			)
 		}
 		tw.Flush()
 	}
+
 	return nil
 }
