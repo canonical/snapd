@@ -346,24 +346,40 @@ nested_is_classic_system() {
     test "$NESTED_TYPE" = "classic"
 }
 
+_compare_core_version() {
+    local VERSION=$1
+    case "${VERSION}" in
+        26)
+            echo "25.10"
+            ;;
+        *)
+            echo "${VERSION}.04"
+            ;;
+    esac
+}
+
 nested_is_core_ge() {
     local VERSION=$1
-    os.query is-ubuntu-ge "${VERSION}.04"
+    os.query is-ubuntu-ge "$(_compare_core_version "${VERSION}")"
 }
 
 nested_is_core_gt() {
     local VERSION=$1
-    os.query is-ubuntu-gt "${VERSION}.04"
+    os.query is-ubuntu-gt "$(_compare_core_version "${VERSION}")"
 }
 
 nested_is_core_le() {
     local VERSION=$1
-    os.query is-ubuntu-le "${VERSION}.04"
+    os.query is-ubuntu-le "$(_compare_core_version "${VERSION}")"
 }
 
 nested_is_core_lt() {
     local VERSION=$1
-    os.query is-ubuntu-lt "${VERSION}.04"
+    os.query is-ubuntu-lt "$(_compare_core_version "${VERSION}")"
+}
+
+nested_is_core_26_system() {
+    os.query is-questing
 }
 
 nested_is_core_24_system() {
@@ -485,9 +501,34 @@ nested_cleanup_env() {
     rm -rf "$(nested_get_extra_snaps_path)"
 }
 
+nested_get_core_channel() {
+    if nested_is_core_26_system; then
+        echo "edge"
+    else
+        echo "${NESTED_CORE_CHANNEL}"
+    fi
+}
+
+nested_get_kernel_channel() {
+    if nested_is_core_26_system; then
+        echo "edge"
+    else
+        echo "${NESTED_KERNEL_CHANNEL}"
+    fi
+}
+
+nested_get_gadget_channel() {
+    if nested_is_core_26_system; then
+        echo "edge"
+    else
+        echo "${NESTED_GADGET_CHANNEL}"
+    fi
+}
+
 nested_get_image_name_base() {
     local TYPE="$1"
-    local SOURCE="${NESTED_CORE_CHANNEL}"
+    local SOURCE
+    SOURCE="$(nested_get_core_channel)"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION
 
@@ -556,6 +597,13 @@ nested_download_image() {
     local IMAGE_URL=$1
     local IMAGE_NAME=$2
 
+    # FIXME: remove this debug
+    ls -ld "${NESTED_IMAGES_DIR}" || true
+    ls -l "${NESTED_IMAGES_DIR}" || true
+    touch "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" || true
+    rm "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" || true
+    rm -f "${NESTED_IMAGES_DIR}/$(basename "${IMAGE_URL}")"
+
     curl -C - -L -o "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "$IMAGE_URL"
 
     if [[ "$IMAGE_URL" == *.img.xz ]]; then
@@ -580,6 +628,8 @@ nested_get_version() {
         echo "22"
     elif nested_is_core_24_system; then
         echo "24"
+    elif nested_is_core_26_system; then
+        echo "26"
     fi
 }
 
@@ -607,11 +657,17 @@ nested_get_model() {
         ubuntu-22.04-arm-64)
             echo "$TESTSLIB/assertions/nested-22-arm64.model"
             ;;
-         ubuntu-24.04-64)
+        ubuntu-24.04-64)
             echo "$TESTSLIB/assertions/nested-24-amd64.model"
             ;;
         ubuntu-24.04-arm-64)
             echo "$TESTSLIB/assertions/nested-24-arm64.model"
+            ;;
+        ubuntu-26.04-64)
+            echo "$TESTSLIB/assertions/nested-26-amd64.model"
+            ;;
+        ubuntu-26.04-arm-64)
+            echo "$TESTSLIB/assertions/nested-26-arm64.model"
             ;;
         *)
             echo "unsupported system"
@@ -681,6 +737,14 @@ nested_prepare_kernel() {
         output_name="pc-kernel.snap"
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
         version="$(nested_get_version)"
+        case "${version}" in
+            26)
+                kernel_version=25.10
+                ;;
+            *)
+                kernel_version="${version}"
+                ;;
+        esac
 
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
             if nested_is_core_le 18; then
@@ -688,7 +752,7 @@ nested_prepare_kernel() {
                 repack_kernel_snap "$kernel_snap"
 
             elif nested_is_core_ge 20; then
-                snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
+                snap download --basename=pc-kernel --channel="${kernel_version}/$(nested_get_kernel_channel)" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
                 # otherwise leave it empty
@@ -698,7 +762,7 @@ nested_prepare_kernel() {
                     epochBumpTime="--epoch-bump-time=$epochBumpTime"
                 fi
 
-                if nested_is_core_24_system; then
+                if nested_is_core_24_system || nested_is_core_26_system; then
                     # shellcheck source=tests/lib/prepare.sh
                     . "$TESTSLIB"/prepare.sh
                     uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
@@ -747,7 +811,7 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
+            snap download --basename=pc --channel="$version/$(nested_get_gadget_channel)" pc
             unsquashfs -d pc-gadget pc.snap
             nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
             case "${NESTED_UBUNTU_SAVE:-}" in
@@ -780,10 +844,12 @@ EOF
                 GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
             elif os.query is-arm; then
                 GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            else
+                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
 
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
-                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
+                GADGET_EXTRA_CMDLINE="ds=nocloud $GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
             fi
 
             if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
@@ -838,6 +904,9 @@ nested_prepare_base() {
         elif nested_is_core_24_system; then
             snap_name="core24"
             snap_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
+        elif nested_is_core_26_system; then
+            snap_name="core26"
+            snap_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf"
         fi
         output_name="${snap_name}.snap"
 
@@ -965,8 +1034,10 @@ nested_create_core_vm() {
             export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
-            if [ -n "$NESTED_CORE_CHANNEL" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
+            local core_channel
+            core_channel="$(nested_get_core_channel)"
+            if [ -n "${core_channel}" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${core_channel}"
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
@@ -1395,6 +1466,8 @@ nested_start_core_vm_unit() {
         echo -n "${NESTED_PASSPHRASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
     fi
 
+    nested_setup_proxy
+
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
     # make sure we start with clean log file
@@ -1464,10 +1537,7 @@ nested_start_core_vm_unit() {
     fi
 }
 
-nested_setup_vm(){
-    if nested_is_core_ge 20; then
-        remote.exec "sudo snap set system journal.persistent=true"
-    fi
+nested_setup_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
         nested_no_proxy="${NO_PROXY},10.0.2.2"
 
@@ -1475,39 +1545,49 @@ nested_setup_vm(){
         net_interface="$(ip route show default | awk '{print $5}')"
         nameservers="$(resolvectl status "$net_interface" | grep "DNS Servers:" | cut -d: -f2)"
         if [ -n "$nameservers" ]; then
-            remote.exec "grep -v '^nameserver' /etc/resolv.conf > /tmp/resolv.conf"
-            remote.exec "sudo cp /tmp/resolv.conf /etc/resolv.conf"
-            for nameserver in $nameservers; do
-                remote.exec "echo nameserver $nameserver | sudo tee -a /etc/resolv.conf"
-            done
+            echo -n "${nameservers}" >"${NESTED_ASSETS_DIR}/qemu-creds/network.dns"
         fi
 
-        # Add proxy configuration in /etc/environment
-        remote.exec "echo HTTPS_PROXY=$HTTPS_PROXY | sudo tee -a /etc/environment"
-        remote.exec "echo https_proxy=$HTTPS_PROXY | sudo tee -a /etc/environment"
-        remote.exec "echo HTTP_PROXY=$HTTP_PROXY | sudo tee -a /etc/environment"
-        remote.exec "echo http_proxy=$HTTP_PROXY | sudo tee -a /etc/environment"
-        remote.exec "echo NO_PROXY=$nested_no_proxy | sudo tee -a /etc/environment"
-        remote.exec "echo no_proxy=$nested_no_proxy | sudo tee -a /etc/environment"
-        remote.exec "echo SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/environment"
+        cat <<EOF >"${NESTED_WORK_DIR}/environment"
+HTTPS_PROXY=$HTTPS_PROXY
+https_proxy=$HTTPS_PROXY
+HTTP_PROXY=$HTTP_PROXY
+http_proxy=$HTTP_PROXY
+NO_PROXY=$nested_no_proxy
+no_proxy=$nested_no_proxy
+SNAPD_USE_PROXY=$SNAPD_USE_PROXY
+EOF
 
-        # Configure snapd to use the proxy
-        remote.retry -n 10 --wait 3 "systemctl is-enabled snapd"
-        remote.exec "sudo systemctl stop snapd.service snapd.socket"
-        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
-        remote.exec "echo [Service] | sudo tee /etc/systemd/system/snapd.service.d/proxy.conf"
-        remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$nested_no_proxy no_proxy=$nested_no_proxy SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
-        remote.exec "sudo systemctl daemon-reload"
-        remote.exec "sudo systemctl start snapd.service snapd.socket"
-        remote.exec "sudo sync"
+        cat <<EOF >"${NESTED_WORK_DIR}/snapd-proxy.conf"
+[Service]
+Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$nested_no_proxy no_proxy=$nested_no_proxy SNAPD_USE_PROXY=$SNAPD_USE_PROXY
+EOF
+
+        cat <<EOF >"${NESTED_ASSETS_DIR}/qemu-creds/tmpfiles.extra"
+f+~ /run/environment.d/proxy.conf 0644 root root - $(base64 -w0 <"${NESTED_WORK_DIR}/environment")
+f+~ /run/systemd/system/snapd.service.d/proxy.conf 0644 root root - $(base64 -w0 <"${NESTED_WORK_DIR}/snapd-proxy.conf")
+EOF
+    fi
+}
+
+nested_setup_vm(){
+    if nested_is_core_ge 20; then
+        remote.exec "sudo snap set system journal.persistent=true"
     fi
     if [ -n "${NTP_SERVER:-}" ]; then
-        # Configure systemd-timesyncd to use the predefined ntp server
-        CONF_FILE="/etc/systemd/timesyncd.conf"
-        remote.exec "sudo sed -i -e '/^NTP=/d' -e '/^FallbackNTP=/d' \"$CONF_FILE\""
-        remote.exec "sudo sed -i '/^\[Time\]/a NTP='\"$NTP_SERVER\" \"$CONF_FILE\""
-        remote.exec "sudo sed -i '/^\[Time\]/a FallbackNTP=' \"$CONF_FILE\""
-        remote.exec "sudo systemctl restart systemd-timesyncd"
+        if remote.exec "[ -d /etc/chrony/sources.d ]"; then
+            remote.exec "sudo rm /etc/chrony/sources.d/*.sources"
+            echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" | remote.exec "sudo tee /etc/chrony/sources.d/proxy.sources"
+            remote.exec "sudo systemctl restart chrony.service"
+        fi
+        if remote.exec "[ -f /etc/systemd/timesyncd.conf ]"; then
+            # Configure systemd-timesyncd to use the predefined ntp server
+            CONF_FILE="/etc/systemd/timesyncd.conf"
+            remote.exec "sudo sed -i -e '/^NTP=/d' -e '/^FallbackNTP=/d' \"$CONF_FILE\""
+            remote.exec "sudo sed -i '/^\[Time\]/a NTP='\"$NTP_SERVER\" \"$CONF_FILE\""
+            remote.exec "sudo sed -i '/^\[Time\]/a FallbackNTP=' \"$CONF_FILE\""
+            remote.exec "sudo systemctl restart systemd-timesyncd"
+        fi
         remote.exec "sudo sync"
     fi
 }
@@ -1750,6 +1830,8 @@ nested_start_classic_vm() {
     if [ "${NESTED_PASSPHRASE+set}" = set ]; then
         echo -n "${NESTED_PASSPRHASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.passphrase"
     fi
+
+    nested_setup_proxy
 
     # Systemd unit is created, it is important to respect the qemu parameters 
     # order

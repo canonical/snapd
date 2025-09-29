@@ -28,9 +28,9 @@ execute: |
   # installation, not on seeding
   # shellcheck disable=SC2016
   tree_birth=$(remote.exec 'date -d"$(stat --printf="%w\n" /var/lib/snapd/kernel/pc-kernel)" +%s')
-  reboot_time=$(remote.exec 'last reboot --time-format full | sed -n "s/wtmp begins //p"')
-  reboot_time=$(date -d"$reboot_time" +%s)
-  test "$reboot_time" -gt "$tree_birth"
+  seeding_time=$(remote.exec 'systemctl show -P ExecMainStartTimestamp core.start-snapd.service')
+  seeding_time=$(date -d"${seeding_time}" +%s)
+  test "${seeding_time}" -gt "$tree_birth"
 
   # Loading the module fails
   not remote.exec modprobe mac80211_hwsim
