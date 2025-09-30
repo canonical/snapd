@@ -20,7 +20,7 @@
 package builtin
 
 /*
- * The multipath-control interface allows snaps to manage device-mapper
+ * The dm-multipath interface allows snaps to manage device-mapper
  * multipath maps by communicating with the multipathd daemon. It is intended
  * for storage orchestration software that needs to list, create, reload and
  * remove multipath devices and react to path state changes.
@@ -29,23 +29,23 @@ package builtin
  * normal snap device cgroup mediation still applies.
  */
 
-const multipathControlSummary = `allows managing device-mapper multipath maps via multipathd`
+const dmMultipathSummary = `allows managing device-mapper multipath maps via multipathd`
 
-const multipathControlBaseDeclarationPlugs = `
-  multipath-control:
+const dmMultipathBaseDeclarationPlugs = `
+  dm-multipath:
     allow-installation: false
     deny-auto-connection: true
 `
 
-const multipathControlBaseDeclarationSlots = `
-  multipath-control:
+const dmMultipathBaseDeclarationSlots = `
+  dm-multipath:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const multipathControlConnectedPlugAppArmor = `
+const dmMultipathConnectedPlugAppArmor = `
 # Global multipath configuration and persistent WWID to device name mappings
 /etc/multipath.conf r,
 /etc/multipath/bindings rwk,
@@ -63,28 +63,28 @@ const multipathControlConnectedPlugAppArmor = `
 unix (send, receive, connect) type=stream peer=(addr="@/org/kernel/linux/storage/multipathd"),
 `
 
-var multipathControlConnectedPlugUDev = []string{
+var dmMultipathConnectedPlugUDev = []string{
 	`KERNEL=="device-mapper"`,
 	`KERNEL=="dm-[0-9]*"`,
 }
 
-type multipathControlInterface struct {
+type dmMultipathInterface struct {
 	commonInterface
 }
 
-var multipathControlConnectedPlugKmod = []string{
+var dmMultipathConnectedPlugKmod = []string{
 	`dm-mod`, // Device mapper.
 }
 
 func init() {
-	registerIface(&multipathControlInterface{commonInterface{
-		name:                     "multipath-control",
-		summary:                  multipathControlSummary,
+	registerIface(&dmMultipathInterface{commonInterface{
+		name:                     "dm-multipath",
+		summary:                  dmMultipathSummary,
 		implicitOnClassic:        true,
-		baseDeclarationSlots:     multipathControlBaseDeclarationSlots,
-		baseDeclarationPlugs:     multipathControlBaseDeclarationPlugs,
-		connectedPlugAppArmor:    multipathControlConnectedPlugAppArmor,
-		connectedPlugKModModules: multipathControlConnectedPlugKmod,
-		connectedPlugUDev:        multipathControlConnectedPlugUDev,
+		baseDeclarationSlots:     dmMultipathBaseDeclarationSlots,
+		baseDeclarationPlugs:     dmMultipathBaseDeclarationPlugs,
+		connectedPlugAppArmor:    dmMultipathConnectedPlugAppArmor,
+		connectedPlugKModModules: dmMultipathConnectedPlugKmod,
+		connectedPlugUDev:        dmMultipathConnectedPlugUDev,
 	}})
 }
