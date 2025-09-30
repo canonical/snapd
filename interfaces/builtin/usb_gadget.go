@@ -165,7 +165,7 @@ func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
   # https://www.kernel.org/doc/Documentation/usb/gadget_configfs.txt
   # Allow creating new gadgets under usb_gadget, which is creating
   # new directories
-  /sys/kernel/config/usb_gadget/ rw,
+  /sys/kernel/config/usb_gadget/ r,
   # Allow creating sub-directories, symlinks and files under those
   # directories
   /sys/kernel/config/usb_gadget/** rw,
