@@ -247,7 +247,11 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) (
 	// correctly.
 
 	updatedServiceNames = make([]string, 0, len(serviceNames))
-	keyedCnt := 0
+	// Count of service names which included an instance key in their snap name.
+	// We can only do the patching if either all service names had an instance
+	// key, in which case the names aren't changed, or none of them and so the
+	// names were fixed up as needed.
+	withInstanceKeyCnt := 0
 	for _, svcN := range serviceNames {
 		if svcN == snapName {
 			// same as base snap name (without instance key), a short hand
@@ -271,7 +275,7 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) (
 				continue
 			}
 
-			keyedCnt++
+			withInstanceKeyCnt++
 
 			if svcSnapInstanceKey != snapInstanceKey {
 				return nil, false, fmt.Errorf(i18n.G("unexpected snap instance key: %q"), svcSnapInstanceKey)
@@ -281,7 +285,7 @@ func maybePatchServiceNames(snapInstance string, serviceNames []string) (
 		updatedServiceNames = append(updatedServiceNames, svcN)
 	}
 
-	if keyedCnt != 0 && keyedCnt != len(serviceNames) {
+	if withInstanceKeyCnt != 0 && withInstanceKeyCnt != len(serviceNames) {
 		return nil, false, fmt.Errorf(i18n.G("inconsistent use of snap instance key"))
 	}
 
