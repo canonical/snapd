@@ -55,6 +55,12 @@ func MockSnapstateUpdateWithGoal(f func(context.Context, *state.State, snapstate
 	return restore
 }
 
+func MockStoreUpdateGoal(f func(...snapstate.StoreUpdate) snapstate.UpdateGoal) func() {
+	restore := testutil.Backup(&storeUpdateGoal)
+	storeUpdateGoal = f
+	return restore
+}
+
 func MockDevicestateSerial(f func(*state.State) (*asserts.Serial, error)) func() {
 	restore := testutil.Backup(&devicestateSerial)
 	devicestateSerial = f
