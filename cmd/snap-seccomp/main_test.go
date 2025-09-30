@@ -287,6 +287,8 @@ restart_syscall
 mprotect
 # libc6 2.42
 getrandom
+clock_gettime
+clock_gettime64
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompAllowlist), bpfPath)
