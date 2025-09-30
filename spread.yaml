@@ -350,16 +350,6 @@ backends:
                   storage: 25G
                   workers: 8
 
-    google-nested-dev:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/northamerica-northeast1-a
-        plan: n2-standard-4
-        halt-timeout: 6h
-        environment:
-            NESTED_ARCHITECTURE: amd64
-        systems: *google-nested-systems
-
     openstack:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS6")'
         plan: staging-cpu2-ram4-disk20
@@ -496,7 +486,7 @@ backends:
         cidr-port-rel: [10.151.96.0/21:5000]
         volume-auto-delete: true
         environment: *openstack-ps7-env
-        systems:
+        systems: &openstack-ps7-nested-systems
             - ubuntu-16.04-64:
                   image: snapd-spread/ubuntu-16.04-64
                   storage: 20G
@@ -517,6 +507,20 @@ backends:
                   image: snapd-spread/ubuntu-24.04-64
                   storage: 25G
                   workers: 12
+
+    openstack-validation-ps7:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        plan: shared.medium
+        storage: 30G
+        halt-timeout: 6h
+        wait-timeout: 10m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.96.0/21:5000]
+        volume-auto-delete: true
+        environment: *openstack-ps7-env
+        systems: *openstack-ps7-nested-systems
 
     openstack-arm-ps7:
         type: openstack

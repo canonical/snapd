@@ -4,7 +4,7 @@ details: |
     Verify that it is possible to run the full test suite in ubuntu core system
     using a nested vm. The test can be used to validate specific pre-built images.
 
-backends: [google-nested-dev, openstack-ext-ps7]
+backends: [openstack-ext-ps7, openstack-validation-ps7]
 
 systems: [ubuntu-*]
 
