@@ -5,47 +5,34 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"os/exec"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cakturk/go-netstat/netstat"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 )
 
+const WAIT_TIME = 500 // Half second delay to respect rate limits
+
 func getSnapNamePublisherIDFromPID(pid int) (string, string, error) {
-	cmd := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "command")
-    output, err := cmd.Output()
-    if err != nil {
-        return "", "", err
-    }
+	procPath := path.Join("/proc", strconv.Itoa(pid), "exe")
 
-	trimmedOutput := strings.TrimPrefix(string(output), "COMMAND\n")
+	execPath, err := os.Readlink(procPath)
+	if err != nil {
+		return "", "", err
+	}
 
-	commands := strings.Split(trimmedOutput, " ")
+	levels := strings.Split(execPath, "/")[1:] // first split gives empty string
 
 	var snapName string
-	for _, command := range commands {
-		levels := strings.Split(command, "/")[1:]
-
-		if len(levels) < 2 {
-			continue
-		}
-
-		if levels[0] == "snap" {
-			snapName = levels[1]
-			break
-		}
-
-	}
-
-	if snapName == "" {
-		return "", "", fmt.Errorf("could not find snap in commmand %s", string(output))
-	}
-
-	if snapName == "landscape-client" {
-		return "canonical", "landscape-client", nil
+	if len(levels) > 1 && levels[0] == "snap" {
+		snapName = levels[1]
+	} else {
+		return "", "", fmt.Errorf("could not find snap in the executable path")
 	}
 
 	snapClient := client.New(nil)
@@ -106,25 +93,28 @@ func GetSnapInfoFromConn(addr string) (string, string, error) {
 func GetDeviceId() (string, error) {
 	snapClient := client.New(nil)
 
-	results, err := snapClient.Known("serial", make(map[string]string), nil)
-
-	for i := 0; i < 5; i++ {
-		if err == nil && len(results) == 1 {
+	var err error
+	var results []asserts.Assertion
+	for i := 0; i < 5; i++ { // Initialization; Condition; Post-statement
+		results, err = snapClient.Known("serial", make(map[string]string), nil)
+	
+		if err == nil && len(results) != 0 {
 			break
+		} else {
+			time.Sleep(WAIT_TIME * time.Duration(math.Pow(2, float64(i))) * time.Millisecond)
 		}
 
-		time.Sleep(10 * time.Second * time.Duration(math.Pow(2, float64(i))))
-		results, err = snapClient.Known("serial", make(map[string]string), nil)
-    }
-
+		
+	}
+	
 	if err != nil {
 		return "", err
 	} else if len(results) == 0 {
 		return "", fmt.Errorf("no device-id was returned")
 	}
 
-	deviceId := results[0].HeaderString("brand-id") + "." + results[0].HeaderString("model") + "." +
-		results[0].HeaderString("serial")
+	deviceId := results[0].HeaderString("serial") + "." + results[0].HeaderString("model") + "." +
+		results[0].HeaderString("brand-id")
 
 	return deviceId, nil
 }

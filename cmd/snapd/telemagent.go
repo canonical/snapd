@@ -1,43 +1,34 @@
-// Copyright (c) Abstract Machines
-// SPDX-License-Identifier: Apache-2.0
-
 package main
 
 import (
-	"context"
-	"flag"
-	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/snapcore/snapd/telemagent/pkg/hooks"
+
 	"github.com/caarlos0/env/v11"
-	"github.com/snapcore/snapd/telemagent/config"
-	"github.com/snapcore/snapd/telemagent/handlers/simple"
-	"github.com/snapcore/snapd/telemagent/handlers/snapadder"
-	"github.com/snapcore/snapd/telemagent/handlers/userinjector"
-	"github.com/snapcore/snapd/telemagent/interceptors/permissioncontroller"
-	"github.com/snapcore/snapd/telemagent/pkg/mqtt"
-	"github.com/snapcore/snapd/telemagent/pkg/rest"
-	"github.com/snapcore/snapd/telemagent/pkg/session"
-	"golang.org/x/sync/errgroup"
+	mochi "github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/listeners"
 )
 
-const (
-	mqttWithoutTLS = "MPROXY_MQTT_WITHOUT_TLS_"
-	mqttWithTLS    = "MPROXY_MQTT_WITH_TLS_"
-	mqttWithmTLS   = "MPROXY_MQTT_WITH_MTLS_"
-	restPrefix     = "REST_"
-)
+const mqttPrefix = "MQTT_"
 
 func telemagent() {
 	addEnv()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
+	// Create signals channel to run server until interrupted
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		done <- true
+	}()
 
-	// Create a handler that removes timestamps
+	// Create Logger
 	logHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			// Remove time attribute
@@ -48,103 +39,52 @@ func telemagent() {
 		},
 	})
 
+	// rest HTTP server Configuration
+	serverConfig, err := hooks.NewConfig(env.Options{Prefix: mqttPrefix})
+	if err != nil {
+		panic(err)
+	}
+
 	// Create logger with custom handler
 	logger := slog.New(logHandler)
-	handlerType := flag.Int("hand", 4, "selects the handler that inspects the packets")
 
-	interceptor := permissioncontroller.New(logger)
-
-	flag.Parse()
-
-	var handler session.Handler
-
-	switch *handlerType {
-	case 0:
-		handler = simple.New(logger)
-	case 1:
-		handler = userinjector.New(logger)
-	case 4:
-		handler = snapadder.New(logger)
-	default:
-		handler = snapadder.New(logger)
-	}
-
-
-	// mProxy server Configuration for MQTT without TLS
-	mqttConfig, err := config.NewConfig(env.Options{Prefix: mqttWithoutTLS})
-	if err != nil {
-		panic(err)
-	}
-
-	// mProxy server for MQTT without TLS
-	mqttProxy := mqtt.New(mqttConfig, handler, interceptor, logger)
-	g.Go(func() error {
-		return mqttProxy.Listen(ctx)
+	// Create the new MQTT Server.
+	server := mochi.New(&mochi.Options{
+		Logger:       logger,
+		InlineClient: true,
 	})
 
-	// mProxy server Configuration for MQTT with TLS
-	mqttTLSConfig, err := config.NewConfig(env.Options{Prefix: mqttWithTLS})
-	if err != nil {
-		panic(err)
-	}
-
-	// mProxy server for MQTT with TLS
-	mqttTLSProxy := mqtt.New(mqttTLSConfig, handler, interceptor, logger)
-	g.Go(func() error {
-		return mqttTLSProxy.Listen(ctx)
+	// Allow all connections.
+	err = server.AddHook(new(hooks.TelemAgentHook), &hooks.TelemAgentHookOptions{
+		Server: server,
+		Cfg:    serverConfig,
 	})
 
-	// rest HTTP server Configuration
-	restConfig, err := rest.NewConfig(env.Options{Prefix: restPrefix})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	if restConfig.Enabled {
-		restServer, err := rest.NewServer(restConfig, logger, nil)
+
+	// Create a TCP listener on a standard port.
+	tcp := listeners.NewTCP(listeners.Config{ID: "t1", Address: serverConfig.BrokerPort})
+	err = server.AddListener(tcp)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go func() {
+		err := server.Serve()
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
-		g.Go(func() error {
-			return restServer.Start(ctx)
-		})
-	}
+	}()
 
-	g.Go(func() error {
-		return StopSignalHandler(ctx, cancel, logger)
-	})
+	// Run server until interrupted
+	<-done
 
-	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("telem-agent service terminated with error: %s", err))
-	} else {
-		logger.Info("telem-agent service stopped")
-	}
-}
-
-func StopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger *slog.Logger) error {
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGABRT)
-	select {
-	case <-c:
-		cancel()
-		return nil
-	case <-ctx.Done():
-		return nil
-	}
+	// Cleanup
 }
 
 func addEnv() {
-	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_ADDRESS",":1884")
-	os.Setenv("MPROXY_MQTT_WITHOUT_TLS_TARGET","demo.staging:8883")
-
-	os.Setenv("MPROXY_MQTT_WITH_TLS_ADDRESS",":8883")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_TARGET","demo.staging:8883")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_CERT_FILE","/home/ubuntu/telem-agent/ssl/certs/server.crt")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_KEY_FILE","/home/ubuntu/telem-agent/ssl/certs/server.key")
-	os.Setenv("MPROXY_MQTT_WITH_TLS_SERVER_CA_FILE","/home/ubuntu/telem-agent/ssl/certs/ca.crt")
-
-
-	os.Setenv("REST_ENABLED","true")
-	os.Setenv("REST_ENDPOINT","mqtts://demo.staging:8883")
-	os.Setenv("REST_SERVER_CA_FILE","/home/ubuntu/telem-agent/ssl/certs/staging.cert")
-
+	os.Setenv("MQTT_ENDPOINT", "mqtt://demo.staging:1883")
+	os.Setenv("MQTT_BROKER_PORT", ":1885")
 }
