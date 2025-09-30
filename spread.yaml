@@ -1645,7 +1645,6 @@ suites:
         summary: Tests for nested images controlled manually from the tests
         backends:
             - google-nested
-            - google-nested-dev
             - qemu-nested
             - google-nested-arm
             - garden
@@ -1726,7 +1725,6 @@ suites:
         summary: Tests for nested images
         backends:
             - google-nested
-            - google-nested-dev
             - qemu-nested
             - google-nested-arm
             - openstack-ext-ps7
@@ -1788,7 +1786,6 @@ suites:
         summary: Tests for nested images
         backends:
             - google-nested
-            - google-nested-dev
             - qemu-nested
             - google-nested-arm
             - openstack-ext-ps7
@@ -1861,7 +1858,6 @@ suites:
         summary: Performance and Load tests preparation suite
         backends:
             - google-nested
-            - google-nested-dev
             - qemu-nested
             - google-nested-arm
             - openstack-ext-ps7
