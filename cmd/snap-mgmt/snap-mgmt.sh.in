@@ -494,7 +494,7 @@ mount_dir_migrate() {
 
     if ! _mount_dir_paths_check; then
         if [ "$force" = "yes" ]; then
-            echo "-- Forcing mount directory migration"
+            echo "WARNING: Forcing mount directory migration" >&2
         else
             exit 0
         fi
