@@ -235,4 +235,3 @@ func (s *clusterRemoveSuite) TestClusterRemoveServerError(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"cluster", "remove", "test-snap"})
 	c.Assert(err, check.ErrorMatches, "server error")
 }
-

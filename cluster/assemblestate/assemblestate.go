@@ -28,7 +28,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -554,14 +556,26 @@ type RunOptions struct {
 func (as *AssembleState) convertToClusterDevices(ids []Identity) ([]ClusterDevice, error) {
 	var devices []ClusterDevice
 	for _, id := range ids {
-		a, err := asserts.Decode([]byte(id.Serial))
-		if err != nil {
-			return nil, err
+		var serial *asserts.Serial
+		dec := asserts.NewDecoder(strings.NewReader(id.SerialBundle))
+		for {
+			as, err := dec.Decode()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return nil, err
+			}
+
+			s, ok := as.(*asserts.Serial)
+			if !ok {
+				continue
+			}
+			serial = s
 		}
 
-		serial, ok := a.(*asserts.Serial)
-		if !ok {
-			return nil, fmt.Errorf("internal error: unexpected serial assertion type: %T", a)
+		if serial == nil {
+			return nil, fmt.Errorf("serial assertion missing from bundle in device identity: %s", id.RDT)
 		}
 
 		// TODO: we need to consider other sources for addresses, rather than
