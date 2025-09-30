@@ -65,6 +65,7 @@ execute: |
     . "$TESTSLIB/prepare.sh"
 
     inject_failure_configure_hook() {
+        mkdir -p "$1/meta/hooks"
         cat <<EOF >"$1/meta/hooks/configure"
     #!/bin/bash
     # invalid hook

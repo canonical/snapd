@@ -67,6 +67,7 @@ execute: |
             echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
+        mkdir -p ./pc-snap/meta/hooks
         cat <<EOF >./pc-snap/meta/hooks/configure
     #!/bin/bash
     # invalid hook
