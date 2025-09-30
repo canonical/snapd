@@ -135,7 +135,7 @@ execute: |
 
         if os.query is-core18; then
             snap debug boot-vars > boot-vars.dump
-            if [ "$SNAP_ONE" == *core* ] || [ "$SNAP_TWO" == *core* ]; then
+            if [ "$SNAP_ONE" == *"core"* ] || [ "$SNAP_TWO" == *"core"* ]; then
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             fi
@@ -148,7 +148,7 @@ execute: |
                 stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
             fi
-            if [ "$SNAP_ONE" == *core* ] || [ "$SNAP_TWO" == *core* ]; then
+            if [ "$SNAP_ONE" == *"core"* ] || [ "$SNAP_TWO" == *"core"* ]; then
                 MATCH "try_base=core${VERSION_ID}_.*.snap" < /var/lib/snapd/modeenv
             fi
         else
@@ -170,13 +170,13 @@ execute: |
 
         # fake refreshes generate revision numbers that are n+1
         # verify that current points to new revisions
-        if [ "$SNAP_ONE" == *core* ] || [ "$SNAP_TWO" == *core* ]]; then
+        if [ "$SNAP_ONE" = *"core"* ] || [ "$SNAP_TWO" = *"core"* ]]; then
             test "$(readlink /snap/$core_snap/current | grep -o -E '[0-9]+')" = "$expecting_core"
         fi
-        if [ "$SNAP_ONE" == pc ] || [ "$SNAP_TWO" == pc ]; then
+        if [ "$SNAP_ONE" = pc ] || [ "$SNAP_TWO" = pc ]; then
             test "$(readlink /snap/pc/current | grep -o -E '[0-9]+')" = "$expecting_gadget"
         fi
-        if [ "$SNAP_ONE" == pc-kernel ] || [ "$SNAP_TWO" == pc-kernel ]; then
+        if [ "$SNAP_ONE" = pc-kernel ] || [ "$SNAP_TWO" = pc-kernel ]; then
             test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
         fi
 

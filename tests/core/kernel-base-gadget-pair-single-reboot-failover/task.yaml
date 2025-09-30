@@ -143,7 +143,7 @@ execute: |
 
         if os.query is-core18; then
             snap debug boot-vars > boot-vars.dump
-            if [ "$SNAP_ONE" = *core* ] || [ "$SNAP_TWO" = *core* ]; then
+            if [ "$SNAP_ONE" = *"core"* ] || [ "$SNAP_TWO" = *"core"* ]; then
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             fi
@@ -156,7 +156,7 @@ execute: |
                 stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
             fi
-            if [ "$SNAP_ONE" == *core* ] || [ "$SNAP_TWO" == *core* ]; then
+            if [ "$SNAP_ONE" == *"core"* ] || [ "$SNAP_TWO" == *"core"* ]; then
                 MATCH "try_base=core${VERSION_ID}_.*.snap" < /var/lib/snapd/modeenv
             fi
         else
