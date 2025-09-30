@@ -91,6 +91,8 @@ setup_snapd_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         return
     fi
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket snapd.service
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
@@ -101,8 +103,8 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
-    # restart the service (it pulls up the socket)    
-    systemctl restart snapd.service
+    # start the service (it pulls up the socket)
+    systemctl start snapd.socket snapd.service
 }
 
 setup_system_proxy() {
@@ -1849,7 +1851,11 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
+
+    # Wait until snaps is active and fully seeded to setup the proxy
     retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd'
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snapd'
+    snap wait system seed.loaded
     setup_snapd_proxy
 
     disable_journald_rate_limiting
@@ -1869,9 +1875,6 @@ prepare_ubuntu_core() {
         # shellcheck disable=SC2016
         retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
-
-    # Wait for seeding to finish.
-    snap wait system seed.loaded
 
     echo "Ensure fundamental snaps are still present"
     for name in "$(snaps.name gadget)" "$(snaps.name kernel)" "$(snaps.name core)"; do
