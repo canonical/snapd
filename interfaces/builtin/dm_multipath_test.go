@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type multipathControlInterfaceSuite struct {
+type dmMultipathInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -39,35 +39,35 @@ type multipathControlInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-const multipathControlMockPlugSnapInfoYaml = `name: other
+const dmMultipathMockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
  app:
   command: foo
-  plugs: [multipath-control]
+  plugs: [dm-multipath]
 `
 
-const multipathControlCoreYaml = `name: core
+const dmMultipathCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  multipath-control:
+  dm-multipath:
 `
 
-var _ = Suite(&multipathControlInterfaceSuite{
-	iface: builtin.MustInterface("multipath-control"),
+var _ = Suite(&dmMultipathInterfaceSuite{
+	iface: builtin.MustInterface("dm-multipath"),
 })
 
-func (s *multipathControlInterfaceSuite) SetUpTest(c *C) {
-	s.slot, s.slotInfo = MockConnectedSlot(c, multipathControlCoreYaml, nil, "multipath-control")
-	s.plug, s.plugInfo = MockConnectedPlug(c, multipathControlMockPlugSnapInfoYaml, nil, "multipath-control")
+func (s *dmMultipathInterfaceSuite) SetUpTest(c *C) {
+	s.slot, s.slotInfo = MockConnectedSlot(c, dmMultipathCoreYaml, nil, "dm-multipath")
+	s.plug, s.plugInfo = MockConnectedPlug(c, dmMultipathMockPlugSnapInfoYaml, nil, "dm-multipath")
 }
 
-func (s *multipathControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "multipath-control")
+func (s *dmMultipathInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "dm-multipath")
 }
 
-func (s *multipathControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *dmMultipathInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -76,7 +76,7 @@ func (s *multipathControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
-func (s *multipathControlInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+func (s *dmMultipathInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	apparmorSpec := apparmor.NewSpecification(appSet)
@@ -88,15 +88,15 @@ func (s *multipathControlInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "unix (send, receive, connect) type=stream peer=(addr=\"@/org/kernel/linux/storage/multipathd\"),")
 }
 
-func (s *multipathControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *dmMultipathInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *multipathControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *dmMultipathInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *multipathControlInterfaceSuite) TestKModConnectedPlug(c *C) {
+func (s *dmMultipathInterfaceSuite) TestKModConnectedPlug(c *C) {
 	spec := &kmod.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -105,21 +105,21 @@ func (s *multipathControlInterfaceSuite) TestKModConnectedPlug(c *C) {
 	})
 }
 
-func (s *multipathControlInterfaceSuite) TestUDevConnectedPlug(c *C) {
+func (s *dmMultipathInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
-		`# multipath-control
+		`# dm-multipath
 KERNEL=="device-mapper", TAG+="snap_other_app"`,
-		`# multipath-control
+		`# dm-multipath
 KERNEL=="dm-[0-9]*", TAG+="snap_other_app"`,
 		`TAG=="snap_other_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_other_app $devpath $major:$minor"`,
 	})
 }
 
-func (s *multipathControlInterfaceSuite) TestInterfaces(c *C) {
+func (s *dmMultipathInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
