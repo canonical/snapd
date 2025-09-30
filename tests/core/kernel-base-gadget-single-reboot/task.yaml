@@ -60,10 +60,10 @@ execute: |
         # the change is complete
         # XXX systemctl exits with non-0 when in degraded state
         # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
     }
 
-    if [ "$SPREAD_REBOOT" = 0 ]; then
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
 
@@ -74,7 +74,7 @@ execute: |
         cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
         unsquashfs -d pc-snap gadget.snap        
 
-        if [ "$UPDATE_VARIANT" = "no-reboot" ]; then
+        if [ "$UPDATE_VARIANT" = no-reboot ]; then
             # prepare a vanilla version
             sed -i -e 's/^version: \(.*\)/version: \1-1/' pc-snap/meta/snap.yaml
             snap pack pc-snap --filename=pc_x1.snap
@@ -138,7 +138,7 @@ execute: |
         fi
 
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 1 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 1 ]; then
         change_id="$(cat refresh-change-id)"
         wait_and_verify_change "$change_id"
         
@@ -161,7 +161,7 @@ execute: |
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 2 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 2 ]; then
         change_id="$(cat revert-change-id)"
         wait_and_verify_change "$change_id"
 
@@ -175,7 +175,7 @@ execute: |
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 3 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 3 ]; then
         change_id="$(cat revert-change-id)"
         wait_and_verify_change "$change_id"
 

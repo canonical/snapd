@@ -65,14 +65,6 @@ execute: |
     . "$TESTSLIB/prepare.sh"
 
     inject_failure_configure_hook() {
-        if gojq --yaml-input --yaml-output '. | has("hooks")' "$1/meta/snap.yaml" | MATCH "true"; then
-            # shellcheck disable=SC2094
-            gojq --yaml-input --yaml-output '.hooks += {"configure"}' "$1/meta/snap.yaml" >> "$1/meta/snap.yaml"
-        else
-            # shellcheck disable=SC2094
-            gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' "$1/meta/snap.yaml" >> "$1/meta/snap.yaml"
-            mkdir -p "$1/meta/hooks"
-        fi
         cat <<EOF >"$1/meta/hooks/configure"
     #!/bin/bash
     # invalid hook
@@ -81,15 +73,15 @@ execute: |
         chmod +x "$1/meta/hooks/configure"
     }
 
-    if [ "$SPREAD_REBOOT" = 0 ]; then
-        echo Downloading snaps needed
-        snap download pc-kernel --channel="$VERSION_ID"/edge
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+        echo Downloading needed snaps
+        snap download pc-kernel --channel="$VERSION_ID"/"$KERNEL_CHANNEL"
 
         snap download "$core_snap" --edge
         printf '\0' >> "$core_snap"_*.snap
 
         # break the pc-kernel snap if that is the last snap
-        if [[ "$SNAP_TWO" == "pc-kernel" ]]; then
+        if [ "$SNAP_TWO" = pc-kernel ]; then
             unsquashfs -d pc-kernel-snap pc-kernel_*.snap
             inject_failure_configure_hook ./pc-kernel-snap
             rm pc-kernel_*.snap pc-kernel_*.assert
@@ -99,7 +91,7 @@ execute: |
 
         # prepare gadget update if gadget variant
         # and break pc gadget if that is the last snap
-        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
+        if [ "$SNAP_ONE" = "pc" ] || [ "$SNAP_TWO" = "pc" ]; then
             # unsquash gadget for modification
             cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
             unsquashfs -d pc-snap gadget.snap
@@ -122,7 +114,7 @@ execute: |
             sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
 
             # break the gadget snap if that is the second snap
-            if [[ "$SNAP_TWO" == "pc" ]]; then
+            if [ "$SNAP_TWO" = "pc" ]; then
                 inject_failure_configure_hook ./pc-snap
             fi
             snap pack pc-snap --filename=pc_x1.snap
@@ -151,20 +143,20 @@ execute: |
 
         if os.query is-core18; then
             snap debug boot-vars > boot-vars.dump
-            if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
+            if [ "$SNAP_ONE" = *core* ] || [ "$SNAP_TWO" = *core* ]; then
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             fi
-            if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
+            if [ "$SNAP_ONE" = pc-kernel ] || [ "$SNAP_TWO" = pc-kernel ]; then
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
             fi
         elif os.query is-core-ge 20; then
-            if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
+            if [ "$SNAP_ONE" = pc-kernel ] || [ "$SNAP_TWO" = pc-kernel ]; then
                 stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
             fi
-            if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
+            if [ "$SNAP_ONE" == *core* ] || [ "$SNAP_TWO" == *core* ]; then
                 MATCH "try_base=core${VERSION_ID}_.*.snap" < /var/lib/snapd/modeenv
             fi
         else
@@ -173,11 +165,11 @@ execute: |
         fi
 
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 1 ] || [ "$SPREAD_REBOOT" = 2 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 1 ] || [ "$SPREAD_REBOOT" -eq 2 ]; then
         # Because it's the configure hook we expect the error to happen after
         # system comes up, where-as with the kernel failure it happens before
         # we're able to observe it
-        if [ "$SPREAD_REBOOT" = 2 ] && [[ "$SNAP_TWO" = "core" ]]; then
+        if [ "$SPREAD_REBOOT" -eq 2 ] && [ "$SNAP_TWO" = core ]; then
             echo "unexpected reboot"
             exit 1
         fi
@@ -187,7 +179,7 @@ execute: |
 
         # The gadget and kernel snaps continue after the reboot, one fails, the change reverts
         # and requests another reboot for a total of 2 reboots (one for do, one for undo)
-        if [ "$SPREAD_REBOOT" = 1 ] && { [ "$SNAP_TWO" = "pc" ] || [ "$SNAP_TWO" = "pc-kernel" ]; }; then
+        if [ "$SPREAD_REBOOT" -eq 1 ] && { [ "$SNAP_TWO" = pc ] || [ "$SNAP_TWO" = pc-kernel ]; }; then
             # wait for a restart to be requested
             retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
             REBOOT
@@ -219,7 +211,7 @@ execute: |
         # make sure the system is in stable state, no pending reboots
         # XXX systemctl exits with non-0 when in degraded state
         # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
 
         # we're expecting the old revisions to be back
         original_kernel="$(cat pc-kernel.rev)"

@@ -41,9 +41,9 @@ execute: |
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
 
-    if [ "$SPREAD_REBOOT" = 0 ]; then
-        echo Downloading snaps needed
-        snap download pc-kernel --channel="$VERSION_ID"/edge
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+        echo Downloading needed snaps
+        snap download pc-kernel --channel="$VERSION_ID"/"$KERNEL_CHANNEL"
 
         snap download "$core_snap" --edge
         printf '\0' >> "$core_snap"_*.snap
@@ -67,14 +67,6 @@ execute: |
             echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
         fi
         sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
-        if gojq --yaml-input --yaml-output '. | has("hooks")' ./pc-snap/meta/snap.yaml | MATCH "true"; then
-            # shellcheck disable=SC2094
-            gojq --yaml-input --yaml-output '.hooks += {"configure"}' ./pc-snap/meta/snap.yaml >> ./pc-snap/meta/snap.yaml
-        else
-            # shellcheck disable=SC2094
-            gojq --yaml-input --yaml-output '. += {"hooks": {"configure"}}' ./pc-snap/meta/snap.yaml >> ./pc-snap/meta/snap.yaml
-            mkdir -p pc-snap/meta/hooks
-        fi
         cat <<EOF >./pc-snap/meta/hooks/configure
     #!/bin/bash
     # invalid hook
@@ -105,7 +97,7 @@ execute: |
         fi
 
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 1 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 1 ]; then
         # we continue after the reboot, and then fails, then change reverts
         change_id="$(cat refresh-change-id)"
         snap watch "$change_id" || true
@@ -113,7 +105,7 @@ execute: |
         # wait for a restart to be requested for the rollback
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 2 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 2 ]; then
         change_id="$(cat refresh-change-id)"
         # we expect the change to have failed due to the kernel not booting
         # properly
@@ -144,7 +136,7 @@ execute: |
         # make sure the system is in stable state, no pending reboots
         # XXX systemctl exits with non-0 when in degraded state
         # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
 
         # we're expecting the old revisions to be back
         original_kernel="$(cat pc-kernel.rev)"
