@@ -278,6 +278,7 @@ exit
 set_thread_area
 # armhf
 set_tls
+ugetrlimit
 # arm64
 readlinkat
 faccessat
