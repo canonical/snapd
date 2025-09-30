@@ -1,4 +1,4 @@
-name: test-iscsi-initiator-interfaces
+name: test-iscsi-initiator-support-interfaces
 version: "1.0"
 type: app
 summary: Test for iSCSI initiator interfaces
@@ -11,7 +11,7 @@ base: core24
 apps:
   client:
     command: bin/sh
-    plugs: [iscsi-initiator]
+    plugs: [iscsi-initiator-support]
 
 parts:
   iscsi:
