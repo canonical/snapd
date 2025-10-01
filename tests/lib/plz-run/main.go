@@ -67,6 +67,7 @@ func plz(ctx context.Context, args []string) error {
 		fdoSystemd1ManagerIface                             = fdoSystemd1BusName + ".Manager"
 		fdoSystemd1ServiceIface                             = fdoSystemd1BusName + ".Service"
 		fdoSystemd1StartTransientUnitMethod                 = fdoSystemd1ManagerIface + ".StartTransientUnit"
+		fdoSystemd1ResetFailedUnitMethod                    = fdoSystemd1ManagerIface + ".ResetFailedUnit"
 		fdoSystemd1ManagerJobRemovedMember                  = "JobRemoved"
 		fdoSystemd1ManagerJobRemovedSignal                  = fdoSystemd1ManagerIface + "." + fdoSystemd1ManagerJobRemovedMember
 	)
@@ -171,7 +172,8 @@ func plz(ctx context.Context, args []string) error {
 	props := []Prop{
 		{Name: "Description", Value: dbus.MakeVariant("potato")},
 		{Name: "Type", Value: dbus.MakeVariant("oneshot")},
-		{Name: "CollectMode", Value: dbus.MakeVariant("inactive-or-failed")},
+		// We cannot rely on CollectMode as it is not available on old systemd.
+		// {Name: "CollectMode", Value: dbus.MakeVariant("inactive-or-failed")},
 		{Name: "StandardInputFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stdin.Fd()))},
 		{Name: "StandardOutputFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stdout.Fd()))},
 		{Name: "StandardErrorFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stderr.Fd()))},
@@ -293,6 +295,10 @@ func plz(ctx context.Context, args []string) error {
 	switch result {
 	case "exit-code":
 		if execMainStatus > 0 {
+			if err := obj.CallWithContext(ctx, fdoSystemd1ResetFailedUnitMethod, flags, name).Store(); err != nil {
+				return fmt.Errorf("cannot call ResetFailedUnit: %w", err)
+			}
+
 			return SilentError(uint8(execMainStatus))
 		}
 		return nil
