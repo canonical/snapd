@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"bytes"
 	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -115,7 +116,7 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	
-	if ok, err := checkStringIsPEM(string(decodedHardwareIDKey)); !ok {
+	if err := checkStringIsPEM(decodedHardwareIDKey); err != nil {
 		return nil, err
 	}
 	
@@ -144,25 +145,27 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 }
 
 // checkStringIsPEM check if string is the body of a parsable form (PEM).
-// It assumes the BEGIN and ENF lines are omitted. The function returns a
-// boolean and an error that is non-nil if the strings fails to be a PEM.
-func checkStringIsPEM(data string) (bool, error) {
+// It assumes the BEGIN and END lines are omitted. The function returns a
+// a non-nil error if the strings fails to be a PEM.
+func checkStringIsPEM(data []byte) error {
 	// add begin and end lines to PEM body
-	pemBlock := []byte("-----BEGIN PUBLIC KEY-----\n" +  string(data) + "\n-----END PUBLIC KEY-----\n")
-
-	// the PEM block can never be nill as we added begin and end lines
-	block, _ := pem.Decode([]byte(pemBlock))
+	var bb bytes.Buffer
+	bb.WriteString("-----BEGIN PUBLIC KEY-----\n")
+	bb.Write(data)
+	bb.WriteString("\n-----END PUBLIC KEY-----\n")
+	// the PEM block can never be nil as we added begin and end lines
+	block, _ := pem.Decode(bb.Bytes())
 	
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return false, err
+		return err
 	}	
 
-	switch pubKey.(type) {
+	switch pub := pubKey.(type) {
 	case *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey, ed25519.PublicKey:
 	default:
-		return false, errors.New("unknown type of public key")
+		return fmt.Errorf("unsupported type of public key: %v", pub)
 	}
 
-	return true, nil
+	return nil
 }
