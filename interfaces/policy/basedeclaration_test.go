@@ -1089,7 +1089,6 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"tee":                              true,
 		"uinput":                           true,
 		"unity8":                           true,
-		"usb-gadget":                       true,
 		"userns":                           true,
 		"xilinx-dma":                       true,
 		"snap-fde-control":                 true,
