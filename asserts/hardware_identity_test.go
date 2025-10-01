@@ -29,10 +29,7 @@ import (
 
 var _ = Suite(&hardwareIdentitySuite{})
 
-type hardwareIdentitySuite struct {
-	deviceKey     asserts.PrivateKey
-	encodedDevKey string
-}
+type hardwareIdentitySuite struct {}
 
 const errPrefix = "assertion hardware-identity: "
 
@@ -44,25 +41,15 @@ manufacturer: some-manufacturer
 hardware-name: raspberry-pi-4gb
 sign-key-sha3-384: t9yuKGLyiezBq_PXMJZsGdkTukmL7MgrgqXAlxxiZF4TYryOjZcy48nnjDmEHQDp
 hardware-id: random-id-1
-hardware-id-key:
-    DEVICEKEY
-hardware-id-key-sha3-384: KEYID
+hardware-id-key: TUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FDaVFjaFlNVFAra25jNnZtUFd3SC9tMThqbApIRVN5U0wyZFBIb25lQ1dnOUFuMlM0N3ZBQ1VJd3ZlU0FDRHFHam5Ld3JvcFM3Rmw1cTVFTTZNQXlIUElkSmJwCmdXUFV6bHJBRTRZc2M4VDh5QTUwUlRPaVFPc0x4MHZUMnFHU0kzYk16bFU3bkhyZW0zWXRNOUErbjlGUEVuOVAKT2hNaGVyZkExekVFVmkvSWZ3SURBUUFC
+hardware-id-key-sha3-384: 20HX1SS8dJW8tNCmybAdP7frkn0dmEV9DdwIABskpSsxBUaylHA6oO8dSj+ORWXa
 
 AXNpZw==`
 )
 
-func (s *hardwareIdentitySuite) SetUpSuite(c *C) {
-
-	s.deviceKey = testPrivKey2
-	encodedPubKey, err := asserts.EncodePublicKey(s.deviceKey.PublicKey())
-	c.Assert(err, IsNil)
-	s.encodedDevKey = string(encodedPubKey)
-}
 
 func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(hardwareIdentityExample, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
-	encoded = strings.Replace(encoded, "KEYID", s.deviceKey.PublicKey().ID(), 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(hardwareIdentityExample))
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.HardwareIdentityType)
@@ -72,19 +59,17 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 	c.Check(req.Manufacturer(), Equals, "some-manufacturer")
 	c.Check(req.HardwareName(), Equals, "raspberry-pi-4gb")
 	c.Check(req.HardwareID(), Equals, "random-id-1")
-	c.Check(req.HardwareIDKey(), Equals, s.encodedDevKey)
-	c.Check(req.HardwareIDKeySha3384(), Equals, s.deviceKey.PublicKey().ID())	
+	c.Check(req.HardwareIDKey(), Equals, "TUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FDaVFjaFlNVFAra25jNnZtUFd3SC9tMThqbApIRVN5U0wyZFBIb25lQ1dnOUFuMlM0N3ZBQ1VJd3ZlU0FDRHFHam5Ld3JvcFM3Rmw1cTVFTTZNQXlIUElkSmJwCmdXUFV6bHJBRTRZc2M4VDh5QTUwUlRPaVFPc0x4MHZUMnFHU0kzYk16bFU3bkhyZW0zWXRNOUErbjlGUEVuOVAKT2hNaGVyZkExekVFVmkvSWZ3SURBUUFC")
+	c.Check(req.HardwareIDKeySha3384(), Equals, "20HX1SS8dJW8tNCmybAdP7frkn0dmEV9DdwIABskpSsxBUaylHA6oO8dSj+ORWXa")	
 	c.Check(string(req.Body()), Equals, "")
 }
 
 func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 	const (
-		hardwareKeyID        = "hardware-id-key:\n    DEVICEKEY\n"
-		hardwareKeyIDSha3384 = "hardware-id-key-sha3-384: KEYID\n"
+		hardwareKeyID        = "hardware-id-key: TUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FDaVFjaFlNVFAra25jNnZtUFd3SC9tMThqbApIRVN5U0wyZFBIb25lQ1dnOUFuMlM0N3ZBQ1VJd3ZlU0FDRHFHam5Ld3JvcFM3Rmw1cTVFTTZNQXlIUElkSmJwCmdXUFV6bHJBRTRZc2M4VDh5QTUwUlRPaVFPc0x4MHZUMnFHU0kzYk16bFU3bkhyZW0zWXRNOUErbjlGUEVuOVAKT2hNaGVyZkExekVFVmkvSWZ3SURBUUFC\n"
+		elGamalhardwareKey   = "hardware-id-key: TUZNd09BWUdLdzRIQWdFQk1DNENGUUR0Z0dwZGNhdXkraExpSFF2TzFVV240ck90Q3dJVkFPdmg2OEZYNjBHVQo1TllFOW05MzJESDhYOFpvQXhjQUFoUU5PdEFNYktUazdqQi9FSlgvaWJ3bGVpWFpDZz09\n"
+		hardwareKeyIDSha3384 = "hardware-id-key-sha3-384: 20HX1SS8dJW8tNCmybAdP7frkn0dmEV9DdwIABskpSsxBUaylHA6oO8dSj+ORWXa\n"
 	)
-
-	encodedHardwareKeyID := strings.Replace(hardwareKeyID, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
-	encodedHardwareKeyIDSha3384 := strings.Replace(hardwareKeyIDSha3384, "KEYID", s.deviceKey.PublicKey().ID(), 1)
 
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
@@ -101,10 +86,12 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		{"hardware-id: random-id-1\n", "hardware-id: \n", `"hardware-id" header should not be empty`},
 		{hardwareKeyID, "", `"hardware-id-key" header is mandatory`},
 		{hardwareKeyID, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
-		{hardwareKeyID, "hardware-id-key: something\n", `cannot decode public key: .*`},
+		{hardwareKeyID, "hardware-id-key: something\n", `illegal base64 data .*`},
+		{hardwareKeyID, "hardware-id-key: TUlHZU1BMEdDU3FH\n", `asn1: syntax error: .*`},
+		{hardwareKeyID, elGamalhardwareKey, `x509: unknown public key algorithm`},
 		{hardwareKeyIDSha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
 		{hardwareKeyIDSha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
-		{hardwareKeyID+hardwareKeyIDSha3384, encodedHardwareKeyID+encodedHardwareKeyIDSha3384+"body-length: 2\n\nHW\n", `body must be empty`},
+		{hardwareKeyIDSha3384, "hardware-id-key-sha3-384: random\n", `hardware id key does not match provided hash`},
 	}
 
 	for i, test := range invalidTests {
@@ -112,12 +99,4 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Assert(err, ErrorMatches, errPrefix+test.expectedErr, Commentf("test %d/%d failed", i+1, len(invalidTests)))
 	}
-}
-
-func (s *hardwareIdentitySuite) TestDecodeHardwareIDKeyMismatch(c *C) {
-	invalid := strings.Replace(hardwareIdentityExample, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
-	invalid = strings.Replace(invalid, "KEYID", "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij", 1)
-
-	_, err := asserts.Decode([]byte(invalid))
-	c.Check(err, ErrorMatches, errPrefix+"hardware id key does not match provided hash")
 }

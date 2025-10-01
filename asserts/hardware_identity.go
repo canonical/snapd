@@ -20,8 +20,17 @@
 package asserts
 
 import (
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
+
+	"golang.org/x/crypto/sha3"
 )
 
 type HardwareIdentity struct {
@@ -32,6 +41,7 @@ type HardwareIdentity struct {
 	hardwareName          string
 	hardwareID            string
 	hardwareIDKey         string
+	decodedHardwareIDKey  string
 	hardwareIDKeySha3384  string
 }
 // IssuerID returns the Snap Store account of the issuer and signer of the voucher. 
@@ -99,20 +109,26 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	
-	decodedHardwareIDKey, err := DecodePublicKey([]byte(hardwareIDKey))
+
+	decodedHardwareIDKey , err := base64.StdEncoding.DecodeString(hardwareIDKey)
 	if err != nil {
+		return nil, err
+	}
+	
+	if ok, err := checkStringIsPEM(string(decodedHardwareIDKey)); !ok {
 		return nil, err
 	}
 	
 	hardwareIDKeySha3384 := assert.HeaderString("hardware-id-key-sha3-384")
 
-	if hardwareIDKeySha3384 != decodedHardwareIDKey.ID() {
-		return nil, fmt.Errorf("hardware id key does not match provided hash")
-	}
+	hash := sha3.New384()
+	hash.Write(decodedHardwareIDKey)
+    hashed := hash.Sum(nil)
 
-	if len(assert.body) != 0 {
-		return nil, errors.New("body must be empty")
+	hashedHardwareIDKey := base64.StdEncoding.EncodeToString(hashed)
+
+	if hardwareIDKeySha3384 != hashedHardwareIDKey {
+		return nil, fmt.Errorf("hardware id key does not match provided hash")
 	}
 
 	return &HardwareIdentity{
@@ -122,6 +138,31 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 		hardwareName: hardwareName,
 		hardwareID: hardwareID,
 		hardwareIDKey: hardwareIDKey,
+		decodedHardwareIDKey: string(decodedHardwareIDKey),
 		hardwareIDKeySha3384: hardwareIDKeySha3384,
 	}, nil
+}
+
+// checkStringIsPEM check if string is the body of a parsable form (PEM).
+// It assumes the BEGIN and ENF lines are omitted. The function returns a
+// boolean and an error that is non-nil if the strings fails to be a PEM.
+func checkStringIsPEM(data string) (bool, error) {
+	// add begin and end lines to PEM body
+	pemBlock := []byte("-----BEGIN PUBLIC KEY-----\n" +  string(data) + "\n-----END PUBLIC KEY-----\n")
+
+	// the PEM block can never be nill as we added begin and end lines
+	block, _ := pem.Decode([]byte(pemBlock))
+	
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return false, err
+	}	
+
+	switch pubKey.(type) {
+	case *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey, ed25519.PublicKey:
+	default:
+		return false, errors.New("unknown type of public key")
+	}
+
+	return true, nil
 }
