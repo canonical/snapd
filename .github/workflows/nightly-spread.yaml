@@ -20,6 +20,7 @@ on:
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
+          - spread-test-with-kernels
           - spread-master-fundamental
           - spread-master-not-fundamental
           - spread-master-nested
@@ -195,6 +196,94 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
+
+  spread-test-with-kernels:
+    if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-with-kernels') }}
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: >
+        tests/main/security-apparmor
+        tests/main/apparmor-prompting-support
+        tests/main/seccomp-statx
+        tests/main/security-seccomp
+        tests/main/cgroup-devices-v1
+        tests/main/cgroup-devices-v2
+        tests/main/interfaces-block-devices
+        tests/main/interfaces-firewall-control
+        tests/main/interfaces-fuse-support
+        tests/main/interfaces-gpio-control
+        tests/main/interfaces-kernel-module-load
+        tests/main/interfaces-mount-control
+        tests/main/interfaces-mount-observe
+        tests/main/interfaces-netlink-audit
+        tests/main/interfaces-network-control
+        tests/main/interfaces-network-observe
+        tests/main/interfaces-raw-input
+        tests/main/interfaces-raw-usb
+        tests/main/interfaces-udev
+        tests/main/mount-dir-detect-check
+        tests/main/mount-ns
+        tests/main/snap-confine-caps
+        tests/main/snap-confine-tmp-mount
+        tests/main/snap-gpio-helper
+        tests/main/snap-remove-not-mounted
+        tests/main/snap-seccomp-syscalls
+        tests/main/security-device-cgroups
+        tests/main/security-udev-input-subsystem
+        tests/main/lxd-snapfuse
+        tests/main/user-mounts
+      rules: ''
+      use-snapd-snap-from-master: true
+      spread-env: "SPREAD_UPDATE_UBUNTU_KERNEL_VERSION=${{ matrix.kernel }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Xenial is not needed as it is already being tested with kernel 4.4.0-210-generic
+          - group: bionic-4.15
+            backend: openstack-ps7
+            systems: 'ubuntu-18.04-64'
+            kernel: 4.15.0-213-generic
+            support: '2030-04-30'
+          - group: bionic-5.4
+            backend: openstack-ps7
+            systems: 'ubuntu-18.04-64'
+            kernel: 5.4.0-150-generic
+            support: '2030-04-30'
+          - group: focal-5.4
+            backend: openstack-ps7
+            systems: 'ubuntu-20.04-64'
+            kernel: 5.4.0-216-generic
+            support: '2032-04-30'
+          - group: focal-5.15
+            backend: openstack-ps7
+            systems: 'ubuntu-20.04-64'
+            kernel: 5.15.0-139-generic
+            support: '2032-04-30'
+          - group: jammy-5.15
+            backend: openstack-ps7
+            systems: 'ubuntu-20.04-64'
+            kernel: 5.15.0-156-generic
+            support: '2034-04-30'
+          - group: jammy-6.8
+            backend: openstack-ps7
+            systems: 'ubuntu-20.04-64'
+            kernel: 6.8.0-84-generic
+            support: '2034-04-30'
+          - group: noble-6.8
+            backend: openstack-ps7
+            systems: 'ubuntu-20.04-64'
+            kernel: 6.8.0-84-generic
+            support: '2036-04-30'
+          - group: noble-6.14
+            backend: openstack-ps7
+            systems: 'ubuntu-20.04-64'
+            kernel: 6.14.0-29-generic
+            support: '2036-04-30'
 
   re-run:
     permissions:
