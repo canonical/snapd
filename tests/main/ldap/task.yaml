@@ -65,7 +65,7 @@ prepare: |
     esac
 
     # shellcheck disable=SC2086
-    retry -n 20 --wait 1 tests.pkgs install $packages
+    tests.pkgs install $packages
 
     echo "${host_name}" > /etc/hostname
     hostname "${host_name}"
@@ -170,11 +170,11 @@ restore: |
     packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
     if [ -n "$packages" ]; then
         # shellcheck disable=SC2086
-        retry -n 20 --wait 1 tests.pkgs remove $packages
+        tests.pkgs remove $packages
         # purge install traces of the packages so that if installed again
         # sssd will modify the /etc/nsswitch.conf file
         # shellcheck disable=SC2086
-        retry -n 20 --wait 1 apt purge -y $packages
+        apt purge -y $packages
     fi
 
 execute: |
