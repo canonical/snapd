@@ -20,7 +20,8 @@ environment:
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-nvme-control
 
-  modprobe nvme || true
+  modprobe nvme
+  tests.cleanup defer modprobe -r nvme
 
   # Create mock NVMe device files for testing
   # Only mock /dev files and udev data, not sysfs paths
@@ -32,9 +33,6 @@ prepare: |
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /dev/nvme-fabrics
   "$TESTSTOOLS"/fs-state mock-file /run/udev/data/b259:0
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /run/udev/data/b259:0
-
-restore: |
-  tests.cleanup restore
 
 execute: |
   echo "The interface is not connected by default"
@@ -57,18 +55,18 @@ execute: |
   fi
 
   echo "And the snap is able to access NVMe control files if they exist"
-  nvme_controller="$(find /sys/class/nvme -name "reset_controller" -type f 2>/dev/null | head -n1 || true)"
+  nvme_controller="$(find /sys/class/nvme -name "reset_controller" -type f 2>/dev/null | head -n1)"
   if [ -n "$nvme_controller" ]; then
       "$TEST_SNAP".with-nvme-control-plug -c "cat $nvme_controller"
   fi
 
-  nvme_rescan="$(find /sys/class/nvme -name "rescan_controller" -type f 2>/dev/null | head -n1 || true)"
+  nvme_rescan="$(find /sys/class/nvme -name "rescan_controller" -type f 2>/dev/null | head -n1)"
   if [ -n "$nvme_rescan" ]; then
       "$TEST_SNAP".with-nvme-control-plug -c "cat $nvme_rescan"
   fi
 
   echo "And the snap is able to access NVMe device trees if they exist"
-  nvme_device="$(find /sys/devices -type d -name "*nvme*" 2>/dev/null | head -n1 || true)"
+  nvme_device="$(find /sys/devices -type d -name "*nvme*" 2>/dev/null | head -n1)"
   if [ -n "$nvme_device" ]; then
       "$TEST_SNAP".with-nvme-control-plug -c "ls $nvme_device"
   fi
