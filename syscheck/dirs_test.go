@@ -72,20 +72,24 @@ func (s *dirsSuite) TestUndetermined(c *C) {
 
 var (
 	known = []struct {
-		ID           string
-		IDLike       []string
-		canonicalDir bool
+		ID                string
+		IDLike            []string
+		canonicalDir      bool
+		supportsMigration bool
 	}{
-		{"fedora", nil, false},
-		{"rhel", []string{"fedora"}, false},
-		{"centos", []string{"fedora"}, false},
-		{"ubuntu", []string{"debian"}, true},
-		{"debian", nil, true},
-		{"suse", nil, true},
-		{"yocto", nil, true},
-		{"arch", []string{"archlinux"}, false},
-		{"archlinux", nil, false},
-		{"altlinux", nil, false},
+		{"fedora", nil, false, false},
+		{"rhel", []string{"fedora"}, false, false},
+		{"centos", []string{"fedora"}, false, false},
+		{"ubuntu", []string{"debian"}, true, false},
+		{"debian", nil, true, false},
+		{"suse", nil, true, false}, // SLE, not to be confused with openSUSE
+		{"opensuse-leap", []string{"opensuse"}, true, true},
+		{"opensuse-tumbleweed", []string{"opensuse"}, true, true},
+		{"opensuse-slowroll", []string{"opensuse"}, true, true},
+		{"yocto", nil, true, false},
+		{"arch", []string{"archlinux"}, false, false},
+		{"archlinux", nil, false, false},
+		{"altlinux", nil, false, false},
 	}
 
 	knownSpecial = []struct {
@@ -101,10 +105,10 @@ func (s *dirsSuite) TestMountDirKnownDistroHappy(c *C) {
 
 	for _, tc := range known {
 		c.Logf("happy case %+v", tc)
-		func() {
+		tf := func(canonicalDir bool) {
 			defer release.MockReleaseInfo(&release.OS{ID: tc.ID, IDLike: tc.IDLike})()
 			d := c.MkDir()
-			if tc.canonicalDir {
+			if canonicalDir {
 				dirstest.MustMockCanonicalSnapMountDir(d)
 			} else {
 				dirstest.MustMockAltSnapMountDir(d)
@@ -112,7 +116,11 @@ func (s *dirsSuite) TestMountDirKnownDistroHappy(c *C) {
 			dirs.SetRootDir(d)
 
 			c.Check(syscheck.CheckSnapMountDir(), IsNil)
-		}()
+		}
+		tf(tc.canonicalDir)
+		if tc.supportsMigration {
+			tf(!tc.canonicalDir)
+		}
 	}
 }
 
@@ -122,6 +130,10 @@ func (s *dirsSuite) TestMountDirKnownDistroMismatch(c *C) {
 	for _, tc := range known {
 		c.Logf("mismatch case %+v", tc)
 		func() {
+			if tc.supportsMigration {
+				c.Logf("distro supports migration skipping test case: %+v", tc)
+				return
+			}
 			defer release.MockReleaseInfo(&release.OS{ID: tc.ID, IDLike: tc.IDLike})()
 			d := c.MkDir()
 			// do the complete opposite so that the mount directory does not
