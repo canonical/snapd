@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cluster/assemblestate"
 	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/check.v1"
@@ -72,6 +73,8 @@ func createTestCertAndKey(c *check.C) (certPEM []byte, keyPEM []byte) {
 }
 
 func (s *assembleSuite) TestRun(c *check.C) {
+	db, signing := mockAssertDB(c)
+
 	const count = 16
 	rdts := make([]assemblestate.DeviceToken, 0, count)
 	addrs := make([]string, 0, count)
@@ -96,16 +99,20 @@ func (s *assembleSuite) TestRun(c *check.C) {
 		rdt := rdt
 
 		cert, key := createTestCertAndKey(c)
+		serial, pk := createTestSerial(c, signing)
 		as, err := assemblestate.NewAssembleState(assemblestate.AssembleConfig{
 			Secret:  "secret",
 			RDT:     assemblestate.DeviceToken(rdt),
 			TLSCert: cert,
 			TLSKey:  key,
+			Serial:  serial,
+			Signer:  privateKeySigner(pk),
 		}, assemblestate.AssembleSession{},
 			func(self assemblestate.DeviceToken, identified func(assemblestate.DeviceToken) bool) (assemblestate.RouteSelector, error) {
 				return assemblestate.NewPrioritySelector(self, nil, identified), nil
 			},
 			func(as assemblestate.AssembleSession) {},
+			db,
 		)
 		c.Assert(err, check.IsNil)
 
@@ -128,11 +135,14 @@ func (s *assembleSuite) TestRun(c *check.C) {
 
 	rdt := rdts[0]
 	cert, key := createTestCertAndKey(c)
+	serial, pk := createTestSerial(c, signing)
 	as, err := assemblestate.NewAssembleState(assemblestate.AssembleConfig{
 		Secret:  "secret",
 		RDT:     assemblestate.DeviceToken(rdt),
 		TLSCert: cert,
 		TLSKey:  key,
+		Serial:  serial,
+		Signer:  privateKeySigner(pk),
 
 		// this session has an expected size, so it will terminate on its own
 		ExpectedSize: count,
@@ -141,6 +151,7 @@ func (s *assembleSuite) TestRun(c *check.C) {
 			return assemblestate.NewPrioritySelector(self, nil, identified), nil
 		},
 		func(as assemblestate.AssembleSession) {},
+		db,
 	)
 	c.Assert(err, check.IsNil)
 
@@ -163,4 +174,10 @@ func (s *assembleSuite) TestRun(c *check.C) {
 	c.Assert(routes.Addresses, testutil.DeepUnsortedMatches, addrs)
 	c.Assert(routes.Devices, testutil.DeepUnsortedMatches, rdts)
 	c.Assert(len(routes.Routes)/3, check.Equals, count*(count-1))
+}
+
+func privateKeySigner(pk asserts.PrivateKey) func([]byte) ([]byte, error) {
+	return func(data []byte) ([]byte, error) {
+		return asserts.RawSignWithKey(data, pk)
+	}
 }
