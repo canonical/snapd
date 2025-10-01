@@ -1220,13 +1220,10 @@ nested_start_core_vm_unit() {
     elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-3}"
-    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-8192}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ]; then
+    elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ] || [ "$SPREAD_BACKEND" = "openstack-validation-ps7" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     else
@@ -1465,9 +1462,7 @@ nested_start_core_vm_unit() {
 }
 
 nested_setup_vm(){
-    if nested_is_core_ge 20; then
-        remote.exec "sudo snap set system journal.persistent=true"
-    fi
+
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
         nested_no_proxy="${NO_PROXY},10.0.2.2"
 
@@ -1665,13 +1660,10 @@ nested_start_classic_vm() {
     elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"
-    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-8192}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ]; then
+    elif [ "$SPREAD_BACKEND" = "openstack-ext-ps7" ] || [ "$SPREAD_BACKEND" = "openstack-validation-ps7" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-2}"        
     else

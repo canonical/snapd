@@ -1861,7 +1861,11 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
-    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd'
+
+    # Wait until snapd  is-active
+    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
+
     setup_snapd_proxy
 
     disable_journald_rate_limiting
@@ -1881,6 +1885,7 @@ prepare_ubuntu_core() {
         # shellcheck disable=SC2016
         retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
+
 
     # Wait for seeding to finish.
     snap wait system seed.loaded
