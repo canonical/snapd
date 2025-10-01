@@ -239,9 +239,6 @@ apps:
   steam-support:
     command: bin/run
     plugs: [ steam-support ]
-  checkbox-support:
-    command: bin/run
-    plugs: [ checkbox-support ]
   storage-framework-service:
     command: bin/run
     plugs: [ storage-framework-service ]
