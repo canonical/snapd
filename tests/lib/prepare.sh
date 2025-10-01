@@ -92,9 +92,6 @@ setup_snapd_proxy() {
         return
     fi
 
-    # stop the socket (it pulls down the service)
-    systemctl stop snapd.socket
-
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
@@ -105,7 +102,7 @@ EOF
     # the units to get them applied
     systemctl daemon-reload
     # restart the service (it pulls up the socket)    
-    systemctl start snapd.service
+    systemctl restart snapd.service
 }
 
 setup_system_proxy() {
@@ -1853,7 +1850,10 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
+    # Wait until snapd  is-active
     retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
+
     setup_snapd_proxy
 
     disable_journald_rate_limiting
