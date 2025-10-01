@@ -5,7 +5,7 @@ details: |
     check the --experimental-gdbserver deprecated parameter works properly.
 
 # testing only here to avoid having to install gdb/gdbserver everywhere
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
+systems: [-ubuntu-core-*]
 
 environment:
     OPT/normal: --gdbserver
@@ -15,7 +15,8 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # no need to remove the pkgs in restore, restore_suite_each()
     # will handle this
-    apt install -y gdbserver gdb
+    tests.pkgs install gdb
+    tests.pkgs install gdbserver || tests.pkgs install gdb-gdbserver || true
 
 execute: |
     echo "Test snap run --gdbserver works"
@@ -23,7 +24,7 @@ execute: |
     # run the gdbserver command as a user
     # XXX: use "systemd-run --user -p StandardOutput=file:$(pwd)/stdout"
     # shellcheck disable=SC2016
-    su -c 'snap run "$OPT" test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
+    su -s /bin/bash -c 'snap run "$OPT" test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
 
     # wait for the instructions that gdb is ready to get attached
     retry -n60 grep '^gdb -ex' stdout
