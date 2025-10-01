@@ -53,6 +53,11 @@ var (
 		"manjaro",
 		"manjaro-arm",
 	}
+
+	// distributions which support migration from /snap to /var/lib/snapd/snap
+	migratedAltDirDistros = []string{
+		"opensuse", // openSUSE Tumbleweed, Slowroll, Leap, but not SLE
+	}
 )
 
 func checkSnapMountDir() error {
@@ -62,6 +67,8 @@ func checkSnapMountDir() error {
 
 	smd := dirs.StripRootDir(dirs.SnapMountDir)
 	switch {
+	case release.DistroLike(migratedAltDirDistros...) && smd == dirs.AltSnapMountDir:
+		// some distributions support migration from /snap -> /var/lib/snapd/snap/
 	case release.DistroLike(defaultDirDistros...) && smd != dirs.DefaultSnapMountDir:
 		fallthrough
 	case release.DistroLike(altDirDistros...) && smd != dirs.AltSnapMountDir:
