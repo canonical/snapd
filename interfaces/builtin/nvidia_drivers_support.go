@@ -41,7 +41,8 @@ const nvidiaDriversSupportConnectedPlugAppArmor = `
 # As nvidia-assemble snap needs to create the static & dynamic MAJOR
 # chrdevs for all other snaps to have access to. Specifically
 # /dev/nvidiactl /dev/nvidia-uvm
-/{,usr/}bin/mknod ixr,
+# Support coreutils paths (LP: #2123870)
+@{SNAP_COREUTIL_DIRS}mknod ixr,
 allow capability mknod,
 
 /dev/nvidia[0-9]* rw,
