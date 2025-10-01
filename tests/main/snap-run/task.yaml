@@ -48,12 +48,8 @@ execute: |
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
 
-    if command -v gdb; then
-       echo "Test snap run --gdb works"
-       echo "c" | snap run --gdb test-snapd-sh-core22.sh -c 'echo hello' > stdout
-       MATCH 'Continuing.' < stdout
-       MATCH hello < stdout
-    fi
+    snap run --gdb test-snapd-sh-core22.sh -c 'echo hello' 2>stderr || true
+    cat stderr | MATCH 'gdb is no longer supported: use gdbserver instead'
 
     # the strace on 14.04 is too old
     if os.query is-trusty; then
