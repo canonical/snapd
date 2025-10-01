@@ -30,20 +30,11 @@ prepare: |
   echo "InitiatorName=iqn.1993-08.org.debian:01:abcdef123" > /etc/iscsi/initiatorname.iscsi
   echo "node.startup = automatic" > /etc/iscsi/iscsid.conf
 
-  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
-  tests.cleanup defer snap remove --purge snapcraft
-  (cd "$TESTSLIB"/snaps/"$TEST_SNAP" && snapcraft)
-  tests.cleanup defer rm -f "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
-  snap install --dangerous "$TESTSLIB"/snaps/"$TEST_SNAP"/"$TEST_SNAP"_*.snap
-  tests.cleanup defer snap remove --purge "$TEST_SNAP"
+  snap install test-iscsi-initiator-support-interfaces --channel=latest/edge
 
   apt install -y socat
-  tests.cleanup defer apt remove --purge --yes socat
   nohup socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
   tests.cleanup defer bash -c "pkill socat || true"
-
-restore: |
-  tests.cleanup restore
 
 execute: |
   echo "The interface is not connected by default"
