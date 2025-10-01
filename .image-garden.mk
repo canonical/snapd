@@ -32,6 +32,8 @@ $(CLOUD_INIT_USER_DATA_TEMPLATE)
 - sed -i -e 's/selinux=1//g' /etc/default/grub
 - sed -i -e 's/^SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 - update-bootloader
+packages:
+- apparmor-utils
 endef
 
 define OPENSUSE_tumbleweed-selinux_CLOUD_INIT_USER_DATA_TEMPLATE
