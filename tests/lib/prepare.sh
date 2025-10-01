@@ -91,7 +91,9 @@ setup_snapd_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         return
     fi
-    systemctl stop snapd.socket snapd.service
+
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
@@ -99,8 +101,11 @@ setup_snapd_proxy() {
 Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$NO_PROXY no_proxy=$NO_PROXY
 EOF
 
+    # We change the service configuration so reload and restart
+    # the units to get them applied
     systemctl daemon-reload
-    systemctl start snapd.socket snapd.service
+    # restart the service (it pulls up the socket)    
+    systemctl start snapd.service
 }
 
 setup_system_proxy() {
@@ -1848,6 +1853,9 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
+    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
+    setup_snapd_proxy
+
     disable_journald_rate_limiting
     disable_journald_start_limiting
 
@@ -1866,11 +1874,9 @@ prepare_ubuntu_core() {
         retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
 
+
     # Wait for seeding to finish.
     snap wait system seed.loaded
-
-    # Setup the proxy for snapd
-    setup_snapd_proxy
 
     echo "Ensure fundamental snaps are still present"
     for name in "$(snaps.name gadget)" "$(snaps.name kernel)" "$(snaps.name core)"; do
