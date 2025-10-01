@@ -443,7 +443,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "results.json"
         if-no-files-found: ignore
 
