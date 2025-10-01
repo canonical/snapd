@@ -223,7 +223,7 @@ prepare_project() {
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
 
-        if [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ] && [ "$SPREAD_REBOOT" == 0 ]; then
+        if [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ] && [ "$SPREAD_REBOOT" = 0 ]; then
             apt-get update
             apt-get install -y linux-image-"$UPDATE_UBUNTU_KERNEL_VERSION" linux-headers-"$UPDATE_UBUNTU_KERNEL_VERSION"
 
