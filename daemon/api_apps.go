@@ -231,6 +231,9 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 			return BadRequest(`invalid value for n: %q: %v`, s, err)
 		}
 		n = int(m)
+		if n <= 0 {
+			return BadRequest(`invalid value for n: %v`, n)
+		}
 	}
 	follow := false
 	if s := query.Get("follow"); s != "" {
