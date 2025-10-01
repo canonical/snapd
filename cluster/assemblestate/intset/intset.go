@@ -114,7 +114,7 @@ func (is *IntSet[T]) Diff(other *IntSet[T]) *IntSet[T] {
 // Range calls fn for every value present in the set. If fn returns false,
 // iteration stops early.
 //
-// TODO: consider using the new range functionality from go 1.23 once possible
+// TODO:GOVERSION: consider using the new range functionality from go 1.23 once possible
 func (is *IntSet[T]) Range(fn func(value T) bool) {
 	for wi, word := range is.words {
 		for word != 0 {
@@ -175,7 +175,7 @@ func (is *IntSet[T]) Equal(other *IntSet[T]) bool {
 
 // max returns the larger of the two given values.
 //
-// TOD0: remove once we are on go>=1.21
+// TODO:GOVERSION: remove once we are on go>=1.21
 func max(x, y int) int {
 	if x > y {
 		return x

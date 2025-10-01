@@ -9228,7 +9228,8 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c
 		}})
 		for _, comp := range comps {
 			// since we take a pointer to comp here, we've gotta copy it out of
-			// the loop variable. can be removed once we're on go 1.22
+			// the loop variable.
+			// TODO:GOVERSION: can be removed once we're on go 1.22
 			comp := comp
 			err := seq.AddComponentForRevision(rev, sequence.NewComponentState(&comp, snap.TestComponent))
 			c.Assert(err, IsNil)
@@ -9383,7 +9384,8 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering
 		}})
 		for _, comp := range comps {
 			// since we take a pointer to comp here, we've gotta copy it out of
-			// the loop variable. can be removed once we're on go 1.22
+			// the loop variable.
+			// TODO:GOVERSION: can be removed once we're on go 1.22
 			comp := comp
 			err := seq.AddComponentForRevision(rev, sequence.NewComponentState(&comp, snap.TestComponent))
 			c.Assert(err, IsNil)

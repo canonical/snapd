@@ -653,7 +653,7 @@ func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
 	errs := []error{nil, errFoo, nil}
 	err := requestrules.JoinInternalErrors(errs)
 	c.Check(errors.Is(err, prompting_errors.ErrRuleDBInconsistent), Equals, true)
-	// XXX: check the following when we're on golang v1.20+
+	// TODO:GOVERSION: XXX: check the following when we're on golang v1.20+
 	// c.Check(errors.Is(err, errFoo), Equals, true)
 	c.Check(errors.Is(err, errBar), Equals, false)
 	c.Check(err.Error(), Equals, fmt.Sprintf("%v\n%v", prompting_errors.ErrRuleDBInconsistent, errFoo))
@@ -661,7 +661,7 @@ func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
 	errs = append(errs, errBar, errBaz)
 	err = requestrules.JoinInternalErrors(errs)
 	c.Check(errors.Is(err, prompting_errors.ErrRuleDBInconsistent), Equals, true)
-	// XXX: check the following when we're on golang v1.20+
+	// TODO:GOVERSION: XXX: check the following when we're on golang v1.20+
 	// c.Check(errors.Is(err, errFoo), Equals, true)
 	// c.Check(errors.Is(err, errBar), Equals, true)
 	// c.Check(errors.Is(err, errBaz), Equals, true)
@@ -1541,7 +1541,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 				// that the difference is less than 100ms. We'll always have
 				// deltas of 1s for time differences we care about.
 				difference := entry.Expiration.Sub(expectedEntry.Expiration)
-				// TODO: call Abs() once we're on Go 1.19+
+				// TODO:GOVERSION: call Abs() once we're on Go 1.19+
 				if difference < 0 {
 					difference *= -1
 				}

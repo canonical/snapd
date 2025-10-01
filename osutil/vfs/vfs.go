@@ -198,7 +198,7 @@ func (v *VFS) detachMount(m *mount, idx int) {
 	m.parentID = 0
 	m.mountID = 0
 
-	// TODO: use slices from future go to avoid this hand-crafted surgery.
+	// TODO:GOVERSION: use slices from future go to avoid this hand-crafted surgery.
 	v.mounts = append(v.mounts[:idx], v.mounts[idx+1:]...)
 }
 

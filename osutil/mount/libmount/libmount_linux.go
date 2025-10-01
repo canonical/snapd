@@ -181,6 +181,6 @@ func ValidateMountOptions(opts ...string) error {
 		priorClearMask |= opt.clearMask
 	}
 
-	// TODO: use errors.Join when we update to go 1.20.
+	// TODO:GOVERSION: use errors.Join when we update to go 1.20.
 	return nil
 }

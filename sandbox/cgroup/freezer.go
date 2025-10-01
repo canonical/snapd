@@ -98,8 +98,9 @@ var freezeSnapProcessesImplV1 = func(ctx context.Context, snapName string) error
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxFreezeTimeout)
 	defer cancel()
 	ticker := time.NewTicker(freezePulseDelay)
-	// The ticker.Stop() can be removed starting 1.23 where the garbage collector can recover
-	// unreferenced tickers, even if they haven't been stopped.
+	// TODO:GOVERSION: The ticker.Stop() can be removed starting 1.23 where the
+	// garbage collector can recover unreferenced tickers, even if they haven't
+	// been stopped.
 	defer ticker.Stop()
 	for {
 		data, err := osReadFile(fname)
@@ -205,8 +206,9 @@ func freezeOneV2(ctx context.Context, dir string) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxFreezeTimeout)
 	defer cancel()
 	ticker := time.NewTicker(freezePulseDelay)
-	// ticker.Stop() can be removed starting 1.23 where the garbage collector can recover
-	// unreferenced tickers, even if they haven't been stopped.
+	// TODO:GOVERSION: ticker.Stop() can be removed starting 1.23 where the
+	// garbage collector can recover unreferenced tickers, even if they haven't
+	// been stopped.
 	defer ticker.Stop()
 	for {
 		data, err := os.ReadFile(fname)

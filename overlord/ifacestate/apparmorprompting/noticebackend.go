@@ -262,7 +262,7 @@ func (ntb *noticeTypeBackend) searchExistingNotices(userID uint32, noticeID stri
 	// Since the user notices are sorted by LastRepeated timestamp, and
 	// each notice has a unique LastRepeated timestamp, we can use binary
 	// search by LastRepeated timestamp.
-	// XXX: maybe use slices.BinarySearchFunc instead once on go 1.21+
+	// TODO:GOVERSION: XXX: maybe use slices.BinarySearchFunc instead once on go 1.21+
 	existingIndex = sort.Search(len(userNotices), func(i int) bool {
 		// Find first index which has a LastRepeated timestamp >= the
 		// existing notice, since we're binary searching for that notice.
@@ -406,7 +406,7 @@ func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*stat
 	return keyNotices
 }
 
-// TODO: remove in favor of slices.Contains once we're on Go 1.21+
+// TODO:GOVERSION: remove in favor of slices.Contains once we're on Go 1.21+
 func slicesContains[T comparable](haystack []T, needle T) bool {
 	for _, v := range haystack {
 		if v == needle {
@@ -494,7 +494,7 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 	// When the context is done/cancelled, wake up the waiters so that they can
 	// check their ctx.Err() and return if they're cancelled.
 	//
-	// TODO: replace this with context.AfterFunc once we're on Go 1.21.
+	// TODO:GOVERSION: replace this with context.AfterFunc once we're on Go 1.21.
 	stop := contextAfterFunc(ctx, func() {
 		// We need to acquire a lock mutually exclusive with the cond lock here
 		// to be sure that the Broadcast below won't occur before the call to
@@ -535,7 +535,7 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 	}
 }
 
-// Remove this and just use context.AfterFunc once we're on Go 1.21.
+// TODO:GOVERSION: Remove this and just use context.AfterFunc once we're on Go 1.21.
 func contextAfterFunc(ctx context.Context, f func()) func() {
 	stopCh := make(chan struct{})
 	go func() {

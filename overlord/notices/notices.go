@@ -197,7 +197,7 @@ func (nm *NoticeManager) RegisterBackend(bknd NoticeBackend, typ state.NoticeTyp
 	return validateNotice, drainedNotices, nil
 }
 
-// TODO: replace this with slices.Contains() once we're on go 1.21+.
+// TODO:GOVERSION: replace this with slices.Contains() once we're on go 1.21+.
 func backendsContain(backends []NoticeBackend, backend NoticeBackend) bool {
 	for _, bknd := range backends {
 		if bknd == backend {
