@@ -321,6 +321,7 @@ func main() {
 		}
 
 		fmt.Fprintf(os.Stderr, "%s error: %s\n", filepath.Base(os.Args[0]), err.Error())
+		os.Exit(1)
 	}
 }
 
