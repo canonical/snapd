@@ -35,7 +35,8 @@ const mountObserveConnectedPlugAppArmor = `
 # restricted because it gives privileged read access to mount arguments and
 # should only be used with trusted apps.
 
-/{,usr/}bin/df ixr,
+# Support coreutils paths (LP: #2123870)
+@{SNAP_COREUTIL_DIRS}df ixr,
 
 # Needed by 'df'. This is an information leak
 @{PROC}/mounts r,

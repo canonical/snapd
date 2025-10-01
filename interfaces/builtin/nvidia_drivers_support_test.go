@@ -83,7 +83,7 @@ func (s *NvidiaDriversSupportSuite) TestUsedSecuritySystems(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/{,usr/}bin/mknod")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{SNAP_COREUTIL_DIRS}mknod")
 
 	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
