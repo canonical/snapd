@@ -222,6 +222,18 @@ prepare_project() {
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
+
+        if [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ] && [ "$SPREAD_REBOOT" = 0 ]; then
+            apt-get update
+            apt-get install -y linux-image-"$UPDATE_UBUNTU_KERNEL_VERSION" linux-headers-"$UPDATE_UBUNTU_KERNEL_VERSION"
+
+            # Update grub to set this kernel as default
+            echo "[*] Updating GRUB to set $UPDATE_UBUNTU_KERNEL_VERSION as default..."
+            grub-set-default "Advanced options for Ubuntu>Ubuntu, with Linux $UPDATE_UBUNTU_KERNEL_VERSION"
+            update-grub
+
+            REBOOT
+        fi
     fi
 
     # Check if running inside a container.
