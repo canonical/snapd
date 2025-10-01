@@ -119,8 +119,9 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # This can be dropped once LP: #1890848 is fixed.
   ptrace (trace) peer=unconfined,
 
-  /{,usr/}bin/true ixr,
-  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,usr/}bin/true ixr,
+  # Support coreutils paths (LP: #2123870)
+  @{SNAP_COREUTIL_DIRS}true ixr,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/@{SNAP_COREUTIL_DIRS}true ixr,
 ###KUBERNETES_SUPPORT_SYSTEMD_RUN###
 }
 `

@@ -31,7 +31,8 @@ const loginSessionObserveBaseDeclarationSlots = `
 
 const loginSessionObserveConnectedPlugAppArmor = `
 # Allow reading login and session information
-/{,usr/}bin/who  ixr,
+# Support coreutils paths (LP: #2123870)
+@{SNAP_COREUTIL_DIRS}who  ixr,
 /var/log/wtmp    rk,
 /{,var/}run/utmp rk,
 
