@@ -52,6 +52,10 @@ endef
 
 define UBUNTU_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
+# ESM archive doesn't work over plain http and this is not compatible with the
+# proxy that image-garden snap is providing for faster testing. The ESM archive
+# is not used so this is not a problem.
+- rm -f /etc/apt/sources.list.d/ubuntu-esm-infra.list
 endef
 
 # In the snapd project Ubuntu Core images are built from classic Ubuntu images
