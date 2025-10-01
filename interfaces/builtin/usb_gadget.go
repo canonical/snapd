@@ -36,7 +36,11 @@ const usbGadgetSummary = `allows access to the usb gadget API`
 
 const usbGadgetBaseDeclarationPlugs = `
   usb-gadget:
-    allow-installation: false
+    allow-installation:
+      plug-attributes:
+        name: $MISSING
+        where: $MISSING
+        persistent: $MISSING
     deny-auto-connection: true
 `
 
