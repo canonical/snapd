@@ -646,7 +646,11 @@ func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []st
 	for _, container := range containers {
 		if allContainers || strutil.ListContains(containerRoles, container.ContainerRole()) {
 			if err := secbootCheckRecoveryKey(container.DevPath(), rkey); err != nil {
-				return fmt.Errorf("recovery key failed for %q: %v", container.ContainerRole(), err)
+				logger.Noticef("invalid recovery key: no match found for %q: %v", container.ContainerRole(), err)
+				return &InvalidRecoveryKeyError{
+					Reason:  InvalidRecoveryKeyReasonInvalidValue,
+					Message: fmt.Sprintf("invalid recovery key: recovery key does not work for %q", container.ContainerRole()),
+				}
 			}
 			found[container.ContainerRole()] = true
 		}
