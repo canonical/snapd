@@ -35,12 +35,12 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
-	"gitlab.com/zygoon/go-cmdr"
 )
 
 type EnvList []string
@@ -191,6 +191,7 @@ func plz(ctx context.Context, args []string) error {
 	props := []Prop{
 		{Name: "Description", Value: dbus.MakeVariant("potato")},
 		{Name: "Type", Value: dbus.MakeVariant("oneshot")},
+		{Name: "CollectMode", Value: dbus.MakeVariant("inactive-or-failed")},
 		{Name: "StandardInputFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stdin.Fd()))},
 		{Name: "StandardOutputFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stdout.Fd()))},
 		{Name: "StandardErrorFileDescriptor", Value: dbus.MakeVariant(dbus.UnixFD(os.Stderr.Fd()))},
@@ -329,20 +330,20 @@ func plz(ctx context.Context, args []string) error {
 	switch result {
 	case "exit-code":
 		if execMainStatus > 0 {
-			return cmdr.SilentError(uint8(execMainStatus))
+			return SilentError(uint8(execMainStatus))
 		}
 		return nil
 	case "success":
 		// This includes services that returned non-zero but expected exit code.
 		return nil
 	case "failure":
-		return cmdr.SilentError(1)
+		return SilentError(1)
 	case "signal":
 		return fmt.Errorf("killed by signal %d", execMainStatus)
 	case "core-dump":
 		return errors.New("program dumped core")
 	default:
-		return nil
+		return fmt.Errorf("unhandled systemd job result value: %v", result)
 	}
 }
 
@@ -350,5 +351,24 @@ func main() {
 	logLevel.Set(slog.LevelWarn)
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel})))
 	slog.SetLogLoggerLevel(slog.LevelDebug)
-	cmdr.RunMain(cmdr.Func(plz), os.Args)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	err := plz(ctx, os.Args[1:])
+	if err != nil {
+		if err, ok := err.(SilentError); ok {
+			os.Exit(int(err))
+		}
+
+		fmt.Fprintf(os.Stderr, "%s error: %s", filepath.Base(os.Args[0]), err.Error())
+	}
+}
+
+// SilentError is an error type that produces a given error code but no error message.
+type SilentError uint8
+
+// Error returns the empty string.
+func (e SilentError) Error() string {
+	return ""
 }

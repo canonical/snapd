@@ -1,4 +1,2 @@
 github.com/godbus/dbus/v5 v5.1.0 h1:4KLkAxT3aOY8Li4FRJe/KvhoNFFxo0m6fNuFUO8QJUk=
 github.com/godbus/dbus/v5 v5.1.0/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
-gitlab.com/zygoon/go-cmdr v1.9.0 h1:05MsZPTmql80xtgB24S7ZQY1CYSYFCojJyK9VDwKEIk=
-gitlab.com/zygoon/go-cmdr v1.9.0/go.mod h1:PC8xgQl7RHB7trGIwX8Rg+UMsGjP82XOHdGuGBZg++0=
