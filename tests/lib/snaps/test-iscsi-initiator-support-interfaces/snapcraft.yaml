@@ -8,6 +8,10 @@ confinement: strict
 grade: stable
 base: core24
 
+platforms:
+  amd64:
+  arm64:
+
 apps:
   client:
     command: bin/sh
