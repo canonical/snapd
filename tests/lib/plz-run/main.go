@@ -36,7 +36,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
@@ -238,15 +237,16 @@ func plz(ctx context.Context, args []string) error {
 
 				// Certain properties are interesting to us.
 				type nameStorage struct {
-					iface   string
-					name    string
-					storage any
+					iface     string
+					name      string
+					storage   any
+					storeZero func()
 				}
 				var (
 					interestingProps []nameStorage = []nameStorage{
-						{fdoSystemd1ServiceIface, "ExecMainCode", &execMainCode},
-						{fdoSystemd1ServiceIface, "ExecMainStatus", &execMainStatus},
-						{fdoSystemd1ServiceIface, "Result", &result},
+						{fdoSystemd1ServiceIface, "ExecMainCode", &execMainCode, func() { execMainCode = 0 }},
+						{fdoSystemd1ServiceIface, "ExecMainStatus", &execMainStatus, func() { execMainStatus = 0 }},
+						{fdoSystemd1ServiceIface, "Result", &result, func() { result = "" }},
 					}
 				)
 
@@ -262,7 +262,7 @@ func plz(ctx context.Context, args []string) error {
 					}
 					for _, p := range propsInvalidated {
 						if prop.name == p {
-							reflect.ValueOf(prop.storage).Elem().SetZero()
+							prop.storeZero()
 						}
 					}
 				}
