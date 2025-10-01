@@ -178,8 +178,6 @@ func (c *Context) PendingValidationSets() (*snapasserts.ValidationSets, error) {
 
 	encoded := make(map[string][]byte)
 	if err := enforce.Get("validation-sets", &encoded); err != nil {
-		// TODO: this could happen when we're enforcing validation sets during first
-		// boot. we might need to handle that case as well?
 		if errors.Is(err, &state.NoStateError{}) {
 			return nil, nil
 		}
