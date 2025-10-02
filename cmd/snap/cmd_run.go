@@ -1082,7 +1082,7 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 }
 
 func (x *cmdRun) runCmdUnderGdb(_ []string, _ envForExecFunc) error {
-	return errors.New("gdb is no longer supported: use gdbserver instead")
+	return errors.New("--gdb is no longer supported: use --gdbserver option instead")
 }
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
