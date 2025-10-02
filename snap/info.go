@@ -1144,6 +1144,10 @@ type PlugInfo struct {
 	// snap.yaml file, and it is not specifically referenced by any apps or
 	// hooks. Unscoped plugs are attached to all apps and hooks in the snap.
 	Unscoped bool
+
+	// Dependency is true if the plug wasn't listed in the snapcraft.yaml file
+	// but was added because another plug depended on it.
+	Dependency bool
 }
 
 func lookupAttr(attrs map[string]any, path string) (any, bool) {
