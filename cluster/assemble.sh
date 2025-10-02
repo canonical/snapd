@@ -1,9 +1,9 @@
 set -e
 
-count="8"
+count="4"
 secret="$(uuidgen)"
 
-hosts="$(seq 2 "${count}" | xargs -L1 printf 'host-%d\n')"
+hosts="$(seq 2 "${count}" | xargs -L1 printf 'demo-%d\n')"
 
 for host in ${hosts}; do
     echo "starting assembly on host ${host}..."
@@ -12,7 +12,7 @@ for host in ${hosts}; do
     multipass exec "${host}" sudo -- snap cluster assemble --secret="${secret}" --address="${addr}:8080" --no-wait &> /dev/null
 done
 
-host="host-1"
+host="demo-1"
 echo "starting assembly on host ${host}..."
 multipass exec "${host}" sudo -- snap abort --last=assemble-cluster &> /dev/null || true
 multipass exec "${host}" sudo -- snap wait --last=assemble-cluster &> /dev/null || true
