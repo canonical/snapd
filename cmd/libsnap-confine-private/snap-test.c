@@ -16,6 +16,8 @@
  */
 
 #include "snap.h"
+#include "cleanup-funcs.h"
+
 #include "snap.c"
 
 #include <glib.h>
@@ -141,6 +143,35 @@ static void test_sc_is_hook_security_tag(void) {
     g_assert_false(sc_is_hook_security_tag("snap.foo_bar.hook.-foo"));
     g_assert_false(sc_is_hook_security_tag("snap.foo_bar.hook!foo"));
     g_assert_false(sc_is_hook_security_tag("snap.foo_bar.!foo"));
+}
+
+static void test_sc_security_tag_to_unit_name(void) {
+    {
+        char *unit_name SC_CLEANUP(sc_cleanup_string) = sc_security_tag_to_unit_name("snap.foo+comp.hook.install");
+        g_assert_cmpstr(unit_name, ==, "snap.foo\\x2bcomp.hook.install");
+    }
+
+    {
+        char *unit_name SC_CLEANUP(sc_cleanup_string) = sc_security_tag_to_unit_name("snap.foo.bar");
+        g_assert_cmpstr(unit_name, ==, "snap.foo.bar");
+    }
+
+    {
+        char *unit_name SC_CLEANUP(sc_cleanup_string) = sc_security_tag_to_unit_name("snap.foo_dev.bar");
+        g_assert_cmpstr(unit_name, ==, "snap.foo_dev.bar");
+    }
+}
+
+static void test_sc_security_tag_to_unit_name_invalid(void) {
+    if (g_test_subprocess()) {
+        sc_security_tag_to_unit_name("snap.foo|dev.bar");
+        g_test_message("expected sc_security_tag_to_unit_name to not return");
+        g_test_fail();
+        return;
+    }
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("unexpected character '|' in a validated security tag: 'snap.foo|dev.bar'\n");
 }
 
 static void test_sc_snap_or_instance_name_validate(gconstpointer data) {
@@ -533,6 +564,8 @@ static void test_sc_snap_component_validate_respects_error_protocol(void) {
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/snap/sc_security_tag_validate", test_sc_security_tag_validate);
     g_test_add_func("/snap/sc_is_hook_security_tag", test_sc_is_hook_security_tag);
+    g_test_add_func("/snap/sc_security_to_unit_name", test_sc_security_tag_to_unit_name);
+    g_test_add_func("/snap/sc_security_to_unit_name_invalid", test_sc_security_tag_to_unit_name_invalid);
 
     g_test_add_data_func("/snap/sc_snap_name_validate", sc_snap_name_validate, test_sc_snap_or_instance_name_validate);
     g_test_add_func("/snap/sc_snap_name_validate/respects_error_protocol",
