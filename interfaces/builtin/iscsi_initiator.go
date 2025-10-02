@@ -20,7 +20,7 @@
 package builtin
 
 /*
- * The iscsi-initiator-support interface allows snaps to act as iSCSI initiators,
+ * The iscsi-initiator interface allows snaps to act as iSCSI initiators,
  * enabling them to discover, connect to, and manage iSCSI targets for
  * block storage access.
  *
@@ -28,23 +28,23 @@ package builtin
  * iscsi_tcp for transport and target_core_mod for LIO functionality.
  */
 
-const iscsiInitiatorSupportSummary = `allows access to iSCSI initiator functionality for block storage operations`
+const iscsiInitiatorSummary = `allows access to iSCSI initiator functionality for block storage operations`
 
-const iscsiInitiatorSupportBaseDeclarationPlugs = `
-  iscsi-initiator-support:
+const iscsiInitiatorBaseDeclarationPlugs = `
+  iscsi-initiator:
     allow-installation: false
     deny-auto-connection: true
 `
 
-const iscsiInitiatorSupportBaseDeclarationSlots = `
-  iscsi-initiator-support:
+const iscsiInitiatorBaseDeclarationSlots = `
+  iscsi-initiator:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const iscsiInitiatorSupportConnectedPlugAppArmor = `
+const iscsiInitiatorConnectedPlugAppArmor = `
 # ConfigFS access for Linux-IO (LIO) target management
 /sys/kernel/config/target/ rw,
 /sys/kernel/config/target/** rw,
@@ -83,23 +83,23 @@ const iscsiInitiatorSupportConnectedPlugAppArmor = `
 unix (send, receive, connect) type=stream peer=(addr="@ISCSIADM_ABSTRACT_NAMESPACE"),
 `
 
-type iscsiInitiatorSupportInterface struct {
+type iscsiInitiatorInterface struct {
 	commonInterface
 }
 
-var iscsiInitiatorSupportConnectedPlugKmod = []string{
+var iscsiInitiatorConnectedPlugKmod = []string{
 	`iscsi_tcp`,       // A module providing iscsi initiator functionality.
 	`target_core_mod`, // A module providing ConfigFS infrastructure utilized in LIO (which is used by Cinder for iSCSI targets).
 }
 
 func init() {
-	registerIface(&iscsiInitiatorSupportInterface{commonInterface{
-		name:                     "iscsi-initiator-support",
-		summary:                  iscsiInitiatorSupportSummary,
+	registerIface(&iscsiInitiatorInterface{commonInterface{
+		name:                     "iscsi-initiator",
+		summary:                  iscsiInitiatorSummary,
 		implicitOnClassic:        true,
-		baseDeclarationSlots:     iscsiInitiatorSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:     iscsiInitiatorSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor:    iscsiInitiatorSupportConnectedPlugAppArmor,
-		connectedPlugKModModules: iscsiInitiatorSupportConnectedPlugKmod,
+		baseDeclarationSlots:     iscsiInitiatorBaseDeclarationSlots,
+		baseDeclarationPlugs:     iscsiInitiatorBaseDeclarationPlugs,
+		connectedPlugAppArmor:    iscsiInitiatorConnectedPlugAppArmor,
+		connectedPlugKModModules: iscsiInitiatorConnectedPlugKmod,
 	}})
 }
