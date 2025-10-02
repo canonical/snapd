@@ -73,6 +73,34 @@ func (s *deviceMgrSerialSuite) SetUpTest(c *C) {
 	s.setupBaseTest(c, classic)
 }
 
+func (s *deviceMgrSerialSuite) TestSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	_, err := devicestate.Serial(s.state)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+
+	_, err = devicestate.Serial(s.state)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	serial, err := devicestate.Serial(s.state)
+	c.Assert(err, IsNil)
+	c.Check(serial.Serial(), Equals, "8989")
+}
+
 func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]any, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
 	model := headers["model"].(string)
