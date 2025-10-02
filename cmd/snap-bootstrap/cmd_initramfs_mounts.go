@@ -1948,26 +1948,27 @@ func createSysrootMount() bool {
 }
 
 func getVerityOptions(snapPath string, idp *integrity.IntegrityDataParams) (*dmVerityOptions, error) {
-	if idp != nil && idp.Type == "dm-verity" {
-		hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
+	hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
 
-		if err != nil {
-			return nil, fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, err)
-		}
-
-		// TODO: we currently rely on several parameters from the on-disk unverified superblock
-		// which gets automatically parsed by veritysetup for the mount. Instead we can use
-		// the parameters we already have in the assertion as options to the mount but this
-		// would require extra support in libmount.
-		return &dmVerityOptions{
-			HashDevice: hashDevice,
-			RootHash:   idp.Digest,
-		}, nil
+	if err != nil && err == integrity.ErrIntegrityDataParamsNotFound {
+		// TODO: throw error instead if integrity data are required by policy
+		return nil, nil
 	}
 
-	// TODO: throw error instead if integrity data are required by policy
-	return nil, nil
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, err)
+	}
+
+	// TODO: we currently rely on several parameters from the on-disk unverified superblock
+	// which gets automatically parsed by veritysetup for the mount. Instead we can use
+	// the parameters we already have in the assertion as options to the mount but this
+	// would require extra support in libmount.
+	return &dmVerityOptions{
+		HashDevice: hashDevice,
+		RootHash:   idp.Digest,
+	}, nil
 }
+
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the

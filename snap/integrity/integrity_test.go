@@ -22,6 +22,7 @@ package integrity_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -57,6 +58,7 @@ type generateDmVerityDataParams struct {
 
 func (s *IntegrityTestSuite) testGenerateDmVerityData(c *C, params *generateDmVerityDataParams) {
 	snapPath := "foo.snap"
+	rootHash := "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
 
 	restore := integrity.MockVeritysetupFormat(func(dataDevice string, hashDevice string, inputParams *dmverity.DmVerityParams) (string, error) {
 		c.Assert(dataDevice, Equals, snapPath)
@@ -67,14 +69,20 @@ func (s *IntegrityTestSuite) testGenerateDmVerityData(c *C, params *generateDmVe
 			c.Assert(inputParams.HashBlockSize, Equals, params.integrityDataParams.HashBlockSize)
 			c.Assert(inputParams.Salt, Equals, params.integrityDataParams.Salt)
 		}
-		rootHash := "e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
 		return rootHash, nil
+	})
+	defer restore()
+
+	restore = integrity.MockOsRename(func(src, dst string) error {
+		c.Assert(src, Equals, snapPath+".dmverity_tmp")
+		c.Assert(dst, Equals, snapPath+".dmverity_"+rootHash)
+		return nil
 	})
 	defer restore()
 
 	hashFileName, rootHash, err := integrity.GenerateDmVerityData(snapPath, params.integrityDataParams)
 	c.Check(err, IsNil)
-	c.Check(hashFileName, Equals, snapPath+".verity")
+	c.Check(hashFileName, Equals, snapPath+".dmverity_"+rootHash)
 	c.Check(rootHash, Equals, params.expectedRootHash)
 }
 
@@ -118,21 +126,27 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataSuccess(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
+	digest := "test"
+	verityFilePath := snapPath + ".dmverity_" + digest
+
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
+		c.Assert(filename, Equals, verityFilePath)
 		return &sb, nil
 	})
 	defer restore()
 
 	integrityDataParams := integrity.IntegrityDataParams{
+		Type:          "dm-verity",
 		HashAlg:       "sha256",
 		DataBlockSize: 4096,
 		HashBlockSize: 4096,
 		Salt:          sb.EncodedSalt(),
+		Digest:        digest,
 	}
 
 	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Assert(err, IsNil)
-	c.Check(hashFileName, Equals, snapPath+".verity")
+	c.Check(hashFileName, Equals, verityFilePath)
 }
 
 func (s *IntegrityTestSuite) TestLookupDmVerityDataCrossCheckError(c *C) {
@@ -145,60 +159,112 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataCrossCheckError(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
+	digest := "test"
+	verityFilePath := snapPath + ".dmverity_" + digest
+
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
+		c.Assert(filename, Equals, verityFilePath)
 		return &sb, nil
 	})
 	defer restore()
 
-	errMsg := "unexpected dm-verity data \"foo.snap.verity\": "
+	errMsg := fmt.Sprintf("unexpected dm-verity data %q: ", verityFilePath)
 	tests := []struct {
 		idp         integrity.IntegrityDataParams
 		expectedErr string
+		comment     string
 	}{
 		{
 			idp: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
 				HashAlg:       "foo",
 				DataBlockSize: 4096,
 				HashBlockSize: 4096,
 				Salt:          sb.EncodedSalt(),
+				Digest:        digest,
 			},
 			expectedErr: errMsg + "unexpected algorithm: sha256 != foo",
+			comment:     "error when algorithm doesn't match",
 		},
 		{
 			idp: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
 				HashAlg:       "sha256",
 				DataBlockSize: 1,
 				HashBlockSize: 4096,
 				Salt:          sb.EncodedSalt(),
+				Digest:        digest,
 			},
 			expectedErr: errMsg + "unexpected data block size: 4096 != 1",
+			comment:     "error when block size doesn't match",
 		},
 		{
 			idp: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
 				HashAlg:       "sha256",
 				DataBlockSize: 4096,
 				HashBlockSize: 1,
 				Salt:          sb.EncodedSalt(),
+				Digest:        digest,
 			},
 			expectedErr: errMsg + "unexpected hash block size: 4096 != 1",
+			comment:     "error when hash block size doesn't match",
 		},
 		{
 			idp: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
 				HashAlg:       "sha256",
 				DataBlockSize: 4096,
 				HashBlockSize: 4096,
 				Salt:          "salt",
+				Digest:        digest,
 			},
 			expectedErr: errMsg + "unexpected salt: " + sb.EncodedSalt() + " != salt",
+			comment:     "error when salt doesn't match",
 		},
 	}
 
 	for _, t := range tests {
 		hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &t.idp)
-		c.Assert(hashFileName, Equals, "")
-		c.Check(errors.Is(err, integrity.ErrUnexpectedDmVerityData), Equals, true)
-		c.Check(err, ErrorMatches, t.expectedErr)
+		c.Assert(hashFileName, Equals, "", Commentf(t.comment))
+		c.Check(errors.Is(err, integrity.ErrUnexpectedDmVerityData), Equals, true, Commentf(t.comment))
+		c.Check(err, ErrorMatches, t.expectedErr, Commentf(t.comment))
 	}
+}
+
+func (s *IntegrityTestSuite) TestLookupDmVerityDataNilParams(c *C) {
+	snapPath := "foo.snap"
+
+	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
+		return nil, os.ErrNotExist
+	})
+	defer restore()
+
+	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, nil)
+	c.Check(hashFileName, Equals, "")
+	c.Check(errors.Is(err, integrity.ErrIntegrityDataParamsNotFound), Equals, true)
+	c.Check(err, ErrorMatches, "integrity data parameters not found")
+}
+
+func (s *IntegrityTestSuite) TestLookupDmVerityDataUnexpectedType(c *C) {
+	snapPath := "foo.snap"
+
+	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
+		return nil, os.ErrNotExist
+	})
+	defer restore()
+
+	integrityDataParams := integrity.IntegrityDataParams{
+		Type:          "foo",
+		HashAlg:       "sha256",
+		DataBlockSize: 4096,
+		HashBlockSize: 4096,
+	}
+
+	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &integrityDataParams)
+	c.Check(hashFileName, Equals, "")
+	c.Check(errors.Is(err, integrity.ErrUnexpectedIntegrityDataType), Equals, true)
+	c.Check(err, ErrorMatches, "unexpected integrity data type: expected \"dm-verity\" but found \"foo\".")
 }
 
 func (s *IntegrityTestSuite) TestLookupDmVerityDataNotExist(c *C) {
@@ -209,10 +275,20 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataNotExist(c *C) {
 	})
 	defer restore()
 
-	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, nil)
+	integrityDataParams := integrity.IntegrityDataParams{
+		Type:          "dm-verity",
+		HashAlg:       "sha256",
+		DataBlockSize: 4096,
+		HashBlockSize: 4096,
+	}
+
+	digest := ""
+	verityFilePath := snapPath + ".dmverity_" + digest
+
+	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Check(hashFileName, Equals, "")
 	c.Check(errors.Is(err, integrity.ErrDmVerityDataNotFound), Equals, true)
-	c.Check(err, ErrorMatches, "dm-verity data not found: \"foo.snap.verity\" doesn't exist.")
+	c.Check(err, ErrorMatches, fmt.Sprintf("dm-verity data not found: %q doesn't exist.", verityFilePath))
 }
 
 func (s *IntegrityTestSuite) TestLookupDmVerityDataAnyError(c *C) {
@@ -223,7 +299,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataAnyError(c *C) {
 	})
 	defer restore()
 
-	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, nil)
+	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &integrity.IntegrityDataParams{Type: "dm-verity"})
 	c.Check(hashFileName, Equals, "")
 	c.Check(err, ErrorMatches, "any other error")
 }

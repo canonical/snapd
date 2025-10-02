@@ -32,6 +32,7 @@ import (
 var (
 	veritysetupFormat      = dmverity.Format
 	readDmVeritySuperblock = dmverity.ReadSuperblock
+	osRename               = os.Rename
 )
 
 // IntegrityDataParams struct includes all the parameters that are necessary
@@ -112,6 +113,17 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 	}, nil
 }
 
+func dmverityHashFileName(snapPath string, digest string) string {
+	return fmt.Sprintf("%s.dmverity_%s", snapPath, digest)
+}
+
+// ErrDmVerityDataParamsNotFound is returned when the passed in integrityDataParams object is empty.
+var ErrIntegrityDataParamsNotFound = errors.New("integrity data parameters not found")
+
+// ErrUnexpectedIntegrityDataType is returned when the type of the passed in integrityDataParams is not
+// the one expected by this particular function.
+var ErrUnexpectedIntegrityDataType = errors.New("unexpected integrity data type")
+
 // ErrDmVerityDataNotFound is returned when dm-verity data for a snap are not found next to it.
 var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
 
@@ -122,13 +134,20 @@ var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
 // LookupDmVerityDataAndCrossCheck looks up dm-verity data for a snap based on its file name and validates
 // that the superblock properties of the discovered dm-verity data match the passed parameters.
 func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
-	hashFileName := snapPath + ".verity"
+	if params == nil {
+		return "", ErrIntegrityDataParamsNotFound
+	}
+
+	if params.Type != "dm-verity" {
+		return "", fmt.Errorf("%w: expected %q but found %q.", ErrUnexpectedIntegrityDataType, "dm-verity", params.Type)
+	}
+
+	hashFileName := dmverityHashFileName(snapPath, params.Digest)
 
 	vsb, err := readDmVeritySuperblock(hashFileName)
 	if os.IsNotExist(err) {
 		return "", fmt.Errorf("%w: %q doesn't exist.", ErrDmVerityDataNotFound, hashFileName)
 	}
-
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +162,7 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 
 // GenerateDmVerityData generates dm-verity data for a snap using the input parameters.
 func GenerateDmVerityData(snapPath string, params *IntegrityDataParams) (string, string, error) {
-	hashFileName := snapPath + ".verity"
+	tmpHashFileName := snapPath + ".dmverity_tmp"
 
 	var opts = dmverity.DmVerityParams{
 		Format:        uint8(dmverity.DefaultVerityFormat),
@@ -154,7 +173,14 @@ func GenerateDmVerityData(snapPath string, params *IntegrityDataParams) (string,
 		Salt:          params.Salt,
 	}
 
-	rootHash, err := veritysetupFormat(snapPath, hashFileName, &opts)
+	rootHash, err := veritysetupFormat(snapPath, tmpHashFileName, &opts)
+	if err != nil {
+		return "", "", err
+	}
+
+	hashFileName := dmverityHashFileName(snapPath, rootHash)
+
+	err = osRename(tmpHashFileName, hashFileName)
 	if err != nil {
 		return "", "", err
 	}
