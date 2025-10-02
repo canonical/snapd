@@ -9111,6 +9111,79 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 	c.Assert(calledEnforce, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorHookContextCompatibility(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("some-other-snap"),
+		RealName: "some-other-snap",
+	}
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{info}),
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	s.fakeStore.registerID("some-other-snap", snaptest.AssertedSnapID("some-other-snap"))
+	s.fakeStore.registerID("some-snap", snaptest.AssertedSnapID("some-snap"))
+
+	headers := map[string]any{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []any{
+			map[string]any{
+				"name":     "some-snap",
+				"id":       snaptest.AssertedSnapID("some-snap"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]any{
+				"name":     "some-other-snap",
+				"id":       snaptest.AssertedSnapID("some-other-snap"),
+				"presence": "required",
+				"revision": "2",
+			},
+		},
+	}
+
+	storeSigning := assertstest.NewStoreStack("can0nical", nil)
+	a, err := storeSigning.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	verr := &snapasserts.ValidationSetsValidationError{
+		MissingSnaps:       map[string]map[snap.Revision][]string{"some-snap": {snap.R(1): {"foo/bar"}}},
+		WrongRevisionSnaps: map[string]map[snap.Revision][]string{"some-other-snap": {snap.R(2): {"foo/bar"}}},
+		Sets:               map[string]*asserts.ValidationSet{"foo/bar": vs},
+	}
+
+	tss, _, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, nil, s.user.ID)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("resolve-validation-sets", "")
+	hookSetup := &hookstate.HookSetup{Snap: "some-snap", Hook: "install"}
+	hookTask := hookstate.HookTask(s.state, "run install hook", hookSetup, nil)
+	chg.AddTask(hookTask)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	ctx, err := hookstate.NewContext(hookTask, s.state, hookSetup, nil, "")
+	c.Assert(err, IsNil)
+
+	pending, err := ctx.PendingValidationSets()
+	c.Assert(err, IsNil)
+	c.Assert(pending, NotNil)
+	c.Assert(pending.Keys(), DeepEquals, []snapasserts.ValidationSetKey{snapasserts.NewValidationSetKey(vs)})
+}
+
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorInvalidComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
