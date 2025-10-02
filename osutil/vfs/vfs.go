@@ -87,6 +87,9 @@ type MountID int64
 // RootMountID is the mount ID of the root file system in any VFS.
 const RootMountID MountID = -1 // LSMT_ROOT
 
+// GroupID is a 64 bit identifier of a peer group.
+type GroupID int64
+
 // mount keeps track of mounted file systems.
 //
 // The key relation is [mount.parent] pointer and [mount.attachedAt] string.
@@ -104,15 +107,36 @@ type mount struct {
 
 	mountPointCache *string
 
-	// Links to parent, children and siblings. Any of those may be nil.
+	// Pointers to parent mount (where we are attached at [mount.attachedAt]),
+	// and a list of children (that have us as [mount.parent]).
+	//
+	// Kernel note: mnt_parent points to itself if the mount has no parent.
 	parent    *mount
 	children  lists.List[mount, viaChildNode]
 	childNode lists.Node[mount]
+
+	// Kernel note: mnt_share is a headless list that joins all the peers.
+	peers lists.HeadlessList[mount, viaPeers]
+
+	// Keep track of shared mounts
+	//
+	// Kernel note: kernel uses one flag field mnt_t_flags with the mask T_SHARED.
+	shared bool
+
+	group GroupID // Identifier of shared peers, when non-zero.
 }
 
+type mountChildren struct{}
+
+func (mountChildren) ChildList(m *mount) *lists.List[mount, viaChildNode] { return &m.children }
+func (mountChildren) ChildNode(m *mount) *lists.Node[mount]               { return &m.childNode }
+func (mountChildren) Parent(m *mount) *mount                              { return m.parent }
+
 type viaChildNode struct{}
+type viaPeers struct{}
 
 func (viaChildNode) Offset(m *mount) uintptr { return unsafe.Offsetof(m.childNode) }
+func (viaPeers) Offset(m *mount) uintptr     { return unsafe.Offsetof(m.peers) }
 
 func (m *mount) mountPoint() string {
 	if m == nil {
@@ -154,16 +178,24 @@ type VFS struct {
 	mu          sync.RWMutex
 	mounts      []*mount
 	nextMountID MountID
+	lastGroupID GroupID
 }
 
 // NewVFS returns a VFS with the given root file system mounted.
 func NewVFS(rootFS fs.StatFS) *VFS {
 	return &VFS{mounts: []*mount{{
+		// TODO: this should be zero, the RootMountID value is special only when searching.
 		mountID:  RootMountID,
 		parentID: RootMountID, // The rootfs is its own parent to prevent being unmounted.
-		isDir:    true,
-		fsFS:     rootFS,
+		// FIXME: [mount.parent] is nil but perhaps should not be, for consistency with the logic above.
+		isDir: true,
+		fsFS:  rootFS,
 	}}}
+}
+
+func (v *VFS) allocateGroupID() GroupID {
+	v.lastGroupID++
+	return v.lastGroupID
 }
 
 // attachMount attaches a new mount to the VFS.
@@ -193,6 +225,7 @@ func (v *VFS) detachMount(m *mount, idx int) {
 	}
 
 	m.childNode.Unlink()
+	m.peers.Unlink()
 
 	m.parent = nil
 	m.parentID = 0
@@ -367,8 +400,11 @@ func (m *mount) String() string {
 		sbOpts    = "rw"
 		fsType    = "(fstype)"
 	)
-	// TODO: propagation flags here
 	fmt.Fprintf(&sb, "%-2d %d %d:%d /%s /%s %s", m.mountID, m.parentID, major, minor, m.rootDir, m.mountPoint(), mountOpts)
+	if m.shared {
+		fmt.Fprintf(&sb, " shared:%d", m.group)
+	}
+	// TODO: print master group when master/slave is implemented.
 	fmt.Fprintf(&sb, " - %s %s %s", fsType, source, sbOpts)
 	return sb.String()
 }

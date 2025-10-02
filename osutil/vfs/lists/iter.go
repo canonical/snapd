@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package lists
 
 // TODO:GOVERSION: replace with iter.Seq after go 1.23 update.
