@@ -767,8 +767,9 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsUnhappy(c *C) {
 
 func (s *constraintsSuite) TestRuleConstraintsMarshalJSON(c *C) {
 	for _, testCase := range []struct {
-		constraints *prompting.RuleConstraints
-		expected    string
+		constraints    *prompting.RuleConstraints
+		expected       string
+		expectedPre124 string
 	}{
 		{
 			&prompting.RuleConstraints{
@@ -784,6 +785,7 @@ func (s *constraintsSuite) TestRuleConstraintsMarshalJSON(c *C) {
 				},
 			},
 			`{"path-pattern":"/path/to/**/something*/*.txt","permissions":{"execute":{"outcome":"allow","lifespan":"session","session-id":"0123456789ABCDEF"}}}`,
+			`{"path-pattern":"/path/to/**/something*/*.txt","permissions":{"execute":{"outcome":"allow","lifespan":"session","expiration":"0001-01-01T00:00:00Z","session-id":"0123456789ABCDEF"}}}`,
 		},
 		{
 			&prompting.RuleConstraints{
@@ -796,11 +798,16 @@ func (s *constraintsSuite) TestRuleConstraintsMarshalJSON(c *C) {
 				},
 			},
 			`{"permissions":{"access":{"outcome":"allow","lifespan":"forever"}}}`,
+			`{"permissions":{"access":{"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z","session-id":"0000000000000000"}}}`,
 		},
 	} {
 		result, err := testCase.constraints.MarshalJSON()
 		c.Check(err, IsNil)
-		c.Check(string(result), Equals, testCase.expected)
+		expected := testCase.expected
+		if runtime.Version() < "go1.24" {
+			expected = testCase.expectedPre124
+		}
+		c.Check(string(result), Equals, expected)
 	}
 }
 

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -97,8 +98,9 @@ func (s *requestrulesSuite) TestRuleMarshalUnmarshalJSON(c *C) {
 	sessionID := prompting.IDType(0x1123581321345589)
 
 	for _, testCase := range []struct {
-		literal    *requestrules.Rule
-		marshalled string
+		literal        *requestrules.Rule
+		expected       string
+		expectedPre124 string
 	}{
 		{
 			&requestrules.Rule{
@@ -125,6 +127,7 @@ func (s *requestrulesSuite) TestRuleMarshalUnmarshalJSON(c *C) {
 				},
 			},
 			fmt.Sprintf(`{"id":"0123456789ABCDEF","timestamp":%s,"user":1234,"snap":"firefox","interface":"home","constraints":{"path-pattern":"/home/test/foo/**","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"session","session-id":"1123581321345589"}}}}`, nowJSON),
+			fmt.Sprintf(`{"id":"0123456789ABCDEF","timestamp":%s,"user":1234,"snap":"firefox","interface":"home","constraints":{"path-pattern":"/home/test/foo/**","permissions":{"read":{"outcome":"allow","lifespan":"forever","expiration":"0001-01-01T00:00:00Z","session-id":"0000000000000000"},"write":{"outcome":"deny","lifespan":"session","expiration":"0001-01-01T00:00:00Z","session-id":"1123581321345589"}}}}`, nowJSON),
 		},
 		{
 			&requestrules.Rule{
@@ -145,14 +148,20 @@ func (s *requestrulesSuite) TestRuleMarshalUnmarshalJSON(c *C) {
 				},
 			},
 			fmt.Sprintf(`{"id":"1234123412341234","timestamp":%s,"user":1000,"snap":"thunderbird","interface":"camera","constraints":{"permissions":{"access":{"outcome":"allow","lifespan":"session","session-id":"1123581321345589"}}}}`, nowJSON),
+			fmt.Sprintf(`{"id":"1234123412341234","timestamp":%s,"user":1000,"snap":"thunderbird","interface":"camera","constraints":{"permissions":{"access":{"outcome":"allow","lifespan":"session","expiration":"0001-01-01T00:00:00Z","session-id":"1123581321345589"}}}}`, nowJSON),
 		},
 	} {
+		expected := testCase.expected
+		if runtime.Version() < "go1.24" {
+			expected = testCase.expectedPre124
+		}
+
 		marshalled, err := json.Marshal(testCase.literal)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
-		c.Check(string(marshalled), Equals, testCase.marshalled, Commentf("testCase: %+v", testCase))
+		c.Check(string(marshalled), Equals, expected, Commentf("testCase: %+v", testCase))
 
 		var unmarshalled requestrules.Rule
-		err = json.Unmarshal([]byte(testCase.marshalled), &unmarshalled)
+		err = json.Unmarshal([]byte(expected), &unmarshalled)
 		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
 		// Timestamps won't have the same monotonic time, so set timestamp to be equal
 		unmarshalled.Timestamp = testCase.literal.Timestamp
