@@ -11,7 +11,7 @@ import (
 // reading from a raw socket, readableOrStop blocks until
 // fd is readable or stop was called. To work properly it sets fd
 // to non-blocking mode.
-// TODO: with go 1.11+ it should be possible to just switch to setting
+// TODO:GOVERSION: with go 1.11+ it should be possible to just switch to setting
 // fd to non-blocking and then wrapping the socket via os.NewFile and
 // use Close to force a read to stop.
 // c.f. https://github.com/golang/go/commit/ea5825b0b64e1a017a76eac0ad734e11ff557c8e

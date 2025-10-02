@@ -420,7 +420,7 @@ func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map
 	}
 
 	if firstBadModeErr != nil {
-		// TODO: fmt.Errorf("%w: %w", ErrBadModes, firstBadModeErr) when using go 1.20+
+		// TODO:GOVERSION: fmt.Errorf("%w: %w", ErrBadModes, firstBadModeErr) when using go 1.20+
 		// TODO: aggregate bad mode errors not just the first one
 		return fmt.Errorf("%w: %v", ErrBadModes, firstBadModeErr)
 	}

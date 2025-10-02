@@ -580,7 +580,7 @@ func (as *AssembleState) Run(
 	var wg sync.WaitGroup
 
 	// channel to receive server errors that should cause the process to fail
-	// TODO: replace with [context.Cause] when we're on go >= 1.20
+	// TODO:GOVERSION: replace with [context.Cause] when we're on go >= 1.20
 	serverError := make(chan error, 1)
 
 	// start the server that handles incoming requests

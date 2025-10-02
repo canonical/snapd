@@ -484,7 +484,7 @@ func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {
 
 // min returns the smaller of the two given values.
 //
-// TODO: remove once we are on go>=1.21
+// TODO:GOVERSION: remove once we are on go>=1.21
 func min(x int, y int) int {
 	if x < y {
 		return x

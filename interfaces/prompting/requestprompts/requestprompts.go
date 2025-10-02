@@ -138,7 +138,7 @@ func (p *Prompt) containsListenerRequestID(requestID uint64) bool {
 	})
 }
 
-// TODO: replace this with slices.ContainsFunc once on go 1.21+
+// TODO:GOVERSION: replace this with slices.ContainsFunc once on go 1.21+
 func slicesContainsFunc(s []*listener.Request, f func(r *listener.Request) bool) bool {
 	for _, element := range s {
 		if f(element) {
@@ -419,7 +419,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	expiredPrompts := udb.prompts
 	// Clear all outstanding prompts for the user
 	udb.prompts = nil
-	udb.ids = make(map[prompting.IDType]int) // TODO: clear() once we're on Go 1.21+
+	udb.ids = make(map[prompting.IDType]int) // TODO:GOVERSION: clear() once we're on Go 1.21+
 
 	// Remove the request ID mappings now before unlocking the prompt DB
 	for _, p := range expiredPrompts {

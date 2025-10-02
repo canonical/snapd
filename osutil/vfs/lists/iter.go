@@ -18,7 +18,7 @@
  */
 package lists
 
-// TODO: replace with iter.Seq after go 1.23 update.
+// TODO:GOVERSION: replace with iter.Seq after go 1.23 update.
 
 // Seq is an iterator over sequences of individual values. When called as
 // seq(yield), seq calls yield(v) for each value v in the sequence, stopping

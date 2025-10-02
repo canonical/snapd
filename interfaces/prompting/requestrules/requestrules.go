@@ -818,7 +818,7 @@ func joinInternalErrors(errs []error) error {
 	if joinedErr == nil {
 		return nil
 	}
-	// TODO: wrap joinedErr as well once we're on golang v1.20+
+	// TODO:GOVERSION: wrap joinedErr as well once we're on golang v1.20+
 	return fmt.Errorf("%w\n%v", prompting_errors.ErrRuleDBInconsistent, joinedErr)
 }
 

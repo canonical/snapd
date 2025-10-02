@@ -507,7 +507,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] checking the go.sum is up to date and tidy"
     go mod tidy
-    # TODO:go: replace with go mod tidy -diff when we're running with Go 1.23+
+    # TODO:GOVERSION: replace with go mod tidy -diff when we're running with Go 1.23+
     # everywhere
     if git status | grep -q go.sum ; then
         echo "go.sum is not tidy, please run 'go mod tidy'"
