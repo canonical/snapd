@@ -13,7 +13,7 @@ details: |
   configuration files, ConfigFS for Linux-IO (LIO) target management,
   and communicate with the iSCSI daemon.
 
-# Disable tests for core environments
+# Disable tests for core environments, needs to install additional packages
 systems: [-ubuntu-core-*]
 
 environment:
@@ -32,9 +32,9 @@ prepare: |
 
   snap install test-iscsi-initiator-support-interfaces --channel=latest/edge
 
-  apt install -y socat
-  nohup socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
-  tests.cleanup defer bash -c "pkill socat || true"
+  tests.pkgs install socat
+  systemd-run --unit socat-for-test.service --collect -- socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
+  tests.cleanup defer systemctl stop socat-for-test.service
 
 execute: |
   echo "The interface is not connected by default"
