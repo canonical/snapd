@@ -966,7 +966,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) 
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityAssertionAndDataFound(c *C) {
-	asid := []asserts.SnapIntegrityData{
+	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
 			Version:       1,
@@ -1007,7 +1007,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyWithIntegrityA
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeErrorWithIntegrityAssertionAndUnassertedDataFound(c *C) {
 	assertedRootHash := "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	asid := []asserts.SnapIntegrityData{
+	asid := []asserts.IntegrityData{
 		{
 			Type:          "dm-verity",
 			Version:       1,
