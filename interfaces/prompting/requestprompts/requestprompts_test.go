@@ -1266,7 +1266,9 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
 	constraints := &prompting.RuleConstraints{
-		PathPattern: pathPattern,
+		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+			Pattern: pathPattern,
+		},
 		Permissions: prompting.RulePermissionMap{
 			"read":    &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 			"execute": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeDeny},
@@ -1324,7 +1326,9 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	// Check that allowing the final missing permission of prompt2 satisfies it
 	// with an allow response.
 	constraints = &prompting.RuleConstraints{
-		PathPattern: pathPattern,
+		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+			Pattern: pathPattern,
+		},
 		Permissions: prompting.RulePermissionMap{
 			"write": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 		},
@@ -1398,14 +1402,18 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
 	c.Assert(err, IsNil)
 	constraints := &prompting.RuleConstraints{
-		PathPattern: pathPattern,
+		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+			Pattern: pathPattern,
+		},
 		Permissions: prompting.RulePermissionMap{
 			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 		},
 	}
 
 	badOutcomeConstraints := &prompting.RuleConstraints{
-		PathPattern: pathPattern,
+		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+			Pattern: pathPattern,
+		},
 		Permissions: prompting.RulePermissionMap{
 			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeType("foo")},
 		},
@@ -1417,7 +1425,9 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	otherPattern, err := patterns.ParsePathPattern("/home/test/Pictures/**.png")
 	c.Assert(err, IsNil)
 	otherConstraints := &prompting.RuleConstraints{
-		PathPattern: otherPattern,
+		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+			Pattern: otherPattern,
+		},
 		Permissions: prompting.RulePermissionMap{
 			"read": &prompting.RulePermissionEntry{Outcome: prompting.OutcomeAllow},
 		},
@@ -1846,36 +1856,61 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 	c.Assert(err, IsNil)
 	defer pdb.Close()
 
-	metadata := &prompting.Metadata{
-		User:      s.defaultUser,
-		Snap:      "firefox",
-		PID:       1234,
-		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
-		Interface: "home",
+	timestampStr := "2024-08-14T09:47:03.350324989-05:00"
+	timestamp, err := time.Parse(time.RFC3339Nano, timestampStr)
+	c.Assert(err, IsNil)
+
+	for _, testCase := range []struct {
+		metadata         *prompting.Metadata
+		path             string
+		requestedPerms   []string
+		outstandingPerms []string
+		expected         string
+	}{
+		{
+			metadata: &prompting.Metadata{
+				User:      s.defaultUser,
+				Snap:      "firefox",
+				PID:       1234,
+				Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+				Interface: "home",
+			},
+			path:             "/home/test/foo",
+			requestedPerms:   []string{"read", "write", "execute"},
+			outstandingPerms: []string{"write", "execute"},
+			expected:         `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`,
+		},
+		{
+			metadata: &prompting.Metadata{
+				User:      s.defaultUser,
+				Snap:      "thunderbird",
+				PID:       112358,
+				Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+				Interface: "camera",
+			},
+			path:             "/dev/video0",
+			requestedPerms:   []string{"access"},
+			outstandingPerms: []string{"access"},
+			expected:         `{"id":"0000000000000002","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"thunderbird","pid":112358,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"camera","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
+		},
+	} {
+		fakeRequest := listener.Request{
+			ID: 0x1234,
+		}
+
+		prompt, merged, err := pdb.AddOrMerge(testCase.metadata, testCase.path, testCase.requestedPerms, testCase.outstandingPerms, &fakeRequest)
+		c.Assert(err, IsNil)
+		c.Check(merged, Equals, false)
+
+		// Set timestamp to known time
+		prompt.Timestamp = timestamp
+		c.Assert(err, IsNil)
+
+		marshalled, err := json.Marshal(prompt)
+		c.Assert(err, IsNil)
+
+		c.Check(string(marshalled), Equals, testCase.expected)
 	}
-	path := "/home/test/foo"
-	requestedPermissions := []string{"read", "write", "execute"}
-	outstandingPermissions := []string{"write", "execute"}
-
-	fakeRequest := listener.Request{
-		ID: 0x1234,
-	}
-
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, requestedPermissions, outstandingPermissions, &fakeRequest)
-	c.Assert(err, IsNil)
-	c.Assert(merged, Equals, false)
-
-	// Set timestamp to a known time
-	timeStr := "2024-08-14T09:47:03.350324989-05:00"
-	prompt.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
-	c.Assert(err, IsNil)
-
-	expectedJSON := `{"id":"0000000000000001","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"home","constraints":{"path":"/home/test/foo","requested-permissions":["write","execute"],"available-permissions":["read","write","execute"]}}`
-
-	marshalled, err := json.Marshal(prompt)
-	c.Assert(err, IsNil)
-
-	c.Assert(string(marshalled), Equals, string(expectedJSON))
 }
 
 func (s *requestpromptsSuite) TestPromptExpiration(c *C) {

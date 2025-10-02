@@ -63,41 +63,33 @@ const (
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
-	ID           prompting.IDType
-	Timestamp    time.Time
-	Snap         string
-	PID          int32
-	Cgroup       string
-	Interface    string
-	Constraints  *promptConstraints
-	listenerReqs []*listener.Request
+	ID           prompting.IDType    `json:"id"`
+	Timestamp    time.Time           `json:"timestamp"`
+	Snap         string              `json:"snap"`
+	PID          int32               `json:"pid"`
+	Cgroup       string              `json:"cgroup"`
+	Interface    string              `json:"interface"`
+	Constraints  *promptConstraints  `json:"constraints"`
+	listenerReqs []*listener.Request `json:"-"`
 }
 
 // jsonPrompt defines the marshalled json structure of a Prompt.
 type jsonPrompt struct {
-	ID          prompting.IDType       `json:"id"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Snap        string                 `json:"snap"`
-	PID         int32                  `json:"pid"`
-	Cgroup      string                 `json:"cgroup"`
-	Interface   string                 `json:"interface"`
-	Constraints *jsonPromptConstraints `json:"constraints"`
-}
-
-// jsonPromptConstraints defines the marshalled json structure of promptConstraints.
-type jsonPromptConstraints struct {
-	Path                 string   `json:"path"`
-	RequestedPermissions []string `json:"requested-permissions"`
-	AvailablePermissions []string `json:"available-permissions"`
+	ID          prompting.IDType `json:"id"`
+	Timestamp   time.Time        `json:"timestamp"`
+	Snap        string           `json:"snap"`
+	PID         int32            `json:"pid"`
+	Cgroup      string           `json:"cgroup"`
+	Interface   string           `json:"interface"`
+	Constraints json.RawMessage  `json:"constraints"`
 }
 
 // MarshalJSON marshals the Prompt to JSON.
 // TODO: consider having instead a MarshalForClient -> json.RawMessage method
 func (p *Prompt) MarshalJSON() ([]byte, error) {
-	constraints := &jsonPromptConstraints{
-		Path:                 p.Constraints.path,
-		RequestedPermissions: p.Constraints.outstandingPermissions,
-		AvailablePermissions: p.Constraints.availablePermissions,
+	constraintsJSON, err := p.Constraints.MarshalForInterface(p.Interface)
+	if err != nil {
+		return nil, err
 	}
 	toMarshal := &jsonPrompt{
 		ID:          p.ID,
@@ -106,7 +98,7 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		PID:         p.PID,
 		Cgroup:      p.Cgroup,
 		Interface:   p.Interface,
-		Constraints: constraints,
+		Constraints: constraintsJSON,
 	}
 	return json.Marshal(toMarshal)
 }
@@ -213,6 +205,47 @@ type promptConstraints struct {
 	// explicitly allowed by the user, even if some of those permissions were
 	// allowed by rules instead of by the direct reply to the prompt.
 	originalPermissions []string
+}
+
+// promptConstraintsJSONHome defines the marshalled json structure of
+// promptConstraints for the home interface.
+type promptConstraintsJSONHome struct {
+	Path                 string   `json:"path"`
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+// promptConstraintsJSONCamera defines the marshalled json structure of
+// promptConstraints for the camera interface.
+type promptConstraintsJSONCamera struct {
+	RequestedPermissions []string `json:"requested-permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
+}
+
+func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
+	panic("programmer error: cannot marshal promptConstraints directly; must use MarshalForInterface with a given interface")
+}
+
+func (pc *promptConstraints) MarshalForInterface(iface string) ([]byte, error) {
+	switch iface {
+	case "home":
+		constraintsJSON := &promptConstraintsJSONHome{
+			Path:                 pc.path,
+			RequestedPermissions: pc.outstandingPermissions,
+			AvailablePermissions: pc.availablePermissions,
+		}
+		return json.Marshal(constraintsJSON)
+	case "camera":
+		constraintsJSON := &promptConstraintsJSONCamera{
+			RequestedPermissions: pc.outstandingPermissions,
+			AvailablePermissions: pc.availablePermissions,
+		}
+		return json.Marshal(constraintsJSON)
+	default:
+		// This should never occur, as prompts can only be created with known
+		// good interfaces.
+		return nil, fmt.Errorf("internal error: invalid interface: %q", iface)
+	}
 }
 
 // equals returns true if the two prompt constraints apply to the same path and
