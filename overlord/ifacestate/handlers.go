@@ -1389,7 +1389,7 @@ func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap
 var isSnapVerified = func(st *state.State, snapID string) bool {
 	acc, err := assertstate.Publisher(st, snapID)
 	if err != nil {
-		logger.Debugf("cannot retrieve publisher assertion for %q", snapID)
+		logger.Debugf("cannot retrieve publisher assertion for %q: %v", snapID, err)
 		return false
 	}
 	return acc.Validation() == "verified"
