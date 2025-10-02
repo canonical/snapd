@@ -599,6 +599,27 @@ func (iface *mountControlInterface) BeforeConnectPlug(plug *interfaces.Connected
 	return nil
 }
 
+func expandMountWhereVariable(where string, si *snap.Info) (string, error) {
+	if where[0] != '$' {
+		return where, nil
+	}
+
+	matches := whereRegexp.FindStringSubmatchIndex(where)
+	if len(matches) < 4 {
+		// This cannot really happen, as the string wouldn't pass the validation
+		return "", fmt.Errorf(`internal error: "where" fails to match regexp: %q`, where)
+	}
+	// the first two elements in "matches" are the boundaries of the whole
+	// string; the next two are the boundaries of the first match, which is
+	// what we care about as it contains the environment variable we want
+	// to expand:
+	variableStart, variableEnd := matches[2], matches[3]
+	variable := where[variableStart:variableEnd]
+	expanded := si.ExpandSnapVariables(variable)
+	target := expanded + where[variableEnd:]
+	return target, nil
+}
+
 func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	mountControlSnippet := bytes.NewBuffer(nil)
 	emit := func(f string, args ...any) {
@@ -625,21 +646,9 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	enumerateMounts(plug, func(mountInfo *MountInfo) error {
 
 		source := mountInfo.what
-		target := mountInfo.where
-		if target[0] == '$' {
-			matches := whereRegexp.FindStringSubmatchIndex(target)
-			if matches == nil || len(matches) < 4 {
-				// This cannot really happen, as the string wouldn't pass the validation
-				return fmt.Errorf(`internal error: "where" fails to match regexp: %q`, mountInfo.where)
-			}
-			// the first two elements in "matches" are the boundaries of the whole
-			// string; the next two are the boundaries of the first match, which is
-			// what we care about as it contains the environment variable we want
-			// to expand:
-			variableStart, variableEnd := matches[2], matches[3]
-			variable := target[variableStart:variableEnd]
-			expanded := snapInfo.ExpandSnapVariables(variable)
-			target = expanded + target[variableEnd:]
+		target, err := expandMountWhereVariable(mountInfo.where, snapInfo)
+		if err != nil {
+			return err
 		}
 
 		if mountInfo.isType("nfs") {
