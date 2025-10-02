@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type iscsiInitiatorSupportInterfaceSuite struct {
+type iscsiInitiatorInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -39,35 +39,35 @@ type iscsiInitiatorSupportInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-const iscsiInitiatorSupportMockPlugSnapInfoYaml = `name: other
+const iscsiInitiatorMockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
  app:
   command: foo
-  plugs: [iscsi-initiator-support]
+  plugs: [iscsi-initiator]
 `
 
-const iscsiInitiatorSupportCoreYaml = `name: core
+const iscsiInitiatorCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  iscsi-initiator-support:
+  iscsi-initiator:
 `
 
-var _ = Suite(&iscsiInitiatorSupportInterfaceSuite{
-	iface: builtin.MustInterface("iscsi-initiator-support"),
+var _ = Suite(&iscsiInitiatorInterfaceSuite{
+	iface: builtin.MustInterface("iscsi-initiator"),
 })
 
-func (s *iscsiInitiatorSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slot, s.slotInfo = MockConnectedSlot(c, iscsiInitiatorSupportCoreYaml, nil, "iscsi-initiator-support")
-	s.plug, s.plugInfo = MockConnectedPlug(c, iscsiInitiatorSupportMockPlugSnapInfoYaml, nil, "iscsi-initiator-support")
+func (s *iscsiInitiatorInterfaceSuite) SetUpTest(c *C) {
+	s.slot, s.slotInfo = MockConnectedSlot(c, iscsiInitiatorCoreYaml, nil, "iscsi-initiator")
+	s.plug, s.plugInfo = MockConnectedPlug(c, iscsiInitiatorMockPlugSnapInfoYaml, nil, "iscsi-initiator")
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "iscsi-initiator-support")
+func (s *iscsiInitiatorInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "iscsi-initiator")
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -76,7 +76,7 @@ func (s *iscsiInitiatorSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	apparmorSpec := apparmor.NewSpecification(appSet)
@@ -88,15 +88,15 @@ func (s *iscsiInitiatorSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "unix (send, receive, connect) type=stream peer=(addr=\"@ISCSIADM_ABSTRACT_NAMESPACE\"),")
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestKModConnectedPlug(c *C) {
 	spec := &kmod.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -106,7 +106,7 @@ func (s *iscsiInitiatorSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 	})
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
@@ -116,6 +116,6 @@ func (s *iscsiInitiatorSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
-func (s *iscsiInitiatorSupportInterfaceSuite) TestInterfaces(c *C) {
+func (s *iscsiInitiatorInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

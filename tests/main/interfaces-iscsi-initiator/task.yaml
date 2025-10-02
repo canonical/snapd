@@ -1,11 +1,11 @@
-summary: Ensure that the iscsi-initiator-support interface works.
+summary: Ensure that the iscsi-initiator interface works.
 
 details: |
-  The iscsi-initiator-support interface allows snaps to act as iSCSI initiators,
+  The iscsi-initiator interface allows snaps to act as iSCSI initiators,
   enabling them to discover, connect to, and manage iSCSI targets for
   block storage access.
 
-  A snap which defines an iscsi-initiator-support plug must be shown in the interfaces
+  A snap which defines an iscsi-initiator plug must be shown in the interfaces
   list. The plug must not be auto-connected on install and, as usual, must be
   able to be reconnected.
 
@@ -17,7 +17,7 @@ details: |
 systems: [-ubuntu-core-*]
 
 environment:
-  TEST_SNAP: test-iscsi-initiator-support-interfaces
+  TEST_SNAP: test-iscsi-initiator-interfaces
 
 prepare: |
   echo "Create test iSCSI configuration directory structure"
@@ -38,10 +38,10 @@ prepare: |
 
 execute: |
   echo "The interface is not connected by default"
-  snap interfaces -i iscsi-initiator-support | MATCH -- '- +'"$TEST_SNAP"':iscsi-initiator-support'
+  snap interfaces -i iscsi-initiator | MATCH -- '- +'"$TEST_SNAP"':iscsi-initiator'
 
   echo "When the interface is connected"
-  snap connect "$TEST_SNAP":iscsi-initiator-support
+  snap connect "$TEST_SNAP":iscsi-initiator
 
   echo "Then the snap is able to access iSCSI configuration files"
   "$TEST_SNAP".client -c "test -r /etc/iscsi/initiatorname.iscsi"
@@ -75,7 +75,7 @@ execute: |
   fi
 
   echo "When the plug is disconnected"
-  snap disconnect "$TEST_SNAP":iscsi-initiator-support
+  snap disconnect "$TEST_SNAP":iscsi-initiator
 
   echo "Then the snap is not able to access iSCSI configuration files"
   if ! "$TEST_SNAP".client -c "test -r /etc/iscsi/initiatorname.iscsi"; then
@@ -98,4 +98,4 @@ execute: |
   fi
 
   echo "Then the interface can be connected again"
-  snap connect "$TEST_SNAP":iscsi-initiator-support
+  snap connect "$TEST_SNAP":iscsi-initiator
