@@ -15,14 +15,14 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # no need to remove the pkgs in restore, restore_suite_each()
     # will handle this
-    tests.pkgs install gdb
-    tests.pkgs install gdbserver || tests.pkgs install gdb-gdbserver || true
+    tests.pkgs install gdb gdbserver
 
 execute: |
     echo "Test snap run --gdbserver works"
 
     # run the gdbserver command as a user
     # XXX: use "systemd-run --user -p StandardOutput=file:$(pwd)/stdout"
+    # use bash to properly resolve $UID for cases in which the test user's default shell is not bash (debian)
     # shellcheck disable=SC2016
     su -s /bin/bash -c 'snap run "$OPT" test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
 
