@@ -21,10 +21,6 @@ package asserts
 
 import (
 	"bytes"
-	"crypto/dsa"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -144,7 +140,7 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// checkStringIsPEM check if string is the body of a parsable form (PEM).
+// checkStringIsPEM checks if string is the body of a parsable form (PEM).
 // It assumes the BEGIN and END lines are omitted. The function returns a
 // a non-nil error if the strings fails to be a PEM.
 func checkStringIsPEM(data []byte) error {
@@ -156,16 +152,10 @@ func checkStringIsPEM(data []byte) error {
 	// the PEM block can never be nil as we added begin and end lines
 	block, _ := pem.Decode(bb.Bytes())
 	
-	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	_, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		return err
 	}	
-
-	switch pub := pubKey.(type) {
-	case *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey, ed25519.PublicKey:
-	default:
-		return fmt.Errorf("unsupported type of public key: %v", pub)
-	}
 
 	return nil
 }

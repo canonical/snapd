@@ -67,6 +67,7 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 	const (
 		hardwareKeyID        = "hardware-id-key: TUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FDaVFjaFlNVFAra25jNnZtUFd3SC9tMThqbApIRVN5U0wyZFBIb25lQ1dnOUFuMlM0N3ZBQ1VJd3ZlU0FDRHFHam5Ld3JvcFM3Rmw1cTVFTTZNQXlIUElkSmJwCmdXUFV6bHJBRTRZc2M4VDh5QTUwUlRPaVFPc0x4MHZUMnFHU0kzYk16bFU3bkhyZW0zWXRNOUErbjlGUEVuOVAKT2hNaGVyZkExekVFVmkvSWZ3SURBUUFC\n"
+		// create hardware key with algorithm not supported by go crypto library
 		elGamalhardwareKey   = "hardware-id-key: TUZNd09BWUdLdzRIQWdFQk1DNENGUUR0Z0dwZGNhdXkraExpSFF2TzFVV240ck90Q3dJVkFPdmg2OEZYNjBHVQo1TllFOW05MzJESDhYOFpvQXhjQUFoUU5PdEFNYktUazdqQi9FSlgvaWJ3bGVpWFpDZz09\n"
 		hardwareKeyIDSha3384 = "hardware-id-key-sha3-384: 20HX1SS8dJW8tNCmybAdP7frkn0dmEV9DdwIABskpSsxBUaylHA6oO8dSj+ORWXa\n"
 	)
