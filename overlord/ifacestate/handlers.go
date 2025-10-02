@@ -1387,8 +1387,12 @@ func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap
 
 // Keep this separate to allow mocking
 var isSnapVerified = func(st *state.State, snapID string) bool {
-	_, err := assertstate.SnapDeclaration(st, snapID)
-	return err == nil
+	acc, err := assertstate.Publisher(st, snapID)
+	if err != nil {
+		logger.Debugf("cannot retrieve publisher assertion for %q", snapID)
+		return false
+	}
+	return acc.Validation() == "verified"
 }
 
 func getAllowOptionAsString(inter string, tr *config.Transaction) (string, error) {
