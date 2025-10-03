@@ -59,6 +59,7 @@ func getAskPasswordMessage(authType sb.UserAuthType) (string, error) {
 	}
 }
 
+// RequestUserCredential implements AuthRequestor.RequestUserCredential
 func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, path string, authTypes sb.UserAuthType) (string, error) {
 	fmtMessage, err := getAskPasswordMessage(authTypes)
 	if err != nil {
@@ -100,6 +101,8 @@ func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, 
 	return strings.TrimRight(result, "\n"), nil
 }
 
+// NewSystemdAuthRequestor creates an AuthRequestor
+// which calls systemd-ask-password with credential parameter.
 func NewSystemdAuthRequestor() sb.AuthRequestor {
 	return &systemdAuthRequestor{}
 }
