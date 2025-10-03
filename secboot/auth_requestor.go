@@ -38,36 +38,33 @@ import (
 type systemdAuthRequestor struct {
 }
 
-func getAskPasswordMessage(authType sb.UserAuthType) (string, error) {
+func getAskPasswordMessage(authType sb.UserAuthType, name, path string) (string, error) {
+	var fmtMsg string
 	switch authType {
 	case sb.UserAuthTypePassphrase:
-		return "Enter passphrase for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter passphrase for %[1]s (%[2]s):"
 	case sb.UserAuthTypePIN:
-		return "Enter PIN for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter PIN for %[1]s (%[2]s):"
 	case sb.UserAuthTypeRecoveryKey:
-		return "Enter recovery key for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter recovery key for %[1]s (%[2]s):"
 	case sb.UserAuthTypePassphrase | sb.UserAuthTypePIN:
-		return "Enter passphrase or PIN for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter passphrase or PIN for %[1]s (%[2]s):"
 	case sb.UserAuthTypePassphrase | sb.UserAuthTypeRecoveryKey:
-		return "Enter passphrase or recovery key for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter passphrase or recovery key for %[1]s (%[2]s):"
 	case sb.UserAuthTypePIN | sb.UserAuthTypeRecoveryKey:
-		return "Enter PIN or recovery key for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter PIN or recovery key for %[1]s (%[2]s):"
 	case sb.UserAuthTypePassphrase | sb.UserAuthTypePIN | sb.UserAuthTypeRecoveryKey:
-		return "Enter passphrase, PIN or recovery key for %[1]s (%[2]s):", nil
+		fmtMsg = "Enter passphrase, PIN or recovery key for %[1]s (%[2]s):"
 	default:
 		return "", errors.New("unexpected UserAuthType")
 	}
+	return fmt.Sprintf(fmtMsg, name, path), nil
 }
 
 // RequestUserCredential implements AuthRequestor.RequestUserCredential
 func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, path string, authTypes sb.UserAuthType) (string, error) {
-	fmtMessage, err := getAskPasswordMessage(authTypes)
-	if err != nil {
-		return "", err
-	}
-
 	enableCredential := true
-	err = systemd.EnsureAtLeast(249)
+	err := systemd.EnsureAtLeast(249)
 	if systemd.IsSystemdTooOld(err) {
 		enableCredential = false
 	}
@@ -81,7 +78,10 @@ func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, 
 		args = append(args, "--credential=snapd.fde.password")
 	}
 
-	msg := fmt.Sprintf(fmtMessage, name, path)
+	msg, err := getAskPasswordMessage(authTypes, name, path)
+	if err != nil {
+		return "", err
+	}
 	args = append(args, msg)
 
 	cmd := exec.CommandContext(
