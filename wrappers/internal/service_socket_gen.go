@@ -35,8 +35,8 @@ import (
 func renderListenStream(socket *snap.SocketInfo) string {
 	s := socket.App.Snap
 	listenStream := socket.ListenStream
-	switch socket.App.DaemonScope {
-	case snap.SystemDaemon:
+	switch {
+	case socket.App.DaemonScope.IsSystemDaemon():
 		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
 		// TODO: when we support User/Group in the generated
 		// systemd unit, adjust this accordingly
@@ -44,7 +44,7 @@ func renderListenStream(socket *snap.SocketInfo) string {
 		runtimeDir := s.UserXdgRuntimeDir(serviceUserUid)
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
 		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", s.CommonDataDir(), -1)
-	case snap.UserDaemon:
+	case socket.App.DaemonScope.IsUserDaemon():
 		// TODO: use SnapDirOpts here. User daemons are also an experimental
 		// feature so, for simplicity, we can not pass opts here for now
 		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h", nil), -1)
@@ -99,10 +99,10 @@ WantedBy={{.SocketsTarget}}
 		SocketInfo:      socket,
 		ListenStream:    listenStream,
 	}
-	switch appInfo.DaemonScope {
-	case snap.SystemDaemon:
+	switch {
+	case appInfo.DaemonScope.IsSystemDaemon():
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
-	case snap.UserDaemon:
+	case appInfo.DaemonScope.IsUserDaemon():
 		// nothing
 	default:
 		panic("unknown snap.DaemonScope")

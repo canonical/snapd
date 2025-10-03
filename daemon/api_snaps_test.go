@@ -1256,31 +1256,31 @@ UnitFileState=enabled
 					// services
 					Snap: "foo", Name: "svc1",
 					Daemon:      "simple",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     true,
 					Active:      false,
 				}, {
 					Snap: "foo", Name: "svc2",
 					Daemon:      "forking",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     false,
 					Active:      true,
 				}, {
 					Snap: "foo", Name: "svc3",
 					Daemon:      "oneshot",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     true,
 					Active:      true,
 				}, {
 					Snap: "foo", Name: "svc4",
 					Daemon:      "notify",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     false,
 					Active:      false,
 				}, {
 					Snap: "foo", Name: "svc5",
 					Daemon:      "simple",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     true,
 					Active:      false,
 					Activators: []client.AppActivator{
@@ -1289,7 +1289,7 @@ UnitFileState=enabled
 				}, {
 					Snap: "foo", Name: "svc6",
 					Daemon:      "simple",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     true,
 					Active:      false,
 					Activators: []client.AppActivator{
@@ -1298,7 +1298,7 @@ UnitFileState=enabled
 				}, {
 					Snap: "foo", Name: "svc7",
 					Daemon:      "simple",
-					DaemonScope: snap.SystemDaemon,
+					DaemonScope: snap.SystemDaemonScope,
 					Enabled:     true,
 					Active:      false,
 					Activators: []client.AppActivator{

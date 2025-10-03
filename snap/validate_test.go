@@ -56,7 +56,7 @@ func createSampleApp() *AppInfo {
 		},
 		Name:        "foo",
 		Daemon:      "simple",
-		DaemonScope: SystemDaemon,
+		DaemonScope: SystemDaemonScope,
 		Plugs:       map[string]*PlugInfo{"network-bind": {}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
@@ -316,7 +316,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	app := createSampleApp()
 	app.Daemon = "simple"
-	app.DaemonScope = SystemDaemon
+	app.DaemonScope = SystemDaemonScope
 	invalidListenAddresses := []string{
 		"10.0.1.1:8080",
 		"[fafa::baba]:8080",
@@ -353,7 +353,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 
 func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *C) {
 	app := createSampleApp()
-	app.DaemonScope = UserDaemon
+	app.DaemonScope = UserDaemonScope
 	validListenAddresses := []string{
 		// socket paths using variables as prefix
 		"$SNAP_USER_DATA/my.socket",
@@ -380,7 +380,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *
 
 func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) {
 	app := createSampleApp()
-	app.DaemonScope = UserDaemon
+	app.DaemonScope = UserDaemonScope
 	invalidListenAddresses := []string{
 		// socket paths out of the snap dirs
 		"/some/path/my.socket",
@@ -398,7 +398,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) 
 
 func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamAbstractSocket(c *C) {
 	app := createSampleApp()
-	app.DaemonScope = UserDaemon
+	app.DaemonScope = UserDaemonScope
 	invalidListenAddresses := []string{
 		"@snap.mysnap",
 		"@snap.mysnap\000.foo",
@@ -416,7 +416,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamAbstractSoc
 
 func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPort(c *C) {
 	app := createSampleApp()
-	app.DaemonScope = UserDaemon
+	app.DaemonScope = UserDaemonScope
 	invalidListenAddresses := []string{
 		"0",
 		"66536",
@@ -476,7 +476,7 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	} {
 		var daemonScope DaemonScope
 		if t.daemon != "" {
-			daemonScope = SystemDaemon
+			daemonScope = SystemDaemonScope
 		}
 		if t.ok {
 			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope}), IsNil)
@@ -494,12 +494,12 @@ func (s *ValidateSuite) TestAppDaemonScopeValue(c *C) {
 	}{
 		// good
 		{"", "", true},
-		{"simple", SystemDaemon, true},
-		{"simple", UserDaemon, true},
+		{"simple", SystemDaemonScope, true},
+		{"simple", UserDaemonScope, true},
 		// bad
 		{"simple", "", false},
-		{"", SystemDaemon, false},
-		{"", UserDaemon, false},
+		{"", SystemDaemonScope, false},
+		{"", UserDaemonScope, false},
 		{"simple", "invalid-mode", false},
 	} {
 		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: t.daemonScope}
@@ -538,9 +538,9 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemonScope, StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemonScope, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
 
@@ -569,7 +569,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	} {
 		var daemonScope DaemonScope
 		if t.daemon != "" {
-			daemonScope = SystemDaemon
+			daemonScope = SystemDaemonScope
 		}
 
 		err := ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope, RefreshMode: t.refreshMode})
@@ -2211,7 +2211,7 @@ func (s *ValidateSuite) TestAppInstallMode(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
-		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, InstallMode: t.installMode})
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemonScope, InstallMode: t.installMode})
 		if t.ok {
 			c.Check(err, IsNil)
 		} else {

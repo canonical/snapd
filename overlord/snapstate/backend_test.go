@@ -403,7 +403,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Snap:        info,
 				Name:        "dbus-daemon",
 				Daemon:      "simple",
-				DaemonScope: snap.SystemDaemon,
+				DaemonScope: snap.SystemDaemonScope,
 				ActivatesOn: []*snap.SlotInfo{slot},
 				Slots: map[string]*snap.SlotInfo{
 					slot.Name: slot,

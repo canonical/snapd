@@ -74,7 +74,7 @@ func splitServicesIntoSystemAndUser(apps []*snap.AppInfo) (sys, usr []*snap.AppI
 		if !app.IsService() {
 			continue
 		}
-		if app.DaemonScope == snap.SystemDaemon {
+		if app.DaemonScope.IsSystemDaemon() {
 			sys = append(sys, app)
 		} else {
 			usr = append(usr, app)

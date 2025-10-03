@@ -472,7 +472,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 		}
 		// Daemons default to being system daemons
 		if app.Daemon != "" && app.DaemonScope == "" {
-			app.DaemonScope = SystemDaemon
+			app.DaemonScope = SystemDaemonScope
 		}
 
 		snap.Apps[appName] = app

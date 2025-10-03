@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
+const GRAPHICAL_SESSION_TARGET = "graphical-session.target"
+
 // SnapServicesUnitOptions is a struct for controlling the generated service
 // definition for a snap service.
 type SnapServicesUnitOptions struct {
@@ -133,8 +135,17 @@ Wants={{.PrerequisiteTarget}}
 {{- if .After}}
 After={{ stringsJoin .After " " }}
 {{- end}}
+{{- if .Requisite}}
+Requisite={{ stringsJoin .Requisite " " }}
+{{- end}}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
+{{- end}}
+{{- if .BindsTo}}
+BindsTo={{ stringsJoin .BindsTo " " }}
+{{- end}}
+{{- if .PartOf}}
+PartOf={{ stringsJoin .PartOf " " }}
 {{- end}}
 {{- if .CoreMountedSnapdSnapDep}}
 Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
@@ -268,6 +279,10 @@ WantedBy={{.ServicesTarget}}
 		Before                   []string
 		After                    []string
 		Requires                 []string
+		BindsTo                  []string
+		WantedBy                 []string
+		PartOf                   []string
+		Requisite                []string
 		InterfaceServiceSnippets string
 		InterfaceUnitSnippets    string
 		SliceUnit                string
@@ -292,25 +307,38 @@ WantedBy={{.ServicesTarget}}
 		OOMAdjustScore: oomAdjustScore,
 		BusName:        busName,
 
-		Before: generateServiceNames(appInfo.Snap, appInfo.Before),
-		After:  generateServiceNames(appInfo.Snap, appInfo.After),
+		Before:    generateServiceNames(appInfo.Snap, appInfo.Before),
+		After:     generateServiceNames(appInfo.Snap, appInfo.After),
+		BindsTo:   generateServiceNames(appInfo.Snap, appInfo.BindsTo),
+		PartOf:    generateServiceNames(appInfo.Snap, appInfo.PartOf),
+		Requisite: generateServiceNames(appInfo.Snap, appInfo.Requisite),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	switch appInfo.DaemonScope {
-	case snap.SystemDaemon:
+	switch {
+	case appInfo.DaemonScope.IsSystemDaemon():
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(dirs.StripRootDir(appInfo.Snap.MountDir())))
 		wrapperData.Requires = append(wrapperData.Requires, wrapperData.MountUnit)
 		wrapperData.WorkingDir = dirs.StripRootDir(appInfo.Snap.DataDir())
 		wrapperData.After = append(wrapperData.After, "snapd.apparmor.service")
-	case snap.UserDaemon:
+	case appInfo.DaemonScope.IsUserDaemon():
 		wrapperData.ServicesTarget = systemd.UserServicesTarget
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		if appInfo.DaemonScope == snap.GraphicalUserDaemonScope {
+			wrapperData.After = append(wrapperData.After, GRAPHICAL_SESSION_TARGET)
+			if appInfo.Daemon == "dbus" || len(appInfo.Sockets) != 0 {
+				wrapperData.PartOf = append(wrapperData.PartOf, GRAPHICAL_SESSION_TARGET)
+			} else {
+				wrapperData.BindsTo = append(wrapperData.BindsTo, GRAPHICAL_SESSION_TARGET)
+			}
+			wrapperData.ServicesTarget = GRAPHICAL_SESSION_TARGET
+			wrapperData.Requisite = append(wrapperData.Requisite, GRAPHICAL_SESSION_TARGET)
+		}
 	default:
 		panic("unknown snap.DaemonScope")
 	}

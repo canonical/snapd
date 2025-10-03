@@ -228,24 +228,28 @@ func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {
 }
 
 func (s *typeSuite) TestYamlMarshalDaemonScopes(c *C) {
-	out, err := yaml.Marshal(SystemDaemon)
+	out, err := yaml.Marshal(SystemDaemonScope)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "system\n")
 
-	out, err = yaml.Marshal(UserDaemon)
+	out, err = yaml.Marshal(UserDaemonScope)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "user\n")
+
+	out, err = yaml.Marshal(GraphicalUserDaemonScope)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "user-graphical-session\n")
 }
 
 func (s *typeSuite) TestYamlUnmarshalDaemonScopes(c *C) {
 	var daemonScope DaemonScope
 	err := yaml.Unmarshal([]byte("system"), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonScope, Equals, SystemDaemon)
+	c.Check(daemonScope, Equals, SystemDaemonScope)
 
 	err = yaml.Unmarshal([]byte("user"), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonScope, Equals, UserDaemon)
+	c.Check(daemonScope, Equals, UserDaemonScope)
 }
 
 func (s *typeSuite) TestYamlUnmarshalInvalidDaemonScopes(c *C) {
@@ -260,11 +264,11 @@ func (s *typeSuite) TestYamlUnmarshalInvalidDaemonScopes(c *C) {
 }
 
 func (s *typeSuite) TestJsonMarshalDaemonScopes(c *C) {
-	out, err := json.Marshal(SystemDaemon)
+	out, err := json.Marshal(SystemDaemonScope)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"system\"")
 
-	out, err = json.Marshal(UserDaemon)
+	out, err = json.Marshal(UserDaemonScope)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"user\"")
 }
@@ -273,11 +277,11 @@ func (s *typeSuite) TestJsonUnmarshalDaemonScopes(c *C) {
 	var daemonScope DaemonScope
 	err := json.Unmarshal([]byte("\"system\""), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonScope, Equals, SystemDaemon)
+	c.Check(daemonScope, Equals, SystemDaemonScope)
 
 	err = json.Unmarshal([]byte("\"user\""), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonScope, Equals, UserDaemon)
+	c.Check(daemonScope, Equals, UserDaemonScope)
 }
 
 func (s *typeSuite) TestJsonUnmarshalInvalidDaemonScopes(c *C) {
@@ -306,4 +310,19 @@ func (s *typeSuite) TestComponentTypeFromString(c *C) {
 
 	_, err = ComponentTypeFromString("invalid")
 	c.Assert(err, ErrorMatches, "invalid component type \"invalid\"")
+}
+
+func (s *typeSuite) TestDaemonTypeFromDaemonScope(c *C) {
+	systemScope := DaemonScope("system")
+	c.Assert(systemScope.IsSystemDaemon(), Equals, true)
+	c.Assert(systemScope.IsUserDaemon(), Equals, false)
+	userScope := DaemonScope("user")
+	c.Assert(userScope.IsUserDaemon(), Equals, true)
+	c.Assert(userScope.IsSystemDaemon(), Equals, false)
+	graphicalScope := DaemonScope("user-graphical-session")
+	c.Assert(graphicalScope.IsUserDaemon(), Equals, true)
+	c.Assert(graphicalScope.IsSystemDaemon(), Equals, false)
+	emptyScope := DaemonScope("")
+	c.Assert(emptyScope.IsSystemDaemon(), Equals, false)
+	c.Assert(emptyScope.IsUserDaemon(), Equals, false)
 }

@@ -80,7 +80,7 @@ WantedBy=sockets.target
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemonScope,
 		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {

@@ -103,7 +103,7 @@ func (s *serviceScopeSuite) TestFmtServiceStatus(c *C) {
 		Name:        "bar",
 		Active:      true,
 		Enabled:     true,
-		DaemonScope: snap.UserDaemon,
+		DaemonScope: snap.UserDaemonScope,
 	}, clientutil.FmtServiceStatusOptions{})
 	c.Check(out, Equals, "test-snap.bar\tenabled\tactive\t-")
 
@@ -112,7 +112,7 @@ func (s *serviceScopeSuite) TestFmtServiceStatus(c *C) {
 		Name:        "bar",
 		Active:      true,
 		Enabled:     true,
-		DaemonScope: snap.UserDaemon,
+		DaemonScope: snap.UserDaemonScope,
 	}, clientutil.FmtServiceStatusOptions{
 		IsUserGlobal: true,
 	})
