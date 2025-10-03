@@ -46,7 +46,7 @@ dbus (send)
     path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
     member=StartTransientUnit
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
 
 # No mediation of which unit can be killed.
 dbus (send)
@@ -54,7 +54,7 @@ dbus (send)
     path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
     member=KillUnit
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
 
 # Allow observing the JobRemoved signal which informs the caller of
 # StartTransientUnit that the job has been dispatched and that the one-shot
@@ -64,7 +64,7 @@ dbus (receive)
     path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
     member=JobRemoved
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
 
 # Allow observing PropertiesChanged signals from any service. This conveys,
 # among others, completion of the service as well as the exit status of the
@@ -74,7 +74,7 @@ dbus (receive)
     path=/org/freedesktop/systemd1/unit/*_2eservice
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
 `
 
 func init() {
