@@ -13,6 +13,7 @@ systems:
     - -centos-9-*
     - -amazon-*
     - -ubuntu-core*
+    - -ubuntu-16.04-64
 
 environment:
     domain_name: example.com
@@ -118,7 +119,6 @@ prepare: |
     envsubst < data.ldif | ldapadd -x -D "${admin_dn}" -w "${admin_pw}"
 
     if [ "$AUTHTYPE" = "ldap" ]; then
-
         sed -i "s/^uri.*ldap.*/uri ldap\:\/\/${host_name}/" /etc/nslcd.conf
         sed -i "s/^base.*/base ${ldap_suffix}/" /etc/nslcd.conf
         sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
@@ -127,7 +127,6 @@ prepare: |
         systemctl restart nslcd nscd
 
     elif [ "$AUTHTYPE" = "krb5" ]; then
-
         # setup some defaults
         envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
         envsubst < krb5.conf > /etc/krb5.conf
@@ -154,11 +153,6 @@ prepare: |
 
     # enable home directory creation
     pam-auth-update --enable mkhomedir
-    # pam-auth-update --enable mkhomedir isn't enough for 16.04
-    # so add the mkhomedir module manually here if not already present
-    if ! grep -qE "^session.*pam_mkhomedir\.so" /etc/pam.d/common-session; then
-        echo "session optional pam_mkhomedir.so" >> /etc/pam.d/common-session
-    fi
     tests.cleanup defer rm -rf /home/${ldap_user}
 
     snap install test-snapd-sh
@@ -187,9 +181,6 @@ execute: |
         exit 1
     fi
 
-
-    # TODO enable this check when snapd is able to see users by other NSS ID providers
-    # # check that an LDAP user can be seen also inside a snap
-    # getent passwd "$ldap_user" > expected.txt
-    # snap run --shell test-snapd-sh.sh -c "getent passwd $ldap_user" > actual.txt
-    # diff -u actual.txt expected.txt
+    # TODO: Switch from NOMATCH to MATCH when snapd is able to see users by other NSS ID providers.
+    #       Currently, we expect the ldap user to not be visible (https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1963864).
+    snap run --shell test-snapd-sh.sh -c "getent passwd" | NOMATCH "$(getent passwd "$ldap_user")"
