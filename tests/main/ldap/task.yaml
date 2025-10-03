@@ -163,12 +163,10 @@ restore: |
     diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
     packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
     if [ -n "$packages" ]; then
-        # shellcheck disable=SC2086
-        tests.pkgs remove $packages
         # purge install traces of the packages so that if installed again
         # sssd will modify the /etc/nsswitch.conf file
         # shellcheck disable=SC2086
-        apt purge -y $packages
+        tests.pkgs remove --purge $packages
     fi
 
 execute: |
