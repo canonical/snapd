@@ -183,13 +183,38 @@ const (
 	KillReasonOther       AppKillReason = ""
 )
 
+// DaemonType represents whether the daemon is an user or system daemon at systemd level
+type DaemonType string
+
+const (
+	SystemDaemon DaemonType = "system"
+	UserDaemon   DaemonType = "user"
+)
+
 // DaemonScope represents the scope of the daemon running under systemd
+// To add new scopes, just include them here and modify the GetDaemonType()
+// method to map them to either system or user daemons. Finally, in the
+// corresponding XXX_gen.go code, add a check for the new scopes in the
+// method where the unit file is created.
 type DaemonScope string
 
 const (
-	SystemDaemon DaemonScope = "system"
-	UserDaemon   DaemonScope = "user"
+	SystemDaemonScope        DaemonScope = "system"
+	UserDaemonScope          DaemonScope = "user"
+	GraphicalUserDaemonScope DaemonScope = "graphical-user"
 )
+
+// Returns the daemon type based on the daemon scope
+func (daemonScope DaemonScope) GetDaemonType() DaemonType {
+	switch daemonScope {
+	case UserDaemonScope, GraphicalUserDaemonScope:
+		return UserDaemon
+	case SystemDaemonScope:
+		return SystemDaemon
+	default:
+		return ""
+	}
+}
 
 // UnmarshalJSON sets *daemonScope to a copy of data, assuming validation passes
 func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
@@ -213,7 +238,7 @@ func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(any) error) error {
 
 func (daemonScope *DaemonScope) fromString(str string) error {
 	d := DaemonScope(str)
-	if d != SystemDaemon && d != UserDaemon {
+	if d != SystemDaemonScope && d != UserDaemonScope && d != GraphicalUserDaemonScope {
 		return fmt.Errorf("invalid daemon scope: %q", str)
 	}
 

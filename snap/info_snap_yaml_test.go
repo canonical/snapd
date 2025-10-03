@@ -1592,7 +1592,7 @@ apps:
 		Name:            "svc",
 		Command:         "svc1",
 		Daemon:          "forking",
-		DaemonScope:     snap.SystemDaemon,
+		DaemonScope:     snap.SystemDaemonScope,
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
 		StartTimeout:    timeout.Timeout(42 * time.Minute),
@@ -1623,7 +1623,7 @@ apps:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.UserDaemon)
+	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.UserDaemonScope)
 }
 
 func (s *YamlSuite) TestDaemonNoDaemonScope(c *C) {
@@ -1638,7 +1638,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	// If daemon-scope is unset, default to system scope
-	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.SystemDaemon)
+	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.SystemDaemonScope)
 }
 
 func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
