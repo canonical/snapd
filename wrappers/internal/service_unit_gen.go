@@ -136,6 +136,9 @@ After={{ stringsJoin .After " " }}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
+{{- if .BindsTo}}
+BindsTo={{ stringsJoin .BindsTo " " }}
+{{- end}}
 {{- if .CoreMountedSnapdSnapDep}}
 Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
@@ -268,6 +271,8 @@ WantedBy={{.ServicesTarget}}
 		Before                   []string
 		After                    []string
 		Requires                 []string
+		BindsTo                  []string
+		WantedBy                 []string
 		InterfaceServiceSnippets string
 		InterfaceUnitSnippets    string
 		SliceUnit                string
@@ -292,13 +297,14 @@ WantedBy={{.ServicesTarget}}
 		OOMAdjustScore: oomAdjustScore,
 		BusName:        busName,
 
-		Before: generateServiceNames(appInfo.Snap, appInfo.Before),
-		After:  generateServiceNames(appInfo.Snap, appInfo.After),
+		Before:  generateServiceNames(appInfo.Snap, appInfo.Before),
+		After:   generateServiceNames(appInfo.Snap, appInfo.After),
+		BindsTo: generateServiceNames(appInfo.Snap, appInfo.BindsTo),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	switch appInfo.DaemonScope {
+	switch appInfo.DaemonScope.GetDaemonType() {
 	case snap.SystemDaemon:
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
@@ -311,6 +317,11 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		if appInfo.DaemonScope == snap.GraphicalUserDaemonScope {
+			wrapperData.After = append(wrapperData.After, "graphical-session.target")
+			wrapperData.BindsTo = append(wrapperData.BindsTo, "graphical-session.target")
+			wrapperData.ServicesTarget = "graphical-session.target"
+		}
 	default:
 		panic("unknown snap.DaemonScope")
 	}

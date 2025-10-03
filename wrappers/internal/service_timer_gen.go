@@ -292,7 +292,7 @@ WantedBy={{.TimersTarget}}
 		TimerName:       app.Name,
 		Schedules:       schedules,
 	}
-	switch app.DaemonScope {
+	switch app.DaemonScope.GetDaemonType() {
 	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(app.Snap.MountDir()))
 	case snap.UserDaemon:

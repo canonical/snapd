@@ -1347,8 +1347,9 @@ type AppInfo struct {
 
 	// list of other service names that this service will start after or
 	// before
-	After  []string
-	Before []string
+	After   []string
+	Before  []string
+	BindsTo []string
 
 	Timer *TimerInfo
 
@@ -1556,7 +1557,7 @@ func (app *AppInfo) ServiceName() string {
 }
 
 func (app *AppInfo) serviceDir() string {
-	switch app.DaemonScope {
+	switch app.DaemonScope.GetDaemonType() {
 	case SystemDaemon:
 		return dirs.SnapServicesDir
 	case UserDaemon:

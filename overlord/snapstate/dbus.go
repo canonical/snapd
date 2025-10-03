@@ -37,7 +37,7 @@ func getActivatableDBusServices(info *snap.Info) (session, system map[string]boo
 			if !ok {
 				continue
 			}
-			switch app.DaemonScope {
+			switch app.DaemonScope.GetDaemonType() {
 			case snap.SystemDaemon:
 				system[busName] = true
 			case snap.UserDaemon:

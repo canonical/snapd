@@ -59,9 +59,9 @@ func (sc ServiceScope) matches(dscope snap.DaemonScope) bool {
 	case ServiceScopeAll:
 		return true
 	case ServiceScopeSystem:
-		return dscope == snap.SystemDaemon
+		return dscope.GetDaemonType() == snap.SystemDaemon
 	case ServiceScopeUser:
-		return dscope == snap.UserDaemon
+		return dscope.GetDaemonType() == snap.UserDaemon
 	}
 	return false
 }
@@ -161,7 +161,7 @@ func (c *userServiceClient) restartServices(reload bool, services ...string) err
 }
 
 func reloadOrRestartServices(sysd systemd.Systemd, cli *userServiceClient, reload bool, scope snap.DaemonScope, svcs []string) error {
-	switch scope {
+	switch scope.GetDaemonType() {
 	case snap.SystemDaemon:
 		if reload {
 			if err := sysd.ReloadOrRestart(svcs); err != nil {
@@ -206,14 +206,14 @@ func filterServicesForStart(apps []*snap.AppInfo, disabledSvcs *DisabledServices
 			continue
 		}
 
-		if app.DaemonScope == snap.SystemDaemon {
+		if app.DaemonScope.GetDaemonType() == snap.SystemDaemon {
 			// For system-services we can just filter on the name
 			// and disable it if it matches
 			if isSystemSvcDisabled(app.Name) {
 				continue
 			}
 			sys = append(sys, app)
-		} else if app.DaemonScope == snap.UserDaemon {
+		} else if app.DaemonScope.GetDaemonType() == snap.UserDaemon {
 			usr = append(usr, app)
 		}
 	}
@@ -581,7 +581,7 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 
 			// also mark that we need to reload either the system or
 			// user instance of systemd
-			switch app.DaemonScope {
+			switch app.DaemonScope.GetDaemonType() {
 			case snap.SystemDaemon:
 				es.systemDaemonReloadNeeded = true
 			case snap.UserDaemon:
@@ -964,7 +964,7 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 		if opts.Disable && serviceIsSlotActivated(app) {
 			logger.Noticef("Disabling %s may not have the intended effect as the service is currently always activated by a slot", app.Name)
 		}
-		switch app.DaemonScope {
+		switch app.DaemonScope.GetDaemonType() {
 		case snap.SystemDaemon:
 			sys = append(sys, app)
 		case snap.UserDaemon:
@@ -1121,7 +1121,7 @@ func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 			continue
 		}
 
-		switch app.DaemonScope {
+		switch app.DaemonScope.GetDaemonType() {
 		case snap.SystemDaemon:
 			removedSystem = true
 		case snap.UserDaemon:
@@ -1133,7 +1133,7 @@ func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 			path := socket.File()
 			socketServiceName := filepath.Base(path)
 			logger.Noticef("RemoveSnapServices - socket %s", socketServiceName)
-			switch app.DaemonScope {
+			switch app.DaemonScope.GetDaemonType() {
 			case snap.SystemDaemon:
 				systemUnits = append(systemUnits, socketServiceName)
 			case snap.UserDaemon:
@@ -1147,7 +1147,7 @@ func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 
 			timerName := filepath.Base(path)
 			logger.Noticef("RemoveSnapServices - timer %s", timerName)
-			switch app.DaemonScope {
+			switch app.DaemonScope.GetDaemonType() {
 			case snap.SystemDaemon:
 				systemUnits = append(systemUnits, timerName)
 			case snap.UserDaemon:
@@ -1157,7 +1157,7 @@ func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 		}
 
 		logger.Noticef("RemoveSnapServices - disabling %s", serviceName)
-		switch app.DaemonScope {
+		switch app.DaemonScope.GetDaemonType() {
 		case snap.SystemDaemon:
 			systemUnits = append(systemUnits, serviceName)
 		case snap.UserDaemon:
@@ -1230,9 +1230,9 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 		unitName := st.ServiceUnitStatus().Name
 		unitActive := st.ServiceUnitStatus().Active
 		unitEnabled := st.ServiceUnitStatus().Enabled
-		unitScope := snap.SystemDaemon
+		unitScope := snap.SystemDaemonScope
 		if st.IsUserService() {
-			unitScope = snap.UserDaemon
+			unitScope = snap.UserDaemonScope
 		}
 
 		var unitsToRestart []string
