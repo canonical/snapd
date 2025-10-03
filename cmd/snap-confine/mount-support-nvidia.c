@@ -507,7 +507,8 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
     }
     debug("sources in export folder, nvidia libraries from snaps");
 
-    // Create tmpfs
+    // Create tmpfs - here we will create subdirectories and mount the paths
+    // exported by other snaps.
     char tmpfs_path[PATH_MAX] = {0};
     sc_must_snprintf(tmpfs_path, sizeof tmpfs_path, "%s%s", rootfs_dir, SC_LIBSNAP_DIR);
     sc_mkdir_and_mount_tpmfs(tmpfs_path);
@@ -526,13 +527,13 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
         while (fgets(path, sizeof path, file) != NULL) {
             // Remove trailing \n if present
             sc_str_chomp(path);
-            size_t path_start = 0;
-            if (strncmp(path, SC_SNAP_DIR, sizeof SC_SNAP_DIR - 1) == 0) {
-                path_start = sizeof SC_SNAP_DIR - 1;
-            } else {
+            if (!sc_startswith(path, SC_SNAP_DIR)) {
                 debug("WARNING: unexpectedly %s does not start with %s, not mounting", path, SC_SNAP_DIR);
                 continue;
             }
+
+            size_t path_start = 0;
+            path_start = sizeof SC_SNAP_DIR - 1;
             sc_must_snprintf(dest_path, sizeof dest_path, "%s" SC_LIBSNAP_DIR "%s", rootfs_dir, &path[path_start]);
 
             // If the path exists that implies that it has been mounted already
