@@ -24,8 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -219,37 +217,13 @@ func (s *flockSuite) TestUsingClosedLock(c *C) {
 
 // Test that non-blocking locking reports error on pre-acquired lock.
 func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
-	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	// we can't use --no-fork because we still support 14.04
-	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", `exec sleep 30`)
-	// create new process group so that we may kill everything in one go
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-	// flock uses the env variable 'SHELL' to run the passed in command. a non-posix
-	// shell will not understand $$. we can force flock to use its default by unsetting
-	// the variable
-	cmd.Env = append(cmd.Env, "SHELL=")
 
-	c.Assert(cmd.Start(), IsNil)
-	defer func() {
-		// kill the whole group
-		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		// be nice and wait
-		cmd.Wait()
-	}()
-
-	// Give flock some chance to create the lock file.
-	checkTickC := time.Tick(300 * time.Millisecond)
-	tmoutC := time.After(1 * time.Minute)
-	for !osutil.FileExists(lockPath) {
-		select {
-		case <-checkTickC:
-		case <-tmoutC:
-			c.Fatalf("timeout awaiting lock file %s", lockPath)
-		}
-	}
+	// Acquire the lock.
+	lockTaken, err := osutil.NewFileLock(lockPath)
+	c.Assert(err, IsNil)
+	defer lockTaken.Close()
+	c.Assert(lockTaken.Lock(), IsNil)
 
 	// Try to acquire the same lock file and see that it is busy.
 	lock, err := osutil.NewFileLock(lockPath)
@@ -258,4 +232,10 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 	defer lock.Close()
 
 	c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked)
+
+	// Close the file, releasing the lock.
+	lockTaken.Close()
+
+	// Non blocking lock is successful.
+	c.Assert(lock.TryLock(), IsNil)
 }
