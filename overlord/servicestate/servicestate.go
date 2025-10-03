@@ -79,7 +79,7 @@ func (i *Instruction) ServiceScope() wrappers.ServiceScope {
 
 func (i *Instruction) hasUserService(apps []*snap.AppInfo) bool {
 	for _, app := range apps {
-		if app.IsService() && app.DaemonScope == snap.UserDaemon {
+		if app.IsService() && app.DaemonScope.GetDaemonType() == snap.UserDaemon {
 			return true
 		}
 	}
@@ -433,7 +433,7 @@ func (sd *StatusDecorator) queryUserServiceStatus(units []string) ([]*systemd.Un
 func (sd *StatusDecorator) queryServiceStatus(scope snap.DaemonScope, units []string) ([]*systemd.UnitStatus, error) {
 	var sts []*systemd.UnitStatus
 	var err error
-	switch scope {
+	switch scope.GetDaemonType() {
 	case snap.SystemDaemon:
 		// sysd.Status() makes sure that we get only the units we asked
 		// for and raises an error otherwise.

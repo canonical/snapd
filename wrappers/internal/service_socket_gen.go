@@ -35,7 +35,7 @@ import (
 func renderListenStream(socket *snap.SocketInfo) string {
 	s := socket.App.Snap
 	listenStream := socket.ListenStream
-	switch socket.App.DaemonScope {
+	switch socket.App.DaemonScope.GetDaemonType() {
 	case snap.SystemDaemon:
 		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
 		// TODO: when we support User/Group in the generated
@@ -99,7 +99,7 @@ WantedBy={{.SocketsTarget}}
 		SocketInfo:      socket,
 		ListenStream:    listenStream,
 	}
-	switch appInfo.DaemonScope {
+	switch appInfo.DaemonScope.GetDaemonType() {
 	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 	case snap.UserDaemon:
