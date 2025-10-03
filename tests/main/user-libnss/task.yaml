@@ -34,6 +34,8 @@ restore: |
     rm -rf /var/lib/extrausers
 
 execute: |
+    go mod vendor
+
     echo "Ensure tests run with both CGO and without"
     su test -c 'CGO_ENABLED=1 go test -mod vendor github.com/snapcore/snapd/osutil'
     su test -c 'CGO_ENABLED=0 go test -mod vendor github.com/snapcore/snapd/osutil'
