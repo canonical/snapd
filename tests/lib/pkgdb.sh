@@ -491,6 +491,7 @@ distro_install_build_snapd(){
             systemctl enable snapd.socket
             systemctl restart snapd.socket
         fi
+        snap wait system seed.loaded
     fi
 }
 
