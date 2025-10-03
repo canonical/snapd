@@ -357,7 +357,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS6")'
         plan: staging-cpu2-ram4-disk20
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         environment:
             HTTP_PROXY: "http://squid.internal:3128"
@@ -397,7 +397,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
@@ -466,7 +466,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
         plan: shared.xsmall
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.54.0/24:4000]
@@ -480,7 +480,7 @@ backends:
         plan: shared.medium
         storage: 30G
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
@@ -527,7 +527,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
         plan: shared.xsmall.arm64
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.89.0/24:8000]
@@ -556,7 +556,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_ARM64_PS7")'
         plan: shared.medium.arm64
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.89.0/24:8000]
@@ -569,7 +569,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
         plan: shared.xsmall.arm64
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.53.0/24:3000]
@@ -583,7 +583,7 @@ backends:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
         halt-timeout: 2h
-        wait-timeout: 5m
+        wait-timeout: 10m
         groups: [default]
         proxy: ingress-haproxy.ps7.canonical.com
         cidr-port-rel: [10.151.96.0/21:5000]
