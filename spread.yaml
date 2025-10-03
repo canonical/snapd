@@ -778,6 +778,9 @@ backends:
             - arch-linux-64:
                   username: root
                   password: root
+            - amazon-linux-2-64:
+                  username: root
+                  password: root
             - amazon-linux-2023-64:
                   username: root
                   password: root
