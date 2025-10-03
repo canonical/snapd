@@ -22,6 +22,7 @@ package secboot
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -71,7 +72,7 @@ func MockSbPreinstallNewRunChecksContext(f func(initialFlags sb_preinstall.Check
 	}
 }
 
-func MockSbPreinstallRun(f func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error)) (restore func()) {
+func MockSbPreinstallRun(f func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args map[string]json.RawMessage) (*sb_preinstall.CheckResult, error)) (restore func()) {
 	old := sbPreinstallRunChecks
 	sbPreinstallRunChecks = f
 	return func() {
