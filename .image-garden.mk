@@ -23,6 +23,11 @@ endef
 
 define FEDORA_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
+# set selinux to permissive mode
+- sed -i 's/SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
+# pre-install wget so that prepare with snapd built from master works
+packages:
+- wget
 endef
 
 define OPENSUSE_tumbleweed_CLOUD_INIT_USER_DATA_TEMPLATE
