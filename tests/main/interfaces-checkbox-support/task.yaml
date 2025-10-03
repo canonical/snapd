@@ -6,22 +6,41 @@ details: |
     calling those interfaces is bundled in snapd git repository, in the
     directory tests/lib/plz-run.
 
-systems:
-    # No way to go-build the test application.
-    - -ubuntu-core-*
-
 prepare: |
-    # This test is susceptible to other tests leaving systemd in an unreloaded
-    # state. Ensure that we start from a clean state by reloading systemd.
-    sudo systemctl daemon-reload
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+      make -C "$TESTSLIB"/libaa-query-peek install
+      tests.cleanup defer make -C "$TESTSLIB"/libaa-query-peek uninstall
 
-    ( cd "$TESTSLIB"/plz-run && CGO_ENABLED=0 go build )
-    mkdir -p test-snapd-checkbox-support/bin/
-    cp -a "$TESTSLIB"/plz-run/plz-run test-snapd-checkbox-support/bin/plz-run
-    snap pack test-snapd-checkbox-support
-    snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap
+      mkdir -p /etc/systemd/system/dbus.service.d
+      tests.cleanup defer rmdir --ignore-fail-on-non-empty /etc/systemd/system/dbus.service.d
+
+      cat >/etc/systemd/system/dbus.service.d/override.conf <<__CONF__
+    [Service]
+    Environment=LD_PRELOAD=/usr/local/lib/libaa-query-peek.so
+    __CONF__
+      tests.cleanup defer rm -f /etc/systemd/system/dbus.service.d/override.conf
+
+      systemctl daemon-reload
+      tests.cleanup defer systemctl daemon-reload
+
+      # The plz-run executable was built earlier in system-wide
+      # prepare-restore.sh. Copy the binary, that is now on PATH, to the snap's
+      # SNAP_COMMON directory.
+      mkdir -p /var/snap/test-snapd-checkbox-support/common
+      install -m 755 $(command -v plz-run) /var/snap/test-snapd-checkbox-support/common/plz-run
+      snap pack test-snapd-checkbox-support
+      snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap
+    fi
 
 execute: |
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+      REBOOT
+    fi
+
+    # This test is susceptible to other tests leaving systemd in an unreloaded
+    # state. Ensure that we start from a clean state by reloading systemd.
+    systemctl daemon-reload
+
     echo "The interface is not connected by default"
     snap interfaces -i checkbox-support | MATCH -- '- +test-snapd-checkbox-support:checkbox-support'
 
@@ -44,3 +63,8 @@ execute: |
         exit 1
     fi
     MATCH 'plz-run error: dial unix /run/dbus/system_bus_socket: connect: permission denied' < call.error
+
+    if [ "$SPREAD_REBOOT" -eq 1 ]; then
+      rm -f /etc/systemd/system/dbus.service.d/override.conf
+      REBOOT
+    fi
