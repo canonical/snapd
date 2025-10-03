@@ -23,12 +23,15 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const eglDriverLibsSummary = `allows exposing EGL driver libraries to the system`
@@ -69,13 +72,15 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 		return fmt.Errorf("priority must be a positive integer")
 	}
 
-	var icdDir string
-	if err := slot.Attr("icd-source", &icdDir); err != nil {
+	var icdDirs []string
+	if err := slot.Attr("icd-source", &icdDirs); err != nil {
 		return fmt.Errorf("invalid icd-source: %w", err)
 	}
-	// We want a directory in icd-source, should start with $SNAP
-	if err := validateSnapDir(icdDir); err != nil {
-		return err
+	// Directories in icd-source must start with $SNAP
+	for _, icdDir := range icdDirs {
+		if err := validateSnapDir(icdDir); err != nil {
+			return err
+		}
 	}
 
 	var compatField string
@@ -115,17 +120,28 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 		return fmt.Errorf("invalid priority: %w", err)
 	}
 
-	icdFiles, err := icdDirFilesCheck(slot)
+	icdPaths, err := icdSourceDirsCheck(slot)
 	if err != nil {
 		return fmt.Errorf("invalid icd-source: %w", err)
 	}
 
 	// Create symlinks to snap content (which is fine as this is a super-privileged slot)
-	for _, icdFile := range icdFiles {
-		// Note that icdDirFilesCheck already ensures a .json suffix
+	for _, icdPath := range icdPaths {
+		// Strip out mount dir and snap name and revision
+		relIcdPath, err := filepath.Rel(dirs.SnapMountDir, icdPath)
+		if err != nil {
+			return err
+		}
+		dirs := strings.SplitN(relIcdPath, "/", 3)
+		if len(dirs) < 3 {
+			return fmt.Errorf("internal error: wrong icd file path: %s", relIcdPath)
+		}
+		// Make path an easier to handle name
+		escapedRelPath := systemd.EscapeUnitNamePath(filepath.Join(dirs[2]))
+		// Note that icdFilePathsCheck already ensures a .json suffix
 		linkPath := filepath.Join(eglVendorPath, fmt.Sprintf("%d_snap_%s_%s_%s",
-			priority, slot.Snap().InstanceName(), slot.Name(), filepath.Base(icdFile)))
-		if err := spec.AddSymlink(icdFile, linkPath); err != nil {
+			priority, slot.Snap().InstanceName(), slot.Name(), escapedRelPath))
+		if err := spec.AddSymlink(icdPath, linkPath); err != nil {
 			return err
 		}
 	}
