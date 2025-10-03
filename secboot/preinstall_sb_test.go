@@ -109,10 +109,10 @@ func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorCompound(c *C) {
 				errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 			),
 			sb_preinstall.NewWithKindAndActionsError(
-				sb_preinstall.ErrorKindTPMDeviceLockout,
-				&sb_preinstall.TPMDeviceLockoutArgs{IntervalDuration: 7200000000000, TotalDuration: 230400000000000},
+				sb_preinstall.ErrorKindTPMDeviceLockoutLockedOut,
+				sb_preinstall.TPMDeviceLockoutRecoveryArg(230400000000000),
 				[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
-				errors.New("error with TPM2 device: TPM is in DA lockout mode"),
+				errors.New("error with TPM2 device: TPM's lockout hierarchy is unavailable because it is locked out"),
 			),
 			sb_preinstall.NewWithKindAndActionsError(
 				sb_preinstall.ErrorKindNone,
@@ -136,11 +136,10 @@ func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorCompound(c *C) {
 			Actions: []string{"reboot-to-fw-settings"},
 		},
 		{
-			Kind:    "tpm-device-lockout",
-			Message: "error with TPM2 device: TPM is in DA lockout mode",
+			Kind:    "tpm-device-lockout-locked-out",
+			Message: "error with TPM2 device: TPM's lockout hierarchy is unavailable because it is locked out",
 			Args: map[string]json.RawMessage{
-				"interval-duration": json.RawMessage(`7200000000000`),
-				"total-duration":    json.RawMessage(`230400000000000`),
+				"duration": json.RawMessage(`230400000000000`),
 			},
 			Actions: []string{"reboot-to-fw-settings"},
 		},
@@ -169,11 +168,10 @@ func (s *preinstallSuite) TestUnwrapPreinstallCheckErrorCompound(c *C) {
     ]
   },
   {
-    "kind": "tpm-device-lockout",
-    "message": "error with TPM2 device: TPM is in DA lockout mode",
+    "kind": "tpm-device-lockout-locked-out",
+    "message": "error with TPM2 device: TPM's lockout hierarchy is unavailable because it is locked out",
     "args": {
-      "interval-duration": 7200000000000,
-      "total-duration": 230400000000000
+      "duration": 230400000000000
     },
     "actions": [
       "reboot-to-fw-settings"
@@ -274,7 +272,7 @@ func (s *preinstallSuite) testPreinstallCheckConfig(c *C, isVM, permitVM bool) {
 	s.AddCleanup(restore)
 
 	restore = secboot.MockSbPreinstallRun(
-		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error) {
+		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args map[string]json.RawMessage) (*sb_preinstall.CheckResult, error) {
 			c.Assert(checkCtx, IsNil)
 			c.Assert(ctx, NotNil)
 			c.Assert(action, Equals, sb_preinstall.ActionNone)
@@ -333,7 +331,7 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 	var expectedAction sb_preinstall.Action
 
 	restore = secboot.MockSbPreinstallRun(
-		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args ...any) (*sb_preinstall.CheckResult, error) {
+		func(checkCtx *sb_preinstall.RunChecksContext, ctx context.Context, action sb_preinstall.Action, args map[string]json.RawMessage) (*sb_preinstall.CheckResult, error) {
 			c.Assert(checkCtx, Equals, expectedRunChecksContext)
 			c.Assert(checkCtx.Errors(), IsNil)
 			c.Assert(checkCtx.Result(), IsNil)
@@ -352,10 +350,10 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 							errors.New("error with TPM2 device: one or more of the TPM hierarchies is already owned"),
 						),
 						sb_preinstall.NewWithKindAndActionsError(
-							sb_preinstall.ErrorKindTPMDeviceLockout,
-							&sb_preinstall.TPMDeviceLockoutArgs{IntervalDuration: 7200000000000, TotalDuration: 230400000000000},
+							sb_preinstall.ErrorKindTPMDeviceLockoutLockedOut,
+							sb_preinstall.TPMDeviceLockoutRecoveryArg(230400000000000),
 							[]sb_preinstall.Action{sb_preinstall.ActionRebootToFWSettings},
-							errors.New("error with TPM2 device: TPM is in DA lockout mode"),
+							errors.New("error with TPM2 device: TPM's lockout hierarchy is unavailable because it is locked out"),
 						),
 					},
 				}
@@ -417,11 +415,10 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 				Actions: []string{"reboot-to-fw-settings"},
 			},
 			{
-				Kind:    "tpm-device-lockout",
-				Message: "error with TPM2 device: TPM is in DA lockout mode",
+				Kind:    "tpm-device-lockout-locked-out",
+				Message: "error with TPM2 device: TPM's lockout hierarchy is unavailable because it is locked out",
 				Args: map[string]json.RawMessage{
-					"interval-duration": json.RawMessage(`7200000000000`),
-					"total-duration":    json.RawMessage(`230400000000000`),
+					"duration": json.RawMessage(`230400000000000`),
 				},
 				Actions: []string{"reboot-to-fw-settings"},
 			},
