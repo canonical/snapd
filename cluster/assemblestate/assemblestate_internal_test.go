@@ -1520,8 +1520,7 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	}
 
 	serial, bundle, deviceKey := createTestSerialBundle(c, signing)
-	proof, err := asserts.RawSignWithKey(CalculateHMAC(local.rdt, local.fp, "secret"), deviceKey)
-	c.Assert(err, check.IsNil)
+	expectedHMAC := CalculateHMAC(local.rdt, local.fp, "secret")
 
 	cfg := AssembleConfig{
 		Secret:  "secret",
@@ -1606,13 +1605,17 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	client = &testClient{
 		TrustedFunc: func(ctx context.Context, addr string, cert []byte, kind string, message any) error {
 			publications = append(publications, addr)
+
 			devices := message.(Devices)
-			c.Check(devices.Devices, check.DeepEquals, []Identity{{
-				RDT:          local.rdt,
-				FP:           local.fp,
-				SerialBundle: bundle,
-				SerialProof:  proof,
-			}})
+			c.Assert(devices.Devices, check.HasLen, 1)
+			identity := devices.Devices[0]
+
+			c.Assert(identity.RDT, check.Equals, local.rdt)
+			c.Assert(identity.FP, check.DeepEquals, local.fp)
+			c.Assert(identity.SerialBundle, check.Equals, bundle)
+
+			err := asserts.RawVerifyWithKey(expectedHMAC, identity.SerialProof, deviceKey.PublicKey())
+			c.Assert(err, check.IsNil)
 
 			var sawSerial, sawAccountKey bool
 			commitBundleAndObserve(c, signing.Trusted, devices.Devices[0].SerialBundle, func(a asserts.Assertion) {
