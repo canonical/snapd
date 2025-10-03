@@ -35,9 +35,7 @@ const (
 	errPrefix                   = "assertion hardware-identity: "
 	hardwareIDKeyExample        = "TUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FDaVFjaFlNVFAra25jNnZtUFd3SC9tMThqbApIRVN5U0wyZFBIb25lQ1dnOUFuMlM0N3ZBQ1VJd3ZlU0FDRHFHam5Ld3JvcFM3Rmw1cTVFTTZNQXlIUElkSmJwCmdXUFV6bHJBRTRZc2M4VDh5QTUwUlRPaVFPc0x4MHZUMnFHU0kzYk16bFU3bkhyZW0zWXRNOUErbjlGUEVuOVAKT2hNaGVyZkExekVFVmkvSWZ3SURBUUFC"
 	hardwareIDKeySha3384Example = "20HX1SS8dJW8tNCmybAdP7frkn0dmEV9DdwIABskpSsxBUaylHA6oO8dSj+ORWXa"
-)
-const (
-	hardwareIdentityExample = `type: hardware-identity
+	hardwareIdentityExample     = `type: hardware-identity
 authority-id: account-id-1
 issuer-id: account-id-1
 manufacturer: some-manufacturer
@@ -70,14 +68,13 @@ func (s *hardwareIdentitySuite) TestDecodeOK(c *C) {
 }
 
 func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
-
 	encoded := strings.Replace(hardwareIdentityExample, "HARDWAREIDKEY", hardwareIDKeyExample, 1)
 	encoded = strings.ReplaceAll(encoded, "HARDWAREIDKEYSHA3384", hardwareIDKeySha3384Example)
 
-	hardwareKeyID := fmt.Sprintf("hardware-id-key: %s\n", hardwareIDKeyExample)
+	hardwareIDKey := fmt.Sprintf("hardware-id-key: %s\n", hardwareIDKeyExample)
 	// create hardware key with algorithm not supported by go crypto library
 	elGamalhardwareKey := "hardware-id-key: TUZNd09BWUdLdzRIQWdFQk1DNENGUUR0Z0dwZGNhdXkraExpSFF2TzFVV240ck90Q3dJVkFPdmg2OEZYNjBHVQo1TllFOW05MzJESDhYOFpvQXhjQUFoUU5PdEFNYktUazdqQi9FSlgvaWJ3bGVpWFpDZz09\n"
-	hardwareKeyIDSha3384 := fmt.Sprintf("hardware-id-key-sha3-384: %s\n", hardwareIDKeySha3384Example)
+	hardwareIDKeySha3384 := fmt.Sprintf("hardware-id-key-sha3-384: %s\n", hardwareIDKeySha3384Example)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"issuer-id: account-id-1\n", "", `"issuer-id" header is mandatory`},
@@ -91,14 +88,14 @@ func (s *hardwareIdentitySuite) TestDecodeInvalid(c *C) {
 		{"hardware-name: raspberry-pi-4gb\n", "hardware-name: raspberry&pi\n", `"hardware-name" header contains invalid characters: "raspberry&pi"`},
 		{"hardware-id: random-id-1\n", "", `"hardware-id" header is mandatory`},
 		{"hardware-id: random-id-1\n", "hardware-id: \n", `"hardware-id" header should not be empty`},
-		{hardwareKeyID, "", `"hardware-id-key" header is mandatory`},
-		{hardwareKeyID, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
-		{hardwareKeyID, "hardware-id-key: something\n", `illegal base64 data .*`},
-		{hardwareKeyID, "hardware-id-key: TUlHZU1BMEdDU3FH\n", `asn1: syntax error: .*`},
-		{hardwareKeyID, elGamalhardwareKey, `x509: unknown public key algorithm`},
-		{hardwareKeyIDSha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
-		{hardwareKeyIDSha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
-		{hardwareKeyIDSha3384, "hardware-id-key-sha3-384: random\n", `hardware id key does not match provided hash`},
+		{hardwareIDKey, "", `"hardware-id-key" header is mandatory`},
+		{hardwareIDKey, "hardware-id-key: \n", `"hardware-id-key" header should not be empty`},
+		{hardwareIDKey, "hardware-id-key: something\n", `illegal base64 data .*`},
+		{hardwareIDKey, "hardware-id-key: TUlHZU1BMEdDU3FH\n", `asn1: syntax error: .*`},
+		{hardwareIDKey, elGamalhardwareKey, `x509: unknown public key algorithm`},
+		{hardwareIDKeySha3384, "", `"hardware-id-key-sha3-384" header is mandatory`},
+		{hardwareIDKeySha3384, "hardware-id-key-sha3-384: \n", `"hardware-id-key-sha3-384" header should not be empty`},
+		{hardwareIDKeySha3384, "hardware-id-key-sha3-384: random\n", `hardware id key does not match provided hash`},
 	}
 
 	for i, test := range invalidTests {
