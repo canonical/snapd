@@ -891,6 +891,10 @@ static void test_sc_str_chomp(void) {
     g_assert(sc_str_chomp(withRet) == withRet);
     g_assert_cmpstr(withRet, ==, "foo");
 
+    char twoLines[] = "foo\nbar\n";
+    g_assert(sc_str_chomp(twoLines) == twoLines);
+    g_assert_cmpstr(sc_str_chomp(twoLines), ==, "foo\nbar");
+
     char someRets[] = "foo\n\n\n\n";
     g_assert(sc_str_chomp(someRets) == someRets);
     g_assert_cmpstr(someRets, ==, "foo");
