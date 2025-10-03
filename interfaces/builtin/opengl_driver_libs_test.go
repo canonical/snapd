@@ -173,7 +173,7 @@ func (s *OpenglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	spec := &configfiles.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
-		"/var/lib/snapd/export/opengl-provider_opengl-slot_opengl-driver-libs.source": &osutil.MemoryFileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/opengl-provider_opengl-slot_opengl-driver-libs.source"): &osutil.MemoryFileState{
 			Content: []byte(
 				filepath.Join(dirs.GlobalRootDir, "/snap/opengl-provider/5/lib1") + "\n" +
 					filepath.Join(dirs.GlobalRootDir, "/snap/opengl-provider/5/lib2") + "\n"),

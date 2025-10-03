@@ -82,7 +82,7 @@ func addConfigfilesSourcePaths(iface string, spec *configfiles.Specification, sl
 	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
-	sourcePath := filepath.Join(dirs.SnapExportDirUnder("/"), fmt.Sprintf(
+	sourcePath := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
 		"%s_%s_%s.source", slot.Snap().InstanceName(), slot.Name(), iface))
 	content := strings.Join(slot.Snap().ExpandSliceSnapVariables(libDirs), "\n") + "\n"
 	return spec.AddPathContent(sourcePath,
