@@ -85,6 +85,10 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = os.WriteFile(snapCanaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
+	snapCanaryToGo2 := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.info")
+	err = os.WriteFile(snapCanaryToGo2, []byte("key=value"), 0644)
+	c.Assert(err, IsNil)
+
 	appCanaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
 	err = os.WriteFile(appCanaryToStay, []byte("stay!"), 0644)
 	c.Assert(err, IsNil)
@@ -109,6 +113,7 @@ func (s *backendSuite) TestRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
+	c.Assert(osutil.FileExists(snapCanaryToGo2), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
 	c.Assert(appCanaryToStay, testutil.FileEquals, "stay!")
@@ -132,7 +137,7 @@ slots:
         interface: iface2
 `
 
-func (s *backendSuite) TestSetupSetsupSimple(c *C) {
+func (s *backendSuite) TestSetupSimple(c *C) {
 	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
@@ -163,10 +168,10 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
 
 	// Check that the user-fstab file was written with the user mount
-	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.user-fstab")
-	content, err = os.ReadFile(fn)
-	c.Assert(err, IsNil, Commentf("Expected user mount profile for the whole snap"))
-	c.Check(string(content), Equals, fsEntry3.String()+"\n")
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.user-fstab"), testutil.FileEquals, fsEntry3.String()+"\n")
+
+	// Check that the info file was written.
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.info"), testutil.FileEquals, "mount-namespace=persistent\n")
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
