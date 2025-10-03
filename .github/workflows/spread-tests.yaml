@@ -175,7 +175,7 @@ jobs:
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
             TASKS_TO_RUN=""
-            INPUT_TASKS="$(echo ${{ inputs.tasks }} | tr '\n' ' ')"
+            INPUT_TASKS="$(echo "${{ inputs.tasks }}" | tr '\n' ' ')"
             if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ] || [ -z "$changes_param" ]; then
                 for TASKS in $INPUT_TASKS; do
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"

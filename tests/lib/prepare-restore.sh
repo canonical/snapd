@@ -223,21 +223,11 @@ prepare_project() {
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
 
-        if ( [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ] || [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ] ) && [ "$SPREAD_REBOOT" = 0 ]; then
-            KERNEL_VER=""
-            if [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ]; then
-                KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_VERSION}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
-                if [ -z "$KERNEL_VER" ]; then
-                    echo "Kernel version not found: $UPDATE_UBUNTU_KERNEL_VERSION"
-                    exit 1
-                fi
-            fi
-            if [ -z "$KERNEL_VER" ] && [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ]; then
-                KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_PATTERN}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
-                if [ -z "$KERNEL_VER" ]; then
-                    echo "Kernel version not found using pattern: $UPDATE_UBUNTU_KERNEL_PATTERN"
-                    exit 1
-                fi
+        if [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ] && [ "$SPREAD_REBOOT" = 0 ]; then
+            KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_PATTERN}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
+            if [ -z "$KERNEL_VER" ]; then
+                echo "Kernel version not found using pattern: $UPDATE_UBUNTU_KERNEL_PATTERN"
+                exit 1
             fi
 
             # Install the kernel version found

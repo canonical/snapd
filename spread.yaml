@@ -91,9 +91,7 @@ environment:
     SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS: '$(HOST: echo "${SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS:-0}")'
     # Allow mismatch in snapd/kernel versions
     SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH: '$(HOST: echo "${SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH:-true}")'
-    # The version of the ubuntu kernel used in tests
-    UPDATE_UBUNTU_KERNEL_VERSION: '$(HOST: echo "${SPREAD_UPDATE_UBUNTU_KERNEL_VERSION:-}")'
-    # The pattern used by apt-cache search to determine the ubuntu kernel used in tests
+    # The pattern used by `apt-cache search` to determine the ubuntu kernel to be used in tests
     UPDATE_UBUNTU_KERNEL_PATTERN: '$(HOST: echo "${SPREAD_UPDATE_UBUNTU_KERNEL_PATTERN:-}")'
 
     # Directory where the nested images and test assets are stored
