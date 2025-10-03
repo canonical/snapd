@@ -2,6 +2,15 @@ define AMAZONLINUX_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 endef
 
+define AMAZONLINUX_2_CLOUD_INIT_USER_DATA_TEMPLATE
+$(CLOUD_INIT_USER_DATA_TEMPLATE)
+# Amazon 2 does not implement the power_state cloud-init plugin.
+- shutdown --poweroff now
+# Pre-install Python3 that is used by our scripts.
+packages:
+- python3
+endef
+
 define ARCHLINUX_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 # enable AppArmor
