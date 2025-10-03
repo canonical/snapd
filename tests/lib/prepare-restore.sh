@@ -223,13 +223,30 @@ prepare_project() {
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
 
-        if [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ] && [ "$SPREAD_REBOOT" = 0 ]; then
+        if ( [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ] || [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ] ) && [ "$SPREAD_REBOOT" = 0 ]; then
+            KERNEL_VER=""
+            if [ -n "$UPDATE_UBUNTU_KERNEL_VERSION" ]; then
+                KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_VERSION}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
+                if [ -z "$KERNEL_VER" ]; then
+                    echo "Kernel version not found: $UPDATE_UBUNTU_KERNEL_VERSION"
+                    exit 1
+                fi
+            fi
+            if [ -z "$KERNEL_VER" ] && [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ]; then
+                KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_PATTERN}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
+                if [ -z "$KERNEL_VER" ]; then
+                    echo "Kernel version not found using pattern: $UPDATE_UBUNTU_KERNEL_PATTERN"
+                    exit 1
+                fi
+            fi
+
+            # Install the kernel version found
             apt-get update
-            apt-get install -y linux-image-"$UPDATE_UBUNTU_KERNEL_VERSION" linux-headers-"$UPDATE_UBUNTU_KERNEL_VERSION"
+            apt-get install -y linux-image-"$KERNEL_VER" linux-headers-"$KERNEL_VER"
 
             # Update grub to set this kernel as default
-            echo "[*] Updating GRUB to set $UPDATE_UBUNTU_KERNEL_VERSION as default..."
-            grub-set-default "Advanced options for Ubuntu>Ubuntu, with Linux $UPDATE_UBUNTU_KERNEL_VERSION"
+            echo "[*] Updating GRUB to set $KERNEL_VER as default..."
+            grub-set-default "Advanced options for Ubuntu>Ubuntu, with Linux $KERNEL_VER"
             update-grub
 
             REBOOT
