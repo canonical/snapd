@@ -102,6 +102,45 @@ func componentEnv(info *snap.Info, component *snap.ComponentInfo) osutil.Environ
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) osutil.Environment {
+	env := osutil.Environment{
+		// This uses CoreSnapMountDir because the computed environment
+		// variables are conveyed to the started application process which
+		// shall *either* execute with the new mount namespace where snaps are
+		// always mounted on /snap OR it is a classically confined snap where
+		// /snap is a part of the distribution package.
+		//
+		// For parallel-installs the mount namespace setup is making the
+		// environment of each snap instance appear as if it's the only
+		// snap, i.e. SNAP paths point to the same locations within the
+		// mount namespace
+		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
+		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
+		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
+		"SNAP_NAME":          info.SnapName(),
+		"SNAP_INSTANCE_NAME": info.InstanceName(),
+		"SNAP_INSTANCE_KEY":  info.InstanceKey,
+		"SNAP_VERSION":       info.Version,
+		"SNAP_REVISION":      info.Revision.String(),
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
+		"SNAP_LIBRARY_PATH":  buildLibPath(),
+		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
+		// these two environment variables match what BASH does, but with SNAP prefix.
+		"SNAP_UID":  fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID": fmt.Sprint(sys.Geteuid()),
+	}
+
+	// Add the ubuntu-save specific environment variable if
+	// the snap folder exists in the save directory.
+	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName())); err == nil && exists && isDir {
+		env["SNAP_SAVE_DATA"] = snap.CommonDataSaveDir(info.InstanceName())
+	} else if err != nil {
+		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
+			info.InstanceName(), err)
+	}
+	return env
+}
+
+func buildLibPath() string {
 	// SNAP_LIBRARY_PATH points to graphics libraries that are in the
 	// system and are exposed to snaps. This happens only in classic
 	// systems. Currently only snaps connected to the opengl interface can
@@ -139,46 +178,13 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		}
 	}
 	snapLibPath := "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32"
+	// If we have libPaths, Nvidia libraries are provided by snaps and we
+	// do not use the gl/gl32 folders used if libs are provided by debian
+	// packages.
 	if len(libPaths) > 0 {
 		snapLibPath = strings.Join(libPaths, ":")
 	}
-
-	env := osutil.Environment{
-		// This uses CoreSnapMountDir because the computed environment
-		// variables are conveyed to the started application process which
-		// shall *either* execute with the new mount namespace where snaps are
-		// always mounted on /snap OR it is a classically confined snap where
-		// /snap is a part of the distribution package.
-		//
-		// For parallel-installs the mount namespace setup is making the
-		// environment of each snap instance appear as if it's the only
-		// snap, i.e. SNAP paths point to the same locations within the
-		// mount namespace
-		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
-		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
-		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
-		"SNAP_NAME":          info.SnapName(),
-		"SNAP_INSTANCE_NAME": info.InstanceName(),
-		"SNAP_INSTANCE_KEY":  info.InstanceKey,
-		"SNAP_VERSION":       info.Version,
-		"SNAP_REVISION":      info.Revision.String(),
-		"SNAP_ARCH":          arch.DpkgArchitecture(),
-		"SNAP_LIBRARY_PATH":  snapLibPath,
-		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
-		// these two environment variables match what BASH does, but with SNAP prefix.
-		"SNAP_UID":  fmt.Sprint(sys.Getuid()),
-		"SNAP_EUID": fmt.Sprint(sys.Geteuid()),
-	}
-
-	// Add the ubuntu-save specific environment variable if
-	// the snap folder exists in the save directory.
-	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName())); err == nil && exists && isDir {
-		env["SNAP_SAVE_DATA"] = snap.CommonDataSaveDir(info.InstanceName())
-	} else if err != nil {
-		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
-			info.InstanceName(), err)
-	}
-	return env
+	return snapLibPath
 }
 
 // userEnv returns the user-level environment variables for a snap.
