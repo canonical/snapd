@@ -21,14 +21,14 @@ package strutil
 
 import "strings"
 
-// RSplitN slices s into substrings separated by sep and returns a slice of
+// SplitRightN slices s into substrings separated by sep and returns a slice of
 // the substrings between those separators, starting from the right.
 //
 // The count determines the number of substrings to return:
 //   - n > 0: at most n substrings; the leftmost substring will be the unsplit remainder;
 //   - n == 0: the result is nil (zero substrings);
 //   - n < 0: all substrings.
-func RSplitN(s, sep string, n int) []string {
+func SplitRightN(s, sep string, n int) []string {
 	if n == 0 {
 		return nil
 	}

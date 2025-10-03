@@ -44,7 +44,7 @@ type DeviceID struct {
 }
 
 func newDeviceIDFromString(rawID string) (*DeviceID, error) {
-	parts := strutil.RSplitN(rawID, ".", 3)
+	parts := strutil.SplitRightN(rawID, ".", 3)
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid device id: %s", rawID)
 	}

@@ -81,7 +81,7 @@ func (*splitSuite) TestRSplitOK(c *C) {
 	}
 
 	for _, tt := range tests {
-		got := strutil.RSplitN(tt.s, tt.sep, tt.n)
+		got := strutil.SplitRightN(tt.s, tt.sep, tt.n)
 		c.Check(got, DeepEquals, tt.want)
 	}
 }
