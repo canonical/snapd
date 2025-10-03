@@ -37,7 +37,7 @@ const processControlConnectedPlugAppArmor = `
 # Note: Scope augmented by allowing read/write for /proc/self_pid/coredump_filter
 # (needed by opensearch)
 
-# /{,usr/}bin/nice is already in default policy
+# @{SNAP_COREUTIL_DIRS}nice is already in default policy
 /{,usr/}bin/renice ixr,
 /{,usr/}bin/taskset ixr,
 
