@@ -59,6 +59,8 @@ dbus (send)
 # Allow observing the JobRemoved signal which informs the caller of
 # StartTransientUnit that the job has been dispatched and that the one-shot
 # service has finished.
+# FIXME: Collected on Ubuntu 16.04
+# aa_query_label mask:0x4, query:label\x00snap.test-snapd-checkbox-support.plz-run\x00\x20system\x00:1.0\x00unconfined\x00/org/freedesktop/systemd1\x00org.freedesktop.systemd1.Manager\x00JobRemoved, size:140, -> 0, allowed:0, audited:0x1
 dbus (receive)
     bus=system
     path=/org/freedesktop/systemd1
