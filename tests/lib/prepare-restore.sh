@@ -614,6 +614,7 @@ prepare_project() {
     # Build additional utilities we need for testing
     go install ./tests/lib/fakedevicesvc
     go install ./tests/lib/systemd-escape
+    go install ./tests/lib/plz-run
 
     # Build the tool for signing model assertions
     go install ./tests/lib/gendeveloper1
