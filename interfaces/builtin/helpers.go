@@ -21,7 +21,9 @@ package builtin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,20 +95,37 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
 }
 
-// icdDirFilesCheck returns a list of file names found in the icd-source
-// directory of the slot, after checking that the library_path in these files
+// icdFilePathsCheck returns a list of file paths found in the icd-source
+// directoris of the slot, after checking that the library_path in these files
 // matches a file found in the directories specified by library-source.
-func icdDirFilesCheck(slot *interfaces.ConnectedSlot) (checked []string, err error) {
-	var icdDir string
+func icdFilePathsCheck(slot *interfaces.ConnectedSlot) (checked []string, err error) {
+	var icdDir []string
 	if err := slot.Attr("icd-source", &icdDir); err != nil {
 		return nil, err
 	}
-	icdDir = filepath.Join(dirs.GlobalRootDir,
-		slot.AppSet().Info().ExpandSnapVariables(icdDir))
 
+	for _, icdDir := range icdDir {
+		icdDir = filepath.Join(dirs.GlobalRootDir,
+			slot.AppSet().Info().ExpandSnapVariables(icdDir))
+		paths, err := icdDirFilesCheck(slot, icdDir)
+		if err != nil {
+			return nil, err
+		}
+		checked = append(checked, paths...)
+	}
+	return checked, nil
+}
+
+// icdDirFilesCheck does the checks of all icd files in a single directory.
+func icdDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string) (checked []string, err error) {
 	icdFiles, err := os.ReadDir(icdDir)
 	if err != nil {
-		return nil, err
+		// We do not care if the directory does not exist
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
 	}
 
 	for _, entry := range icdFiles {
