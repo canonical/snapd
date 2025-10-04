@@ -193,7 +193,7 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 	})
 	defer restore()
 
-	buf := bytes.NewBufferString(`{"ssid": "foo", "password": "bar"}`)
+	buf := bytes.NewBufferString(`{"values":{"ssid": "foo", "password": "bar"}}`)
 	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
@@ -235,7 +235,7 @@ func (s *confdbSuite) TestGetViewError(c *C) {
 		c.Check(rspe.Status, Equals, t.status, cmt)
 		c.Check(rspe.Kind, Equals, t.kind, cmt)
 
-		buf := bytes.NewBufferString(`{"ssid": "foo", "password": "bar"}`)
+		buf := bytes.NewBufferString(`{"values":{"ssid": "foo", "password": "bar"}}`)
 		req, err = http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 		c.Assert(err, IsNil, cmt)
 
@@ -357,7 +357,7 @@ func (s *confdbSuite) TestSetView(c *C) {
 		jsonVal, err := json.Marshal(t.value)
 		c.Check(err, IsNil, cmt)
 
-		buf := bytes.NewBufferString(fmt.Sprintf(`{"ssid": %s}`, jsonVal))
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"values":{"ssid": %s}}`, jsonVal))
 		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 		c.Check(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
@@ -369,6 +369,34 @@ func (s *confdbSuite) TestSetView(c *C) {
 
 		restoreGetTx()
 		restoreSet()
+	}
+}
+
+func (s *confdbSuite) TestSetEmpty(c *C) {
+	s.setFeatureFlag(c)
+
+	restore := daemon.MockConfdbstateGetView(func(st *state.State, account, confdbName, viewName string) (*confdb.View, error) {
+		return s.schema.View(viewName), nil
+	})
+	defer restore()
+
+	var called bool
+	restore = daemon.MockConfdbstateSetViaView(func(bag confdb.Databag, view *confdb.View, values map[string]any) error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	for _, val := range []string{"", `"values":{}`} {
+		buf := bytes.NewBufferString(fmt.Sprintf(`{%s}`, val))
+		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
+		c.Check(err, IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rspe := s.errorReq(c, req, nil, actionIsExpected)
+		c.Assert(rspe.Status, Equals, 400)
+		c.Assert(rspe.Message, Equals, "cannot set confdb: request body contains no values")
+		c.Assert(called, Equals, false)
 	}
 }
 
@@ -412,7 +440,7 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	})
 	defer restore()
 
-	buf := bytes.NewBufferString(`{"ssid": null}`)
+	buf := bytes.NewBufferString(`{"values":{"ssid": null}}`)
 	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	c.Check(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
@@ -450,7 +478,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 		})
 		cmt := Commentf("%s test", t.name)
 
-		buf := bytes.NewBufferString(`{"ssid": "foo"}`)
+		buf := bytes.NewBufferString(`{"values":{"ssid": "foo"}}`)
 		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
@@ -506,7 +534,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 	})
 	defer restore()
 
-	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
+	buf := bytes.NewBufferString(`{"values":{"a.b.c": "foo"}}`)
 	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
