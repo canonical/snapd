@@ -133,6 +133,20 @@ bool sc_security_tag_validate(const char *security_tag, const char *snap_name, c
 bool sc_is_hook_security_tag(const char *security_tag);
 
 /**
+ * Convert security tag to the expected cgroup name. The security tag must have
+ * been validated before passing it as a parameter. See SecurityTagToUnitName()
+ * in systemd/escape.go.
+ *
+ * Examples of conversion:
+ *   - "snap.name.app" -> "snap.name.app"
+ *   - "snap.some-name.some-app" -> "snap.some-name.some-app"
+ *   - "snap.name+comp.hook.install" -> "snap.name\x2bcomp.hook.install"
+ *
+ * Returns a newly allocated string with expected unit name.
+ **/
+char *sc_security_tag_to_unit_name(const char *security_tag);
+
+/**
  * Extract snap name out of an instance name.
  *
  * A snap may be installed multiple times in parallel under distinct instance names.

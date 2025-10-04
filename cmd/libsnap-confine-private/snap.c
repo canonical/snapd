@@ -355,3 +355,31 @@ void sc_snap_split_snap_component(const char *snap_component, char *snap_name, s
                                   char *component_name, size_t component_name_size) {
     sc_string_split(snap_component, '+', snap_name, snap_name_size, component_name, component_name_size);
 }
+
+char *sc_security_tag_to_unit_name(const char *security_tag) {
+    char unit_name[PATH_MAX] = {0};
+
+    for (const char *c = security_tag; *c != 0; c++) {
+        switch (*c) {
+            case '0' ... '9':
+            case 'a' ... 'z':
+            case 'A' ... 'Z':
+            case '_':
+            case '-':
+            case '.':
+                sc_string_append_char(unit_name, sizeof unit_name, *c);
+                break;
+            case '+':
+                /* \x2b */
+                sc_string_append_char(unit_name, sizeof unit_name, '\\');
+                sc_string_append_char(unit_name, sizeof unit_name, 'x');
+                sc_string_append_char(unit_name, sizeof unit_name, '2');
+                sc_string_append_char(unit_name, sizeof unit_name, 'b');
+                break;
+            default:
+                die("unexpected character '%c' in a validated security tag: '%s'", *c, security_tag);
+                break;
+        }
+    }
+    return sc_strdup(unit_name);
+}
