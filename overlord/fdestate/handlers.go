@@ -330,16 +330,16 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 			return fmt.Errorf("internal error: cannot load FDE state parameters: %v", err)
 		}
 
-		hasParameters, _, _, pcrProfile, err := m.GetParameters(role, ref.ContainerRole)
+		roleParams, err := m.GetParameters(role, ref.ContainerRole)
 		if err != nil {
 			return err
 		}
-		if !hasParameters {
+		if roleParams == nil {
 			return fmt.Errorf("internal error: cannot find parameters (key role: %s, container role: %s)", role, ref.ContainerRole)
 		}
 
 		params := secboot.ProtectKeyParams{
-			PCRProfile:             pcrProfile,
+			PCRProfile:             roleParams.TpmPCRProfile,
 			PCRPolicyCounterHandle: fdeKeyslotRoles[role].TPM2PCRPolicyRevocationCounter,
 			KeyRole:                role,
 			VolumesAuth:            volumesAuth,
