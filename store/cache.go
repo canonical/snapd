@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 // overridden in the unit tests
@@ -170,8 +171,9 @@ func (cm *CacheManager) cleanup() error {
 	}
 
 	// most of the entries will have more than one hardlink, but a minority may
-	// be referenced only the cache and thus be a candidate for pruning
+	// be referenced only from the cache and thus be a candidate for pruning
 	pruneCandidates := make([]os.FileInfo, 0, len(entries)/5)
+	pruneCandidatesSize := int64(0)
 
 	for _, entry := range entries {
 		fi, err := entry.Info()
@@ -187,6 +189,15 @@ func (cm *CacheManager) cleanup() error {
 		// is "free" so skip it.
 		if n <= 1 {
 			pruneCandidates = append(pruneCandidates, fi)
+			pruneCandidatesSize += fi.Size()
+		}
+	}
+
+	if len(pruneCandidates) > 0 {
+		logger.Debugf("store cache cleanup candidates %v total %v", len(pruneCandidates),
+			quantity.FormatAmount(uint64(pruneCandidatesSize), -1))
+		for _, c := range pruneCandidates {
+			logger.Debugf("%s, size: %v, mod %s", c.Name(), quantity.FormatAmount(uint64(c.Size()), -1), c.ModTime())
 		}
 	}
 
@@ -201,6 +212,7 @@ func (cm *CacheManager) cleanup() error {
 	deleted := 0
 	for _, fi := range pruneCandidates {
 		path := cm.path(fi.Name())
+		logger.Debugf("removing %v", path)
 		if err := osRemove(path); err != nil {
 			if !os.IsNotExist(err) {
 				// If there is any error we cleanup the file (it is just a cache
@@ -211,7 +223,9 @@ func (cm *CacheManager) cleanup() error {
 			continue
 		}
 		deleted++
-		if numOwned-deleted <= cm.maxItems {
+		remaining := numOwned - deleted
+		if remaining <= cm.maxItems {
+			logger.Debugf("cache size satisfied, remaining items: %v", remaining)
 			break
 		}
 	}
@@ -224,4 +238,54 @@ func hardLinkCount(fi os.FileInfo) (uint64, error) {
 		return uint64(stat.Nlink), nil
 	}
 	return 0, fmt.Errorf("internal error: cannot read hardlink count from %s", fi.Name())
+}
+
+// StoreCacheStats contains some statistics about the store cache.
+type StoreCacheStats struct {
+	// TotalEntries is a count of all entries in the cache.
+	TotalEntries int
+	// TotalSize is a sum of sizes of all entries in the cache.
+	TotalSize uint64
+	// PruneCandidates is a list of files which are candidates for removal.
+	PruneCandidates []os.FileInfo
+}
+
+// Status returns statistics about the store cache.
+func (cm *CacheManager) Stats() (*StoreCacheStats, error) {
+	entries, err := os.ReadDir(cm.cacheDir)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := StoreCacheStats{
+		TotalEntries: len(entries),
+	}
+
+	// most of the entries will have more than one hardlink, but a minority may
+	// be referenced only from the cache and thus be a candidate for pruning
+	stats.PruneCandidates = make([]os.FileInfo, 0, len(entries)/5)
+
+	for _, entry := range entries {
+		fi, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+
+		n, err := hardLinkCount(fi)
+		if err != nil {
+			return nil, err
+		}
+
+		// If the file is referenced in the filesystem somewhere else our copy
+		// is "free" so skip it.
+		if n <= 1 {
+			stats.PruneCandidates = append(stats.PruneCandidates, fi)
+		}
+
+		stats.TotalSize += uint64(fi.Size())
+	}
+
+	sort.Sort(changesByMtime(stats.PruneCandidates))
+
+	return &stats, nil
 }
