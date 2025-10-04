@@ -331,9 +331,16 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		mounted = append(mounted, mountArgs[len(mountArgs)-1])
 	}
 
-	cmd := exec.Command(underPreseed("/usr/lib/core/handle-writable-paths"), opts.PreseedChrootDir)
-	if out, err = cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("handle-writable-paths failed with: %v\n%s", err, out)
+	if osutil.FileExists(underPreseed("/usr/lib/core/handle-writable-paths")) {
+		cmd := exec.Command(underPreseed("/usr/lib/core/handle-writable-paths"), opts.PreseedChrootDir)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("handle-writable-paths failed with: %v\n%s", err, out)
+		}
+	} else if osutil.FileExists(underPreseed("/usr/lib/tmpfiles.d/core-writable.conf")) {
+		cmd := exec.Command("systemd-tmpfiles", fmt.Sprintf("--root=%s", opts.PreseedChrootDir), "--create", "core-writable.conf")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("systemd-tmpfiles failed with: %v\n%s", err, out)
+		}
 	}
 
 	for _, dir := range []string{
