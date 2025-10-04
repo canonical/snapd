@@ -28,8 +28,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,7 +66,8 @@ apps:
 const eglDriverLibsProvider = `name: egl-provider
 version: 0
 slots:
-  egl-driver-libs:
+  egl-slot:
+    interface: egl-driver-libs
     priority: 10
     compatibility: egl-1-5-ubuntu-2404
     icd-source: $SNAP/egl.d/
@@ -83,7 +86,7 @@ func (s *EglDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, eglDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "egl")
 	s.slot, s.slotInfo = MockConnectedSlot(c, eglDriverLibsProvider,
-		&snap.SideInfo{Revision: snap.R(5)}, "egl-driver-libs")
+		&snap.SideInfo{Revision: snap.R(5)}, "egl-slot")
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestName(c *C) {
@@ -229,7 +232,7 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "egl-provider", SlotName: "egl-driver-libs"}: {
+		{SnapName: "egl-provider", SlotName: "egl-slot"}: {
 			filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib1"),
 			filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib2")}})
 }
@@ -263,8 +266,19 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
 		"/etc/glvnd/egl_vendor.d": {
-			"10_snap_egl-provider_egl-driver-libs_nvidia.json": icdPath,
+			"10_snap_egl-provider_egl-slot_nvidia.json": icdPath,
 		},
+	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/egl-provider_egl-slot_egl-driver-libs.source"): &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.GlobalRootDir, "/snap/egl-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.GlobalRootDir, "/snap/egl-provider/5/lib2") + "\n"), Mode: 0644},
 	})
 }
 
