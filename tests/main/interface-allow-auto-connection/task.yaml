@@ -1,0 +1,62 @@
+summary: Verify that the interface.allow-auto-connection setting works
+
+details: |
+    Using different snaps that require interface connections, check each of the options
+    for interface.<if>.allow-auto-connection works like they are expected. The supported
+    interfaces are the builtin ones in snapd.
+
+environment:
+  VARIANT/unset: unset
+  VARIANT/false: false
+  VARIANT/true: true
+  VARIANT/verified: verified
+
+restore: |
+    snap set system interface.network.allow-auto-connection=true
+    snap remove test-snapd-curl || true
+    snap remove network-consumer || true
+
+execute: |
+    # We can install a snap with an interface by default, install an older revision
+    # so we can try refreshing it
+    snap install test-snapd-curl --edge --revision=22
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
+
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
+
+    if [ "$SPREAD_VARIANT" != "unset" ]; then
+        snap set system interface.network.allow-auto-connection="$VARIANT"
+    else
+        # stop here, just to verify default behaviour
+        exit 0
+    fi
+
+    # Changing the state of auto-connections for that interface does not break it
+    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+
+    # Refreshing keeps the connection, and does not break it
+    snap refresh test-snapd-curl --edge
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
+
+    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
+    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+
+    # Reinstall and make sure it now honors the option set
+    snap remove --purge test-snapd-curl
+    snap remove --purge network-consumer
+
+    snap install test-snapd-curl --edge
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
+
+    if [ "$SPREAD_VARIANT" = "true" ]; then
+        snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
+        snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+    elif [ "$SPREAD_VARIANT" = "false" ]; then
+        snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
+        snap connections test-snapd-curl | tr -s ' ' | NOMATCH "test-snapd-curl:network :network"
+    elif [ "$SPREAD_VARIANT" = "verified" ]; then
+        snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
+        snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+    fi
