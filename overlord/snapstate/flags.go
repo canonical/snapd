@@ -113,6 +113,10 @@ type Flags struct {
 
 	// Lane is the lane that tasks should join if Transaction is set to "all-snaps".
 	Lane int `json:"lane,omitempty"`
+
+	// implicitlyInstalled indicates whether a snap is being
+	// implicitly installed, or being installed by the user.
+	ImplicitlyInstalled bool `json:"implicitly-installed"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
