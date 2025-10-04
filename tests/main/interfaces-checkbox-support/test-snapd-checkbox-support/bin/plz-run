@@ -1,4 +1,5 @@
 #!/bin/sh
+set -xeu
 if [ ! -x "$SNAP_COMMON"/plz-run ]; then
   # We need a pre-built copy of plz-run from before ubuntu-core was reflashed.
   # The user needs to arrange for the binary to be copied to "$SNAP_COMMON".

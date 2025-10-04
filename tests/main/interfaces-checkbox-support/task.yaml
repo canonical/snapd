@@ -7,33 +7,26 @@ details: |
     directory tests/lib/plz-run.
 
 prepare: |
+    snap pack test-snapd-checkbox-support
+    snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap
+
+    # The plz-run executable was built earlier in system-wide
+    # prepare-restore.sh. Copy the binary, that is now on PATH, to the snap's
+    # SNAP_COMMON directory.
+    mkdir -p /var/snap/test-snapd-checkbox-support/common
+    install -m 755 "$(command -v plz-run)" /var/snap/test-snapd-checkbox-support/common
+
+execute: |
     if [ "$SPREAD_REBOOT" -eq 0 ]; then
       make -C "$TESTSLIB"/libaa-query-peek install
       tests.cleanup defer make -C "$TESTSLIB"/libaa-query-peek uninstall
-
       mkdir -p /etc/systemd/system/dbus.service.d
       tests.cleanup defer rmdir --ignore-fail-on-non-empty /etc/systemd/system/dbus.service.d
-
       cat >/etc/systemd/system/dbus.service.d/override.conf <<__CONF__
     [Service]
     Environment=LD_PRELOAD=/usr/local/lib/libaa-query-peek.so
     __CONF__
       tests.cleanup defer rm -f /etc/systemd/system/dbus.service.d/override.conf
-
-      systemctl daemon-reload
-      tests.cleanup defer systemctl daemon-reload
-
-      # The plz-run executable was built earlier in system-wide
-      # prepare-restore.sh. Copy the binary, that is now on PATH, to the snap's
-      # SNAP_COMMON directory.
-      mkdir -p /var/snap/test-snapd-checkbox-support/common
-      install -m 755 $(command -v plz-run) /var/snap/test-snapd-checkbox-support/common/plz-run
-      snap pack test-snapd-checkbox-support
-      snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap
-    fi
-
-execute: |
-    if [ "$SPREAD_REBOOT" -eq 0 ]; then
       REBOOT
     fi
 
@@ -68,3 +61,6 @@ execute: |
       rm -f /etc/systemd/system/dbus.service.d/override.conf
       REBOOT
     fi
+
+debug: |
+  journalctl -u dbus.service

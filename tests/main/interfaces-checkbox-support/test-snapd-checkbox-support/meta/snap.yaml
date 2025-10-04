@@ -1,5 +1,6 @@
 name: test-snapd-checkbox-support
-base: bare
+# This is not core24 because we need a shell to exec things.
+base: core24
 summary: A sandbox escape that convenient for testing
 description: |
     Snap applications run in a sandbox that largely prevents one from starting
