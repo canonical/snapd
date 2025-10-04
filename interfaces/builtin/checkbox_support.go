@@ -56,6 +56,10 @@ dbus (send)
     member=KillUnit
     peer=(name=org.freedesktop.systemd1,label=unconfined),
 
+# NOTE: D-Bus signals are mediated with the random connection name, not with
+# the well-known bus name claimed by the peer.  Method calls are mediated with
+# the bus name because that's how they are made by clients.
+
 # Allow observing the JobRemoved signal which informs the caller of
 # StartTransientUnit that the job has been dispatched and that the one-shot
 # service has finished.
@@ -64,7 +68,7 @@ dbus (receive)
     path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
     member=JobRemoved
-    peer=(name=org.freedesktop.systemd1,label=unconfined),
+    peer=(label=unconfined),
 
 # Allow observing PropertiesChanged signals from any service. This conveys,
 # among others, completion of the service as well as the exit status of the
@@ -74,7 +78,7 @@ dbus (receive)
     path=/org/freedesktop/systemd1/unit/*_2eservice
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(name=org.freedesktop.systemd1,label=unconfined),
+    peer=(label=unconfined),
 `
 
 func init() {
