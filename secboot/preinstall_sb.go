@@ -88,7 +88,7 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	checkContext := &PreinstallCheckContext{sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)}
 
 	// no actions or action args for preinstall checks
-	result, err := sbPreinstallRunChecks(checkContext.sbRunChecksContext, ctx, sb_preinstall.ActionNone)
+	result, err := sbPreinstallRunChecks(checkContext.sbRunChecksContext, ctx, sb_preinstall.ActionNone, nil)
 	if err != nil {
 		errorDetails, err := unwrapPreinstallCheckError(err)
 		if err != nil {
@@ -114,8 +114,7 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 // in the secboot result are logged. On failure, it returns the error
 // encountered while interpreting the secboot error.
 func (cc *PreinstallCheckContext) PreinstallCheckAction(ctx context.Context, action *PreinstallAction) ([]PreinstallErrorDetails, error) {
-	//TODO:FDEM: Changes to secboot required to allow passing args in a more usable format
-	result, err := sbPreinstallRunChecks(cc.sbRunChecksContext, ctx, sb_preinstall.Action(action.Action))
+	result, err := sbPreinstallRunChecks(cc.sbRunChecksContext, ctx, sb_preinstall.Action(action.Action), action.Args)
 	if err != nil {
 		return unwrapPreinstallCheckError(err)
 	}
