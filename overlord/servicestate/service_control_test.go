@@ -1313,14 +1313,14 @@ func (s *serviceControlSuite) TestUpdateSnapstateSystemServices(c *C) {
 			enable = append(enable, &snap.AppInfo{
 				Name:        srv,
 				Daemon:      "simple",
-				DaemonScope: snap.SystemDaemon,
+				DaemonScope: snap.SystemDaemonScope,
 			})
 		}
 		for _, srv := range tst.disable {
 			disable = append(disable, &snap.AppInfo{
 				Name:        srv,
 				Daemon:      "simple",
-				DaemonScope: snap.SystemDaemon,
+				DaemonScope: snap.SystemDaemonScope,
 			})
 		}
 		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable, wrappers.ScopeOptions{})
@@ -1342,7 +1342,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServicesIgnoresNonServices(c *C
 		{
 			Name:        "foo",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 		{
 			Name: "baz",
@@ -1352,7 +1352,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServicesIgnoresNonServices(c *C
 		{
 			Name:        "bar",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 		{
 			Name: "jazz",
@@ -1512,14 +1512,14 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 			enable = append(enable, &snap.AppInfo{
 				Name:        srv,
 				Daemon:      "simple",
-				DaemonScope: snap.UserDaemon,
+				DaemonScope: snap.UserDaemonScope,
 			})
 		}
 		for _, srv := range tst.disable {
 			disable = append(disable, &snap.AppInfo{
 				Name:        srv,
 				Daemon:      "simple",
-				DaemonScope: snap.UserDaemon,
+				DaemonScope: snap.UserDaemonScope,
 			})
 		}
 		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable, wrappers.ScopeOptions{Users: tst.users})
@@ -1546,7 +1546,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c 
 		{
 			Name:        "foo",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 	}
 
@@ -1579,7 +1579,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnInvalidUID(c
 		{
 			Name:        "foo",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 	}
 

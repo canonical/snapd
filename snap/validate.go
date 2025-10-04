@@ -253,7 +253,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	switch socket.App.DaemonScope {
+	switch socket.App.DaemonScope.GetDaemonType() {
 	case SystemDaemon:
 		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
@@ -830,7 +830,7 @@ func validateAppActivatesOn(app *AppInfo) error {
 
 		// D-Bus slots must match the daemon scope
 		bus := slot.Attrs["bus"]
-		if app.DaemonScope == SystemDaemon && bus != "system" || app.DaemonScope == UserDaemon && bus != "session" {
+		if app.DaemonScope.GetDaemonType() == SystemDaemon && bus != "system" || app.DaemonScope.GetDaemonType() == UserDaemon && bus != "session" {
 			return fmt.Errorf("invalid activates-on value %q: bus %q does not match daemon-scope %q", slot.Name, bus, app.DaemonScope)
 		}
 
@@ -876,7 +876,7 @@ func ValidateApp(app *AppInfo) error {
 		if app.Daemon != "" {
 			return fmt.Errorf(`"daemon-scope" must be set for daemons`)
 		}
-	case SystemDaemon, UserDaemon:
+	case SystemDaemonScope, UserDaemonScope, GraphicalUserDaemonScope:
 		if app.Daemon == "" {
 			return fmt.Errorf(`"daemon-scope" can only be set for daemons`)
 		}
