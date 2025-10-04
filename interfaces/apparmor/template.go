@@ -575,6 +575,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
   /{,usr/}bin/fold ixr,
+  /{,usr/}bin/free ixr,
   /{,usr/}bin/getconf ixr,
   /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
@@ -673,6 +674,9 @@ var defaultCoreRuntimeTemplateRules = `
 
   # Allow all snaps to chroot
   /{,usr/}sbin/chroot ixr,
+
+  # Allow pidof, that is a symlink to killall5
+  /{,usr/}sbin/killall5 ixr,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
