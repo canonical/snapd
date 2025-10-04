@@ -1081,17 +1081,8 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	return nil
 }
 
-func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) error {
-	// the resulting application process runs as root
-	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
-	cmd = append(cmd, origCmd...)
-
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
-	gcmd.Stdin = os.Stdin
-	gcmd.Stdout = os.Stdout
-	gcmd.Stderr = os.Stderr
-	gcmd.Env = envForExec(map[string]string{"SNAP_CONFINE_RUN_UNDER_GDB": "1"})
-	return gcmd.Run()
+func (x *cmdRun) runCmdUnderGdb(_ []string, _ envForExecFunc) error {
+	return errors.New("--gdb is no longer supported: use --gdbserver option instead")
 }
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
