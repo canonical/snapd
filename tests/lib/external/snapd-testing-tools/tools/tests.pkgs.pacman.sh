@@ -30,6 +30,9 @@ remap_one() {
         test-snapd-pkg-2)
             echo "robotfindskitten"
             ;;
+        gdbserver)
+            echo "gdb"
+            ;;
         *)
             echo "$1"
             ;;
