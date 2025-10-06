@@ -161,7 +161,7 @@ prepare: |
 restore: |
     tests.pkgs list-installed > installed-final.pkgs
     diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
-    packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
+    packages="$(tr "\n" " " < installed-in-test.pkgs)"
     if [ -n "$packages" ]; then
         # purge install traces of the packages so that if installed again
         # sssd will modify the /etc/nsswitch.conf file
