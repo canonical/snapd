@@ -192,10 +192,6 @@ const (
 )
 
 // DaemonScope represents the scope of the daemon running under systemd
-// To add new scopes, just include them here and modify the GetDaemonType()
-// method to map them to either system or user daemons. Finally, in the
-// corresponding XXX_gen.go code, add a check for the new scopes in the
-// method where the unit file is created.
 type DaemonScope string
 
 const (
