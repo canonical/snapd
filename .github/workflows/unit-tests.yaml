@@ -55,7 +55,7 @@ jobs:
       
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download and install Debian dependencies
       # Github does not allow variables in "uses"; this has to be a hard-coded path
