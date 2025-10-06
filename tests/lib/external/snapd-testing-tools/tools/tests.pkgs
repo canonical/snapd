@@ -163,7 +163,7 @@ main() {
                     new_args+=("$arg")
                 fi
             done
-            # shellcheck disable=SC2046
+            # shellcheck disable=SC2046,SC2068
             cmd_remove $(remap_many ${new_args[@]})
             ;;
         download)
