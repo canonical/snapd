@@ -49,6 +49,7 @@ const dmMultipathConnectedPlugAppArmor = `
 # Global multipath configuration and persistent WWID to device name mappings
 /etc/multipath.conf r,
 /etc/multipath/bindings rwk,
+/etc/multipath/wwids rwk,
 
 # Device-mapper control interface for multipath map creation, modification and removal
 /dev/mapper/control rw,
