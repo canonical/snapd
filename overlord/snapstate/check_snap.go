@@ -38,6 +38,24 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// featureSet contains the flag values that can be listed in assumes entries
+// that this ubuntu-core actually provides.
+var featureSet = map[string]bool{
+	// Support for common data directory across revisions of a snap.
+	"common-data-dir": true,
+	// Support for the "Environment:" feature in snap.yaml
+	"snap-env": true,
+	// Support for the "command-chain" feature for apps and hooks in snap.yaml
+	"command-chain": true,
+	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
+	// content of the style $kernel:ref`
+	"kernel-assets": true,
+	// Support for "refresh-mode: ignore-running" in snap.yaml
+	"app-refresh-mode": true,
+	// Support for "SNAP_UID" and "SNAP_EUID" environment variables
+	"snap-uid-envvars": true,
+}
+
 type SnapNeedsDevModeError struct {
 	Snap string
 }
@@ -124,7 +142,8 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 	}
 
 	// check assumes
-	if err := naming.ValidateAssumes(info.Assumes); err != nil {
+	err := naming.ValidateAssumes(info.Assumes, snapdtool.Version, featureSet)
+	if err != nil {
 		return fmt.Errorf("snap %q assumes %w (try to refresh snapd)", info.InstanceName(), err)
 	}
 

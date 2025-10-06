@@ -25,8 +25,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/snapcore/snapd/snapdtool"
 )
 
 // almostValidNameRegexString is part of snap and socket name validation. The
@@ -253,9 +251,9 @@ var snapdVersionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
 
 // validateAssumedSnapdVersion checks if the snapd version requirement is valid
 // and satisfied by the current snapd version.
-func validateAssumedSnapdVersion(version string) (bool, error) {
+func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, error) {
 	// double check that the input looks like a snapd version
-	reqVersionNumMatch := snapdVersionExp.FindStringSubmatch(version)
+	reqVersionNumMatch := snapdVersionExp.FindStringSubmatch(assumedVersion)
 	if reqVersionNumMatch == nil {
 		return false, nil
 	}
@@ -264,13 +262,13 @@ func validateAssumedSnapdVersion(version string) (bool, error) {
 	// to be relied on for snaps via assumes, however the check against the real
 	// snapd version number below allows such non-numeric modifiers since real
 	// snapds do have versions like that (for example debian pkg of snapd)
-	if reqVersionNumMatch[0] != version {
+	if reqVersionNumMatch[0] != assumedVersion {
 		return false, nil
 	}
 
 	req := strings.Split(reqVersionNumMatch[0], ".")
 
-	if snapdtool.Version == "unknown" {
+	if currentVersion == "unknown" {
 		return true, nil // Development tree.
 	}
 
@@ -278,7 +276,7 @@ func validateAssumedSnapdVersion(version string) (bool, error) {
 	// this code (see PR#7344). However this would change current
 	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
 	// (which the code below does).
-	curVersionNumMatch := snapdVersionExp.FindStringSubmatch(snapdtool.Version)
+	curVersionNumMatch := snapdVersionExp.FindStringSubmatch(currentVersion)
 	if curVersionNumMatch == nil {
 		return false, nil
 	}
@@ -307,31 +305,22 @@ func validateAssumedSnapdVersion(version string) (bool, error) {
 	return true, nil
 }
 
-// assumesFeatureSet contains the flag values that can be listed in assumes entries
-// that this ubuntu-core actually provides.
-var assumesFeatureSet = map[string]bool{
-	// Support for common data directory across revisions of a snap.
-	"common-data-dir": true,
-	// Support for the "Environment:" feature in snap.yaml
-	"snap-env": true,
-	// Support for the "command-chain" feature for apps and hooks in snap.yaml
-	"command-chain": true,
-	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
-	// content of the style $kernel:ref`
-	"kernel-assets": true,
-	// Support for "refresh-mode: ignore-running" in snap.yaml
-	"app-refresh-mode": true,
-	// Support for "SNAP_UID" and "SNAP_EUID" environment variables
-	"snap-uid-envvars": true,
-}
+// assumeFormat matches the expected string format for assume flags.
+var assumeFormat = regexp.MustCompile("^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
-// ValidateAssumes checks if `assumes` lists features that are all supported
-// by snapd.
-func ValidateAssumes(assumes []string) error {
+// ValidateAssumes checks if `assumes` lists features that are all supported.
+// Pass empty currentSnapdVersion to skip version checks.
+// Pass nil/empty featureSet to only validate assumes format & not feature support.
+func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet map[string]bool) error {
 	var missing []string
 	for _, flag := range assumes {
 		if strings.HasPrefix(flag, "snapd") {
-			validVersion, err := validateAssumedSnapdVersion(flag[5:])
+			if currentSnapdVersion == "" {
+				// Version checking disabled - skip snapd version validation
+				continue
+			}
+
+			validVersion, err := validateAssumedSnapdVersion(flag[5:], currentSnapdVersion)
 			if err != nil {
 				// error not possible unless someone has messed up the regex
 				return err
@@ -342,7 +331,15 @@ func ValidateAssumes(assumes []string) error {
 			}
 		}
 
-		if !assumesFeatureSet[flag] {
+		// If featureSet is provided, check feature support; otherwise only validate format
+		isValid := false
+		if len(featureSet) > 0 {
+			isValid = featureSet[flag]
+		} else {
+			isValid = assumeFormat.MatchString(flag)
+		}
+
+		if !isValid {
 			missing = append(missing, flag)
 		}
 	}
