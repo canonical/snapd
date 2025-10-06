@@ -20,6 +20,9 @@ remap_one() {
         test-snapd-pkg-2)
             echo "texlive-base"
             ;;
+        gdbserver)
+            echo "gdb-gdbserver"
+            ;;
         *)
             echo "$1"
             ;;
