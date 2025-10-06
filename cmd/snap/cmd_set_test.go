@@ -237,7 +237,7 @@ func (s *confdbSuite) TestConfdbSet(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockConfdbServer(c, `{"abc":"cba"}`, false)
+	s.mockConfdbServer(c, `{"values":{"abc":"cba"}}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`})
 	c.Assert(err, check.IsNil)
@@ -251,7 +251,7 @@ func (s *confdbSuite) TestConfdbSetMany(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockConfdbServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
+	s.mockConfdbServer(c, `{"values":{"abc":{"foo":1},"xyz":true}}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"})
 	c.Assert(err, check.IsNil)
@@ -274,7 +274,7 @@ func (s *confdbSuite) TestConfdbSetNoWait(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockConfdbServer(c, `{"abc":1}`, true)
+	s.mockConfdbServer(c, `{"values":{"abc":1}}`, true)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"})
 	c.Assert(err, check.IsNil)
@@ -306,7 +306,7 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockConfdbServer(c, `{"abc":null}`, false)
+	s.mockConfdbServer(c, `{"values":{"abc":null}}`, false)
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
 	c.Assert(err, check.IsNil)

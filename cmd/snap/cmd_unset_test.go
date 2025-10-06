@@ -53,7 +53,7 @@ func (s *confdbSuite) TestConfdbUnset(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockConfdbServer(c, `{"abc":null}`, false)
+	s.mockConfdbServer(c, `{"values":{"abc":null}}`, false)
 
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
 	c.Assert(err, check.IsNil)
@@ -63,7 +63,7 @@ func (s *confdbSuite) TestConfdbUnsetNoWait(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
-	s.mockConfdbServer(c, `{"abc":null}`, true)
+	s.mockConfdbServer(c, `{"values":{"abc":null}}`, true)
 
 	rest, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "--no-wait", "foo/bar/baz", "abc"})
 	c.Assert(err, check.IsNil)
