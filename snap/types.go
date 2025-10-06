@@ -183,14 +183,6 @@ const (
 	KillReasonOther       AppKillReason = ""
 )
 
-// DaemonType represents whether the daemon is an user or system daemon at systemd level
-type DaemonType string
-
-const (
-	SystemDaemon DaemonType = "system"
-	UserDaemon   DaemonType = "user"
-)
-
 // DaemonScope represents the scope of the daemon running under systemd
 type DaemonScope string
 
@@ -200,15 +192,23 @@ const (
 	GraphicalUserDaemonScope DaemonScope = "graphical-user"
 )
 
-// Returns the daemon type based on the daemon scope
-func (daemonScope DaemonScope) GetDaemonType() DaemonType {
+// Returns if the daemon is a System daemon
+func (daemonScope DaemonScope) IsSystemDaemon() bool {
+	switch daemonScope {
+	case SystemDaemonScope:
+		return true
+	default:
+		return false
+	}
+}
+
+// Returns if the daemon is an User daemon
+func (daemonScope DaemonScope) IsUserDaemon() bool {
 	switch daemonScope {
 	case UserDaemonScope, GraphicalUserDaemonScope:
-		return UserDaemon
-	case SystemDaemonScope:
-		return SystemDaemon
+		return true
 	default:
-		return ""
+		return false
 	}
 }
 

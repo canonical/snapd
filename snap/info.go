@@ -1541,10 +1541,10 @@ func (app *AppInfo) ServiceName() string {
 }
 
 func (app *AppInfo) serviceDir() string {
-	switch app.DaemonScope.GetDaemonType() {
-	case SystemDaemon:
+	switch {
+	case app.DaemonScope.IsSystemDaemon():
 		return dirs.SnapServicesDir
-	case UserDaemon:
+	case app.DaemonScope.IsUserDaemon():
 		return dirs.SnapUserServicesDir
 	default:
 		panic("unknown daemon scope")
