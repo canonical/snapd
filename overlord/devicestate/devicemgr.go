@@ -757,23 +757,24 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 	tasks = append(tasks, genKey)
 
-	var prepareSerialRequest *state.Task
-	if hasPrepareSerialRequestHook {
-		summary := i18n.G("Run prepare-serial-request hook")
-		hooksup := &hookstate.HookSetup{
-			Snap: gadget,
-			Hook: "prepare-serial-request",
-		}
-		prepareSerialRequest = hookstate.HookTask(m.state, summary, hooksup, nil)
-		tasks = append(tasks, prepareSerialRequest)
-	}
-
 	if willRequestSerial {
 		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 		requestSerial.WaitFor(genKey)
 		tasks = append(tasks, requestSerial)
+
+		var prepareSerialRequest *state.Task
+		if hasPrepareSerialRequestHook {
+			summary := i18n.G("Run prepare-serial-request hook")
+			hooksup := &hookstate.HookSetup{
+				Snap: gadget,
+				Hook: "prepare-serial-request",
+			}
+			prepareSerialRequest = hookstate.HookTask(m.state, summary, hooksup, nil)
+			tasks = append(tasks, prepareSerialRequest)
+		}
 	}
 
+	
 	chg := m.state.NewChange(becomeOperationalChangeKind, i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 

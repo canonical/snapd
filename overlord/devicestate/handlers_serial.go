@@ -307,7 +307,7 @@ func retryBadStatus(t *state.Task, nTentatives int, reason string, resp *http.Re
 	return fmt.Errorf("%s: unexpected status %d", reason, resp.StatusCode)
 }
 
-func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
+func prepareSerialRequestBeforeHook(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	// limit tentatives starting from scratch before going to
 	// slower full retries
 	var nTentatives int
@@ -388,6 +388,10 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		return "", retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
+	return requestID.RequestID, nil
+}
+
+func prepareSerialRequestAfterHook(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
 	if err != nil {
 		return "", fmt.Errorf("internal error: cannot encode device public key: %v", err)
@@ -549,7 +553,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 		var serialRequest string
 		var err error
 		timings.Run(tm, "prepare-serial-request", "prepare device serial request", func(timings.Measurer) {
-			serialRequest, err = prepareSerialRequest(t, regCtx, privKey, device, client, cfg)
+			requestID, err = prepareSerialRequestBeforeHook(t, regCtx, privKey, device, client, cfg)
 		})
 		if err != nil { // errors & retries
 			return nil, nil, err
