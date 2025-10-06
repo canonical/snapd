@@ -11,7 +11,7 @@ details: |
   A snap declaring a plug on this interface must be able to access NVMe
   device files, control interfaces, and management paths.
 
-# Disable tests for core environments
+# Disable tests for core environments, needs nvme support
 systems: [-ubuntu-core-*]
 
 environment:
