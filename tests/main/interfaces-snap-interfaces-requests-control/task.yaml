@@ -105,10 +105,8 @@ execute: |
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | \
         gojq '."status-code"' | MATCH '^200$'
 
-    # XXX: creating rules requires polkit authentication, so for now, use snap debug api instead of api-client
-    # echo "Check snap can create rule via /v2/interfaces/requests/rules"
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"forever"},"execute":{"outcome":"allow","lifespan":"timespan","duration":"1h"}}}}}' "/v2/interfaces/requests/rules" > result.json
-    echo '{
+    echo "Check snap can create rule via /v2/interfaces/requests/rules"
+    api-client --socket /run/snapd-snap.socket --method=POST "/v2/interfaces/requests/rules" '{
       "action": "add",
       "rule": {
         "snap": "api-client",
@@ -122,7 +120,7 @@ execute: |
             },
             "write": {
               "outcome": "deny",
-              "lifespan": "forever"
+              "lifespan": "session"
             },
             "execute": {
               "outcome": "allow",
@@ -132,17 +130,14 @@ execute: |
           }
         }
       }
-    }' | \
-        snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests/rules" | \
-        tee result.json
+    }' | tee result.json
     gojq '."status-code"' < result.json | MATCH '^200$'
     RULE_ID=$(gojq '."result"."id"' < result.json | tr -d '"')
     echo "Check snap can view a single rule via /v2/interfaces/requests/rules/<ID>"
     api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | \
         gojq '."status-code"' | MATCH '^200$'
-    # XXX: modifying rules requires polkit authentication
-    # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | gojq '."status-code"' | MATCH '^200$'
+    echo "Check snap can modify/remove a single rule via /v2/interfaces/requests/rules/<ID>"
+    api-client --socket /run/snapd-snap.socket --method=POST "/v2/interfaces/requests/rules/$RULE_ID" '{"action":"remove"}' | gojq '."status-code"' | MATCH '^200$'
 
     echo "Check that snap can access icons info via /v2/icons and gets 404 if icon is not found"
     api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^404$'
