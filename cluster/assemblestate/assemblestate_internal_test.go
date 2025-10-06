@@ -20,9 +20,12 @@
 package assemblestate
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -41,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/testutil"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 type clusterSuite struct{}
@@ -1650,6 +1654,93 @@ func (s *clusterSuite) TestNewAssembleStateWithSessionImport(c *check.C) {
 	c.Assert(publications, check.DeepEquals, []string{"127.0.0.2:8001"})
 }
 
+func (s *clusterSuite) TestNewAssembleStateSessionImportAcceptsDifferentSerialProof(c *check.C) {
+	assertDB, signing := mockAssertDB(c)
+
+	const secret = "secret"
+	rdt := DeviceToken("local-rdt")
+
+	certPEM, keyPEM := createTestCertAndKey(c)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	c.Assert(err, check.IsNil)
+
+	deviceKey, rsaKey := assertstest.GenerateKey(752)
+	devicePub, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	headers := map[string]any{
+		"authority-id":        "canonical",
+		"brand-id":            "canonical",
+		"model":               "test-model",
+		"serial":              randutil.RandomString(10),
+		"device-key":          string(devicePub),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+
+	assertion, err := signing.Sign(asserts.SerialType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	serial, ok := assertion.(*asserts.Serial)
+	c.Assert(ok, check.Equals, true)
+
+	bundle, err := buildSerialBundle(serial, signing.Database)
+	c.Assert(err, check.IsNil)
+
+	fp := CalculateFP(cert.Certificate[0])
+	hmac := CalculateHMAC(rdt, fp, secret)
+
+	// sign a piece of data as if it were a specific time. this will enable us to
+	// create a signature that looks like it was from a while ago
+	signAt := func(data []byte, key *rsa.PrivateKey, ts time.Time) []byte {
+		pk := packet.NewRSAPrivateKey(ts, key)
+		sig := &packet.Signature{
+			PubKeyAlgo:   pk.PubKeyAlgo,
+			Hash:         crypto.SHA512,
+			CreationTime: ts,
+		}
+
+		h := sig.Hash.New()
+		h.Write(data)
+
+		cfg := &packet.Config{DefaultHash: crypto.SHA512}
+		c.Assert(sig.Sign(h, pk, cfg), check.IsNil)
+
+		buf := bytes.NewBuffer(nil)
+		c.Assert(sig.Serialize(buf), check.IsNil)
+		return buf.Bytes()
+	}
+
+	proof := signAt(hmac, rsaKey, time.Now().Add(-time.Hour))
+	session := AssembleSession{
+		Devices: DeviceQueryTrackerData{
+			IDs: []Identity{{
+				RDT:          rdt,
+				FP:           fp,
+				SerialBundle: bundle,
+				SerialProof:  proof,
+			}},
+		},
+	}
+
+	config := AssembleConfig{
+		Secret:  secret,
+		RDT:     rdt,
+		TLSCert: certPEM,
+		TLSKey:  keyPEM,
+		Serial:  serial,
+		Signer: func(data []byte) ([]byte, error) {
+			return asserts.RawSignWithKey(data, deviceKey)
+		},
+		Clock: time.Now,
+	}
+
+	_, err = NewAssembleState(config, session, func(DeviceToken, func(DeviceToken) bool) (RouteSelector, error) {
+		return statelessSelector(), nil
+	}, func(AssembleSession) {}, assertDB)
+	c.Assert(err, check.IsNil)
+}
+
 func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 	db, signing := mockAssertDB(c)
 	cfg := createTestAssembleConfig(c, signing, "secret", "rdt")
@@ -1801,7 +1892,7 @@ func (s *clusterSuite) TestNewAssembleStateInvalidSessionData(c *check.C) {
 					},
 				}
 			}(),
-			err: "serial bundle mismatch for local device.*",
+			err: "(?s)cannot validate serial bundle for local device.*cannot decode signature.*",
 		},
 		{
 			name: "local device serial proof mismatch",
