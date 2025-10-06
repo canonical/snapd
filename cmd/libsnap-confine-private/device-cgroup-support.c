@@ -295,17 +295,28 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     return old_limit;
 }
 
-static bool _sc_is_snap_cgroup(const char *group) {
+// _sc_is_snap_cgroup checks that the cgroup looks like a snap specific one and
+// matches the snap's expected cgroup name.
+static bool _sc_is_snap_cgroup(const char *group, const char *expected_group_name) {
     /* make a copy as basename may modify its input */
     char copy[PATH_MAX] = {0};
     strncpy(copy, group, sizeof(copy) - 1);
     char *leaf = basename(copy);
-    if (!sc_startswith(leaf, "snap.")) {
+    /* expecting: snap.foo.bar-<uuid>.scope or snap.foo.bar.service, where
+       snap.foo.bar is the group name derived from security tag */
+    if (!sc_startswith(leaf, expected_group_name)) {
         return false;
     }
     if (!sc_endswith(leaf, ".service") && !sc_endswith(leaf, ".scope")) {
         return false;
     }
+    /* we already know that the string is longer than the group name as it at
+       least ends with .service or .scope */
+    char uuid_or_svc_sep = leaf[strlen(expected_group_name)];
+    if (uuid_or_svc_sep != '-' && uuid_or_svc_sep != '.') {
+        return false;
+    }
+
     return true;
 }
 
@@ -546,12 +557,13 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     }
     debug("process in cgroup %s", own_group);
 
-    if (!_sc_is_snap_cgroup(own_group)) {
+    char *expected_unit_name SC_CLEANUP(sc_cleanup_string) = sc_security_tag_to_unit_name(self->security_tag);
+    if (!_sc_is_snap_cgroup(own_group, expected_unit_name)) {
         /* we cannot proceed to install a device filtering program when the
          * process is not in a snap specific cgroup, as we would effectively
          * lock down the group that can be shared with other processes or even
          * the whole desktop session */
-        die("%s is not a snap cgroup", own_group);
+        die("%s is not a snap cgroup for tag %s", own_group, self->security_tag);
     }
 
     char own_group_full_path[PATH_MAX] = {0};
