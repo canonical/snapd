@@ -55,7 +55,7 @@ const dmMultipathConnectedPlugAppArmor = `
 # Access to multipath device nodes and their symlinks
 /dev/mapper/{,**} rw,
 # Direct access to underlying device-mapper block devices
-/dev/dm-* rwk,
+/dev/dm-[0-9]* rwk,
 # Access to bcache devices that may be used as paths in multipath configurations
 /dev/bcache[0-9]{,[0-9],[0-9][0-9]} rw,                   # bcache (up to 1000 devices)
 
