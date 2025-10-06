@@ -172,6 +172,7 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 		iface           string
 		constraintsJSON prompting.ConstraintsJSON
 		expected        *prompting.Constraints
+		expectedPattern *patterns.PathPattern
 	}{
 		{
 			iface: "home",
@@ -195,6 +196,7 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 					},
 				},
 			},
+			expectedPattern: mustParsePathPattern(c, "/home/test/foo"),
 		},
 		{
 			iface: "camera",
@@ -210,6 +212,7 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 					},
 				},
 			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface: "home",
@@ -238,6 +241,7 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 					},
 				},
 			},
+			expectedPattern: mustParsePathPattern(c, "/home/test/foo"),
 		},
 		{
 			iface: "camera",
@@ -249,6 +253,7 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
 				Permissions:       prompting.PermissionMap{},
 			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface: "camera",
@@ -260,11 +265,14 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
 				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
 			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 	} {
 		result, err := prompting.UnmarshalConstraints(testCase.iface, testCase.constraintsJSON)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(result, DeepEquals, testCase.expected, Commentf("testCase: %+v", testCase))
+		pathPattern := result.PathPattern()
+		c.Check(pathPattern, DeepEquals, testCase.expectedPattern)
 	}
 }
 
@@ -622,6 +630,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 		iface           string
 		constraintsJSON prompting.ConstraintsJSON
 		expected        *prompting.RuleConstraints
+		expectedPattern *patterns.PathPattern
 	}{
 		{
 			iface: "home",
@@ -649,6 +658,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 					},
 				},
 			},
+			expectedPattern: mustParsePathPattern(c, "/home/test/foo"),
 		},
 		{
 			iface: "camera",
@@ -665,6 +675,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 					},
 				},
 			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface: "home",
@@ -692,6 +703,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 					},
 				},
 			},
+			expectedPattern: mustParsePathPattern(c, "/home/test/foo"),
 		},
 		{
 			iface: "camera",
@@ -703,6 +715,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
 				Permissions:       prompting.RulePermissionMap{},
 			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 		{
 			iface: "camera",
@@ -714,11 +727,14 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
 				Permissions:       prompting.RulePermissionMap{"bad": &prompting.RulePermissionEntry{}},
 			},
+			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
 	} {
 		result, err := prompting.UnmarshalRuleConstraints(testCase.iface, testCase.constraintsJSON)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(result, DeepEquals, testCase.expected, Commentf("testCase: %+v", testCase))
+		pathPattern := result.PathPattern()
+		c.Check(pathPattern, DeepEquals, testCase.expectedPattern)
 	}
 }
 
