@@ -2,15 +2,15 @@
 set -eu
 
 help() {
-    echo "usage: $0 [--mode MODE] [--no-rebuild] [--] [ARGS]"
+    echo "Usage: $0 [OPTION] [--] [ARGS]"
     echo
     echo "Options:"
-    echo "   --mode MODE    - use selected mode:"
+    echo "   -m, --mode MODE    - Use selected mode:"
     echo "                        sru-validation   - Ubuntu SRU validation"
     echo "                        native-package   - Use native package"
-    echo "   --no-rebuild   - do not rebuild snapd snap"
-    echo "   --             - delimiter for arguments parsed by this script"
-    echo "   ARGS           - arguments passed to spread"
+    echo "   -n, --no-rebuild   - Do not rebuild snapd snap"
+    echo "   --                 - Delimiter for arguments parsed by this script"
+    echo "   ARGS               - Arguments passed to spread"
     echo
 }
 
@@ -24,7 +24,7 @@ while true; do
             help
             exit 0
             ;;
-        --mode)
+        --mode|-m)
             shift
             maybe_mode="$1"
             shift
@@ -46,7 +46,7 @@ while true; do
                     ;;
             esac
             ;;
-        --no-rebuild)
+        --no-rebuild|-n)
             no_rebuild=1
             shift
             ;;
@@ -79,7 +79,7 @@ if [ "${NO_REBUILD:-0}" = "1" ]; then
         echo "-- $(date) -- no prebuilt snaps found"
         if [ "$no_rebuild" = "1" ]; then
            # no rebuild explicitly requested
-           echo "use ./tests/build-test-snapd-snap to build the snap"
+           echo "either drop --no-rebuild or use ./tests/build-test-snapd-snap to build the snap"
            exit 1
         fi
         need_rebuild=1
