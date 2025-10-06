@@ -20,7 +20,7 @@
 package builtin
 
 /*
- * nvme-control: allow snaps to manage NVMe controllers and namespaces via
+ * nvme-control: allow snaps to manage and access NVMe controllers and namespaces via
  * in-kernel NVMe interfaces (PCI & NVMe-oF). Provides access to enumerate
  * devices, create/delete/attach/detach namespaces, and read device health/
  * telemetry data. Access is limited to NVMe management operations through
@@ -29,7 +29,7 @@ package builtin
  * kernel modules may auto-load as needed.
  */
 
-const nvmeControlSummary = `allows managing NVMe devices and namespaces`
+const nvmeControlSummary = `allows managing and accessing NVMe devices and namespaces`
 
 const nvmeControlBaseDeclarationPlugs = `
   nvme-control:
