@@ -816,7 +816,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsUnhappy(c *C) {
 			expectedErr: `invalid lifespan: "foo"`,
 		},
 	} {
-		result, err := prompting.UnmarshalConstraints(testCase.iface, testCase.constraintsJSON)
+		result, err := prompting.UnmarshalRuleConstraints(testCase.iface, testCase.constraintsJSON)
 		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(err, ErrorMatches, testCase.expectedErr, Commentf("testCase: %+v", testCase))
 	}
