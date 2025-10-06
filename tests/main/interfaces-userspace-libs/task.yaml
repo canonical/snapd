@@ -25,8 +25,8 @@ prepare: |
 
 execute: |
   LDCONF_PATH=/etc/ld.so.conf.d/snap.system.conf
-  egl_vendor_cfg1=/etc/glvnd/egl_vendor.d/15_snap_libs-provider1_egl-driver-libs_vendor.json
-  egl_vendor_cfg2=/etc/glvnd/egl_vendor.d/15_snap_libs-provider2_egl-driver-libs_vendor.json
+  egl_vendor_cfg1=/etc/glvnd/egl_vendor.d/15_snap_libs-provider1_egl-driver-libs_egl.d-vendor.json
+  egl_vendor_cfg2=/etc/glvnd/egl_vendor.d/15_snap_libs-provider2_egl-driver-libs_egl.d-vendor.json
 
   snap install --dangerous "$PROVIDER_SNAP1"_*.snap
   snap install --dangerous "$PROVIDER_SNAP2"_*.snap
