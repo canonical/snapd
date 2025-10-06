@@ -35,7 +35,8 @@ slots:
     interface: egl-driver-libs
     priority: 10
     compatibility: egl-1-5-ubuntu-2510
-    icd-source: $SNAP/usr/share/glvnd/egl_vendor.d/
+    icd-source:
+      - $SNAP/usr/share/glvnd/egl_vendor.d/
     library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       # Empty folder for arm64

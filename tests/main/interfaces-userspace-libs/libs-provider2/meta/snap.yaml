@@ -9,6 +9,7 @@ slots:
   egl-driver-libs:
     priority: 15
     compatibility: egl-1-5-ubuntu-2404
-    icd-source: $SNAP/egl.d
+    icd-source:
+      - $SNAP/egl.d
     library-source:
       - $SNAP/libs

@@ -24,7 +24,7 @@ execute: |
       MATCH "$iface" < "$SNAP_LDCONF_P"
   done
 
-  EGL_VENDOR_P=/etc/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl_nvidia.json
+  EGL_VENDOR_P=/etc/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl_usr-share-glvnd-egl_vendor.d-nvidia.json
   MATCH libEGL_nvidia.so.0 < "$EGL_VENDOR_P"
   ARCH_TRIPLET=$(gcc -dumpmachine)
   GBM_LIB_P=$(realpath /usr/lib/"$ARCH_TRIPLET"/gbm/nvidia-drm_gbm.so)
