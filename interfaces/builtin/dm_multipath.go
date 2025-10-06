@@ -20,7 +20,7 @@
 package builtin
 
 /*
- * The dm-multipath interface allows snaps to manage device-mapper
+ * The dm-multipath interface allows snaps to manage and access device-mapper
  * multipath maps by communicating with the multipathd daemon. It is intended
  * for storage orchestration software that needs to list, create, reload and
  * remove multipath devices and react to path state changes.
@@ -29,7 +29,7 @@ package builtin
  * normal snap device cgroup mediation still applies.
  */
 
-const dmMultipathSummary = `allows managing device-mapper multipath maps via multipathd`
+const dmMultipathSummary = `allows managing and accessing device-mapper multipath maps via multipathd`
 
 const dmMultipathBaseDeclarationPlugs = `
   dm-multipath:
