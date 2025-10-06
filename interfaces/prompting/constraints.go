@@ -66,11 +66,11 @@ type InterfaceSpecificConstraints interface {
 	patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints
 }
 
-// ParseInterfaceSpecificConstraints parses the given constraints from json
+// parseInterfaceSpecificConstraints parses the given constraints from json
 // according to the given interface. If isPatch is true, then the constraints
 // should be treated as a patch, where fields may be omitted to indicate that
 // they should be left unchanged from the rule which will be patched.
-func ParseInterfaceSpecificConstraints(iface string, constraintsJSON ConstraintsJSON, isPatch bool) (InterfaceSpecificConstraints, error) {
+func parseInterfaceSpecificConstraints(iface string, constraintsJSON ConstraintsJSON, isPatch bool) (InterfaceSpecificConstraints, error) {
 	var interfaceSpecific InterfaceSpecificConstraints
 	switch iface {
 	case "home":
@@ -203,7 +203,7 @@ func (c *Constraints) UnmarshalJSON([]byte) error {
 // never data from disk.
 func UnmarshalConstraints(iface string, constraintsJSON ConstraintsJSON) (*Constraints, error) {
 	const isPatch = false
-	interfaceSpecific, err := ParseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (c *RuleConstraints) UnmarshalJSON([]byte) error {
 // API request content.
 func UnmarshalRuleConstraints(iface string, constraintsJSON ConstraintsJSON) (*RuleConstraints, error) {
 	const isPatch = false
-	interfaceSpecific, err := ParseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func UnmarshalReplyConstraints(iface string, outcome OutcomeType, lifespan Lifes
 	}
 	// Parse interface-specific reply details
 	const isPatch = false
-	interfaceSpecific, err := ParseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +474,7 @@ func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON
 	constraints := &RuleConstraintsPatch{}
 
 	const isPatch = true
-	interfaceSpecific, err := ParseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
+	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
 	if err != nil {
 		return nil, err
 	}
