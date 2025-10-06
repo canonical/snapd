@@ -584,9 +584,6 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
-	if len(pm) == 0 {
-		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
-	}
 	var errs []error
 	var invalidPerms []string
 	rulePermissionMap := make(RulePermissionMap, len(pm))
@@ -611,6 +608,9 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 	}
 	if len(errs) > 0 {
 		return nil, strutil.JoinErrors(errs...)
+	}
+	if len(rulePermissionMap) == 0 {
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	return rulePermissionMap, nil
 }

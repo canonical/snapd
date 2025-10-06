@@ -438,76 +438,110 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 		SessionID: prompting.IDType(0x12345),
 	}
 
-	iface := "home"
-	pathPattern := mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**")
-	constraints := &prompting.Constraints{
-		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
-			Pattern: pathPattern,
+	for _, testCase := range []struct {
+		iface       string
+		constraints *prompting.Constraints
+		expected    *prompting.RuleConstraints
+	}{
+		{
+			iface: "home",
+			constraints: &prompting.Constraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
+				},
+				Permissions: prompting.PermissionMap{
+					"read": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanTimespan,
+						Duration: "10s",
+					},
+					"execute": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
+					},
+				},
+			},
+			expected: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
+				},
+				Permissions: prompting.RulePermissionMap{
+					"read": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+					"write": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeDeny,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: at.Time.Add(10 * time.Second),
+					},
+					"execute": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: at.SessionID,
+					},
+				},
+			},
 		},
-		Permissions: prompting.PermissionMap{
-			"read": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
+		{
+			iface: "camera",
+			constraints: &prompting.Constraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
+					},
+				},
 			},
-			"write": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeDeny,
-				Lifespan: prompting.LifespanTimespan,
-				Duration: "10s",
-			},
-			"execute": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanSession,
+			expected: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: at.SessionID,
+					},
+				},
 			},
 		},
+		{
+			// One with a nil permission, which should be discarded
+			iface: "home",
+			constraints: &prompting.Constraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
+				},
+				Permissions: prompting.PermissionMap{
+					"read": nil,
+					"write": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+					"execute": nil,
+				},
+			},
+			expected: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
+				},
+				Permissions: prompting.RulePermissionMap{
+					"write": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeDeny,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+		},
+	} {
+		result, err := testCase.constraints.ToRuleConstraints(testCase.iface, at)
+		c.Check(err, IsNil)
+		c.Check(result, DeepEquals, testCase.expected)
 	}
-	expectedRuleConstraints := &prompting.RuleConstraints{
-		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
-			Pattern: pathPattern,
-		},
-		Permissions: prompting.RulePermissionMap{
-			"read": &prompting.RulePermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-			"write": &prompting.RulePermissionEntry{
-				Outcome:    prompting.OutcomeDeny,
-				Lifespan:   prompting.LifespanTimespan,
-				Expiration: at.Time.Add(10 * time.Second),
-			},
-			"execute": &prompting.RulePermissionEntry{
-				Outcome:   prompting.OutcomeAllow,
-				Lifespan:  prompting.LifespanSession,
-				SessionID: at.SessionID,
-			},
-		},
-	}
-	result, err := constraints.ToRuleConstraints(iface, at)
-	c.Assert(err, IsNil)
-	c.Assert(result, DeepEquals, expectedRuleConstraints)
-
-	iface = "camera"
-	constraints = &prompting.Constraints{
-		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
-		Permissions: prompting.PermissionMap{
-			"access": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanSession,
-			},
-		},
-	}
-	expectedRuleConstraints = &prompting.RuleConstraints{
-		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsCamera{},
-		Permissions: prompting.RulePermissionMap{
-			"access": &prompting.RulePermissionEntry{
-				Outcome:   prompting.OutcomeAllow,
-				Lifespan:  prompting.LifespanSession,
-				SessionID: at.SessionID,
-			},
-		},
-	}
-	result, err = constraints.ToRuleConstraints(iface, at)
-	c.Assert(err, IsNil)
-	c.Assert(result, DeepEquals, expectedRuleConstraints)
 }
 
 func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
@@ -529,6 +563,13 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
 			iface:  "home",
 			perms:  nil,
 			errStr: `invalid permissions for home interface: permissions empty`,
+		},
+		{
+			iface: "camera",
+			perms: prompting.PermissionMap{
+				"access": nil,
+			},
+			errStr: `invalid permissions for camera interface: permissions empty`,
 		},
 		{
 			iface: "home",
@@ -1119,6 +1160,36 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID,
 				},
 			},
+		},
+		{
+			// Some nil permissions
+			prompting.RulePermissionMap{
+				"read": nil,
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: at.Time.Add(time.Minute),
+				},
+				"execute": nil,
+			},
+			false,
+			prompting.RulePermissionMap{
+				"write": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: at.Time.Add(time.Minute),
+				},
+			},
+		},
+		{
+			// All nil permissions
+			prompting.RulePermissionMap{
+				"read":    nil,
+				"write":   nil,
+				"execute": nil,
+			},
+			true,
+			prompting.RulePermissionMap{},
 		},
 	} {
 		copiedPerms := make(prompting.RulePermissionMap, len(testCase.perms))
