@@ -79,6 +79,9 @@ var templateCommon = `
 # SNAP_NAME so the security policy will allow writing to both locations (since
 # they are equivalent).
 
+# The template is applied to all the snaps regardless of their base snaps. Some base
+# snaps, notably core26, chose to ship uutils-coreutils as their native installation
+# location used by cargo.
 @{SNAP_COREUTIL_DIRS}="/{bin/,usr/bin/,usr/bin/gnu,usr/lib/cargo/bin/coreutils/}"
 ###VAR###
 
