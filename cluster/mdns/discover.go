@@ -111,13 +111,13 @@ func MulticastDiscovery(ctx context.Context, cfg Config) (discoveries <-chan str
 		const domain = "local"
 		defer close(addresses)
 
-		dnssd.LookupType(ctx, fmt.Sprintf("%s.%s.", cfg.ServiceType, domain), func(be dnssd.BrowseEntry) {
-			for _, ip := range be.IPs {
+		dnssd.LookupType(ctx, fmt.Sprintf("%s.%s.", cfg.ServiceType, domain), func(add dnssd.BrowseEntry) {
+			for _, ip := range add.IPs {
 				if len(ip) != net.IPv4len {
 					continue
 				}
 
-				addr := net.JoinHostPort(ip.String(), strconv.Itoa(be.Port))
+				addr := net.JoinHostPort(ip.String(), strconv.Itoa(add.Port))
 				select {
 				case <-ctx.Done():
 					return
@@ -125,7 +125,7 @@ func MulticastDiscovery(ctx context.Context, cfg Config) (discoveries <-chan str
 				}
 			}
 
-		}, func(be dnssd.BrowseEntry) {})
+		}, func(remove dnssd.BrowseEntry) {})
 	}()
 
 	var once sync.Once

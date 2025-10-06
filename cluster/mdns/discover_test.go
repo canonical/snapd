@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	discoverIfaceName = "mdnspeer0"
-	discoverTestEnv   = "SNAPD_MDNS_DISCOVER_TEST"
+	discoverIfaceName        = "mdnspeer0"
+	discoverUserNamespaceEnv = "SNAPD_MDNS_DISCOVER_USERNS"
 )
 
 func Test(t *testing.T) { check.TestingT(t) }
@@ -46,81 +46,80 @@ var _ = check.Suite(&discoverSuite{})
 
 type discoverSuite struct{}
 
-// TestMain re-executes the tests in this package inside an isolated network
-// namespace. This requires root privileges. The suite sets up the namespaced
-// network and re-execs test binary via "ip netns exec". The entire suite is
-// skipped if the tests are not run as root.
+// TestMain re-executes the tests in this package inside a dedicated user and
+// network namespace. The helper gains root-equivalent privileges there before
+// setting up the interfaces required by the suite.
 func TestMain(m *testing.M) {
-	if os.Getuid() != 0 {
-		os.Exit(0)
+	if !osutil.GetenvBool(discoverUserNamespaceEnv) {
+		code, err := runTestsInUserNamespace()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mdns discovery tests: cannot enter user namespace: %v\n", err)
+			os.Exit(1)
+		}
+
+		os.Exit(code)
 	}
 
-	if osutil.GetenvBool(discoverTestEnv) {
-		os.Exit(m.Run())
-	}
-
-	code, err := runTestsInNamespace()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	os.Exit(code)
+	os.Exit(m.Run())
 }
 
-func runTestsInNamespace() (int, error) {
+func setupNetworkForTest(c *check.C) (restore func()) {
+	if os.Getuid() != 0 {
+		c.Skip("mdns discovery tests require root privileges")
+	}
+
 	const (
-		discoverNamespace    = "mdns-discover-ns"
 		discoverHostLinkName = "mdnshost0"
 		discoverHostCIDR     = "192.0.2.1/24"
 		discoverIfaceCIDR    = "192.0.2.2/24"
 	)
 
-	exe, err := os.Executable()
-	if err != nil {
-		return 1, fmt.Errorf("cannot locate test executable: %w", err)
-	}
-
 	teardown := [][]string{
 		{"ip", "link", "del", discoverHostLinkName},
-		{"ip", "netns", "del", discoverNamespace},
 	}
 
 	executeIgnoreErrors(teardown)
-	defer executeIgnoreErrors(teardown)
 
 	setup := [][]string{
-		{"ip", "netns", "add", discoverNamespace},
 		{"ip", "link", "add", discoverHostLinkName, "type", "veth", "peer", "name", discoverIfaceName},
-		{"ip", "link", "set", discoverIfaceName, "netns", discoverNamespace},
 		{"ip", "link", "set", discoverHostLinkName, "up"},
 		{"ip", "addr", "add", discoverHostCIDR, "dev", discoverHostLinkName},
-		{"ip", "netns", "exec", discoverNamespace, "ip", "link", "set", "lo", "up"},
-		{"ip", "netns", "exec", discoverNamespace, "ip", "link", "set", discoverIfaceName, "up"},
-		{"ip", "netns", "exec", discoverNamespace, "ip", "addr", "add", discoverIfaceCIDR, "dev", discoverIfaceName},
+		{"ip", "link", "set", discoverIfaceName, "up"},
+		{"ip", "addr", "add", discoverIfaceCIDR, "dev", discoverIfaceName},
 	}
 
 	if err := execute(setup); err != nil {
-		return 1, fmt.Errorf("cannot setup network namespace for discovery tests: %w", err)
+		executeIgnoreErrors(teardown)
+		c.Fatalf("cannot setup network namespace for discovery tests: %v", err)
 	}
 
-	args := append([]string{"netns", "exec", discoverNamespace, exe}, os.Args[1:]...)
-	cmd := exec.Command("ip", args...)
-	cmd.Env = append(os.Environ(), discoverTestEnv+"=true")
+	return func() {
+		executeIgnoreErrors(teardown)
+	}
+}
+
+func runTestsInUserNamespace() (int, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return 0, fmt.Errorf("cannot locate test executable: %w", err)
+	}
+
+	args := append([]string{"--user", "--map-root-user", "-n", exe}, os.Args[1:]...)
+	cmd := exec.Command("unshare", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), discoverUserNamespaceEnv+"=1")
 
-	err = cmd.Run()
-	if err == nil {
-		return 0, nil
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return exitErr.ExitCode(), nil
+		}
+
+		return 0, fmt.Errorf("cannot re-exec mdns discovery tests inside user namespace: %w", err)
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		return exitErr.ExitCode(), nil
-	}
-
-	return 0, fmt.Errorf("cannot run mdns tests inside network namespace: %w", err)
+	return 0, nil
 }
 
 func execute(cmds [][]string) error {
@@ -151,6 +150,9 @@ func executeIgnoreErrors(cmds [][]string) {
 }
 
 func (s *discoverSuite) TestMulticastDiscovery(c *check.C) {
+	restore := setupNetworkForTest(c)
+	defer restore()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -207,7 +209,10 @@ func (s *discoverSuite) TestMulticastDiscovery(c *check.C) {
 	stop = startPeers(ctx, c, peers)
 	defer stop()
 
-	expected := expectedPeers(peers)
+	expected := make(map[string]bool, len(peers))
+	for _, peer := range peers {
+		expected[fmt.Sprintf("%s:%d", peer.IP.String(), peer.Port)] = true
+	}
 
 	// we also expect to discover ourself
 	expected[fmt.Sprintf("%s:%d", discoverIfaceIP, port)] = true
@@ -280,14 +285,7 @@ func startPeers(ctx context.Context, c *check.C, peers []mdns.Config) func() {
 	}
 }
 
-func expectedPeers(peers []mdns.Config) map[string]bool {
-	results := make(map[string]bool, len(peers))
-	for _, peer := range peers {
-		results[fmt.Sprintf("%s:%d", peer.IP.String(), peer.Port)] = true
-	}
-	return results
-}
-
+// TODO:GOVERSION: remove this once we're on go 1.23
 func keys[K comparable, V any](m map[K]V) []K {
 	slice := make([]K, 0, len(m))
 	for k := range m {
