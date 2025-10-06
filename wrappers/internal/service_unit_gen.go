@@ -304,15 +304,15 @@ WantedBy={{.ServicesTarget}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	switch appInfo.DaemonScope.GetDaemonType() {
-	case snap.SystemDaemon:
+	switch {
+	case appInfo.DaemonScope.IsSystemDaemon():
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(dirs.StripRootDir(appInfo.Snap.MountDir())))
 		wrapperData.Requires = append(wrapperData.Requires, wrapperData.MountUnit)
 		wrapperData.WorkingDir = dirs.StripRootDir(appInfo.Snap.DataDir())
 		wrapperData.After = append(wrapperData.After, "snapd.apparmor.service")
-	case snap.UserDaemon:
+	case appInfo.DaemonScope.IsUserDaemon():
 		wrapperData.ServicesTarget = systemd.UserServicesTarget
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
