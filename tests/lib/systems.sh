@@ -37,5 +37,7 @@ get_core_for_system(){
 }
 
 is_cgroupv2() {
-    test "$(stat -f -c '%T' /sys/fs/cgroup)" = "cgroup2fs"
+    cgroups_val="$(stat -f -c '%T' /sys/fs/cgroup)"
+    # The hexadecimal number 0x63677270 corresponds to the magic constant CGROUP2_SUPER_MAGIC
+    test "$cgroups_val" = "cgroup2fs" || [[ "$cgroups_val" == *0x63677270* ]]
 }
