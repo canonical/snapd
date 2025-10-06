@@ -75,6 +75,9 @@ func init() {
 
 	// experimental.apparmor-prompting
 	addWithStateHandler(nil, doExperimentalApparmorPromptingDaemonRestart, nil)
+
+	// telemagent.ca-cert
+	addWithStateHandler(validateTelemAgentConf, handleTelemAgentConfiguration, nil)
 }
 
 // RunTransaction is an interface describing how to access

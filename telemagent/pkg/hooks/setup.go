@@ -3,10 +3,8 @@ package hooks
 import (
 	"context"
 
-
 	"github.com/canonical/mqtt.golang/autopaho"
 	"github.com/canonical/mqtt.golang/paho"
-
 )
 
 func (h *TelemAgentHook) OnStarted() {

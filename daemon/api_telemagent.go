@@ -29,12 +29,10 @@ import (
 var (
 	// see daemon.go:canAccess for details how the access is controlled
 	deviceSessionCmd = &Command{
-		Path:        "/v2/devicesession",
-		GET:         getDeviceSession,
-		ReadAccess:  openAccess{}, //TODO: this is open for now just for testing, but the goal is to make it protected
+		Path:       "/v2/devicesession",
+		GET:        getDeviceSession,
+		ReadAccess: openAccess{}, //TODO: this is open for now just for testing, but the goal is to make it protected
 	}
-
-
 )
 
 func getDeviceSession(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -42,13 +40,11 @@ func getDeviceSession(c *Command, r *http.Request, user *auth.UserState) Respons
 	st := c.d.state
 	st.Lock()
 	defer st.Unlock()
-	
+
 	device, err := devicestatetest.Device(st)
 	if err != nil {
 		return SyncResponse(err)
 	}
 
-
 	return SyncResponse([]string{device.SessionMacaroon})
 }
-

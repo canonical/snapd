@@ -97,16 +97,14 @@ func GetDeviceId() (string, error) {
 	var results []asserts.Assertion
 	for i := 0; i < 5; i++ { // Initialization; Condition; Post-statement
 		results, err = snapClient.Known("serial", make(map[string]string), nil)
-	
 		if err == nil && len(results) != 0 {
 			break
 		} else {
 			time.Sleep(WAIT_TIME * time.Duration(math.Pow(2, float64(i))) * time.Millisecond)
 		}
 
-		
 	}
-	
+
 	if err != nil {
 		return "", err
 	} else if len(results) == 0 {

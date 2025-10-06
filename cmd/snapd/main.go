@@ -62,7 +62,6 @@ func main() {
 		os.Exit(1)
 	}
 
-
 	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -166,7 +165,7 @@ func run(ch chan os.Signal) error {
 		logger.Debug("Starting TelemAgent")
 		telemagent()
 	}()
-	
+
 out:
 	for {
 		select {

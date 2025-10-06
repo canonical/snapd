@@ -1,20 +1,18 @@
 package hooks
 
 import (
-	"fmt"
 	"context"
 	"errors"
-	"strings"
+	"fmt"
 	"log/slog"
-
+	"strings"
 
 	"github.com/snapcore/snapd/telemagent/pkg/utils"
 
+	"github.com/canonical/mqtt.golang/paho"
 	mochi "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
-	"github.com/canonical/mqtt.golang/paho"
 	"github.com/snapcore/snapd/client"
-
 )
 
 func (h *TelemAgentHook) OnSubscribe(cl *mochi.Client, pk packets.Packet) packets.Packet {
@@ -163,8 +161,6 @@ func (h *TelemAgentHook) OnPacketEncode(cl *mochi.Client, pk packets.Packet) pac
 	return pk
 }
 
-
-
 func isAllowedTopic(snapClient *client.Client, topic, snapName, snapPublisher, action string) (bool, error) {
 	levels := strings.Split(topic, "/")[1:]
 	if len(levels) < 2 {
@@ -178,8 +174,6 @@ func isAllowedTopic(snapClient *client.Client, topic, snapName, snapPublisher, a
 	if action == "pub" {
 		return false, nil
 	}
-
-
 
 	return false, nil
 }

@@ -24,11 +24,11 @@ const DeniedTopic = "DENIED"
 const ErrorTopic = "ERROR"
 
 type Config struct {
-	Enabled         bool   `env:"ENABLED"     envDefault:"false"`
-	Endpoint        string `env:"ENDPOINT"     envDefault:"mqtt://localhost:1883"`
-	ServerPort      int    `env:"PORT"     envDefault:"9090"`
-	BrokerPort		string `env:"BROKER_PORT" envDefault:":1884"`
-	TLSConfig *tls.Config
+	Enabled    bool   `env:"ENABLED"      envDefault:"false"`
+	Endpoint   string `env:"ENDPOINT"     envDefault:"mqtt://localhost:1883"`
+	ServerPort int    `env:"PORT"         envDefault:"9090"`
+	BrokerPort string `env:"BROKER_PORT"  envDefault:":1884"`
+	TLSConfig  *tls.Config
 }
 
 // Options contains configuration settings for the hook.
@@ -56,7 +56,7 @@ func NewConfig(opts env.Options) (Config, error) {
 		return Config{}, err
 	}
 
-	c.TLSConfig, err = mptls.LoadClient(&cfg)
+	c.TLSConfig, err = mptls.Load(&cfg)
 	if err != nil {
 		return Config{}, err
 	}
@@ -163,4 +163,3 @@ func (h *TelemAgentHook) OnConnectAuthenticate(cl *mochi.Client, pk packets.Pack
 
 	return true
 }
-

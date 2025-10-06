@@ -56,7 +56,7 @@ func init() {
 			name: i18n.G("<email>"),
 			// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 			desc: i18n.G("The login.ubuntu.com email to login as"),
-		},})
+		}})
 }
 
 func associateDeviceWith2faRetry(cli *client.Client, email, password string) error {
@@ -111,11 +111,11 @@ func (x *cmdTelemAgent) Execute(args []string) error {
 	}
 
 	if email == "" {
-		
+
 		//TRANSLATORS: after the "... at" follows a URL in the next line
 		fmt.Fprint(Stdout, i18n.G("Personal information is handled as per our privacy notice at\n"))
 		fmt.Fprint(Stdout, "https://www.ubuntu.com/legal/dataprivacy/snap-store\n\n")
-		
+
 		email = x.Positional.Email
 		if email == "" {
 			fmt.Fprint(Stdout, i18n.G("Email address: "))
@@ -130,8 +130,6 @@ func (x *cmdTelemAgent) Execute(args []string) error {
 	} else {
 		err = x.client.Associate(email, "", "", true)
 	}
-
-
 
 	if err != nil {
 		return err
