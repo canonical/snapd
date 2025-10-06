@@ -157,8 +157,14 @@ main() {
             cmd_list_installed
             ;;
         remove)
-            # shellcheck disable=SC2046
-            cmd_remove $(remap_many "$@")
+            new_args=()
+            for arg in "$@"; do
+                if [ "$arg" != "--purge" ] || os.query is-ubuntu || os.query is-debian; then
+                    new_args+=("$arg")
+                fi
+            done
+            # shellcheck disable=SC2046,SC2068
+            cmd_remove $(remap_many ${new_args[@]})
             ;;
         download)
             # shellcheck disable=SC2046
