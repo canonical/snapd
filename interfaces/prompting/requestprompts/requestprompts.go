@@ -87,7 +87,7 @@ type jsonPrompt struct {
 // MarshalJSON marshals the Prompt to JSON.
 // TODO: consider having instead a MarshalForClient -> json.RawMessage method
 func (p *Prompt) MarshalJSON() ([]byte, error) {
-	constraintsJSON, err := p.Constraints.MarshalForInterface(p.Interface)
+	constraintsJSON, err := p.Constraints.marshalForInterface(p.Interface)
 	if err != nil {
 		return nil, err
 	}
@@ -223,10 +223,12 @@ type promptConstraintsJSONCamera struct {
 }
 
 func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
-	panic("programmer error: cannot marshal promptConstraints directly; must use MarshalForInterface with a given interface")
+	panic("programmer error: cannot marshal promptConstraints directly; must use marshalForInterface with a given interface")
 }
 
-func (pc *promptConstraints) MarshalForInterface(iface string) ([]byte, error) {
+// marshalForInterface marshals the prompt constraints into JSON with fields
+// corresponding to the given interface.
+func (pc *promptConstraints) marshalForInterface(iface string) ([]byte, error) {
 	switch iface {
 	case "home":
 		constraintsJSON := &promptConstraintsJSONHome{
