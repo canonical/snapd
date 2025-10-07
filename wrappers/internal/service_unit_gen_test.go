@@ -568,7 +568,7 @@ apps:
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: simple
-        daemon-scope: graphical-user
+        daemon-scope: user-graphical-session
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, IsNil)
@@ -592,7 +592,7 @@ apps:
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: dbus
-        daemon-scope: graphical-user
+        daemon-scope: user-graphical-session
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, IsNil)
@@ -620,7 +620,7 @@ apps:
             testsocket:
                 listen-stream: $SNAP_USER_COMMON/unix.socket
                 socket-mode: 0644
-        daemon-scope: graphical-user
+        daemon-scope: user-graphical-session
         plugs:
             - network-bind
 `
