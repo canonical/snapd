@@ -22,7 +22,7 @@ ubuntu-core-initramfs create-initrd --kernelver "$version"
 case $(dpkg --print-architecture) in
     amd64|arm64)
 	case $version in
-	    *-azure | *-azure-fde)
+	    *-azure-fde)
 		# Currently nullboot doesn't seal cmdline, thus it must be baked in for azure
 		ubuntu-core-initramfs create-efi --unsigned --kernelver "$version" --cmdline "snapd_recovery_mode=cloudimg-rootfs console=tty1 console=ttyS0 earlyprintk=ttyS0 panic=60"
 		;;
