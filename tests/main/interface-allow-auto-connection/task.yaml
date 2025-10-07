@@ -13,16 +13,16 @@ environment:
 
 restore: |
     snap set system interface.network.allow-auto-connection=true
-    snap remove test-snapd-curl || true
+    snap remove vault || true
     snap remove network-consumer || true
 
 execute: |
     # We can install a snap with an interface by default, install an older revision
     # so we can try refreshing it
-    snap install test-snapd-curl --edge --revision=22
+    snap install vault --revision=22
     "$TESTSTOOLS"/snaps-state install-local network-consumer
 
-    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+    snap connections vault | tr -s ' ' | MATCH "vault:network :network"
     snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
 
     if [ "$SPREAD_VARIANT" != "unset" ]; then
@@ -34,29 +34,29 @@ execute: |
 
     # Changing the state of auto-connections for that interface does not break it
     snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
-    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+    snap connections vault | tr -s ' ' | MATCH "vault:network :network"
 
     # Refreshing keeps the connection, and does not break it
-    snap refresh test-snapd-curl --edge
+    snap refresh vault
     "$TESTSTOOLS"/snaps-state install-local network-consumer
 
     snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
-    snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+    snap connections vault | tr -s ' ' | MATCH "vault:network :network"
 
     # Reinstall and make sure it now honors the option set
-    snap remove --purge test-snapd-curl
+    snap remove --purge vault
     snap remove --purge network-consumer
 
-    snap install test-snapd-curl --edge
+    snap install vault
     "$TESTSTOOLS"/snaps-state install-local network-consumer
 
     if [ "$SPREAD_VARIANT" = "true" ]; then
         snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
-        snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+        snap connections vault | tr -s ' ' | MATCH "vault:network :network"
     elif [ "$SPREAD_VARIANT" = "false" ]; then
         snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
-        snap connections test-snapd-curl | tr -s ' ' | NOMATCH "test-snapd-curl:network :network"
+        snap connections vault | tr -s ' ' | NOMATCH "vault:network :network"
     elif [ "$SPREAD_VARIANT" = "verified" ]; then
         snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
-        snap connections test-snapd-curl | tr -s ' ' | MATCH "test-snapd-curl:network :network"
+        snap connections vault | tr -s ' ' | MATCH "vault:network :network"
     fi
