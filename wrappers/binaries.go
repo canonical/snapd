@@ -232,11 +232,14 @@ func EnsureSnapBinaries(s *snap.Info) (err error) {
 					continue
 				}
 				// The symlink must point to /usr/bin/false to avoid
-				// allowing to launch the daemon manually. Also, only
-				// create it if the .desktop file has the NoDisplay
-				// property set to True
-				if (de.Exec == appBase) && (de.NoDisplay) {
-					target = "/usr/bin/false"
+				// allowing to launch the daemon manually. Also, set it
+				// to /usr/bin/false if the .desktop file has the NoDisplay
+				// property set to True, since then it is presumed to not
+				// be executable.
+				if de.Exec == appBase {
+					if de.NoDisplay {
+						target = "/usr/bin/false"
+					}
 					found = true
 					break
 				}
