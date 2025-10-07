@@ -551,7 +551,7 @@ prepare_project() {
     esac
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
-    # It is required in any case because the tesing tools like the fakestore are always compiled
+    # It is required in any case because the testing tools like the fakestore are always compiled
     retry -n 10 go mod vendor
 
     # We are testing snapd snap on top of snapd from the archive
