@@ -103,7 +103,7 @@ type PrioritySelector struct {
 	// [addrID].
 	addresses *bimap.Bimap[string, addrID]
 
-	// knownByPeers keeps track which routes each peer knows about. A route is
+	// knownByPeers keeps track of which routes each peer knows about. A route is
 	// considered known by a peer if either they have sent it to us, or we've
 	// sent it to them.
 	knownByPeers map[peerID]*intset.IntSet[edgeID]

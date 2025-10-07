@@ -56,7 +56,7 @@ type AssembleState struct {
 	trusted map[Fingerprint]Peer
 
 	// fingerprints keeps track of the TLS certificate fingerprints we know and
-	// the RDTs that they are is associated with.
+	// the RDTs that they are associated with.
 	fingerprints map[DeviceToken]Fingerprint
 
 	// addresses keeps track of which address we can reach each device at.
@@ -132,7 +132,7 @@ func (as *AssembleState) export() AssembleSession {
 // Peer is a peer that has established trust via proof of the shared secret in
 // an assemble session.
 type Peer struct {
-	// RDT is the device token that this peer used to identity itself.
+	// RDT is the device token that this peer used to identify itself.
 	RDT DeviceToken `json:"rdt"`
 	// Cert is the TLS certificate that this peer used to send its messages.
 	Cert []byte `json:"cert"`
@@ -143,7 +143,7 @@ type Peer struct {
 type AssembleConfig struct {
 	// Secret is the shared secret used for HMAC-based peer authentication.
 	Secret string
-	// RDT is this device's random device token used to uniquely identity this
+	// RDT is this device's random device token used to uniquely identify this
 	// device.
 	RDT DeviceToken
 	// TLSCert is the PEM-encoded TLS certificate for this device.
@@ -186,7 +186,7 @@ func NewAssembleState(
 		config.Clock = time.Now
 	}
 
-	// validate the given session parse it into more useful data structures
+	// validate the given session and parse it into more useful data structures
 	validated, err := validateSession(session, config.Clock)
 	if err != nil {
 		return nil, fmt.Errorf("invalid session data: %w", err)
@@ -457,7 +457,7 @@ func shuffle[T any](available []T) {
 	}
 }
 
-// authenticateAndCommit checks that the given [Auth] message is valid and proves
+// AuthenticateAndCommit checks that the given [Auth] message is valid and proves
 // knowledge of the shared secret. If this check is passed, we allow mutation of
 // this [AssembleState] via future calls to [AssembleState.verifyPeer] with the same
 // certificate.
@@ -674,8 +674,8 @@ func (as *AssembleState) Run(
 	default:
 	}
 
-	// at this point, the [Transport] should have shutdown and not interface
-	// with our data anymore. however, a misbehaving implementation might. in
+	// at this point, the [Transport] should have shut down and no longer
+	// interface with our data. however, a misbehaving implementation might. in
 	// that case, we need to lock.
 	as.lock.Lock()
 	defer as.lock.Unlock()
@@ -716,7 +716,7 @@ func periodic(
 }
 
 // peerHandle is a wrapper over [AssembleState] that enables an authenticated
-// peer report its knowledge of the state of the cluster.
+// peer to report its knowledge of the state of the cluster.
 type peerHandle struct {
 	as  *AssembleState
 	rdt DeviceToken
