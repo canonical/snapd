@@ -182,6 +182,7 @@ type registrationContext interface {
 	Model() *asserts.Model
 
 	GadgetForSerialRequestConfig() string
+	SerialRequestID() string
 	SerialRequestExtraHeaders() map[string]any
 	SerialRequestAncillaryAssertions() []asserts.Assertion
 
@@ -191,7 +192,7 @@ type registrationContext interface {
 }
 
 // initialRegistrationContext is a thin wrapper around DeviceManager
-// implementing registrationContext for initial regitration
+// implementing registrationContext for initial registration
 type initialRegistrationContext struct {
 	deviceMgr *DeviceManager
 
@@ -212,6 +213,10 @@ func (rc *initialRegistrationContext) Model() *asserts.Model {
 
 func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
 	return rc.model.Gadget()
+}
+
+func (rc *initialRegistrationContext) SerialRequestID() string {
+	return ""
 }
 
 func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]any {
@@ -307,13 +312,13 @@ func retryBadStatus(t *state.Task, nTentatives int, reason string, resp *http.Re
 	return fmt.Errorf("%s: unexpected status %d", reason, resp.StatusCode)
 }
 
-func prepareSerialRequestBeforeHook(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
+func prepareSerialRequestBeforeHook(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) error {
 	// limit tentatives starting from scratch before going to
 	// slower full retries
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
+		return err
 	}
 	nTentatives++
 	t.Set("pre-poll-tentatives", nTentatives)
@@ -324,7 +329,7 @@ func prepareSerialRequestBeforeHook(t *state.Task, regCtx registrationContext, p
 
 	req, err := http.NewRequest("POST", cfg.requestIDURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("internal error: cannot create request-id request %q", cfg.requestIDURL)
+		return fmt.Errorf("internal error: cannot create request-id request %q", cfg.requestIDURL)
 	}
 	req.Header.Set("User-Agent", snapdenv.UserAgent())
 	cfg.applyHeaders(req)
@@ -347,7 +352,7 @@ func prepareSerialRequestBeforeHook(t *state.Task, regCtx registrationContext, p
 			// as soon as the user configured the network of the
 			// device
 			noNetworkRetryInterval := retryInterval / 2
-			return "", &state.Retry{After: noNetworkRetryInterval}
+			return &state.Retry{After: noNetworkRetryInterval}
 		}
 		if httputil.IsCertExpiredOrNotValidYetError(err) {
 			// If the cert is expired/not-valid yet that
@@ -359,36 +364,38 @@ func prepareSerialRequestBeforeHook(t *state.Task, regCtx registrationContext, p
 			// up to 37.5m.
 			switch {
 			case nTentatives <= 5:
-				return "", &state.Retry{After: retryInterval / 2}
+				return &state.Retry{After: retryInterval / 2}
 			case nTentatives <= 10:
-				return "", &state.Retry{After: retryInterval}
+				return &state.Retry{After: retryInterval}
 			case nTentatives <= 15:
-				return "", &state.Retry{After: retryInterval * 2}
+				return &state.Retry{After: retryInterval * 2}
 			case nTentatives <= 20:
-				return "", &state.Retry{After: retryInterval * 4}
+				return &state.Retry{After: retryInterval * 4}
 			}
 		}
 		if !httputil.ShouldRetryError(err) {
 			// a non temporary net error fully errors out and triggers a retry
 			// retries
-			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
+			return fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
 		}
 
-		return "", retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
+		return retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", retryBadStatus(t, nTentatives, "cannot retrieve request-id for making a request for a serial", resp)
+		return retryBadStatus(t, nTentatives, "cannot retrieve request-id for making a request for a serial", resp)
 	}
 
 	dec := json.NewDecoder(resp.Body)
 	var requestID requestIDResp
 	err = dec.Decode(&requestID)
 	if err != nil { // assume broken i/o
-		return "", retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
+		return retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
-	return requestID.RequestID, nil
+	st.Set("serial-request-id", requestID.RequestID)
+
+	return nil
 }
 
 func prepareSerialRequestAfterHook(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
@@ -398,10 +405,18 @@ func prepareSerialRequestAfterHook(t *state.Task, regCtx registrationContext, pr
 
 	}
 
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var requestID string
+
+	st.Get("serial-request-id", &requestID)
+
 	headers := map[string]any{
 		"brand-id":   device.Brand,
 		"model":      device.Model,
-		"request-id": requestID.RequestID,
+		"request-id": requestID,
 		"device-key": string(encodedPubKey),
 	}
 	if cfg.proposedSerial != "" {
@@ -502,31 +517,31 @@ var httputilNewHTTPClient = httputil.NewHTTPClient
 
 var errStoreOffline = errors.New("snap store is marked offline")
 
-func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
+func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if serialSup.Serial != "" {
 		// we got a serial, just haven't managed to save its info yet
 		a, err := asserts.Decode([]byte(serialSup.Serial))
 		if err != nil {
-			return nil, nil, fmt.Errorf("internal error: cannot decode previously saved serial: %v", err)
+			return nil, fmt.Errorf("internal error: cannot decode previously saved serial: %v", err)
 		}
-		return a.(*asserts.Serial), nil, nil
+		return a.(*asserts.Serial), nil
 	}
 
 	st := t.State()
 
 	shouldRequest, err := shouldRequestSerial(st, regCtx.GadgetForSerialRequestConfig())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if !shouldRequest {
-		return nil, nil, errStoreOffline
+		return nil, errStoreOffline
 	}
 
 	proxyConf := proxyconf.New(st)
@@ -542,7 +557,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 
 	cfg, err := getSerialRequestConfig(t, regCtx, client)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// NB: until we get at least an Accepted (202) we need to
@@ -550,16 +565,40 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		var serialRequest string
+
 		var err error
-		timings.Run(tm, "prepare-serial-request", "prepare device serial request", func(timings.Measurer) {
-			requestID, err = prepareSerialRequestBeforeHook(t, regCtx, privKey, device, client, cfg)
+		timings.Run(tm, "prepare-serial-request-before-hook", "prepare device serial request", func(timings.Measurer) {
+			err = prepareSerialRequestBeforeHook(t, regCtx, privKey, device, client, cfg)
 		})
 		if err != nil { // errors & retries
-			return nil, nil, err
+			return nil, err
 		}
 
-		serialSup.SerialRequest = serialRequest
+	}
+
+	return nil, nil
+
+}
+
+func getSerialAfterHook(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
+	st := t.State()
+
+	proxyConf := proxyconf.New(st)
+	client := httputilNewHTTPClient(&httputil.ClientOptions{
+		Timeout:            30 * time.Second,
+		MayLogBody:         true,
+		Proxy:              proxyConf.Conf,
+		ProxyConnectHeader: http.Header{"User-Agent": []string{snapdenv.UserAgent()}},
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdStoreSSLCertsDir,
+		},
+	})
+
+	var serialSup serialSetup
+
+	cfg, err := getSerialRequestConfig(t, regCtx, client)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	timings.Run(tm, "submit-serial-request", "submit device serial request", func(timings.Measurer) {
@@ -734,7 +773,7 @@ func shouldRequestSerial(s *state.State, gadgetName string) (bool, error) {
 	return true, nil
 }
 
-func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doRequestSerialIfPresenet(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -815,9 +854,48 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var serial *asserts.Serial
+	timings.Run(perfTimings, "get-request-id", "get request id", func(tm timings.Measurer) {
+		serial, err = getSerial(t, regCtx, privKey, device, tm)
+	})
+
+	if serial != nil {
+		return finish(serial)
+	}
+
+	return nil
+}
+
+func (m *DeviceManager) doRequestSerialAfterHook(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	regCtx, err := m.registrationCtx(t)
+	if err != nil {
+		return err
+	}
+
+	device, err := regCtx.Device()
+	if err != nil {
+		return err
+	}
+
+	// NB: the keyPair is fixed for now
+	privKey, err := m.keyPair()
+	if errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf("internal error: cannot find device key pair")
+	}
+	if err != nil {
+		return err
+	}
+
+	var serial *asserts.Serial
 	var ancillaryBatch *asserts.Batch
 	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
-		serial, ancillaryBatch, err = getSerial(t, regCtx, privKey, device, tm)
+		serial, ancillaryBatch, err = getSerialAfterHook(t, regCtx, privKey, device, tm)
 	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
@@ -856,6 +934,40 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	if repeatRequestSerial == "after-add-serial" {
 		// For testing purposes, ensure a crash in this state works.
 		return &state.Retry{}
+	}
+
+	finish := func(serial *asserts.Serial) error {
+		// save serial if appropriate into the device save
+		// assertion database
+		err := m.withSaveAssertDB(func(savedb *asserts.Database) error {
+			db := assertstate.DB(st)
+			retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+				return ref.Resolve(db.Find)
+			}
+			b := asserts.NewBatch(nil)
+			err := b.Fetch(savedb, retrieve, func(f asserts.Fetcher) error {
+				// save the associated model as well
+				// as it might be required for cross-checks
+				// of the serial
+				if err := f.Save(regCtx.Model()); err != nil {
+					return err
+				}
+				return f.Save(serial)
+			})
+			if err != nil {
+				return err
+			}
+			return b.CommitTo(savedb, nil)
+		})
+		if err != nil && err != errNoSaveSupport {
+			return fmt.Errorf("cannot save serial to device save assertion database: %v", err)
+		}
+
+		if err := regCtx.FinishRegistration(serial); err != nil {
+			return err
+		}
+		t.SetStatus(state.DoneStatus)
+		return nil
 	}
 
 	return finish(serial)

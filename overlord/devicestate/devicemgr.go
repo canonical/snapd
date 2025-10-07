@@ -224,7 +224,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	hookManager.Register(regexp.MustCompile("^prepare-serial-request$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
-	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("get-request-id", m.doRequestSerialIfPresenet, nil)
+	runner.AddHandler("request-serial", m.doRequestSerialAfterHook, nil)
 	// Mark-preseeded touches and records the system-key, ensure that it does
 	// not run in parallel with other tasks touching the system-key
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
@@ -758,10 +759,11 @@ func (m *DeviceManager) ensureOperational() error {
 	tasks = append(tasks, genKey)
 
 	if willRequestSerial {
-		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
-		requestSerial.WaitFor(genKey)
-		tasks = append(tasks, requestSerial)
+		getRequestID := m.state.NewTask("get-request-id", i18n.G("Get request ID"))
+		getRequestID.WaitFor(genKey)
+		tasks = append(tasks, getRequestID)
 
+		// Only need to run preaper serial request hook if serial will be requested
 		var prepareSerialRequest *state.Task
 		if hasPrepareSerialRequestHook {
 			summary := i18n.G("Run prepare-serial-request hook")
@@ -772,9 +774,12 @@ func (m *DeviceManager) ensureOperational() error {
 			prepareSerialRequest = hookstate.HookTask(m.state, summary, hooksup, nil)
 			tasks = append(tasks, prepareSerialRequest)
 		}
+
+		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
+		requestSerial.WaitFor(prepareSerialRequest)
+		tasks = append(tasks, requestSerial)
 	}
 
-	
 	chg := m.state.NewChange(becomeOperationalChangeKind, i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
