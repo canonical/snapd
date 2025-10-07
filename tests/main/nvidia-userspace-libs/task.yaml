@@ -42,6 +42,10 @@ execute: |
   printf "570.133.07\n" > "$NVIDIA_FILE"
   SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test
 
+  # Re-install to test case similar to a refresh
+  snap install --dangerous test-nvidia-libs_*.snap
+  SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE=$NVIDIA_FILE test-nvidia-libs.test
+
   snap remove --purge "$NVIDIA_TEST_SNAP"
   not test -f "$SNAP_LDCONF_P"
   not test -f "$EGL_VENDOR_P"
