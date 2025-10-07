@@ -1334,6 +1334,7 @@ type AppInfo struct {
 	After   []string
 	Before  []string
 	BindsTo []string
+	PartOf  []string
 
 	Timer *TimerInfo
 

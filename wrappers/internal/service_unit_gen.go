@@ -139,6 +139,9 @@ Before={{ stringsJoin .Before " "}}
 {{- if .BindsTo}}
 BindsTo={{ stringsJoin .BindsTo " " }}
 {{- end}}
+{{- if .PartOf}}
+PartOf={{ stringsJoin .PartOf " " }}
+{{- end}}
 {{- if .CoreMountedSnapdSnapDep}}
 Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
@@ -273,6 +276,7 @@ WantedBy={{.ServicesTarget}}
 		Requires                 []string
 		BindsTo                  []string
 		WantedBy                 []string
+		PartOf                   []string
 		InterfaceServiceSnippets string
 		InterfaceUnitSnippets    string
 		SliceUnit                string
@@ -300,6 +304,7 @@ WantedBy={{.ServicesTarget}}
 		Before:  generateServiceNames(appInfo.Snap, appInfo.Before),
 		After:   generateServiceNames(appInfo.Snap, appInfo.After),
 		BindsTo: generateServiceNames(appInfo.Snap, appInfo.BindsTo),
+		PartOf:  generateServiceNames(appInfo.Snap, appInfo.PartOf),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
@@ -319,7 +324,11 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 		if appInfo.DaemonScope == snap.GraphicalUserDaemonScope {
 			wrapperData.After = append(wrapperData.After, "graphical-session.target")
-			wrapperData.BindsTo = append(wrapperData.BindsTo, "graphical-session.target")
+			if appInfo.Daemon == "dbus" || len(appInfo.Sockets) != 0 {
+				wrapperData.PartOf = append(wrapperData.PartOf, "graphical-session.target")
+			} else {
+				wrapperData.BindsTo = append(wrapperData.BindsTo, "graphical-session.target")
+			}
 			wrapperData.ServicesTarget = "graphical-session.target"
 		}
 	default:
