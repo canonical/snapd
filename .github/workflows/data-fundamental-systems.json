@@ -47,6 +47,14 @@
         "systems": "ubuntu-core-24-64",
         "tasks": "tests/...",
         "rules": "main"
+      },
+      {
+        "group": "arch-linux",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google-distro-2",
+        "systems": "arch-linux-64",
+        "tasks": "tests/...",
+        "rules": "main"
       }
     ]
   }
