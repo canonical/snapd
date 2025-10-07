@@ -103,6 +103,8 @@ cmd/test-driver
 *.lock
 *.user-data
 *.meta-data
+*.packages
+*.packages.stderr
 
 # Directory that is used by the run-spread script
 /built-snap
