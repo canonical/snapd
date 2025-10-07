@@ -50,6 +50,41 @@ define UBUNTU_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
 endef
 
+# This is somewhat dense so let's break it down into steps:
+#
+# - Source the pkgdb.sh script and call the pkg_dependencies function. Along
+#   with SPREAD_SYSTEM and TESTSLIB this prints the list of packages to install
+#   on a given system. This is normally done in prepare-restore.sh, but by
+#   putting it here we avoid constant cost on each iteration, because the
+#   booted test image has all of those packages pre-installed.
+# - Remove empty lines and leading indentation with awk.
+# - Sort the package names to make the output look nicer.
+# - Convert sorted package names to a single line separated by spaces.
+# - Format the line as a comma-separated list and remove trailing space.
+#   This, when used inside square brackets, makes the list valid YAML.
+%.packages: $(wildcard $(GARDEN_PROJECT_DIR)/tests/lib/pkgdb.sh) $(GARDEN_PROJECT_DIR)/.image-garden.mk
+	SPREAD_SYSTEM=$(shell $(GARDEN_PROJECT_DIR)/.image-garden/remap-name garden-to-snapd $*) \
+	TESTSLIB=$(GARDEN_PROJECT_DIR)/tests/lib \
+		bash -c '. $(GARDEN_PROJECT_DIR)/tests/lib/pkgdb.sh && pkg_dependencies' 2>$@.stderr \
+		| awk '/ *[a-zA-Z0-9]+/ { print $$1 }' \
+		| sort \
+		| tr '\n' ' ' \
+		| sed -e 's/ $$/\n/' -e 's/ /, /g' >$@
+
+define ubuntu_cloud_init_magic
+# Inject dependency on the .packages file from .user-data file.
+# We cannot use pattern rules due to how make works when both pattern and non-pattern rules are used.
+ubuntu-cloud-$1.$$(GARDEN_ARCH).user-data: ubuntu-cloud-$1.$$(GARDEN_ARCH).packages
+
+define UBUNTU_$1_CLOUD_INIT_USER_DATA_TEMPLATE
+$$(UBUNTU_CLOUD_INIT_USER_DATA_TEMPLATE)
+packages: [$$(file <ubuntu-cloud-$1.$$(GARDEN_ARCH).packages)]
+endef
+
+endef
+
+$(foreach r,16.04 18.04 20.04 22.04 24.04 25.04 25.10,$(eval $(call ubuntu_cloud_init_magic,$r)))
+
 # In the snapd project Ubuntu Core images are built from classic Ubuntu images
 # in a somewhat complex manner. Ubuntu Core 16 and 18 kernels do not support
 # booting from. Use a quirk to make those systems use SCSI storage instead.
