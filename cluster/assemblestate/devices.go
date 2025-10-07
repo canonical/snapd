@@ -54,8 +54,8 @@ type DeviceQueryTracker struct {
 	queries map[DeviceToken]map[DeviceToken]struct{}
 
 	// known keeps track of which devices we know each peer knows about. Each
-	// DeviceToken maps to the set of devices that are the peer with that
-	// DeviceToken has identitying information for.
+	// DeviceToken maps to the set of devices that the peer with that
+	// DeviceToken has identifying information for.
 	known map[DeviceToken]map[DeviceToken]struct{}
 
 	// ids is our collection of device identities that we've heard from other
@@ -69,7 +69,7 @@ type DeviceQueryTracker struct {
 	// secret is the shared secret used for HMAC calculation during SerialProof validation
 	secret string
 
-	// clock enables injecting a implementation to return the current time.
+	// clock enables injecting an implementation that returns the current time.
 	clock func() time.Time
 }
 
@@ -133,7 +133,7 @@ func (d *DeviceQueryTracker) PendingOutgoingQueries() <-chan struct{} {
 	return d.pendingOutgoingQueries
 }
 
-// RecordIncomingQuery records an imcoming query from a peer for unknown device
+// RecordIncomingQuery records an incoming query from a peer for unknown device
 // identities. If we have identity information for the requested devices, a
 // response will be queued.
 func (d *DeviceQueryTracker) RecordIncomingQuery(from DeviceToken, unknowns []DeviceToken) {
@@ -164,7 +164,7 @@ func (d *DeviceQueryTracker) RecordIncomingQuery(from DeviceToken, unknowns []De
 
 // ResponsesTo returns the device identities that should be sent to the
 // specified peer, along with an acknowledgment function that must be called
-// after successful transmission. ack(true) indicates that they responses were
+// after successful transmission. ack(true) indicates that the responses were
 // sent, ack(false) indicates that the responses could not be sent.
 func (d *DeviceQueryTracker) ResponsesTo(to DeviceToken) (ids []Identity, ack func(bool)) {
 	ids = make([]Identity, 0, len(d.queries[to]))
@@ -199,7 +199,7 @@ func (d *DeviceQueryTracker) ResponsesTo(to DeviceToken) (ids []Identity, ack fu
 // OutgoingQueriesTo returns unknown device RDTs that should be sent as queries
 // to the given peer, along with an acknowledgment function that must be called
 // after successful transmission to track inflight queries. ack(true) indicates
-// that they queries were sent, ack(false) indicates that the queries could not
+// that the queries were sent, ack(false) indicates that the queries could not
 // be sent.
 func (d *DeviceQueryTracker) OutgoingQueriesTo(to DeviceToken) (unknown []DeviceToken, ack func(bool)) {
 	for rdt := range d.known[to] {
@@ -251,7 +251,7 @@ func (d *DeviceQueryTracker) RecordDevicesKnownBy(source DeviceToken, rdts []Dev
 		}
 	}
 
-	// if we are missing some of these routes, let the other side know we have
+	// if we are missing some of these devices, let the other side know we have
 	// data to request
 	if missing {
 		select {

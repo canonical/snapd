@@ -150,7 +150,7 @@ func (is *IntSet[T]) Equal(other *IntSet[T]) bool {
 		return true
 	}
 
-	// here we cannot determine that the sets are inequal just because the
+	// here we cannot determine that the sets are unequal just because the
 	// length of words is not the same. one of the sets might have a value in
 	// words that once contained something but has been cleared. this could
 	// result in an empty word, which is the same as a non-existent word.

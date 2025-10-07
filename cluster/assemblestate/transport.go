@@ -335,7 +335,7 @@ func (t *HTTPSTransport) Stats() TransportStats {
 type HTTPSClient struct {
 	// cert is the TLS certificate that we should use when sending messages.
 	cert tls.Certificate
-	// stats is provided by the parent [Transport] to keeps track of messages
+	// stats is provided by the parent [Transport] to keep track of messages
 	// sent.
 	stats *TransportStats
 	// limiter helps us rate limit our output of bytes/second.
