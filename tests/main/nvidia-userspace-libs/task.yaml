@@ -9,6 +9,7 @@ environment:
   NVIDIA_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/test-nvidia-interfaces_1.0_amd64.snap
 
 prepare: |
+  # TODO: install snap from the store once it is uploaded
   wget -q "$NVIDIA_SNAP_URL"
   snap install --dangerous test-nvidia-interfaces_1.0_amd64.snap
 
