@@ -45,14 +45,7 @@ execute: |
     # The expiry date is <expiration year>/<expiration month>      
 
     declare -A exclusion_map
-    # TODO: add documentation page for firmware-updater-support and snap-fde-control
-    exclusion_map["firmware-updater-support"]="2026/02"
-    exclusion_map["snap-fde-control"]="2026/02"
-    exclusion_map["usb-gadget"]="2026/02"
-    exclusion_map["kerberos-tickets"]="2026/02"
-    exclusion_map["gbm-driver-libs"]="2026/02"
-    exclusion_map["opengl-driver-libs"]="2026/02"
-    exclusion_map["opengles-driver-libs"]="2026/02"
+    # Example exclusion_map["<interface-name>"]="<yyyy/mm>"
 
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true
