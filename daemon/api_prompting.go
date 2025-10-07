@@ -53,20 +53,24 @@ var (
 	}
 
 	requestsRulesCmd = &Command{
-		Path:        "/v2/interfaces/requests/rules",
-		GET:         getRules,
-		POST:        postRules,
-		Actions:     []string{"add", "remove"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		Path:       "/v2/interfaces/requests/rules",
+		GET:        getRules,
+		POST:       postRules,
+		Actions:    []string{"add", "remove"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		// POST rules operates only on the rules for the user making the API
+		// request, so there is no need for additional polkit authentication.
 		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
 	requestsRuleCmd = &Command{
-		Path:        "/v2/interfaces/requests/rules/{id}",
-		GET:         getRule,
-		POST:        postRule,
-		Actions:     []string{"patch", "remove"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		Path:       "/v2/interfaces/requests/rules/{id}",
+		GET:        getRule,
+		POST:       postRule,
+		Actions:    []string{"patch", "remove"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		// POST rules operates only on the rules for the user making the API
+		// request, so there is no need for additional polkit authentication.
 		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 )
