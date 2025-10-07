@@ -125,19 +125,20 @@ func (s *cacheSuite) makeTestFiles(c *C, n int) (cacheKeys []string, testFiles [
 		// keep track of the test files
 		testFiles[i] = p
 
-		// mtime is not very granular
-		time.Sleep(10 * time.Millisecond)
+		// update mtime
+		err := os.Chtimes(p, time.Time{}, time.Now().Add(-24*time.Hour*time.Duration((n-i-1))))
+		c.Assert(err, IsNil)
 	}
 	return cacheKeys, testFiles
 }
 
 func (s *cacheSuite) TestCleanup(c *C) {
-	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+2)
+	cacheKeys, testFiles := s.makeTestFiles(c, s.maxItems+12)
 
 	// Nothing was removed at this point because the test files are
 	// still in place and we just hardlink to them. The cache cleanup
 	// will only clean files with a link-count of 1.
-	c.Check(s.cm.Count(), Equals, s.maxItems+2)
+	c.Check(s.cm.Count(), Equals, s.maxItems+12)
 
 	// Remove the test files again, they are now only in the cache.
 	for _, p := range testFiles {
@@ -151,8 +152,39 @@ func (s *cacheSuite) TestCleanup(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[1])), Equals, false)
 
 	// the newest files are still there
-	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[2])), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-s.maxItems])), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.cm.CacheDir(), cacheKeys[len(cacheKeys)-1])), Equals, true)
+
+	c.Check(s.cm.Count(), Equals, s.maxItems)
+}
+
+func (s *cacheSuite) TestStats(c *C) {
+	_, testFiles := s.makeTestFiles(c, s.maxItems+12)
+	testFilesNames := map[string]bool{}
+	for _, tf := range testFiles {
+		testFilesNames[filepath.Base(tf)] = true
+	}
+
+	c.Check(s.cm.Count(), Equals, s.maxItems+12)
+
+	// Remove the test files again, they are now only in the cache, we should
+	// observe some candidates for pruning next.
+	for _, p := range testFiles {
+		err := os.Remove(p)
+		c.Assert(err, IsNil)
+	}
+	stats, err := s.cm.Stats()
+	c.Assert(err, IsNil)
+
+	c.Check(int(stats.TotalSize), Equals, 24)
+	c.Check(stats.TotalEntries, Equals, s.maxItems+12)
+	c.Check(len(stats.PruneCandidates), Equals, s.maxItems+12)
+	candidates := map[string]bool{}
+	for _, en := range stats.PruneCandidates {
+		_, ok := candidates[en.Name()]
+		c.Check(ok, Equals, false)
+		candidates[en.Name()] = true
+	}
 }
 
 func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
