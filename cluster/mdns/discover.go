@@ -28,6 +28,7 @@ import (
 	"sync"
 
 	"github.com/brutella/dnssd"
+	"github.com/snapcore/snapd/logger"
 )
 
 // Config holds the parameters required to advertise and discover peers using
@@ -95,7 +96,8 @@ func MulticastDiscovery(ctx context.Context, cfg Config) (discoveries <-chan str
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rp.Respond(ctx)
+		err = rp.Respond(ctx)
+		logger.Debugf("multicast dns responder exited: %v", err)
 	}()
 
 	size := cfg.Buffer
@@ -111,7 +113,7 @@ func MulticastDiscovery(ctx context.Context, cfg Config) (discoveries <-chan str
 		const domain = "local"
 		defer close(addresses)
 
-		dnssd.LookupType(ctx, fmt.Sprintf("%s.%s.", cfg.ServiceType, domain), func(add dnssd.BrowseEntry) {
+		err := dnssd.LookupType(ctx, fmt.Sprintf("%s.%s.", cfg.ServiceType, domain), func(add dnssd.BrowseEntry) {
 			for _, ip := range add.IPs {
 				if len(ip) != net.IPv4len {
 					continue
@@ -126,6 +128,7 @@ func MulticastDiscovery(ctx context.Context, cfg Config) (discoveries <-chan str
 			}
 
 		}, func(remove dnssd.BrowseEntry) {})
+		logger.Debugf("multicast dns lookup exited: %v", err)
 	}()
 
 	var once sync.Once
