@@ -19,7 +19,7 @@ restore: |
 execute: |
     # We can install a snap with an interface by default, install an older revision
     # so we can try refreshing it
-    snap install vault --revision=22
+    snap install vault --revision=2424
     "$TESTSTOOLS"/snaps-state install-local network-consumer
 
     snap connections vault | tr -s ' ' | MATCH "vault:network :network"
@@ -37,7 +37,7 @@ execute: |
     snap connections vault | tr -s ' ' | MATCH "vault:network :network"
 
     # Refreshing keeps the connection, and does not break it
-    snap refresh vault
+    snap refresh vault --edge
     "$TESTSTOOLS"/snaps-state install-local network-consumer
 
     snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
