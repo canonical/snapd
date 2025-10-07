@@ -21,7 +21,6 @@ package lists_test
 
 import (
 	"testing"
-	"unsafe"
 
 	"github.com/snapcore/snapd/osutil/vfs/lists"
 )
@@ -33,7 +32,7 @@ type Room struct {
 
 type viaLeftRight struct{}
 
-func (viaLeftRight) Offset(r *Room) uintptr { return unsafe.Offsetof(r.leftRight) }
+func (viaLeftRight) NodePointer(r *Room) *lists.Node[Room] { return &r.leftRight }
 
 func TestNode_Unlink(t *testing.T) {
 	t.Run("unlink-zero", func(t *testing.T) {
@@ -44,10 +43,10 @@ func TestNode_Unlink(t *testing.T) {
 		}
 	})
 	t.Run("unlink-appended", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r Room
 
-		l.Append(&r)
+		l.Append(lists.ContainedNode[viaLeftRight](&r))
 		r.leftRight.Unlink()
 
 		if l.Len() != 0 {
@@ -58,10 +57,10 @@ func TestNode_Unlink(t *testing.T) {
 		}
 	})
 	t.Run("unlink-unlinked", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r Room
 
-		l.Append(&r)
+		l.Append(lists.ContainedNode[viaLeftRight](&r))
 		r.leftRight.Unlink()
 		r.leftRight.Unlink() // This is the actual test.
 
@@ -92,27 +91,27 @@ func TestNode_Unlinked(t *testing.T) {
 }
 
 func TestList_Len(t *testing.T) {
-	var l lists.List[Room, viaLeftRight]
+	var l lists.List[Room]
 	for i := 0; i < 100; i++ {
 		if v := l.Len(); v != i {
 			t.Fatalf("Unexpected length: %d", v)
 		}
-		l.Append(new(Room))
+		l.Append(lists.ContainedNode[viaLeftRight](new(Room)))
 	}
 }
 
 func TestList_Empty(t *testing.T) {
 	t.Run("zero-is-empty", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		if !l.Empty() {
 			t.Error("Zero value list is not empty")
 		}
 	})
 
 	t.Run("appended-is-not-empty", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r Room
-		l.Append(&r)
+		l.Append(lists.ContainedNode[viaLeftRight](&r))
 		if l.Empty() {
 			t.Fatal("Appended list is empty")
 		}
@@ -123,9 +122,9 @@ func TestList_Empty(t *testing.T) {
 	})
 
 	t.Run("prepended-is-not-empty", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r Room
-		l.Prepend(&r)
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r))
 		if l.Empty() {
 			t.Fatal("Non-empty list is empty")
 		}
@@ -137,10 +136,14 @@ func TestList_Empty(t *testing.T) {
 }
 
 func TestList_Append(t *testing.T) {
-	var l lists.List[Room, viaLeftRight]
+	var l lists.List[Room]
 
-	l.Append(&Room{Name: "courtyard"})
-	l.Append(&Room{Name: "hallway"})
+	l.Append(lists.ContainedNode[viaLeftRight](&Room{Name: "courtyard"}))
+	l.Append(lists.ContainedNode[viaLeftRight](&Room{Name: "hallway"}))
+
+	if l.HeadContainer() != nil {
+		t.Error("List.head.container must be nil")
+	}
 
 	if r := l.At(0); r == nil || r.Name != "courtyard" {
 		t.Fatalf("Unexpected room: %v", r)
@@ -157,10 +160,14 @@ func TestList_Append(t *testing.T) {
 }
 
 func TestList_Prepend(t *testing.T) {
-	var l lists.List[Room, viaLeftRight]
+	var l lists.List[Room]
 
-	l.Prepend(&Room{Name: "courtyard"})
-	l.Prepend(&Room{Name: "hallway"})
+	l.Prepend(lists.ContainedNode[viaLeftRight](&Room{Name: "courtyard"}))
+	l.Prepend(lists.ContainedNode[viaLeftRight](&Room{Name: "hallway"}))
+
+	if l.HeadContainer() != nil {
+		t.Error("List.head.container must be nil")
+	}
 
 	if r := l.At(0); r == nil || r.Name != "hallway" {
 		t.Fatalf("Unexpected room: %v", r)
@@ -178,7 +185,7 @@ func TestList_Prepend(t *testing.T) {
 
 func TestList_FirstToLast(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		n := 0
 		l.FirstToLast()(func(r *Room) bool {
 			n++
@@ -190,12 +197,12 @@ func TestList_FirstToLast(t *testing.T) {
 	})
 
 	t.Run("appended", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r1, r2, r3 Room
 
-		l.Append(&r1)
-		l.Append(&r2)
-		l.Append(&r3)
+		l.Append(lists.ContainedNode[viaLeftRight](&r1))
+		l.Append(lists.ContainedNode[viaLeftRight](&r2))
+		l.Append(lists.ContainedNode[viaLeftRight](&r3))
 
 		n := 0
 		l.FirstToLast()(func(r *Room) bool {
@@ -221,12 +228,12 @@ func TestList_FirstToLast(t *testing.T) {
 	})
 
 	t.Run("prepended", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r1, r2, r3 Room
 
-		l.Prepend(&r1)
-		l.Prepend(&r2)
-		l.Prepend(&r3)
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r1))
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r2))
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r3))
 
 		n := 0
 		l.FirstToLast()(func(r *Room) bool {
@@ -252,12 +259,12 @@ func TestList_FirstToLast(t *testing.T) {
 	})
 
 	t.Run("calling-unlink", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r1, r2, r3 Room
 
-		l.Append(&r1)
-		l.Append(&r2)
-		l.Append(&r3)
+		l.Append(lists.ContainedNode[viaLeftRight](&r1))
+		l.Append(lists.ContainedNode[viaLeftRight](&r2))
+		l.Append(lists.ContainedNode[viaLeftRight](&r3))
 
 		l.FirstToLast()(func(r *Room) bool {
 			r.leftRight.Unlink()
@@ -281,7 +288,7 @@ func TestList_FirstToLast(t *testing.T) {
 
 func Test_LastToFirst(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		n := 0
 		l.FirstToLast()(func(r *Room) bool {
 			n++
@@ -293,12 +300,12 @@ func Test_LastToFirst(t *testing.T) {
 	})
 
 	t.Run("appended", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r1, r2, r3 Room
 
-		l.Append(&r1)
-		l.Append(&r2)
-		l.Append(&r3)
+		l.Append(lists.ContainedNode[viaLeftRight](&r1))
+		l.Append(lists.ContainedNode[viaLeftRight](&r2))
+		l.Append(lists.ContainedNode[viaLeftRight](&r3))
 
 		n := 0
 		l.LastToFirst()(func(r *Room) bool {
@@ -324,12 +331,12 @@ func Test_LastToFirst(t *testing.T) {
 	})
 
 	t.Run("prepended", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r1, r2, r3 Room
 
-		l.Prepend(&r1)
-		l.Prepend(&r2)
-		l.Prepend(&r3)
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r1))
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r2))
+		l.Prepend(lists.ContainedNode[viaLeftRight](&r3))
 
 		n := 0
 		l.LastToFirst()(func(r *Room) bool {
@@ -355,12 +362,12 @@ func Test_LastToFirst(t *testing.T) {
 	})
 
 	t.Run("calling-unlink", func(t *testing.T) {
-		var l lists.List[Room, viaLeftRight]
+		var l lists.List[Room]
 		var r1, r2, r3 Room
 
-		l.Append(&r1)
-		l.Append(&r2)
-		l.Append(&r3)
+		l.Append(lists.ContainedNode[viaLeftRight](&r1))
+		l.Append(lists.ContainedNode[viaLeftRight](&r2))
+		l.Append(lists.ContainedNode[viaLeftRight](&r3))
 
 		l.LastToFirst()(func(r *Room) bool {
 			r.leftRight.Unlink()

@@ -23,7 +23,7 @@ package lists
 //
 // Positive indices iterate first-to-last, with 0 being the first visited element.
 // Negative indices iterate last-to-first, with -1 being the first visited element.
-func (l *List[T, O]) At(n int) (e *T) {
+func (l *List[T]) At(n int) (e *T) {
 	var idx int
 	if n >= 0 {
 		l.FirstToLast()(func(el *T) bool {
@@ -45,4 +45,9 @@ func (l *List[T, O]) At(n int) (e *T) {
 		})
 	}
 	return e
+}
+
+// HeadContainer returns the container of the head element of the list.
+func (l *List[T]) HeadContainer() *T {
+	return l.head.container
 }

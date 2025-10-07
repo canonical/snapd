@@ -69,7 +69,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/snapcore/snapd/osutil/vfs/lists"
 )
@@ -106,13 +105,13 @@ type mount struct {
 
 	// Links to parent, children and siblings. Any of those may be nil.
 	parent    *mount
-	children  lists.List[mount, viaChildNode]
+	children  lists.List[mount]
 	childNode lists.Node[mount]
 }
 
 type viaChildNode struct{}
 
-func (viaChildNode) Offset(m *mount) uintptr { return unsafe.Offsetof(m.childNode) }
+func (viaChildNode) NodePointer(m *mount) *lists.Node[mount] { return &m.childNode }
 
 func (m *mount) mountPoint() string {
 	if m == nil {
@@ -182,7 +181,7 @@ func (v *VFS) attachMount(parent *mount, child *mount) {
 	child.mountID = v.allocateMountID()
 
 	child.parent = parent
-	parent.children.Append(child)
+	parent.children.Append(lists.ContainedNode[viaChildNode](child))
 
 	v.mounts = append(v.mounts, child)
 }
