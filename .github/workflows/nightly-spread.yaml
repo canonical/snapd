@@ -266,22 +266,22 @@ jobs:
             support: '2032-04-30'
           - group: jammy-5.15
             backend: openstack-ps7
-            systems: 'ubuntu-20.04-64'
+            systems: 'ubuntu-22.04-64'
             kernel: '5\.15.*-generic'
             support: '2034-04-30'
           - group: jammy-6.8
             backend: openstack-ps7
-            systems: 'ubuntu-20.04-64'
+            systems: 'ubuntu-22.04-64'
             kernel: '6\.8.*-generic'
             support: '2034-04-30'
           - group: noble-6.8
             backend: openstack-ps7
-            systems: 'ubuntu-20.04-64'
+            systems: 'ubuntu-24.04-64'
             kernel: '6\.8.*-generic'
             support: '2036-04-30'
           - group: noble-6.14
             backend: openstack-ps7
-            systems: 'ubuntu-20.04-64'
+            systems: 'ubuntu-24.04-64'
             kernel: '6\.14.*-generic'
             support: '2036-04-30'
 
