@@ -230,7 +230,6 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 		if _, err := exec.LookPath("i686-linux-gnu-gcc"); err == nil {
 			cmd = exec.Command("i686-linux-gnu-gcc", cmd.Args[1:]...)
 		} else {
-			cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
 			cmd.Args = append(cmd.Args, "-m32")
 		}
 		for i, k := range cmd.Args {
