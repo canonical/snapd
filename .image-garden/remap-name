@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# Convert between naming convention of snapd and image-garden.
+#
+# Snapd                    Image Garden
+# ------------             ------------
+# amazon-linux-2023-64     amazonlinux-cloud-2023-$(uname -m)
+# arch-linux-64            archlinux-cloud.$(uname -m)
+# centos-10-64             centos-cloud-10.$(uname -m)
+# debian-sid-64            debian-cloud-sid.$(uname -m)
+# fedora-42-64             fedora-cloud-42.$(uname -m)
+# opensuse-tumbleweed-64   opensuse-cloud-tumbleweed.$(uname -m)
+# ubuntu-24.04-64          ubuntu-cloud-24.04.$(uname -m)
+# ubuntu-core-24-64        ubuntu-cloud-24.04.$(uname -m)
+
+snapd_to_garden() {
+  # Mapping of core is lossy, as it maps to non-core image name.
+  echo "$1" | sed \
+		-e 's/ubuntu-core-\([0-9][0-9]\)/ubuntu-\1.04/' \
+		-e 's/\(\w\+\)-linux/\1linux/' \
+		-e 's/\(\w\+\)/\1-cloud/' \
+		-e 's/-64$/.'"$(uname -m)"'/'
+}
+
+garden_to_snapd() {
+    echo "$1" | sed \
+    -e 's/.'"$(uname -m)"'$/-64/' \
+    -e 's/\(\w\+\)linux/\1-linux/' \
+    -e 's/\(\w\+\)-cloud/\1/'
+}
+
+case "${1:-}" in
+snapd-to-garden) snapd_to_garden "$2" ;;
+garden-to-snapd) garden_to_snapd "$2" ;;
+*) exit 1 ;;
+esac

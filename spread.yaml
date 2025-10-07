@@ -700,24 +700,7 @@ backends:
             # Spread does not expose any settings to ad-hoc backends.
             export QEMU_MEM_OPTION="-m 3072"
             export QEMU_SMP_OPTION="-smp 4"
-            # Convert convention of system names used by snapd to corresponding image-garden name:
-            # - amazon-linux-2023-64    => amazonlinux-cloud-2023-$(uname -m)
-            # - arch-linux-64           => archlinux-cloud.$(uname -m)
-            # - centos-10-64            => centos-cloud-10.$(uname -m)
-            # - debian-sid-64           => debian-cloud-sid.$(uname -m)
-            # - fedora-42-64            => fedora-cloud-42.$(uname -m)
-            # - opensuse-tumbleweed-64  => opensuse-cloud-tumbleweed.$(uname -m)
-            # - ubuntu-24.04-64         => ubuntu-cloud-24.04.$(uname -m)
-            # - ubuntu-core-24-64       => ubuntu-cloud-24.04.$(uname -m)
-            exec image-garden allocate "$(echo "$SPREAD_SYSTEM" | sed \
-              -e 's/ubuntu-core-16/ubuntu-16.04/' \
-              -e 's/ubuntu-core-18/ubuntu-18.04/' \
-              -e 's/ubuntu-core-20/ubuntu-20.04/' \
-              -e 's/ubuntu-core-22/ubuntu-22.04/' \
-              -e 's/ubuntu-core-24/ubuntu-24.04/' \
-              -e 's/\(\w\+\)-linux/\1linux/' \
-              -e 's/\(\w\+\)/\1-cloud/' \
-              -e 's/-64$/.'"$(uname -m)"'/g')"
+            exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
             # Spread automatically injects /snap/bin to PATH. When we are
             # running from the image-garden snap then SPREAD_HOST_PATH is the
