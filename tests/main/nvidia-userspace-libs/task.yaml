@@ -2,22 +2,17 @@ summary: Test interfaces exposing nvidia libraries on classic userspace
 
 details: Test interfaces exposing nvidia libraries on classic userspace
 
-systems: [ubuntu-24*]
+systems: [ubuntu-24.04-64]
 
 environment:
   NVIDIA_TEST_SNAP: test-nvidia-interfaces
+  NVIDIA_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/test-nvidia-interfaces_1.0_amd64.snap
 
 prepare: |
-  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
-  (cd "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP" && snapcraft)
-
-restore: |
-  snap remove --purge snapcraft || true
-  rm -f "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
+  wget -q "$NVIDIA_SNAP_URL"
+  snap install --dangerous test-nvidia-interfaces_1.0_amd64.snap
 
 execute: |
-  snap install --dangerous "$TESTSLIB"/snaps/"$NVIDIA_TEST_SNAP"/"$NVIDIA_TEST_SNAP"_*.snap
-
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
   for iface in cuda egl gbm opengl opengles; do
       snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
