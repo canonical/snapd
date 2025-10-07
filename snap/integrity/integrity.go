@@ -113,7 +113,7 @@ func NewIntegrityDataParamsFromRevision(rev *asserts.SnapRevision) (*IntegrityDa
 	}, nil
 }
 
-func dmverityHashFileName(snapPath string, digest string) string {
+func DmVerityHashFileName(snapPath string, digest string) string {
 	return fmt.Sprintf("%s.dmverity_%s", snapPath, digest)
 }
 
@@ -142,7 +142,7 @@ func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParam
 		return "", fmt.Errorf("%w: expected %q but found %q.", ErrUnexpectedIntegrityDataType, "dm-verity", params.Type)
 	}
 
-	hashFileName := dmverityHashFileName(snapPath, params.Digest)
+	hashFileName := DmVerityHashFileName(snapPath, params.Digest)
 
 	vsb, err := readDmVeritySuperblock(hashFileName)
 	if os.IsNotExist(err) {
@@ -178,7 +178,7 @@ func GenerateDmVerityData(snapPath string, params *IntegrityDataParams) (string,
 		return "", "", err
 	}
 
-	hashFileName := dmverityHashFileName(snapPath, rootHash)
+	hashFileName := DmVerityHashFileName(snapPath, rootHash)
 
 	err = osRename(tmpHashFileName, hashFileName)
 	if err != nil {
