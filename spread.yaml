@@ -1423,7 +1423,7 @@ suites:
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
     tests/utils/cross-build/suite/:
-        summary: Test building snapd in different architectures        
+        summary: Test building snapd in different architectures
         manual: true
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
