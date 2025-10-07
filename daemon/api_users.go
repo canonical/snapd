@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -68,6 +69,8 @@ var (
 	deviceStateCreateUser       = devicestate.CreateUser
 	deviceStateCreateKnownUsers = devicestate.CreateKnownUsers
 	deviceStateRemoveUser       = devicestate.RemoveUser
+
+	seclogLogLoginSuccess = seclog.LogLoginSuccess
 )
 
 // userResponseData contains the data releated to user creation/login/query
@@ -174,6 +177,13 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
+
+	seclogLogLoginSuccess(seclog.SnapdUser{
+		ID:             int64(user.ID),
+		SystemUserName: user.Username,
+		StoreUserEmail: user.Email,
+		Expiration:     user.Expiration,
+	})
 
 	result := userResponseData{
 		ID:         user.ID,

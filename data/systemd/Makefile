@@ -40,6 +40,16 @@ install: $(SYSTEMD_UNITS)
 	install -d -m 0755 $(DESTDIR)/$(LIBEXECDIR)/snapd
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.core-fixup.sh
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.run-from-snap
+	# security log journal namespace
+	install -d -m 0755 $(DESTDIR)/etc/systemd
+	install -m 0644 journald@snapd-security.conf $(DESTDIR)/etc/systemd/journald@snapd-security.conf
+	install -d -m 0755 $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)/systemd-journald@snapd-security.service.d
+	install -m 0644 systemd-journald@snapd-security.service.d/00-snapd.conf \
+		$(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)/systemd-journald@snapd-security.service.d/00-snapd.conf
+	# snapd.service drop-in to pull in the security journal socket (Wants + After)
+	install -d -m 0755 $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)/snapd.service.d
+	install -m 0644 snapd.service.d/security-journal.conf \
+		$(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)/snapd.service.d/security-journal.conf
 
 .PHONY: clean
 clean:

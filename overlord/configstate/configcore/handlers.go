@@ -124,6 +124,9 @@ func init() {
 	// system.motd
 	addFSOnlyHandler(validateMotdConfiguration, handleMotdConfiguration, coreOnly)
 
+	// security-logging.*
+	addFSOnlyHandler(validateSecurityLoggingSettings, handleSecurityLoggingConfiguration, nil)
+
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
@@ -43,8 +44,15 @@ var (
 	syscheckCheckSystem = syscheck.CheckSystem
 )
 
+const secLogAppID = "canonical.snapd.snapd"
+const secLogMinLevel seclog.Level = seclog.LevelInfo
+
 func init() {
 	logger.SimpleSetup(nil)
+
+	if err := seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, secLogAppID, secLogMinLevel); err != nil {
+		logger.Noticef("%v", err)
+	}
 }
 
 func main() {

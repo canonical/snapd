@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -113,6 +114,11 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 
 	s.expectLoginAccess()
 
+	var loggedUser seclog.SnapdUser
+	s.AddCleanup(daemon.MockSeclogLogLoginSuccess(func(user seclog.SnapdUser) {
+		loggedUser = user
+	}))
+
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
@@ -149,12 +155,21 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+
+	// security log was called with the right user details
+	c.Check(loggedUser.ID, check.Equals, int64(1))
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
 }
 
 func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	state := s.d.Overlord().State()
 
 	s.expectLoginAccess()
+
+	var loggedUser seclog.SnapdUser
+	s.AddCleanup(daemon.MockSeclogLogLoginSuccess(func(user seclog.SnapdUser) {
+		loggedUser = user
+	}))
 
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
@@ -191,6 +206,11 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+
+	// security log was called with the right user details
+	c.Check(loggedUser.ID, check.Equals, int64(1))
+	c.Check(loggedUser.SystemUserName, check.Equals, "username")
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
 }
 
 func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {

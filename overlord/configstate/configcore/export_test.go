@@ -107,3 +107,11 @@ func MockEnvPath(newEnvPath string) func() {
 	envFilePath = newEnvPath
 	return func() { envFilePath = oldEnvPath }
 }
+
+func MockSeclogEnable(f func() error) func() {
+	return testutil.Mock(&seclogEnable, f)
+}
+
+func MockSeclogDisable(f func() error) func() {
+	return testutil.Mock(&seclogDisable, f)
+}
