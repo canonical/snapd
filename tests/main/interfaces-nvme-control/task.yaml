@@ -20,19 +20,21 @@ environment:
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-nvme-control
 
-  modprobe nvme
-  tests.cleanup defer modprobe -r nvme
+  mock() {
+    "$TESTSTOOLS"/fs-state mock-file $1
+    tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file $1
+    echo "mocked" > $1
+  }
 
-  # Create mock NVMe device files for testing
-  # Only mock /dev files and udev data, not sysfs paths
-  "$TESTSTOOLS"/fs-state mock-file /dev/nvme0
-  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /dev/nvme0
-  "$TESTSTOOLS"/fs-state mock-file /dev/nvme0n1
-  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /dev/nvme0n1
-  "$TESTSTOOLS"/fs-state mock-file /dev/nvme-fabrics
-  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /dev/nvme-fabrics
-  "$TESTSTOOLS"/fs-state mock-file /run/udev/data/b259:0
-  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /run/udev/data/b259:0
+  # Create mock NVMe configuration files
+  mock /etc/nvme/discovery.conf
+  mock /etc/nvme/hostid
+  mock /etc/nvme/hostnqn
+
+  # Create mock NVMe device files
+  mock /dev/nvme0
+  mock /dev/nvme0n1
+  mock /dev/nvme-fabrics
 
 execute: |
   echo "The interface is not connected by default"
@@ -41,35 +43,16 @@ execute: |
   echo "When the interface is connected"
   snap connect "$TEST_SNAP":nvme-control
 
-  echo "Then the snap is able to access NVMe device files"
-  "$TEST_SNAP".with-nvme-control-plug -c "test -e /dev/nvme0"
-  "$TEST_SNAP".with-nvme-control-plug -c "test -e /dev/nvme0n1"
-  "$TEST_SNAP".with-nvme-control-plug -c "test -e /dev/nvme-fabrics"
+  echo "Then the snap is able to access NVMe configuration files"
+  for file in /etc/nvme/discovery.conf /etc/nvme/hostid /etc/nvme/hostnqn; do
+    "$TEST_SNAP".with-nvme-control-plug -c "grep -q 'mocked' $file"
+  done
 
-  echo "And the snap is able to access NVMe udev data"
-  "$TEST_SNAP".with-nvme-control-plug -c "test -e /run/udev/data/b259:0"
-
-  echo "And the snap is able to access NVMe sysfs entries if they exist"
-  if [ -d /sys/class/nvme ]; then
-      "$TEST_SNAP".with-nvme-control-plug -c "ls /sys/class/nvme"
-  fi
-
-  echo "And the snap is able to access NVMe control files if they exist"
-  nvme_controller="$(find /sys/class/nvme -name "reset_controller" -type f 2>/dev/null | head -n1)"
-  if [ -n "$nvme_controller" ]; then
-      "$TEST_SNAP".with-nvme-control-plug -c "cat $nvme_controller"
-  fi
-
-  nvme_rescan="$(find /sys/class/nvme -name "rescan_controller" -type f 2>/dev/null | head -n1)"
-  if [ -n "$nvme_rescan" ]; then
-      "$TEST_SNAP".with-nvme-control-plug -c "cat $nvme_rescan"
-  fi
-
-  echo "And the snap is able to access NVMe device trees if they exist"
-  nvme_device="$(find /sys/devices -type d -name "*nvme*" 2>/dev/null | head -n1)"
-  if [ -n "$nvme_device" ]; then
-      "$TEST_SNAP".with-nvme-control-plug -c "ls $nvme_device"
-  fi
+  echo "and the snap is able to access NVMe device files"
+  for dev in /dev/nvme0 /dev/nvme0n1 /dev/nvme-fabrics; do
+    "$TEST_SNAP".with-nvme-control-plug -c "echo 'test' > $dev"
+    "$TEST_SNAP".with-nvme-control-plug -c "grep -q 'test' $dev"
+  done
 
   if [ "$(snap debug confinement)" = partial ] ; then
       exit 0
@@ -78,19 +61,21 @@ execute: |
   echo "When the plug is disconnected"
   snap disconnect "$TEST_SNAP":nvme-control
 
-  echo "Then the snap is not able to access NVMe device files"
-  if ! "$TEST_SNAP".with-nvme-control-plug -c "test -e /dev/nvme0"; then
-      echo "Expected permission error accessing NVMe device"
+  echo "Then the snap is able to access NVMe configuration files"
+  for file in /etc/nvme/discovery.conf /etc/nvme/hostid /etc/nvme/hostnqn; do
+    if "$TEST_SNAP".with-nvme-control-plug -c "cat $file"; then
+      echo "Expected permission error accessing $file"
       exit 1
-  fi
+    fi
+  done
 
-  echo "And the snap is not able to access NVMe sysfs entries"
-  if [ -d /sys/class/nvme ]; then
-      if ! "$TEST_SNAP".with-nvme-control-plug -c "ls /sys/class/nvme"; then
-          echo "Expected permission error accessing NVMe sysfs"
-          exit 1
-      fi
-  fi
+  echo "Then the snap is not able to access NVMe device files"
+  for dev in /dev/nvme0 /dev/nvme0n1 /dev/nvme-fabrics; do
+    if "$TEST_SNAP".with-nvme-control-plug -c "cat $dev"; then
+      echo "Expected permission error accessing $dev"
+      exit 1
+    fi
+  done
 
   echo "Then the interface can be connected again"
   snap connect "$TEST_SNAP":nvme-control
