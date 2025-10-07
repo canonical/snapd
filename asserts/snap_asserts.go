@@ -502,11 +502,11 @@ func toHash(s string) crypto.Hash {
 	}
 }
 
-// SnapIntegrityData holds information about integrity data of a specific type included in a snap's revision.
+// IntegrityData holds information about integrity data of a specific type included in a snap or resource's revision.
 //
-// A single snap revision can have multiple variants of integrity data which are represented as an array in the
-// snap revision assertion.
-type SnapIntegrityData struct {
+// A single snap or resource revision can have multiple variants of integrity data which are represented as an array in the
+// snap or resource revision assertion.
+type IntegrityData struct {
 	Type          string
 	Version       uint
 	HashAlg       string
@@ -606,7 +606,7 @@ type SnapRevision struct {
 	snapRevision int
 	timestamp    time.Time
 
-	snapIntegrityData []SnapIntegrityData
+	snapIntegrityData []IntegrityData
 }
 
 // SnapSHA3_384 returns the SHA3-384 digest of the snap.
@@ -646,8 +646,8 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 	return snaprev.timestamp
 }
 
-// SnapIntegrityData returns the snap integrity data associated with the snap revision if any.
-func (snaprev *SnapRevision) SnapIntegrityData() []SnapIntegrityData {
+// SnapIntegrityData returns the integrity data associated with the snap revision if any.
+func (snaprev *SnapRevision) SnapIntegrityData() []IntegrityData {
 	return snaprev.snapIntegrityData
 }
 
@@ -728,7 +728,7 @@ func checkOptionalSnapRevisionWhat(headers map[string]any, name, what string) (s
 	return checkSnapRevisionWhat(headers, name, what)
 }
 
-func checkSnapIntegrity(headers map[string]any) ([]SnapIntegrityData, error) {
+func checkSnapIntegrity(headers map[string]any) ([]IntegrityData, error) {
 	value, ok := headers["integrity"]
 	if !ok {
 		// integrity stanzas are optional
@@ -743,7 +743,7 @@ func checkSnapIntegrity(headers map[string]any) ([]SnapIntegrityData, error) {
 		return nil, nil
 	}
 
-	var snapIntegrityDataList []SnapIntegrityData
+	var snapIntegrityDataList []IntegrityData
 
 	for i, il := range integrityList {
 		id, ok := il.(map[string]any)
@@ -802,7 +802,7 @@ func checkSnapIntegrity(headers map[string]any) ([]SnapIntegrityData, error) {
 			return nil, err
 		}
 
-		snapIntegrityData := SnapIntegrityData{
+		snapIntegrityData := IntegrityData{
 			Type:          typ,
 			Version:       uint(version),
 			HashAlg:       alg,
