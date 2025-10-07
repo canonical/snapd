@@ -189,7 +189,7 @@ type DaemonScope string
 const (
 	SystemDaemonScope        DaemonScope = "system"
 	UserDaemonScope          DaemonScope = "user"
-	GraphicalUserDaemonScope DaemonScope = "graphical-user"
+	GraphicalUserDaemonScope DaemonScope = "user-graphical-session"
 )
 
 // Returns if the daemon is a System daemon

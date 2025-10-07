@@ -238,7 +238,7 @@ func (s *typeSuite) TestYamlMarshalDaemonScopes(c *C) {
 
 	out, err = yaml.Marshal(GraphicalUserDaemonScope)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "graphical-user\n")
+	c.Check(string(out), Equals, "user-graphical-session\n")
 }
 
 func (s *typeSuite) TestYamlUnmarshalDaemonScopes(c *C) {
@@ -319,7 +319,7 @@ func (s *typeSuite) TestDaemonTypeFromDaemonScope(c *C) {
 	userScope := DaemonScope("user")
 	c.Assert(userScope.IsUserDaemon(), Equals, true)
 	c.Assert(userScope.IsSystemDaemon(), Equals, false)
-	graphicalScope := DaemonScope("graphical-user")
+	graphicalScope := DaemonScope("user-graphical-session")
 	c.Assert(graphicalScope.IsUserDaemon(), Equals, true)
 	c.Assert(graphicalScope.IsSystemDaemon(), Equals, false)
 	emptyScope := DaemonScope("")
