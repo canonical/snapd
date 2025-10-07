@@ -315,11 +315,14 @@ func (s *typeSuite) TestComponentTypeFromString(c *C) {
 func (s *typeSuite) TestDaemonTypeFromDaemonScope(c *C) {
 	systemScope := DaemonScope("system")
 	c.Assert(systemScope.IsSystemDaemon(), Equals, true)
+	c.Assert(systemScope.IsUserDaemon(), Equals, false)
 	userScope := DaemonScope("user")
-	c.Check(userScope.IsUserDaemon(), Equals, true)
+	c.Assert(userScope.IsUserDaemon(), Equals, true)
+	c.Assert(userScope.IsSystemDaemon(), Equals, false)
 	graphicalScope := DaemonScope("graphical-user")
-	c.Check(graphicalScope.IsUserDaemon(), Equals, true)
+	c.Assert(graphicalScope.IsUserDaemon(), Equals, true)
+	c.Assert(graphicalScope.IsSystemDaemon(), Equals, false)
 	emptyScope := DaemonScope("")
-	c.Check(emptyScope.IsSystemDaemon(), Equals, false)
-	c.Check(emptyScope.IsUserDaemon(), Equals, false)
+	c.Assert(emptyScope.IsSystemDaemon(), Equals, false)
+	c.Assert(emptyScope.IsUserDaemon(), Equals, false)
 }
