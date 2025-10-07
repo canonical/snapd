@@ -53,6 +53,10 @@ type Config struct {
 // addresses observed for peers of the same service type. If no error is
 // returned, the stop function should be called to wait on the goroutines that
 // this function spawns.
+//
+// TODO: note that usage of this function might result in a conflict with a
+// system-level mDNS responder. We need to consider our options for either
+// avoiding or mitigating this conflict.
 func MulticastDiscovery(ctx context.Context, cfg Config) (discoveries <-chan string, stop func(), err error) {
 	if cfg.Interface == "" {
 		return nil, nil, errors.New("interface must be provided")
