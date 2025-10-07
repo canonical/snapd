@@ -251,16 +251,13 @@ func NewAssembleState(
 		sel.AddAuthoritativeRoute(peer.RDT, addr)
 	}
 
-	// calculate the HMAC once for this device's authentication
-	authHMAC := CalculateHMAC(config.RDT, CalculateFP(cert.Certificate[0]), config.Secret)
-
 	as := AssembleState{
 		initiated:    validated.initiated,
 		config:       config,
 		commit:       commit,
 		clock:        config.Clock,
 		cert:         cert,
-		authHMAC:     authHMAC,
+		authHMAC:     hmac,
 		trusted:      validated.trusted,
 		fingerprints: validated.fingerprints,
 		addresses:    validated.addresses,
