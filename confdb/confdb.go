@@ -162,7 +162,7 @@ func badRequestErrorFrom(v *View, operation, request, msg string) *BadRequestErr
 
 // Databag controls access to the confdb data storage.
 type Databag interface {
-	Get(path []Accessor) (any, error)
+	Get(path []Accessor, constraints map[string]any) (any, error)
 	Set(path []Accessor, value any) error
 	Unset(path []Accessor) error
 	Data() ([]byte, error)
@@ -630,6 +630,8 @@ func ParsePathIntoAccessors(path string, params map[string]paramPresence, opts P
 	accessors := make([]Accessor, 0, len(pathParts))
 	for _, part := range pathParts {
 		subkey := part.value
+		// TODO: we should ensure that accessors after field filters are maps (otherwise
+		// we're allowing paths to be written that don't match the filters)
 		cstrs := part.filters
 
 		for _, cstr := range cstrs {
@@ -1498,7 +1500,7 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 // Get returns the view value identified by the request. Returns a NoMatchError
 // if the view can't be found. Returns a NoDataError if there's no data for
 // the request.
-func (v *View) Get(databag Databag, request string, constraints map[string]string) (any, error) {
+func (v *View) Get(databag Databag, request string, cstrs map[string]any) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1509,14 +1511,14 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		}
 	}
 
-	matches, err := v.matchGetRequest(accessors)
+	matches, err := v.matchGetRequest(accessors, cstrs)
 	if err != nil {
 		return nil, err
 	}
 
 	var merged any
 	for _, match := range matches {
-		val, err := databag.Get(match.storagePath)
+		val, err := databag.Get(match.storagePath, cstrs)
 		if err != nil {
 			if errors.Is(err, &NoDataError{}) {
 				continue
@@ -1528,17 +1530,6 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 		val, err = namespaceResult(val, match.unmatchedSuffix)
 		if err != nil {
 			return nil, err
-		}
-
-		// TODO: have filter take in a partial unmarshalled value and ensure we fully
-		// unmarshal it after the filtering (needs to be actual type before we can
-		// merge several results)
-		val, err = filter(match, constraints, val)
-		if err != nil {
-			if errors.Is(err, &NoDataError{}) {
-				continue
-			}
-			return nil, fmt.Errorf("internal error: failed to filter read data: %v", err)
 		}
 
 		// merge result with results from other matching rules
@@ -1557,166 +1548,6 @@ func (v *View) Get(databag Databag, request string, constraints map[string]strin
 	}
 
 	return merged, nil
-}
-
-func filter(match requestMatch, constraints map[string]string, val any) (any, error) {
-	if len(constraints) == 0 {
-		return val, nil
-	}
-	// NOTE: if there are field filters in matched parts of the path (other than the
-	// the immediate level above the unmatched suffix), then they're ignored because
-	// they would be filtering the part of the result that we built around the
-	// result (the namespace) which doesn't make sense to me
-
-	// check if the last part of the matched prefix of the request path has some
-	// field filter that could constrain the top level result
-	pref := match.matchedPrefix
-	var prevAcc Accessor
-	if len(pref) > 0 {
-		prevAcc = pref[len(pref)-1]
-	}
-
-	filtered, err := filterLevel(prevAcc, match.unmatchedSuffix, constraints, val)
-	if err != nil {
-		return nil, err
-	}
-
-	if filtered == nil {
-		return nil, &NoDataError{}
-	}
-	return filtered, nil
-}
-
-// filterLevel filters the value based on the constrained filters of the
-// previous accessor (the one leading up to it).
-func filterLevel(prevAcc Accessor, accessors []Accessor, constraints map[string]string, val any) (any, error) {
-	fieldsMatchConstraints := func(mapVal map[string]any) bool {
-		if prevAcc == nil || prevAcc.FieldFilters() == nil {
-			// no filters to apply to this value
-			return true
-		}
-
-		filters := prevAcc.FieldFilters()
-		for field, filterName := range filters {
-			constrVal, ok := constraints[filterName]
-			if !ok {
-				// no constraint value was provided for this filter, ignore
-				continue
-			}
-
-			if mapVal[field] != constrVal {
-				// the filtered field doesn't match the provided constraint, remove the map
-				return false
-			}
-		}
-		return true
-	}
-
-	// we only have the accessor leading up to this, it's the last level
-	if len(accessors) == 0 {
-		// TODO: once we stop deserializing the JSON below the last accessor in
-		// getMap/getList, we need to do it here
-		if mapVal, ok := val.(map[string]any); ok && !fieldsMatchConstraints(mapVal) {
-			// no more path, filter map based on last field filters
-			return nil, nil
-		}
-
-		return val, nil
-	}
-
-	acc := accessors[0]
-	switch acc.Type() {
-	case KeyPlaceholderType:
-		mapVal, ok := val.(map[string]any)
-		if !ok {
-			// shouldn't be possible save for programmer error
-			return nil, fmt.Errorf(`internal error: expected map but got %T`, val)
-		}
-
-		if !fieldsMatchConstraints(mapVal) {
-			return nil, nil
-		}
-
-		if constraint, ok := constraints[acc.Name()]; ok {
-			// the constraint matches the path placeholder so it "fills" its place
-			mapVal = map[string]any{constraint: mapVal[constraint]}
-		}
-
-		for key, val := range mapVal {
-			filteredVal, err := filterLevel(acc, accessors[1:], constraints, val)
-			if err != nil && !errors.Is(err, &NoDataError{}) {
-				return nil, err
-			}
-
-			if filteredVal == nil {
-				delete(mapVal, key)
-			} else {
-				mapVal[key] = filteredVal
-			}
-		}
-
-		if len(mapVal) == 0 {
-			return nil, nil
-		}
-		return mapVal, nil
-
-	case MapKeyType:
-		mapVal, ok := val.(map[string]any)
-		if !ok {
-			// shouldn't be possible save for programmer error
-			return nil, fmt.Errorf(`internal error: expected map but got %T`, val)
-		}
-
-		if !fieldsMatchConstraints(mapVal) {
-			return nil, nil
-		}
-
-		filteredVal, err := filterLevel(acc, accessors[1:], constraints, mapVal[acc.Name()])
-		if err != nil {
-			return nil, err
-		}
-		if filteredVal == nil {
-			delete(mapVal, acc.Name())
-		} else {
-			mapVal[acc.Name()] = filteredVal
-		}
-
-		if len(mapVal) == 0 {
-			return nil, nil
-		}
-
-		return mapVal, nil
-
-	case IndexPlaceholderType:
-		listVal, ok := val.([]any)
-		if !ok {
-			// shouldn't be possible save for programmer error
-			return nil, fmt.Errorf(`internal error: expected list but got %T`, val)
-		}
-
-		filteredList := make([]any, 0, len(listVal))
-		for _, el := range listVal {
-			filteredVal, err := filterLevel(acc, accessors[1:], constraints, el)
-			if err != nil {
-				return nil, err
-			}
-
-			if filteredVal != nil {
-				filteredList = append(filteredList, filteredVal)
-			}
-		}
-
-		if len(filteredList) == 0 {
-			return nil, nil
-		}
-		return filteredList, nil
-
-	case ListIndexType:
-		// unmatched suffixes cannot have literal index accessors (e.g., "[1]")
-		fallthrough
-	default:
-		return nil, fmt.Errorf("internal error: cannot filter value based on accessor %T", acc)
-	}
 }
 
 // mergeNamespaces takes two results of reading confdb (the same request can match
@@ -1791,6 +1622,7 @@ func mergeLists(old, new []any) ([]any, error) {
 
 // ReadAffectsEphemeral returns true if any of the requests might be used to
 // set ephemeral data. The requests are mapped to storage paths as in GetViaView.
+// TODO: pass constraints into this
 func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 	if len(requests) == 0 {
 		// try to match all like we'd to read
@@ -1805,7 +1637,9 @@ func (v *View) ReadAffectsEphemeral(requests []string) (bool, error) {
 			return false, err
 		}
 
-		reqMatches, err := v.matchGetRequest(accessors)
+		// TODO: it's probably safe to not use constraints here but it will broaden the
+		// paths caught in the check, which would force reads to have load-views even unnecessarily
+		reqMatches, err := v.matchGetRequest(accessors, nil)
 		if err != nil {
 			if errors.Is(err, &NoMatchError{}) {
 				// we serve partial reads so check other paths
@@ -1907,7 +1741,7 @@ type requestMatch struct {
 // matchGetRequest either returns the first exact match for the request or, if
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NoMatchError is returned.
-func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, err error) {
+func (v *View) matchGetRequest(accessors []Accessor, cstrs map[string]any) (matches []requestMatch, err error) {
 	for _, rule := range v.rules {
 		placeholders, unmatchedSuffix, ok := rule.match(accessors)
 		if !ok {
@@ -1938,6 +1772,19 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		request := JoinAccessors(accessors)
 		return nil, NewNoMatchError(v, "get", []string{request})
 	}
+
+	//for _, match := range matches {
+	//	for i, acc := range match.storagePath {
+	//		if acc.Type() == KeyPlaceholderType && cstrs[acc.Name()] != nil {
+	//			key, ok := cstrs[acc.Name()].(string)
+	//			if !ok {
+	//				return nil, fmt.Errorf("cannot fulfill placeholder %q with constraint of type %T: expected string",
+	//					acc.Access(), cstrs[acc.Name()])
+	//			}
+	//			match.storagePath[i] = newKey(key, acc.FieldFilters())
+	//		}
+	//	}
+	//}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
 	// are read after
@@ -2190,14 +2037,14 @@ func NewJSONDatabag() JSONDatabag {
 
 // Get takes a path parsed into accessors and a pointer to a variable into
 // which the result should be written.
-func (s JSONDatabag) Get(subKeys []Accessor) (any, error) {
+func (s JSONDatabag) Get(subKeys []Accessor, cstrs map[string]any) (any, error) {
 	if len(s) == 0 {
 		return nil, &NoDataError{}
 	}
 
 	// TODO: create this in the return below as well?
 	var value any
-	if err := get(subKeys, 0, s, &value); err != nil {
+	if err := get(subKeys, 0, s, cstrs, &value); err != nil {
 		return nil, err
 	}
 
@@ -2209,7 +2056,7 @@ func (s JSONDatabag) Get(subKeys []Accessor) (any, error) {
 // traverse the tree, or placeholders (e.g., "{foo}"). For placeholders,
 // we take all sub-paths and try to match the remaining path. The results for
 // any sub-path that matched the request path are then merged in a map and returned.
-func get(subKeys []Accessor, index int, node any, result *any) error {
+func get(subKeys []Accessor, index int, node any, cstrs map[string]any, result *any) error {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
@@ -2217,9 +2064,9 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 
 	switch node := node.(type) {
 	case map[string]json.RawMessage:
-		return getMap(subKeys, index, node, result)
+		return getMap(subKeys, index, node, cstrs, result)
 	case []json.RawMessage:
-		return getList(subKeys, index, node, result)
+		return getList(subKeys, index, node, cstrs, result)
 	default:
 		// should be impossible since we handle terminal cases in the type specific functions
 		path := JoinAccessors(subKeys[:index+1])
@@ -2234,7 +2081,7 @@ func get(subKeys []Accessor, index int, node any, result *any) error {
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and merges the results, if the current
 //     path sub-key is an unmatched placeholder
-func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, result *any) error {
+func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstrs map[string]any, result *any) error {
 	key := subKeys[index]
 
 	var matchAll bool
@@ -2245,6 +2092,12 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		if !ok {
 			return &NoDataError{}
 		}
+
+		if ok, err := filterValue(key, rawLevel, cstrs); err != nil {
+			return err
+		} else if ok {
+			return &NoDataError{}
+		}
 	} else if key.Type() == KeyPlaceholderType {
 		matchAll = true
 	} else {
@@ -2252,12 +2105,31 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		return fmt.Errorf("cannot use %q to access map at path %q", key.Access(), pathPrefix)
 	}
 
+	//if index > 0 {
+	//	ok, err := matchesConstraints(subKeys[index-1], node, cstrs)
+	//	if err != nil {
+	//		// TODO: in some cases, a "wrong type" error should be just a no? Like a final value
+	//		return err
+	//	}
+	//	if !ok {
+	//		return &NoDataError{}
+	//	}
+	//}
+
 	// read the final value
 	if index == len(subKeys)-1 {
 		if matchAll {
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]any, len(node))
 			for k, v := range node {
+				if ok, err := filterValue(key, v, cstrs); err != nil {
+					// TODO: this is the final value, a "wrong type" sort of error should
+					// probably be just a no
+					return err
+				} else if ok {
+					continue
+				}
+
 				var deser any
 				if err := json.Unmarshal(v, &deser); err != nil {
 					return fmt.Errorf(`internal error: %w`, err)
@@ -2281,6 +2153,12 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		results := make(map[string]any)
 
 		for k, v := range node {
+			if ok, err := filterValue(key, v, cstrs); err != nil {
+				return err
+			} else if ok {
+				continue
+			}
+
 			level, err := unmarshalLevel(subKeys, index, v)
 			if err != nil {
 				if errors.As(err, new(*noContainerError)) {
@@ -2294,7 +2172,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, index+1, level, &res); err != nil {
+			if err := get(subKeys, index+1, level, cstrs, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2318,7 +2196,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 		return err
 	}
 
-	return get(subKeys, index+1, level, result)
+	return get(subKeys, index+1, level, cstrs, result)
 }
 
 // getList traverses node (a decoded JSON list) and, depending on the path being
@@ -2328,13 +2206,22 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 //   - goes into one specific sub-path and recurses into get()
 //   - goes into potentially many sub-paths and accumulates the results, if the
 //     current path sub-key is an unmatched placeholder
-func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *any) error {
+func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map[string]any, result *any) error {
 	key := subKeys[keyIndex]
 
 	var matchAll bool
 	listIndex := -1
 	if key.Type() == ListIndexType {
 		listIndex, _ = strconv.Atoi(key.Name())
+		if listIndex >= len(list) {
+			return &NoDataError{}
+		}
+
+		if ok, err := filterValue(key, list[listIndex], cstrs); err != nil {
+			return err
+		} else if ok {
+			return &NoDataError{}
+		}
 	} else if key.Type() == IndexPlaceholderType {
 		matchAll = true
 	} else {
@@ -2342,28 +2229,37 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		return fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
 	}
 
-	if listIndex >= len(list) {
-		return &NoDataError{}
-	}
-
 	// read the final value
 	if keyIndex == len(subKeys)-1 {
 		if matchAll {
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
-			level := make([]any, len(list))
-			for i, v := range list {
+			level := make([]any, 0, len(list))
+			for _, v := range list {
+				if ok, err := filterValue(key, v, cstrs); err != nil {
+					return err
+				} else if ok {
+					continue
+				}
+
 				var deser any
 				if err := json.Unmarshal(v, &deser); err != nil {
 					return fmt.Errorf(`internal error: %w`, err)
 				}
-				level[i] = deser
+				level = append(level, deser)
 			}
+
+			// TODO: return NoDataError if len(list) == 0 ?
 
 			*result = level
 			return nil
 		}
-		// TODO: don't unmarshal the final values because we might still filter some
-		// paths which means we're wasting the unmarshalling
+
+		if ok, err := filterValue(key, list[listIndex], cstrs); err != nil {
+			return err
+		} else if ok {
+			return &NoDataError{}
+		}
+
 		if err := json.Unmarshal(list[listIndex], result); err != nil {
 			return fmt.Errorf(`internal error: %w`, err)
 		}
@@ -2375,6 +2271,12 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
+			if ok, err := filterValue(key, el, cstrs); err != nil {
+				return err
+			} else if ok {
+				continue
+			}
+
 			level, err := unmarshalLevel(subKeys, keyIndex+1, el)
 			if err != nil {
 				if errors.As(err, new(*noContainerError)) {
@@ -2388,7 +2290,7 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res any
-			if err := get(subKeys, keyIndex+1, level, &res); err != nil {
+			if err := get(subKeys, keyIndex+1, level, cstrs, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
 					continue
 				}
@@ -2413,7 +2315,56 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 		return err
 	}
 
-	return get(subKeys, keyIndex+1, level, result)
+	return get(subKeys, keyIndex+1, level, cstrs, result)
+}
+
+// filterValue returns true only if the object should be filtered out and it
+// returns false if the object matches the constraints or if the constraints are
+// deemed to not be applicable.
+func filterValue(acc Accessor, val json.RawMessage, cstrs map[string]any) (bool, error) {
+	filters := acc.FieldFilters()
+	if len(filters) == 0 || len(cstrs) == 0 {
+		// no filters to apply to this value
+		return false, nil
+	}
+
+	var mapVal map[string]json.RawMessage
+	if err := json.Unmarshal(val, &mapVal); err != nil {
+		if _, ok := err.(*json.UnmarshalTypeError); ok {
+			// field filters aren't applicable to this field (not a map)
+			return false, nil
+		}
+		return false, err
+	}
+
+	for field, filterName := range filters {
+		constrVal, ok := cstrs[filterName]
+		if !ok {
+			// no constraint value was provided for this filter, ignore
+			continue
+		}
+
+		if _, ok := mapVal[field]; !ok {
+			// the value doesn't contain the field, so it cannot match its constraint
+			return true, nil
+		}
+
+		// unmarshal the value for comparison, must be scalar (assume string for now)
+		var fieldVal string
+		if err := json.Unmarshal(mapVal[field], &fieldVal); err != nil {
+			if _, ok := err.(*json.UnmarshalTypeError); ok {
+				return false, nil
+			}
+			return false, err
+		}
+
+		if fieldVal != constrVal {
+			// the filtered field doesn't match the provided constraint, filter out the map
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // noContainerError is used when the traversal logic expected some JSON to

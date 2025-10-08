@@ -506,9 +506,9 @@ func newWitnessDatabag(bag confdb.Databag) *witnessDatabag {
 	return &witnessDatabag{bag: bag}
 }
 
-func (s *witnessDatabag) Get(path []confdb.Accessor) (any, error) {
+func (s *witnessDatabag) Get(path []confdb.Accessor, _ map[string]any) (any, error) {
 	s.getPath = confdb.JoinAccessors(path)
-	return s.bag.Get(path)
+	return s.bag.Get(path, nil)
 }
 
 func (s *witnessDatabag) Set(path []confdb.Accessor, value any) error {
@@ -902,7 +902,7 @@ func (s *viewSuite) TestJSONDataOverwrite(c *C) {
 	err = bag.Overwrite([]byte(`{"bar":"foo"}`))
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get(parsePath(c, "bar"))
+	val, err := bag.Get(parsePath(c, "bar"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 
@@ -1464,11 +1464,11 @@ func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {
 	err = view.Set(databag, "a.b.c", "value")
 	c.Assert(err, IsNil)
 
-	stored, err := databag.Get(parsePath(c, "old"))
+	stored, err := databag.Get(parsePath(c, "old"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(stored, Equals, "value")
 
-	stored, err = databag.Get(parsePath(c, "new"))
+	stored, err = databag.Get(parsePath(c, "new"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(stored, Equals, "value")
 }
@@ -1494,7 +1494,7 @@ func (s *viewSuite) TestSetWritesToMoreNestedLast(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	val, err := databag.Get(parsePath(c, "snaps"))
+	val, err := databag.Get(parsePath(c, "snaps"), nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(val, DeepEquals, map[string]any{
@@ -1570,7 +1570,7 @@ func (s *viewSuite) TestReadWriteSameDataAtDifferentLevels(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	data, err := databag.Get(path)
+	data, err := databag.Get(path, nil)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, initialData)
 }
@@ -3657,7 +3657,7 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "snaps.{snap}[.status={status}][.version={version}]", "storage": "snaps.{snap}"},
+				map[string]any{"request": "snaps.{snap}", "storage": "snaps.{snap}[.status={status}][.version={version}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3682,7 +3682,7 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "", map[string]string{"status": "disabled"})
+	val, err := view.Get(bag, "", map[string]any{"status": "disabled"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"snaps": map[string]any{
@@ -3697,7 +3697,7 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 		},
 	})
 
-	val, err = view.Get(bag, "snaps", map[string]string{"status": "disabled", "version": "2"})
+	val, err = view.Get(bag, "snaps", map[string]any{"status": "disabled", "version": "2"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"other": map[string]any{
@@ -3712,7 +3712,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				// constraint name is different than field just to show it can
-				map[string]any{"request": "{user}[.age={age}].{pet}[.toy={toy}][.kind={pet-kind}]", "storage": "{user}.{pet}"},
+				map[string]any{"request": "{user}.{pet}", "storage": "{user}[.age={age}].{pet}[.toy={toy}][.kind={pet-kind}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3747,7 +3747,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "", map[string]string{"age": "21"})
+	val, err := view.Get(bag, "", map[string]any{"age": "21"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
 		map[string]any{
@@ -3766,41 +3766,14 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 				},
 			},
 		})
-
-	val, err = view.Get(bag, "", map[string]string{"toy": "ball"})
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals,
-		map[string]any{
-			"alice": map[string]any{
-				"age": "21",
-				"garfield": map[string]any{
-					"toy":  "ball",
-					"kind": "cat",
-				},
-			},
-			"bob": map[string]any{
-				"age": "30",
-				"odie": map[string]any{
-					"toy":  "ball",
-					"kind": "dog",
-				},
-			},
-			// TODO: if there was a way to add a field constraint that amounted to
-			// "this field doesn't exist", then we could compose them. So we could,
-			// in this example, filter the person altogether if the "pet" isn't there.
-			// Something like `snap get ... --with toy=ball --with pet!`
-			"charlie": map[string]any{
-				"age": "21",
-			},
-		})
 }
 
 func (*viewSuite) TestFilteringNoData(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "{foo}[.baz={field}]", "storage": "{foo}"},
-				map[string]any{"request": "a.b.c[.d={field}]", "storage": "a.b.c"},
+				map[string]any{"request": "{foo}", "storage": "{foo}[.baz={field}]"},
+				map[string]any{"request": "a.b.c", "storage": "a.b.c[.d={field}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3809,7 +3782,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	bag := confdb.NewJSONDatabag()
 
 	view := schema.View("foo")
-	_, err = view.Get(bag, "", map[string]string{"field": "baz"})
+	_, err = view.Get(bag, "", map[string]any{"field": "baz"})
 	c.Assert(err, ErrorMatches, "cannot get acc/confdb/foo: no data")
 
 	err = view.Set(bag, "foo", map[string]any{
@@ -3819,7 +3792,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	c.Assert(err, IsNil)
 
 	// pruning top level map
-	val, err := view.Get(bag, "foo", map[string]string{"field": "not-there"})
+	val, err := view.Get(bag, "foo", map[string]any{"field": "not-there"})
 	c.Assert(val, IsNil)
 	c.Assert(err, ErrorMatches, "cannot get \"foo\" through acc/confdb/foo: no data")
 
@@ -3827,7 +3800,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	c.Assert(err, IsNil)
 
 	// pruning several nested levels down
-	val, err = view.Get(bag, "a", map[string]string{"field": "not-there"})
+	val, err = view.Get(bag, "a", map[string]any{"field": "not-there"})
 	c.Assert(val, IsNil)
 	c.Assert(err, ErrorMatches, "cannot get \"a\" through acc/confdb/foo: no data")
 }
@@ -3836,7 +3809,7 @@ func (*viewSuite) TestFieldFilteringNestedUnderList(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "foo[{n}][.baz={field}]", "storage": "foo[{n}]"},
+				map[string]any{"request": "foo[{n}]", "storage": "foo[{n}][.baz={field}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3851,7 +3824,7 @@ func (*viewSuite) TestFieldFilteringNestedUnderList(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	val, err := view.Get(bag, "foo", map[string]string{"field": "a"})
+	val, err := view.Get(bag, "foo", map[string]any{"field": "a"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{map[string]any{"baz": "a"}})
 }
@@ -3881,7 +3854,7 @@ func (*viewSuite) TestSubkeyFiltering(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "", map[string]string{"field": "status"})
+	val, err := view.Get(bag, "", map[string]any{"field": "status"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"snaps": map[string]any{
@@ -3894,7 +3867,7 @@ func (*viewSuite) TestSubkeyFiltering(c *C) {
 		},
 	})
 
-	val, err = view.Get(bag, "snaps", map[string]string{"snap": "snapd", "field": "status"})
+	val, err = view.Get(bag, "snaps", map[string]any{"snap": "snapd", "field": "status"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, map[string]any{
 		"snapd": map[string]any{
@@ -3907,7 +3880,8 @@ func (*viewSuite) TestListFiltering(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				map[string]any{"request": "vm[{n}][.path={path}][.value={value}]", "storage": "sys.vm[{n}]"},
+				map[string]any{"request": "vm[{n}]", "storage": "sys.vm[{n}][.path={path}]"},
+				map[string]any{"request": "vm-value[{n}]", "storage": "sys.vm[{n}][.path={path}].value"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3919,7 +3893,7 @@ func (*viewSuite) TestListFiltering(c *C) {
 		[]any{
 			map[string]any{
 				"path":  "dirty_bytes",
-				"value": "0",
+				"value": "10",
 			},
 			map[string]any{
 				"path":  "dirty_ratio",
@@ -3933,27 +3907,17 @@ func (*viewSuite) TestListFiltering(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "vm", map[string]string{"path": "dirty_bytes"})
+	val, err := view.Get(bag, "vm", map[string]any{"path": "dirty_bytes"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
 		[]any{
 			map[string]any{
 				"path":  "dirty_bytes",
-				"value": "0",
+				"value": "10",
 			},
 		})
 
-	val, err = view.Get(bag, "vm", map[string]string{"value": "0"})
+	val, err = view.Get(bag, "vm-value", map[string]any{"path": "dirty_bytes"})
 	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals,
-		[]any{
-			map[string]any{
-				"path":  "dirty_bytes",
-				"value": "0",
-			},
-			map[string]any{
-				"path":  "dirty_background_bytes",
-				"value": "0",
-			},
-		})
+	c.Assert(val, DeepEquals, []any{"10"})
 }
