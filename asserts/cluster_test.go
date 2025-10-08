@@ -163,6 +163,8 @@ func (cs *clusterSuite) TestDecodeInvalidDevices(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"    id: 1\n", "    id: not-an-integer\n", `"id" header is not an integer: not-an-integer`},
+		{"    id: 1\n", "    id: 0\n", `"id" header must be >=1: 0`},
+		{"    id: 1\n", "    id: -1\n", `"id" header must be >=1: -1`},
 		{"    brand-id: canonical\n", "", `"brand-id" header is mandatory`},
 		{"    brand-id: canonical\n", "    brand-id: Canonical\n", `"brand-id" header contains invalid characters: "Canonical"`},
 		{"    model: ubuntu-core-24-amd64\n", "", `"model" header is mandatory`},
@@ -186,6 +188,8 @@ func (cs *clusterSuite) TestDecodeInvalidSubclusters(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"        state: clustered\n", "        state: invalid-state\n", `snap state must be one of: "clustered", "evacuated", "removed"`},
 		{"      - 1\n", "      - not-a-number\n", `device id "not-a-number" is not an integer: not-a-number`},
+		{"      - 1\n", "      - 0\n", `device id must be >=1: 0`},
+		{"      - 1\n", "      - -1\n", `device id must be >=1: -1`},
 		{"    name: default\n", "", `"name" header is mandatory`},
 		{"        state: clustered\n", "", `"state" header is mandatory`},
 		{"        instance: clustered-snap\n", "", `"instance" header is mandatory`},
