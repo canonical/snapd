@@ -454,10 +454,9 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// auto-deny the rest?
 	contained := constraints.ContainPermissions(prompt.Constraints.OutstandingPermissions())
 	if !contained {
-		// XXX: since we don't have a ReplyConstraints type anymore, we never
-		// expose the original list of permissions in the reply. Instead, we
-		// need to reconstruct it from the keys in the permission map. Thus,
-		// the permissions will no longer be in their original order.
+		// We never expose the original list of permissions in the reply,
+		// so we need to reconstruct it from the keys in the permission map.
+		// Thus, the permissions will no longer be in their original order.
 		replyPermissions := make([]string, 0, len(constraints.Permissions))
 		for perm := range constraints.Permissions {
 			replyPermissions = append(replyPermissions, perm)
