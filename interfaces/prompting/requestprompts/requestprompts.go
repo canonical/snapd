@@ -63,14 +63,14 @@ const (
 // Prompt contains information about a request for which a user should be
 // prompted.
 type Prompt struct {
-	ID           prompting.IDType    `json:"id"`
-	Timestamp    time.Time           `json:"timestamp"`
-	Snap         string              `json:"snap"`
-	PID          int32               `json:"pid"`
-	Cgroup       string              `json:"cgroup"`
-	Interface    string              `json:"interface"`
-	Constraints  *promptConstraints  `json:"constraints"`
-	listenerReqs []*listener.Request `json:"-"`
+	ID           prompting.IDType
+	Timestamp    time.Time
+	Snap         string
+	PID          int32
+	Cgroup       string
+	Interface    string
+	Constraints  *promptConstraints
+	listenerReqs []*listener.Request
 }
 
 // jsonPrompt defines the marshalled json structure of a Prompt.
