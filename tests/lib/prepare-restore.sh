@@ -550,6 +550,10 @@ prepare_project() {
             ;;
     esac
 
+    # Retry go mod vendor to minimize the number of connection errors during the sync
+    # It is required in any case because the testing tools like the fakestore are always compiled
+    retry -n 10 go mod vendor
+
     # We are testing snapd snap on top of snapd from the archive
     # of the tested distribution. Download snapd and snap-confine
     # as they exist in the archive for further use.
@@ -574,8 +578,6 @@ prepare_project() {
                 ;;
         esac
     else
-        # Retry go mod vendor to minimize the number of connection errors during the sync
-        retry -n 10 go mod vendor
         # Update C dependencies
         ( cd c-vendor && retry -n 10 ./vendor.sh )
 
