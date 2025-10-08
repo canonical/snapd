@@ -23,7 +23,7 @@ the [go.mod](/go.mod) file for the minimum required version of Go. While for
 building the C code any reasonably recent version of GCC or Clang will suffice.
 
 Other high level build and runtime dependencies are:
-- Linux kernel >= 4.x (or otherwise reasonably recent)
+- Linux kernel >= 4.4 (or otherwise reasonably recent)
 - systemd
 - autotools, pkg-config
 - libc static
