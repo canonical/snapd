@@ -1800,7 +1800,7 @@ func (s *infoSuite) TestExpandSliceSnapVariables(c *C) {
 			"$SNAP_COMMON/stuff",
 			"$GARBAGE/rocks"}),
 		DeepEquals, []string{
-			"/snap/foo/42/stuff",
+			filepath.Join(dirs.SnapMountDir, "foo/42/stuff"),
 			"/var/snap/foo/42/stuff",
 			"/var/snap/foo/common/stuff",
 			"/rocks"})
