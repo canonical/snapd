@@ -146,7 +146,7 @@ func buildLibPath() string {
 	// systems. Currently only snaps connected to the opengl interface can
 	// use these libraries (the interface provides the necessary apparmor
 	// permissions).
-	sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*.source")
+	sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*.library-source")
 	// Only possible error is a malformed pattern
 	sourceFiles, _ := filepath.Glob(sourcesGlob)
 	libPaths := []string{}
@@ -163,6 +163,7 @@ func buildLibPath() string {
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
 			snapDir := scanner.Text()
+			snapDir = strings.TrimPrefix(snapDir, "/snap")
 			// Avoid duplicates
 			if _, ok := snapDirs[snapDir]; ok {
 				continue
@@ -170,7 +171,7 @@ func buildLibPath() string {
 			snapDirs[snapDir] = true
 			// Exported paths are bind mounted to the export libs directory.
 			libPaths = append(libPaths, filepath.Join(
-				dirs.SnapExportLibDirUnder(dirs.GlobalRootDir), snapDir))
+				dirs.SnapExportLibDirUnder(dirs.GlobalRootDir), "system/gpu", snapDir))
 		}
 
 		if err := scanner.Err(); err != nil {

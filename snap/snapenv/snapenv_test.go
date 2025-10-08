@@ -128,15 +128,15 @@ func (ts *HTestSuite) TestBasicWithSources(c *C) {
 	vulkanDirs := []string{"/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2", "/snap/kernel/33/duplicate"}
 	exportDir := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/export")
 	c.Assert(os.MkdirAll(exportDir, os.ModePerm), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_eglslot_egl-driver-libs.source"),
+	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_eglslot_egl-driver-libs.library-source"),
 		[]byte(strings.Join(eglDirs, "\n")+"\n"), 0644), Equals, nil)
-	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_vulkanslot_vulkan-driver-libs.source"),
+	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_vulkanslot_vulkan-driver-libs.library-source"),
 		[]byte(strings.Join(vulkanDirs, "\n")+"\n"), 0644), Equals, nil)
 	var exportedPaths []string
-	for _, d := range []string{"/snap/kernel/33/egllibs1", "/snap/kernel/33/egllibs2",
-		"/snap/kernel/33/duplicate", "/snap/kernel/33/vulkanlibs1", "/snap/kernel/33/vulkanlibs2"} {
+	for _, d := range []string{"kernel/33/egllibs1", "kernel/33/egllibs2",
+		"kernel/33/duplicate", "kernel/33/vulkanlibs1", "kernel/33/vulkanlibs2"} {
 		exportedPaths = append(exportedPaths, filepath.Join(
-			dirs.GlobalRootDir, "var/lib/snapd/lib", d))
+			dirs.GlobalRootDir, "var/lib/snapd/lib/system/gpu", d))
 	}
 
 	env := basicEnv(mockSnapInfo)
