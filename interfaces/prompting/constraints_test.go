@@ -127,7 +127,7 @@ func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsHappy(c *C) {
 		result, err := prompting.ParseInterfaceSpecificConstraints(testCase.iface, testCase.constraintsJSON, testCase.isPatch)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
 		c.Check(result, DeepEquals, testCase.expected, Commentf("testCase: %+v", testCase))
-		c.Check(result.PathPattern(), DeepEquals, testCase.expectedPathPattern, Commentf("testCase: %+v", testCase))
+		c.Check(prompting.InterfaceSpecificConstraintsPathPattern(result), DeepEquals, testCase.expectedPathPattern, Commentf("testCase: %+v", testCase))
 	}
 }
 

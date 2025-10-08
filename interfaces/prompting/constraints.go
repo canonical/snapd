@@ -56,11 +56,11 @@ type InterfaceSpecificConstraints interface {
 	// toJSON returns a ConstraintsJSON so the caller can add the permissions
 	// to it and then marshal the result into json.
 	toJSON() (ConstraintsJSON, error)
-	// PathPattern returns a path pattern which can be used to match incoming
+	// pathPattern returns a path pattern which can be used to match incoming
 	// requests against these constraints.
 	// XXX: Not all interfaces care about path patterns. For those that don't,
 	// this should return a placeholder designed to match any path, such as /**
-	PathPattern() *patterns.PathPattern
+	pathPattern() *patterns.PathPattern
 	// patch returns a new InterfaceSpecificConstraints with the receiver used
 	// to patch the given existing constraints.
 	patch(existing InterfaceSpecificConstraints) InterfaceSpecificConstraints
@@ -135,7 +135,7 @@ func (constraints *InterfaceSpecificConstraintsHome) toJSON() (ConstraintsJSON, 
 	return constraintsJSON, nil
 }
 
-func (constraints *InterfaceSpecificConstraintsHome) PathPattern() *patterns.PathPattern {
+func (constraints *InterfaceSpecificConstraintsHome) pathPattern() *patterns.PathPattern {
 	return constraints.Pattern
 }
 
@@ -173,7 +173,7 @@ func (constraints *InterfaceSpecificConstraintsCamera) toJSON() (ConstraintsJSON
 	return make(ConstraintsJSON), nil
 }
 
-func (constraints *InterfaceSpecificConstraintsCamera) PathPattern() *patterns.PathPattern {
+func (constraints *InterfaceSpecificConstraintsCamera) pathPattern() *patterns.PathPattern {
 	pathPattern, _ := patterns.ParsePathPattern("/**")
 	// Error cannot occur, this is a known good pattern.
 	return pathPattern
@@ -246,10 +246,10 @@ func (c *Constraints) Match(path string) (bool, error) {
 	// constraints, but then the path pattern is still used to match incoming
 	// requests against rules, so having a separate Match method is confusing.
 	// For now, requests all have a path field, so this isn't a problem yet.
-	match, err := c.InterfaceSpecific.PathPattern().Match(path)
+	match, err := c.InterfaceSpecific.pathPattern().Match(path)
 	if err != nil {
 		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.InterfaceSpecific.PathPattern().String(), err.Error())
+		return false, prompting_errors.NewInvalidPathPatternError(c.InterfaceSpecific.pathPattern().String(), err.Error())
 	}
 	return match, nil
 }
@@ -257,7 +257,7 @@ func (c *Constraints) Match(path string) (bool, error) {
 // PathPattern returns the PathPattern provided by the interface-specific
 // constraints.
 func (c *Constraints) PathPattern() *patterns.PathPattern {
-	return c.InterfaceSpecific.PathPattern()
+	return c.InterfaceSpecific.pathPattern()
 }
 
 // ContainPermissions returns true if the permission map in the constraints
@@ -371,10 +371,10 @@ func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired boo
 //
 // If the constraints or path are invalid, returns an error.
 func (c *RuleConstraints) Match(path string) (bool, error) {
-	match, err := c.InterfaceSpecific.PathPattern().Match(path)
+	match, err := c.InterfaceSpecific.pathPattern().Match(path)
 	if err != nil {
 		// Error should not occur, since it was parsed internally
-		return false, prompting_errors.NewInvalidPathPatternError(c.InterfaceSpecific.PathPattern().String(), err.Error())
+		return false, prompting_errors.NewInvalidPathPatternError(c.InterfaceSpecific.pathPattern().String(), err.Error())
 	}
 	return match, nil
 }
@@ -382,7 +382,7 @@ func (c *RuleConstraints) Match(path string) (bool, error) {
 // PathPattern returns the PathPattern provided by the interface-specific
 // constraints.
 func (c *RuleConstraints) PathPattern() *patterns.PathPattern {
-	return c.InterfaceSpecific.PathPattern()
+	return c.InterfaceSpecific.pathPattern()
 }
 
 // UnmarshalReplyConstraints validates the given reply parameters, parses the
