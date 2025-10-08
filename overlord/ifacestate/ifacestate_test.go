@@ -11769,24 +11769,21 @@ func (s *interfaceManagerSuite) testAutoConnectSupportsConfigurableAutoConnect(c
 		InterfaceName: "test",
 	})
 
-	s.MockSnapDecl(c, "snap-content-plug", "publisher1", nil)
-	s.mockSnap(c, `name: snap-content-plug
+	s.MockSnapDecl(c, "snap-x11-plug", "publisher1", nil)
+	s.mockSnap(c, `name: snap-x11-plug
 version: 1
 plugs:
- shared-content-plug:
-  interface: content
-  default-provider: snap-content-slot
-  content: shared-content
+ x11-plug:
+  interface: x11
  test-plug:
   interface: test
 `)
-	s.MockSnapDecl(c, "snap-content-slot", "publisher1", nil)
-	s.mockSnap(c, `name: snap-content-slot
+	s.MockSnapDecl(c, "snap-x11-slot", "publisher1", nil)
+	s.mockSnap(c, `name: snap-x11-slot
 version: 1
 slots:
- shared-content-slot:
-  interface: content
-  content: shared-content
+ x11-slot:
+  interface: x11
  test-slot:
   interface: test
 `)
@@ -11794,34 +11791,34 @@ slots:
 
 	s.state.Lock()
 
-	supContentPlug := &snapstate.SnapSetup{
+	supPlug := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			Revision: snap.R(1),
-			RealName: "snap-content-plug"},
+			RealName: "snap-x11-plug"},
 	}
-	supContentSlot := &snapstate.SnapSetup{
+	supContent := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			Revision: snap.R(1),
-			RealName: "snap-content-slot"},
+			RealName: "snap-x11-slot"},
 	}
 	chg := s.state.NewChange("install", "...")
 
-	tInstSlot := s.state.NewTask("link-snap", "Install snap-content-slot")
-	tInstSlot.Set("snap-setup", supContentSlot)
+	tInstSlot := s.state.NewTask("link-snap", "Install snap-x11-slot")
+	tInstSlot.Set("snap-setup", supContent)
 	chg.AddTask(tInstSlot)
 
 	tConnectSlot := s.state.NewTask("auto-connect", "...slot")
-	tConnectSlot.Set("snap-setup", supContentSlot)
+	tConnectSlot.Set("snap-setup", supContent)
 	tConnectSlot.WaitFor(tInstSlot)
 	chg.AddTask(tConnectSlot)
 
-	tInstPlug := s.state.NewTask("link-snap", "Install snap-content-plug")
-	tInstPlug.Set("snap-setup", supContentPlug)
+	tInstPlug := s.state.NewTask("link-snap", "Install snap-x11-plug")
+	tInstPlug.Set("snap-setup", supPlug)
 	tInstPlug.WaitFor(tConnectSlot)
 	chg.AddTask(tInstPlug)
 
 	tConnectPlug := s.state.NewTask("auto-connect", "...plug")
-	tConnectPlug.Set("snap-setup", supContentPlug)
+	tConnectPlug.Set("snap-setup", supPlug)
 	tConnectPlug.WaitFor(tInstPlug)
 	chg.AddTask(tConnectPlug)
 
@@ -11879,15 +11876,10 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectDe
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, HasLen, 2)
 	c.Check(conns, DeepEquals, map[string]any{
-		"snap-content-plug:shared-content-plug snap-content-slot:shared-content-slot": map[string]any{
-			"auto": true, "interface": "content", "plug-static": map[string]any{
-				"content": "shared-content", "default-provider": "snap-content-slot",
-			},
-			"slot-static": map[string]any{
-				"content": "shared-content",
-			},
+		"snap-x11-plug:x11-plug snap-x11-slot:x11-slot": map[string]any{
+			"auto": true, "interface": "x11",
 		},
-		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
 			"auto": true, "interface": "test",
 		},
 	})
@@ -11895,7 +11887,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectDe
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalse(c *C) {
-	s.setAutoConnectionAllowed(c, "content", "false")
+	s.setAutoConnectionAllowed(c, "x11", "false")
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
 	// check connections
@@ -11905,12 +11897,12 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, HasLen, 1)
 	c.Check(conns, DeepEquals, map[string]any{
-		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
 			"auto": true, "interface": "test",
 		},
 	})
 	c.Check(logs, HasLen, 1)
-	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-content-plug:shared-content-plug, candidates found: snap-content-slot:shared-content-slot`)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-x11-plug:x11-plug, candidates found: snap-x11-slot:x11-slot`)
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedUnhappy(c *C) {
@@ -11918,7 +11910,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 		return false
 	})
 	defer r()
-	s.setAutoConnectionAllowed(c, "content", "verified")
+	s.setAutoConnectionAllowed(c, "x11", "verified")
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
 	// check connections
@@ -11928,12 +11920,12 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, HasLen, 1)
 	c.Check(conns, DeepEquals, map[string]any{
-		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
 			"auto": true, "interface": "test",
 		},
 	})
 	c.Check(logs, HasLen, 1)
-	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-content-plug:shared-content-plug, candidates found: snap-content-slot:shared-content-slot`)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-x11-plug:x11-plug, candidates found: snap-x11-slot:x11-slot`)
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedHappy(c *C) {
@@ -11941,7 +11933,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 		return true
 	})
 	defer r()
-	s.setAutoConnectionAllowed(c, "content", "verified")
+	s.setAutoConnectionAllowed(c, "x11", "verified")
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
 	// check connections
@@ -11951,15 +11943,10 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Check(conns, HasLen, 2)
 	c.Check(conns, DeepEquals, map[string]any{
-		"snap-content-plug:shared-content-plug snap-content-slot:shared-content-slot": map[string]any{
-			"auto": true, "interface": "content", "plug-static": map[string]any{
-				"content": "shared-content", "default-provider": "snap-content-slot",
-			},
-			"slot-static": map[string]any{
-				"content": "shared-content",
-			},
+		"snap-x11-plug:x11-plug snap-x11-slot:x11-slot": map[string]any{
+			"auto": true, "interface": "x11",
 		},
-		"snap-content-plug:test-plug snap-content-slot:test-slot": map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
 			"auto": true, "interface": "test",
 		},
 	})

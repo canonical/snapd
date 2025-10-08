@@ -42,6 +42,16 @@ func (s *interfaceSuite) TestConfigureInterfaceUnhappyName(c *C) {
 	c.Assert(err, ErrorMatches, `unsupported interface "invalid" for configuration change`)
 }
 
+func (s *interfaceSuite) TestConfigureInterfaceUnsupportedBuiltinName(c *C) {
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		changes: map[string]any{
+			"interface.network.test": "xxx",
+		},
+	})
+	c.Assert(err, ErrorMatches, `unsupported interface "network" for configuration change`)
+}
+
 func (s *interfaceSuite) TestConfigureInterfaceUnhappyIncompleteName(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,

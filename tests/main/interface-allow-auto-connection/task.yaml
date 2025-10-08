@@ -11,52 +11,56 @@ environment:
   VARIANT/true: true
   VARIANT/verified: verified
 
+prepare: |
+    # install gnome-calculator to get any required content snaps
+    snap install gnome-calculator --revision=972
+
 restore: |
-    snap set system interface.network.allow-auto-connection=true
-    snap remove vault || true
-    snap remove network-consumer || true
+    snap set system interface.x11.allow-auto-connection=true
+    snap remove gnome-calculator || true
+    snap remove x11-consumer || true
 
 execute: |
     # We can install a snap with an interface by default, install an older revision
     # so we can try refreshing it
-    snap install vault --revision=2424
-    "$TESTSTOOLS"/snaps-state install-local network-consumer
+    snap install gnome-calculator --revision=972
+    "$TESTSTOOLS"/snaps-state install-local x11-consumer
 
-    snap connections vault | tr -s ' ' | MATCH "vault:network :network"
-    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
+    snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
+    snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
 
     if [ "$SPREAD_VARIANT" != "unset" ]; then
-        snap set system interface.network.allow-auto-connection="$VARIANT"
+        snap set system interface.x11.allow-auto-connection="$VARIANT"
     else
         # stop here, just to verify default behaviour
         exit 0
     fi
 
     # Changing the state of auto-connections for that interface does not break it
-    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
-    snap connections vault | tr -s ' ' | MATCH "vault:network :network"
+    snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+    snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
 
     # Refreshing keeps the connection, and does not break it
-    snap refresh vault --edge
-    "$TESTSTOOLS"/snaps-state install-local network-consumer
+    snap refresh gnome-calculator --revision=975
+    "$TESTSTOOLS"/snaps-state install-local x11-consumer
 
-    snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
-    snap connections vault | tr -s ' ' | MATCH "vault:network :network"
+    snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+    snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
 
     # Reinstall and make sure it now honors the option set
-    snap remove --purge vault
-    snap remove --purge network-consumer
+    snap remove --purge gnome-calculator
+    snap remove --purge x11-consumer
 
-    snap install vault
-    "$TESTSTOOLS"/snaps-state install-local network-consumer
+    snap install gnome-calculator
+    "$TESTSTOOLS"/snaps-state install-local x11-consumer
 
     if [ "$SPREAD_VARIANT" = "true" ]; then
-        snap connections network-consumer | tr -s ' ' | MATCH "network-consumer:network :network"
-        snap connections vault | tr -s ' ' | MATCH "vault:network :network"
+        snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
+        snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
     elif [ "$SPREAD_VARIANT" = "false" ]; then
-        snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
-        snap connections vault | tr -s ' ' | NOMATCH "vault:network :network"
+        snap connections x11-consumer | tr -s ' ' | NOMATCH "x11-consumer:x11 :x11"
+        snap connections gnome-calculator | tr -s ' ' | NOMATCH "gnome-calculator:x11 :x11"
     elif [ "$SPREAD_VARIANT" = "verified" ]; then
-        snap connections network-consumer | tr -s ' ' | NOMATCH "network-consumer:network :network"
-        snap connections vault | tr -s ' ' | MATCH "vault:network :network"
+        snap connections x11-consumer | tr -s ' ' | NOMATCH "x11-consumer:x11 :x11"
+        snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
     fi

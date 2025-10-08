@@ -23,17 +23,12 @@ package configcore
 import (
 	"fmt"
 	"strings"
-
-	"github.com/snapcore/snapd/interfaces/builtin"
 )
 
 func isValidInterface(name string) bool {
-	for _, ifr := range builtin.Interfaces() {
-		if ifr.Name() == name {
-			return true
-		}
-	}
-	return false
+	// In the future we can check builtin.Interfaces() for the supported
+	// interfaces if we want to support more than just "x11"
+	return name == "x11"
 }
 
 func isValidInterfaceOption(opt string) bool {
