@@ -569,7 +569,7 @@ func (s *apparmorpromptingSuite) TestHandleReplyErrors(c *C) {
 		"permissions":  json.RawMessage(`["foo"]`),
 	}
 	result, err = mgr.HandleReply(s.defaultUser, prompt.ID, invalidConstraints, prompting.OutcomeAllow, prompting.LifespanSingle, "", clientActivity)
-	c.Check(err, ErrorMatches, "invalid permissions for home interface:.*")
+	c.Check(err, ErrorMatches, "cannot decode request body into prompt reply: invalid permissions for home interface:.*")
 	c.Check(result, IsNil)
 
 	// Path not matched

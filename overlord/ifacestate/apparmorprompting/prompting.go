@@ -429,7 +429,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	// validated against the given lifespan when constructing the Constraints.
 	constraints, err := prompting.UnmarshalReplyConstraints(prompt.Interface, outcome, lifespan, duration, replyConstraintsJSON)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode request body into prompt reply: %w", err)
 	}
 
 	// Check that constraints matches original requested path.
@@ -555,7 +555,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 
 	constraints, err := prompting.UnmarshalConstraints(iface, constraintsJSON)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode request body for rules endpoint: %w", err)
 	}
 
 	newRule, err := m.rules.AddRule(userID, snap, iface, constraints)
@@ -620,7 +620,8 @@ func (m *InterfacesRequestsManager) PatchRule(userID uint32, ruleID prompting.ID
 	}
 	constraintsPatch, err := prompting.UnmarshalRuleConstraintsPatch(origRule.Interface, constraintsPatchJSON)
 	if err != nil {
-		return nil, err
+		// XXX: should this say "... or deletion" like daemon does?
+		return nil, fmt.Errorf("cannot decode request body into request rule modification: %w", err)
 	}
 
 	patchedRule, err := m.rules.PatchRule(userID, ruleID, constraintsPatch)
