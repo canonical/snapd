@@ -1430,15 +1430,15 @@ func isSnapSlotAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *
 		option, slot.Snap.RealName)
 }
 
-func filterAllowedAutoConnectionSlots(st *state.State, snapID string, css []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
+func filterAllowedAutoConnectionSlots(st *state.State, snapID string, ssi []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
 	var filtered []*snap.SlotInfo
 	tr := config.NewTransaction(st)
-	for _, slot := range css {
+	for _, slot := range ssi {
 		if allowed, err := isSnapSlotAllowed(st, snapID, slot, tr); err != nil {
 			// In case there is any error of filtering auto-connections, assume something is horribly
 			// wrong and return to the default behaviour. However make sure we log this error from the
 			// caller.
-			return css, err
+			return ssi, err
 		} else if allowed {
 			filtered = append(filtered, slot)
 		} else {

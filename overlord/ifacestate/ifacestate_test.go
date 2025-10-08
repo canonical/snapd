@@ -11857,7 +11857,16 @@ slots:
 	return tConnectPlug.Log()
 }
 
-func (s *interfaceManagerSuite) setAutoConnectionAllowed(c *C, inter string, set string) {
+func (s *interfaceManagerSuite) setAutoConnectionAllowedString(c *C, inter string, set string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", fmt.Sprintf("interface.%s.allow-auto-connection", inter), set), IsNil)
+	tr.Commit()
+}
+
+func (s *interfaceManagerSuite) setAutoConnectionAllowedBool(c *C, inter string, set bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -11886,8 +11895,27 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectDe
 	c.Check(logs, HasLen, 0)
 }
 
-func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalse(c *C) {
-	s.setAutoConnectionAllowed(c, "x11", "false")
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalseString(c *C) {
+	s.setAutoConnectionAllowedString(c, "x11", "false")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-x11-plug:x11-plug, candidates found: snap-x11-slot:x11-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalseBool(c *C) {
+	s.setAutoConnectionAllowedBool(c, "x11", false)
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
 	// check connections
@@ -11910,7 +11938,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 		return false
 	})
 	defer r()
-	s.setAutoConnectionAllowed(c, "x11", "verified")
+	s.setAutoConnectionAllowedString(c, "x11", "verified")
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
 	// check connections
@@ -11933,7 +11961,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSe
 		return true
 	})
 	defer r()
-	s.setAutoConnectionAllowed(c, "x11", "verified")
+	s.setAutoConnectionAllowedString(c, "x11", "verified")
 	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
 
 	// check connections
