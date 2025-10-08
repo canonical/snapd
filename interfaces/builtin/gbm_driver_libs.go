@@ -148,7 +148,7 @@ func (t *gbmDriverLibsInterface) PathPatterns() []string {
 	// We need to add the interface name as a suffix in the files written
 	// in the export dir as other interfaces also write there and we need
 	// to differentiate the files maintained by each interface.
-	return []string{filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+gbmDriverLibs+".source")}
+	return []string{filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+gbmDriverLibs+".library-source")}
 }
 
 func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

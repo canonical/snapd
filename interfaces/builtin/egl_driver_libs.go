@@ -160,7 +160,7 @@ func (t *eglDriverLibsInterface) PathPatterns() []string {
 	// in the export dir as other interfaces also write there and we need
 	// to differentiate the files maintained by each interface.
 	return []string{
-		filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+eglDriverLibs+".source")}
+		filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+eglDriverLibs+".library-source")}
 }
 
 func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

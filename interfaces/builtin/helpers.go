@@ -83,7 +83,7 @@ func addConfigfilesSourcePaths(iface string, spec *configfiles.Specification, sl
 		return err
 	}
 	sourcePath := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
-		"%s_%s_%s.source", slot.Snap().InstanceName(), slot.Name(), iface))
+		"%s_%s_%s.library-source", slot.Snap().InstanceName(), slot.Name(), iface))
 	content := strings.Join(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
 	return spec.AddPathContent(sourcePath,
 		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})

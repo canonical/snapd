@@ -182,7 +182,7 @@ func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	spec := &configfiles.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
-		"/var/lib/snapd/export/cuda-provider_cuda-slot_cuda-driver-libs.source": &osutil.MemoryFileState{
+		"/var/lib/snapd/export/cuda-provider_cuda-slot_cuda-driver-libs.library-source": &osutil.MemoryFileState{
 			Content: []byte(
 				filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1") + "\n" +
 					filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2") + "\n"),
