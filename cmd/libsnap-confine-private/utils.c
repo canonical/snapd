@@ -257,9 +257,8 @@ static bool _sc_is_in_container(const char *p) {
     // Remove trailing \n if present
     sc_str_chomp(container);
 
-    size_t r = strnlen(container, sizeof container);
-    if (r == 0) {
-        /* empty or just a newline */
+    if (container[0] == '\0') {
+        /* file was empty or had just a newline */
         return false;
     }
 
