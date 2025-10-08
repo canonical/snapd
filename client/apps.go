@@ -58,7 +58,9 @@ type AppInfo struct {
 	Activators  []AppActivator   `json:"activators,omitempty"`
 }
 
-// MarshalJSON marshals the AppActivator in such a way to retain backward-compatibility with the convention-breaking previous format as well.
+// MarshalJSON marshals the AppActivator in such a way to retain
+// backward-compatibility with the convention-breaking previous format as well.
+// TODO remove legacy format in a future release
 func (aa AppActivator) MarshalJSON() ([]byte, error) {
 	type appActivator AppActivator
 
@@ -72,7 +74,7 @@ func (aa AppActivator) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(activatorWrapper{
 		appActivator:  appActivator(aa),
-		NameLegacy:    aa.Name, // TODO remove in a future release
+		NameLegacy:    aa.Name,
 		TypeLegacy:    aa.Type,
 		ActiveLegacy:  aa.Active,
 		EnabledLegacy: aa.Enabled,
