@@ -293,10 +293,9 @@ func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	spec := &configfiles.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
-		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/egl-provider_egl-slot_egl-driver-libs.source"): &osutil.MemoryFileState{
-			Content: []byte(
-				filepath.Join(dirs.GlobalRootDir, "/snap/egl-provider/5/lib1") + "\n" +
-					filepath.Join(dirs.GlobalRootDir, "/snap/egl-provider/5/lib2") + "\n"), Mode: 0644},
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/egl-provider_egl-slot_egl-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1") + "\n" +
+				filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2") + "\n"), Mode: 0644},
 	})
 }
 

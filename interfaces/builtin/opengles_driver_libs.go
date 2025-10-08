@@ -92,7 +92,7 @@ func (t *openglesDriverLibsInterface) PathPatterns() []string {
 	// We need to add the interface name as a suffix in the files written
 	// in the export dir as other interfaces also write there and we need
 	// to differentiate the files maintained by each interface.
-	return []string{filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+openglesDriverLibs+".source")}
+	return []string{filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+openglesDriverLibs+".library-source")}
 }
 
 func (iface *openglesDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

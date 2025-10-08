@@ -252,8 +252,8 @@ func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{SnapName: "gbm-provider", SlotName: "gbm-slot"}: {
-			filepath.Join(dirs.GlobalRootDir, "snap/gbm-provider/5/lib1"),
-			filepath.Join(dirs.GlobalRootDir, "snap/gbm-provider/5/lib2")}})
+			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
+			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")}})
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
@@ -303,10 +303,10 @@ func (s *GbmDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	spec := &configfiles.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
-		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/gbm-provider_gbm-slot_gbm-driver-libs.source"): &osutil.MemoryFileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/gbm-provider_gbm-slot_gbm-driver-libs.library-source"): &osutil.MemoryFileState{
 			Content: []byte(
-				filepath.Join(dirs.GlobalRootDir, "/snap/gbm-provider/5/lib1") + "\n" +
-					filepath.Join(dirs.GlobalRootDir, "/snap/gbm-provider/5/lib2") + "\n"),
+				filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2") + "\n"),
 			Mode: 0644},
 	})
 }
