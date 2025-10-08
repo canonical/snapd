@@ -2858,7 +2858,7 @@ apps:
 	})
 }
 
-func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailure(c *C) {
+func (s *servicesTestSuite) testRemoveSnapPackageUserDaemonStopFailure(c *C, reason snap.ServiceStopReason) {
 	var sysdLog [][]string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl --user show" that
@@ -2890,11 +2890,24 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
-	c.Check(err, ErrorMatches, "some user services failed to stop")
+	opts := &wrappers.StopServicesOptions{}
+	err = wrappers.StopServices(info.Services(), opts, reason, progress.Null, s.perfTimings)
+	if reason != snap.StopReasonRemove {
+		c.Check(err, ErrorMatches, "some user services failed to stop")
+	} else {
+		c.Check(err, IsNil)
+	}
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", svcFName},
 	})
+}
+
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailureManual(c *C) {
+	s.testRemoveSnapPackageUserDaemonStopFailure(c, snap.StopReasonRemove)
+}
+
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailureNoError(c *C) {
+	s.testRemoveSnapPackageUserDaemonStopFailure(c, "")
 }
 
 func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
@@ -3555,7 +3568,10 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 		return sorted[i].Name < sorted[j].Name
 	})
 
-	err = wrappers.StartServices(sorted, nil, &wrappers.StartServicesOptions{Enable: true}, &progress.Null, s.perfTimings)
+	opts := &wrappers.StartServicesOptions{
+		Enable: true,
+	}
+	err = wrappers.StartServices(sorted, nil, opts, &progress.Null, s.perfTimings)
 	c.Check(err, NotNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		// Enable phase for the service activation units, we have one set of system daemon and one set of user daemon
@@ -4207,9 +4223,11 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	if svcs[0].Name == "svc2" {
 		svcs[0], svcs[1] = svcs[1], svcs[0]
 	}
-	opts := &wrappers.StartServicesOptions{Enable: true}
+	opts := &wrappers.StartServicesOptions{
+		Enable: true,
+	}
 	err := wrappers.StartServices(svcs, nil, opts, &progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, "some user services failed to start")
+	c.Check(err, ErrorMatches, `some user services failed to start`)
 	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
@@ -4222,8 +4240,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		{"--user", "show", "--property=ActiveState", svc1Name},
 		{"--user", "--no-reload", "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
 		{"--user", "daemon-reload"},
-		// and we disable previously enabled user-services
-		{"--user", "--global", "--no-reload", "disable", svc1Name, svc2Name},
+		{"--user", "--global", "--no-reload", "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
 	}, Commentf("calls: %v", sysdLog))
 }
 
