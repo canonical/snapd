@@ -71,7 +71,7 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
-	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariables(libDirs))
+	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs))
 }
 
 // addConfigfilesSourcePaths adds a file containing a list with the sources for
@@ -84,7 +84,7 @@ func addConfigfilesSourcePaths(iface string, spec *configfiles.Specification, sl
 	}
 	sourcePath := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
 		"%s_%s_%s.source", slot.Snap().InstanceName(), slot.Name(), iface))
-	content := strings.Join(slot.Snap().ExpandSliceSnapVariables(libDirs), "\n") + "\n"
+	content := strings.Join(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
 	return spec.AddPathContent(sourcePath,
 		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
