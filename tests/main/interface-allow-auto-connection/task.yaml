@@ -11,10 +11,6 @@ environment:
   VARIANT/true: true
   VARIANT/verified: verified
 
-prepare: |
-    # install gnome-calculator to get any required content snaps
-    snap install gnome-calculator --revision=972
-
 restore: |
     snap set system interface.x11.allow-auto-connection=true
     snap remove gnome-calculator || true
