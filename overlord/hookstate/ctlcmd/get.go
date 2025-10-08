@@ -208,7 +208,7 @@ func (c *getCommand) Execute(args []string) error {
 		}
 
 		if c.View {
-			if err := validateConfdbsFeatureFlag(context.State()); err != nil {
+			if err := validateConfdbFeatureFlag(context.State()); err != nil {
 				return err
 			}
 
@@ -497,9 +497,9 @@ func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.P
 	return plug, nil
 }
 
-// validateConfdbsFeatureFlag checks whether the confdb experimental flag
+// validateConfdbFeatureFlag checks whether the confdb experimental flag
 // is enabled. The state should not be locked by the caller.
-func validateConfdbsFeatureFlag(st *state.State) error {
+func validateConfdbFeatureFlag(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 

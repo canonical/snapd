@@ -120,7 +120,7 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	if s.View {
-		if err := validateConfdbsFeatureFlag(context.State()); err != nil {
+		if err := validateConfdbFeatureFlag(context.State()); err != nil {
 			return err
 		}
 

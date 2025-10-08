@@ -88,7 +88,7 @@ func (s *unsetCommand) Execute(args []string) error {
 		return nil
 	}
 
-	if err := validateConfdbsFeatureFlag(context.State()); err != nil {
+	if err := validateConfdbFeatureFlag(context.State()); err != nil {
 		return err
 	}
 
