@@ -5,6 +5,10 @@ details: |
     for interface.<if>.allow-auto-connection works like they are expected. The supported
     interfaces are the builtin ones in snapd.
 
+systems:
+    # ubuntu-core: no x11
+    - -ubuntu-core*
+
 environment:
   VARIANT/unset: unset
   VARIANT/false: false

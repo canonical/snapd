@@ -1413,6 +1413,12 @@ func getAllowOptionAsString(inter string, tr *config.Transaction) (string, error
 }
 
 func isSnapSlotAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
+	// Until we decide that we want to support other interfaces, do a
+	// quick allow check for x11 only.
+	if slot.Interface != "x11" {
+		return true, nil
+	}
+
 	option, err := getAllowOptionAsString(slot.Interface, tr)
 	if err != nil {
 		return false, err
