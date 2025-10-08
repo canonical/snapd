@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/confdbstate"
@@ -73,7 +74,17 @@ by naming the respective plug or slot:
     $ snapctl set :myplug path=/dev/ttyS0
 `)
 
+var longConfdbSetHelp = i18n.G(`
+If the --view flag is used, 'snapctl set' expects the name of a connected
+interface plug referencing a confdb view. In that case, the command modifies
+the data at the provided paths according to the view referenced by the plug.
+`)
+
 func init() {
+	if features.Confdb.IsEnabled() {
+		longSetHelp += longConfdbSetHelp
+	}
+
 	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
 }
 

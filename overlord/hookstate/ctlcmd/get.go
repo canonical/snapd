@@ -99,7 +99,21 @@ This requests the "usb-vendor" setting from the slot that is connected to
 "myplug".
 `)
 
+var longConfdbGetHelp = i18n.G(`
+If the --view flag is used, 'snapctl get' expects the name of a connected
+interface plug referencing a confdb view. In that case, the command returns the
+data at the provided paths according to the view referenced by the plug. Use
+--default to provide a default value to be used if no value is stored. When
+using "snacptl get" in a confdb hook, the --previous flag can be used to return
+confdb data disregarding the changes being committed in the transaction that
+invoked the hook.
+`)
+
 func init() {
+	if features.Confdb.IsEnabled() {
+		longGetHelp += longConfdbGetHelp
+	}
+
 	addCommand("get", shortGetHelp, longGetHelp, func() command {
 		return &getCommand{}
 	})
