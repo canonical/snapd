@@ -224,9 +224,10 @@ func UnmarshalConstraints(iface string, constraintsJSON ConstraintsJSON) (*Const
 	}
 	// Permissions must be validated later via ToRuleConstraints to check if
 	// any permission entries are invalid.
-	// XXX: should permissions be validated here while unmarshalling, rather
-	// than later, and leave the later checks to just be for expiration? That
-	// would better match the behavior of UnmarshalReplyConstraints.
+	// TODO: validate permissions here while unmarshalling, rather than later,
+	// and leave the later checks to just be for expiration. That would better
+	// match the behavior of UnmarshalReplyConstraints. Furthermore, validation
+	// could occur as part of unmarshalling the PermissionMap itself.
 	constraints := &Constraints{
 		InterfaceSpecific: interfaceSpecific,
 		Permissions:       permissionMap,
@@ -333,9 +334,10 @@ func UnmarshalRuleConstraints(iface string, constraintsJSON ConstraintsJSON) (*R
 	}
 	// Permissions must be validated later via ValidateForInterface to check if
 	// any/all permission entries are invalid or expired.
-	// XXX: should permissions be validated here while unmarshalling, rather
-	// than later, and leave the later checks to just be for expiration? That
-	// would better match the behavior of UnmarshalReplyConstraints.
+	// TODO: validate permissions here while unmarshalling, rather than later,
+	// and leave the later checks to just be for expiration. That would better
+	// match the behavior of UnmarshalReplyConstraints. Furthermore, validation
+	// could occur as part of unmarshalling the RulePermissionMap itself.
 	constraints := &RuleConstraints{
 		InterfaceSpecific: interfaceSpecific,
 		Permissions:       permissionMap,
@@ -490,9 +492,12 @@ func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON
 		constraints.Permissions = permissionMap
 		// Permissions must be validated later via ValidateForInterface to check
 		// if any/all permission entries are invalid or expired.
-		// XXX: should permissions be validated here while unmarshalling, rather
-		// than later during PatchRuleConstraints? That would better match the
-		// behavior of UnmarshalReplyConstraints.
+		// TODO: validate permissions here while unmarshalling, rather than later.
+		// That would better match the behavior of UnmarshalReplyConstraints.
+		// Furthermore, validation could occur as part of unmarshalling the
+		// PermissionMap itself, though this needs to be slightly different from
+		// that in UnmarshalConstraints, since we want to allow and preserve any
+		// permissions which map to nil.
 	}
 
 	return constraints, nil
