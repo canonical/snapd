@@ -133,6 +133,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		opts := &wrappers.StopServicesOptions{
 			Disable:      disable,
 			ScopeOptions: sc.ScopeOptions,
+			Reason:       wrappers.ServiceOperationReasonManual,
 		}
 		st.Unlock()
 		err := wrappers.StopServices(services, opts, snap.StopReasonOther, meter, perfTimings)
@@ -158,6 +159,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		opts := &wrappers.StartServicesOptions{
 			Enable:       enable,
 			ScopeOptions: sc.ScopeOptions,
+			Reason:       wrappers.ServiceOperationReasonManual,
 		}
 		st.Unlock()
 		err = wrappers.StartServices(startupOrdered, nil, opts, meter, perfTimings)
@@ -183,6 +185,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, &wrappers.RestartServicesOptions{
 			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
 			ScopeOptions:         sc.ScopeOptions,
+			Reason:               wrappers.ServiceOperationReasonManual,
 		}, meter, perfTimings)
 		st.Lock()
 		return err
@@ -192,6 +195,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			Reload:               true,
 			AlsoEnabledNonActive: sc.RestartEnabledNonActive,
 			ScopeOptions:         sc.ScopeOptions,
+			Reason:               wrappers.ServiceOperationReasonManual,
 		}, meter, perfTimings)
 		st.Lock()
 		return err

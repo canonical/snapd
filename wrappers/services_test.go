@@ -2858,7 +2858,7 @@ apps:
 	})
 }
 
-func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailure(c *C) {
+func (s *servicesTestSuite) testRemoveSnapPackageUserDaemonStopFailure(c *C, reason wrappers.ServiceOperationReason) {
 	var sysdLog [][]string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl --user show" that
@@ -2890,11 +2890,26 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
-	c.Check(err, ErrorMatches, "some user services failed to stop")
+	opts := &wrappers.StopServicesOptions{
+		Reason: reason,
+	}
+	err = wrappers.StopServices(info.Services(), opts, "", progress.Null, s.perfTimings)
+	if reason == wrappers.ServiceOperationReasonManual {
+		c.Check(err, ErrorMatches, "some user services failed to stop")
+	} else {
+		c.Check(err, IsNil)
+	}
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", svcFName},
 	})
+}
+
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailureManual(c *C) {
+	s.testRemoveSnapPackageUserDaemonStopFailure(c, wrappers.ServiceOperationReasonManual)
+}
+
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailureNoError(c *C) {
+	s.testRemoveSnapPackageUserDaemonStopFailure(c, "")
 }
 
 func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
@@ -3555,7 +3570,11 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 		return sorted[i].Name < sorted[j].Name
 	})
 
-	err = wrappers.StartServices(sorted, nil, &wrappers.StartServicesOptions{Enable: true}, &progress.Null, s.perfTimings)
+	opts := &wrappers.StartServicesOptions{
+		Enable: true,
+		Reason: wrappers.ServiceOperationReasonManual,
+	}
+	err = wrappers.StartServices(sorted, nil, opts, &progress.Null, s.perfTimings)
 	c.Check(err, NotNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		// Enable phase for the service activation units, we have one set of system daemon and one set of user daemon
@@ -4174,7 +4193,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 	}, Commentf("calls: %v", sysdLog))
 }
 
-func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C) {
+func (s *servicesTestSuite) testStartSnapMultiUserServicesFailStartCleanup(c *C, reason wrappers.ServiceOperationReason) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
@@ -4207,24 +4226,52 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	if svcs[0].Name == "svc2" {
 		svcs[0], svcs[1] = svcs[1], svcs[0]
 	}
-	opts := &wrappers.StartServicesOptions{Enable: true}
+	opts := &wrappers.StartServicesOptions{
+		Enable: true,
+		Reason: reason,
+	}
 	err := wrappers.StartServices(svcs, nil, opts, &progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
-		{"--user", "--no-reload", "enable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
-		{"--user", "daemon-reload"},
-		{"--user", "start", svc1Name},
-		{"--user", "start", svc2Name}, // one of the services fails
-		// session agent attempts to stop the non-failed services
-		{"--user", "stop", svc1Name},
-		{"--user", "show", "--property=ActiveState", svc1Name},
-		{"--user", "--no-reload", "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
-		{"--user", "daemon-reload"},
-		// and we disable previously enabled user-services
-		{"--user", "--global", "--no-reload", "disable", svc1Name, svc2Name},
-	}, Commentf("calls: %v", sysdLog))
+	if reason == wrappers.ServiceOperationReasonManual {
+		c.Check(err, ErrorMatches, "some user services failed to start")
+		c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+		c.Check(sysdLog, DeepEquals, [][]string{
+			{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
+			{"--user", "--no-reload", "enable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
+			{"--user", "daemon-reload"},
+			{"--user", "start", svc1Name},
+			{"--user", "start", svc2Name}, // one of the services fails
+			// session agent attempts to stop the non-failed services
+			{"--user", "stop", svc1Name},
+			{"--user", "show", "--property=ActiveState", svc1Name},
+			{"--user", "--no-reload", "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
+			{"--user", "daemon-reload"},
+			// and we disable previously enabled user-services
+			{"--user", "--global", "--no-reload", "disable", svc1Name, svc2Name},
+		}, Commentf("calls: %v", sysdLog))
+	} else {
+		c.Check(err, IsNil)
+		c.Assert(sysdLog, HasLen, 9, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+		c.Check(sysdLog, DeepEquals, [][]string{
+			{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
+			{"--user", "--no-reload", "enable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
+			{"--user", "daemon-reload"},
+			{"--user", "start", svc1Name},
+			{"--user", "start", svc2Name}, // one of the services fails
+			// session agent attempts to stop the non-failed services
+			{"--user", "stop", svc1Name},
+			{"--user", "show", "--property=ActiveState", svc1Name},
+			{"--user", "--no-reload", "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
+			{"--user", "daemon-reload"},
+		}, Commentf("calls: %v", sysdLog))
+	}
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanupManual(c *C) {
+	s.testStartSnapMultiUserServicesFailStartCleanup(c, wrappers.ServiceOperationReasonManual)
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanupNoError(c *C) {
+	s.testStartSnapMultiUserServicesFailStartCleanup(c, "")
 }
 
 func (s *servicesTestSuite) TestStartSnapServicesKeepsOrder(c *C) {
@@ -5137,7 +5184,7 @@ NeedDaemonReload=no
 	})
 }
 
-func (s *servicesTestSuite) TestReloadOrRestartUserDaemonsFails(c *C) {
+func (s *servicesTestSuite) testReloadOrRestartUserDaemonsFails(c *C, reason wrappers.ServiceOperationReason) {
 	const snapYaml = `name: test-snap
 version: 1.0
 apps:
@@ -5173,14 +5220,26 @@ NeedDaemonReload=no
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
 
-	opts := wrappers.RestartServicesOptions{Reload: true, AlsoEnabledNonActive: true}
+	opts := wrappers.RestartServicesOptions{Reload: true, AlsoEnabledNonActive: true, Reason: reason}
 	err = wrappers.RestartServices(info.Services(), nil, &opts, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, `some user services failed to restart`)
+	if reason == wrappers.ServiceOperationReasonManual {
+		c.Assert(err, ErrorMatches, `some user services failed to restart`)
+	} else {
+		c.Assert(err, IsNil)
+	}
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "daemon-reload"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"--user", "reload-or-restart", srvFile},
 	})
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartUserDaemonsFailsForManual(c *C) {
+	s.testReloadOrRestartUserDaemonsFails(c, wrappers.ServiceOperationReasonManual)
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartUserDaemonsOtherwiseNoErrorReturned(c *C) {
+	s.testReloadOrRestartUserDaemonsFails(c, "")
 }
 
 func (s *servicesTestSuite) TestReloadOrRestartUserDaemonsButSystemScope(c *C) {
