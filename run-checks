@@ -305,7 +305,7 @@ if [ "$STATIC" = 1 ]; then
     got=""
     for dir in $(go list -f '{{.Dir}}' ./...); do
         # shellcheck disable=SC2063
-        s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
+        s="$(grep -nP --exclude '*_test.go' --exclude tests/lib/plz-run/main.go --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
         if [ -n "$s" ]; then
             got="$s\\n$got"
         fi
