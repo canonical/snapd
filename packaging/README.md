@@ -12,6 +12,10 @@ and contributions related to packaging. If you find that the reference packaging
 is done incorrectly, or does not meet established conventions for your
 distribution, feel free to open a pull-request.
 
+The guide focuses on packaging of snapd for use with a classic Linux
+distribution, such as Ubuntu, Fedora, Arch Linux, and **not** an immutable
+system like Ubuntu Core.
+
 ## Dependencies
 
 Majority of snapd is written in Go, but some smaller bits are written in C. See
@@ -19,7 +23,7 @@ the [go.mod](/go.mod) file for the minimum required version of Go. While for
 building the C code any reasonably recent version of GCC or Clang will suffice.
 
 Other high level build and runtime dependencies are:
-- Linux kernel >= <version>
+- Linux kernel >= 4.x (or otherwise reasonably recent)
 - systemd
 - autotools, pkg-config
 - libc static
@@ -128,7 +132,7 @@ with_core_bits = 0
 with_alt_snap_mount_dir = 1
 # Enable AppArmor support, 0|1
 with_apparmor = 1
-# Enable use of PIE when building static binraies, 0|1
+# Enable use of PIE when building static binaries, 0|1
 with_static_pie = $build_with_static_pie
 # Use vendored dependencies, 0|1
 with_vendor = 1
@@ -143,11 +147,10 @@ with_testkeys = 0
 
 The helper is invoked like so:
 
-``` sh
-$(MAKE) -f packaging/snapd.mk \
+```sh
+make -f packaging/snapd.mk \
     SNAPD_DEFINES_DIR=$PWD \
     install  # or: build|check|clean|all
-
 ```
 
 Where `SNAPD_DEFINES_DIR` is set to the path of the directory containing
@@ -194,20 +197,17 @@ copy the applicable snippets as needed.
 
 ### snap-confine
 
-The `snap-confine` binary is expected to have the following file capabilities
+The `snap-confine` binary is expected to have the file capabilities listed in
+[`cmd/snap-confine/snap-confine.v2-only.caps`](/cmd/snap-confine/snap-confine.v2-only.caps).
 set on it once the package has been installed.
 
-```
-cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=p
-```
-
-For convenience, the required capabilities are listed in
-[`cmd/snap-confine/snap-confine.v2-only.caps`](/cmd/snap-confine/snap-confine.v2-only.caps).
 The [`cmd/snap-confine/snap-confine.caps`](/cmd/snap-confine/snap-confine.caps)
-file lists the same set of capabilities but additionally includes
-`cap_setuid,cap_setgid`, which is which a workaround for kernel cgroup v1 issues
-and relevant only if expecting that the snapd package will be used within a
+file lists the same set of capabilities, but additionally includes
+`cap_setuid,cap_setgid`, which is a workaround for kernel cgroup v1 issues and
+relevant only if expecting that the snapd package will be used within a
 container running on a host kernel that is booted with cgroup v1 support.
+Packaging is encouraged to **not** ship or otherwise use the this file, unless
+deemed necessary for the use case.
 
 ### Systemd units
 
@@ -221,6 +221,23 @@ On systems with AppArmor enabled, `snapd.apparmor.service` needs to be installed
 as well. It is a dedicated unit which invokes `snapd-apparmor` internal tool,
 that is responsible for loading AppArmor profiles of installed snaps.
 
+The table provides a summary of all systemd units that are relevant for classic
+distribution packaging:
+
+| Unit                          | Kind   | Purpose                                                               |
+|-------------------------------|--------|-----------------------------------------------------------------------|
+| `snapd.service`               | system | Main snapd service                                                    |
+| `snapd.socket`                | system | Snapd sockets unit, activates `snapd.service`                         |
+| `snapd.apparmor.service`      | system | Loads snap AppArmor profiles                                          |
+| `snapd.mounts.target`         | system | Synchronization target right after snap mounts have completed         |
+| `snapd.mounts-pre.target`     | system | Synchronization target for mounting snap units                        |
+| `snapd.seeded.service`        | system | Service waiting for snapd initialization to complete                  |
+| `snapd.session-agent.service` | user   | User session agent                                                    |
+| `snapd.session-agent.socket`  | user   | User session socket for communication with snapd, activates the agent |
+
+It is recommended to enable at least `snapd.socket` and
+`snapd.session-agent.socket` units, however this should be done in accordance
+with a policy established by a given distribution.
 
 ### Directories
 
@@ -243,11 +260,11 @@ Snapd provides support scripts that can be used during package installation:
 
 #### `snap-mgmt`
 
-This script it expected to be invoked during package removal, in a pre-remove
+This script is expected to be invoked during package removal, in a pre-remove
 step, like so:
 
 ``` sh
-$(libexecdir)/snapd/snap-mgmt --purge
+${libexecdir}/snapd/snap-mgmt --purge
 ```
 
 Its purpose is to ensure that all snaps and their data is removed from system wide locations.
