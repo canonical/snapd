@@ -104,7 +104,6 @@ func (constraints *InterfaceSpecificConstraintsHome) parseJSON(constraintsJSON C
 	}
 	var pathPattern patterns.PathPattern
 	if err := pathPattern.UnmarshalJSON(pathPatternJSON); err != nil {
-		// XXX: should this be wrapped in a "cannot decode ..." message like in daemon?
 		return err
 	}
 	constraints.Pattern = &pathPattern
@@ -219,7 +218,6 @@ func UnmarshalConstraints(iface string, constraintsJSON ConstraintsJSON) (*Const
 	}
 	var permissionMap PermissionMap
 	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
-		// XXX: should this be wrapped in a "cannot decode ..." message like in daemon?
 		return nil, err
 	}
 	// Permissions must be validated later via ToRuleConstraints to check if
@@ -329,7 +327,6 @@ func UnmarshalRuleConstraints(iface string, constraintsJSON ConstraintsJSON) (*R
 	}
 	var permissionMap RulePermissionMap
 	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
-		// XXX: should this be wrapped in a "cannot decode ..." message like in daemon?
 		return nil, err
 	}
 	// Permissions must be validated later via ValidateForInterface to check if
@@ -420,7 +417,6 @@ func UnmarshalReplyConstraints(iface string, outcome OutcomeType, lifespan Lifes
 	}
 	var permissionsList []string
 	if err := json.Unmarshal(permissionsJSON, &permissionsList); err != nil {
-		// XXX: should this be wrapped in a "cannot decode ..." message like in daemon?
 		return nil, err
 	}
 	if len(permissionsList) == 0 {
@@ -486,7 +482,6 @@ func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON
 	if ok {
 		var permissionMap PermissionMap
 		if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
-			// XXX: should this be wrapped in a "cannot decode ..." message like in daemon?
 			return nil, err
 		}
 		constraints.Permissions = permissionMap
