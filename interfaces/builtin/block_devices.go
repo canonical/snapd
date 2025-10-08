@@ -74,6 +74,8 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/i2o/hd{,[a-c]}[a-z] rwk,                              # I2O hard disk
 /dev/i2o/hdd[a-x] rwk,                                     # I2O hard disk continued
 /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rwk,                   # MMC (up to 1000 devices)
+/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9] rwk,          # MMC boot volumes
+/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}rpmb rwk,               # MMC rpmb volume
 /dev/vd[a-z] rwk,                                          # virtio
 /dev/loop[0-9]{,[0-9],[0-9][0-9]} rwk,                     # loopback (up to 1000 devices)
 /dev/loop-control rw,                                      # loopback control
