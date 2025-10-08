@@ -77,7 +77,6 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 		if err != nil {
 			return nil, fmt.Errorf("cannot create snap update tasks: %w", err)
 		}
-		tasksets = append(tasksets, updateTS.PreDownload...)
 		tasksets = append(tasksets, updateTS.Refresh...)
 	}
 
