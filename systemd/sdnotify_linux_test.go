@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build linux
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd

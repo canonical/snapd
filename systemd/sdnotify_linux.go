@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build linux
 
 /*
  * Copyright (C) 2017-2025 Canonical Ltd
@@ -27,8 +28,6 @@ import (
 
 	"golang.org/x/sys/unix"
 )
-
-var osGetenv = os.Getenv
 
 // SdNotify sends the given state string notification to systemd.
 //

@@ -21,6 +21,7 @@ package systemd
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"syscall"
@@ -46,6 +47,8 @@ func (name FdName) Validate() error {
 	}
 	return nil
 }
+
+var osGetenv = os.Getenv
 
 // GetFds retrieves file descriptors passed from systemd by their name.
 func GetFds(name FdName) (fds []int) {
