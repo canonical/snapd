@@ -18,7 +18,7 @@
  */
 
 // Package lists implements a type-safe linked list where list nodes are
-// embedded in larger structures. A single structure may contain any, fixed
+// embedded in larger structures. A single structure may contain any fixed
 // number of list nodes, and thus participate in identical number of lists.
 //
 // Two list types are provided, [List] and [HeadlessList]. They differ in
