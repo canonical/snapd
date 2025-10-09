@@ -106,6 +106,21 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		return nil, fmt.Errorf("cannot initialize prompting notice backend: %w", err)
 	}
 
+	notifyPrompt := noticeBackends.promptBackend.addNotice
+
+	notifyRules := func(rules []*requestrules.Rule, data map[string]string) error {
+		// XXX: currently this is pointless since each notice is added and
+		// written to disk individually.
+		var errs []error
+		for _, rule := range rules {
+			if err := noticeBackends.ruleBackend.addNotice(rule.User, rule.ID, data); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		// TODO:GOVERSION: replace with errors.Join() once we're on golang v1.20+
+		return strutil.JoinErrors(errs...)
+	}
+
 	listenerBackend, err := listenerRegister()
 	if err != nil {
 		return nil, fmt.Errorf("cannot register prompting listener: %w", err)
@@ -116,7 +131,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	promptsBackend, err := requestprompts.New(noticeBackends.promptBackend.addNotice)
+	promptsBackend, err := requestprompts.New(notifyPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request prompts backend: %w", err)
 	}
@@ -126,7 +141,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(noticeBackends.ruleBackend.addNotice)
+	rulesBackend, err := requestrules.New(notifyRules)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}
