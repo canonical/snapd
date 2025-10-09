@@ -650,6 +650,11 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 			},
 		},
 		{
+			userID: good4.User,
+			ruleID: good4.ID,
+			data:   nil,
+		},
+		{
 			userID: overlap4.User,
 			ruleID: overlap4.ID,
 			data: map[string]string{

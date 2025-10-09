@@ -91,9 +91,10 @@ func (rule *Rule) UnmarshalJSON(data []byte) error {
 
 // Validate verifies internal correctness of the rule's constraints and
 // permissions and prunes any expired permissions. If all permissions are
-// expired at the given point in time, then returns true. If the rule is
-// invalid, returns an error.
-func (rule *Rule) validate(at prompting.At) (expired bool, err error) {
+// expired at the given point in time, then returns fullyExpired as true.
+// If any permissions are expired, then returns partiallyExpired as true.
+// If the rule is invalid, returns an error.
+func (rule *Rule) validate(at prompting.At) (fullyExpired, partiallyExpired bool, err error) {
 	return rule.Constraints.ValidateForInterface(rule.Interface, at)
 }
 
@@ -243,6 +244,7 @@ func (rdb *RuleDB) load() (retErr error) {
 	rdb.perUser = make(map[uint32]*userDB)
 
 	expiredRules := make(map[prompting.IDType]bool)
+	partiallyExpiredRules := make(map[prompting.IDType]bool)
 	// Store map of merged rules, where the original merged (removed) rule ID
 	// maps to the ID of the rule into which it was merged.
 	mergedRules := make(map[prompting.IDType]prompting.IDType)
@@ -279,13 +281,13 @@ func (rdb *RuleDB) load() (retErr error) {
 		if err != nil {
 			return err
 		}
-		expired, err := rule.validate(at)
+		fullyExpired, partiallyExpired, err := rule.validate(at)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
 			errInvalid = err
 			break
 		}
-		if expired {
+		if fullyExpired {
 			expiredRules[rule.ID] = true
 			continue
 		}
@@ -299,6 +301,13 @@ func (rdb *RuleDB) load() (retErr error) {
 		}
 		if merged {
 			mergedRules[rule.ID] = mergedRule.ID
+			continue
+		}
+
+		// Being merged is more important than being partially expired, so only
+		// check this after first adding the rule to the DB.
+		if partiallyExpired {
+			partiallyExpiredRules[rule.ID] = true
 		}
 	}
 
@@ -327,6 +336,8 @@ func (rdb *RuleDB) load() (retErr error) {
 				"removed":     "merged",
 				"merged-into": newID.String(),
 			}
+		} else if partiallyExpiredRules[rule.ID] {
+			// no-op, want to record notice with empty data
 		} else {
 			// not expired or merged, so don't record notice
 			continue
