@@ -95,7 +95,7 @@ type InterfacesRequestsManager struct {
 	ready chan struct{}
 
 	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
-	notifyRule   func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+	notifyRules  func(rules []*requestrules.Rule, data map[string]string) error
 }
 
 func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
@@ -110,7 +110,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		_, err := s.AddNotice(&userID, state.InterfacesRequestsPromptNotice, promptID.String(), &options)
 		return err
 	}
-	notifyRule := func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
+	notifyRules := func(rules []*requestrules.Rule, data map[string]string) error {
 		// TODO: add some sort of queue so that notifyRule calls can return
 		// quickly without waiting for state lock and AddNotice() to return.
 		s.Lock()
@@ -118,8 +118,14 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		options := state.AddNoticeOptions{
 			Data: data,
 		}
-		_, err := s.AddNotice(&userID, state.InterfacesRequestsRuleUpdateNotice, ruleID.String(), &options)
-		return err
+		var errs []error
+		for _, rule := range rules {
+			if _, err := s.AddNotice(&rule.User, state.InterfacesRequestsRuleUpdateNotice, rule.ID.String(), &options); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		// TODO:GOVERSION: replace with errors.Join() once we're on golang v1.20+
+		return strutil.JoinErrors(errs...)
 	}
 
 	listenerBackend, err := listenerRegister()
@@ -142,7 +148,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		}
 	}()
 
-	rulesBackend, err := requestrules.New(notifyRule)
+	rulesBackend, err := requestrules.New(notifyRules)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open request rules backend: %w", err)
 	}
@@ -158,7 +164,7 @@ func New(s *state.State) (m *InterfacesRequestsManager, retErr error) {
 		rules:        rulesBackend,
 		ready:        make(chan struct{}),
 		notifyPrompt: notifyPrompt,
-		notifyRule:   notifyRule,
+		notifyRules:  notifyRules,
 	}
 
 	m.tomb.Go(m.run)
