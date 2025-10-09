@@ -82,6 +82,8 @@ var templateCommon = `
 # The template is applied to all the snaps regardless of their base snaps. Some base
 # snaps, notably core26, chose to ship uutils-coreutils as their native installation
 # location used by cargo.
+# The usr/bin/gnu rule deliberately doesn't have a trailing slash
+# This is to support paths like /usr/bin/ls -> /usr/bin/gnuls
 @{SNAP_COREUTIL_DIRS}="/{bin/,usr/bin/,usr/bin/gnu,usr/lib/cargo/bin/coreutils/}"
 ###VAR###
 
