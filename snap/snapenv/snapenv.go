@@ -146,9 +146,15 @@ func buildLibPath() string {
 	// systems. Currently only snaps connected to the opengl interface can
 	// use these libraries (the interface provides the necessary apparmor
 	// permissions).
-	sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*.library-source")
-	// Only possible error is a malformed pattern
-	sourceFiles, _ := filepath.Glob(sourcesGlob)
+	sourceFiles := []string{}
+	for _, iface := range []string{"egl-driver-libs", "gbm-driver-libs", "cuda-driver-libs",
+		"opengl-driver-libs", "opengles-driver-libs", "vulkan-driver-libs"} {
+		sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir),
+			"*_"+iface+".library-source")
+		// Only possible error is a malformed pattern
+		ifaceFiles, _ := filepath.Glob(sourcesGlob)
+		sourceFiles = append(sourceFiles, ifaceFiles...)
+	}
 	libPaths := []string{}
 	snapDirs := make(map[string]bool)
 	for _, path := range sourceFiles {
