@@ -13,8 +13,7 @@ prepare: |
 
 restore: |
     # disable persistent journal
-    rm -rf /var/log/journal
-    systemctl kill --signal=SIGUSR1 systemd-journald
+    snap set core journal.persistent=false
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -u snapd
