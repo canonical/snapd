@@ -29,10 +29,12 @@ var (
 	Jctl = jctl
 )
 
-func MockOsGetenv(f func(string) string) func() {
-	oldOsGetenv := osGetenv
-	osGetenv = f
-	return func() { osGetenv = oldOsGetenv }
+func MockOsGetenv(f func(key string) string) (restore func()) {
+	return testutil.Mock(&osGetenv, f)
+}
+
+func MockOsSetenv(f func(key string, value string) error) (restore func()) {
+	return testutil.Mock(&osSetenv, f)
 }
 
 func MockOsutilStreamCommand(f func(string, ...string) (io.ReadCloser, error)) func() {

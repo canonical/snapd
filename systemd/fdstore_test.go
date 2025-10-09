@@ -38,22 +38,26 @@ var _ = Suite(&fdstoreTestSuite{})
 
 func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.fakeEnv = make(map[string]string)
-	s.AddCleanup(systemd.MockOsGetenv(func(k string) string {
-		return s.fakeEnv[k]
+	s.AddCleanup(systemd.MockOsGetenv(func(key string) string {
+		return s.fakeEnv[key]
+	}))
+	s.AddCleanup(systemd.MockOsSetenv(func(key, value string) error {
+		s.fakeEnv[key] = value
+		return nil
 	}))
 }
 
 func (s *fdstoreTestSuite) TestGetFds(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "4"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.socket:rkey-fd:snapd.socket"
+	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.socket:rkey:snapd.socket"
 	// fds starts from 3
 	c.Check(systemd.GetFds("snapd.socket"), DeepEquals, []int{3, 4, 6})
-	c.Check(systemd.GetFds("rkey-fd"), DeepEquals, []int{5})
+	c.Check(systemd.GetFds(systemd.FdNameRecoveryKeyStore), DeepEquals, []int{5})
 	c.Check(systemd.GetFds("no-fd"), IsNil)
 
 	delete(s.fakeEnv, "LISTEN_FDS")
 	c.Check(systemd.GetFds("snapd.socket"), IsNil)
-	c.Check(systemd.GetFds("rkey-fd"), IsNil)
+	c.Check(systemd.GetFds(systemd.FdNameRecoveryKeyStore), IsNil)
 	c.Check(systemd.GetFds("no-fd"), IsNil)
 }
 
@@ -61,7 +65,7 @@ func (s *fdstoreTestSuite) TestAddFds(c *C) {
 	called := 0
 	restore := systemd.MockSdNotifyWithFds(func(notifyState string, fds ...int) error {
 		called++
-		c.Check(notifyState, Equals, "FDSTORE=1\nFDNAME=rkey-fd")
+		c.Check(notifyState, Equals, "FDSTORE=1\nFDNAME=rkey")
 		c.Check(fds, DeepEquals, []int{7, 8, 9})
 		return nil
 	})
@@ -78,7 +82,7 @@ func (s *fdstoreTestSuite) TestAddFdsInvalidFdName(c *C) {
 
 func (s *fdstoreTestSuite) TestPruneFds(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "6"
-	s.fakeEnv["LISTEN_FDNAMES"] = "err-on-remove:snapd.socket:err-on-close:snapd.session-agent.socket:unknown-fd:rkey-fd:snapd.socket"
+	s.fakeEnv["LISTEN_FDNAMES"] = "err-on-remove:snapd.socket:err-on-close:snapd.session-agent.socket:unknown-fd:rkey:snapd.socket"
 
 	var states []string
 	restore := systemd.MockSdNotify(func(notifyState string) error {
@@ -99,19 +103,32 @@ func (s *fdstoreTestSuite) TestPruneFds(c *C) {
 	})
 	defer restore()
 
+	c.Check(systemd.GetFds("err-on-remove"), DeepEquals, []int{3})
+	c.Check(systemd.GetFds("err-on-close"), DeepEquals, []int{5})
+	c.Check(systemd.GetFds("unknown-fd"), DeepEquals, []int{7})
+
 	systemd.PruneFds()
 
-	// *.socket and rkey-fd are skipped
+	// *.socket and rkey are skipped
 	c.Check(states, DeepEquals, []string{
 		"FDSTOREREMOVE=1\nFDNAME=err-on-remove",
 		"FDSTOREREMOVE=1\nFDNAME=err-on-close",
 		"FDSTOREREMOVE=1\nFDNAME=unknown-fd",
 	})
+	// and fd names are marked as "removed"
+	c.Check(s.fakeEnv, DeepEquals, map[string]string{
+		"LISTEN_FDS":     "6", // kept as is to avoid disrupting existing fds
+		"LISTEN_FDNAMES": "removed:snapd.socket:removed:snapd.session-agent.socket:removed:rkey:snapd.socket",
+	})
+	// since they are marked as "removed", they should be ignored
+	c.Check(systemd.GetFds("err-on-remove"), IsNil)
+	c.Check(systemd.GetFds("err-on-close"), IsNil)
+	c.Check(systemd.GetFds("unknown-fd"), IsNil)
 }
 
 func (s *fdstoreTestSuite) TestActivationSocketFiles(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "4"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.session-agent.socket:rkey-fd:snapd.socket"
+	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.session-agent.socket:rkey:snapd.socket"
 	// fds starts from 3
 	socketFds := systemd.ActivationSocketFds()
 	c.Check(socketFds, DeepEquals, map[string][]int{

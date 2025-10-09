@@ -34,7 +34,8 @@ const sd_LISTEN_FDS_START = 3
 type FdName string
 
 const (
-	FdNameRecoveryKeyStore FdName = "rkey-fd"
+	FdNameRemoved          FdName = "removed"
+	FdNameRecoveryKeyStore FdName = "rkey"
 )
 
 var knownFdNames = map[FdName]bool{
@@ -49,6 +50,7 @@ func (name FdName) Validate() error {
 }
 
 var osGetenv = os.Getenv
+var osSetenv = os.Setenv
 
 // GetFds retrieves file descriptors passed from systemd by their name.
 func GetFds(name FdName) (fds []int) {
@@ -89,16 +91,30 @@ func PruneFds() {
 			if err := removeFds(FdName(entry.name)); err != nil {
 				// best-effort cleanup, keep going
 				logger.Noticef("internal error: cannot remove unknown fdName %q: %v", entry.name, err)
+				continue
 			}
 			if err := syscallClose(entry.fd); err != nil {
 				// best-effort cleanup, keep going
 				logger.Noticef("internal error: cannot close fd %d: %v", entry.fd, err)
+				continue
 			}
 		}
 	}
 }
 
 func removeFds(name FdName) (err error) {
+	// mark as "removed" in $LISTEN_FDNAMES so they are ignored
+	// on subsequent allFds calls.
+	names := strings.Split(osGetenv("LISTEN_FDNAMES"), ":")
+	for i := range names {
+		if names[i] == string(name) {
+			names[i] = string(FdNameRemoved)
+		}
+	}
+	if err := osSetenv("LISTEN_FDNAMES", strings.Join(names, ":")); err != nil {
+		return fmt.Errorf("cannot mark %q fds as removed: %v", name, err)
+	}
+
 	state := fmt.Sprintf("FDSTOREREMOVE=1\nFDNAME=%s", name)
 	return SdNotify(state)
 }
@@ -135,11 +151,15 @@ func allFds() []fdWithName {
 
 	names := strings.Split(osGetenv("LISTEN_FDNAMES"), ":")
 
-	fds := make([]fdWithName, nfds)
+	fds := make([]fdWithName, 0, nfds)
 	for i := 0; i < nfds; i++ {
-		fds[i].fd = sd_LISTEN_FDS_START + i
+		fdEntry := fdWithName{}
+		fdEntry.fd = sd_LISTEN_FDS_START + i
 		if i < len(names) {
-			fds[i].name = names[i]
+			fdEntry.name = names[i]
+		}
+		if fdEntry.name != string(FdNameRemoved) {
+			fds = append(fds, fdEntry)
 		}
 	}
 
