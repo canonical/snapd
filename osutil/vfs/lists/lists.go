@@ -29,10 +29,9 @@ package lists
 //
 // The zero value of a node is lazy-initialized to point to itself.
 //
-// The container field is never initialized by any of the node functions.
-// Since the container is only known by higher-level constructs, such as [List],
-// the higher-level functions [List.Append] and [List.Prepend] set the
-// container field appropriately.
+// Each node stores a pointer to the container it is a part of. Node functions other than
+// [InitializeNode] do not set this field. The container is used by higher-level constructs
+// that use it as a way to return the container element when iterating over nodes.
 type Node[T any] struct {
 	prev, next *Node[T]
 	container  *T
@@ -111,18 +110,24 @@ type containedNode[T any] struct {
 //
 // The returned value is suitable for use with List.Append and List.Prepend.
 func ContainedNode[NP NodePointerer[T], T any](c *T) containedNode[T] {
+	return containedNode[T]{n: InitializeNode[NP, T](c)}
+}
+
+// InitializeNode stores the pointer [c] inside the node container field.
+func InitializeNode[NP NodePointerer[T], T any](c *T) *Node[T] {
 	if c == nil {
-		panic("cannot initialize containedNode: container is nil")
+		panic("cannot initialize Node: container is nil")
 	}
 
 	var helper NP
 	n := helper.NodePointer(c)
 	if n == nil {
-		panic("cannot initialize containedNode: node pointer is nil (computed by NodePointer)")
+		panic("cannot initialize Node: node pointer is nil (computed by NodePointer)")
 	}
 
+	n.lazyInit()
 	n.container = c
-	return containedNode[T]{n: n}
+	return n
 }
 
 // List is a head of circular, doubly-linked list of elements of the same type T.
@@ -131,6 +136,14 @@ func ContainedNode[NP NodePointerer[T], T any](c *T) containedNode[T] {
 // The zero value has length zero and is empty.
 type List[T any] struct {
 	head Node[T]
+}
+
+// InitializeList ensures that the head node of the list links to itself.
+//
+// Note that unlike [InitializeNode], this function does not set the container
+// field of the head node, as it is always nil.
+func InitializeList[T any](l *List[T]) {
+	l.head.lazyInit()
 }
 
 // Empty returns true if the list has no elements.
