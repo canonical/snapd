@@ -18,13 +18,13 @@
  */
 
 // Package lists implements a type-safe linked list where list nodes are
-// embedded in larger structures. A single structure may contain a fixed
-// number of list nodes allowing it to participate in the same number of lists.
+// embedded in larger structures. A single structure may contain a fixed number
+// of list nodes allowing it to participate in the same number of lists.
 //
-// Two list types are provided, [List] and [HeadlessList]. They differ in
-// the use of a list head node. A list head is a special node that does not
-// correspond to an element of the list, but serves as the anchor, and a way
-// to begin iteration, either forward or backward.
+// Two list types are provided, [List] and [HeadlessList]. They differ in the
+// use of a list head node. A list head is a special node that does not
+// correspond to an element of the list, but serves as the anchor, and a way to
+// begin iteration, either forward or backward.
 //
 // A [List] may be used to track any number of elements of a type T if said
 // type T embeds a [Node[T]]. Note that a [List] may also be a member field of
@@ -44,9 +44,10 @@ package lists
 //
 // The zero value of a node is lazy-initialized to point to itself.
 //
-// Each node stores a pointer to the container it is a part of. Node functions other than
-// [InitializeNode] do not set this field. The container is used by higher-level constructs
-// that use it as a way to return the container element when iterating over nodes.
+// Each node stores a pointer to the container it is a part of. Node functions
+// other than [InitializeNode] do not set this field. The container is used by
+// higher-level constructs that use it as a way to return the container element
+// when iterating over nodes.
 type Node[T any] struct {
 	prev, next *Node[T]
 	container  *T
@@ -114,14 +115,15 @@ type NodePointerer[T any] interface {
 	NodePointer(*T) *Node[T]
 }
 
-// containedNode is a private type that wraps a pointer to a node embedded in a structure
-// of type T. It is used to provide type safety for list operations, by ensuring
-// that the node container pointer was set correctly.
+// containedNode is a private type that wraps a pointer to a node embedded in a
+// structure of type T. It is used to provide type safety for list operations,
+// by ensuring that the node container pointer was set correctly.
 type containedNode[T any] struct {
 	n *Node[T]
 }
 
-// ContainedNode returns a private type that ensures node container pointer is initialized.
+// ContainedNode returns a private type that ensures node container pointer is
+// initialized.
 //
 // The returned value is suitable for use with List.Append and List.Prepend.
 func ContainedNode[NP NodePointerer[T], T any](c *T) containedNode[T] {
@@ -145,8 +147,9 @@ func InitializeNode[NP NodePointerer[T], T any](c *T) *Node[T] {
 	return n
 }
 
-// List is a head of circular, doubly-linked list of elements of the same type T.
-// The type T must have a related type that implements the NodePointerer[T] interface.
+// List is a head of circular, doubly-linked list of elements of the same type
+// T.  The type T must have a related type that implements the NodePointerer[T]
+// interface.
 //
 // The zero value has length zero and is empty.
 type List[T any] struct {
@@ -219,8 +222,8 @@ func (l *List[T]) LastToFirst() Seq[*T] {
 	}
 }
 
-// HeadlessListPointerer is an interface that types must implement to provide access
-// to their embedded HeadlessList[T].
+// HeadlessListPointerer is an interface that types must implement to provide
+// access to their embedded HeadlessList[T].
 //
 // This is used by [ContainedHeadlessList].
 type HeadlessListPointerer[T any] interface {
@@ -254,11 +257,11 @@ func ContainedHeadlessList[HLP HeadlessListPointerer[T], T any](c *T) containedN
 
 // HeadlessList is like [List] but without a dedicated head node.
 //
-// The list is always circular and is shared equally by all the nodes.
-// In absence of a dedicated head node, there is no specific start or end.
+// The list is always circular and is shared equally by all the nodes.  In
+// absence of a dedicated head node, there is no specific start or end.
 //
-// A zero value of a headless acts as if it were pointing to itself.
-// A headless list is thus never empty.
+// A zero value of a headless acts as if it were pointing to itself.  A
+// headless list is thus never empty.
 //
 // Note that while [HeadlessList] is simply a [Node], only the usage pattern
 // enforced by the former allows for type-safe behavior. Since [Node] is shared
