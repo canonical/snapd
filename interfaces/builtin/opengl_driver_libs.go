@@ -21,9 +21,7 @@ package builtin
 
 import (
 	"math"
-	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
@@ -88,10 +86,7 @@ func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Spe
 const openglDriverLibs = "opengl-driver-libs"
 
 func (t *openglDriverLibsInterface) PathPatterns() []string {
-	// We need to add the interface name as a suffix in the files written
-	// in the export dir as other interfaces also write there and we need
-	// to differentiate the files maintained by each interface.
-	return []string{filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+openglDriverLibs+".library-source")}
+	return []string{librarySourcePath("*", "*", openglDriverLibs)}
 }
 
 func (iface *openglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -99,7 +94,7 @@ func (iface *openglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfil
 
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesSourcePaths(openglDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForLibrarySourcePaths(openglDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}

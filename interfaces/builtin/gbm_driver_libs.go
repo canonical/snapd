@@ -27,7 +27,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
@@ -145,10 +144,7 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 const gbmDriverLibs = "gbm-driver-libs"
 
 func (t *gbmDriverLibsInterface) PathPatterns() []string {
-	// We need to add the interface name as a suffix in the files written
-	// in the export dir as other interfaces also write there and we need
-	// to differentiate the files maintained by each interface.
-	return []string{filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), "*_*_"+gbmDriverLibs+".library-source")}
+	return []string{librarySourcePath("*", "*", gbmDriverLibs)}
 }
 
 func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -156,7 +152,7 @@ func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.
 
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesSourcePaths(gbmDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForLibrarySourcePaths(gbmDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}
