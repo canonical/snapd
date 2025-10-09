@@ -136,6 +136,9 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 }
 
 // Serial returns the device's serial assertion.
+//
+// XXX: This is currently only used by clusterstate. Consumers should be
+// reworked so that this function isn't needed.
 func Serial(st *state.State) (*asserts.Serial, error) {
 	return findSerial(st, nil)
 }
