@@ -33,8 +33,8 @@
 // In contrast [HeadlessList] can only be used to track elements of the same
 // type that stores it as a member field.
 //
-// Both [List] and [HeadlessList] require a participating [Offsetter] type to
-// provide the offset of the [Node[T]] within the containing structure.
+// Both [List] and [HeadlessList] require a participating [NodePointerer] type
+// to provide the offset of the [Node[T]] within the containing structure.
 package lists
 
 // Node is a pair of pointers to nodes of the same type.
