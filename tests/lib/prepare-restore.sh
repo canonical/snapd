@@ -689,7 +689,7 @@ prepare_suite_each() {
     echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
-    if ! systemctl is-active --quiet systemd-journald.service; then
+    if systemctl is-failed systemd-journald.service; then
         systemctl reset-failed systemd-journald.service
         if ! systemctl restart systemd-journald.service; then
             systemctl status systemd-journald.service || true
