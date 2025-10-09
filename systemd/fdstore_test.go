@@ -67,8 +67,13 @@ func (s *fdstoreTestSuite) TestAddFds(c *C) {
 	})
 	defer restore()
 
-	c.Assert(systemd.AddFds("rkey-fd", 7, 8, 9), IsNil)
+	c.Assert(systemd.AddFds(systemd.FdNameRecoveryKeyStore, 7, 8, 9), IsNil)
 	c.Check(called, Equals, 1)
+}
+
+func (s *fdstoreTestSuite) TestAddFdsInvalidFdName(c *C) {
+	err := systemd.AddFds("unknown-fd", 7, 8, 9)
+	c.Assert(err, ErrorMatches, `cannot add file descriptor: unknown file descriptor name "unknown-fd"`)
 }
 
 func (s *fdstoreTestSuite) TestPruneFds(c *C) {

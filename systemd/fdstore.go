@@ -40,6 +40,13 @@ var knownFdNames = map[FdName]bool{
 	FdNameRecoveryKeyStore: true,
 }
 
+func (name FdName) Validate() error {
+	if !knownFdNames[name] {
+		return fmt.Errorf(`unknown file descriptor name %q`, name)
+	}
+	return nil
+}
+
 // GetFds retrieves file descriptors passed from systemd by their name.
 func GetFds(name FdName) (fds []int) {
 	for _, entry := range allFds() {
@@ -56,6 +63,9 @@ func GetFds(name FdName) (fds []int) {
 //
 // The file descriptors can be retrieved by using GetFds.
 func AddFds(name FdName, fds ...int) error {
+	if err := name.Validate(); err != nil {
+		return fmt.Errorf("cannot add file descriptor: %v", err)
+	}
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
 	return SdNotifyWithFds(state, fds...)
 }
