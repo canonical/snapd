@@ -58,8 +58,8 @@ var (
 		POST:       postRules,
 		Actions:    []string{"add", "remove"},
 		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
-		// POST rules operates only on the rules for the user making the API
-		// request, so there is no need for additional polkit authentication.
+		// postRules can only operate on rules associated with the user making
+		// the API request, so there is no need for polkit authentication.
 		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
@@ -69,8 +69,9 @@ var (
 		POST:       postRule,
 		Actions:    []string{"patch", "remove"},
 		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
-		// POST rules operates only on the rules for the user making the API
-		// request, so there is no need for additional polkit authentication.
+		// postRule can only operate on a rule if the rule is associated with
+		// the user making the API request, so there is no need for polkit
+		// authentication.
 		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 )
