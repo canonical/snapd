@@ -757,15 +757,8 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 	tasks = append(tasks, genKey)
 
-	var prepareSerialRequest *state.Task
 	if hasPrepareSerialRequestHook {
-		summary := i18n.G("Run prepare-serial-request hook")
-		hooksup := &hookstate.HookSetup{
-			Snap: gadget,
-			Hook: "prepare-serial-request",
-		}
-		prepareSerialRequest = hookstate.HookTask(m.state, summary, hooksup, nil)
-		tasks = append(tasks, prepareSerialRequest)
+		m.state.Set("has-prepare-serial-request-hook", true)
 	}
 
 	if willRequestSerial {
