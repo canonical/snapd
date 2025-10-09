@@ -257,6 +257,12 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 	if reqVersionNumMatch == nil {
 		return false, nil
 	}
+
+	if currentVersion == "" {
+		// Skip checking the assumed version against the current snapd version
+		return true, nil
+	}
+
 	// this check ensures that no one can use an assumes like snapd2.48.3~pre2
 	// or snapd2.48.5+20.10, as modifiers past the version number are not meant
 	// to be relied on for snaps via assumes, however the check against the real
@@ -309,17 +315,12 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 var assumeFormat = regexp.MustCompile("^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 // ValidateAssumes checks if `assumes` lists features that are all supported.
-// Pass empty currentSnapdVersion to skip version checks.
+// Pass empty currentSnapdVersion to skip checking the assumed version against the current snap version.
 // Pass nil/empty featureSet to only validate assumes format & not feature support.
 func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet map[string]bool) error {
 	var missing []string
 	for _, flag := range assumes {
 		if strings.HasPrefix(flag, "snapd") {
-			if currentSnapdVersion == "" {
-				// Version checking disabled - skip snapd version validation
-				continue
-			}
-
 			validVersion, err := validateAssumedSnapdVersion(flag[5:], currentSnapdVersion)
 			if err != nil {
 				// error not possible unless someone has messed up the regex
