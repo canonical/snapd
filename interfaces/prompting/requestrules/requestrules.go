@@ -327,6 +327,9 @@ func (rdb *RuleDB) load() (retErr error) {
 				"removed":     "merged",
 				"merged-into": newID.String(),
 			}
+		} else {
+			// not expired or merged, so don't record notice
+			continue
 		}
 		rdb.notifyRule(rule.User, rule.ID, data)
 	}
