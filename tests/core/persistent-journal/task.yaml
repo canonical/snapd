@@ -12,8 +12,10 @@ prepare: |
     systemctl status snapd > before.txt
 
 restore: |
-    # disable persistent journal
+    # disable persistent journal and reload the journal
+    rm -rf /var/log/journal
     snap set core journal.persistent=false
+    systemctl restart systemd-journald
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -u snapd
