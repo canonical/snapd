@@ -74,18 +74,26 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs))
 }
 
-// addConfigfilesSourcePaths adds a file containing a list with the sources for
-// an interface to the /var/lib/snapd/export directory. These files are used by
-// snap-confine on classic for snaps connected to the opengl interface.
-func addConfigfilesSourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
+// librarySourcePath returns the path for files containing directories
+// specified in library-source fields. The file names have instance name / slot
+// name and interface name as different interfaces will write to the export
+// dir, for different instances and slots.
+func librarySourcePath(instance, slotName, ifaceName string) string {
+	return filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
+		"%s_%s_%s.library-source", instance, slotName, ifaceName))
+}
+
+// addConfigfilesForLibrarySourcePaths adds a file containing a list with the library
+// sources for an interface to the /var/lib/snapd/export directory. These files
+// are used by snap-confine on classic for snaps connected to the opengl
+// interface.
+func addConfigfilesForLibrarySourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
 	libDirs := []string{}
 	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
-	sourcePath := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
-		"%s_%s_%s.library-source", slot.Snap().InstanceName(), slot.Name(), iface))
 	content := strings.Join(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
-	return spec.AddPathContent(sourcePath,
+	return spec.AddPathContent(librarySourcePath(slot.Snap().InstanceName(), slot.Name(), iface),
 		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
 
