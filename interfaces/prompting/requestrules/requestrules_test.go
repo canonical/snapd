@@ -60,22 +60,24 @@ func (ni *noticeInfo) String() string {
 type requestrulesSuite struct {
 	testutil.BaseTest
 
-	defaultNotifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
-	defaultUser       uint32
-	ruleNotices       []*noticeInfo
+	defaultNotifyRules func(rules []*requestrules.Rule, data map[string]string) error
+	defaultUser        uint32
+	ruleNotices        []*noticeInfo
 }
 
 var _ = Suite(&requestrulesSuite{})
 
 func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
-	s.defaultNotifyRule = func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
-		info := &noticeInfo{
-			userID: userID,
-			ruleID: ruleID,
-			data:   data,
+	s.defaultNotifyRules = func(rules []*requestrules.Rule, data map[string]string) error {
+		for _, rule := range rules {
+			info := &noticeInfo{
+				userID: rule.User,
+				ruleID: rule.ID,
+				data:   data,
+			}
+			s.ruleNotices = append(s.ruleNotices, info)
 		}
-		s.ruleNotices = append(s.ruleNotices, info)
 		return nil
 	}
 	s.ruleNotices = make([]*noticeInfo, 0)
@@ -91,7 +93,7 @@ func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
 }
 
 func (s *requestrulesSuite) TestNew(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 }
@@ -103,7 +105,7 @@ func (s *requestrulesSuite) TestNewErrors(c *C) {
 	c.Assert(err, IsNil)
 	f.Close() // No need to keep the file open
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, ErrorMatches, "cannot create interfaces requests state directory.*") // Error from os.MkdirAll
 	c.Assert(rdb, IsNil)
 
@@ -114,7 +116,7 @@ func (s *requestrulesSuite) TestNewErrors(c *C) {
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 	c.Assert(os.MkdirAll(maxIDFilepath, 0o700), IsNil)
 
-	rdb, err = requestrules.New(s.defaultNotifyRule)
+	rdb, err = requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, ErrorMatches, "cannot open max ID file:.*")
 	c.Assert(rdb, IsNil)
 
@@ -134,7 +136,7 @@ func (s *requestrulesSuite) prepDBPath(c *C) string {
 func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, rules []*requestrules.Rule, checkWritten bool) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	logErr := fmt.Errorf("%s", strings.TrimSpace(logbuf.String()))
@@ -359,7 +361,7 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
@@ -524,7 +526,7 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
@@ -572,7 +574,7 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 			},
 		},
 	}
-	s.checkNewNotices(c, expectedNoticeInfo)
+	s.checkNewNoticesUnordered(c, expectedNoticeInfo)
 }
 
 func (s *requestrulesSuite) TestLoadHappy(c *C) {
@@ -593,7 +595,7 @@ func (s *requestrulesSuite) TestLoadHappy(c *C) {
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
@@ -639,14 +641,14 @@ func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
 }
 
 func (s *requestrulesSuite) TestClose(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	c.Check(rdb.Close(), IsNil)
 }
 
 func (s *requestrulesSuite) TestCloseSaves(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	// Add a rule, then mutate it in memory, then check that it is saved to
@@ -677,7 +679,7 @@ func (s *requestrulesSuite) TestCloseSaves(c *C) {
 }
 
 func (s *requestrulesSuite) TestCloseRepeatedly(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	c.Check(rdb.Close(), IsNil)
@@ -689,7 +691,7 @@ func (s *requestrulesSuite) TestCloseRepeatedly(c *C) {
 }
 
 func (s *requestrulesSuite) TestCloseErrors(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	// Mark state dir as non-writeable so save fails
@@ -720,7 +722,7 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionID(c *C) {
 	userSessionIDXattr, restore := requestrules.MockUserSessionIDXattr()
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	// If there is no user session dir, expect errNoUserSession
@@ -804,7 +806,7 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
 	_, restore := requestrules.MockUserSessionIDXattr()
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	// Multiple threads acting at once all return the same ID
@@ -879,7 +881,7 @@ func (s *requestrulesSuite) TestAddRuleHappy(c *C) {
 	})
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -981,7 +983,7 @@ func addRuleFromTemplate(c *C, rdb *requestrules.RuleDB, template *addRuleConten
 }
 
 func (s *requestrulesSuite) TestAddRuleRemoveRuleDuplicateVariants(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	ruleContents := &addRuleContents{
@@ -1028,7 +1030,7 @@ func (s *requestrulesSuite) TestAddRuleRemoveRuleDuplicateVariants(c *C) {
 }
 
 func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -1160,7 +1162,7 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 }
 
 func (s *requestrulesSuite) TestAddRuleOverlapping(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -1460,7 +1462,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 		s.AddCleanup(func() { dirs.SetRootDir("") })
 		c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755), IsNil)
 
-		rdb, err := requestrules.New(s.defaultNotifyRule)
+		rdb, err := requestrules.New(s.defaultNotifyRules)
 		c.Assert(err, IsNil)
 
 		user := s.defaultUser
@@ -1532,7 +1534,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	})
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -1682,7 +1684,7 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	})
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	user := s.defaultUser
@@ -1983,7 +1985,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 			err:          prompting_errors.ErrNoMatchingRule,
 		},
 	} {
-		rdb, err := requestrules.New(s.defaultNotifyRule)
+		rdb, err := requestrules.New(s.defaultNotifyRules)
 		c.Assert(err, IsNil)
 		c.Assert(rdb, NotNil)
 
@@ -2033,7 +2035,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedPrecedence(c *C) {
 		Lifespan:    prompting.LifespanForever,
 	}
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2103,7 +2105,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 		Duration:    "1h",
 	}
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2194,7 +2196,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 		Duration:    "1h",
 	}
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2280,7 +2282,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 }
 
 func (s *requestrulesSuite) TestRuleWithID(c *C) {
-	rdb, _ := requestrules.New(s.defaultNotifyRule)
+	rdb, _ := requestrules.New(s.defaultNotifyRules)
 
 	template := &addRuleContents{
 		User:        s.defaultUser,
@@ -2319,7 +2321,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 }
 
 func (s *requestrulesSuite) TestRules(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2376,7 +2378,7 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 	})
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2408,7 +2410,7 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 }
 
 func (s *requestrulesSuite) TestRulesForSnap(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2423,7 +2425,7 @@ func (s *requestrulesSuite) TestRulesForSnap(c *C) {
 }
 
 func (s *requestrulesSuite) TestRulesForInterface(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2438,7 +2440,7 @@ func (s *requestrulesSuite) TestRulesForInterface(c *C) {
 }
 
 func (s *requestrulesSuite) TestRulesForSnapInterface(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2453,7 +2455,7 @@ func (s *requestrulesSuite) TestRulesForSnapInterface(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRuleForward(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	addedRules := s.prepRuleDBForRulesForSnapInterface(c, rdb)
@@ -2464,7 +2466,7 @@ func (s *requestrulesSuite) TestRemoveRuleForward(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRuleBackward(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	addedRules := s.prepRuleDBForRulesForSnapInterface(c, rdb)
@@ -2496,7 +2498,7 @@ func (s *requestrulesSuite) testRemoveRule(c *C, rdb *requestrules.RuleDB, rule 
 }
 
 func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	addedRules := s.prepRuleDBForRulesForSnapInterface(c, rdb)
@@ -2565,7 +2567,7 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2581,7 +2583,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForInterface(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2597,7 +2599,7 @@ func (s *requestrulesSuite) TestRemoveRulesForInterface(c *C) {
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2615,7 +2617,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
@@ -2724,7 +2726,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	})
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -2917,7 +2919,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 }
 
 func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -3028,7 +3030,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 	})
 	defer restore()
 
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	template := &addRuleContents{
@@ -3149,7 +3151,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 }
 
 func (s *requestrulesSuite) TestUserSessionIDCache(c *C) {
-	rdb, err := requestrules.New(s.defaultNotifyRule)
+	rdb, err := requestrules.New(s.defaultNotifyRules)
 	c.Assert(err, IsNil)
 
 	checkedDiskForUser := make(map[uint32]int)
