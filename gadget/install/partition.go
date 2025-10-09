@@ -328,9 +328,11 @@ func removeCreatedPartitions(gadgetRoot string, gv *gadget.Volume, dl *gadget.On
 	// ubuntu-data, ubuntu-boot, and ubuntu-save
 	deletedIndexes := make(map[int]bool, 3)
 	deletedOffsetSize := make(map[int]StructOffsetSize, 3)
+	lastAssignedIdx := -1
 	for i, s := range dl.Structure {
-		yamlIdx := indexIfCreatedDuringInstall(gv, s)
+		yamlIdx, assigned := indexIfCreatedDuringInstall(gv, s, lastAssignedIdx)
 		if yamlIdx >= 0 {
+			lastAssignedIdx = assigned
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			sfdiskIndexes = append(sfdiskIndexes, strconv.Itoa(i+1))
 			deletedOffsetSize[yamlIdx] = StructOffsetSize{
@@ -465,26 +467,32 @@ func udevTrigger(device string) error {
 // don't look at anything on the structure such as filesystem information since
 // this may be incomplete due to a failed installation, or due to the partial
 // layout that is created by some ARM tools (i.e. ptool and fastboot) when
-// flashing images to internal MMC.
-func indexIfCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure) int {
-	// for a structure to have been created during install, it must be one of
-	// the system-boot, system-data, or system-save roles from the gadget, and
-	// as such the on disk structure must exist in the exact same location as
-	// the role from the gadget, so only return true if the provided structure
-	// has the exact same StartOffset as one of those roles
-	for i, gs := range gv.Structure {
+// flashing images to internal MMC. To make sure order is right, we use
+// lastAssignedIdx (the last index in gv of an identified partition) as in some
+// cases there might be more than one matching partition on disk.
+func indexIfCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure, lastAssignedIdx int) (int, int) {
+	// For a structure to have been created during install, it must be one
+	// of the system-boot, system-data, or system-save roles from the
+	// gadget, and as such the on disk structure must exist in the exact
+	// same location as the role from the gadget, so only return true if
+	// the provided structure has the exact same StartOffset as one of
+	// those roles. We start from the first partition not assigned
+	// previously. This is relevant as multiple partitions can match a
+	// given gadget structure, if having big valid intervals when using
+	// min-size.
+	for i := lastAssignedIdx + 1; i < len(gv.Structure); i++ {
 		// TODO: how to handle ubuntu-save here? maybe a higher level function
 		//       should decide whether to delete it or not?
-		switch gs.Role {
+		switch gv.Structure[i].Role {
 		case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure
 			// has
 			if gadget.CheckValidStartOffset(s.StartOffset, gv.Structure, i) == nil {
-				return gs.YamlIndex
+				return gv.Structure[i].YamlIndex, i
 			}
 		}
 	}
 
-	return -1
+	return -1, -1
 }
