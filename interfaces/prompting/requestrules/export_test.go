@@ -46,7 +46,7 @@ func MockUserSessionIDXattr() (xattr string, restore func()) {
 	return testXattr, restore
 }
 
-func (rule *Rule) Validate(at prompting.At) (expired bool, err error) {
+func (rule *Rule) Validate(at prompting.At) (fullyExpired, partiallyExpired bool, err error) {
 	return rule.validate(at)
 }
 

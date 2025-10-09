@@ -365,9 +365,10 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	expired, err := constraints.ValidateForInterface("home", at)
+	fullyExpired, partiallyExpired, err := constraints.ValidateForInterface("home", at)
 	c.Check(err, IsNil)
-	c.Check(expired, Equals, false)
+	c.Check(fullyExpired, Equals, false)
+	c.Check(partiallyExpired, Equals, false)
 	// "camera"
 	constraints = &prompting.RuleConstraints{
 		PathPattern: validPathPattern,
@@ -379,9 +380,10 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	expired, err = constraints.ValidateForInterface("camera", at)
+	fullyExpired, partiallyExpired, err = constraints.ValidateForInterface("camera", at)
 	c.Check(err, IsNil)
-	c.Check(expired, Equals, false)
+	c.Check(fullyExpired, Equals, false)
+	c.Check(partiallyExpired, Equals, false)
 
 	// Bad interface or permissions
 	cases := []struct {
@@ -483,9 +485,10 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			PathPattern: validPathPattern,
 			Permissions: testCase.perms,
 		}
-		expired, err = constraints.ValidateForInterface(testCase.iface, at)
+		fullyExpired, partiallyExpired, err = constraints.ValidateForInterface(testCase.iface, at)
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
-		c.Check(expired, Equals, false)
+		c.Check(fullyExpired, Equals, false)
+		c.Check(partiallyExpired, Equals, false)
 	}
 
 	// Check missing path pattern
@@ -497,7 +500,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	_, err = constraints.ValidateForInterface("home", at)
+	_, _, err = constraints.ValidateForInterface("home", at)
 	c.Check(err, ErrorMatches, `invalid path pattern: no path pattern: ""`)
 }
 
@@ -509,9 +512,10 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 	}
 
 	for _, testCase := range []struct {
-		perms    prompting.RulePermissionMap
-		expired  bool
-		expected prompting.RulePermissionMap
+		perms            prompting.RulePermissionMap
+		fullyExpired     bool
+		partiallyExpired bool
+		expected         prompting.RulePermissionMap
 	}{
 		{
 			prompting.RulePermissionMap{
@@ -521,6 +525,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 			},
 			false,
+			false,
 			prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
@@ -537,6 +542,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 			},
 			true,
+			true,
 			prompting.RulePermissionMap{},
 		},
 		{
@@ -558,6 +564,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 			},
 			false,
+			true,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
@@ -575,6 +582,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 			},
 			false,
+			false,
 			prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:   prompting.OutcomeAllow,
@@ -591,6 +599,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID + 1,
 				},
 			},
+			true,
 			true,
 			prompting.RulePermissionMap{},
 		},
@@ -612,6 +621,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID + 1,
 				},
 			},
+			true,
 			true,
 			prompting.RulePermissionMap{},
 		},
@@ -634,6 +644,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 			},
 			false,
+			true,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
@@ -656,9 +667,10 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 			PathPattern: pathPattern,
 			Permissions: copiedPerms,
 		}
-		expired, err := constraints.ValidateForInterface("home", at)
+		fullyExpired, partiallyExpired, err := constraints.ValidateForInterface("home", at)
 		c.Check(err, IsNil)
-		c.Check(expired, Equals, testCase.expired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
+		c.Check(fullyExpired, Equals, testCase.fullyExpired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
+		c.Check(partiallyExpired, Equals, testCase.partiallyExpired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 		c.Check(constraints.Permissions, DeepEquals, testCase.expected, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 	}
 }
