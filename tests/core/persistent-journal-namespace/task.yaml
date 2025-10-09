@@ -27,7 +27,9 @@ restore: |
   snap remove-quota group-one || true
 
   # disable persistent journal and reload the journal
+  rm -rf /var/log/journal
   snap set core journal.persistent=false
+  systemctl restart systemd-journald
     
 execute: |
   echo "Wait for first boot to be done"
