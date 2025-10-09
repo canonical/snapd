@@ -132,6 +132,9 @@ func (ts *HTestSuite) TestBasicWithSources(c *C) {
 		[]byte(strings.Join(eglDirs, "\n")+"\n"), 0644), Equals, nil)
 	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_vulkanslot_vulkan-driver-libs.library-source"),
 		[]byte(strings.Join(vulkanDirs, "\n")+"\n"), 0644), Equals, nil)
+	// This one will be ignored
+	c.Assert(os.WriteFile(filepath.Join(exportDir, "mykernel_otherslot_foo-interface.library-source"),
+		[]byte("/snap/kernel/33/foolibs1\n"), 0644), Equals, nil)
 	var exportedPaths []string
 	for _, d := range []string{"kernel/33/egllibs1", "kernel/33/egllibs2",
 		"kernel/33/duplicate", "kernel/33/vulkanlibs1", "kernel/33/vulkanlibs2"} {
