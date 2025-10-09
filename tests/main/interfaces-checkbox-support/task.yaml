@@ -1,0 +1,48 @@
+summary: Ensure that the checkbox-support interface works.
+
+details: |
+    The checkbox-support interface grants access to systemd APIs that allow
+    starting and killing processes outside of the sandbox. A Go implementation
+    calling those interfaces is bundled in snapd git repository, in the directory
+    tests/lib/plz-run.
+
+systems:
+    # Systemd is too old to support passing stdio as file descriptors.
+    - -amazon-linux-2-64
+
+prepare: |
+    snap pack test-snapd-checkbox-support
+    snap install --dangerous ./test-snapd-checkbox-support_0.4_all.snap
+
+    # The plz-run executable was built earlier in system-wide prepare-restore.sh.
+    # Copy the binary, that is now on PATH, to the snap's SNAP_COMMON directory.
+    mkdir -p /var/snap/test-snapd-checkbox-support/common
+    install -m 755 "$(command -v plz-run)" /var/snap/test-snapd-checkbox-support/common
+
+execute: |
+    # This test is susceptible to other tests leaving systemd in an un-reloaded
+    # state. Ensure that we start from a clean state by reloading systemd.
+    systemctl daemon-reload
+
+    echo "The interface is not connected by default"
+    snap interfaces -i checkbox-support | MATCH -- '- +test-snapd-checkbox-support:checkbox-support'
+
+    echo "When the interface is connected"
+    snap connect test-snapd-checkbox-support:checkbox-support
+
+    echo "Then the snap is able to start apps outside of the sandbox"
+    timeout 10 test-snapd-checkbox-support.plz-run "$(command -v systemctl)" status snapd.service >status.txt
+    MATCH 'Active: active' <status.txt
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-checkbox-support:checkbox-support
+
+    echo "Then the snap is not able to launch applications anymore"
+    if timeout 10 test-snapd-checkbox-support.plz-run "$(command -v systemctl)" status snapd.service 2>call.error; then
+        echo "Unexpectedly succeeded calling systemd APIs"
+        exit 1
+    fi
+    MATCH 'plz-run error: dial unix (/var)?/run/dbus/system_bus_socket: connect: permission denied' < call.error
