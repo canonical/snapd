@@ -512,6 +512,7 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
         SC_SNAPD_EXPORT "/*_cuda-driver-libs.library-source",
         SC_SNAPD_EXPORT "/*_opengl-driver-libs.library-source",
         SC_SNAPD_EXPORT "/*_opengles-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/*_vulkan-driver-libs.library-source",
     };
     size_t export_globs_len = SC_ARRAY_SIZE(export_globs);
     glob_t glob_res SC_CLEANUP(globfree) = {.gl_pathv = NULL};
