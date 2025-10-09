@@ -272,7 +272,7 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 
 	tss, err := clusterstate.ApplyClusterState(st, cluster)
 	c.Assert(err, check.IsNil)
-	c.Assert(tss, check.HasLen, 3)
+	c.Assert(tss, check.HasLen, 1)
 	c.Assert(removals, check.DeepEquals, []string{"to-remove"})
 	c.Assert(installs, check.DeepEquals, []snapstate.StoreSnap{
 		{
@@ -293,6 +293,94 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 			},
 		},
 	})
+	tasks := tss[0].Tasks()
+	c.Assert(tasks, check.HasLen, 3)
+	c.Assert([]string{tasks[0].Kind(), tasks[1].Kind(), tasks[2].Kind()}, check.DeepEquals, []string{"remove", "update", "install"})
+}
+
+func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
+	cluster := makeClusterAssertion(c, []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}, []map[string]any{
+		{
+			"name":    "one",
+			"devices": []any{"1"},
+			"snaps": []any{
+				map[string]any{
+					"state":    "clustered",
+					"instance": "snap-one-install",
+					"channel":  "latest/stable",
+				},
+			},
+		},
+		{
+			"name":    "two",
+			"devices": []any{"1"},
+			"snaps": []any{
+				map[string]any{
+					"state":    "removed",
+					"instance": "snap-two-remove",
+					"channel":  "latest/stable",
+				},
+			},
+		},
+	})
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "snap-two-remove", &snapstate.SnapState{
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&snap.SideInfo{Revision: snap.R(1)}, nil),
+			},
+		},
+	})
+
+	serial := makeSerialAssertion(c, "serial-1")
+	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
+		return serial, nil
+	})
+	defer restore()
+
+	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		task := st.NewTask("install", "install snap one")
+		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})
+	defer restore()
+
+	restore = clusterstate.MockRemoveMany(func(st *state.State, names []string, flags *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		task := st.NewTask("remove", "remove snap two")
+		return names, []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})
+	defer restore()
+
+	restore = clusterstate.MockSnapstateUpdateWithGoal(func(context.Context, *state.State, snapstate.UpdateGoal, func(*snap.Info, *snapstate.SnapState) bool, snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		c.Fatal("unexpected update")
+		return nil, nil, errors.New("unexpected")
+	})
+	defer restore()
+
+	tss, err := clusterstate.ApplyClusterState(st, cluster)
+	c.Assert(err, check.IsNil)
+	c.Assert(tss, check.HasLen, 2)
+
+	first := tss[0].Tasks()
+	c.Assert(first, check.HasLen, 1)
+	c.Check(first[0].Kind(), check.Equals, "install")
+
+	second := tss[1].Tasks()
+	c.Assert(second, check.HasLen, 1)
+	c.Check(second[0].Kind(), check.Equals, "remove")
 }
 
 func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
