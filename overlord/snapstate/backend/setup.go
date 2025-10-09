@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -106,7 +107,29 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		opts.MustNotCrossDevices = true
 	}
 
-	opts.IntegrityRootHash = setupOpts.IntegrityRootHash
+	if setupOpts.IntegrityRootHash != "" {
+		integrityDataPath := integrity.DmVerityHashFileName(snapFilePath, setupOpts.IntegrityRootHash)
+		_, err := os.Stat(integrityDataPath)
+		if err != nil && os.IsNotExist(err) {
+			// setup a snap with integrity data was requested but no corresponding
+			// integrity data file found
+			return snapType, nil, err
+
+			// ignore other Stat errors
+		}
+
+		opts.IntegrityRootHash = setupOpts.IntegrityRootHash
+
+		// The dm-verity type and the digest are the minimum information that are needed
+		// to mount a snap with dm-verity data as the dm-verity hash file path is composed
+		// from the snap file and the digest.
+		s.IntegrityData = &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Type:   "dm-verity",
+				Digest: setupOpts.IntegrityRootHash,
+			},
+		}
+	}
 
 	didNothing, err := snapf.Install(s.MountFile(), instdir, opts)
 	if err != nil {
@@ -120,15 +143,6 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
-	}
-
-	// we also fill the bare minimum info that we need to discover the
-	// dm-verity data when calling DmVerityInfo().
-	if setupOpts.IntegrityRootHash != "" {
-		s.IntegrityData = &snap.IntegrityData{
-			Type:   "dm-verity",
-			Digest: setupOpts.IntegrityRootHash,
-		}
 	}
 
 	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountFlags); err != nil {
@@ -247,10 +261,20 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
 		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
-			// remove the snap
-			if err := os.RemoveAll(snapPath); err != nil {
+			// remove the snap and other associated companion files such as integrity data
+			// dm-verity data follow the naming convention:
+			// foo_1.snap.dmverity_<digest>
+			snapFiles, err := filepath.Glob(snapPath + "*")
+			if err != nil {
 				return err
 			}
+			for _, f := range snapFiles {
+				err = os.RemoveAll(f)
+				if err != nil {
+					return err
+				}
+			}
+
 		}
 	}
 
