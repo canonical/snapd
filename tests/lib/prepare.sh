@@ -1863,8 +1863,8 @@ prepare_ubuntu_core() {
     fi
 
     # Wait until snapd  is-active
-    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
-    retry -n 5 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
+    retry -n 10 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
+    retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
     setup_snapd_proxy
 
