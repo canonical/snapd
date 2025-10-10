@@ -66,6 +66,9 @@
     /dev/pts/[0-9]* rw,
     /dev/tty rw,
 
+    # Stdout may be inherited from systemd. This is normally provided by <abstractions/base>
+    /{,var/}run/systemd/journal/stdout rw,
+
     # SNAP_MOUNT_DIR probe logic
     /proc/1/root/snap r,
 
@@ -545,6 +548,9 @@
         /dev/zero rw,
         /dev/random r,
         /dev/urandom r,
+
+        # Stdout may be inherited from systemd. This is normally provided by <abstractions/base>
+        /{,var/}run/systemd/journal/stdout rw,
 
         capability dac_override,
         capability sys_ptrace,
