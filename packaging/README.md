@@ -133,6 +133,7 @@ with_alt_snap_mount_dir = 1
 # Enable AppArmor support, 0|1
 with_apparmor = 1
 # Enable use of PIE when building static binaries, 0|1
+# Ensure support in your distribution toolchain.
 with_static_pie = $build_with_static_pie
 # Use vendored dependencies, 0|1
 with_vendor = 1
@@ -166,7 +167,7 @@ locations (snippet extracted from [Fedora
 packaging](/packaging/fedora/snapd.spec)):
 
 ``` sh
-push ./data
+pushd ./data
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
@@ -174,7 +175,7 @@ make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
 
 # or
 make install BINDIR=...
-popd ./data
+popd
 ```
 
 It is essential to pass the same set of Make variable overrides during build and
@@ -183,7 +184,7 @@ installation.
 ### Notes on building
 
 The following binaries are provided by the native host package, but need to be
-executed within the snap sandbox, and as such they need to be build statically:
+executed within the snap sandbox, and as such they need to be built statically:
 - snap-exec
 - snap-update-ns
 - snapctl
@@ -206,7 +207,7 @@ file lists the same set of capabilities, but additionally includes
 `cap_setuid,cap_setgid`, which is a workaround for kernel cgroup v1 issues and
 relevant only if expecting that the snapd package will be used within a
 container running on a host kernel that is booted with cgroup v1 support.
-Packaging is encouraged to **not** ship or otherwise use the this file, unless
+Packaging is encouraged to **not** ship or otherwise use this file, unless
 deemed necessary for the use case.
 
 ### Systemd units
@@ -241,18 +242,23 @@ with a policy established by a given distribution.
 
 ### Directories
 
-Since 2.71, the `snapd` daemon will usually create relevant directories as
-needed, but the following directories must exist for auto-detection to work:
+The `snapd` daemon will create relevant state directories as needed (see the
+reference packaging for a list of actual locations), however some directories
+are expected to be created by the packaging, those are:
 
 - /usr/lib/snapd or /usr/libexec/snapd - snapd internal tools directory
 - /var/lib/snapd/snap or /snap - snap mount directory
 
 Consult your distribution policies to decide which locations are appropriate.
 
+Historically, the internal tools and snap mount directories needed to be
+hardcoded in snapd, however starting with 2.71, `snapd` will probe and use the
+locations created by distribution packaging.
+
 Support for classic snaps (such as code editors, compilers etc.) requires /snap
-to be present, either a directory, or as a symbolic link pointing to
-/var/lib/snapd/snap. The users are free to create a symbolic link themselves. It
-is recommended that the packages should account for that.
+to be present, either as directory, or as a symbolic link pointing to
+/var/lib/snapd/snap. The users are free to create a symbolic link themselves and
+the packaging should account for that.
 
 ### Support scripts
 
