@@ -19,6 +19,12 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core18
 
+    # core26 is currently only available on edge
+    if ! snap list core26 2> /dev/null; then
+        snap install --edge core26
+    fi
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core26
+
     # test-snapd-core18 is only available on amd64
     if os.query is-pc-amd64; then
         "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-other18
@@ -53,3 +59,11 @@ execute: |
     if os.query is-pc-amd64; then
         test-snapd-sh-other18.sh -c 'ls -l /var' 2>&1 | NOMATCH "Permission denied"
     fi
+
+    # core26 chose to ship uutils-coreutils at their native
+    # installation location used by cargo. the template was updated
+    # accordingly to allow them.
+    echo "Check if expected coreutils paths are allowed"
+    test-snapd-sh-core26.sh -c '/usr/bin/true' | NOMATCH "Permission denied"
+    # template doesn't contain permissions for whoami
+    test-snapd-sh-core26.sh -c '/usr/bin/whoami' 2>&1 | MATCH "Permission denied"
