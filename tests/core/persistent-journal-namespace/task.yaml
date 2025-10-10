@@ -28,7 +28,8 @@ restore: |
 
   # disable persistent journal and reload the journal
   rm -rf /var/log/journal
-  systemctl kill --signal=SIGUSR1 systemd-journald
+  snap set core journal.persistent=false
+  systemctl restart systemd-journald
     
 execute: |
   echo "Wait for first boot to be done"
