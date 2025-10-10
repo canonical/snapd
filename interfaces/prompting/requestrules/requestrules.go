@@ -90,11 +90,10 @@ func (rule *Rule) UnmarshalJSON(data []byte) error {
 }
 
 // Validate verifies internal correctness of the rule's constraints and
-// permissions and prunes any expired permissions. If all permissions are
-// expired at the given point in time, then returns fullyExpired as true.
-// If any permissions are expired, then returns partiallyExpired as true.
-// If the rule is invalid, returns an error.
-func (rule *Rule) validate(at prompting.At) (fullyExpired, partiallyExpired bool, err error) {
+// permissions and prunes any expired permissions. Returns a
+// [prompting.PermExpirationStatus] indicating whether all, any, or no
+// permissions were expired. If the rule is invalid, returns an error.
+func (rule *Rule) validate(at prompting.At) (status prompting.PermExpirationStatus, err error) {
 	return rule.Constraints.ValidateForInterface(rule.Interface, at)
 }
 
@@ -281,13 +280,13 @@ func (rdb *RuleDB) load() (retErr error) {
 		if err != nil {
 			return err
 		}
-		fullyExpired, partiallyExpired, err := rule.validate(at)
+		status, err := rule.validate(at)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
 			errInvalid = err
 			break
 		}
-		if fullyExpired {
+		if status == prompting.AllPermsExpired {
 			expiredRules[rule.ID] = true
 			continue
 		}
@@ -306,7 +305,7 @@ func (rdb *RuleDB) load() (retErr error) {
 
 		// Being merged is more important than being partially expired, so only
 		// check this after first adding the rule to the DB.
-		if partiallyExpired {
+		if status == prompting.AnyPermsExpired {
 			partiallyExpiredRules[rule.ID] = true
 		}
 	}
