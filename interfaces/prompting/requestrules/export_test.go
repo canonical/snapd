@@ -46,10 +46,6 @@ func MockUserSessionIDXattr() (xattr string, restore func()) {
 	return testXattr, restore
 }
 
-func (rule *Rule) Validate(at prompting.At) (expired bool, err error) {
-	return rule.validate(at)
-}
-
 func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, path string, permission string, at prompting.At) (bool, error) {
 	return rdb.isPathPermAllowed(user, snap, iface, path, permission, at)
 }
