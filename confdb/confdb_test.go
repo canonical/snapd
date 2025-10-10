@@ -3711,8 +3711,8 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
 			"rules": []any{
-				// constraint name is different than field just to show it can
-				map[string]any{"request": "{user}.{pet}", "storage": "{user}[.age={age}].{pet}[.toy={toy}][.kind={pet-kind}]"},
+				map[string]any{"request": "users.{user}.{pet}", "storage": "{user}[.age={age}].{pet}"},
+				map[string]any{"request": "pet-kinds.{user}.{pet}", "storage": "{user}.{pet}[.toy={toy}].kind"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3747,7 +3747,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	c.Assert(err, IsNil)
 
 	view := schema.View("foo")
-	val, err := view.Get(bag, "", map[string]any{"age": "21"})
+	val, err := view.Get(bag, "users", map[string]any{"age": "21"})
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
 		map[string]any{
@@ -3764,6 +3764,18 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 					"toy":  "bone",
 					"kind": "dog",
 				},
+			},
+		})
+
+	val, err = view.Get(bag, "pet-kinds", map[string]any{"toy": "ball"})
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals,
+		map[string]any{
+			"alice": map[string]any{
+				"garfield": "cat",
+			},
+			"bob": map[string]any{
+				"odie": "dog",
 			},
 		})
 }
