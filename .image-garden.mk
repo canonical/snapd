@@ -81,6 +81,7 @@ endef
 # - Format the line as a comma-separated list and remove trailing space.
 #   This, when used inside square brackets, makes the list valid YAML.
 %.packages: $(wildcard $(GARDEN_PROJECT_DIR)/tests/lib/pkgdb.sh) $(GARDEN_PROJECT_DIR)/.image-garden.mk
+	PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES=1 \
 	SPREAD_SYSTEM=$(shell $(GARDEN_PROJECT_DIR)/.image-garden/remap-name garden-to-snapd $*) \
 	TESTSLIB=$(GARDEN_PROJECT_DIR)/tests/lib \
 		bash -c '. $(GARDEN_PROJECT_DIR)/tests/lib/pkgdb.sh && pkg_dependencies' 2>$@.stderr \
@@ -89,6 +90,7 @@ endef
 		| tr '\n' ' ' \
 		| sed -e 's/ $$/\n/' -e 's/ /, /g' >$@
 
+
 define ubuntu_cloud_init_magic
 # Inject dependency on the .packages file from .user-data file.
 # We cannot use pattern rules due to how make works when both pattern and non-pattern rules are used.
@@ -96,6 +98,9 @@ ubuntu-cloud-$1.$$(GARDEN_ARCH).user-data: ubuntu-cloud-$1.$$(GARDEN_ARCH).packa
 
 define UBUNTU_$1_CLOUD_INIT_USER_DATA_TEMPLATE
 $$(UBUNTU_CLOUD_INIT_USER_DATA_TEMPLATE)
+- apt-get install -y linux-image-extra-$$$$(uname -r) || true
+- apt-get install -y linux-modules-extra-$$$$(uname -r) || true
+- apt-get install -y linux-tools-$$$$(uname -r) || true
 packages: [$$(file <ubuntu-cloud-$1.$$(GARDEN_ARCH).packages)]
 endef
 
