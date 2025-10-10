@@ -1027,12 +1027,12 @@ const gptGadgetContentWithRangeForSeed = `volumes:
 // install process.
 func createdDuringInstall(gv *gadget.Volume, layout *gadget.OnDiskVolume) (created []string, yamlIdxes []int) {
 	created = make([]string, 0, len(layout.Structure))
-	lastAssignedIdx := -1
+	startFromIdx := 0
 	for _, s := range layout.Structure {
-		yamlIdx, assigned := install.IndexIfCreatedDuringInstall(gv, s, lastAssignedIdx)
+		yamlIdx, assigned := install.IndexIfCreatedDuringInstall(gv, s, startFromIdx)
 		if yamlIdx >= 0 {
 			yamlIdxes = append(yamlIdxes, yamlIdx)
-			lastAssignedIdx = assigned
+			startFromIdx = assigned + 1
 			created = append(created, s.Node)
 		}
 	}
