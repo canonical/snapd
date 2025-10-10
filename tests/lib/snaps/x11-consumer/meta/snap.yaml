@@ -4,7 +4,7 @@ summary: Basic x11 consumer snap
 description: A basic snap declaring a plug on x11
 
 apps:
-  # dummy app to declare the x11 plug
+  # stub app to declare the x11 plug
   x11-consumer:
     command: bin/run
     plugs: [x11]
