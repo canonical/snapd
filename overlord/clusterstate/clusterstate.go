@@ -39,9 +39,9 @@ var (
 	devicestateSerial = devicestate.Serial
 )
 
-// ApplyClusterState creates the tasks needed to apply the state described by
+// applyClusterState creates the tasks needed to apply the state described by
 // the cluster assertion on this device.
-func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.TaskSet, error) {
+func applyClusterState(st *state.State, cluster *asserts.Cluster) (map[string]*state.TaskSet, error) {
 	serial, err := devicestateSerial(st)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,8 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 		return nil, fmt.Errorf("device with serial %q not found in cluster assertion", serial.Serial())
 	}
 
-	var tss []*state.TaskSet
+	// mapping of subcluster name to tasks to match desired subcluster state
+	tasksets := make(map[string]*state.TaskSet)
 	for _, subcluster := range cluster.Subclusters() {
 		if !deviceInSubcluster(subcluster, deviceID) {
 			continue
@@ -67,10 +68,10 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 			continue
 		}
 
-		tss = append(tss, ts)
+		tasksets[subcluster.Name] = ts
 	}
 
-	return tss, nil
+	return tasksets, nil
 }
 
 func applySubcluster(st *state.State, subcluster asserts.Subcluster) (*state.TaskSet, error) {
