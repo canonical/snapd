@@ -92,7 +92,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
-	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/opengles-provider/5/lib1")
+	libDir1 := filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1")
 	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libDir1, "libOPENGLES_nvidia.so.0"), []byte(``), 0644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
