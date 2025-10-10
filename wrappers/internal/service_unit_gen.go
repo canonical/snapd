@@ -156,6 +156,9 @@ Restart={{.Restart}}
 {{- if .App.RestartDelay}}
 RestartSec={{.App.RestartDelay.Seconds}}
 {{- end}}
+{{- if .SuccessExitStatus}}
+SuccessExitStatus={{ stringsJoin .SuccessExitStatus " " }}
+{{- end}}
 WorkingDirectory={{.WorkingDir}}
 {{- if .App.StopCommand}}
 ExecStop={{.App.LauncherStopCommand}}
@@ -265,6 +268,7 @@ WantedBy={{.ServicesTarget}}
 		KillSignal               string
 		OOMAdjustScore           int
 		BusName                  string
+		SuccessExitStatus        []string
 		Before                   []string
 		After                    []string
 		Requires                 []string
@@ -283,14 +287,15 @@ WantedBy={{.ServicesTarget}}
 		InterfaceServiceSnippets: ifaceSpecifiedServiceSnippet,
 		InterfaceUnitSnippets:    ifaceSpecifiedUnitSnippet,
 
-		Restart:        restartCond,
-		StopTimeout:    serviceStopTimeout(appInfo),
-		StartTimeout:   time.Duration(appInfo.StartTimeout),
-		Remain:         remain,
-		KillMode:       killMode,
-		KillSignal:     appInfo.StopMode.KillSignal(),
-		OOMAdjustScore: oomAdjustScore,
-		BusName:        busName,
+		Restart:           restartCond,
+		StopTimeout:       serviceStopTimeout(appInfo),
+		StartTimeout:      time.Duration(appInfo.StartTimeout),
+		Remain:            remain,
+		KillMode:          killMode,
+		KillSignal:        appInfo.StopMode.KillSignal(),
+		OOMAdjustScore:    oomAdjustScore,
+		BusName:           busName,
+		SuccessExitStatus: appInfo.SuccessExitStatus,
 
 		Before: generateServiceNames(appInfo.Snap, appInfo.Before),
 		After:  generateServiceNames(appInfo.Snap, appInfo.After),
