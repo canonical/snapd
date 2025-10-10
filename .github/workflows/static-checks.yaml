@@ -74,7 +74,7 @@ jobs:
     - name: Run static checks
       run: |
           # run gofmt checks only with the latest stable Go
-          if [ "${{ matrix.gochannel }}" != "latest/stable" ]; then
+          if [ "${{ inputs.gochannel }}" != "latest/stable" ]; then
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ inputs.gochannel }}"
           fi
