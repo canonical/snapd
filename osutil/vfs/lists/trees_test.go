@@ -20,7 +20,6 @@
 package lists_test
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/snapcore/snapd/osutil/vfs/lists"
@@ -230,22 +229,36 @@ func TestDepthFirstSearch(t *testing.T) {
 
 	t.Run("from-root", func(t *testing.T) {
 		order := collectSkills(&root)
-		if !slices.Equal(order, []string{"root", "fire", "fire bolt", "fire ball", "ice", "ice shard"}) {
+		if !slicesEqual(order, []string{"root", "fire", "fire bolt", "fire ball", "ice", "ice shard"}) {
 			t.Errorf("Unexpected order of traversal: %v", order)
 		}
 	})
 
 	t.Run("from-subtree", func(t *testing.T) {
 		order := collectSkills(fireMagic)
-		if !slices.Equal(order, []string{"fire", "fire bolt", "fire ball"}) {
+		if !slicesEqual(order, []string{"fire", "fire bolt", "fire ball"}) {
 			t.Errorf("Unexpected order of traversal: %v", order)
 		}
 	})
 
 	t.Run("leaf-node", func(t *testing.T) {
 		order := collectSkills(iceShard)
-		if !slices.Equal(order, []string{"ice shard"}) {
+		if !slicesEqual(order, []string{"ice shard"}) {
 			t.Errorf("Unexpected order of traversal: %v", order)
 		}
 	})
+}
+
+// slicesEqual is a helper function to compare two slices for equality.
+// TODO:GOVERSION 1.21: replace with slices.Equal
+func slicesEqual[S []E, E comparable](a, b S) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
