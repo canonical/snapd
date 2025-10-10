@@ -101,7 +101,7 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied
     systemctl daemon-reload
-    # restart the service (it pulls up the socket)
+    # restart the service (it pulls up the socket)    
     systemctl restart snapd.service
 }
 
@@ -478,7 +478,19 @@ prepare_classic() {
         rm -rf "$build_dir"
         mkdir -p "$build_dir"
         build_snapd_snap "$build_dir"
-        snap install --dangerous "$build_dir/"snapd_*.snap
+        case "$SPREAD_SYSTEM" in
+            ubuntu-fips-24.04-*)
+                # we're expecting snapd installation to fail due to SNAPDENG-35482
+                not snap install --dangerous "$build_dir/"snapd_*.snap
+                journalctl -u snapd | MATCH "opensslcrypto: can't enable FIPS mode for OpenSSL"
+                echo "this failure is expected"
+                exit 1
+                ;;
+            *)
+                # we're expecting snapd installation to fail due to SNAPDENG-
+                snap install --dangerous "$build_dir/"snapd_*.snap
+                ;;
+        esac
         snap wait system seed.loaded
     fi
     snap list snapd
@@ -979,7 +991,7 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     quiet apt install software-properties-common -y
     # carries ubuntu-core-initframfs
-    quiet add-apt-repository ppa:snappy-dev/image -y
+    retry -n 10 quiet add-apt-repository ppa:snappy-dev/image -y
     # On focal, lvm2 does not reinstall properly after being removed.
     # So we need to clean up in case the VM has been re-used.
     if os.query is-focal; then
@@ -988,7 +1000,7 @@ uc20_build_initramfs_kernel_snap() {
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
-    quiet apt install ubuntu-core-initramfs linux-firmware -y
+    retry -n 10 quiet apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -1311,6 +1323,9 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
+    # make sure we use the same timesync configuration than in the host machine
+    cp /etc/systemd/timesyncd.conf /mnt/system-data/etc/systemd/timesyncd.conf
+
     mkdir -p /mnt/system-data/var/lib/console-conf
 
     # NOTE: The here-doc below must use tabs for proper operation.
@@ -1467,17 +1482,29 @@ EOF
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
         IMAGE_CHANNEL="$GADGET_CHANNEL"
-        if is_test_target_core_le 18; then
-            if is_test_target_core 16; then
-                BRANCH=latest
-            elif is_test_target_core 18; then
-                BRANCH=18
-            fi
+    fi
+
+    if is_test_target_core_le 18; then
+        if is_test_target_core 16; then
+            BRANCH=latest
+        else
+            BRANCH=18
+        fi
+
+        if is_test_target_core 18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+            # When running in openstack backend and uc18 it is required to use an specific
+            # kernel snap which is using the 5.4.0 instead of the 4.15 because this
+            # version has a fix for https://bugs.launchpad.net/qemu/+bug/1844053
+            wget -q -O pc-kernel.snap https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_5.4.0-221.241.1_amd64.snap
+        elif [ "$KERNEL_CHANNEL" != "$GADGET_CHANNEL" ]; then
             # download pc-kernel snap for the specified channel and set
             # ubuntu-image channel to that of the gadget, so that we don't
             # need to download it. Do this only for UC16/18 as the UC20+
             # case is considered a few lines below.
-            snap download --basename=pc-kernel --channel="$BRANCH/$KERNEL_CHANNEL" pc-kernel
+            snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+        fi
+
+        if [ -f pc-kernel.snap ]; then
             # Repack to prevent reboots as the image channel (which will become
             # the tracked channel) is different to the kernel channel.
             unsquashfs -d pc-kernel pc-kernel.snap
@@ -1486,6 +1513,7 @@ EOF
             rm -rf pc-kernel
             mv pc-kernel-repacked.snap pc-kernel.snap
             EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
+            chmod 0600 pc-kernel.snap
         fi
     fi
 
@@ -1511,7 +1539,7 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         # TODO: it would be desirable when we need to do in-depth debugging of
@@ -1833,6 +1861,11 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
+
+    # Wait until snapd  is-active
+    retry -n 5 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
+
     setup_snapd_proxy
 
     disable_journald_rate_limiting
@@ -1852,6 +1885,7 @@ prepare_ubuntu_core() {
         # shellcheck disable=SC2016
         retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
+
 
     # Wait for seeding to finish.
     snap wait system seed.loaded

@@ -19,6 +19,8 @@ on:
         type: string
         description: 'Filters out all matches for each space-separated regex expression when running spread tests'
         default: 'ubuntu-14.04-64 tests/lib/ tests/unit/ manual/snapd-refresh-from-old core/persistent-journal'
+  schedule:
+    - cron: '30 4 * * 6'
 
 jobs:
   set-inputs:
@@ -32,10 +34,10 @@ jobs:
       - name: Set inputs
         id: set-inputs
         run: |
-          echo "features=${{ inputs.features || 'all' }}" >> $GITHUB_OUTPUT
+          echo "features=${{ inputs.features || 'cmd,task,change,ensure,endpoint,interface' }}" >> $GITHUB_OUTPUT
           echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
-          echo "skip-tests=${{ inputs.skip-tests || '' }}" >> $GITHUB_OUTPUT
+          echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
 
   read-systems:
     runs-on: ubuntu-latest

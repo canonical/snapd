@@ -177,6 +177,14 @@ type KeyDataLocation struct {
 	SlotName string
 }
 
+const (
+	PlatformTpm2       = "tpm2"
+	PlatformTpm2Legacy = "tpm2-legacy"
+	PlatformPlainkey   = "plainkey"
+	PlatformFdeHookV2  = "fde-hook-v2"
+	PlatformFdeHooksV3 = "fde-hooks-v3"
+)
+
 // KeyData represents a disk unlock key protected by a platform's secure device.
 type KeyData interface {
 	PlatformName() string
@@ -304,8 +312,8 @@ type ResealKeyParams struct {
 	BootModes []string
 	// The allowed models
 	Models []ModelForSealing
-	// The TPM policy profile. May be be nil when using hooks.
-	TpmPCRProfile []byte
+	// Function that returns TPM policy profile. It is only called when resealing TPM keys.
+	GetTpmPCRProfile func() ([]byte, error)
 	// Whether a incremented value of the counter is allowed
 	// (before a revocation)
 	NewPCRPolicyVersion bool

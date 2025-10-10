@@ -4,7 +4,7 @@ details: |
     When sru validation is being executed, it is needed to check the correct
     snapd deb is being used and no-reexec policy is applied. 
 
-backends: [google-sru]
+backends: [openstack-sru-ps7, garden]
 
 environment: 
     SRU_VALIDATION_VERSION: '$(HOST: echo "${SPREAD_SRU_VALIDATION_VERSION:-}")'
@@ -41,8 +41,8 @@ execute: |
     # shellcheck disable=SC2034
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     # shellcheck disable=SC2153
-    /usr/bin/env SNAPD_DEBUG=1 SNAP_REEXEC=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/snapd/current/usr/bin/snap\""
+    /usr/bin/env SNAPD_DEBUG=1 SNAP_REEXEC=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAP_MOUNT_DIR/snapd/current/usr/bin/snap\""
 
     # Check the snap version has the proper value expected when the snapd snap is not being used
     . /etc/os-release
-    snap version | MATCH "snap .+${SRU_VALIDATION_VERSION}\+${VERSION_ID}$"
+    snap version | MATCH "snap .+${SRU_VALIDATION_VERSION}\+${ID}${VERSION_ID}$"

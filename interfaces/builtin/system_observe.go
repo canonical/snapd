@@ -63,10 +63,13 @@ ptrace (read),
 
 # Other miscellaneous accesses for observing the system
 @{PROC}/cgroups r,
+@{PROC}/buddyinfo r,
 @{PROC}/locks r,
 @{PROC}/modules r,
 @{PROC}/mdstat r,
 @{PROC}/schedstat r,
+@{PROC}/slabinfo r,
+@{PROC}/softirqs r,
 @{PROC}/stat r,
 @{PROC}/vmstat r,
 @{PROC}/zoneinfo r,
@@ -78,7 +81,11 @@ ptrace (read),
 @{PROC}/pressure/memory r,
 @{PROC}/sys/kernel/panic r,
 @{PROC}/sys/kernel/panic_on_oops r,
+@{PROC}/sys/kernel/random/poolsize r,
+@{PROC}/sys/kernel/random/urandom_min_reseed_secs r,
+@{PROC}/sys/kernel/random/write_wakeup_threshold r,
 @{PROC}/sys/kernel/sched_autogroup_enabled r,
+@{PROC}/sys/kernel/threads-max r,
 @{PROC}/sys/vm/max_map_count r,
 @{PROC}/sys/vm/panic_on_oom r,
 @{PROC}/sys/vm/swappiness r,
@@ -123,8 +130,14 @@ ptrace (read),
 /sys/fs/cgroup/cpu,cpuacct/cpu.stat r,
 /sys/fs/cgroup/memory/memory.stat r,
 
-# Allow reading the system max CPU resource constraints 
+# Allow reading the system max CPU resource constraints
 /sys/fs/cgroup/system.slice/cpu.max r,
+
+# Allow reading ext4 and btrfs filesystems information
+/sys/fs/{btrfs,ext4}/{,**} r,
+
+# Allow reading zfs filesystem information
+@{PROC}/spl/kstat/zfs/{,**} r,
 
 #include <abstractions/dbus-strict>
 

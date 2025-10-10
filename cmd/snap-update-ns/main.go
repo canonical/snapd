@@ -20,12 +20,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -39,8 +44,8 @@ var opts struct {
 }
 
 // IMPORTANT: all the code in main() until bootstrap is finished may be run
-// with elevated privileges when invoking snap-update-ns from the setuid
-// snap-confine.
+// with elevated privileges when invoking snap-update-ns from snap-confine
+// which grants additional capabilities.
 
 func main() {
 	logger.SimpleSetup(nil)
@@ -80,6 +85,10 @@ func run() error {
 		return err
 	}
 
+	setupOptInLogging(opts.Positionals.SnapName, opts.UserMounts)
+	logger.Debugf("snap-update-ns invoked snap:%s, fromSnapConfine:%v, userMounts:%v",
+		opts.Positionals.SnapName, opts.FromSnapConfine, opts.UserMounts)
+
 	// Explicitly set the umask to 0 to prevent permission bits
 	// being masked out when creating files and directories.
 	//
@@ -98,4 +107,39 @@ func run() error {
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
 	return executeMountProfileUpdate(upCtx)
+}
+
+// setupOptInLogging configures the logger to log to an existing file.
+//
+// Developers or users assisting in a debug session may be asked to touch empty
+// files at /run/snapd/ns/snap.$SNAP_NAME.log and
+// /run/snapd/ns/snap.$SNAP_NAME.user.$UID.log.
+//
+// Presence of either file activates verbose debug logging of mount namespace
+// operations of the specific snap, and snap-uid pair.
+//
+// Nothing in snapd creates or removes those files. The content may be attached
+// to bug reports to be investigated by snapd developers.
+func setupOptInLogging(snapName string, userMounts bool) {
+	var path string
+	if userMounts {
+		path = filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("snap.%s.user.%d.log", snapName, os.Getuid()))
+	} else {
+		path = filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("snap.%s.log", snapName))
+	}
+
+	// NOTE: This file is never closed.
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			logger.Debugf("Cannot open snap-update-ns log file: %v", err)
+		}
+		return
+	}
+
+	// Write logs to both os.Stderr and f. Due to how we use LoggerOptions, and
+	// the limited nature of the logger, os.Stderr will see all debug logs even
+	// if that setting is not enabled.  This could be addressed with slog-based
+	// logger that uses a tee-like handler with distinct levels.
+	logger.SetLogger(logger.New(io.MultiWriter(os.Stderr, f), 0, &logger.LoggerOptions{ForceDebug: true}))
 }

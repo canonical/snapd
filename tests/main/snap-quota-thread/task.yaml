@@ -126,9 +126,16 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
   echo "Verify the service is now running at full capacity"
-  SPAWNER_PID=$(systemctl show snap.test-snapd-stressd.spawner.service --property=ExecMainPID | cut -d = -f 2)
-  threadCount=$(ps huH p "$SPAWNER_PID" | wc -l)
-  if ! [ "$threadCount" -eq "$SPAWNER_MAX_THREADS" ]; then
-    echo "Expected $SPAWNER_MAX_THREADS threads, got $threadCount"
-    exit 1
-  fi
+  total_iters=5
+  for iter in $(seq "$total_iters"); do
+    SPAWNER_PID=$(systemctl show snap.test-snapd-stressd.spawner.service --property=ExecMainPID | cut -d = -f 2)
+    threadCount=$(ps huH p "$SPAWNER_PID" | wc -l)
+    if [ "$threadCount" -eq "$SPAWNER_MAX_THREADS" ]; then
+      break
+    elif [ "$iter" = "$total_iters" ]; then
+      echo "Expected $SPAWNER_MAX_THREADS threads, got $threadCount"
+      exit 1
+    else
+      sleep 3
+    fi
+  done

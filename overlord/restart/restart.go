@@ -124,7 +124,7 @@ type restartManagerKey struct{}
 // RestartManager takes care of restart-related state.
 type RestartManager struct {
 	state            *state.State
-	restarting       int32 // really of type RestartType -- TODO: use atomic.Int32 once on go 1.19+
+	restarting       int32 // really of type RestartType -- TODO:GOVERSION: use atomic.Int32 once on go 1.19+
 	h                Handler
 	bootID           string
 	changeCallbackID int

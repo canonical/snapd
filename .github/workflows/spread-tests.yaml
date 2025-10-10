@@ -175,12 +175,13 @@ jobs:
             # The tests are just filtered when the change is a PR
             # When 'Run Nested' label is added in a PR, all the nested tests have to be executed
             TASKS_TO_RUN=""
+            INPUT_TASKS="$(echo "${{ inputs.tasks }}" | tr '\n' ' ')"
             if [ -z "${{ github.event.number }}" ] || [ "$RUN_NESTED" = 'true' ] || [ -z "${{ inputs.rules }}" ] || [ -z "$changes_param" ]; then
-                for TASKS in ${{ inputs.tasks }}; do
+                for TASKS in $INPUT_TASKS; do
                     TASKS_TO_RUN="$TASKS_TO_RUN $prefix:$TASKS"
                 done
             else
-                NEW_TASKS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "$prefix" $changes_param -t "${{ inputs.tasks }}")"
+                NEW_TASKS="$(./tests/lib/external/snapd-testing-tools/utils/spread-filter -r ./tests/lib/spread/rules/${{ inputs.rules }}.yaml -p "$prefix" $changes_param -t "$INPUT_TASKS")"
                 TASKS_TO_RUN="$NEW_TASKS"
             fi
             echo "$TASKS_TO_RUN"
@@ -248,9 +249,71 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
+    - name: Download and extract pre-built packages if they exist
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      env:
+        SYSTEMS: ${{ inputs.systems }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          let fs = require('fs');
+          let path = require('path');
+          let os = require('os');
+          let child_process = require('child_process');
+          let systems = process.env.SYSTEMS.split(' ');
+
+          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.runId,
+          });
+          
+          for (let system of systems) {
+            let artifactName = `package-${system}`;
+            const match = system.match(/^ubuntu-core-(\d+)(-arm)?-64$/);
+            if (match) {
+              const version = match[1];
+              const arch = match[2] || '';
+              artifactName = `package-ubuntu-${version}.04${arch}-64`;
+            }
+            let artifact = allArtifacts.data.artifacts.find(a => a.name === artifactName);
+            if (!artifact) {
+              console.log(`Artifact not found for system: ${system}`);
+              continue;
+            }
+            console.log(`Found artifact "${artifactName}" with id ${artifact.id}, downloading...`);
+
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+
+            const artifactZipPath = path.join(process.env.GITHUB_WORKSPACE, `${artifactName}.zip`);
+            fs.writeFileSync(artifactZipPath, Buffer.from(download.data));
+
+            const extractDir = path.join(process.env.GITHUB_WORKSPACE, 'built-pkgs', system);
+            fs.mkdirSync(extractDir, { recursive: true });
+            child_process.execSync(`unzip -q -o ${artifactZipPath} -d ${extractDir}`);
+
+            fs.unlinkSync(artifactZipPath);
+          }
+
+    - name: Set whether to use pre-built packages in spread
+      run: |
+        SPREAD_USE_PREBUILT_PACKAGES=true
+        for system in ${{ inputs.systems }}; do
+          if ! [ -d built-pkgs/"$system" ]; then
+            SPREAD_USE_PREBUILT_PACKAGES=false
+            echo "Disabling prebuilt packages due to missing $system directory"
+          fi
+        done
+        echo "SPREAD_USE_PREBUILT_PACKAGES=$SPREAD_USE_PREBUILT_PACKAGES" >> $GITHUB_ENV
+
     - name: Download built snap (amd64)
       uses: actions/download-artifact@v4
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && !contains(inputs.group, '-fips') }}"
       with:
         name: snap-files-amd64-default-test
         # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
@@ -258,7 +321,7 @@ jobs:
         path: "${{ github.workspace }}/built-snap"
 
     - name: Download built snap (arm64)
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !endsWith(inputs.group, '-fips') }}"
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && contains(inputs.group, '-arm64') && !contains(inputs.group, '-fips') }}"
       uses: actions/download-artifact@v4
       with:
         name: snap-files-arm64-default-test
@@ -268,8 +331,8 @@ jobs:
 
     - name: Download built FIPS snap (amd64)
       uses: actions/download-artifact@v4
-      # eg. ubuntu-fips
-      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && endsWith(inputs.group, '-fips') }}"
+      # eg. ubuntu-fips-deb, ubuntu-fips-snap
+      if: "${{ env.SKIP_SPREAD_LABEL != 'true' && !inputs.use-snapd-snap-from-master && !contains(inputs.group, '-arm64') && contains(inputs.group, '-fips-') }}"
       with:
         name: snap-files-amd64-FIPS-test
         # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
@@ -302,6 +365,8 @@ jobs:
           if [ "${{ inputs.use-snapd-snap-from-master }}" = true ]; then
             if [[ "${{ inputs.group }}" == *"-arm64"* ]]; then
               export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_arm64.snap
+            elif [[ "${{ inputs.group }}" =~ "-fips-" ]]; then
+              export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64-fips.snap
             else
               export SPREAD_USE_SNAPD_SNAP_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/snaps/snapd_master_amd64.snap
             fi
@@ -338,12 +403,20 @@ jobs:
               export NO_DELTA=1
           fi
 
+          case "${{ inputs.group }}" in
+              ubuntu-deb)
+                  echo "Setting up ubuntu with deb execution"
+                  export SPREAD_SNAP_REEXEC=0
+                  export SPREAD_SNAPD_DEB_FROM_REPO=false
+                  ;;
+          esac
+
           if grep -q "nothing matches provider filter" <<< "$spread_list"; then
             echo "No tests to run, exiting..."
             exit 0
           fi
 
-          SPREAD_FLAGS='-no-debug-output -logs spread-logs'
+          SPREAD_FLAGS='-no-debug-output -logs spread-logs -json results.json'
           if [ "${{ inputs.upload-artifacts }}" = true ]; then
             SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
@@ -375,6 +448,14 @@ jobs:
       with:
         name: "spread-logs-${{ inputs.group }}-${{ inputs.systems }}"
         path: "spread-logs/*.log"
+        if-no-files-found: ignore
+  
+    - name: Upload spread results file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        path: "results.json"
         if-no-files-found: ignore
 
     - name: Report spread errors
@@ -463,12 +544,4 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
-
-    - name: Save spread.json as an artifact
-      if: ${{ failure() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
-        path: "spread-results.json"
-        if-no-files-found: ignore
 

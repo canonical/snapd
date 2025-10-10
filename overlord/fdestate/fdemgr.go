@@ -115,7 +115,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	// which is strange from a UX perspective but it is necessary to prevent
 	// conflicting reseal/seal operations from racing when reading/writing
 	// FDE state parameters.
-	snapstate.RegisterAffectedSnapsByKind("fde-add-protected-keys", addProtectedKeysAffectedSnaps)
+	snapstate.RegisterAffectedSnapsByKind("fde-add-platform-keys", addPlatformKeysAffectedSnaps)
 
 	runner.AddHandler("efi-secureboot-db-update-prepare",
 		m.doEFISecurebootDBUpdatePrepare, m.undoEFISecurebootDBUpdatePrepare)
@@ -134,7 +134,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	runner.AddHandler("fde-remove-keys", m.doRemoveKeys, nil)
 	runner.AddHandler("fde-rename-keys", m.doRenameKeys, nil)
 	runner.AddHandler("fde-change-auth", m.doChangeAuth, nil)
-	runner.AddHandler("fde-add-protected-keys", m.doAddProtectedKeys, nil)
+	runner.AddHandler("fde-add-platform-keys", m.doAddPlatformKeys, nil)
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
 		if isFDETask(t) {
 			for _, tRunning := range running {
@@ -488,6 +488,49 @@ func (m *FDEManager) GetParameters(role string, containerRole string) (hasParame
 	return s.getParameters(role, containerRole)
 }
 
+// ensureParametersLoadedWithMaybeReseal will force a reseal if the
+// passed key role and container role do not have their parameters
+// loaded in the FDE state.
+//
+// This is needed because the FDE state is only partially initialized
+// until a reseal affecting all key roles occurs. This helper
+// effectively does its job once and then is considered a no-op when
+// called with a valid key role and container role because it checks
+// if the parameters are loaded first before forcing the reseal.
+//
+// Note: The state will be unlocked/relocked if a reseal is attempted.
+func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole string) error {
+	hasParameters, _, _, _, err := m.GetParameters(role, containerRole)
+	if err != nil {
+		return err
+	}
+	if hasParameters {
+		// nothing to do
+		return nil
+	}
+
+	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil {
+		return err
+	}
+
+	// TODO:FDEM: we don't really need to force a reseal, it should
+	// be enough to calculate the parameters. For now, this is okay
+	// until we have a better way for loading FDE parameters.
+
+	wrapped := &unlockedStateManager{
+		FDEManager: m,
+		unlocker:   m.state.Unlocker(),
+	}
+	return boot.WithBootChains(func(bc boot.BootChains) error {
+		params := boot.ResealKeyForBootChainsParams{
+			BootChains: bc,
+			Options:    boot.ResealKeyToModeenvOptions{Force: true},
+		}
+		return backendResealKeyForBootChains(wrapped, method, dirs.GlobalRootDir, &params)
+	}, method)
+}
+
 const recoveryKeyExpireAfter = 5 * time.Minute
 
 func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
@@ -603,7 +646,11 @@ func (m *FDEManager) CheckRecoveryKey(rkey keys.RecoveryKey, containerRoles []st
 	for _, container := range containers {
 		if allContainers || strutil.ListContains(containerRoles, container.ContainerRole()) {
 			if err := secbootCheckRecoveryKey(container.DevPath(), rkey); err != nil {
-				return fmt.Errorf("recovery key failed for %q: %v", container.ContainerRole(), err)
+				logger.Noticef("invalid recovery key: no match found for %q: %v", container.ContainerRole(), err)
+				return &InvalidRecoveryKeyError{
+					Reason:  InvalidRecoveryKeyReasonInvalidValue,
+					Message: fmt.Sprintf("invalid recovery key: recovery key does not work for %q", container.ContainerRole()),
+				}
 			}
 			found[container.ContainerRole()] = true
 		}

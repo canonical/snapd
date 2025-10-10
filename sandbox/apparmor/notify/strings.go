@@ -76,7 +76,7 @@ func (sp *stringPacker) packTagsets(ts TagsetMap) uint32 {
 	for perm := range ts {
 		perms = append(perms, perm)
 	}
-	// TODO: use slices.Sort() once we're on go 1.21+
+	// TODO:GOVERSION: use slices.Sort() once we're on go 1.21+
 	sort.Slice(perms, func(i, j int) bool {
 		return perms[i].AsAppArmorOpMask() < perms[j].AsAppArmorOpMask()
 	})

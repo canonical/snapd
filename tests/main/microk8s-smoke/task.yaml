@@ -25,7 +25,6 @@ systems:
   # 25.04 and 25.10 failing due to old apparmor parser not recognizing kernel
   # features https://bugs.launchpad.net/apparmor/+bug/2105986 and microk8s uses
   # core18/core20 base which ships apparmor 2.12
-  - -ubuntu-25.04-*
   - -ubuntu-25.10-*
 
 # TODO : remove the manual when the test works with the version 1.32-strict which is newer

@@ -70,6 +70,10 @@ type RouteSelector interface {
 
 	// Routes returns all routes that are currently valid for publication.
 	Routes() Routes
+
+	// Complete returns true if the number of verified edges in the graph matches a
+	// fully connected graph of the given number of devices.
+	Complete(size int) (bool, error)
 }
 
 // PrioritySelector implements [RouteSelector].
@@ -99,7 +103,7 @@ type PrioritySelector struct {
 	// [addrID].
 	addresses *bimap.Bimap[string, addrID]
 
-	// knownByPeers keeps track which routes each peer knows about. A route is
+	// knownByPeers keeps track of which routes each peer knows about. A route is
 	// considered known by a peer if either they have sent it to us, or we've
 	// sent it to them.
 	knownByPeers map[peerID]*intset.IntSet[edgeID]
@@ -119,6 +123,8 @@ type PrioritySelector struct {
 	// in the edge.
 	authoritative map[DeviceToken]edgeID
 }
+
+type Identifier = func(DeviceToken) bool
 
 func NewPrioritySelector(
 	self DeviceToken,
@@ -434,6 +440,22 @@ func (p *PrioritySelector) Routes() Routes {
 	}
 }
 
+// Complete returns true if the number of verified edges in the graph matches a
+// fully connected graph of the given number of devices.
+func (p *PrioritySelector) Complete(size int) (bool, error) {
+	complete := size * (size - 1)
+	current := p.verifiedEdges.Count()
+
+	switch {
+	case complete == current:
+		return true, nil
+	case complete > current:
+		return false, nil
+	default:
+		return false, errors.New("number of devices in the cluster is greater than expected")
+	}
+}
+
 func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {
 	rdts := bimap.New[DeviceToken, int]()
 	addrs := bimap.New[string, int]()
@@ -462,7 +484,7 @@ func (p *PrioritySelector) edgesToRoutes(edges []edgeID) Routes {
 
 // min returns the smaller of the two given values.
 //
-// TODO: remove once we are on go>=1.21
+// TODO:GOVERSION: remove once we are on go>=1.21
 func min(x int, y int) int {
 	if x < y {
 		return x

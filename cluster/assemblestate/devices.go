@@ -20,7 +20,12 @@
 package assemblestate
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 // DeviceQueryTracker manages device identity information and query/response
@@ -49,15 +54,22 @@ type DeviceQueryTracker struct {
 	queries map[DeviceToken]map[DeviceToken]struct{}
 
 	// known keeps track of which devices we know each peer knows about. Each
-	// DeviceToken maps to the set of devices that are the peer with that
-	// DeviceToken has identitying information for.
+	// DeviceToken maps to the set of devices that the peer with that
+	// DeviceToken has identifying information for.
 	known map[DeviceToken]map[DeviceToken]struct{}
 
 	// ids is our collection of device identities that we've heard from other
 	// peers.
 	ids map[DeviceToken]Identity
 
-	// clock enables injecting a implementation to return the current time.
+	// assertDB is used to verify the cryptographic signatures and format
+	// of serial assertions in device identities
+	assertDB asserts.RODatabase
+
+	// secret is the shared secret used for HMAC calculation during SerialProof validation
+	secret string
+
+	// clock enables injecting an implementation that returns the current time.
 	clock func() time.Time
 }
 
@@ -65,11 +77,15 @@ type DeviceQueryTracker struct {
 // data. A timeout can be provided, which will prevent queries from being
 // re-sent for the duration of that timeout. Additionally, a clock function can
 // can be provided in the case that time.Now needs to be overridden.
+// The assertDB parameter is required and must not be nil - all device identities
+// will be validated against this assertion database.
 func NewDeviceQueryTracker(
 	data DeviceQueryTrackerData,
 	timeout time.Duration,
 	clock func() time.Time,
-) DeviceQueryTracker {
+	assertDB asserts.RODatabase,
+	secret string,
+) (DeviceQueryTracker, error) {
 	dt := DeviceQueryTracker{
 		timeout:                timeout,
 		pendingResponses:       make(chan struct{}, 1),
@@ -78,12 +94,16 @@ func NewDeviceQueryTracker(
 		known:                  make(map[DeviceToken]map[DeviceToken]struct{}),
 		inflight:               make(map[DeviceToken]time.Time),
 		ids:                    make(map[DeviceToken]Identity),
+		assertDB:               assertDB,
+		secret:                 secret,
 		clock:                  clock,
 	}
 
 	// seed with any provided data
 	for _, identity := range data.IDs {
-		dt.RecordIdentity(identity)
+		if err := dt.RecordIdentity(identity); err != nil {
+			return DeviceQueryTracker{}, fmt.Errorf("cannot initialize device query tracker: %w", err)
+		}
 	}
 
 	for peer, devices := range data.Queries {
@@ -94,7 +114,7 @@ func NewDeviceQueryTracker(
 		dt.RecordDevicesKnownBy(peer, devices)
 	}
 
-	return dt
+	return dt, nil
 }
 
 // PendingResponses returns a channel that signals when there are device query
@@ -113,7 +133,7 @@ func (d *DeviceQueryTracker) PendingOutgoingQueries() <-chan struct{} {
 	return d.pendingOutgoingQueries
 }
 
-// RecordIncomingQuery records an imcoming query from a peer for unknown device
+// RecordIncomingQuery records an incoming query from a peer for unknown device
 // identities. If we have identity information for the requested devices, a
 // response will be queued.
 func (d *DeviceQueryTracker) RecordIncomingQuery(from DeviceToken, unknowns []DeviceToken) {
@@ -144,7 +164,7 @@ func (d *DeviceQueryTracker) RecordIncomingQuery(from DeviceToken, unknowns []De
 
 // ResponsesTo returns the device identities that should be sent to the
 // specified peer, along with an acknowledgment function that must be called
-// after successful transmission. ack(true) indicates that they responses were
+// after successful transmission. ack(true) indicates that the responses were
 // sent, ack(false) indicates that the responses could not be sent.
 func (d *DeviceQueryTracker) ResponsesTo(to DeviceToken) (ids []Identity, ack func(bool)) {
 	ids = make([]Identity, 0, len(d.queries[to]))
@@ -179,7 +199,7 @@ func (d *DeviceQueryTracker) ResponsesTo(to DeviceToken) (ids []Identity, ack fu
 // OutgoingQueriesTo returns unknown device RDTs that should be sent as queries
 // to the given peer, along with an acknowledgment function that must be called
 // after successful transmission to track inflight queries. ack(true) indicates
-// that they queries were sent, ack(false) indicates that the queries could not
+// that the queries were sent, ack(false) indicates that the queries could not
 // be sent.
 func (d *DeviceQueryTracker) OutgoingQueriesTo(to DeviceToken) (unknown []DeviceToken, ack func(bool)) {
 	for rdt := range d.known[to] {
@@ -231,7 +251,7 @@ func (d *DeviceQueryTracker) RecordDevicesKnownBy(source DeviceToken, rdts []Dev
 		}
 	}
 
-	// if we are missing some of these routes, let the other side know we have
+	// if we are missing some of these devices, let the other side know we have
 	// data to request
 	if missing {
 		select {
@@ -255,9 +275,68 @@ func (d *DeviceQueryTracker) Lookup(rdt DeviceToken) (Identity, bool) {
 	return id, ok
 }
 
+func verifySerialBundle(bundle string, db asserts.RODatabase) (*asserts.Serial, error) {
+	if bundle == "" {
+		return nil, errors.New("serial bundle is empty")
+	}
+
+	tmpDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+	batch := asserts.NewBatch(nil)
+
+	if _, err := batch.AddStream(strings.NewReader(bundle)); err != nil {
+		return nil, err
+	}
+
+	var serials []*asserts.Serial
+	observe := func(a asserts.Assertion) {
+		if s, ok := a.(*asserts.Serial); ok {
+			serials = append(serials, s)
+		}
+	}
+
+	if err := batch.CommitToAndObserve(tmpDB, observe, nil); err != nil {
+		return nil, err
+	}
+
+	if len(serials) != 1 {
+		return nil, errors.New("exactly one serial assertion expected in bundle")
+	}
+
+	return serials[0], nil
+}
+
+func (d *DeviceQueryTracker) validateID(id Identity) error {
+	serial, err := verifySerialBundle(id.SerialBundle, d.assertDB)
+	if err != nil {
+		return fmt.Errorf("invalid identity for device %s: %w", id.RDT, err)
+	}
+
+	if len(id.SerialProof) == 0 {
+		return fmt.Errorf("device %s has empty serial proof", id.RDT)
+	}
+
+	// extract device public key from serial assertion
+	key := serial.DeviceKey()
+
+	// calculate the HMAC that should have been signed
+	expectedHMAC := CalculateHMAC(id.RDT, id.FP, d.secret)
+
+	// verify the SerialProof is a valid signature of the HMAC
+	if err := asserts.RawVerifyWithKey(expectedHMAC, id.SerialProof, key); err != nil {
+		return fmt.Errorf("serial proof verification failed for device %s: %w", id.RDT, err)
+	}
+
+	return nil
+}
+
 // RecordIdentity records identity information for a device.
-func (d *DeviceQueryTracker) RecordIdentity(id Identity) {
+func (d *DeviceQueryTracker) RecordIdentity(id Identity) error {
+	if err := d.validateID(id); err != nil {
+		return fmt.Errorf("invalid serial assertion for device %s: %w", id.RDT, err)
+	}
+
 	d.ids[id.RDT] = id
+	return nil
 }
 
 // DeviceQueryTrackerData represents the serializable state of
@@ -265,7 +344,7 @@ func (d *DeviceQueryTracker) RecordIdentity(id Identity) {
 type DeviceQueryTrackerData struct {
 	Queries map[DeviceToken][]DeviceToken `json:"unknowns,omitempty"`
 	Known   map[DeviceToken][]DeviceToken `json:"sources,omitempty"`
-	IDs     map[DeviceToken]Identity      `json:"ids,omitempty"`
+	IDs     []Identity                    `json:"ids,omitempty"`
 }
 
 // Export returns the serializable state of the DeviceQueryTracker.
@@ -273,7 +352,7 @@ func (d *DeviceQueryTracker) Export() DeviceQueryTrackerData {
 	data := DeviceQueryTrackerData{
 		Queries: make(map[DeviceToken][]DeviceToken),
 		Known:   make(map[DeviceToken][]DeviceToken),
-		IDs:     d.ids,
+		IDs:     make([]Identity, 0, len(d.ids)),
 	}
 
 	for peer, devices := range d.queries {
@@ -286,6 +365,21 @@ func (d *DeviceQueryTracker) Export() DeviceQueryTrackerData {
 		for device := range devices {
 			data.Known[peer] = append(data.Known[peer], device)
 		}
+	}
+
+	for _, identity := range d.ids {
+		data.IDs = append(data.IDs, identity)
+	}
+
+	// if anything is empty, just clear it out. makes testing easier.
+	if len(data.Queries) == 0 {
+		data.Queries = nil
+	}
+	if len(data.Known) == 0 {
+		data.Known = nil
+	}
+	if len(data.IDs) == 0 {
+		data.IDs = nil
 	}
 
 	return data

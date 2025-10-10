@@ -69,6 +69,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/snapcore/snapd/osutil/vfs/lists"
 )
 
 var (
@@ -102,12 +104,14 @@ type mount struct {
 	mountPointCache *string
 
 	// Links to parent, children and siblings. Any of those may be nil.
-	parent      *mount
-	firstChild  *mount
-	lastChild   *mount
-	nextSibling *mount
-	prevSibling *mount
+	parent    *mount
+	children  lists.List[mount]
+	childNode lists.Node[mount]
 }
+
+type viaChildNode struct{}
+
+func (viaChildNode) NodePointer(m *mount) *lists.Node[mount] { return &m.childNode }
 
 func (m *mount) mountPoint() string {
 	if m == nil {
@@ -154,10 +158,12 @@ type VFS struct {
 // NewVFS returns a VFS with the given root file system mounted.
 func NewVFS(rootFS fs.StatFS) *VFS {
 	return &VFS{mounts: []*mount{{
+		// TODO: this should be zero, the RootMountID value is special only when searching.
 		mountID:  RootMountID,
 		parentID: RootMountID, // The rootfs is its own parent to prevent being unmounted.
-		isDir:    true,
-		fsFS:     rootFS,
+		// FIXME: [mount.parent] is nil but perhaps should not be, for consistency with the logic above.
+		isDir: true,
+		fsFS:  rootFS,
 	}}}
 }
 
@@ -177,17 +183,7 @@ func (v *VFS) attachMount(parent *mount, child *mount) {
 	child.mountID = v.allocateMountID()
 
 	child.parent = parent
-
-	if parent.firstChild == nil {
-		parent.firstChild = child
-	}
-
-	if parent.lastChild != nil {
-		child.prevSibling = parent.lastChild
-		parent.lastChild.nextSibling = child
-	}
-
-	parent.lastChild = child
+	parent.children.Append(lists.ContainedNode[viaChildNode](child))
 
 	v.mounts = append(v.mounts, child)
 }
@@ -197,28 +193,13 @@ func (v *VFS) detachMount(m *mount, idx int) {
 		panic("cannot detach rootfs")
 	}
 
-	if m.parent.firstChild == m {
-		m.parent.firstChild = m.nextSibling
-	}
-	if m.parent.lastChild == m {
-		m.parent.lastChild = m.prevSibling
-	}
+	m.childNode.Unlink()
 
-	if m.prevSibling != nil {
-		m.prevSibling.nextSibling = m.nextSibling
-	}
-	if m.nextSibling != nil {
-		m.nextSibling.prevSibling = m.prevSibling
-	}
-
-	m.nextSibling = nil
-	m.prevSibling = nil
 	m.parent = nil
-
 	m.parentID = 0
 	m.mountID = 0
 
-	// TODO: use slices from future go to avoid this hand-crafted surgery.
+	// TODO:GOVERSION: use slices from future go to avoid this hand-crafted surgery.
 	v.mounts = append(v.mounts[:idx], v.mounts[idx+1:]...)
 }
 

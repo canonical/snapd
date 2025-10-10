@@ -429,6 +429,8 @@ def install_misc(dest_dir, sysroot, deb_arch):
         "/usr/lib/systemd/system/dbus.socket",
         "/usr/lib/systemd/system/plymouth-start.service",
         "/usr/lib/systemd/system/plymouth-switch-root.service",
+        "/usr/lib/systemd/system/systemd-ask-password-plymouth.path",
+        "/usr/lib/systemd/system/systemd-ask-password-plymouth.service",
         "/usr/lib/systemd/systemd-bootchart",
         "/usr/sbin/cryptsetup",
         "/usr/sbin/dmsetup",

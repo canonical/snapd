@@ -575,6 +575,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/flock ixr,
   /{,usr/}bin/fmt ixr,
   /{,usr/}bin/fold ixr,
+  /{,usr/}bin/free ixr,
   /{,usr/}bin/getconf ixr,
   /{,usr/}bin/getent ixr,
   /{,usr/}bin/getopt ixr,
@@ -673,6 +674,10 @@ var defaultCoreRuntimeTemplateRules = `
 
   # Allow all snaps to chroot
   /{,usr/}sbin/chroot ixr,
+
+  # Allow pidof (and killall5, as pidof can be a symlink to killall5 in some distros)
+  /{,usr/}bin/pidof ixr,
+  /{,usr/}sbin/killall5 ixr,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
@@ -1012,6 +1017,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading own cgroups
   owner @{PROC}/@{pid}/cgroup r,
 
+  # Allow reading own mountinfo (Go runtime 1.25+)
+  owner @{PROC}/@{pid}/mountinfo r,
+
   # Allow reading somaxconn, required in newer distro releases
   @{PROC}/sys/net/core/somaxconn r,
   # but silence noisy denial of inet/inet6
@@ -1045,6 +1053,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Those files are written by snap-update-ns and represent the actual
   # mount profile at a given moment.
   /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.fstab{,.*} rw,
+
+  # Allow writing to a log file for both per-snap and per-snap-and-user log files.
+  /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.log w,
+  /run/snapd/ns/snap.###SNAP_INSTANCE_NAME###.user.*.log w,
 
   # NOTE: at this stage the /snap directory is stable as we have called
   # pivot_root already.

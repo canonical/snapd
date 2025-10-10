@@ -162,8 +162,15 @@ func (s *SnapPromptingControlInterfaceSuite) TestAppArmor(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := apparmor.NewSpecification(appSet)
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SecurityTags(), HasLen, 0)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Check(spec.SnippetForTag("snap.other.app"), testutil.Contains,
+		"peer=(name=com.canonical.Shell.PermissionPrompting)")
+	c.Check(spec.SnippetForTag("snap.other.app"), testutil.Contains,
+		"path=/com/canonical/Shell/PermissionPrompting\n")
+	c.Check(spec.SnippetForTag("snap.other.app"), testutil.Contains,
+		"interface=com.canonical.Shell.PermissionPrompting\n")
 
 	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)

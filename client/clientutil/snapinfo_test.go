@@ -114,6 +114,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"TrackingChannel",
 		"IgnoreValidation",
 		"CohortKey",
+		"Grade",
 		"DevMode",
 		"TryMode",
 		"JailMode",

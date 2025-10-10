@@ -72,6 +72,12 @@ prepare: |
     cp shim.efi.new pc/shim.efi.signed
   fi
 
+  # Make sure new grub is measured differently
+  objcopy -Obinary -j.sbat pc/grubx64.efi grub.sbat
+  tr -d '\0' <grub.sbat >grub.sbat.trimmed
+  echo "grub.test,1,Test,grub,1.0,https://example.org" >>grub.sbat.trimmed
+  objcopy --update-section .sbat=grub.sbat.trimmed pc/grubx64.efi
+
   tests.nested secboot-sign file pc/shim.efi.signed "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
   # Even if we install a new seed, the grub has to be signed with the
   # key so that we do not break on a reset in the middle of the upate.

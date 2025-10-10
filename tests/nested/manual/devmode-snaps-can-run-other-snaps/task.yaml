@@ -21,6 +21,13 @@ environment:
   SNAPCRAFT_BUILD_ENVIRONMENT: lxd
 
 prepare: |
+  # Until https://github.com/canonical/snapcraft/pull/5775 lands in candidate,
+  # this test fails due to bypassing proxies
+  if [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is_bionic; then
+      echo "SKIP: Currently disabled until snapcraft proxy fix lands"
+      exit 0
+  fi
+
   # load the fuse kernel module before installing lxd
   modprobe fuse
 
@@ -55,7 +62,7 @@ prepare: |
   # core should still be built from snapd snap. In theory from xenial,
   # but here we build with the current one.
   snapddir=snapd-from-branch
-  dpkg-deb -x "${SPREAD_PATH}"/../snapd_*.deb "${snapddir}"
+  dpkg-deb -x "${GOHOME}"/snapd_*.deb "${snapddir}"
 
   # now repack the core snap with this snapd snap
   snap download core --edge --basename=core-from-edge
@@ -87,6 +94,12 @@ prepare: |
   tests.nested create-vm core
 
 execute: |
+  # Until https://github.com/canonical/snapcraft/pull/5775 lands in candidate,
+  # this test fails due to bypassing proxies
+  if [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is_bionic; then
+      echo "SKIP: Currently disabled until snapcraft proxy fix lands"
+      exit 0
+  fi
   # TODO: should we also just test the classic cases on the system that is 
   # driving the nested VM? That would save some time/resources
 

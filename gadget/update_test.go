@@ -4632,6 +4632,118 @@ volumes:
 	})
 }
 
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateEMMC(c *C) {
+	u.mockEMMCDeviceNodes(c)
+
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": {
+			DevNode:             "/dev/mmcblk0",
+			DevPath:             "/sys/block/mmcblk0",
+			DevNum:              "525:1",
+			DiskUsableSectorEnd: 6000 * 1024 * 1024 / 512,
+			DiskSizeInBytes:     6000 * 1024 * 1024,
+			SectorSizeBytes:     512,
+			DiskSchema:          "gpt",
+			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "boot0",
+					PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/mmcblk0boot0",
+					KernelDevicePath: "/sys/block/mmcblk0/boot0",
+					DiskIndex:        1,
+					StartInBytes:     1024 * 1024,
+					SizeInBytes:      4096,
+				},
+				{
+					PartitionLabel:   "boot1",
+					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+					Major:            525,
+					Minor:            3,
+					KernelDeviceNode: "/dev/mmcblk0boot1",
+					KernelDevicePath: "/sys/block/mmcblk0/boot1",
+					DiskIndex:        2,
+					StartInBytes:     1024*1024 + 4096,
+					SizeInBytes:      1024 * 1024 * 1024,
+				},
+			},
+		},
+	})
+	defer restore()
+
+	testRoot := c.MkDir()
+	gadgetRoot := filepath.Join(testRoot, "gadget")
+
+	// write test content images
+	c.Assert(os.MkdirAll(gadgetRoot, 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot0filename"), []byte(``), 0644), IsNil)
+	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot1filename"), []byte(``), 0644), IsNil)
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: foo
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+  mmc:
+    schema: emmc
+    structure:
+      - name: boot0
+        content:
+          - image: boot0filename
+      - name: boot1
+        content:
+          - image: boot1filename
+`
+	lvol, err := gadgettest.LayoutMultiVolumeFromYaml(testRoot, "", yaml, nil)
+	c.Assert(err, IsNil)
+
+	// expect blockdev to be called to get sizes of boot structures
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsize64" ]; then
+	echo 4194304
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	// verify expected traits based on the ones we gave
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol["mmc"].Volume, "/dev/mmcblk0", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
+		OriginalDevicePath: "/sys/block/mmcblk0",
+		OriginalKernelPath: "/dev/mmcblk0",
+		DiskID:             "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		SectorSize:         512,
+		Size:               6000 * 1024 * 1024,
+		Schema:             "gpt",
+		Structure: []gadget.DiskStructureDeviceTraits{
+			{
+				OriginalDevicePath: "/sys/block/mmcblk0boot0",
+				OriginalKernelPath: "/dev/mmcblk0boot0",
+				Size:               4194304,
+			},
+			{
+				OriginalDevicePath: "/sys/block/mmcblk0boot1",
+				OriginalKernelPath: "/dev/mmcblk0boot1",
+				Size:               4194304,
+			},
+		},
+	})
+	c.Check(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsize64", "/dev/mmcblk0boot0"},
+		{"blockdev", "--getsize64", "/dev/mmcblk0boot1"},
+	})
+}
+
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
 		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,

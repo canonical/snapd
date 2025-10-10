@@ -150,7 +150,7 @@ missing_interface_spread_test() {
             # skip gadget provided interfaces for now
             continue
             ;;
-        cuda-driver-libs | egl-driver-libs)
+        cuda-driver-libs | egl-driver-libs | gbm-driver-libs | opengl-driver-libs | opengles-driver-libs)
             # skip interfaces with plug side only in rootfs for now
             continue
             ;;
@@ -305,7 +305,7 @@ if [ "$STATIC" = 1 ]; then
     got=""
     for dir in $(go list -f '{{.Dir}}' ./...); do
         # shellcheck disable=SC2063
-        s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
+        s="$(grep -nP --exclude '*_test.go' --exclude tests/lib/plz-run/main.go --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
         if [ -n "$s" ]; then
             got="$s\\n$got"
         fi
@@ -503,6 +503,16 @@ if [ "$STATIC" = 1 ]; then
         fi
     else
         echo ">> [Go] Skipping golangci-lint check"
+    fi
+
+    echo ">> [Go] checking the go.sum is up to date and tidy"
+    go mod tidy
+    # TODO:GOVERSION: replace with go mod tidy -diff when we're running with Go 1.23+
+    # everywhere
+    if git status | grep -q go.sum ; then
+        echo "go.sum is not tidy, please run 'go mod tidy'"
+        git diff -- go.sum
+        exit 1
     fi
 
     echo ">> [C] Checking C source code formatting"

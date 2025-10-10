@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -267,6 +268,26 @@ func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) *apiError {
 	}
 }
 
+func KeyslotsNotFound(err *fdestate.KeyslotRefsNotFoundError) *apiError {
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    client.ErrorKindKeyslotsNotFound,
+		Value:   err.KeyslotRefs,
+	}
+}
+
+func InvalidRecoveryKey(err *fdestate.InvalidRecoveryKeyError) *apiError {
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    client.ErrorKindInvalidRecoveryKey,
+		Value: map[string]any{
+			"reason": err.Reason,
+		},
+	}
+}
+
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
 func AppNotFound(format string, v ...any) *apiError {
@@ -355,6 +376,10 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			snapName = err.Snap
 		case *snapstate.InsufficientSpaceError:
 			return InsufficientSpace(err)
+		case *fdestate.KeyslotRefsNotFoundError:
+			return KeyslotsNotFound(err)
+		case *fdestate.InvalidRecoveryKeyError:
+			return InvalidRecoveryKey(err)
 		case net.Error:
 			if err.Timeout() {
 				kind = client.ErrorKindNetworkTimeout

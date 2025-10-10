@@ -196,6 +196,10 @@ func IsUnaccceptedUpdate(err error) bool {
 type RODatabase interface {
 	// IsTrustedAccount returns whether the account is part of the trusted set.
 	IsTrustedAccount(accountID string) bool
+	// WithStackedBackstore returns a database view that layers the provided
+	// backstore on top of the current one while preserving read-only access to
+	// existing assertions.
+	WithStackedBackstore(backstore Backstore) *Database
 	// Find an assertion based on arbitrary headers.
 	// Provided headers must contain the primary key for the assertion type.
 	// Optional primary key headers can be omitted in which case

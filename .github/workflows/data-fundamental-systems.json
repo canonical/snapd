@@ -25,16 +25,8 @@
         "rules": "main"
       },
       {
-        "group": "ubuntu-interim (fundamental)",
-        "backend": "openstack-ps7",
-        "alternative-backend": "google",
-        "systems": "ubuntu-25.04-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
         "group": "ubuntu-core-18 (fundamental)",
-        "backend": "google-core",
+        "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-18-64",
         "tasks": "tests/...",
@@ -53,6 +45,14 @@
         "backend": "openstack-ps7",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-24-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "group": "arch-linux",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google-distro-2",
+        "systems": "arch-linux-64",
         "tasks": "tests/...",
         "rules": "main"
       }

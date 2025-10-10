@@ -4316,8 +4316,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsWithDeviceSetHappy(c 
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
-	// TODO: once we move to go 1.17 just use
-	//       reflect.StructField.IsExported() directly
+	// TODO:GOVERSION: once we move to go 1.17 just use reflect.StructField.IsExported() directly
 	var isExported = func(s reflect.StructField) bool {
 		// see https://pkg.go.dev/reflect#StructField
 		return s.PkgPath == ""

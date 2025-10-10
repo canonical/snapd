@@ -45,13 +45,3 @@ func (m *mount) MountPoint() string {
 func (m *mount) Parent() *mount {
 	return m.parent
 }
-
-// SiblingPtrs returns a pair of pointers to the previous and next mounts with the same parent as the given mount.
-func (m *mount) SiblingPtrs() (prev, next *mount) {
-	return m.prevSibling, m.nextSibling
-}
-
-// ChildrenPtrs returns a pair of pointers to the first and last mounts with the given mount node as the parent.
-func (m *mount) ChildrenPtrs() (first, last *mount) {
-	return m.firstChild, m.lastChild
-}

@@ -259,6 +259,12 @@ main() {
 	)>"$tmp_dir/exec"
 	chmod +x "$tmp_dir/exec"
 
+	# check for --whitelist-environment
+	runuser_env_arg=
+	if runuser --help 2>&1 | grep -q whitelist-environment ; then
+		runuser_env_arg="-w SNAP_REEXEC,SNAPD_DEBUG,SNAP_CONFINE_DEBUG"
+	fi
+
 	# When systemd version is higher than 252 we use systemd-run to execute
 	# In other scenarios we use the older approach: bustctl with the dbus monitor
 	if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")" -gt 252 ]; then
@@ -280,7 +286,7 @@ main() {
 		--setenv TERM=xterm-256color \
 		--property "Environment=SNAPD_DEBUG=$SNAPD_DEBUG SNAP_REEXEC=$SNAP_REEXEC SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG" \
 		$selinux_context_arg \
-		"$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec" || true
+		"$(command -v runuser)" -l "$user" $runuser_env_arg - -c "exec $tmp_dir/exec" || true
 
 		# Prevent accumulation of failed sessions.
 		if systemctl cat "$unit_name" &>/dev/null; then
@@ -388,7 +394,8 @@ BEGIN {
 			Environment as 1 TERM=xterm-256color \
 			$selinux_context_arg \
 			ExecStart "a(sasb)" 1 \
-				"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_REEXEC=$SNAP_REEXEC SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
+				"$(command -v runuser)" "$(if [ -n "$runuser_env_arg" ]; then echo 8; else echo 6; fi)" \
+				"$(command -v runuser)" $runuser_env_arg -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_REEXEC=$SNAP_REEXEC SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 		0
 	# This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
 	# longer supported we can use Standard{Input,Output,Error}=file:path property

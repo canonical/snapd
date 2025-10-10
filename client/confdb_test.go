@@ -65,5 +65,5 @@ func (cs *clientSuite) TestConfdbSet(c *C) {
 	res := make(map[string]any)
 	err = json.Unmarshal(data, &res)
 	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, map[string]any{"foo": "bar", "baz": float64(1)})
+	c.Check(res, DeepEquals, map[string]any{"values": map[string]any{"foo": "bar", "baz": float64(1)}})
 }

@@ -184,6 +184,10 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	info2 := snaptest.MockSnapCurrent(c, string(otherSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
+	infoFoo := snaptest.MockSnapInstanceCurrent(c, "test-snap_foo", string(testSnapYaml), &snap.SideInfo{
+		Revision: snap.R(1),
+	})
+
 	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -205,6 +209,18 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 			},
 		}),
 		Current: info2.Revision,
+	})
+	snapstate.Set(s.st, infoFoo.InstanceName(), &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: infoFoo.SnapName(),
+				Revision: infoFoo.Revision,
+				SnapID:   "other-snap-id",
+			},
+		}),
+		Current:     infoFoo.Revision,
+		InstanceKey: "foo",
 	})
 
 	task := s.st.NewTask("test-task", "my test task")
@@ -325,6 +341,238 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 	})
 	defer restore()
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap.test-service"}, 0)
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
+	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestRestartCommandAll(c *C) {
+	var serviceChangeFuncCalled bool
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		serviceChangeFuncCalled = true
+		c.Assert(appInfos, HasLen, 3)
+		c.Assert(appNames(appInfos), DeepEquals, []string{"another-service", "test-service", "user-service"})
+		c.Assert(inst, DeepEquals, &servicestate.Instruction{
+			Action: "restart",
+			Names:  []string{"test-snap"},
+			RestartOptions: client.RestartOptions{
+				Reload: false,
+			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		},
+		)
+	})
+	defer restore()
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"restart", "test-snap"}, 0)
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
+	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestRestartCommandParallelInstallsExplicit(c *C) {
+	var serviceChangeFuncCalled bool
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		serviceChangeFuncCalled = true
+		c.Assert(appInfos, HasLen, 1)
+		c.Assert(appInfos[0].Name, Equals, "test-service")
+		c.Assert(inst, DeepEquals, &servicestate.Instruction{
+			Action: "restart",
+			Names:  []string{"test-snap_foo.test-service"},
+			RestartOptions: client.RestartOptions{
+				Reload: false,
+			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		},
+		)
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"restart", "test-snap_foo.test-service"}, 0)
+
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
+	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestRestartCommandParallelInstallsImplicit(c *C) {
+	var serviceChangeFuncCalled bool
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		serviceChangeFuncCalled = true
+		c.Assert(appInfos, HasLen, 1)
+		c.Assert(appInfos[0].Name, Equals, "test-service")
+		c.Assert(inst, DeepEquals, &servicestate.Instruction{
+			Action: "restart",
+			Names:  []string{"test-snap_foo.test-service"},
+			RestartOptions: client.RestartOptions{
+				Reload: false,
+			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		},
+		)
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	// running with implicit snap name, instead of snap-instance-name
+	_, _, err = ctlcmd.Run(mockContext, []string{"restart", "test-snap.test-service"}, 0)
+
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, "forced error")
+	c.Assert(serviceChangeFuncCalled, Equals, true)
+}
+
+func (s *servicectlSuite) TestRestartCommandParallelInstallsBadKeys(c *C) {
+	// different instance keys
+
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		panic("unexpected call")
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "test-snap_foo.test-service", "test-snap_bar.another-service"},
+		0)
+
+	c.Check(err, ErrorMatches, `unexpected snap instance key: "bar"`)
+}
+
+func (s *servicectlSuite) TestRestartCommandParallelInstallsMixkedKeyNoKey(c *C) {
+	// mixing with-instance-key and without-instance-key service names
+
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		panic("unexpected call")
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "test-snap_foo.test-service", "test-snap.another-service"},
+		0)
+
+	c.Check(err, ErrorMatches, "inconsistent use of snap instance key")
+}
+
+func (s *servicectlSuite) TestRestartCommandParallelInstallsUnknownService(c *C) {
+	// attempt to operate on a service which is not defined for the snap
+
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		panic("unexpected call")
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	// implicit name patching
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "test-snap.unknown-service"},
+		0)
+	c.Check(err, ErrorMatches, `unknown service: "test-snap_foo.unknown-service"`)
+
+	// explciit name
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "test-snap_foo.unknown-service"},
+		0)
+	c.Check(err, ErrorMatches, `unknown service: "test-snap_foo.unknown-service"`)
+
+	// completely different snap fails with an unexpected key name
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "test-snap_bar.unknown-service"},
+		0)
+	c.Check(err, ErrorMatches, `unexpected snap instance key: "bar"`)
+
+	// mixing patched services and services from other snap
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "test-snap.another-service", "oh-my.snap"},
+		0)
+	c.Check(err, ErrorMatches, `unknown service: "oh-my.snap"`)
+
+	// or completely different snap.app
+	_, _, err = ctlcmd.Run(mockContext,
+		[]string{"restart", "oh-my.snap"},
+		0)
+	c.Check(err, ErrorMatches, `unknown service: "oh-my.snap"`)
+}
+
+func appNames(infos []*snap.AppInfo) []string {
+	names := make([]string, 0, len(infos))
+	for _, ai := range infos {
+		names = append(names, ai.Name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (s *servicectlSuite) TestRestartCommandParallelInstallsImplicitAll(c *C) {
+	var serviceChangeFuncCalled bool
+	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+		serviceChangeFuncCalled = true
+		c.Assert(appInfos, HasLen, 3)
+		c.Assert(appNames(appInfos), DeepEquals, []string{"another-service", "test-service", "user-service"})
+		c.Assert(inst, DeepEquals, &servicestate.Instruction{
+			Action: "restart",
+			Names:  []string{"test-snap_foo"},
+			RestartOptions: client.RestartOptions{
+				Reload: false,
+			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		},
+		)
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	// running with implicit snap name, instead of snap-instance-name
+	_, _, err = ctlcmd.Run(mockContext, []string{"restart", "test-snap"}, 0)
+
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, "forced error")
 	c.Assert(serviceChangeFuncCalled, Equals, true)
@@ -966,7 +1214,7 @@ test-snap.test-service  enabled  active   -
 }
 
 func (s *servicectlSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
-	name := snapApp.Snap.RealName + "." + appInfo.Name
+	name := snapApp.Snap.InstanceName() + "." + appInfo.Name
 	dec, ok := s.decoratorResults[name]
 	if !ok {
 		return fmt.Errorf("%s not found in expected test decorator results", name)
@@ -1044,4 +1292,82 @@ func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
 		expectedError := fmt.Sprintf(`cannot invoke snapctl operation commands \(here "%s"\) from outside of a snap`, action)
 		c.Check(err, ErrorMatches, expectedError)
 	}
+}
+
+func (s *servicectlSuite) TestServicesParallelInstallsImplicit(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Equals, "snap.test-snap_foo.test-service.service")
+		return []byte(`Id=snap.test-snap_foo.test-service.service
+Names=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"services", "test-snap.test-service"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                 Startup  Current  Notes
+test-snap.test-service  enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesParallelInstallsExplicit(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		c.Assert(args[0], Equals, "show")
+		c.Check(args[2], Equals, "snap.test-snap_foo.test-service.service")
+		return []byte(`Id=snap.test-snap_foo.test-service.service
+Names=snap.test-snap.test-service.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"services", "test-snap_foo.test-service"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, `
+Service                     Startup  Current  Notes
+test-snap_foo.test-service  enabled  active   -
+`[1:])
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesParallelInstallsErrors(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"services", "test-snap_foo.unknown-service"}, 0)
+	c.Assert(err, ErrorMatches, `unknown service: "test-snap_foo.unknown-service"`)
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"services", "test-snap_bar.test--service"}, 0)
+	c.Assert(err, ErrorMatches, `unexpected snap instance key: "bar"`)
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"services", "test-snap_foo.test-service", "test-snap.another-service"}, 0)
+	c.Assert(err, ErrorMatches, "inconsistent use of snap instance key")
 }

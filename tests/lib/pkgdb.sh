@@ -75,7 +75,7 @@ distro_name_package() {
             arch_name_package "$1"
             ;;
         *)
-            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -121,7 +121,7 @@ distro_install_local_package() {
             pacman -U --noconfirm "$@"
             ;;
         *)
-            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -223,7 +223,7 @@ distro_install_package() {
             retval=$?
             ;;
         *)
-            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -268,7 +268,7 @@ distro_purge_package() {
             pacman -Rnsc --noconfirm "$@"
             ;;
         *)
-            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -294,7 +294,7 @@ distro_update_package_db() {
             pacman -Syq
             ;;
         *)
-            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -318,7 +318,7 @@ distro_clean_package_cache() {
             pacman -Sccq --noconfirm
             ;;
         *)
-            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -340,7 +340,7 @@ distro_auto_remove_packages() {
         arch-*)
             ;;
         *)
-            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -364,7 +364,7 @@ distro_query_package_info() {
             pacman -Si "$1"
             ;;
         *)
-            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM" >&2
             exit 1
             ;;
     esac
@@ -693,7 +693,7 @@ pkg_linux_image_extra (){
         if apt-cache show "linux-modules-extra-$(uname -r)" > /dev/null 2>&1; then
             echo "linux-modules-extra-$(uname -r)";
         else
-            echo "cannot find a matching kernel modules package";
+            echo "cannot find a matching kernel modules package" >&2;
             exit 1;
         fi;
     fi
@@ -739,6 +739,8 @@ pkg_dependencies_fedora_centos_common(){
         xdg-utils
         strace
         zsh
+        glibc-static
+        libcap-devel
         "
 }
 
@@ -789,6 +791,7 @@ pkg_dependencies_amazon(){
         xdg-utils
         udisks2
         zsh
+        glibc-static
         "
 }
 
@@ -832,6 +835,7 @@ pkg_dependencies_opensuse(){
         xdg-utils
         zsh
         libcap-progs
+        glibc-static
         "
     if os.query is-opensuse tumbleweed; then
         echo "
@@ -962,7 +966,7 @@ distro_upgrade() {
             fi
             ;;
         *)
-            echo "WARNING: distro upgrade not supported on $SPREAD_SYSTEM"
+            echo "WARNING: distro upgrade not supported on $SPREAD_SYSTEM" >&2
             ;;
     esac
 }

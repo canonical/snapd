@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"gopkg.in/tomb.v2"
 )
@@ -48,6 +49,8 @@ func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError boo
 type ConfdbManager struct{}
 
 func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner) *ConfdbManager {
+	snapstate.IsConfdbHookname = IsConfdbHookname
+
 	m := &ConfdbManager{}
 
 	// no undo since if we commit there's no rolling back

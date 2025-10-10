@@ -149,6 +149,7 @@ var (
 	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
 	ConfdbSchemaType         = &AssertionType{"confdb-schema", []string{"account-id", "name"}, nil, assembleConfdbSchema, jsonBody}
+	ClusterType              = &AssertionType{"cluster", []string{"cluster-id", "sequence"}, nil, assembleCluster, sequenceForming}
 
 	// ...
 )
@@ -180,6 +181,7 @@ var typeRegistry = map[string]*AssertionType{
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
 	SnapResourcePairType.Name:     SnapResourcePairType,
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
+	ClusterType.Name:              ClusterType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -1264,7 +1266,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]any, body []b
 	}
 	content := buf.Bytes()
 
-	signature, err := signContent(content, privKey)
+	signature, err := signAndEncode(content, privKey)
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign assertion: %v", err)
 	}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Reload Plymouth theme
+DefaultDependencies=no
+ConditionPathExists=/run/plymouth/pid
+After=snap-initramfs-mounts.service
+Before=plymouth-switch-root.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/core/set-plymouth-theme

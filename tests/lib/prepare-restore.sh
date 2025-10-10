@@ -70,6 +70,26 @@ create_test_user(){
 }
 
 build_deb(){
+    # debian-sid packaging is special
+    if os.query is-debian sid; then
+        if [ ! -d packaging/debian-sid ]; then
+            echo "no packaging/debian-sid/ directory "
+            echo "broken test setup"
+            exit 1
+        fi
+
+        # remove etckeeper
+        apt purge -y etckeeper
+
+        # debian has its own packaging
+        rm -f debian
+        # the debian dir must be a real dir, a symlink will make
+        # dpkg-buildpackage choke later.
+        mv packaging/debian-sid debian
+
+        # ensure we really build without vendored packages
+        mv ./vendor /tmp
+    fi
     newver="$(dpkg-parsechangelog --show-field Version)"
 
     case "$SPREAD_SYSTEM" in
@@ -80,11 +100,6 @@ build_deb(){
     esac
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$newver" "testing build"
-
-    if os.query is-debian sid; then
-        # ensure we really build without vendored packages
-        mv ./vendor /tmp
-    fi
 
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
@@ -222,6 +237,25 @@ prepare_project() {
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
+
+        if [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ] && [ "$SPREAD_REBOOT" = 0 ]; then
+            KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_PATTERN}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
+            if [ -z "$KERNEL_VER" ]; then
+                echo "Kernel version not found using pattern: $UPDATE_UBUNTU_KERNEL_PATTERN"
+                exit 1
+            fi
+
+            # Install the kernel version found
+            apt-get update
+            apt-get install -y linux-image-"$KERNEL_VER" linux-headers-"$KERNEL_VER"
+
+            # Update grub to set this kernel as default
+            echo "[*] Updating GRUB to set $KERNEL_VER as default..."
+            grub-set-default "Advanced options for Ubuntu>Ubuntu, with Linux $KERNEL_VER"
+            update-grub
+
+            REBOOT
+        fi
     fi
 
     # Check if running inside a container.
@@ -334,36 +368,6 @@ prepare_project() {
             echo "running unexpected kernel version $(uname -r)"
             exit 1
         fi
-    fi
-
-    # debian-sid packaging is special
-    if os.query is-debian sid; then
-        if [ ! -d packaging/debian-sid ]; then
-            echo "no packaging/debian-sid/ directory "
-            echo "broken test setup"
-            exit 1
-        fi
-
-        # remove etckeeper
-        apt purge -y etckeeper
-
-        # debian has its own packaging
-        rm -f debian
-        # the debian dir must be a real dir, a symlink will make
-        # dpkg-buildpackage choke later.
-        mv packaging/debian-sid debian
-
-        # get the build-deps
-        apt build-dep -y ./
-
-        # and ensure we don't take any of the vendor deps
-        rm -rf vendor/*/
-
-        # and create a fake upstream tarball
-        tar -c -z -f ../snapd_"$(dpkg-parsechangelog --show-field Version|cut -d- -f1)".orig.tar.gz --exclude=./debian --exclude=./.git --exclude='*.pyc' .
-
-        # and build a source package - this will be used during the sbuild test
-        dpkg-buildpackage -S -uc -us
     fi
 
     # so is ubuntu-14.04
@@ -547,12 +551,8 @@ prepare_project() {
     esac
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
+    # It is required in any case because the testing tools like the fakestore are always compiled
     retry -n 10 go mod vendor
-    # Update C dependencies
-    ( cd c-vendor && retry -n 10 ./vendor.sh )
-
-    # go mod runs as root and will leave strange permissions
-    chown test:test -R "$SPREAD_PATH"
 
     # We are testing snapd snap on top of snapd from the archive
     # of the tested distribution. Download snapd and snap-confine
@@ -568,9 +568,27 @@ prepare_project() {
                 ( cd "${GOHOME}" && tests.pkgs download snapd snap-confine)
                 ;;
         esac
+    elif [ "$USE_PREBUILT_PACKAGES" = "true" ]; then
+        find "$PROJECT_PATH/built-pkgs/$SPREAD_SYSTEM" -type f -exec cp -v {} "${GOHOME}" \;
+        case "$SPREAD_SYSTEM" in
+            ubuntu-*)
+                # set the version to ensure core-initrd/build-source-pkgs.sh doesn't fail
+                newver="$(dpkg-parsechangelog --show-field Version)"
+                dch --newversion "1337.$newver" "testing build"
+                ;;
+        esac
     else
+        # Update C dependencies
+        ( cd c-vendor && retry -n 10 ./vendor.sh )
+
+        # go mod runs as root and will leave strange permissions
+        chown test:test -R "$SPREAD_PATH"
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
+                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
+                gdebi --quiet --apt-line ./debian/control >deps.txt
+                quiet xargs -r eatmydata apt-get install -y < deps.txt
+                
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)
@@ -598,6 +616,7 @@ prepare_project() {
     # Build additional utilities we need for testing
     go install ./tests/lib/fakedevicesvc
     go install ./tests/lib/systemd-escape
+    go install ./tests/lib/plz-run
 
     # Build the tool for signing model assertions
     go install ./tests/lib/gendeveloper1
@@ -890,6 +909,13 @@ restore_project_each() {
             ) | grep -c -v snappy_home_t | MATCH "0"
 
             find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-*)
+            # TODO fishing for the test which broke the keys
+            stat --format %A /etc/ssh/ssh_host_rsa_key | MATCH -e '-rw-------'
             ;;
     esac
 }

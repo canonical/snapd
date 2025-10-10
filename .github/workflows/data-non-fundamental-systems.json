@@ -9,14 +9,6 @@
         "rules": "main"
       },
       {
-        "group": "arch-linux",
-        "backend": "openstack-ps7",
-        "alternative-backend": "google-distro-2",
-        "systems": "arch-linux-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
         "group": "centos",
         "backend": "openstack",
         "alternative-backend": "google-distro-2",
@@ -105,12 +97,28 @@
         "rules": "main"
       },
       {
-        "group": "ubuntu-fips",
+        "group": "ubuntu-fips-snap",
         "backend": "google-pro",
         "alternative-backend": "google-pro",
         "systems": "ubuntu-fips-22.04-64",
-        "tasks": "tests/fips/...",
+        "tasks": "tests/fips-snap/...",
         "rules": "fips"
+      },
+      {
+        "group": "ubuntu-fips-deb",
+        "backend": "google-pro",
+        "alternative-backend": "google-pro",
+        "systems": "ubuntu-fips-22.04-64",
+        "tasks": "tests/fips-deb/...",
+        "rules": "fips"
+      },
+      {
+        "group": "ubuntu-deb",
+        "backend": "openstack-ps7",
+        "alternative-backend": "google",
+        "systems": "ubuntu-24.04-64",
+        "tasks": "tests/...",
+        "rules": "main"
       }
     ]
   }

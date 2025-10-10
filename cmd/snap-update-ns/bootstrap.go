@@ -108,7 +108,7 @@ func validateInstanceName(instanceName string) int {
 	return int(C.validate_instance_name(cStr))
 }
 
-// processArguments parses commnad line arguments.
+// processArguments parses command line arguments.
 // The argument cmdline is a string with embedded
 // NUL bytes, separating particular arguments.
 //

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -89,6 +90,8 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
+
+	snapstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 }
 
 func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {

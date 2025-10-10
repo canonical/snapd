@@ -7,19 +7,10 @@ systems:
   - ubuntu-fips-*
 
 debug: |
-    tests.exec is-skipped && exit 0
-
     cat snapd-map-fips.out || true
     cat snapd-map-non-fips.out || true
 
 execute: |
-    tests.exec is-skipped && exit 0
-
-    # In this scenario, the keys from the snapd pkg are used
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        tests.exec skip-test "This test needs test keys to be trusted" && exit 0
-    fi
-
     pmap -p "$(pidof snapd)" > snapd-map.out
     case "$SPREAD_SYSTEM" in
         ubuntu-fips-*)
@@ -27,8 +18,9 @@ execute: |
             [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]
 
             # depending on whether the binary is run from the snapd snap or the
-            # snapd deb, the locations of mapped libraries will be different
-            case "$SPREAD_VARIANT" in
+            # snapd deb, the locations of mapped libraries will be different,
+            # FIPS_ARTIFACT is set at the suite level in spread.yaml
+            case "$FIPS_ARTIFACT" in
                 deb)
                     # libcrypto is loaded at runtime, this is what we're trying to
                     # match:

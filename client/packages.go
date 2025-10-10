@@ -55,6 +55,7 @@ type Snap struct {
 	IgnoreValidation bool          `json:"ignore-validation"`
 	Revision         snap.Revision `json:"revision"`
 	Confinement      string        `json:"confinement"`
+	Grade            string        `json:"grade"`
 	Private          bool          `json:"private"`
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`

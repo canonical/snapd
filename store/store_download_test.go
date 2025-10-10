@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1048,6 +1049,86 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	c.Check(buf.String(), Equals, string(expectedContent[2:]))
 }
 
+func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("test cannot be run by root")
+	}
+
+	expectedContent := []byte("I was downloaded")
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
+		panic("unexpected call")
+	})
+	defer restore()
+
+	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
+	defer s.store.MockCacher(cache)()
+
+	// mock something that OpenFile will fail on
+	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), nil, 0000), IsNil)
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.DownloadURL = "URL"
+	snap.Size = int64(len(expectedContent))
+	snap.Sha3_384 = "sha3_384-of-foo"
+
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	c.Assert(err, ErrorMatches, "open .*/sha3_384-of-foo: permission denied")
+	c.Check(status, Equals, 0)
+	c.Check(stream, IsNil)
+}
+
+type fakeCacher struct {
+	getPathCalls []string
+}
+
+func (co *fakeCacher) Get(cacheKey, targetPath string) bool {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) GetPath(cacheKey string) string {
+	co.getPathCalls = append(co.getPathCalls, cacheKey)
+	return "not-found"
+}
+
+func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (s *storeDownloadSuite) TestDownloadStreamGoneFromCache(c *C) {
+	expectedContent := []byte("I was downloaded")
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
+		c.Check(url.String(), Equals, "URL")
+		r := &http.Response{
+			Body: io.NopCloser(bytes.NewReader(expectedContent[resume:])),
+		}
+
+		r.StatusCode = 200
+		return r, nil
+	})
+	defer restore()
+
+	fc := &fakeCacher{}
+	defer s.store.MockCacher(fc)()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.DownloadURL = "URL"
+	snap.Size = int64(len(expectedContent))
+	snap.Sha3_384 = "sha3_384-of-foo"
+
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(status, Equals, 200)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent))
+
+	c.Check(fc.getPathCalls, DeepEquals, []string{"sha3_384-of-foo"})
+}
+
 func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 	var mockServer *httptest.Server
 
@@ -1255,12 +1336,31 @@ func (s *storeDownloadSuite) TestDownloadInfiniteRedirect(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("Get %q: stopped after 10 redirects", mockServer.URL))
 }
 
+func (s *storeDownloadSuite) TestDownloadSnapUsesProxy(c *C) {
+	// Verify store downloads use the configured proxy
+
+	theStore := store.New(&store.Config{
+		Proxy: func(r *http.Request) (*url.URL, error) {
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.String(), Equals, "https://foo.internal/snap-now")
+			return nil, errors.New("mock proxy error")
+		},
+	}, nil)
+
+	snap := &snap.Info{}
+	snap.DownloadURL = "https://foo.internal/snap-now"
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := theStore.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, s.user, nil)
+	c.Assert(err, ErrorMatches, ".* mock proxy error")
+}
+
 func (s *storeDownloadSuite) TestDownloadIconOK(c *C) {
 	const expectedName = "foo"
 	const expectedURL = "URL"
 	expectedContent := []byte("I was downloaded")
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
 		c.Check(url, Equals, expectedURL)
 		w.Write(expectedContent)
@@ -1292,7 +1392,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithNewEtag(c *C) {
 	expectedContent := []byte("I was downloaded")
 	const newEtag = "some-unique-value"
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
 		c.Check(etag, Equals, "")
 		c.Check(url, Equals, expectedURL)
@@ -1327,7 +1427,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithExistingEtag(c *C) {
 	// Set etag xattr
 	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
 		c.Check(etag, Equals, existingEtag)
 		c.Check(url, Equals, expectedURL)
@@ -1366,7 +1466,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithChangedEtag(c *C) {
 	// Set etag xattr
 	c.Assert(unix.Setxattr(path, store.EtagXattrName, []byte(existingEtag), 0), IsNil)
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
 		c.Check(etag, Equals, existingEtag)
 		c.Check(url, Equals, expectedURL)
@@ -1404,7 +1504,7 @@ func (s *storeDownloadSuite) TestDownloadIconOKWithEtagTooLong(c *C) {
 	logbuf, restore := logger.MockDebugLogger()
 	defer restore()
 
-	restore = store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore = store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
 		c.Check(etag, Equals, existingEtag)
 		c.Check(url, Equals, expectedURL)
@@ -1430,7 +1530,7 @@ func (s *storeDownloadSuite) TestDownloadIconDoesNotOverwriteLinks(c *C) {
 	oldContent := []byte("I was already here")
 	newContent := []byte("I was downloaded")
 
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Check(name, Equals, expectedName)
 		c.Check(etag, Equals, "")
 		c.Check(url, Equals, expectedURL)
@@ -1465,7 +1565,7 @@ func (s *storeDownloadSuite) TestDownloadIconFails(c *C) {
 	const fakeURL = "URL"
 
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
@@ -1488,7 +1588,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsDoesNotLeavePartial(c *C) {
 	const fakeURL = "URL"
 
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
@@ -1537,7 +1637,7 @@ func (s *storeDownloadSuite) TestDownloadIconFailsWithoutExisting(c *C) {
 
 func (s *storeDownloadSuite) testDownloadIconSyncFailsGeneric(c *C, fakeName, fakePath, fakeURL string) {
 	var tmpfile *osutil.AtomicFile
-	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, w store.ReadWriteSeekTruncater) (string, error) {
+	restore := store.MockDownloadIcon(func(ctx context.Context, name, etag, url string, sto *store.Store, w store.ReadWriteSeekTruncater) (string, error) {
 		c.Assert(name, Equals, fakeName)
 		c.Assert(url, Equals, fakeURL)
 		tmpfile = w.(*osutil.AtomicFile)
@@ -1669,4 +1769,22 @@ func (s *storeDownloadSuite) TestDownloadIconProxyStoreUnset(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
+}
+
+func (s *storeDownloadSuite) TestDownloadIconUsesProxy(c *C) {
+	// Verify store downloads use the configured proxy
+
+	theStore := store.New(&store.Config{
+		Proxy: func(r *http.Request) (*url.URL, error) {
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.String(), Equals, "https://foo.internal/icon-now")
+			return nil, errors.New("mock proxy error")
+		},
+	}, nil)
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := theStore.DownloadIcon(s.ctx, "icon-name", path, "https://foo.internal/icon-now")
+	c.Assert(err, ErrorMatches, ".* mock proxy error")
+
+	c.Assert(path, testutil.FileAbsent)
 }

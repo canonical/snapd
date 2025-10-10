@@ -67,6 +67,7 @@ type Prompt struct {
 	Timestamp    time.Time
 	Snap         string
 	PID          int32
+	Cgroup       string
 	Interface    string
 	Constraints  *promptConstraints
 	listenerReqs []*listener.Request
@@ -78,6 +79,7 @@ type jsonPrompt struct {
 	Timestamp   time.Time              `json:"timestamp"`
 	Snap        string                 `json:"snap"`
 	PID         int32                  `json:"pid"`
+	Cgroup      string                 `json:"cgroup"`
 	Interface   string                 `json:"interface"`
 	Constraints *jsonPromptConstraints `json:"constraints"`
 }
@@ -102,6 +104,7 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		Timestamp:   p.Timestamp,
 		Snap:        p.Snap,
 		PID:         p.PID,
+		Cgroup:      p.Cgroup,
 		Interface:   p.Interface,
 		Constraints: constraints,
 	}
@@ -113,9 +116,10 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 func (p *Prompt) matchesRequestContents(metadata *prompting.Metadata, constraints *promptConstraints) bool {
 	// We treat requests and prompts with different PIDs as distinct so that
 	// if there are multiple requests which are otherwise identical but have
-	// different PIDs, the client can present the modal dialog on any/all
-	// windows associated with the requests.
-	return p.Snap == metadata.Snap && p.PID == metadata.PID && p.Interface == metadata.Interface && p.Constraints.equals(constraints)
+	// different PIDs or Cgroups, the client can present the modal dialog on
+	// any/all windows associated with the requests. If PIDs match, Cgroups
+	// should also match, but check them anyway for completeness.
+	return p.Snap == metadata.Snap && p.PID == metadata.PID && p.Cgroup == metadata.Cgroup && p.Interface == metadata.Interface && p.Constraints.equals(constraints)
 }
 
 // addListenerRequest adds the given listener request to the list of requests
@@ -134,7 +138,7 @@ func (p *Prompt) containsListenerRequestID(requestID uint64) bool {
 	})
 }
 
-// TODO: replace this with slices.ContainsFunc once on go 1.21+
+// TODO:GOVERSION: replace this with slices.ContainsFunc once on go 1.21+
 func slicesContainsFunc(s []*listener.Request, f func(r *listener.Request) bool) bool {
 	for _, element := range s {
 		if f(element) {
@@ -415,7 +419,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	expiredPrompts := udb.prompts
 	// Clear all outstanding prompts for the user
 	udb.prompts = nil
-	udb.ids = make(map[prompting.IDType]int) // TODO: clear() once we're on Go 1.21+
+	udb.ids = make(map[prompting.IDType]int) // TODO:GOVERSION: clear() once we're on Go 1.21+
 
 	// Remove the request ID mappings now before unlocking the prompt DB
 	for _, p := range expiredPrompts {
@@ -738,6 +742,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		Timestamp:    timestamp,
 		Snap:         metadata.Snap,
 		PID:          metadata.PID,
+		Cgroup:       metadata.Cgroup,
 		Interface:    metadata.Interface,
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},

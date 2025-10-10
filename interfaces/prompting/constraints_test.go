@@ -166,9 +166,9 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 		Time:      time.Now(),
 		SessionID: prompting.IDType(0x12345),
 	}
+
 	iface := "home"
 	pathPattern := mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**")
-
 	constraints := &prompting.Constraints{
 		PathPattern: pathPattern,
 		Permissions: prompting.PermissionMap{
@@ -187,7 +187,6 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			},
 		},
 	}
-
 	expectedRuleConstraints := &prompting.RuleConstraints{
 		PathPattern: pathPattern,
 		Permissions: prompting.RulePermissionMap{
@@ -207,8 +206,31 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			},
 		},
 	}
-
 	result, err := constraints.ToRuleConstraints(iface, at)
+	c.Assert(err, IsNil)
+	c.Assert(result, DeepEquals, expectedRuleConstraints)
+
+	iface = "camera"
+	constraints = &prompting.Constraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.PermissionMap{
+			"access": &prompting.PermissionEntry{
+				Outcome:  prompting.OutcomeAllow,
+				Lifespan: prompting.LifespanSession,
+			},
+		},
+	}
+	expectedRuleConstraints = &prompting.RuleConstraints{
+		PathPattern: pathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"access": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: at.SessionID,
+			},
+		},
+	}
+	result, err = constraints.ToRuleConstraints(iface, at)
 	c.Assert(err, IsNil)
 	c.Assert(result, DeepEquals, expectedRuleConstraints)
 }
@@ -323,6 +345,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 	}
 
 	// Happy
+	// "home"
 	constraints := &prompting.RuleConstraints{
 		PathPattern: validPathPattern,
 		Permissions: prompting.RulePermissionMap{
@@ -343,6 +366,20 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 		},
 	}
 	expired, err := constraints.ValidateForInterface("home", at)
+	c.Check(err, IsNil)
+	c.Check(expired, Equals, false)
+	// "camera"
+	constraints = &prompting.RuleConstraints{
+		PathPattern: validPathPattern,
+		Permissions: prompting.RulePermissionMap{
+			"access": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeAllow,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: at.SessionID,
+			},
+		},
+	}
+	expired, err = constraints.ValidateForInterface("camera", at)
 	c.Check(err, IsNil)
 	c.Check(expired, Equals, false)
 
@@ -368,6 +405,11 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			prompting_errors.NewPermissionsEmptyError("home", nil).Error(),
 		},
 		{
+			"camera",
+			prompting.RulePermissionMap{},
+			prompting_errors.NewPermissionsEmptyError("camera", nil).Error(),
+		},
+		{
 			"home",
 			prompting.RulePermissionMap{
 				"access": &prompting.RulePermissionEntry{
@@ -376,6 +418,17 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 				},
 			},
 			prompting_errors.NewInvalidPermissionsError("home", []string{"access"}, []string{"read", "write", "execute"}).Error(),
+		},
+		{
+			"camera",
+			prompting.RulePermissionMap{
+				"read": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID,
+				},
+			},
+			prompting_errors.NewInvalidPermissionsError("camera", []string{"read"}, []string{"access"}).Error(),
 		},
 		{
 			"home",
@@ -389,6 +442,17 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			"invalid expiration: cannot have specified expiration.*",
 		},
 		{
+			"camera",
+			prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanForever,
+					SessionID: at.SessionID,
+				},
+			},
+			"invalid expiration: cannot have specified session ID.*",
+		},
+		{
 			"home",
 			prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
@@ -399,9 +463,9 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			`cannot create rule with lifespan "single"`,
 		},
 		{
-			"home",
+			"camera",
 			prompting.RulePermissionMap{
-				"read": &prompting.RulePermissionEntry{
+				"access": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeType("bar"),
 					Lifespan:   prompting.LifespanTimespan,
 					Expiration: at.Time.Add(-time.Second),
@@ -420,7 +484,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			Permissions: testCase.perms,
 		}
 		expired, err = constraints.ValidateForInterface(testCase.iface, at)
-		c.Check(err, ErrorMatches, testCase.errStr)
+		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
 		c.Check(expired, Equals, false)
 	}
 
@@ -600,10 +664,10 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 }
 
 func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
-	iface := "home"
 	pathPattern := mustParsePathPattern(c, "/path/to/dir/{foo*,ba?/**}")
 
 	for _, testCase := range []struct {
+		iface       string
 		pathPattern *patterns.PathPattern
 		permissions []string
 		outcome     prompting.OutcomeType
@@ -612,6 +676,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 		expected    *prompting.Constraints
 	}{
 		{
+			iface:       "home",
 			permissions: []string{"read", "write", "execute"},
 			outcome:     prompting.OutcomeAllow,
 			lifespan:    prompting.LifespanForever,
@@ -634,6 +699,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 			},
 		},
 		{
+			iface:       "home",
 			permissions: []string{"write", "read"},
 			outcome:     prompting.OutcomeDeny,
 			lifespan:    prompting.LifespanTimespan,
@@ -655,17 +721,14 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 			},
 		},
 		{
-			permissions: []string{"write", "execute"},
+			iface:       "camera",
+			permissions: []string{"access"},
 			outcome:     prompting.OutcomeAllow,
 			lifespan:    prompting.LifespanSession,
 			expected: &prompting.Constraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.PermissionMap{
-					"execute": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanSession,
-					},
-					"write": &prompting.PermissionEntry{
+					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanSession,
 					},
@@ -677,7 +740,7 @@ func (s *constraintsSuite) TestReplyConstraintsToConstraintsHappy(c *C) {
 			PathPattern: pathPattern,
 			Permissions: testCase.permissions,
 		}
-		constraints, err := replyConstraints.ToConstraints(iface, testCase.outcome, testCase.lifespan, testCase.duration)
+		constraints, err := replyConstraints.ToConstraints(testCase.iface, testCase.outcome, testCase.lifespan, testCase.duration)
 		c.Check(err, IsNil)
 		c.Check(constraints, DeepEquals, testCase.expected)
 	}
@@ -765,16 +828,18 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 		Time:      patchTime,
 		SessionID: patchSession,
 	}
-	iface := "home"
 
 	pathPattern := mustParsePathPattern(c, "/path/to/foo/ba?/**")
+	otherPattern := mustParsePathPattern(c, "/path/to/*/another*")
 
 	for i, testCase := range []struct {
+		iface   string
 		initial *prompting.RuleConstraints
 		patch   *prompting.RuleConstraintsPatch
 		final   *prompting.RuleConstraints
 	}{
 		{
+			iface: "home",
 			initial: &prompting.RuleConstraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
@@ -818,6 +883,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
+			iface: "home",
 			initial: &prompting.RuleConstraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
@@ -857,6 +923,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
+			iface: "home",
 			initial: &prompting.RuleConstraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
@@ -897,6 +964,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
+			iface: "home",
 			initial: &prompting.RuleConstraints{
 				PathPattern: pathPattern,
 				Permissions: prompting.RulePermissionMap{
@@ -935,8 +1003,64 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 		},
+		{
+			iface: "camera",
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanForever,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				Permissions: prompting.PermissionMap{
+					"access": &prompting.PermissionEntry{
+						Outcome:  prompting.OutcomeAllow,
+						Lifespan: prompting.LifespanSession,
+					},
+				},
+			},
+			final: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:   prompting.OutcomeAllow,
+						Lifespan:  prompting.LifespanSession,
+						SessionID: patchSession,
+					},
+				},
+			},
+		},
+		{
+			iface: "camera",
+			initial: &prompting.RuleConstraints{
+				PathPattern: pathPattern,
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+			patch: &prompting.RuleConstraintsPatch{
+				PathPattern: otherPattern,
+			},
+			final: &prompting.RuleConstraints{
+				PathPattern: otherPattern,
+				Permissions: prompting.RulePermissionMap{
+					"access": &prompting.RulePermissionEntry{
+						Outcome:    prompting.OutcomeAllow,
+						Lifespan:   prompting.LifespanTimespan,
+						Expiration: origTime,
+					},
+				},
+			},
+		},
 	} {
-		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, iface, patchAt)
+		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, testCase.iface, patchAt)
 		c.Check(err, IsNil, Commentf("testCase %d", i))
 		c.Check(patched, DeepEquals, testCase.final, Commentf("testCase %d", i))
 	}
@@ -1033,7 +1157,7 @@ func (s *constraintsSuite) TestRulePermissionMapExpired(c *C) {
 			},
 		},
 		{
-			"write": &prompting.RulePermissionEntry{
+			"access": &prompting.RulePermissionEntry{
 				Outcome:   prompting.OutcomeDeny,
 				Lifespan:  prompting.LifespanSession,
 				SessionID: at.SessionID + 1,
@@ -1562,6 +1686,21 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c
 			notify.AA_MAY_EXEC | notify.AA_MAY_WRITE | notify.AA_MAY_READ,
 			[]string{"read", "write", "execute"},
 		},
+		{
+			"camera",
+			notify.AA_MAY_OPEN,
+			[]string{"access"},
+		},
+		{
+			"camera",
+			notify.AA_MAY_READ | notify.AA_MAY_OPEN,
+			[]string{"access"},
+		},
+		{
+			"camera",
+			notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND,
+			[]string{"access"},
+		},
 	}
 	for _, testCase := range cases {
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
@@ -1624,6 +1763,12 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 			[]string{"read"},
 			` cannot map AppArmor permission to abstract permission for the home interface: "get-cred"`,
 		},
+		{
+			"camera",
+			notify.AA_MAY_EXEC,
+			[]string{},
+			` cannot map AppArmor permission to abstract permission for the camera interface: "execute"`,
+		},
 	} {
 		logbuf, restore := logger.MockLogger()
 		defer restore()
@@ -1642,6 +1787,11 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 	}{
 		{
 			"home",
+			[]string{},
+			notify.FilePermission(0),
+		},
+		{
+			"camera",
 			[]string{},
 			notify.FilePermission(0),
 		},
@@ -1669,6 +1819,11 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 			"home",
 			[]string{"execute", "write", "read"},
 			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+		},
+		{
+			"camera",
+			[]string{"access"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_GETATTR | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND,
 		},
 	}
 	for _, testCase := range cases {
@@ -1705,6 +1860,11 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c
 			"home",
 			[]string{"read", "foo", "write"},
 			"cannot map abstract permission to AppArmor permissions for the home interface.*",
+		},
+		{
+			"camera",
+			[]string{"access", "read"},
+			"cannot map abstract permission to AppArmor permissions for the camera interface.*",
 		},
 	}
 	for _, testCase := range cases {

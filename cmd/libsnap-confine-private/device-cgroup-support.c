@@ -56,12 +56,15 @@ struct sc_device_cgroup {
         struct {
             sc_cgroup_fds fds;
         } v1;
+#ifdef ENABLE_BPF
         struct {
             int devmap_fd;
             int prog_fd;
             char *tag;
+            char name[BPF_OBJ_NAME_LEN];
             struct rlimit old_limit;
         } v2;
+#endif
     };
 };
 
@@ -149,7 +152,7 @@ typedef struct sc_cgroup_v2_device_key sc_cgroup_v2_device_key;
 typedef uint8_t sc_cgroup_v2_device_value;
 
 #ifdef ENABLE_BPF
-static int load_devcgroup_prog(int map_fd) {
+static int load_devcgroup_prog(int map_fd, const char *name) {
     /* Basic rules about registers:
      * r0    - return value of built in functions and exit code of the program
      * r1-r5 - respective arguments to built in functions, clobbered by calls
@@ -239,7 +242,7 @@ static int load_devcgroup_prog(int map_fd) {
 
     char log_buf[4096] = {0};
 
-    int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog, SC_ARRAY_SIZE(prog), log_buf, sizeof(log_buf));
+    int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog, SC_ARRAY_SIZE(prog), log_buf, sizeof(log_buf), name);
     if (prog_fd < 0) {
         die("cannot load program:\n%s\n", log_buf);
     }
@@ -292,17 +295,28 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     return old_limit;
 }
 
-static bool _sc_is_snap_cgroup(const char *group) {
+// _sc_is_snap_cgroup checks that the cgroup looks like a snap specific one and
+// matches the snap's expected cgroup name.
+static bool _sc_is_snap_cgroup(const char *group, const char *expected_group_name) {
     /* make a copy as basename may modify its input */
     char copy[PATH_MAX] = {0};
     strncpy(copy, group, sizeof(copy) - 1);
     char *leaf = basename(copy);
-    if (!sc_startswith(leaf, "snap.")) {
+    /* expecting: snap.foo.bar-<uuid>.scope or snap.foo.bar.service, where
+       snap.foo.bar is the group name derived from security tag */
+    if (!sc_startswith(leaf, expected_group_name)) {
         return false;
     }
     if (!sc_endswith(leaf, ".service") && !sc_endswith(leaf, ".scope")) {
         return false;
     }
+    /* we already know that the string is longer than the group name as it at
+       least ends with .service or .scope */
+    char uuid_or_svc_sep = leaf[strlen(expected_group_name)];
+    if (uuid_or_svc_sep != '-' && uuid_or_svc_sep != '.') {
+        return false;
+    }
+
     return true;
 }
 
@@ -320,6 +334,30 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     for (char *c = strchr(self->v2.tag, '.'); c != NULL; c = strchr(c, '.')) {
         *c = '_';
     }
+
+    /* BPF object names have a length limit of BPF_OBJ_NAME_LEN, which most of
+     * the time is too short to include the whole security tag, so attach a `s_`
+     * prefix and then best effort copy of what fits in the name from the part
+     * of security tag that follows the `snap_` prefix */
+    /* note the tag is valid */
+    const char *pref_end = strchr(self->v2.tag, '_');
+    if (pref_end == NULL) {
+        die("invalid position of separator in a valid tag");
+    }
+    /* this is where the name starts after snap_ */
+    const char *snap_name_start = pref_end + 1;
+
+    sc_must_snprintf(self->v2.name, sizeof(self->v2.name), "s_");
+    /* copy what fits into BPF_OBJ_NAME_LEN-2 ('s_' prefix) and truncate the
+       rest */
+    strncpy(self->v2.name + 2, snap_name_start, sizeof(self->v2.name) - 2 - 1);
+    /* replace all hyphens which are valid in security tags, but are invalid for
+     * BPF object names */
+    for (char *c = strchr(self->v2.name, '-'); c != NULL; c = strchr(c, '-')) {
+        *c = '_';
+    }
+
+    debug("bpf fs tag: %s, object names: %s", self->v2.tag, self->v2.name);
 
     char path[PATH_MAX] = {0};
     static const char bpf_base[] = "/sys/fs/bpf";
@@ -372,7 +410,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
          * thus on older kernels (seen on 5.10), the map effectively locks 11
          * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
         /* NOTE: the new file map must be owned by root:root. */
-        devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
+        devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries,
+                                   self->v2.name);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
         }
@@ -457,7 +496,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
 
     if (!from_existing) {
         /* load and attach the BPF program */
-        int prog_fd = load_devcgroup_prog(devmap_fd);
+        int prog_fd = load_devcgroup_prog(devmap_fd, self->v2.name);
         /* keep track of the program */
         self->v2.prog_fd = prog_fd;
     }
@@ -518,12 +557,13 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     }
     debug("process in cgroup %s", own_group);
 
-    if (!_sc_is_snap_cgroup(own_group)) {
+    char *expected_unit_name SC_CLEANUP(sc_cleanup_string) = sc_security_tag_to_unit_name(self->security_tag);
+    if (!_sc_is_snap_cgroup(own_group, expected_unit_name)) {
         /* we cannot proceed to install a device filtering program when the
          * process is not in a snap specific cgroup, as we would effectively
          * lock down the group that can be shared with other processes or even
          * the whole desktop session */
-        die("%s is not a snap cgroup", own_group);
+        die("%s is not a snap cgroup for tag %s", own_group, self->security_tag);
     }
 
     char own_group_full_path[PATH_MAX] = {0};

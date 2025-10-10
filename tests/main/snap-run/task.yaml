@@ -9,6 +9,9 @@ systems:
   # strace does not support _newselect on s390x
   # (https://github.com/strace/strace/issues/57)
   - -*-s390x
+  # TODO fix this on questing - strace and trace-exec
+  # currently don't work due to sudo-rs not accepting -E
+  - -ubuntu-25.10-64
 
 environment:
     STRACE_STATIC_CHANNEL: candidate
@@ -17,7 +20,9 @@ prepare: |
     tests.exec is-skipped && exit 0
 
     "$TESTSTOOLS"/snaps-state install-local basic-run
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    # TODO use test-snapd-sh-core24 once we have a fix for snap run --strace on
+    # Fedora or other systems registering sudo sessions with logind
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core22
 
 debug: |
     tests.exec is-skipped && exit 0
@@ -28,18 +33,26 @@ execute: |
     tests.exec is-skipped && exit 0
 
     echo "Running a trivial command causes no DENIED messages"
-    test-snapd-sh.sh -c 'echo hello'
-    dmesg | not grep DENIED
+    test-snapd-sh-core22.sh -c 'echo hello'
+    if os.query is-arch-linux && [ "$SNAP_REEXEC" != "1" ]; then
+        dmesg | grep DENIED > arch-denied.log
+        # due to Go 1.25 poking /proc/self/mountinfo we get a denial from
+        # snap-exec which executes under the profile of test-snapd-sh which looks like this (all in one line):
+        # [ 1698.601327] audit: type=1400 audit(1757424814.280:2967): apparmor="DENIED"
+        # operation="open" class="file" profile="snap.test-snapd-sh.sh"
+        # name="/proc/162399/mountinfo" pid=162399 comm="snap-exec"
+        # requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+        MATCH 'apparmor="DENIED" operation="open" .* name="/proc/[0-9]+/mountinfo" .* comm="snap-exec"' < arch-denied.log
+        test "$(wc -l < arch-denied.log)" = "1"
+    else
+        dmesg | not grep DENIED
+    fi
 
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
 
-    if command -v gdb; then
-       echo "Test snap run --gdb works"
-       echo "c" | snap run --gdb test-snapd-sh.sh -c 'echo hello' > stdout
-       MATCH 'Continuing.' < stdout
-       MATCH hello < stdout
-    fi
+    snap run --gdb test-snapd-sh-core22.sh -c 'echo hello' 2>stderr || true
+    MATCH '\-\-gdb is no longer supported: use \-\-gdbserver option instead' < stderr
 
     # the strace on 14.04 is too old
     if os.query is-trusty; then
@@ -55,7 +68,7 @@ execute: |
     fi
 
     echo "Test snap --strace invalid works"
-    if snap run --strace="invalid" test-snapd-sh.sh -c 'echo hello' 2>stderr ; then
+    if snap run --strace="invalid" test-snapd-sh-core22.sh -c 'echo hello' 2>stderr ; then
         echo "snap run with an invalid strace option should fail but it did not"
         exit 1
     fi
@@ -82,7 +95,7 @@ execute: |
     fi
 
     echo "Test snap run --strace"
-    snap run --strace test-snapd-sh.sh -c 'echo hello-world' >stdout 2>stderr
+    snap run --strace test-snapd-sh-core22.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH hello-world < stdout
     MATCH 'write\(1, \"hello-world\\n\",' < stderr
     if grep "snap-confine" stderr && [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "false" ]; then
@@ -92,7 +105,7 @@ execute: |
     fi
 
     echo "Test snap run --strace with options works"
-    snap run --strace="-V" test-snapd-sh.sh -c 'echo hello-world' >stdout 2>stderr
+    snap run --strace="-V" test-snapd-sh-core22.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH "strace -- version" < stdout
     # We don't want to test for an empty stderr should there be unrelated errors with
     # strace. Instead we look for a keyword
@@ -100,14 +113,14 @@ execute: |
         NOMATCH 'exec' < stderr
     fi
 
-    snap run --trace-exec test-snapd-sh.sh -c 'echo hello' 2> stderr
+    snap run --trace-exec test-snapd-sh-core22.sh -c 'echo hello' 2> stderr
     MATCH "Slowest [0-9]+ exec calls during snap run" < stderr
     MATCH "  [0-9.]+s .*/snap-exec" < stderr
     MATCH "  [0-9.]+s .*/snap-confine" < stderr
     MATCH "Total time: [0-9.]+s" < stderr
 
-    snapd.tool exec snap-discard-ns test-snapd-sh
-    snap run --debug-log test-snapd-sh.sh -c 'echo hello' 2> stderr
+    snapd.tool exec snap-discard-ns test-snapd-sh-core22
+    snap run --debug-log test-snapd-sh-core22.sh -c 'echo hello' 2> stderr
     if [ "$SKIP_NO_EXTRA_MSG_CHECKS" = "true" ]; then
         # If logging to journal is active, then grab the entires in the journal for snap
         # and add them to the head of the stderr output

@@ -136,7 +136,7 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
 		// then construct one and try again.
-		logger.Debugf("need to create writable mimic needed to create path %q (mount entry id: %q) (original error: %v)", path, c.Entry.XSnapdEntryID(), err)
+		logger.Debugf("need to create writable mimic in order to create path %q (mount entry id: %q) (original error: %v)", path, c.Entry.XSnapdEntryID(), err)
 		changes, err = createWritableMimic(mimicPath, c.Entry.XSnapdEntryID(), as)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", mimicPath, err)
@@ -313,8 +313,10 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	var err error
 
 	kind := c.Entry.XSnapdKind()
-	// ensure-dir mounts attempts to create a potentially missing target directory during the ensureTarget step
-	// and does not require any low-level actions. Directories created with ensure-dir mounts should never be removed.
+	// ensure-dir mounts attempts to create a potentially missing target
+	// directory during the ensureTarget step and does not require any
+	// low-level actions. Directories created with ensure-dir mounts should
+	// never be removed.
 	if kind == "ensure-dir" {
 		return nil
 	}

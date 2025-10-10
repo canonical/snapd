@@ -130,6 +130,15 @@ restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
 
+debug: |
+  if [ -f containers.out ]; then
+    echo "Last system-volumes value (containers.out)"
+    cat containers.out
+  fi
+
+  echo "Current system-volumes"
+  remote.exec sudo snap debug api /v2/system-volumes
+
 execute: |
   # the APIs tested here shouldn't be available on anything before 25.10
   if [ "${MODEL_VERSION}" != "25.10" ]; then
@@ -247,12 +256,34 @@ execute: |
 
   reboot_with_passphrase "ubuntu-1"
 
-  # Let's change the passphrase one more time for good measure
-  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu-1", "new-passphrase": "ubuntu-2"}'
+  # Let's reset the passphrase as root (without providing old passphrase)
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-2"}'
   change_id="$(gojq --raw-output .change < resp)"
   remote.exec sudo snap watch "$change_id"
 
   reboot_with_passphrase "ubuntu-2"
+
+  # Let's remove passphrase protection completely
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase ""
+
+  # And bring it back i.e. adding a passphrase even for
+  # systems not installed with a passphrase.
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-3"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-3"
+
+  # Let's change the passphrase one more time for good measure
+  remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu-3", "new-passphrase": "ubuntu-4"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase "ubuntu-4"
 
   # Check encryption again for good measure
   remote.exec sudo snap debug api /v2/system-volumes > containers.out
@@ -270,10 +301,3 @@ execute: |
   gojq '.keyslots | length' < container.out | MATCH "^2$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
-
-  # TODO: 4. Test resetting passphrases.
-
-  # TODO: 5. Try refreshing to an unsupported kernel when snapd-info files
-  # are available.
-
-  # TODO: 6. Remodelling?

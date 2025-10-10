@@ -105,6 +105,9 @@ func (s *deviceSuite) TestLocations(c *C) {
 
 	c.Check(device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)), Equals,
 		"/var/lib/snapd/save/device/fde/tpm-lockout-auth")
+
+	c.Check(device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir), Equals,
+		"/run/mnt/ubuntu-save/device/fde/preinstall")
 }
 
 func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
@@ -181,11 +184,17 @@ func (s *deviceSuite) TestVolumesAuthOptionsValidateError(c *C) {
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase}
 	c.Assert(opts.Validate(), ErrorMatches, "passphrase cannot be empty")
 	// PIN mode not implemented yet
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode is not implemented`)
 	// PIN mode + custom kdf type
-	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i"}
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN, KDFType: "argon2i", PIN: "1234"}
 	c.Assert(opts.Validate(), ErrorMatches, `"pin" authentication mode does not support custom kdf types`)
+	// Empty PIN
+	opts = &device.VolumesAuthOptions{Mode: device.AuthModePIN}
+	c.Assert(opts.Validate(), ErrorMatches, `pin cannot be empty`)
+	// Passphrase and PIN cannot be set at the same time
+	opts = &device.VolumesAuthOptions{PIN: "1234", Passphrase: "1234"}
+	c.Assert(opts.Validate(), ErrorMatches, `passphrase and pin cannot be set at the same time`)
 	// Bad kdf type
 	opts = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234", KDFType: "bad-type"}
 	c.Assert(opts.Validate(), ErrorMatches, `invalid kdf type "bad-type", only "argon2i", "argon2id" and "pbkdf2" are supported`)

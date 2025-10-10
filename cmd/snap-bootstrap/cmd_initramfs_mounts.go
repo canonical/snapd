@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2024 Canonical Ltd
+ * Copyright (C) 2019-2025 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -124,6 +125,7 @@ var (
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
+	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -487,7 +489,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if useEncryption {
-		if err := install.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, trustedInstallObserver); err != nil {
+		if err := install.PrepareEncryptedSystemData(model, installedSystem.BootstrappedContainerForRole, nil, nil, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -1945,6 +1947,28 @@ func createSysrootMount() bool {
 	return isCore24plus == "1" || isCore24plus == "true"
 }
 
+func getVerityOptions(snapPath string, idp *integrity.IntegrityDataParams) (*dmVerityOptions, error) {
+	hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
+
+	if err != nil && err == integrity.ErrIntegrityDataParamsNotFound {
+		// TODO: throw error instead if integrity data are required by policy
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate mount for snap %s: %w", snapPath, err)
+	}
+
+	// TODO: we currently rely on several parameters from the on-disk unverified superblock
+	// which gets automatically parsed by veritysetup for the mount. Instead we can use
+	// the parameters we already have in the assertion as options to the mount but this
+	// would require extra support in libmount.
+	return &dmVerityOptions{
+		HashDevice: hashDevice,
+		RootHash:   idp.Digest,
+	}, nil
+}
+
 func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]*seed.Snap, err error) {
 	seedMountOpts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the
@@ -2005,6 +2029,12 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
+
+		verityOptions, err := getVerityOptions(essentialSnap.Path, essentialSnap.IntegrityDataParams)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		if essentialSnap.EssentialType == snap.TypeBase && createSysrootMount() {
 			// Create unit to mount directly to /sysroot. We restrict
 			// this to UC24+ for the moment, until we backport necessary
@@ -2012,7 +2042,7 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			// unit is not used as it tries to be restarted after the
 			// switch root, and fails.
 			what := essentialSnap.Path
-			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+			if err := writeSysrootMountUnit(what, "squashfs", verityOptions); err != nil {
 				return nil, nil, fmt.Errorf(
 					"cannot write sysroot.mount (what: %s): %v", what, err)
 			}
@@ -2034,13 +2064,20 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			if model.Classic() && model.KernelSnap() != nil {
 				// Mount ephemerally for recover mode to gain access to /etc data
 				dir := snapTypeToMountDir[essentialSnap.EssentialType]
+				mountOptions := &systemdMountOptions{
+					Ephemeral: true,
+					ReadOnly:  true,
+					Private:   true,
+				}
+				if verityOptions != nil {
+					mountOptions.FsOpts = verityOptions
+
+				}
+
 				if err := doSystemdMount(essentialSnap.Path,
 					filepath.Join(boot.InitramfsRunMntDir, dir),
-					&systemdMountOptions{
-						Ephemeral: true,
-						ReadOnly:  true,
-						Private:   true,
-					}); err != nil {
+					mountOptions,
+				); err != nil {
 					return nil, nil, err
 				}
 			}
@@ -2052,9 +2089,17 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			dir := snapTypeToMountDir[essentialSnap.EssentialType]
 			// TODO:UC20: we need to cross-check the kernel path
 			// with snapd_recovery_kernel used by grub
+			mountOptions := systemdMountOptions{
+				ReadOnly: true,
+				Private:  true,
+			}
+			if verityOptions != nil {
+				mountOptions.FsOpts = verityOptions
+			}
+
 			if err := doSystemdMount(essentialSnap.Path,
 				filepath.Join(boot.InitramfsRunMntDir, dir),
-				mountReadOnlyOptions); err != nil {
+				&mountOptions); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -2546,13 +2591,16 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		// fails.
 		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
 		if isClassic {
-			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
+			if err := writeSysrootMountUnit(rootfsDir, "", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
 			}
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]
 			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
-			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+
+			// TODO: verity data for the mount should be passed here instead of nil
+			// once support for verity data in run mode is added
+			if err := writeSysrootMountUnit(what, "squashfs", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
 			}
 		}

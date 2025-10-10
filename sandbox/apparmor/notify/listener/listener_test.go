@@ -66,6 +66,11 @@ func (s *listenerSuite) SetUpTest(c *C) {
 		return v != 0
 	})
 	s.AddCleanup(restore)
+
+	restore = listener.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		return "some-cgroup-path", nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (*listenerSuite) TestReply(c *C) {

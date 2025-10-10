@@ -119,10 +119,18 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	vars := muxVars(r)
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
+	type setAction struct {
+		Values map[string]any `json:"values"`
+	}
+
+	var action setAction
 	decoder := json.NewDecoder(r.Body)
-	var values map[string]any
-	if err := decoder.Decode(&values); err != nil {
+	if err := decoder.Decode(&action); err != nil {
 		return BadRequest("cannot decode confdb request body: %v", err)
+	}
+
+	if len(action.Values) == 0 {
+		return BadRequest("cannot set confdb: request body contains no values")
 	}
 
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
@@ -135,7 +143,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	err = confdbstateSetViaView(tx, view, values)
+	err = confdbstateSetViaView(tx, view, action.Values)
 	if err != nil {
 		return toAPIError(err)
 	}

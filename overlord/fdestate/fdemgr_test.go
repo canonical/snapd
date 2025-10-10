@@ -1031,7 +1031,11 @@ func (s *fdeMgrSuite) TestCheckRecoveryKeyError(c *C) {
 	})()
 
 	err = mgr.CheckRecoveryKey(keys.RecoveryKey{}, []string{"system-data"})
-	c.Assert(err, ErrorMatches, `recovery key failed for "system-data": boom!`)
+	c.Assert(err, ErrorMatches, `invalid recovery key: recovery key does not work for "system-data"`)
+	var rkeyErr *fdestate.InvalidRecoveryKeyError
+	c.Assert(errors.As(err, &rkeyErr), Equals, true)
+	c.Assert(rkeyErr.Reason, Equals, fdestate.InvalidRecoveryKeyReasonInvalidValue)
+	c.Assert(rkeyErr.Message, Equals, `invalid recovery key: recovery key does not work for "system-data"`)
 }
 
 type mockKeyData struct {
@@ -1327,7 +1331,7 @@ func (s *fdeMgrSuite) TestEFIDBXUpdateTaskAffectedSnaps(c *C) {
 	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})
 }
 
-func (s *fdeMgrSuite) TestAddProtectedKeysTaskAffectedSnaps(c *C) {
+func (s *fdeMgrSuite) TestAddPlatformKeysTaskAffectedSnaps(c *C) {
 	onClassic := true
 	s.startedManager(c, onClassic)
 
@@ -1337,7 +1341,7 @@ func (s *fdeMgrSuite) TestAddProtectedKeysTaskAffectedSnaps(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	tsk := s.st.NewTask("fde-add-protected-keys", "")
+	tsk := s.st.NewTask("fde-add-platform-keys", "")
 	snaps, err := snapstate.SnapsAffectedByTask(tsk)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, DeepEquals, []string{"pc", "pc-kernel", "core20"})

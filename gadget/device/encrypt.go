@@ -97,9 +97,14 @@ func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key.factory-reset")
 }
 
-// TpmLockoutAuthUnder return the path of the tpm lockout authority key.
+// TpmLockoutAuthUnder returns the path of the tpm lockout authority key.
 func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
+}
+
+// PreinstallCheckResultUnder returns the path of the preinstall check result.
+func PreinstallCheckResultUnder(deviceFDEDir string) string {
+	return filepath.Join(deviceFDEDir, "preinstall")
 }
 
 // ErrNoSealedKeys error if there are no sealed keys
@@ -164,10 +169,9 @@ const (
 
 // VolumesAuthOptions contains options for the volumes authentication
 // mechanism (e.g. passphrase authentication).
-//
-// TODO: Add PIN option when secboot support lands.
 type VolumesAuthOptions struct {
 	Mode       AuthMode      `json:"mode,omitempty"`
+	PIN        string        `json:"pin,omitempty"`
 	Passphrase string        `json:"passphrase,omitempty"`
 	KDFType    string        `json:"kdf-type,omitempty"`
 	KDFTime    time.Duration `json:"kdf-time,omitempty"`
@@ -179,12 +183,19 @@ func (o *VolumesAuthOptions) Validate() error {
 		return nil
 	}
 
+	if len(o.Passphrase) != 0 && len(o.PIN) != 0 {
+		return fmt.Errorf("passphrase and pin cannot be set at the same time")
+	}
+
 	switch o.Mode {
 	case AuthModePassphrase:
 		if len(o.Passphrase) == 0 {
 			return fmt.Errorf("passphrase cannot be empty")
 		}
 	case AuthModePIN:
+		if len(o.PIN) == 0 {
+			return fmt.Errorf("pin cannot be empty")
+		}
 		if o.KDFType != "" {
 			return fmt.Errorf("%q authentication mode does not support custom kdf types", AuthModePIN)
 		}

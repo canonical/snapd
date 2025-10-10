@@ -204,6 +204,15 @@ func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
 		`"network-bind" interface plug is required when sockets are used`)
 }
 
+func (s *ValidateSuite) TestValidateAppSocketsClassic(c *C) {
+	app := createSampleApp()
+	// no network-bind but the snap is classic
+	app.Snap.Confinement = ClassicConfinement
+	delete(app.Plugs, "network-bind")
+	err := ValidateApp(app)
+	c.Assert(err, IsNil)
+}
+
 func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].ListenStream = ""

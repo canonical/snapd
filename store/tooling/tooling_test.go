@@ -622,7 +622,7 @@ func (s *toolingSuite) SnapAction(_ context.Context, curSnaps []*store.CurrentSn
 		})
 	}
 
-	// TODO: we can remove this source once we move to go >=1.20
+	// TODO:GOVERSION: we can remove this source once we move to go >=1.20
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// caller of SnapAction shouldn't depend on the order of the results

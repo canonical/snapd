@@ -20,12 +20,16 @@
 package assemblestate_test
 
 import (
+	"bytes"
 	"sort"
 	"time"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/cluster/assemblestate"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -33,17 +37,141 @@ type deviceTrackerSuite struct{}
 
 var _ = check.Suite(&deviceTrackerSuite{})
 
-func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT: self,
-		},
+// mockAssertDB creates a mock assertion database for testing
+func mockAssertDB(c *check.C) (*asserts.Database, *assertstest.StoreStack) {
+	signing := assertstest.NewStoreStack("canonical", nil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   signing.Trusted,
+	})
+	c.Assert(err, check.IsNil)
+
+	err = db.Add(signing.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
+
+	return db, signing
+}
+
+func createTestIdentity(
+	c *check.C,
+	signing *assertstest.StoreStack,
+	rdt assemblestate.DeviceToken,
+	fp assemblestate.Fingerprint,
+	secret string,
+) assemblestate.Identity {
+	_, bundle, key := createTestSerialBundle(c, signing)
+
+	// create SerialProof using the same device key
+	hmac := assemblestate.CalculateHMAC(rdt, fp, secret)
+	proof, err := asserts.RawSignWithKey(hmac, key)
+	c.Assert(err, check.IsNil)
+
+	return assemblestate.Identity{
+		RDT:          rdt,
+		FP:           fp,
+		SerialBundle: bundle,
+		SerialProof:  proof,
 	}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+}
+
+// createTestSerial creates a mock serial assertion and device key
+func createTestSerial(
+	c *check.C,
+	signing *assertstest.StoreStack,
+) (*asserts.Serial, asserts.PrivateKey) {
+	// create a device key for the serial assertion
+	key, _ := assertstest.GenerateKey(752)
+	pubkey, err := asserts.EncodePublicKey(key.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	headers := map[string]any{
+		"authority-id":        "canonical",
+		"brand-id":            "canonical",
+		"model":               "test-model",
+		"serial":              randutil.RandomString(10),
+		"device-key":          string(pubkey),
+		"device-key-sha3-384": key.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+
+	assertion, err := signing.Sign(asserts.SerialType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	s, ok := assertion.(*asserts.Serial)
+	c.Assert(ok, check.Equals, true)
+	return s, key
+}
+
+func createTestSerialBundle(
+	c *check.C,
+	signing *assertstest.StoreStack,
+) (*asserts.Serial, string, asserts.PrivateKey) {
+	serial, key := createTestSerial(c, signing)
+	bundle := buildSerialBundle(c, serial, signing.Database)
+	return serial, bundle, key
+}
+
+func buildSerialBundle(c *check.C, serial *asserts.Serial, db asserts.RODatabase) string {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	fetcher := asserts.NewFetcher(db, retrieve, enc.Encode)
+	err := fetcher.Save(serial)
+	c.Assert(err, check.IsNil)
+
+	return buf.String()
+}
+
+// createExpiredSerial creates a serial assertion with an expired timestamp
+func createExpiredSerial(c *check.C, signing *assertstest.StoreStack) (*asserts.Serial, asserts.PrivateKey) {
+	// create a device key for the serial assertion
+	key, _ := assertstest.GenerateKey(752)
+	pubkey, err := asserts.EncodePublicKey(key.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	headers := map[string]any{
+		"authority-id":        "canonical",
+		"brand-id":            "canonical",
+		"model":               "test-model",
+		"serial":              randutil.RandomString(10),
+		"device-key":          string(pubkey),
+		"device-key-sha3-384": key.PublicKey().ID(),
+		"timestamp":           time.Now().AddDate(-2, 0, 0).Format(time.RFC3339),
+	}
+
+	assertion, err := signing.Sign(asserts.SerialType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	s, ok := assertion.(*asserts.Serial)
+	c.Assert(ok, check.Equals, true)
+	return s, key
+}
+
+func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
+
+	// initially no devices are identified
+	c.Assert(dt.Identified("self"), check.Equals, false)
+	c.Assert(dt.Identified("other"), check.Equals, false)
+
+	// add a device identity
+	self := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("self"),
+		assemblestate.CalculateFP([]byte("self")),
+		"test-secret",
+	)
+	err = dt.RecordIdentity(self)
+	c.Assert(err, check.IsNil)
 
 	c.Assert(dt.Identified("self"), check.Equals, true)
-
 	c.Assert(dt.Identified("other"), check.Equals, false)
 
 	id, ok := dt.Lookup("self")
@@ -53,8 +181,15 @@ func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 	_, ok = dt.Lookup("other")
 	c.Assert(ok, check.Equals, false)
 
-	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.RecordIdentity(other)
+	// add another device identity
+	other := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("other"),
+		assemblestate.CalculateFP([]byte("other")),
+		"test-secret",
+	)
+	err = dt.RecordIdentity(other)
+	c.Assert(err, check.IsNil)
 
 	c.Assert(dt.Identified("other"), check.Equals, true)
 	id, ok = dt.Lookup("other")
@@ -63,16 +198,28 @@ func (s *deviceTrackerSuite) TestDeviceTrackerLookup(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT: self,
-		},
-	}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
-	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.RecordIdentity(other)
+	self := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("self"),
+		assemblestate.CalculateFP([]byte("self")),
+		"test-secret",
+	)
+	err = dt.RecordIdentity(self)
+	c.Assert(err, check.IsNil)
+
+	other := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("other"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(other)
+	c.Assert(err, check.IsNil)
 
 	// peer queries us for devices
 	dt.RecordIncomingQuery("peer", []assemblestate.DeviceToken{"self", "other"})
@@ -99,7 +246,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerQueries(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerDropUnknownQuery(c *check.C) {
-	dt := assemblestate.NewDeviceQueryTracker(assemblestate.DeviceQueryTrackerData{}, time.Minute, time.Now)
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(assemblestate.DeviceQueryTrackerData{}, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// peer queries us for unknown device
 	dt.RecordIncomingQuery("peer", []assemblestate.DeviceToken{"unknown"})
@@ -108,16 +257,14 @@ func (s *deviceTrackerSuite) TestDeviceTrackerDropUnknownQuery(c *check.C) {
 	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
 	// query should not be recorded at all
-	c.Assert(dt.Export(), check.DeepEquals, assemblestate.DeviceQueryTrackerData{
-		Queries: make(map[assemblestate.DeviceToken][]assemblestate.DeviceToken),
-		Known:   make(map[assemblestate.DeviceToken][]assemblestate.DeviceToken),
-		IDs:     make(map[assemblestate.DeviceToken]assemblestate.Identity),
-	})
+	c.Assert(dt.Export(), check.DeepEquals, assemblestate.DeviceQueryTrackerData{})
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerSources(c *check.C) {
 	data := assemblestate.DeviceQueryTrackerData{}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// peers tells us they know about some devices
 	dt.RecordDevicesKnownBy("peer", []assemblestate.DeviceToken{"device-1", "device-2"})
@@ -158,7 +305,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 	}
 
 	data := assemblestate.DeviceQueryTrackerData{}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Second, clock)
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Second, clock, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// peer tells us they know about device
 	dt.RecordDevicesKnownBy("peer", []assemblestate.DeviceToken{"device-1"})
@@ -182,7 +331,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerTimeout(c *check.C) {
 
 func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
 	data := assemblestate.DeviceQueryTrackerData{}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Hour, time.Now)
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Hour, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// peer tells us they know about device
 	dt.RecordDevicesKnownBy("peer", []assemblestate.DeviceToken{"device-1"})
@@ -216,17 +367,28 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedQueryAck(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	one := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-1")}
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Hour, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
-	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-		},
-	}
+	self := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("self"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(self)
+	c.Assert(err, check.IsNil)
 
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Hour, time.Now)
+	one := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-1"),
+		assemblestate.Fingerprint{6, 7, 8, 9, 10},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(one)
+	c.Assert(err, check.IsNil)
 
 	// peer tells us they need info about a device
 	dt.RecordIncomingQuery("peer", []assemblestate.DeviceToken{"device-1"})
@@ -235,7 +397,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 
 	ids, ack := dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 1)
-	c.Assert(ids[0], check.Equals, one)
+	c.Assert(ids[0].RDT, check.Equals, one.RDT)
+	c.Assert(ids[0].SerialBundle, check.Equals, one.SerialBundle)
 
 	// ack with false indicates that we could not send the query
 	const failure = false
@@ -247,7 +410,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 	// since we failed to send the response, it should be returned again here
 	ids, ack = dt.ResponsesTo("peer")
 	c.Assert(len(ids), check.Equals, 1)
-	c.Assert(ids[0], check.Equals, one)
+	c.Assert(ids[0].RDT, check.Equals, one.RDT)
+	c.Assert(ids[0].SerialBundle, check.Equals, one.SerialBundle)
 
 	const success = true
 	ack(success)
@@ -261,7 +425,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerFailedResponseAck(c *check.C) {
 
 func (s *deviceTrackerSuite) TestDeviceTrackerEmptyQueries(c *check.C) {
 	data := assemblestate.DeviceQueryTrackerData{}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// empty query shouldn't signal channel
 	dt.RecordIncomingQuery("peer", []assemblestate.DeviceToken{})
@@ -274,14 +440,22 @@ func (s *deviceTrackerSuite) TestDeviceTrackerEmptyQueries(c *check.C) {
 
 func (s *deviceTrackerSuite) TestDeviceTrackerUnknownDevices(c *check.C) {
 	data := assemblestate.DeviceQueryTrackerData{}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// query for unknown device should be ignored
 	dt.RecordIncomingQuery("peer", []assemblestate.DeviceToken{"unknown"})
 	c.Assert(hasSignal(dt.PendingResponses()), check.Equals, false)
 
-	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.RecordIdentity(other)
+	other := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("other"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(other)
+	c.Assert(err, check.IsNil)
 
 	dt.RecordDevicesKnownBy("peer", []assemblestate.DeviceToken{"other", "unknown"})
 
@@ -293,11 +467,19 @@ func (s *deviceTrackerSuite) TestDeviceTrackerUnknownDevices(c *check.C) {
 
 func (s *deviceTrackerSuite) TestDeviceTrackerNoMissingDevices(c *check.C) {
 	data := assemblestate.DeviceQueryTrackerData{}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// add device we know about
-	other := assemblestate.Identity{RDT: assemblestate.DeviceToken("other")}
-	dt.RecordIdentity(other)
+	other := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("other"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(other)
+	c.Assert(err, check.IsNil)
 
 	// source update with only known devices shouldn't signal
 	dt.RecordDevicesKnownBy("peer", []assemblestate.DeviceToken{"other"})
@@ -309,19 +491,36 @@ func (s *deviceTrackerSuite) TestDeviceTrackerNoMissingDevices(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerPreseededIDs(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	one := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-1")}
-	two := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-2")}
+	db, signing := mockAssertDB(c)
+
+	self := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("self"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	one := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-1"),
+		assemblestate.Fingerprint{6, 7, 8, 9, 10},
+		"test-secret",
+	)
+	two := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-2"),
+		assemblestate.Fingerprint{11, 12, 13, 14, 15},
+		"test-secret",
+	)
 
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			self,
+			one,
+			two,
 		},
 	}
-
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// preseeded devices should be identified
 	c.Assert(dt.Identified("device-1"), check.Equals, true)
@@ -344,15 +543,26 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededIDs(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	one := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-1")}
-	two := assemblestate.Identity{RDT: assemblestate.DeviceToken("device-2")}
+	db, signing := mockAssertDB(c)
+	one := createTestIdentity(
+		c,
+		signing,
+		assemblestate.DeviceToken("device-1"),
+		assemblestate.Fingerprint{6, 7, 8, 9, 10},
+		"test-secret",
+	)
+	two := createTestIdentity(
+		c,
+		signing,
+		assemblestate.DeviceToken("device-2"),
+		assemblestate.Fingerprint{11, 12, 13, 14, 15},
+		"test-secret",
+	)
 
 	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			one,
+			two,
 		},
 		Queries: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
 			"peer-1": {"device-1", "device-2"},
@@ -360,7 +570,8 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededUnknowns(c *check.C) {
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// should have responses for preseeded unknowns
 	ids, ack := dt.ResponsesTo("peer-1")
@@ -393,7 +604,9 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 		},
 	}
 
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
 	// should be able to query from preseeded sources
 	unknown, ack := dt.OutgoingQueriesTo("peer-1")
@@ -414,29 +627,38 @@ func (s *deviceTrackerSuite) TestDeviceTrackerPreseededSources(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	one := assemblestate.Identity{
-		RDT:         assemblestate.DeviceToken("device-1"),
-		FP:          assemblestate.Fingerprint{1, 2, 3},
-		Serial:      "serial-1",
-		SerialProof: assemblestate.Proof{7, 8, 9},
-	}
-	two := assemblestate.Identity{
-		RDT:         assemblestate.DeviceToken("device-2"),
-		FP:          assemblestate.Fingerprint{4, 5, 6},
-		Serial:      "serial-2",
-		SerialProof: assemblestate.Proof{10, 11, 12},
-	}
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
-	data := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT: self,
-		},
-	}
-	dt := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now)
+	self := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("self"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(self)
+	c.Assert(err, check.IsNil)
 
-	dt.RecordIdentity(one)
-	dt.RecordIdentity(two)
+	one := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-1"),
+		assemblestate.Fingerprint{6, 7, 8, 9, 10},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(one)
+	c.Assert(err, check.IsNil)
+
+	two := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-2"),
+		assemblestate.Fingerprint{11, 12, 13, 14, 15},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(two)
+	c.Assert(err, check.IsNil)
+
 	dt.RecordIncomingQuery("peer-1", []assemblestate.DeviceToken{"device-1", "device-2"})
 	dt.RecordIncomingQuery("peer-2", []assemblestate.DeviceToken{"self"})
 	dt.RecordDevicesKnownBy("peer-1", []assemblestate.DeviceToken{"device-3", "device-4"})
@@ -446,10 +668,10 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
 	normalizeDeviceExport(exported)
 
 	expected := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			"self":     self,
-			"device-1": one,
-			"device-2": two,
+		IDs: []assemblestate.Identity{
+			one,
+			two,
+			self,
 		},
 		Queries: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
 			"peer-1": {"device-1", "device-2"},
@@ -465,44 +687,297 @@ func (s *deviceTrackerSuite) TestDeviceTrackerExport(c *check.C) {
 }
 
 func (s *deviceTrackerSuite) TestDeviceTrackerExportRoundtrip(c *check.C) {
-	self := assemblestate.Identity{RDT: assemblestate.DeviceToken("self")}
-	one := assemblestate.Identity{
-		RDT:         assemblestate.DeviceToken("device-1"),
-		FP:          assemblestate.Fingerprint{1, 2, 3},
-		Serial:      "serial-1",
-		SerialProof: assemblestate.Proof{7, 8, 9},
-	}
-	two := assemblestate.Identity{
-		RDT:         assemblestate.DeviceToken("device-2"),
-		FP:          assemblestate.Fingerprint{4, 5, 6},
-		Serial:      "serial-2",
-		SerialProof: assemblestate.Proof{10, 11, 12},
-	}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(assemblestate.DeviceQueryTrackerData{}, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
 
-	initial := assemblestate.DeviceQueryTrackerData{
-		IDs: map[assemblestate.DeviceToken]assemblestate.Identity{
-			self.RDT:   self,
-			"device-1": one,
-			"device-2": two,
-		},
-		Queries: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
-			"peer-1": {"device-1", "device-2"},
-			"peer-2": {"device-1"},
-		},
-		Known: map[assemblestate.DeviceToken][]assemblestate.DeviceToken{
-			"peer-1": {"device-3", "device-4"},
-			"peer-2": {"device-5", "device-6"},
-		},
-	}
+	self := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("self"),
+		assemblestate.Fingerprint{1, 2, 3, 4, 5},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(self)
+	c.Assert(err, check.IsNil)
 
-	dt := assemblestate.NewDeviceQueryTracker(initial, time.Minute, time.Now)
+	one := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-1"),
+		assemblestate.Fingerprint{6, 7, 8, 9, 10},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(one)
+	c.Assert(err, check.IsNil)
 
+	two := createTestIdentity(
+		c, signing,
+		assemblestate.DeviceToken("device-2"),
+		assemblestate.Fingerprint{11, 12, 13, 14, 15},
+		"test-secret",
+	)
+	err = dt.RecordIdentity(two)
+	c.Assert(err, check.IsNil)
+
+	dt.RecordIncomingQuery("peer-1", []assemblestate.DeviceToken{"device-1", "device-2"})
+	dt.RecordIncomingQuery("peer-2", []assemblestate.DeviceToken{"device-1"})
+	dt.RecordDevicesKnownBy("peer-1", []assemblestate.DeviceToken{"device-3", "device-4"})
+	dt.RecordDevicesKnownBy("peer-2", []assemblestate.DeviceToken{"device-5", "device-6"})
+
+	// export the current state
+	initial := dt.Export()
+	normalizeDeviceExport(initial)
+
+	// create a new tracker from the exported data
+	dt, err = assemblestate.NewDeviceQueryTracker(initial, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
+
+	// export again and verify it matches
 	exported := dt.Export()
-	dt = assemblestate.NewDeviceQueryTracker(exported, time.Minute, time.Now)
-	exported = dt.Export()
 	normalizeDeviceExport(exported)
 
 	c.Assert(exported, check.DeepEquals, initial)
+}
+
+func (s *deviceTrackerSuite) TestDeviceTrackerWithAssertionValidation(c *check.C) {
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
+
+	// should reject empty serial bundle
+	empty := assemblestate.Identity{
+		RDT:          assemblestate.DeviceToken("empty-serial"),
+		SerialBundle: "",
+	}
+	err = dt.RecordIdentity(empty)
+	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device empty-serial: invalid identity for device empty-serial: serial bundle is empty")
+
+	malformed := assemblestate.Identity{
+		RDT:          assemblestate.DeviceToken("malformed-serial"),
+		SerialBundle: "not-a-valid-assertion",
+	}
+	err = dt.RecordIdentity(malformed)
+	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device malformed-serial: invalid identity for device malformed-serial: unexpected EOF")
+}
+
+func (s *deviceTrackerSuite) TestRecordIdentityWithValidAssertion(c *check.C) {
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
+
+	rdt := assemblestate.DeviceToken("test-device")
+	f := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+	identity := createTestIdentity(c, signing, rdt, f, "test-secret")
+
+	// should successfully record identity with valid assertion
+	err = dt.RecordIdentity(identity)
+	c.Assert(err, check.IsNil)
+
+	// verify identity was recorded
+	c.Assert(dt.Identified("test-device"), check.Equals, true)
+	recorded, ok := dt.Lookup("test-device")
+	c.Assert(ok, check.Equals, true)
+	c.Assert(recorded.RDT, check.Equals, assemblestate.DeviceToken("test-device"))
+	c.Assert(recorded.SerialBundle, check.Equals, identity.SerialBundle)
+}
+
+func (s *deviceTrackerSuite) TestRecordIdentityUntrustedKeys(c *check.C) {
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, _ := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
+
+	// create assertion signed by untrusted authority
+	untrusted := assertstest.NewStoreStack("untrusted-authority", nil)
+	_, bundle, _ := createTestSerialBundle(c, untrusted)
+
+	identity := assemblestate.Identity{
+		RDT:          assemblestate.DeviceToken("test-device"),
+		SerialBundle: bundle,
+	}
+	err = dt.RecordIdentity(identity)
+
+	// should now be rejected due to verification failure
+	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device test-device: .*")
+	c.Assert(dt.Identified("test-device"), check.Equals, false)
+}
+
+func (s *deviceTrackerSuite) TestSerialProofValidation(c *check.C) {
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(
+		assemblestate.DeviceQueryTrackerData{},
+		time.Minute,
+		time.Now,
+		db,
+		"test-secret",
+	)
+	c.Assert(err, check.IsNil)
+
+	_, bundle, key := createTestSerialBundle(c, signing)
+	cases := []struct {
+		name     string
+		identity func() assemblestate.Identity
+		err      string
+	}{
+		{
+			name: "valid proof",
+			identity: func() assemblestate.Identity {
+				rdt := assemblestate.DeviceToken("test-device")
+				fp := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+				hmac := assemblestate.CalculateHMAC(rdt, fp, "test-secret")
+
+				proof, err := asserts.RawSignWithKey(hmac, key)
+				c.Assert(err, check.IsNil)
+
+				return assemblestate.Identity{
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
+				}
+			},
+			err: "",
+		},
+		{
+			name: "empty proof",
+			identity: func() assemblestate.Identity {
+				return assemblestate.Identity{
+					RDT:          assemblestate.DeviceToken("empty-proof"),
+					FP:           assemblestate.Fingerprint{1, 2, 3, 4, 5},
+					SerialBundle: bundle,
+					SerialProof:  nil,
+				}
+			},
+			err: ".*empty serial proof.*",
+		},
+		{
+			name: "invalid signature",
+			identity: func() assemblestate.Identity {
+				rdt := assemblestate.DeviceToken("invalid-sig")
+				fp := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+				hmac := assemblestate.CalculateHMAC(rdt, fp, "test-secret")
+				key, _ := assertstest.GenerateKey(1024)
+
+				proof, err := asserts.RawSignWithKey(hmac, key)
+				c.Assert(err, check.IsNil)
+
+				return assemblestate.Identity{
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "wrong secret",
+			identity: func() assemblestate.Identity {
+				rdt := assemblestate.DeviceToken("wrong-secret")
+				fp := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+				hmac := assemblestate.CalculateHMAC(rdt, fp, "wrong-secret")
+
+				proof, err := asserts.RawSignWithKey(hmac, key)
+				c.Assert(err, check.IsNil)
+
+				return assemblestate.Identity{
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "wrong rdt",
+			identity: func() assemblestate.Identity {
+				rdt := assemblestate.DeviceToken("wrong-rdt-hmac")
+				fp := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+				hmac := assemblestate.CalculateHMAC("wrong-rdt", fp, "test-secret")
+
+				proof, err := asserts.RawSignWithKey(hmac, key)
+				c.Assert(err, check.IsNil)
+
+				return assemblestate.Identity{
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "wrong fingerprint",
+			identity: func() assemblestate.Identity {
+				rdt := assemblestate.DeviceToken("wrong-fp-hmac")
+				fp := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+				wrongFp := assemblestate.Fingerprint{9, 8, 7, 6, 5}
+				hmac := assemblestate.CalculateHMAC(rdt, wrongFp, "test-secret")
+
+				proof, err := asserts.RawSignWithKey(hmac, key)
+				c.Assert(err, check.IsNil)
+
+				return assemblestate.Identity{
+					RDT:          rdt,
+					FP:           fp,
+					SerialBundle: bundle,
+					SerialProof:  proof,
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+		{
+			name: "invalid signature",
+			identity: func() assemblestate.Identity {
+				return assemblestate.Identity{
+					RDT:          assemblestate.DeviceToken("corrupted"),
+					FP:           assemblestate.Fingerprint{1, 2, 3, 4, 5},
+					SerialBundle: bundle,
+					SerialProof:  []byte{0x00, 0x01, 0x02, 0x03, 0xFF},
+				}
+			},
+			err: ".*serial proof verification failed.*",
+		},
+	}
+
+	for _, tc := range cases {
+		err := dt.RecordIdentity(tc.identity())
+		if tc.err == "" {
+			c.Assert(err, check.IsNil, check.Commentf("test case %q", tc.name))
+		} else {
+			c.Assert(err, check.ErrorMatches, tc.err, check.Commentf("test case %q", tc.name))
+		}
+	}
+}
+
+func (s *deviceTrackerSuite) TestExpiredAssertion(c *check.C) {
+	data := assemblestate.DeviceQueryTrackerData{}
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(data, time.Minute, time.Now, db, "test-secret")
+	c.Assert(err, check.IsNil)
+
+	serial, key := createExpiredSerial(c, signing)
+	bundle := buildSerialBundle(c, serial, signing.Database)
+	rdt := assemblestate.DeviceToken("test-device")
+	f := assemblestate.Fingerprint{1, 2, 3, 4, 5}
+
+	hmac := assemblestate.CalculateHMAC(rdt, f, "test-secret")
+	proof, err := asserts.RawSignWithKey(hmac, key)
+	c.Assert(err, check.IsNil)
+
+	identity := assemblestate.Identity{
+		RDT:          rdt,
+		FP:           f,
+		SerialBundle: bundle,
+		SerialProof:  assemblestate.Proof(proof),
+	}
+
+	err = dt.RecordIdentity(identity)
+	c.Assert(err, check.ErrorMatches, "(?s).*outside of signing key validity.*")
+	c.Assert(dt.Identified("test-device"), check.Equals, false)
 }
 
 func normalizeDeviceExport(d assemblestate.DeviceQueryTrackerData) {
@@ -516,6 +991,9 @@ func normalizeDeviceExport(d assemblestate.DeviceQueryTrackerData) {
 			return devices[i] < devices[j]
 		})
 	}
+	sort.Slice(d.IDs, func(i, j int) bool {
+		return d.IDs[i].RDT < d.IDs[j].RDT
+	})
 }
 
 func hasSignal(ch <-chan struct{}) bool {

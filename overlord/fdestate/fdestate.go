@@ -22,13 +22,16 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -443,10 +446,18 @@ func tmpKeyslotRef(ref KeyslotRef) KeyslotRef {
 func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
+		if errors.Is(err, backend.ErrNoRecoveryKey) {
+			// this might mean the recovery key id not valid or snapd restarted
+			// and the associated recovery key was lost from the cache.
+			//
+			// TODO: mitigate snapd restart case by introducing an alternative secrets
+			// backend that survives restarts.
+			return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonNotFound}
+		}
 		return err
 	}
 	if rkeyInfo.Expired(time.Now()) {
-		return errors.New("recovery key has expired")
+		return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonExpired}
 	}
 	return nil
 }
@@ -458,6 +469,8 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 // If keyslotRefs is empty, the "default-recovery" key slot is
 // used by default for both the "system-data" and "system-save"
 // container roles.
+//
+// If the recovery key ID is invalid, an InvalidRecoveryKeyError is returned.
 //
 // If any key slot from keyslotRefs does not exist, a KeyslotRefsNotFoundError is returned.
 func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
@@ -496,7 +509,8 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	fdemgr := fdeMgr(st)
 
 	if err := checkRecoveryKeyIDExists(fdemgr, recoveryKeyID); err != nil {
-		return nil, fmt.Errorf("invalid recovery key ID: %v", err)
+		// don't wrap to expose InvalidRecoveryKeyError to the caller.
+		return nil, err
 	}
 
 	currentKeyslots, missing, err := fdemgr.GetKeyslots(keyslotRefs)
@@ -565,7 +579,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
 		}
-		// TODO:FDEM: accept custom recovery key slot names when a naming convension is defined
+		// TODO:FDEM: accept custom key slot names when a naming convension is defined
 		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
@@ -633,4 +647,141 @@ func SystemEncryptedFromState(st *state.State) (bool, error) {
 		return false, fmt.Errorf("cannot determine if system is encrypted: %v", err)
 	}
 	return encrypted, nil
+}
+
+type volumesAuthOptionsKey struct{}
+
+// ReplacePlatformKey creates a taskset that replaces the
+// platform protected key for the specified target key slots.
+//
+// If keyslotRefs is empty, the following key slots are targets:
+//   - container-role: system-data, name: default
+//   - container-role: system-data, name: default-fallback
+//   - container-role: system-save, name: default-fallback
+func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []KeyslotRef) (*state.TaskSet, error) {
+	authMode := device.AuthModeNone
+	if volumesAuth != nil {
+		if err := volumesAuth.Validate(); err != nil {
+			return nil, err
+		}
+		authMode = volumesAuth.Mode
+	}
+
+	var keyType string
+	switch authMode {
+	case device.AuthModePassphrase:
+		keyType = "passphrase"
+	case device.AuthModePIN:
+		keyType = "pin"
+	case device.AuthModeNone:
+		keyType = "platform"
+	default:
+		return nil, fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
+	if len(keyslotRefs) == 0 {
+		// by default, target platform keys that would have been added during installation.
+		keyslotRefs = append(keyslotRefs,
+			KeyslotRef{ContainerRole: "system-data", Name: "default"},
+			KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"},
+			KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"},
+		)
+	}
+
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
+	for _, keyslotRef := range keyslotRefs {
+		if err := keyslotRef.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
+		}
+		// TODO:FDEM: accept custom key slot names when a naming convension is defined
+		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
+			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
+		}
+
+		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
+	}
+
+	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	if unlockedWithRecoveryKey {
+		// primary key might be missing from kernel keyring if disk was
+		// unlocked with recovery key during boot.
+		return nil, errors.New("system was unlocked with a recovery key during boot: reboot required")
+	}
+
+	// Note: checking that there are no ongoing conflicting changes and that the
+	// targeted key slots exist while state is locked ensures that we don't suffer
+	// from TOCTOU.
+
+	if err := checkFDEParametersChangeConflicts(st); err != nil {
+		return nil, err
+	}
+
+	if err := checkFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	mgr := fdeMgr(st)
+
+	keyslots, missing, err := mgr.GetKeyslots(keyslotRefs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(missing) != 0 {
+		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
+	}
+
+	tmpKeyslotRoles := make(map[string][]string, len(keyslots))
+	for _, keyslot := range keyslots {
+		if keyslot.Type != KeyslotTypePlatform {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypePlatform)
+		}
+		kd, err := keyslot.KeyData()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read key data for %s: %v", keyslot.Ref().String(), err)
+		}
+
+		// TODO:FDEM: support FDE hook setup
+		if kd.PlatformName() != secboot.PlatformTpm2 {
+			return nil, fmt.Errorf("invalid key slot reference %s: unsupported platform %q, expected %q", keyslot.Ref().String(), kd.PlatformName(), secboot.PlatformTpm2)
+		}
+
+		tmpKeyslotRef := tmpKeyslotRef(keyslot.Ref())
+		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()
+	}
+
+	if volumesAuth != nil {
+		// Auth data must be in memory to avoid leaking credentials.
+		if st.Cached(volumesAuthOptionsKey{}) != nil {
+			logger.Noticef("WARNING: authentication options already exists in memory")
+		}
+		st.Cache(volumesAuthOptionsKey{}, volumesAuth)
+	}
+
+	ts := state.NewTaskSet()
+
+	addTemporaryKeys := st.NewTask("fde-add-platform-keys", fmt.Sprintf("Add temporary %s key slots", keyType))
+	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
+	addTemporaryKeys.Set("auth-mode", authMode)
+	addTemporaryKeys.Set("roles", tmpKeyslotRoles)
+	ts.AddTask(addTemporaryKeys)
+
+	removeOldKeys := st.NewTask("fde-remove-keys", fmt.Sprintf("Remove old %s key slots", keyType))
+	removeOldKeys.Set("keyslots", keyslotRefs)
+	removeOldKeys.WaitFor(addTemporaryKeys)
+	ts.AddTask(removeOldKeys)
+
+	renameTemporaryKeys := st.NewTask("fde-rename-keys", fmt.Sprintf("Rename temporary %s key slots", keyType))
+	renameTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
+	renameTemporaryKeys.Set("renames", tmpKeyslotRenames)
+	renameTemporaryKeys.WaitFor(removeOldKeys)
+	ts.AddTask(renameTemporaryKeys)
+
+	return ts, nil
 }

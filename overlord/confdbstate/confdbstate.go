@@ -197,7 +197,7 @@ func GetTransactionToSet(ctx *hookstate.Context, st *state.State, view *confdb.V
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
 	// check if we're already running in the context of a committing transaction
-	if IsConfdbHook(ctx) {
+	if IsConfdbHookCtx(ctx) {
 		// running in the context of a transaction, so if the referenced confdb schema
 		// doesn't match that tx, we only allow the caller to read through the other confdb schema
 		t, _ := ctx.Task()
@@ -519,14 +519,18 @@ func GetStoredTransaction(t *state.Task) (tx *Transaction, txTask *state.Task, s
 	return tx, ct, saveTxChanges, nil
 }
 
-// IsConfdbHook returns whether the hook context belongs to a confdb hook.
-func IsConfdbHook(ctx *hookstate.Context) bool {
-	return ctx != nil && !ctx.IsEphemeral() &&
-		(strings.HasPrefix(ctx.HookName(), "change-view-") ||
-			strings.HasPrefix(ctx.HookName(), "save-view-") ||
-			strings.HasPrefix(ctx.HookName(), "load-view-") ||
-			strings.HasPrefix(ctx.HookName(), "query-view-") ||
-			strings.HasPrefix(ctx.HookName(), "observe-view-"))
+// IsConfdbHookCtx returns whether the hook context belongs to a confdb hook.
+func IsConfdbHookCtx(ctx *hookstate.Context) bool {
+	return ctx != nil && !ctx.IsEphemeral() && IsConfdbHookname(ctx.HookName())
+}
+
+// IsConfdbHookname returns whether the hookname denotes a confdb hook.
+func IsConfdbHookname(name string) bool {
+	return strings.HasPrefix(name, "change-view-") ||
+		strings.HasPrefix(name, "save-view-") ||
+		strings.HasPrefix(name, "load-view-") ||
+		strings.HasPrefix(name, "query-view-") ||
+		strings.HasPrefix(name, "observe-view-")
 }
 
 // CanHookSetConfdb returns whether the hook context belongs to a confdb hook
@@ -546,7 +550,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 	st := ctx.State()
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
-	if IsConfdbHook(ctx) {
+	if IsConfdbHookCtx(ctx) {
 		// running in the context of a transaction, so if the referenced confdb
 		// doesn't match that tx, we only allow the caller to read the other confdb
 		t, _ := ctx.Task()

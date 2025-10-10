@@ -18,12 +18,14 @@ def main(argv):
     parser = argparse.ArgumentParser('Call the snapd REST API')
     parser.add_argument('--method', default='GET',
                         help='The HTTP method to use')
+    parser.add_argument('--url',
+                        help='The request url')
     parser.add_argument('body', metavar='BODY', default=None, nargs='?',
                         help='The HTTP request body')
     args = parser.parse_args(argv[1:])
 
     conn = UnixSocketHTTPConnection()
-    conn.request(args.method, '/v2/apps', args.body)
+    conn.request(args.method, args.url, args.body)
 
     response = conn.getresponse()
     body = response.read()

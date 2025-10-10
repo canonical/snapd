@@ -183,7 +183,9 @@ func (s *svcStatus) Execute(args []string) error {
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 	for _, svc := range services {
-		fmt.Fprintln(w, clientutil.FmtServiceStatus(svc, isGlobal))
+		fmt.Fprintln(w, clientutil.FmtServiceStatus(svc, clientutil.FmtServiceStatusOptions{
+			IsUserGlobal: isGlobal,
+		}))
 	}
 	return nil
 }

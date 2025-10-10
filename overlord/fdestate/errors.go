@@ -62,3 +62,37 @@ func (e *keyslotsAlreadyExistsError) Error() string {
 		return fmt.Sprintf("key slots [%s] already exist", concatRefs.String())
 	}
 }
+
+type InvalidRecoveryKeyReason string
+
+const (
+	InvalidRecoveryKeyReasonExpired       InvalidRecoveryKeyReason = "expired"
+	InvalidRecoveryKeyReasonNotFound      InvalidRecoveryKeyReason = "not-found"
+	InvalidRecoveryKeyReasonInvalidFormat InvalidRecoveryKeyReason = "invalid-format"
+	InvalidRecoveryKeyReasonInvalidValue  InvalidRecoveryKeyReason = "invalid-value"
+)
+
+type InvalidRecoveryKeyError struct {
+	Reason InvalidRecoveryKeyReason
+
+	Message string
+}
+
+func (e *InvalidRecoveryKeyError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+
+	switch e.Reason {
+	case InvalidRecoveryKeyReasonExpired:
+		return "invalid recovery key: expired"
+	case InvalidRecoveryKeyReasonNotFound:
+		return "invalid recovery key: not found"
+	case InvalidRecoveryKeyReasonInvalidFormat:
+		return "invalid recovery key: bad format"
+	case InvalidRecoveryKeyReasonInvalidValue:
+		return "invalid recovery key: bad value"
+	default:
+		return "internal error: unexpected recovery key error"
+	}
+}

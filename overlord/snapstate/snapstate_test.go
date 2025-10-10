@@ -1827,13 +1827,36 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlockedUndo(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
+	s.revertWithBase(c, snap.R(1), "core18", func(chg *state.Change) bool { return false })
+}
+
+func (s *snapmgrTestSuite) TestRevertWithBaseUndo(c *C) {
+	s.revertWithBase(c, snap.R(7), "core22", func(chg *state.Change) bool {
+		// fail the change after the snap's new state is saved
+		s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+			return errors.New("expected")
+		}, nil)
+
+		linkTask := findLastTask(chg, "link-snap")
+		failingTask := s.state.NewTask("fail", "expected failure")
+		chg.AddTask(failingTask)
+		failingTask.WaitFor(linkTask)
+		for _, lane := range linkTask.Lanes() {
+			failingTask.JoinLane(lane)
+		}
+
+		return true
+	})
+}
+
+func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expectedBase string, maybeFail func(*state.Change) bool) {
 	si := snap.SideInfo{
-		RealName: "some-snap-with-base",
+		RealName: "snap-core18-to-core22",
 		Revision: snap.R(7),
 	}
 	siOld := snap.SideInfo{
-		RealName: "some-snap-with-base",
-		Revision: snap.R(2),
+		RealName: "snap-core18-to-core22",
+		Revision: snap.R(1),
 	}
 
 	s.state.Lock()
@@ -1841,10 +1864,20 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 
 	// core18 with snapd, no core snap
 	snapstate.Set(s.state, "core", nil)
+	// so we don't have to list the tasks for the core18 install
 	snapstate.Set(s.state, "core18", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "core22", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "core22", SnapID: "core22-snap-id", Revision: snap.R(1)},
 		}),
 		Current:  snap.R(1),
 		SnapType: "base",
@@ -1859,73 +1892,78 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 	})
 
 	// test snap to revert
-	snapstate.Set(s.state, "some-snap-with-base", &snapstate.SnapState{
+	snapstate.Set(s.state, "snap-core18-to-core22", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
+		Base:     "core22",
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap backwards")
-	ts, err := snapstate.Revert(s.state, "some-snap-with-base", snapstate.Flags{}, "")
+	ts, err := snapstate.Revert(s.state, "snap-core18-to-core22", snapstate.Flags{}, "")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
+	failing := maybeFail(chg)
+
 	s.settle(c)
 
-	expected := fakeOps{
-		{
-			op:   "remove-snap-aliases",
-			name: "some-snap-with-base",
-		},
-		{
-			op:          "run-inhibit-snap-for-unlink",
-			name:        "some-snap-with-base",
-			inhibitHint: "refresh",
-		},
-		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/7"),
-		},
-		{
-			op:    "setup-profiles:Doing",
-			name:  "some-snap-with-base",
-			revno: snap.R(2),
-		},
-		{
-			op: "candidate",
-			sinfo: snap.SideInfo{
-				RealName: "some-snap-with-base",
-				Revision: snap.R(2),
+	if !failing {
+		expected := fakeOps{
+			{
+				op:   "remove-snap-aliases",
+				name: "snap-core18-to-core22",
 			},
-		},
-		{
-			op:   "link-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/2"),
-		},
-		{
-			op: "maybe-set-next-boot",
-		},
-		{
-			op:    "auto-connect:Doing",
-			name:  "some-snap-with-base",
-			revno: snap.R(2),
-		},
-		{
-			op: "update-aliases",
-		},
+			{
+				op:          "run-inhibit-snap-for-unlink",
+				name:        "snap-core18-to-core22",
+				inhibitHint: "refresh",
+			},
+			{
+				op:   "unlink-snap",
+				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+			},
+			{
+				op:    "setup-profiles:Doing",
+				name:  "snap-core18-to-core22",
+				revno: snap.R(1),
+			},
+			{
+				op: "candidate",
+				sinfo: snap.SideInfo{
+					RealName: "snap-core18-to-core22",
+					Revision: snap.R(1),
+				},
+			},
+			{
+				op:   "link-snap",
+				path: filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/1"),
+			},
+			{
+				op: "maybe-set-next-boot",
+			},
+			{
+				op:    "auto-connect:Doing",
+				name:  "snap-core18-to-core22",
+				revno: snap.R(1),
+			},
+			{
+				op: "update-aliases",
+			},
+		}
+		// start with an easier-to-read error if this fails:
+		c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+		c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 	}
-	// start with an easier-to-read error if this fails:
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
-	// verify that the R(2) version is active now and R(7) is still there
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap-with-base", &snapst)
+	err = snapstate.Get(s.state, "snap-core18-to-core22", &snapst)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Current, Equals, expectedRev)
+	c.Assert(snapst.Base, Equals, expectedBase)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
@@ -6426,6 +6464,57 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2MarkAliasTasksInError(c *C) {
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 
+func (s *snapmgrTestSuite) TestConflictManyIgnoresConfdbChanges(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.RegisterAffectedSnapsByAttr("hook-setup", func(t *state.Task) ([]string, error) {
+		var hooksup hookstate.HookSetup
+		if err := t.Get("hook-setup", &hooksup); err != nil {
+			return nil, fmt.Errorf("internal error: cannot obtain hook data from task: %s", t.Summary())
+		}
+		return []string{hooksup.Snap}, nil
+	})
+
+	type testcase struct {
+		kind  string
+		fails bool
+	}
+
+	tcs := []testcase{
+		{
+			kind:  "random",
+			fails: true,
+		},
+		{
+			kind: "get-confdb",
+		},
+		{
+			kind: "set-confdb",
+		},
+	}
+
+	for i, tc := range tcs {
+		chg := s.state.NewChange(tc.kind, "")
+		for _, hook := range []string{"load-view-setup", "save-view-setup", "change-view-setup", "observe-view-setup", "query-view-setup"} {
+			hookSup := &hookstate.HookSetup{
+				Snap: "some-snap",
+				Hook: hook,
+			}
+			chg.AddTask(hookstate.HookTask(s.state, "summary", hookSup, nil))
+		}
+
+		err := snapstate.CheckChangeConflictMany(s.state, []string{"some-snap"}, "")
+		cmt := Commentf("testcase %d (0-indexed)", i)
+		if tc.fails {
+			c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{}, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
+		chg.SetStatus(state.DoneStatus)
+	}
+}
+
 func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -9022,6 +9111,79 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 	c.Assert(calledEnforce, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorHookContextCompatibility(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("some-other-snap"),
+		RealName: "some-other-snap",
+	}
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{info}),
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	s.fakeStore.registerID("some-other-snap", snaptest.AssertedSnapID("some-other-snap"))
+	s.fakeStore.registerID("some-snap", snaptest.AssertedSnapID("some-snap"))
+
+	headers := map[string]any{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []any{
+			map[string]any{
+				"name":     "some-snap",
+				"id":       snaptest.AssertedSnapID("some-snap"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]any{
+				"name":     "some-other-snap",
+				"id":       snaptest.AssertedSnapID("some-other-snap"),
+				"presence": "required",
+				"revision": "2",
+			},
+		},
+	}
+
+	storeSigning := assertstest.NewStoreStack("can0nical", nil)
+	a, err := storeSigning.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	verr := &snapasserts.ValidationSetsValidationError{
+		MissingSnaps:       map[string]map[snap.Revision][]string{"some-snap": {snap.R(1): {"foo/bar"}}},
+		WrongRevisionSnaps: map[string]map[snap.Revision][]string{"some-other-snap": {snap.R(2): {"foo/bar"}}},
+		Sets:               map[string]*asserts.ValidationSet{"foo/bar": vs},
+	}
+
+	tss, _, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, verr, nil, s.user.ID)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("resolve-validation-sets", "")
+	hookSetup := &hookstate.HookSetup{Snap: "some-snap", Hook: "install"}
+	hookTask := hookstate.HookTask(s.state, "run install hook", hookSetup, nil)
+	chg.AddTask(hookTask)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	ctx, err := hookstate.NewContext(hookTask, s.state, hookSetup, nil, "")
+	c.Assert(err, IsNil)
+
+	pending, err := ctx.PendingValidationSets()
+	c.Assert(err, IsNil)
+	c.Assert(pending, NotNil)
+	c.Assert(pending.Keys(), DeepEquals, []snapasserts.ValidationSetKey{snapasserts.NewValidationSetKey(vs)})
+}
+
 func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorInvalidComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -9139,7 +9301,8 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorComponents(c
 		}})
 		for _, comp := range comps {
 			// since we take a pointer to comp here, we've gotta copy it out of
-			// the loop variable. can be removed once we're on go 1.22
+			// the loop variable.
+			// TODO:GOVERSION: can be removed once we're on go 1.22
 			comp := comp
 			err := seq.AddComponentForRevision(rev, sequence.NewComponentState(&comp, snap.TestComponent))
 			c.Assert(err, IsNil)
@@ -9294,7 +9457,8 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorBaseOrdering
 		}})
 		for _, comp := range comps {
 			// since we take a pointer to comp here, we've gotta copy it out of
-			// the loop variable. can be removed once we're on go 1.22
+			// the loop variable.
+			// TODO:GOVERSION: can be removed once we're on go 1.22
 			comp := comp
 			err := seq.AddComponentForRevision(rev, sequence.NewComponentState(&comp, snap.TestComponent))
 			c.Assert(err, IsNil)

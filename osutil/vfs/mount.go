@@ -163,6 +163,7 @@ func (v *VFS) RecursiveBindMount(sourcePoint, mountPoint string) error {
 func (v *VFS) unlockedRecursiveBindMount(sourcePoint, mountPoint string) error {
 	pd := v.pathDominator(sourcePoint)
 	// TODO(propagation): fail loudly if source point is unbindable.
+	// TODO: replace this with lists.DepthFirstSearch on the original mount tree.
 
 	// Create the initial bind mount from source to mount point.
 	if m, err := v.unlockedBindMount(sourcePoint, mountPoint); err != nil || !m.isDir {
@@ -235,6 +236,7 @@ func (v *VFS) Unmount(mountPoint string) error {
 		return &fs.PathError{Op: op, Path: mountPoint, Err: errNotMounted}
 	}
 
+	// TODO: replace this with emptiness check on the list of children.
 	// Is this mount point a parent of any other mount? By special case of the
 	// rootfs mount, it cannot ever be unmounted as it is its own parent.
 	for _, m := range v.mounts {

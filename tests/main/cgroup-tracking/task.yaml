@@ -36,13 +36,16 @@ debug: |
     cat /proc/cmdline
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # This test varies between Ubuntu 16.04, Ubuntu 18.04 and Fedora 31.
     # This combination exercises each of the three cases below, namely:
     # - pure cgroup v2 system, like Fedora 31
     # - hybrid cgroup system, like Ubuntu 18.04
     # - pure cgroup v1 system, like Ubuntu 16.04
     echo "Find the path and id of the cgroup snapd uses for tracking."
-    if [ "$(stat -f --print=%T /sys/fs/cgroup)" = "cgroup2fs" ]; then
+    if is_cgroupv2; then
         base_cg_path=/sys/fs/cgroup
         base_cg_id=0
     elif [ "$(stat -f --print=%T /sys/fs/cgroup/unified)" = "cgroup2fs" ]; then
@@ -65,7 +68,7 @@ execute: |
     echo "$hook_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.hook\.configure-[0-9a-f-]+\.scope'
 
     # The nap service was executed and was tracked as a systemd service.
-    test -f /var/snap/test-snapd-tracking/common/nap.cgroup
+    retry -n 10 test -f /var/snap/test-snapd-tracking/common/nap.cgroup
     service_tracking_cg_path="$(grep -E "^$base_cg_id:" < /var/snap/test-snapd-tracking/common/nap.cgroup | cut -d : -f 3)"
     echo "$service_tracking_cg_path" | MATCH '/system\.slice/snap\.test-snapd-tracking\.nap\.service'
 

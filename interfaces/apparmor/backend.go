@@ -327,7 +327,7 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %s", errReload)
 	}
 	if errRemoveCached != nil {
-		return fmt.Errorf("cannot remove cached snap-confine apparmor profile: %s", errReload)
+		return fmt.Errorf("cannot remove cached snap-confine apparmor profile: %s", errRemoveCached)
 	}
 	return nil
 }

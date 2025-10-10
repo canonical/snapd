@@ -47,7 +47,12 @@ func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints 
 }
 
 func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]any) (changeID string, err error) {
-	body, err := json.Marshal(requestValues)
+	type setBody struct {
+		Values map[string]any `json:"values"`
+	}
+
+	body := setBody{Values: requestValues}
+	bodyRaw, err := json.Marshal(body)
 	if err != nil {
 		return "", err
 	}
@@ -56,5 +61,5 @@ func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]any) (
 	headers["Content-Type"] = "application/json"
 
 	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
-	return c.doAsync("PUT", endpoint, nil, headers, bytes.NewReader(body))
+	return c.doAsync("PUT", endpoint, nil, headers, bytes.NewReader(bodyRaw))
 }

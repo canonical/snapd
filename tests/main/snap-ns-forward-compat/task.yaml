@@ -6,7 +6,8 @@ details: |
     locations.
 
 # Skip 32-bit architectures because the core20 snap is not available there
-systems: [-*-32]
+# Skip debian-sid as pivot_root binary is not anymore within util-linux
+systems: [-*-32, -debian-sid-*]
 
 prepare: |
     echo "Install test snap"

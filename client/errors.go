@@ -185,6 +185,12 @@ const (
 
 	// ErrorKindSystemKeyVersionUnsupported: snapd does not support the system key version sent by the client.
 	ErrorKindSystemKeyVersionUnsupported ErrorKind = "unsupported-system-key-version"
+
+	// ErrorKindKeyslotNotFound: keyslots cannot be found.
+	ErrorKindKeyslotsNotFound ErrorKind = "keyslots-not-found"
+
+	// ErrorKindInvalidRecoveryKey: recovery key itself or its ID is invalid.
+	ErrorKindInvalidRecoveryKey ErrorKind = "invalid-recovery-key"
 )
 
 // Maintenance error kinds.

@@ -5,7 +5,56 @@ details: |
     then the icons API should fall back to serving the icon from the snap's
     store listing, which snapd should have cached during the snap install.
 
+environment:
+    # in the with-icon-download variant the icons are downloaded as expected
+    CLOUD/with_icon_download: ""
+
+    # in the no-icon-download variant no icons are downloaded, due to executing
+    # within a 'cloud' environment
+    CLOUD/no_icon_download: "cloudlet"
+
+prepare: |
+    systemctl stop snapd.socket
+    gojq .data.config.core.cloud /var/lib/snapd/state.json > cloud.backup
+
+    if [ "$SPREAD_VARIANT" = "with_icon_download" ]; then
+        gojq '.data.config.core.cloud={}' /var/lib/snapd/state.json > state.json."$SPREAD_VARIANT"
+    else
+        # shellcheck disable=SC2016
+        gojq --arg CLOUD "$CLOUD" .data.config.core.cloud='{"name":$CLOUD,"availability-zone": "yes"}' \
+            /var/lib/snapd/state.json > state.json."$SPREAD_VARIANT"
+    fi
+
+    cp -v state.json."$SPREAD_VARIANT" /var/lib/snapd/state.json
+    systemctl start snapd.socket
+    snap wait system seed.loaded
+
+restore: |
+    if [ -f cloud.backup ]; then
+        systemctl stop snapd.socket
+        gojq .data.config.core.cloud="$(cat cloud.backup)" /var/lib/snapd/state.json > state.json.restore
+        cp -v state.json.restore /var/lib/snapd/state.json
+
+        systemctl start snapd.socket
+        snap wait system seed.loaded
+    fi
+
 execute: |
+    # poke the snap store to check whether SN-4888 has been fixed (though skip
+    # that on core where we'd have to install curl separately):
+    if ! os.query is-core; then
+        echo '{"actions":[{"action":"install", "name": "snapd", "instance-key": ""}], "context": [], "fields": ["download","media"]}' | \
+        curl --fail -d@- \
+            -H 'Content-Type: application/json' -H 'Snap-Device-Series: 16' \
+            -H 'Snap-Device-Architecture: amd64' \
+            -X POST https://api.snapcraft.io/v2/snaps/refresh |\
+            gojq -r '.results[0].snap.media[] | select(.type=="icon").url' | tee store-icon-url
+
+        # TODO: if this check fails then SN-4888 has likely been fixed and it should
+        # be possible to drop the workaround in snapd
+        MATCH 'dashboard.snapcraft.io' < store-icon-url
+    fi
+
     # Snap which has local icon file and a store icon
     # Local icon: icon-orange-chest.svg
     # Store icon: icon-orange-wing.svg
@@ -44,29 +93,33 @@ execute: |
     echo "Check that the snap which is NOT supposed to have a local icon does not have no local icon"
     find "${SNAP_DIR}/${SNAP_FALLBACK}"/current/meta/gui/icon.* | wc -l | MATCH 0
 
-
     echo "Check that both snaps have store icons"
     snap debug api "/v2/snaps/$SNAP_LOCAL" | MATCH '"icon"'
     snap debug api "/v2/snaps/$SNAP_FALLBACK" | MATCH '"icon"'
 
+    if [ "$SPREAD_VARIANT" = "with_icon_download" ]; then
+        echo "Check that installed snaps now have icons downloaded and installed"
+        test -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
+        test -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
+        test -e "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon"
+        test -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
 
-    echo "Check that installed snaps now have icons downloaded and installed"
-    test -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
-    test -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
-    test -e "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon"
-    test -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
+        echo "Check that icons downloaded and installed icons are only writable by root"
+        stat --format %A "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon" | MATCH -e '-rw-.--.--'
+        stat --format %A "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon" | MATCH -e '-rw-.--.--'
+        stat --format %A "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon" | MATCH -e '-rw-.--.--'
+        stat --format %A "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon" | MATCH -e '-rw-.--.--'
 
-    echo "Check that icons download and install directories are only writable by root"
-    # root must have wrx, but otherwise only care that non-root doesn't have write
-    stat --format %A "/var/cache/snapd/icons-pool" | MATCH -e 'drwx.-..-.'
-    stat --format %A "/var/cache/snapd/icons" | MATCH -e 'drwx.-..-.'
-
-    echo "Check that icons downloaded and installed icons are only writable by root"
-    stat --format %A "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon" | MATCH -e '-rw-.--.--'
-    stat --format %A "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon" | MATCH -e '-rw-.--.--'
-    stat --format %A "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon" | MATCH -e '-rw-.--.--'
-    stat --format %A "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon" | MATCH -e '-rw-.--.--'
-
+        echo "Check that icons download and install directories are only writable by root"
+        # root must have wrx, but otherwise only care that non-root doesn't have write
+        stat --format %A "/var/cache/snapd/icons-pool" | MATCH -e 'drwx.-..-.'
+        stat --format %A "/var/cache/snapd/icons" | MATCH -e 'drwx.-..-.'
+    else
+        test ! -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
+        test ! -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
+        test ! -e "/var/cache/snapd/icons/${SNAP_LOCAL_ID}.icon"
+        test ! -e "/var/cache/snapd/icons/${SNAP_FALLBACK_ID}.icon"
+    fi
 
     # Clear any previously-fetched icons from previous runs
     rm -f "${SNAP_LOCAL}.icon" "${SNAP_FALLBACK}.icon"
@@ -75,10 +128,15 @@ execute: |
     snap debug api "/v2/icons/${SNAP_LOCAL}/icon" > "${SNAP_LOCAL}.icon"
     cmp "${SNAP_LOCAL}.icon" "${SNAP_DIR}/${SNAP_LOCAL}/current/meta/gui/icon.svg"
 
-    echo "Check that /v2/icons serves the store icon as fallback"
-    snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
-    NOMATCH '"local snap has no icon"' "${SNAP_FALLBACK}.icon"
-
+    if [ "$SPREAD_VARIANT" = "with_icon_download" ]; then
+        echo "Check that /v2/icons serves the store icon as fallback"
+        snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
+        NOMATCH '"local snap has no icon"' "${SNAP_FALLBACK}.icon"
+    else
+        echo "Check that /v2/icons does not serve store icon as fallback"
+        snap debug api "/v2/icons/${SNAP_FALLBACK}/icon" > "${SNAP_FALLBACK}.icon"
+        MATCH '"local snap has no icon"' "${SNAP_FALLBACK}.icon"
+    fi
 
     echo "Uninstall the snaps"
     snap remove "${SNAP_LOCAL}"
@@ -94,7 +152,6 @@ execute: |
     # echo "Check that the snap icons are still in the pool"
     # test -e "/var/cache/snapd/icons-pool/${SNAP_LOCAL_ID}.icon"
     # test -e "/var/cache/snapd/icons-pool/${SNAP_FALLBACK_ID}.icon"
-
 
     echo "Check that /v2/icons no longer serves icons since the snaps are uninstalled"
     snap debug api "/v2/icons/${SNAP_LOCAL}/icon" | MATCH '"status-code": 404'

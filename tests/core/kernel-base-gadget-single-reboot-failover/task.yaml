@@ -5,58 +5,108 @@ details: |
     other essential snaps (boot-base, gadget, kernel specifically), then all of
     them are rolled back.
 
-# TODO make the test work with ubuntu-core-20
-systems: [ubuntu-core-18-*]
+# TODO: enable again for 18 once rest of the tests support
+# testing using unasserted gadget/kernel
+systems: [ubuntu-core-2*]
+
+# run early to avoid being messed with
+priority: 600
 
 environment:
-    BLOB_DIR: $(pwd)/fake-store-blobdir
+    # We are uploading too much in terms of size for the snaps
+    # we sideload. On UC18 this is disabled automatically, but
+    # on UC20+ this has proved to be an issue
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    # To get VERSION_ID defined
+    . /etc/os-release
+
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
+
     readlink "/snap/pc-kernel/current" > pc-kernel.rev
-    readlink "/snap/core18/current" > core.rev
+    readlink "/snap/$core_snap/current" > core.rev
     readlink "/snap/pc/current" > pc.rev
 
-restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-    
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+    # To get VERSION_ID defined
+    . /etc/os-release
+
+    if snap list pc | NOMATCH "x[1-9]"; then
+        echo "This test needs a host using an unasserted 'pc' gadget snap"
+        exit 1
     fi
 
-    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
 
-    if [ "$SPREAD_REBOOT" = 0 ]; then
-        # break the pc-kernel snap
-        unsquashfs -d pc-kernel-snap /var/lib/snapd/snaps/pc-kernel_*.snap
-        truncate -s 0 pc-kernel-snap/initrd.img
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+        echo Downloading needed snaps
+        snap download pc-kernel --channel="$VERSION_ID"/"$KERNEL_CHANNEL"
 
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel --snap-blob "$PWD/pc-kernel-snap"
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" core18
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc
+        snap download "$core_snap" --edge
+        printf '\0' >> "$core_snap"_*.snap
 
-        snap refresh --no-wait core18 pc pc-kernel > refresh-change-id
-        
+        # We run one with a vanilla gadget, and one with another gadget
+        cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
+        unsquashfs -d pc-snap gadget.snap        
+        cp pc-snap/meta/gadget.yaml gadget.yaml.orig
+
+        system_seed=""
+        if os.query is-core-ge 20; then
+            system_seed="--system-seed"
+        fi
+
+        # prepare update
+        python3 ../gadget-update-pc/generate.py ./gadget.yaml.orig v1 $system_seed > pc-snap/meta/gadget.yaml
+        echo 'this is foo-x2' > foo-x2.img
+        cp foo-x2.img pc-snap/foo.img
+        echo 'this is foo.cfg' > pc-snap/foo.cfg
+        if os.query is-core-ge 20; then
+            echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
+        fi
+        sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
+        mkdir -p ./pc-snap/meta/hooks
+        cat <<EOF >./pc-snap/meta/hooks/configure
+    #!/bin/bash
+    # invalid hook
+    exit 1
+    EOF
+        chmod +x ./pc-snap/meta/hooks/configure
+
+        snap pack pc-snap --filename=pc_x1.snap
+
+        snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+
         # wait for the link tasks to be done
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
-        snap debug boot-vars > boot-vars.dump
-        MATCH 'snap_mode=try' < boot-vars.dump
-        MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
-        MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
+        if os.query is-core18; then
+            snap debug boot-vars > boot-vars.dump
+            MATCH 'snap_mode=try' < boot-vars.dump
+            MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
+            MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
+        elif os.query is-core-ge 20; then
+            stat /boot/grub/kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
+            stat -L /boot/grub/kernel.efi
+            stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
+            stat -L /boot/grub/try-kernel.efi
+        else
+            echo "unsupported Ubuntu Core system"
+            exit 1
+        fi
 
         REBOOT
-    elif [ "$SPREAD_REBOOT" = 1 ]; then
+    elif [ "$SPREAD_REBOOT" -eq 1 ]; then
+        # we continue after the reboot, and then fails, then change reverts
+        change_id="$(cat refresh-change-id)"
+        snap watch "$change_id" || true
+        
+        # wait for a restart to be requested for the rollback
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 2 ]; then
         change_id="$(cat refresh-change-id)"
         # we expect the change to have failed due to the kernel not booting
         # properly
@@ -67,19 +117,27 @@ execute: |
         # and since kernel, gadget and base all are considered to be forced as a transaction
         # we expect all to be undone
         MATCH 'Undone\s+.*Make snap "pc-kernel" .* available' < tasks.done
-        MATCH 'Undone\s+.*Make snap "core18" .* available' < tasks.done
+        MATCH "Undone\s+.*Make snap \"${core_snap}\" .* available" < tasks.done
         MATCH 'Undone\s+.*Make snap "pc" .* available' < tasks.done
 
         # boot variables should have been cleared
-        snap debug boot-vars > boot-vars.dump
-        MATCH 'snap_mode=$' < boot-vars.dump
-        MATCH 'snap_try_core=$' < boot-vars.dump
-        MATCH 'snap_try_kernel=$' < boot-vars.dump
+        if os.query is-core18; then
+            snap debug boot-vars > boot-vars.dump
+            MATCH 'snap_mode=$' < boot-vars.dump
+            MATCH 'snap_try_core=$' < boot-vars.dump
+            MATCH 'snap_try_kernel=$' < boot-vars.dump
+        elif os.query is-core-ge 20; then
+            stat /boot/grub/try-kernel.efi | NOMATCH 'pc-kernel.*.snap/kernel.efi'
+            stat -L /boot/grub/try-kernel.efi && exit 1
+        else
+            echo "unsupported Ubuntu Core system"
+            exit 1
+        fi
 
         # make sure the system is in stable state, no pending reboots
         # XXX systemctl exits with non-0 when in degraded state
         # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
 
         # we're expecting the old revisions to be back
         original_kernel="$(cat pc-kernel.rev)"
@@ -88,7 +146,7 @@ execute: |
 
         # verify that current points to old revisions
         test "$(readlink /snap/pc-kernel/current)" = "$original_kernel"
-        test "$(readlink /snap/core18/current)" = "$original_core"
+        test "$(readlink /snap/"${core_snap}"/current)" = "$original_core"
         test "$(readlink /snap/pc/current)" = "$original_pc"
     else
         echo "unexpected reboot"

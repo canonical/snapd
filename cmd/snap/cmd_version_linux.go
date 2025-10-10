@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -37,6 +38,7 @@ func serverVersion(cli *client.Client) *client.ServerVersion {
 			OSID:          "Windows Subsystem for Linux",
 			OnClassic:     true,
 			KernelVersion: fmt.Sprintf("%s (%s)", osutil.KernelVersion(), runtime.GOARCH),
+			Architecture:  arch.DpkgArchitecture(),
 		}
 	}
 	sv, err := cli.ServerVersion()

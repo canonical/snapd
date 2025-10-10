@@ -21,6 +21,7 @@ package backend
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -79,6 +80,59 @@ type SealingParameters struct {
 	BootModes     []string
 	Models        []secboot.ModelForSealing
 	TpmPCRProfile []byte
+}
+
+type parametersKey struct {
+	role          string
+	containerRole string
+}
+
+// updatedParameters represents sealing parameters from FDE state
+// (eventually updated from resealing), but not yet applied to current
+// FDE state.
+type updatedParameters struct {
+	catalog map[parametersKey]*SealingParameters
+}
+
+func newUpdatedParameters() *updatedParameters {
+	return &updatedParameters{catalog: make(map[parametersKey]*SealingParameters)}
+}
+
+func (u *updatedParameters) set(role, containerRole string, params *SealingParameters) {
+	u.catalog[parametersKey{role: role, containerRole: containerRole}] = params
+}
+
+func (u *updatedParameters) unset(role, containerRole string) {
+	delete(u.catalog, parametersKey{role: role, containerRole: containerRole})
+}
+
+func (u *updatedParameters) setTpmPCRProfile(role, containerRole string, tpmPCRProfile []byte) bool {
+	params, ok := u.catalog[parametersKey{role: role, containerRole: containerRole}]
+	if !ok {
+		return false
+	}
+	params.TpmPCRProfile = tpmPCRProfile
+	return true
+}
+
+// find returns the parameters for the first container role it finds
+func (u *updatedParameters) find(role string, containerRoles ...string) *SealingParameters {
+	for _, cr := range containerRoles {
+		params, ok := u.catalog[parametersKey{role: role, containerRole: cr}]
+		if ok {
+			return params
+		}
+	}
+	return nil
+}
+
+func (u *updatedParameters) apply(manager FDEStateManager) error {
+	for key, parameters := range u.catalog {
+		if err := manager.Update(key.role, key.containerRole, parameters); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // EncryptedContainer gives information on the role, path and path to
@@ -143,103 +197,24 @@ func getUniqueModels(bootChains []boot.BootChain) []secboot.ModelForSealing {
 	return models
 }
 
-type resealParamsAndLocation struct {
-	params   *SealingParameters
-	location secboot.KeyDataLocation
-}
+// errNoPCRProfileCalculated is used when recalculateParamatersTPM
+// does not set the parameters in state due to unchanged boot
+// chain. This is not an real error most of the time but it still needs
+// to exit resealing attempt.
+var errNoPCRProfileCalculated = errors.New("no PCR profile calculated, skipping resealing")
 
-type doResealOptions struct {
-	revokeOldKeys     bool
-	hintExpectFDEHook bool
-}
-
-func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) error {
-	revokeOldKeys := opts.revokeOldKeys
+func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, inputs resealInputs, opts resealOptions) error {
+	revokeOldKeys := opts.Revoke
 
 	containers, err := manager.GetEncryptedContainers()
 	if err != nil {
 		return err
 	}
 
-	var keys []resealParamsAndLocation
-
 	var devices []string
 
 	for _, container := range containers {
 		devices = append(devices, container.DevPath())
-		legacyKeys := container.LegacyKeys()
-
-		switch container.ContainerRole() {
-		case "system-data":
-			parameters, err := manager.Get("run+recover", container.ContainerRole())
-			if err != nil {
-				return err
-			}
-			if parameters == nil {
-				logger.Debugf("there was no parameters for run+recover/%s", container.ContainerRole())
-				if revokeOldKeys {
-					// After installation, on first boot, we have an incomplete FDE state.
-					// This is fine. In this case we are not supposed to revoke old keys.
-					// And we cannot revoke old keys because we probably did not update
-					// the expected counter value in the profile. Otherwise incrementing
-					// the counter would revoke the current keys. So as a safety
-					// precaution, we should just ignore revocation attempt in this case.
-					logger.Noticef("warning: we are trying to revoke old keys while we have an incomplete FDE state")
-					revokeOldKeys = false
-				}
-			} else {
-				defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
-
-				runKey := secboot.KeyDataLocation{
-					DevicePath: container.DevPath(),
-					SlotName:   "default",
-				}
-				if hasDefaultLegacyKey {
-					runKey.KeyFile = defaultLegacyKey
-				}
-				keys = append(keys, resealParamsAndLocation{
-					params:   parameters,
-					location: runKey,
-				})
-			}
-		}
-
-		switch container.ContainerRole() {
-		case "system-save", "system-data":
-			parameters, err := manager.Get("recover", container.ContainerRole())
-			if err != nil {
-				return err
-			}
-			if parameters == nil {
-				logger.Debugf("there was no parameters for recover/%s", container.ContainerRole())
-				if revokeOldKeys {
-					// After installation, on first boot, we have an incomplete FDE state.
-					// This is fine. In this case we are not supposed to revoke old keys.
-					// And we cannot revoke old keys because we probably did not update
-					// the expected counter value in the profile. Otherwise incrementing
-					// the counter would revoke the current keys. So as a safety
-					// precaution, we should just ignore revocation attempt in this case.
-					logger.Noticef("warning: we are trying to revoke old keys while we have an incomplete FDE state")
-					revokeOldKeys = false
-				}
-			} else {
-				fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
-
-				fallbackKey := secboot.KeyDataLocation{
-					DevicePath: container.DevPath(),
-					SlotName:   "default-fallback",
-				}
-
-				if hasFallbackLegacyKey {
-					fallbackKey.KeyFile = fallbackLegacyKey
-				}
-
-				keys = append(keys, resealParamsAndLocation{
-					params:   parameters,
-					location: fallbackKey,
-				})
-			}
-		}
 	}
 
 	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
@@ -248,9 +223,59 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) err
 		filepath.Join(saveFDEDir, "tpm-policy-auth-key"),
 	}
 
+	params := inputs.bootChains
+	recoverModels := getUniqueModels(params.RecoveryBootChains)
+	newParameters := newUpdatedParameters()
+	newParameters.set("run", "all", &SealingParameters{
+		BootModes: []string{"run"},
+		Models:    getUniqueModels(params.RunModeBootChains),
+	})
+	newParameters.set("run+recover", "all", &SealingParameters{
+		BootModes: []string{"run", "recover"},
+		Models:    getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...)),
+	})
+	newParameters.set("recover", "system-data", &SealingParameters{
+		BootModes: []string{"recover"},
+		Models:    recoverModels,
+	})
+	newParameters.set("recover", "system-save", &SealingParameters{
+		BootModes: []string{"recover", "factory-reset"},
+		Models:    recoverModels,
+	})
+
+	tpmProfilesCalculated := false
+	ensureTPMProfiles := func() error {
+		if !tpmProfilesCalculated {
+			relock := manager.Unlock()
+			defer relock()
+
+			if err := recalculateParamatersTPM(newParameters, rootdir, inputs, opts); err != nil {
+				return err
+			}
+
+			tpmProfilesCalculated = true
+		}
+		return nil
+	}
+
 	var allResealedKeys secboot.UpdatedKeys
-	for _, key := range keys {
-		params := &secboot.ResealKeyParams{
+	resealKey := func(key secboot.KeyDataLocation, role string, containerRole string) error {
+		parameters := newParameters.find(role, containerRole, "all")
+		if parameters == nil {
+			return fmt.Errorf("internal error: not container role for %s/%s", role, containerRole)
+		}
+
+		getTpmPCRProfile := func() ([]byte, error) {
+			if err := ensureTPMProfiles(); err != nil {
+				return nil, err
+			}
+			if parameters.TpmPCRProfile == nil {
+				return nil, errNoPCRProfileCalculated
+			}
+			return parameters.TpmPCRProfile, nil
+		}
+
+		rkp := &secboot.ResealKeyParams{
 			// Because the save disk might be opened with
 			// an old plainkey, there might not be any
 			// primary key available in keyring for that
@@ -258,20 +283,78 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) err
 			// devices.
 			PrimaryKeyDevices:       devices,
 			FallbackPrimaryKeyFiles: fallbackPrimaryKeyFiles,
-			BootModes:               key.params.BootModes,
-			Models:                  key.params.Models,
-			TpmPCRProfile:           key.params.TpmPCRProfile,
+			BootModes:               parameters.BootModes,
+			Models:                  parameters.Models,
+			GetTpmPCRProfile:        getTpmPCRProfile,
 			NewPCRPolicyVersion:     revokeOldKeys,
-			HintExpectFDEHook:       opts.hintExpectFDEHook,
+			HintExpectFDEHook:       hintExpectFDEHook,
 		}
-		resealedKeys, err := secbootResealKey(key.location, params)
+		resealedKeys, err := secbootResealKey(key, rkp)
 		if err != nil {
+			revokeOldKeys = false
 			return err
 		}
 		if revokeOldKeys {
 			allResealedKeys = append(allResealedKeys, resealedKeys...)
 		}
+
+		return nil
 	}
+
+	for _, container := range containers {
+		legacyKeys := container.LegacyKeys()
+
+		switch container.ContainerRole() {
+		case "system-data":
+			defaultLegacyKey, hasDefaultLegacyKey := legacyKeys["default"]
+
+			runKey := secboot.KeyDataLocation{
+				DevicePath: container.DevPath(),
+				SlotName:   "default",
+			}
+			if hasDefaultLegacyKey {
+				runKey.KeyFile = defaultLegacyKey
+			}
+
+			if err := resealKey(runKey, "run+recover", container.ContainerRole()); err != nil {
+				if !errors.Is(err, errNoPCRProfileCalculated) {
+					return err
+				}
+				// remove incomplete state to avoid applying it to the global FDE state
+				newParameters.unset("run", "all")
+				newParameters.unset("run+recover", "all")
+			}
+		}
+
+		switch container.ContainerRole() {
+		case "system-save", "system-data":
+			fallbackLegacyKey, hasFallbackLegacyKey := legacyKeys["default-fallback"]
+
+			fallbackKey := secboot.KeyDataLocation{
+				DevicePath: container.DevPath(),
+				SlotName:   "default-fallback",
+			}
+
+			if hasFallbackLegacyKey {
+				fallbackKey.KeyFile = fallbackLegacyKey
+			}
+
+			if err := resealKey(fallbackKey, "recover", container.ContainerRole()); err != nil {
+				// If the error is errNoPCRProfileCalculated, then we just skipped
+				// resealing because no change was detected in boot chains. This is not an error.
+				if !errors.Is(err, errNoPCRProfileCalculated) {
+					return err
+				}
+				// remove incomplete state to avoid applying it to the global FDE state
+				newParameters.unset("recover", container.ContainerRole())
+			}
+		}
+	}
+
+	if err := newParameters.apply(manager); err != nil {
+		return err
+	}
+
 	if revokeOldKeys {
 		primaryKey, err := secbootGetPrimaryKey(devices, fallbackPrimaryKeyFiles)
 		if err != nil {
@@ -285,44 +368,14 @@ func doReseal(manager FDEStateManager, rootdir string, opts doResealOptions) err
 	return nil
 }
 
-func recalculateParamatersFDEHook(manager FDEStateManager, inputs resealInputs) error {
-	params := inputs.bootChains
-	runModels := getUniqueModels(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
-	recoveryModels := getUniqueModels(params.RecoveryBootChains)
-
-	runParams := &SealingParameters{
-		BootModes: []string{"run", "recover"},
-		Models:    runModels,
-	}
-	if err := manager.Update("run+recover", "all", runParams); err != nil {
-		return err
-	}
-
-	recoveryParamsData := &SealingParameters{
-		BootModes: []string{"recover"},
-		Models:    recoveryModels,
-	}
-	if err := manager.Update("recover", "system-data", recoveryParamsData); err != nil {
-		return err
-	}
-
-	recoveryParamsSave := &SealingParameters{
-		BootModes: []string{"recover", "factory-reset"},
-		Models:    recoveryModels,
-	}
-	if err := manager.Update("recover", "system-save", recoveryParamsSave); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func recalculateParamatersTPM(manager FDEStateManager, rootdir string, inputs resealInputs, opts resealOptions) error {
+// recalculateParamatersTPM recalculate TPM PCR profiles and stores them in `parameters`
+func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inputs resealInputs, opts resealOptions) error {
 	params := inputs.bootChains
 	// reseal the run object
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChainsForRunKey...))
 
 	needed, nextCount, err := bootIsResealNeeded(pbc, BootChainsFileUnder(rootdir), opts.ExpectReseal)
+
 	if err != nil {
 		return err
 	}
@@ -332,7 +385,7 @@ func recalculateParamatersTPM(manager FDEStateManager, rootdir string, inputs re
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		err := updateRunProtectionProfile(manager, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateRunProtectionProfile(parameters, runOnlyPbc, pbc, inputs.signatureDBUpdate, params.RoleToBlName)
 		if err != nil {
 			return err
 		}
@@ -359,7 +412,7 @@ func recalculateParamatersTPM(manager FDEStateManager, rootdir string, inputs re
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		err := updateFallbackProtectionProfile(manager, rpbc, inputs.signatureDBUpdate, params.RoleToBlName)
+		err := updateFallbackProtectionProfile(parameters, rpbc, inputs.signatureDBUpdate, params.RoleToBlName)
 		if err != nil {
 			return err
 		}
@@ -385,8 +438,9 @@ func anyClassicModel(params ...*secboot.SealKeyModelParams) bool {
 	return false
 }
 
+// updateRunProtectionProfile recalculate run TPM PCR profiles and stores them in `parameters`
 func updateRunProtectionProfile(
-	manager FDEStateManager,
+	parameters *updatedParameters,
 	pbcRunOnly, pbcWithRecovery boot.PredictableBootChains,
 	sigDbxUpdate []byte,
 	roleToBlName map[bootloader.Role]string,
@@ -418,9 +472,6 @@ func updateRunProtectionProfile(
 	var pcrProfileRunOnly []byte
 
 	err = func() error {
-		relock := manager.Unlock()
-		defer relock()
-
 		var err error
 
 		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
@@ -445,42 +496,20 @@ func updateRunProtectionProfile(
 
 	logger.Debugf("PCR profile length: %v", len(pcrProfile))
 
-	var models []secboot.ModelForSealing
-	for _, m := range modelParams {
-		models = append(models, m.Model)
+	if ok := parameters.setTpmPCRProfile("run+recover", "all", pcrProfile); !ok {
+		return fmt.Errorf("no run+recover state")
 	}
-
-	var modelsRunOnly []secboot.ModelForSealing
-	for _, m := range modelParamsRunOnly {
-		modelsRunOnly = append(modelsRunOnly, m.Model)
-	}
-
-	runParams := &SealingParameters{
-		BootModes:     []string{"run", "recover"},
-		Models:        models,
-		TpmPCRProfile: pcrProfile,
-	}
-
-	// TODO:FDEM: use constants for "run+recover" and "all"
-	if err := manager.Update("run+recover", "all", runParams); err != nil {
-		return err
-	}
-
-	runOnlyParams := &SealingParameters{
-		BootModes:     []string{"run"},
-		Models:        modelsRunOnly,
-		TpmPCRProfile: pcrProfileRunOnly,
-	}
-	// TODO:FDEM: use constants for "run+recover" and "all"
-	if err := manager.Update("run", "all", runOnlyParams); err != nil {
-		return err
+	if ok := parameters.setTpmPCRProfile("run", "all", pcrProfileRunOnly); !ok {
+		return fmt.Errorf("no run state")
 	}
 
 	return nil
 }
 
+// updateRunProtectionProfile recalculate fallback TPM PCR profiles and stores them in `parameters`
 func updateFallbackProtectionProfile(
-	manager FDEStateManager, pbc boot.PredictableBootChains,
+	parameters *updatedParameters,
+	pbc boot.PredictableBootChains,
 	sigDbxUpdate []byte,
 	roleToBlName map[bootloader.Role]string,
 ) error {
@@ -504,9 +533,6 @@ func updateFallbackProtectionProfile(
 
 	var pcrProfile []byte
 	err = func() error {
-		relock := manager.Unlock()
-		defer relock()
-
 		var err error
 
 		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, !hasClassicModel)
@@ -523,29 +549,12 @@ func updateFallbackProtectionProfile(
 		return fmt.Errorf("unexpected length of serialized PCR profile")
 	}
 
-	var models []secboot.ModelForSealing
-	for _, m := range modelParams {
-		models = append(models, m.Model)
+	// We should have different pcr profile here...
+	if ok := parameters.setTpmPCRProfile("recover", "system-save", pcrProfile); !ok {
+		return fmt.Errorf("no recover state for system-save")
 	}
-
-	saveParams := &SealingParameters{
-		BootModes:     []string{"recover", "factory-reset"},
-		Models:        models,
-		TpmPCRProfile: pcrProfile,
-	}
-	// TODO:FDEM: use constants for "recover" (the first parameter) and "system-save"
-	if err := manager.Update("recover", "system-save", saveParams); err != nil {
-		return err
-	}
-
-	dataParams := &SealingParameters{
-		BootModes:     []string{"recover"},
-		Models:        models,
-		TpmPCRProfile: pcrProfile,
-	}
-	// TODO:FDEM: use constants for "recover" (the first parameter) and "system-data"
-	if err := manager.Update("recover", "system-data", dataParams); err != nil {
-		return err
+	if ok := parameters.setTpmPCRProfile("recover", "system-data", pcrProfile); !ok {
+		return fmt.Errorf("no recover state for system-data")
 	}
 
 	return nil
@@ -614,9 +623,6 @@ func resealKeys(
 			return nil
 		}
 
-		if err := recalculateParamatersFDEHook(manager, inputs); err != nil {
-			return err
-		}
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		if opts.EnsureProvisioned {
 			lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
@@ -624,16 +630,11 @@ func resealKeys(
 				return err
 			}
 		}
-
-		if err := recalculateParamatersTPM(manager, rootdir, inputs, opts); err != nil {
-			// TODO:FDEM:FIX: remove the save boot chains.
-			return err
-		}
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
 
-	return doReseal(manager, rootdir, doResealOptions{revokeOldKeys: opts.Revoke, hintExpectFDEHook: method == device.SealingMethodFDESetupHook})
+	return doReseal(manager, rootdir, method == device.SealingMethodFDESetupHook, inputs, opts)
 }
 
 func attachSignatureDbxUpdate(params []*secboot.SealKeyModelParams, update []byte) {

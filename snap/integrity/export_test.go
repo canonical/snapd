@@ -38,3 +38,11 @@ func MockReadDmVeritySuperblock(f func(filename string) (*dmverity.VeritySuperbl
 		readDmVeritySuperblock = origReadDmVeritySuperblock
 	}
 }
+
+func MockOsRename(fn func(string, string) error) (restore func()) {
+	origOsRename := osRename
+	osRename = fn
+	return func() {
+		osRename = origOsRename
+	}
+}

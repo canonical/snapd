@@ -1,0 +1,24 @@
+name: test-snapd-checkbox-support
+# Using core24 as the base for this snap because we cannot use bare like the
+# upstream project does without sacrificing the ability to inject plz-run via $SNAP_COMMON
+# with the help of a shell script.
+base: core24
+summary: A sandbox escape that is convenient for testing
+description: |
+    Snap applications run in a sandbox that largely prevents one from starting
+    arbitrary applications. This is useful in general but poses a problem for
+    a class of software that's designed to mostly do exactly that: desktop shells,
+    build systems, test software and other generalized execution directors.
+
+    The plz-run program uses Systemd APIs to start a process in a new execution
+    environment, unrelated to the environment of the caller. This allows
+    escaping the sandbox and starting arbitrary programs.
+license: Apache-2.0
+confinement: strict
+version: 0.4
+
+apps:
+    plz-run:
+        command: bin/plz-run
+        plugs:
+            - checkbox-support

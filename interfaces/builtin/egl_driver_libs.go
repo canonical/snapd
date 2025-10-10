@@ -20,17 +20,18 @@
 package builtin
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
+	"math"
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/configfiles"
+	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const eglDriverLibsSummary = `allows exposing EGL driver libraries to the system`
@@ -70,14 +71,32 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	if priority <= 0 {
 		return fmt.Errorf("priority must be a positive integer")
 	}
-	var clientDriver string
-	if err := slot.Attr("client-driver", &clientDriver); err != nil {
-		return fmt.Errorf("invalid client-driver: %w", err)
+
+	var icdDirs []string
+	if err := slot.Attr("icd-source", &icdDirs); err != nil {
+		return fmt.Errorf("invalid icd-source: %w", err)
 	}
-	// We want a file name in client-driver, without directories
-	if strings.ContainsRune(clientDriver, os.PathSeparator) {
-		return fmt.Errorf("client-driver value %q should be a file", clientDriver)
+	// Directories in icd-source must start with $SNAP
+	for _, icdDir := range icdDirs {
+		if err := validateSnapDir(icdDir); err != nil {
+			return err
+		}
 	}
+
+	var compatField string
+	if err := slot.Attr("compatibility", &compatField); err != nil {
+		return err
+	}
+	// Validate format of compatibility field - we don't actually need to
+	// do anything else with it until we start to support regular snaps.
+	if err := compatibility.IsValidExpression(compatField,
+		&compatibility.CompatSpec{Dimensions: []compatibility.CompatDimension{
+			{Tag: "egl", Values: []compatibility.CompatRange{{Min: 1, Max: 1}, {Min: 5, Max: 5}}},
+			{Tag: "ubuntu", Values: []compatibility.CompatRange{{Min: 0, Max: math.MaxUint}}},
+		}}); err != nil {
+		return err
+	}
+
 	// Validate directories
 	return validateLdconfigLibDirs(slot)
 }
@@ -87,46 +106,52 @@ func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 	return addLdconfigLibDirs(spec, slot)
 }
 
-var _ = interfaces.ConfigfilesUser(&eglDriverLibsInterface{})
+var _ = symlinks.ConnectedPlugCallback(&eglDriverLibsInterface{})
 
-const eglVendorPath = "/usr/share/glvnd/egl_vendor.d"
+const eglVendorPath = "/etc/glvnd/egl_vendor.d"
 
-func (t *eglDriverLibsInterface) PathPatterns() []string {
-	return []string{filepath.Join(eglVendorPath, "*_snap_*_*.json")}
+func (iface *eglDriverLibsInterface) TrackedDirectories() []string {
+	return []string{eglVendorPath}
 }
 
-func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// The plug can only be the system plug for the time being
-
+func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var priority int64
 	if err := slot.Attr("priority", &priority); err != nil {
 		return fmt.Errorf("invalid priority: %w", err)
 	}
-	var clientDriver string
-	if err := slot.Attr("client-driver", &clientDriver); err != nil {
-		return fmt.Errorf("invalid client-driver: %w", err)
-	}
 
-	var icd struct {
-		FileFormatVersion string `json:"file_format_version"`
-		ICD               struct {
-			LibraryPath string `json:"library_path"`
-		} `json:"ICD"`
-	}
-	icd.FileFormatVersion = "1.0.0"
-	icd.ICD.LibraryPath = clientDriver
-	icdContent, err := json.MarshalIndent(icd, "", "    ")
+	icdPaths, err := icdSourceDirsCheck(slot)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid icd-source: %w", err)
 	}
-	icdContent = append(icdContent, byte('\n'))
 
-	icdPath := filepath.Join(eglVendorPath, fmt.Sprintf(
-		"%d_snap_%s_%s.json", priority, slot.Snap().InstanceName(), slot.Name()))
-	return spec.AddPathContent(icdPath, &osutil.MemoryFileState{Content: icdContent, Mode: 0644})
+	// Create symlinks to snap content (which is fine as this is a super-privileged slot)
+	for _, icdPath := range icdPaths {
+		// Strip out mount dir and snap name and revision
+		relIcdPath, err := filepath.Rel(dirs.SnapMountDir, icdPath)
+		if err != nil {
+			return err
+		}
+		dirs := strings.SplitN(relIcdPath, "/", 3)
+		if len(dirs) < 3 {
+			return fmt.Errorf("internal error: wrong icd file path: %s", relIcdPath)
+		}
+		// Make path an easier to handle name
+		escapedRelPath := systemd.EscapeUnitNamePath(filepath.Join(dirs[2]))
+		// Note that icdFilePathsCheck already ensures a .json suffix
+		linkPath := filepath.Join(eglVendorPath, fmt.Sprintf("%d_snap_%s_%s_%s",
+			priority, slot.Snap().InstanceName(), slot.Name(), escapedRelPath))
+		if err := spec.AddSymlink(icdPath, linkPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+	// TODO This might need changes when we support plugs in non-system
+	// snaps for this interface.
 	return true
 }
 

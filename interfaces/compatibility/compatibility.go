@@ -21,9 +21,9 @@ package compatibility
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // CompatRange is a range of unsigned integers, with Min <= Max.
@@ -45,6 +45,24 @@ type CompatField struct {
 	Dimensions []CompatDimension
 }
 
+func (cf *CompatField) String() string {
+	var sb strings.Builder
+	for _, d := range cf.Dimensions {
+		if sb.Len() > 0 {
+			sb.WriteRune('-')
+		}
+		sb.WriteString(d.Tag)
+		for _, vals := range d.Values {
+			if vals.Min == vals.Max {
+				sb.WriteString(fmt.Sprintf("-%d", vals.Min))
+			} else {
+				sb.WriteString(fmt.Sprintf("-(%d..%d)", vals.Min, vals.Max))
+			}
+		}
+	}
+	return sb.String()
+}
+
 // CompatSpec specifies valid values for a compatibility field, this can be
 // used to further restrict these fields for a given interface. The number of
 // dimensions, tags, and number of values per dimension must match the ones in
@@ -59,124 +77,47 @@ const (
 	absoluteMaxIntegers   = 3
 )
 
-var (
-	tagRegexp = regexp.MustCompile(`^[a-z][a-z0-9]{0,31}$`)
-	// 0 or a number that starts with 1-9 with a maximum of 8 digits
-	intRegexp      = regexp.MustCompile(`^(0|[1-9][0-9]{0,7})$`)
-	intRangeRegexp = regexp.MustCompile(`^\((0|[1-9][0-9]{0,7})\.\.(0|[1-9][0-9]{0,7})\)$`)
-)
-
-func appendDimension(dimensions []CompatDimension, dimension *CompatDimension) ([]CompatDimension, error) {
-	if dimension != nil {
-		for _, d := range dimensions {
-			if d.Tag == dimension.Tag {
-				return nil, fmt.Errorf("string %q appears more than once",
-					dimension.Tag)
-			}
-		}
-		if len(dimension.Values) == 0 {
-			// If we have just a tag, that is equivalent to <tag>-0
-			dimension.Values = []CompatRange{{0, 0}}
-		}
-		dimensions = append(dimensions, *dimension)
+// IsValidExpression checks whether a compatibility expression compat is valid
+// or not. The expressions are composed of compatibility labels joined by OR
+// and AND operators, with parenthesis where necessary. Each compatibility
+// label is a sequence of dimensions separated by dashes. Each dimension
+// consist of an alphanumerical descriptor followed by a dash-separated series
+// of integer or integer ranges. An optional spec can be provided to restrict
+// the valid compatibility fields. This spec must strictly follow the
+// convention that there must be at least an integer field per string (that is,
+// "foo" must be specified as "foo-0").
+func IsValidExpression(compat string, spec *CompatSpec) error {
+	compatError := func(msg string) error { return fmt.Errorf("compatibility label %q: %s", compat, msg) }
+	_, labels, err := parse(compat)
+	if err != nil {
+		return compatError(err.Error())
 	}
-	return dimensions, nil
-}
 
-func parseIntegerRange(token string) (rg *CompatRange, err error) {
-	if intRegexp.MatchString(token) {
-		// 8 decimals fit 32 bits
-		min, err := strconv.ParseUint(token, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		// Integers are stored as ranges where min==max
-		rg = &CompatRange{uint(min), uint(min)}
-	} else {
-		matches := intRangeRegexp.FindStringSubmatch(token)
-		// Not a tag, integer or integer range
-		if len(matches) == 0 {
-			return nil, fmt.Errorf("%q is not a valid string", token)
-		}
-		// 8 decimals fit 32 bits
-		min, err := strconv.ParseUint(matches[1], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		max, err := strconv.ParseUint(matches[2], 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		if min > max {
-			return nil, fmt.Errorf("invalid range %q", token)
-		}
-		rg = &CompatRange{uint(min), uint(max)}
-	}
-	return rg, nil
-}
-
-// decodeCompatField decodes a compatibility string, which is a sequence of
-// dimensions separated by dashes. Each dimension consist of an alphanumerical
-// descriptor followed by a dash-separated series of integer or integer ranges.
-// An optional spec can be provided to restrict the valid compatibility fields.
-// This spec must strictly follow the convention that there must be at least an
-// integer field per string (that is, "foo" must be specified as "foo-0").
-func DecodeCompatField(compat string, spec *CompatSpec) (*CompatField, error) {
+	// Additional high level check on number of strings/integers
 	// TODO we want to consider these limits when doing snap pack but relax
 	// in run time.
 	maxNumDim := absoluteMaxDimensions
 	maxNumInt := absoluteMaxIntegers
-	tokens := strings.Split(compat, "-")
-	dimensions := []CompatDimension{}
-	compatError := func(msg string) error { return fmt.Errorf("compatibility label %q: %s", compat, msg) }
-	var currentDimension *CompatDimension
-	var err error
-	for _, t := range tokens {
-		if tagRegexp.MatchString(t) {
-			dimIdx := len(dimensions) + 1
-			if currentDimension == nil {
-				dimIdx = 0
+	for _, lab := range labels {
+		if len(lab.Dimensions) > maxNumDim {
+			return compatError(fmt.Sprintf("only %d strings allowed", maxNumDim))
+		}
+		for _, dim := range lab.Dimensions {
+			if len(dim.Values) > maxNumInt {
+				return compatError(fmt.Sprintf(
+					"only %d integer/integer ranges allowed per string", maxNumInt))
 			}
-			if dimIdx == maxNumDim {
-				return nil, compatError(fmt.Sprintf("only %d strings allowed",
-					maxNumDim))
-			}
-			dimensions, err = appendDimension(dimensions, currentDimension)
-			if err != nil {
-				return nil, compatError(err.Error())
-			}
-			currentDimension = &CompatDimension{Tag: t}
-			continue
 		}
-		if currentDimension == nil {
-			return nil, compatError(fmt.Sprintf("bad string %q", t))
-		}
-
-		rg, err := parseIntegerRange(t)
-		if err != nil {
-			return nil, compatError(err.Error())
-		}
-		currNumVal := len(currentDimension.Values)
-		if currNumVal == maxNumInt {
-			return nil, compatError(fmt.Sprintf(
-				"only %d integer/integer ranges allowed per string", maxNumInt))
-		}
-		currentDimension.Values = append(currentDimension.Values, *rg)
-	}
-
-	// Add last dimension found
-	dimensions, err = appendDimension(dimensions, currentDimension)
-	if err != nil {
-		return nil, compatError(err.Error())
 	}
 
 	// Are we compliant with the interface restrictions?
-	compatField := &CompatField{Dimensions: dimensions}
-	if err := checkCompatAgainstSpec(compatField, spec); err != nil {
-		return nil, compatError(err.Error())
+	for _, l := range labels {
+		if err := checkCompatAgainstSpec(&l, spec); err != nil {
+			return compatError(err.Error())
+		}
 	}
 
-	return compatField, nil
+	return nil
 }
 
 func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
@@ -209,9 +150,34 @@ func checkCompatAgainstSpec(compatField *CompatField, spec *CompatSpec) error {
 	return nil
 }
 
-// checkCompatibility checks if two compatibility fields are compatible by
-// looking at the tags and at the intersection of the defined integer ranges.
-func CheckCompatibility(compat1, compat2 CompatField) bool {
+// CheckCompatibility checks the compatibility of two compatibility expressions.
+func CheckCompatibility(compat1, compat2 string) bool {
+	expr1, labels1, err := parse(compat1)
+	if err != nil {
+		return false
+	}
+	expr2, labels2, err := parse(compat2)
+	if err != nil {
+		return false
+	}
+
+	// Check cross-compatibility. This ensures that what is
+	// provided/expected on both of the sides fulfills the requirements
+	// expressed with ORs/ANDs of the other side. A way to visualize this
+	// is to view the expressions as defining sets containing labels (ORs
+	// create one set with the operands, ANDs define separate sets for each
+	// operand - and expressions can always be formatted into OR
+	// expressions joined by ANDs). Exp. 1 is compatible with 2 if all sets
+	// defined by 1 have an intersection with one of the labels defined in
+	// 2, and the other way around. If compatibility happens on both
+	// directions, we consider the expressions compatible.
+	return checkExpressionCompatibility(expr1, labels2) &&
+		checkExpressionCompatibility(expr2, labels1)
+}
+
+// areLabelsCompatible checks if two compatibility labels are compatible by
+// looking at the strings and at the intersection of the defined integer ranges.
+func areLabelsCompatible(compat1, compat2 CompatField) bool {
 	if len(compat1.Dimensions) != len(compat2.Dimensions) {
 		return false
 	}
@@ -231,4 +197,41 @@ func CheckCompatibility(compat1, compat2 CompatField) bool {
 		}
 	}
 	return true
+}
+
+// checkExpressionCompatibility check if the provided labels fulfill the
+// conditions expressed in the abstract syntax tree root.
+func checkExpressionCompatibility(node *Node, labels []CompatField) bool {
+	if !node.isLeaf() && !node.hasBothChildren() {
+		logger.Noticef("internal error: node must have both children or none")
+		return false
+	}
+	if node.isLeaf() {
+		// Must be a label
+		nodeLabel, ok := node.Exp.(*CompatField)
+		if !ok {
+			logger.Noticef("internal error: leaf node is not a label: %s", node.Exp)
+			return false
+		}
+		for _, l := range labels {
+			if areLabelsCompatible(l, *nodeLabel) {
+				return true
+			}
+		}
+		return false
+	}
+
+	oper, ok := node.Exp.(*Operator)
+	if !ok {
+		logger.Noticef("internal error: internal node is not an operation: %s", node.Exp)
+		return false
+	}
+
+	if oper.Oper.Typ == ItemOR {
+		return checkExpressionCompatibility(node.Left, labels) ||
+			checkExpressionCompatibility(node.Right, labels)
+	}
+	// Must be the AND operator
+	return checkExpressionCompatibility(node.Left, labels) &&
+		checkExpressionCompatibility(node.Right, labels)
 }
