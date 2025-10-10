@@ -28,6 +28,7 @@
 
 #include "cleanup-funcs.h"
 #include "panic.h"
+#include "string-utils.h"
 #include "utils.h"
 
 void die(const char *msg, ...) {
@@ -253,16 +254,11 @@ static bool _sc_is_in_container(const char *p) {
         return false;
     }
 
-    size_t r = strnlen(container, sizeof container);
-    // TODO add sc_str_chomp()?
-    if (r > 0 && container[r - 1] == '\n') {
-        /* replace trailing newline */
-        container[r - 1] = 0;
-        r--;
-    }
+    // Remove trailing \n if present
+    sc_str_chomp(container);
 
-    if (r == 0) {
-        /* empty or just a newline */
+    if (container[0] == '\0') {
+        /* file was empty or had just a newline */
         return false;
     }
 

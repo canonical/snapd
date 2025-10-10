@@ -1788,6 +1788,24 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
+func (s *infoSuite) TestExpandSliceSnapVariables(c *C) {
+	dirs.SetRootDir("")
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(42)
+	c.Assert(info.ExpandSliceSnapVariablesInRootfs(
+		[]string{
+			"$SNAP/stuff",
+			"$SNAP_DATA/stuff",
+			"$SNAP_COMMON/stuff",
+			"$GARBAGE/rocks"}),
+		DeepEquals, []string{
+			filepath.Join(dirs.SnapMountDir, "foo/42/stuff"),
+			"/var/snap/foo/42/stuff",
+			"/var/snap/foo/common/stuff",
+			"/rocks"})
+}
+
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 	for _, t := range []struct {
 		stopMode string
