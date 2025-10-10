@@ -871,7 +871,7 @@ func (s *promptingSuite) TestGetRulesHappy(c *C) {
 }
 
 func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
-	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: "io.snapcraft.snapd.manage"})
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
 
 	s.daemon(c)
 
@@ -932,7 +932,7 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 }
 
 func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
-	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: "io.snapcraft.snapd.manage"})
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
 
 	s.daemon(c)
 
@@ -1056,7 +1056,7 @@ func (s *promptingSuite) TestGetRuleHappy(c *C) {
 }
 
 func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
-	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: "io.snapcraft.snapd.manage"})
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
 
 	s.daemon(c)
 
@@ -1117,7 +1117,7 @@ func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
 }
 
 func (s *promptingSuite) TestPostRuleRemoveHappy(c *C) {
-	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: "io.snapcraft.snapd.manage"})
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
 
 	s.daemon(c)
 
