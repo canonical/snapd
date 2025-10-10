@@ -1773,18 +1773,34 @@ func (v *View) matchGetRequest(accessors []Accessor, cstrs map[string]any) (matc
 		return nil, NewNoMatchError(v, "get", []string{request})
 	}
 
-	//for _, match := range matches {
-	//	for i, acc := range match.storagePath {
-	//		if acc.Type() == KeyPlaceholderType && cstrs[acc.Name()] != nil {
-	//			key, ok := cstrs[acc.Name()].(string)
-	//			if !ok {
-	//				return nil, fmt.Errorf("cannot fulfill placeholder %q with constraint of type %T: expected string",
-	//					acc.Access(), cstrs[acc.Name()])
-	//			}
-	//			match.storagePath[i] = newKey(key, acc.FieldFilters())
-	//		}
-	//	}
-	//}
+	constrainPlaceholder := func(acc Accessor) Accessor {
+		if acc.Type() != KeyPlaceholderType || cstrs[acc.Name()] == nil {
+			return nil
+		}
+
+		key, ok := cstrs[acc.Name()].(string)
+		if !ok {
+			// the value constraining the filter isn't a string, can't be used for placeholder
+			return nil
+		}
+
+		// fill this placeholder with the constrained value
+		return newKey(key, acc.FieldFilters())
+	}
+
+	for _, match := range matches {
+		for i, acc := range match.storagePath {
+			if key := constrainPlaceholder(acc); key != nil {
+				match.storagePath[i] = key
+			}
+		}
+
+		for i, acc := range match.unmatchedSuffix {
+			if key := constrainPlaceholder(acc); key != nil {
+				match.unmatchedSuffix[i] = key
+			}
+		}
+	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
 	// are read after
