@@ -99,7 +99,7 @@ func (s *EglDriverLibsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
-	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib1")
+	libDir1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
 	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libDir1, "libEGL_nvidia.so.0"), []byte(``), 0644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
@@ -245,8 +245,8 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{SnapName: "egl-provider", SlotName: "egl-slot"}: {
-			filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib1"),
-			filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib2")}})
+			filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
+			filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")}})
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
@@ -256,7 +256,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 		gpu    string
 		subDir string
 	}{{"mesa", "egl.d"}, {"nvidia", "egl.d"}, {"radeon", "egl_alt.d"}} {
-		icdDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5", icdData.subDir)
+		icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5", icdData.subDir)
 		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
 		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
 		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
@@ -266,7 +266,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
     }
 }
 `, icdData.gpu)), 0655)
-		libDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/lib2")
+		libDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
 		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
 		os.WriteFile(libPath, []byte{}, 0655)
@@ -307,7 +307,7 @@ func (s *EglDriverLibsInterfaceSuite) TestTrackedDirectories(c *C) {
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 	// Write ICD file
-	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/egl.d")
+	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
 	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 	os.WriteFile(icdPath, []byte(`{
@@ -326,7 +326,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 	// Write ICD file
-	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/egl-provider/5/egl.d")
+	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
 	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
 	icdPath := filepath.Join(icdDir, "nvidia.json")
 	os.WriteFile(icdPath, []byte(`libEGL_nvidia.so.0`), 0655)

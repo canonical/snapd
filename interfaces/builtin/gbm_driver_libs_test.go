@@ -94,7 +94,7 @@ func (s *GbmDriverLibsInterfaceSuite) TestName(c *C) {
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
-	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/gbm-provider/5/lib1")
+	libDir1 := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1")
 	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(libDir1, "libnvidia-allocator.so.1"), []byte(``), 0644), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
