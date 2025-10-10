@@ -1,9 +1,8 @@
-summary: Verify that the interface.allow-auto-connection setting works
+summary: Verify that the interface.x11.allow-auto-connection setting works
 
 details: |
     Using different snaps that require interface connections, check each of the options
-    for interface.<if>.allow-auto-connection works like they are expected. The supported
-    interfaces are the builtin ones in snapd.
+    for interface.x11.allow-auto-connection works like they are expected.
 
 systems:
     # ubuntu-core: no x11
@@ -17,8 +16,6 @@ environment:
 
 restore: |
     snap set system interface.x11.allow-auto-connection=true
-    snap remove gnome-calculator || true
-    snap remove x11-consumer || true
 
 execute: |
     # We can install a snap with an interface by default, install an older revision
