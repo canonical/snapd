@@ -299,7 +299,7 @@ char *sc_str_chomp(char *string) {
     size_t len = strlen(string);
     size_t pos = len;
     for (; pos > 0 && string[pos - 1] == '\n'; --pos);
-    if (pos != len) {
+    if (pos < len) {
         string[pos] = '\0';
     }
 

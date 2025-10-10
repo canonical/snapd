@@ -594,7 +594,7 @@ static void sc_copy_file(const char *src, const char *dest) {
         die("cannot open %s", src);
     }
     if ((fd_out = creat(dest, 0660)) == -1) {
-        die("cannot create %s", src);
+        die("cannot create %s", dest);
     }
 
     struct stat f_stat = {0};
@@ -604,10 +604,10 @@ static void sc_copy_file(const char *src, const char *dest) {
     off_t copied = 0;
     while (copied < f_stat.st_size) {
         ssize_t written = sendfile(fd_out, fd_in, &copied, SSIZE_MAX);
-        copied += written;
         if (written == -1) {
             die("while copying %s to %s", src, dest);
         }
+        copied += written;
     }
 }
 
@@ -642,6 +642,7 @@ static void sc_copy_glob_files(const char *rootfs_dir, const char *mnt_dir, cons
 
     // Copy over the configuration files created by snapd
     for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+        // Copy needed as basename() might modify its argument
         char *src_dup SC_CLEANUP(sc_cleanup_string) = sc_strdup(glob_res.gl_pathv[i]);
         char *filename = basename(src_dup);
 
