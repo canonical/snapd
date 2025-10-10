@@ -19,6 +19,16 @@
 
 package vfs
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/osutil/vfs/lists"
+)
+
+var (
+	ErrNotMounted = errNotMounted
+)
+
 func (v *VFS) FindMount(id MountID) *mount {
 	for _, m := range v.mounts {
 		if m.mountID == id {
@@ -29,19 +39,14 @@ func (v *VFS) FindMount(id MountID) *mount {
 	return nil
 }
 
-// RootMount returns the mount that is the ancestor of all other mounts.
-func (v *VFS) RootMount() *mount {
-	return v.mounts[0]
+func (v *VFS) MustFindMount(id MountID) *mount {
+	if m := v.FindMount(id); m != nil {
+		return m
+	}
+	panic(fmt.Sprintf("mount with with %d was not found", id))
 }
 
-// MountPoint returns the mount point of the given mount.
-func (m *mount) MountPoint() string {
-	return m.mountPoint()
-}
-
-// Parent returns the parent mount.
-//
-// Parent is nil for detached nodes and for the rootfs.
-func (m *mount) Parent() *mount {
-	return m.parent
-}
+func (v *VFS) RootMount() *mount                   { return v.mounts[0] }
+func (m *mount) MountPoint() string                { return m.mountPoint() }
+func (m *mount) Parent() *mount                    { return m.parent }
+func (m *mount) Peers() *lists.HeadlessList[mount] { return &m.peers }

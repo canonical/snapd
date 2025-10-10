@@ -304,6 +304,13 @@ func (l *HeadlessList[T]) Unlink() {
 	(*Node[T])(l).Unlink()
 }
 
+// Unlinked returns true if a node is not a member of any list.
+//
+// The zero value of a node is unlinked.
+func (l *HeadlessList[T]) Unlinked() bool {
+	return (*Node[T])(l).Unlinked()
+}
+
 // Forward returns an iterator over elements of the list in the forward direction.
 //
 // It is safe to call [HeadlessList.Unlink] on the node that participates in
