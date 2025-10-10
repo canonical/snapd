@@ -56,7 +56,7 @@ func (c *failCommand) Execute(args []string) error {
 		return err
 	}
 
-	if err := validateConfdbsFeatureFlag(ctx.State()); err != nil {
+	if err := validateConfdbFeatureFlag(ctx.State()); err != nil {
 		return err
 	}
 
