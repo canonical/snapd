@@ -422,6 +422,25 @@ func WordsBackward(w *Word) string {
 	return sb.String()
 }
 
+func TestHeadlessList_Unlink(t *testing.T) {
+	foo := Word{Name: "foo"}
+	bar := Word{Name: "bar"}
+	foo.Chain.LinkBefore(lists.ContainedHeadlessList[viaWords](&bar))
+	if foo.Chain.Unlinked() {
+		t.Error("Linked foo is unlinked")
+	}
+	if bar.Chain.Unlinked() {
+		t.Error("Linked bar is unlinked")
+	}
+	foo.Chain.Unlink()
+	if !foo.Chain.Unlinked() {
+		t.Error("Unlinked foo is not unlinked")
+	}
+	if !bar.Chain.Unlinked() {
+		t.Error("Unlinked bar is not unlinked")
+	}
+}
+
 func TestHeadlessList_Smoke(t *testing.T) {
 	var (
 		marry  = Word{Name: "Marry"}
