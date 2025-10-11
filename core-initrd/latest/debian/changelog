@@ -1,3 +1,15 @@
+ubuntu-core-initramfs (72+2.72+g99.77dc6ef-dirty+25.10) questing; urgency=medium
+
+  * Update to snapd version 2.72+g99.77dc6ef-dirty
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Tue, 07 Oct 2025 09:20:35 -0400
+
+ubuntu-core-initramfs (72+2.72+g94.e48ddd0-dirty+25.10) questing; urgency=medium
+
+  * Update to snapd version 2.72+g94.e48ddd0-dirty
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Tue, 07 Oct 2025 07:58:20 -0400
+
 ubuntu-core-initramfs (72+2.71+g129.cddf2e3+25.10) questing; urgency=medium
 
   * Update to snapd version 2.71+g129.cddf2e3
