@@ -9985,6 +9985,65 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
 
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreatedWithIntegrity(c *C) {
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	snaptest.MockSnapIntegrityData(c, info, "digest")
+	s.state.Unlock()
+
+	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
+	unitName := systemd.EscapeUnitNamePath(dirs.StripRootDir(filepath.Join(dirs.SnapMountDir, "test-snap", fmt.Sprintf("%s.mount", "42"))))
+	mountFile := filepath.Join(dirs.SnapServicesDir, unitName)
+	if osutil.FileExists(mountFile) {
+		c.Assert(os.Remove(mountFile), IsNil)
+	}
+
+	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	defer restore()
+
+	s.restarts[unitName] = 0
+
+	err := s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.restarts[unitName], Equals, 1)
+
+	expectedContent := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for test-snap, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+
+[Mount]
+What=%s
+Where=%s/test-snap/42
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,verity.roothash=digest,verity.hashdevice=/var/lib/snapd/snaps/test-snap_42.snap.dmverity_digest
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
+
+	c.Assert(mountFile, testutil.FileEquals, expectedContent)
+}
+
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
 	restore := snapstate.MockEnsuredDesktopFilesUpdated(s.snapmgr, false)
 	defer restore()

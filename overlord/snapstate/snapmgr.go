@@ -1540,16 +1540,29 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			fsType, options, mountUnitType := sysd.MountUnitOptions(squashfsPath, "squashfs", startBeforeDriversLoad)
 
 			mountOptions.Fstype = fsType
-			mountOptions.Options = options
 			mountOptions.MountUnitType = mountUnitType
 
-			// TODO Here there is no way of telling whether the snap is already mounted
-			// with integrity data. This information is not stored in the state currently.
-			// This means that after EnsureMountUnitFileWithOptions runs, the
-			// mount unit will be updated to one that doesn't use integrity data even
-			// if it did before.
-			// A solution could be to store the integrity data as side info for the currently
-			// installed snap.
+			// Since integrity data are not stored in the state, the only way of telling whether a
+			// snap is mounted with integrity data is by looking whether verity data exist next to it,
+			// and use them if they do.
+			// TODO: We could store the integrity data state in the state file instead.
+			matches, err := filepath.Glob(info.MountFile() + "*")
+			if err != nil {
+				return err
+			}
+
+			for _, match := range matches {
+				ext := filepath.Ext(match)
+				verity := strings.Split(ext, "_")
+				if verity[0] != ".dmverity" {
+					continue
+				}
+				options = append(options, fmt.Sprintf("verity.roothash=%s", verity[1]))
+				options = append(options, fmt.Sprintf("verity.hashdevice=%s", dirs.StripRootDir(match)))
+			}
+
+			mountOptions.Options = options
+
 			_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
 			if err != nil {
 				return err
