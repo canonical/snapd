@@ -7950,7 +7950,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -7979,7 +7981,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8015,7 +8019,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8047,7 +8053,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
+			RealName: "consumer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8082,7 +8090,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetAlreadyConnected(c *C) {
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -8187,7 +8197,9 @@ volumes:
 	t := s.state.NewTask("auto-connect", "gadget connections")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
-			RealName: "producer"},
+			RealName: "producer",
+			Revision: snap.R(1),
+		},
 	})
 	chg.AddTask(t)
 
@@ -11745,4 +11757,226 @@ slots:
 		ifaces := repo.Interfaces()
 		c.Assert(ifaces.Connections, HasLen, 0)
 	})
+}
+
+func (s *interfaceManagerSuite) testAutoConnectSupportsConfigurableAutoConnect(c *C) []string {
+	s.MockModel(c, nil)
+
+	restore := ifacestate.MockContentLinkRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
+	s.mockIfaces(&ifacetest.TestInterface{
+		InterfaceName: "test",
+	})
+
+	s.MockSnapDecl(c, "snap-x11-plug", "publisher1", nil)
+	s.mockSnap(c, `name: snap-x11-plug
+version: 1
+plugs:
+ x11-plug:
+  interface: x11
+ test-plug:
+  interface: test
+`)
+	s.MockSnapDecl(c, "snap-x11-slot", "publisher1", nil)
+	s.mockSnap(c, `name: snap-x11-slot
+version: 1
+slots:
+ x11-slot:
+  interface: x11
+ test-slot:
+  interface: test
+`)
+	s.manager(c)
+
+	s.state.Lock()
+
+	supPlug := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "snap-x11-plug"},
+	}
+	supContent := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "snap-x11-slot"},
+	}
+	chg := s.state.NewChange("install", "...")
+
+	tInstSlot := s.state.NewTask("link-snap", "Install snap-x11-slot")
+	tInstSlot.Set("snap-setup", supContent)
+	chg.AddTask(tInstSlot)
+
+	tConnectSlot := s.state.NewTask("auto-connect", "...slot")
+	tConnectSlot.Set("snap-setup", supContent)
+	tConnectSlot.WaitFor(tInstSlot)
+	chg.AddTask(tConnectSlot)
+
+	tInstPlug := s.state.NewTask("link-snap", "Install snap-x11-plug")
+	tInstPlug.Set("snap-setup", supPlug)
+	tInstPlug.WaitFor(tConnectSlot)
+	chg.AddTask(tInstPlug)
+
+	tConnectPlug := s.state.NewTask("auto-connect", "...plug")
+	tConnectPlug.Set("snap-setup", supPlug)
+	tConnectPlug.WaitFor(tInstPlug)
+	chg.AddTask(tConnectPlug)
+
+	// pretend slot install was done by snapstate
+	tInstSlot.SetStatus(state.DoneStatus)
+
+	// run the change, this will trigger the auto-connect of the plug
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// check that auto-connect did finish and not hang
+	s.state.Lock()
+	c.Check(tInstSlot.Status(), Equals, state.DoneStatus)
+	c.Check(tConnectSlot.Status(), Equals, state.DoneStatus)
+	c.Check(tConnectPlug.Status(), Equals, state.DoStatus)
+
+	// pretend snapstate finished installing the slot
+	tInstPlug.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+
+	// run again
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// and now the slot side auto-connected
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(tInstPlug.Status(), Equals, state.DoneStatus)
+	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
+	return tConnectPlug.Log()
+}
+
+func (s *interfaceManagerSuite) setAutoConnectionAllowedString(c *C, inter string, set string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", fmt.Sprintf("interface.%s.allow-auto-connection", inter), set), IsNil)
+	tr.Commit()
+}
+
+func (s *interfaceManagerSuite) setAutoConnectionAllowedBool(c *C, inter string, set bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", fmt.Sprintf("interface.%s.allow-auto-connection", inter), set), IsNil)
+	tr.Commit()
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectDefault(c *C) {
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 2)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-x11-plug:x11-plug snap-x11-slot:x11-slot": map[string]any{
+			"auto": true, "interface": "x11",
+		},
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalseString(c *C) {
+	s.setAutoConnectionAllowedString(c, "x11", "false")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-x11-plug:x11-plug, candidates found: snap-x11-slot:x11-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToFalseBool(c *C) {
+	s.setAutoConnectionAllowedBool(c, "x11", false)
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-x11-plug:x11-plug, candidates found: snap-x11-slot:x11-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedUnhappy(c *C) {
+	r := ifacestate.MockIsSnapVerified(func(_ *state.State, _ string) bool {
+		return false
+	})
+	defer r()
+	s.setAutoConnectionAllowedString(c, "x11", "verified")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, `.*cannot auto-connect plug snap-x11-plug:x11-plug, candidates found: snap-x11-slot:x11-slot`)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectSupportsConfigurableAutoConnectSetToVerifiedHappy(c *C) {
+	r := ifacestate.MockIsSnapVerified(func(_ *state.State, _ string) bool {
+		return true
+	})
+	defer r()
+	s.setAutoConnectionAllowedString(c, "x11", "verified")
+	logs := s.testAutoConnectSupportsConfigurableAutoConnect(c)
+
+	// check connections
+	s.state.Lock()
+	defer s.state.Unlock()
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 2)
+	c.Check(conns, DeepEquals, map[string]any{
+		"snap-x11-plug:x11-plug snap-x11-slot:x11-slot": map[string]any{
+			"auto": true, "interface": "x11",
+		},
+		"snap-x11-plug:test-plug snap-x11-slot:test-slot": map[string]any{
+			"auto": true, "interface": "test",
+		},
+	})
+	c.Assert(logs, HasLen, 0)
 }

@@ -1,0 +1,94 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+
+/*
+ * Copyright (C) 2025 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package configcore
+
+import (
+	"fmt"
+	"strings"
+)
+
+func isValidInterface(name string) bool {
+	// In the future we can check builtin.Interfaces() for the supported
+	// interfaces if we want to support more than just "x11"
+	return name == "x11"
+}
+
+func isValidInterfaceOption(opt string) bool {
+	switch opt {
+	case "allow-auto-connection":
+		return true
+	}
+	return false
+}
+
+func isInterfaceChange(opt string) bool {
+	return strings.HasPrefix(opt, "core.interface.")
+}
+
+func validateInterfaceChange(opt string) error {
+	// Double check this to make sure, even though we should have this called
+	// prior to validate
+	if !isInterfaceChange(opt) {
+		return fmt.Errorf("wrongly formatted interface option: %q", opt)
+	}
+
+	// core.interface.<interface>.<option>
+	tokens := strings.SplitN(opt, ".", 4)
+	if len(tokens) < 3 || tokens[2] == "" {
+		return fmt.Errorf("interface must be specified for %q", opt)
+	}
+	if len(tokens) < 4 || tokens[3] == "" {
+		return fmt.Errorf("interface option must be specified for %q", opt)
+	}
+
+	if !isValidInterface(tokens[2]) {
+		return fmt.Errorf("unsupported interface %q for configuration change", tokens[2])
+	}
+	if !isValidInterfaceOption(tokens[3]) {
+		return fmt.Errorf("unsupported interface option: %q", tokens[3])
+	}
+	return nil
+}
+
+func validateAllowAutoConnectionValue(tr RunTransaction) error {
+	for _, name := range tr.Changes() {
+		if !isInterfaceChange(name) {
+			continue
+		}
+		if !strings.HasSuffix(name, ".allow-auto-connection") {
+			continue
+		}
+
+		nameWithoutSnap := strings.SplitN(name, ".", 2)[1]
+		value, err := coreCfg(tr, nameWithoutSnap)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot get data for %s: %v", name, err)
+		}
+
+		switch value {
+		case "", "verified", "true", "false":
+			// thats ok
+		default:
+			return fmt.Errorf("%s can only be set to 'true', 'false' or 'verified'", name)
+		}
+	}
+	return nil
+}

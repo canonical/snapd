@@ -25,6 +25,7 @@ import (
 	"path"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -1382,6 +1385,76 @@ func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap
 	}
 }
 
+// Keep this separate to allow mocking
+var isSnapVerified = func(st *state.State, snapID string) bool {
+	acc, err := assertstate.Publisher(st, snapID)
+	if err != nil {
+		logger.Debugf("cannot retrieve publisher assertion for %q: %v", snapID, err)
+		return false
+	}
+	return acc.Validation() == "verified"
+}
+
+func getAllowOptionAsString(inter string, tr *config.Transaction) (string, error) {
+	var value any
+	option := fmt.Sprintf("interface.%s.allow-auto-connection", inter)
+	err := tr.Get("core", option, &value)
+	if err != nil && !config.IsNoOption(err) {
+		return "", err
+	}
+
+	switch option := value.(type) {
+	case string:
+		return option, nil
+	case bool:
+		return strconv.FormatBool(option), nil
+	}
+	return "", nil
+}
+
+func isSnapSlotAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
+	// Until we decide that we want to support other interfaces, do a
+	// quick allow check for x11 only.
+	if slot.Interface != "x11" {
+		return true, nil
+	}
+
+	option, err := getAllowOptionAsString(slot.Interface, tr)
+	if err != nil {
+		return false, err
+	}
+	switch option {
+	case "", "true":
+		return true, nil
+	case "false":
+		return false, nil
+	case "verified":
+		return isSnapVerified(st, snapID), nil
+	}
+	return false, fmt.Errorf(
+		"internal error: invalid allow-auto-connection status %s for %s",
+		option, slot.Snap.RealName)
+}
+
+func filterAllowedAutoConnectionSlots(st *state.State, snapID string, ssi []*snap.SlotInfo) ([]*snap.SlotInfo, error) {
+	var filtered []*snap.SlotInfo
+	tr := config.NewTransaction(st)
+	for _, slot := range ssi {
+		if allowed, err := isSnapSlotAllowed(st, snapID, slot, tr); err != nil {
+			// In case there is any error of filtering auto-connections, assume something is horribly
+			// wrong and return to the default behaviour. However make sure we log this error from the
+			// caller.
+			return ssi, err
+		} else if allowed {
+			filtered = append(filtered, slot)
+		} else {
+			logger.Debugf("Interface %s was configured to be disallowed auto-connection, skipping connection",
+				slot.Interface)
+		}
+	}
+	return filtered, nil
+}
+
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -1483,11 +1556,21 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	// Auto-connect all the plugs
+	// Auto-connect all the plugs unless specifically disallowed
+	checkAutoConnectAllowed := func(css []*snap.SlotInfo) []*snap.SlotInfo {
+		filtered, err := filterAllowedAutoConnectionSlots(st, snapsup.SideInfo.SnapID, css)
+		if err != nil {
+			// Log the error that we failed to filter out the auto-connections. We do not
+			// want to mess up auto-connections because we failed this 'opt-in' support.
+			task.Logf("failed to filter auto-connection slots: %v", err)
+		}
+		return filtered
+	}
+
 	cannotAutoConnectLog := func(plug *snap.PlugInfo, candRefs []string) string {
 		return fmt.Sprintf("cannot auto-connect plug %s, candidates found: %s", plug, strings.Join(candRefs, ", "))
 	}
-	if err := autochecker.addAutoConnections(task, newconns, plugs, nil, conns, cannotAutoConnectLog, conflictError); err != nil {
+	if err := autochecker.addAutoConnections(task, newconns, plugs, checkAutoConnectAllowed, conns, cannotAutoConnectLog, conflictError); err != nil {
 		return err
 	}
 	// Auto-connect all the slots

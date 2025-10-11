@@ -75,6 +75,9 @@ func init() {
 
 	// experimental.apparmor-prompting
 	addWithStateHandler(nil, doExperimentalApparmorPromptingDaemonRestart, nil)
+
+	// interface.*.allow-auto-connection
+	addWithStateHandler(validateAllowAutoConnectionValue, nil, &flags{validatedOnlyStateConfig: true})
 }
 
 // RunTransaction is an interface describing how to access
@@ -168,6 +171,10 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 		case isNetplanChange(k):
 			if release.OnClassic {
 				return fmt.Errorf("cannot set netplan configuration on classic")
+			}
+		case isInterfaceChange(k):
+			if err := validateInterfaceChange(k); err != nil {
+				return err
 			}
 		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
