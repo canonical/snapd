@@ -600,6 +600,16 @@ func MockAffectedSnapsByKind(value map[string]AffectedSnapsFunc) (restore func()
 	}
 }
 
+func MockAssertsSnapRevisionFromSnapIdAndRevisionNumber(snapRev *asserts.SnapRevision) (restore func()) {
+	orig := assertsSnapRevisionFromSnapIdAndRevisionNumber
+	assertsSnapRevisionFromSnapIdAndRevisionNumber = func(asserts.RODatabase, string, int) (*asserts.SnapRevision, error) {
+		return snapRev, nil
+	}
+	return func() {
+		assertsSnapRevisionFromSnapIdAndRevisionNumber = orig
+	}
+}
+
 // CustomInstallGoal allows us to define custom implementations of installGoal
 // to be used in tests.
 type CustomInstallGoal struct {
