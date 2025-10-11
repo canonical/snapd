@@ -37,12 +37,12 @@ enum {
  * ENOENT indicates that the group was not found. Otherwise, a new device cgroup
  * for a given tag will be set up.
  */
-sc_device_cgroup* sc_device_cgroup_new(const char* security_tag, int flags);
+sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags);
 /**
  * sc_device_cgroup_cleanup disposes of the cgroup wrapper and is suitable for
  * use with SC_CLEANUP
  */
-void sc_device_cgroup_cleanup(sc_device_cgroup** self);
+void sc_device_cgroup_cleanup(sc_device_cgroup **self);
 
 /**
  * SC_DEVICE_MINOR_ANY is used to indicate any minor device.
@@ -54,19 +54,19 @@ static const uint32_t SC_DEVICE_MINOR_ANY = UINT32_MAX;
  * or a set of devices if SC_MINOR_ANY is passed as the minor number. The kind
  * must be one of S_IFCHR, S_IFBLK.
  */
-int sc_device_cgroup_allow(sc_device_cgroup* self, int kind, int major, int minor);
+int sc_device_cgroup_allow(sc_device_cgroup *self, int kind, int major, int minor);
 
 /**
  * sc_device_cgroup_deny sets up the cgroup to deny access to a given device or
  * a set of devices if SC_MINOR_ANY is passed as the minor number. The kind must
  * be one of S_IFCHR, S_IFBLK.
  */
-int sc_device_cgroup_deny(sc_device_cgroup* self, int kind, int major, int minor);
+int sc_device_cgroup_deny(sc_device_cgroup *self, int kind, int major, int minor);
 
 /**
  * sc_device_cgroup_attach_pid attaches given process ID to the associated
  * cgroup.
  */
-int sc_device_cgroup_attach_pid(sc_device_cgroup* self, pid_t pid);
+int sc_device_cgroup_attach_pid(sc_device_cgroup *self, pid_t pid);
 
 #endif /* SNAP_CONFINE_DEVICE_CGROUP_SUPPORT_H */
