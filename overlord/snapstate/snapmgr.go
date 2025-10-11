@@ -179,6 +179,9 @@ type SnapSetup struct {
 	// ComponentExclusiveOperation is set if this SnapSetup exists only to deal with
 	// components, and not the snap itself.
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
+
+	// IntegrityData contains the integrity data to be used when mounting this snap.
+	IntegrityData *snap.IntegrityData `json:"integrity-data,omitempty"`
 }
 
 // ConfdbSchemaID identifies a confdb schema.
@@ -1521,14 +1524,47 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if snapType == snap.TypeKernel && dev == nil {
 				continue
 			}
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
-				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{
-					PreventRestartIfModified: true,
-					// We need early mounts only for UC20+/hybrid, also 16.04
-					// systemd seems to be buggy if we enable this.
-					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
-						dev.HasModeenv()}); err != nil {
+
+			// We need early mounts only for UC20+/hybrid, also 16.04
+			// systemd seems to be buggy if we enable this.
+			startBeforeDriversLoad := snapType == snap.TypeKernel && dev.HasModeenv()
+
+			mountOptions := &systemd.MountUnitOptions{
+				Lifetime:                 systemd.Persistent,
+				Description:              info.MountDescription(),
+				What:                     squashfsPath,
+				Where:                    whereDir,
+				PreventRestartIfModified: true,
+			}
+
+			fsType, options, mountUnitType := sysd.MountUnitOptions(squashfsPath, "squashfs", startBeforeDriversLoad)
+
+			mountOptions.Fstype = fsType
+			mountOptions.MountUnitType = mountUnitType
+
+			// Since integrity data are not stored in the state, the only way of telling whether a
+			// snap is mounted with integrity data is by looking whether verity data exist next to it,
+			// and use them if they do.
+			// TODO: We could store the integrity data state in the state file instead.
+			matches, err := filepath.Glob(info.MountFile() + "*")
+			if err != nil {
+				return err
+			}
+
+			for _, match := range matches {
+				ext := filepath.Ext(match)
+				verity := strings.Split(ext, "_")
+				if verity[0] != ".dmverity" {
+					continue
+				}
+				options = append(options, fmt.Sprintf("verity.roothash=%s", verity[1]))
+				options = append(options, fmt.Sprintf("verity.hashdevice=%s", dirs.StripRootDir(match)))
+			}
+
+			mountOptions.Options = options
+
+			_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+			if err != nil {
 				return err
 			}
 		}
