@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -116,6 +117,13 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		return didNothing, nil
 	}
 
+	var srcVerityPath string
+	var destVerityPath string
+	if opts != nil && len(opts.IntegrityRootHash) > 0 {
+		srcVerityPath = integrity.DmVerityHashFileName(s.path, opts.IntegrityRootHash)
+		destVerityPath = integrity.DmVerityHashFileName(targetPath, opts.IntegrityRootHash)
+	}
+
 	overlayRoot, err := isRootWritableOverlay()
 	if err != nil {
 		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
@@ -131,7 +139,13 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// link(2) returns EPERM on filesystems that don't support
 		// hard links (like vfat), so checking the error here doesn't
 		// make sense vs just trying to copy it.
-		if err := osLink(s.path, targetPath); err == nil {
+		err := osLink(s.path, targetPath)
+
+		if opts != nil && len(opts.IntegrityRootHash) > 0 {
+			err = osLink(srcVerityPath, destVerityPath)
+		}
+
+		if err == nil {
 			return false, nil
 		}
 	}
@@ -147,9 +161,22 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		// so we need to check if it has the prefix of the seed dir
 		cleanSrc := filepath.Clean(s.path)
 		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
-			if os.Symlink(s.path, targetPath) == nil {
+			err := os.Symlink(s.path, targetPath)
+
+			if opts != nil && len(opts.IntegrityRootHash) > 0 {
+				err = os.Symlink(srcVerityPath, destVerityPath)
+			}
+
+			if err == nil {
 				return false, nil
 			}
+		}
+	}
+
+	if opts != nil && len(opts.IntegrityRootHash) > 0 {
+		err = osutil.CopyFile(srcVerityPath, destVerityPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+		if err != nil {
+			return false, err
 		}
 	}
 
