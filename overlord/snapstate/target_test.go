@@ -1158,3 +1158,57 @@ version: 1.0
 	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*"%s" is not a component for snap "%s"`, compName, snapName))
 }
+
+func (s *targetTestSuite) TestInstallWithIntegrityDataEssentialSnap(c *C) {
+	// Store has integrity data available and are being used for essential snaps
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tests := []struct {
+		instanceName string
+		Comment      string
+	}{
+		{"some-base", "integrity data should be used for base snaps"},
+		{"some-gadget", "integrity data should be used for gadget snaps"},
+		{"some-kernel", "integrity data should be used for kernel snaps"},
+		{"some-snapd", "integrity data should be used for the snapd snap"},
+	}
+
+	for _, tc := range tests {
+		goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+			InstanceName: tc.instanceName,
+			RevOpts: snapstate.RevisionOptions{
+				Channel: "channel-with-integrity-data",
+			},
+		})
+
+		_, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+		c.Assert(err, IsNil)
+
+		snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+		c.Assert(err, IsNil)
+
+		c.Check(snapsup.IntegrityData, Not(IsNil), Commentf(tc.Comment))
+	}
+}
+
+func (s *targetTestSuite) TestInstallWithIntegrityDataApplicationSnap(c *C) {
+	// Store has integrity data available but are not being used for application snaps
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: "some-snap",
+		RevOpts: snapstate.RevisionOptions{
+			Channel: "channel-with-integrity-data",
+		},
+	})
+
+	_, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.IntegrityData, IsNil)
+}

@@ -1022,6 +1022,10 @@ func sendInstallOrDownloadActions(ctx context.Context, st *state.State, action s
 		return nil, err
 	}
 
+	if opts.RequestIntegrityData {
+		refreshOpts.IncludeIntegrity = true
+	}
+
 	user, err := userFromUserID(st, opts.UserID)
 	if err != nil {
 		return nil, err
