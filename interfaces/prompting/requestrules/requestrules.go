@@ -65,9 +65,10 @@ type Rule struct {
 
 // Validate verifies internal correctness of the rule's constraints and
 // permissions and prunes any expired permissions. If all permissions are
-// expired at the given point in time, then returns true. If the rule is
-// invalid, returns an error.
-func (rule *Rule) validate(at prompting.At) (expired bool, err error) {
+// expired at the given point in time, then returns fullyExpired as true.
+// If any permissions are expired, then returns partiallyExpired as true.
+// If the rule is invalid, returns an error.
+func (rule *Rule) validate(at prompting.At) (fullyExpired, partiallyExpired bool, err error) {
 	return rule.Constraints.ValidateForInterface(rule.Interface, at)
 }
 
@@ -150,9 +151,9 @@ type RuleDB struct {
 	perUser map[uint32]*userDB
 
 	dbPath string
-	// notifyRule is a closure which will be called to record a notice when a
-	// rule is added, patched, or removed.
-	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+	// notifyRules is a closure which will be called to record a notice when
+	// rules are added, patched, or removed.
+	notifyRules func(rules []*Rule, data map[string]string) error
 
 	// userSessionIDMu ensures that two threads cannot race to write a new user
 	// session ID.
@@ -162,14 +163,14 @@ type RuleDB struct {
 // New creates a new rule database, loads existing rules from the database file,
 // and returns the populated database.
 //
-// The given notifyRule closure may be called before `New()` returns, if a
+// The given notifyRules closure may be called before `New()` returns, if a
 // previously-saved rule has expired or if there are conflicts between rules.
 //
-// The given notifyRule closure will be called when a rule is added, modified,
-// expired, or removed. In order to guarantee the order of notices, notifyRule
+// The given notifyRules closure will be called when a rule is added, modified,
+// expired, or removed. In order to guarantee the order of notices, notifyRules
 // is called with the prompt DB lock held, so it should not block for a
 // substantial amount of time (such as to lock and modify snapd state).
-func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
+func New(notifyRules func(rules []*Rule, data map[string]string) error) (*RuleDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 	rulesFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
@@ -183,9 +184,9 @@ func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string
 	}
 
 	rdb := &RuleDB{
-		maxIDMmap:  maxIDMmap,
-		notifyRule: notifyRule,
-		dbPath:     rulesFilepath,
+		maxIDMmap:   maxIDMmap,
+		notifyRules: notifyRules,
+		dbPath:      rulesFilepath,
 	}
 	if err = rdb.load(); err != nil {
 		logger.Noticef("cannot load rule database: %v; using new empty rule database", err)
@@ -216,10 +217,11 @@ func (rdb *RuleDB) load() (retErr error) {
 	rdb.rules = make([]*Rule, 0)
 	rdb.perUser = make(map[uint32]*userDB)
 
-	expiredRules := make(map[prompting.IDType]bool)
-	// Store map of merged rules, where the original merged (removed) rule ID
+	var expiredRules []*Rule
+	var partiallyExpiredRules []*Rule
+	// Store map of merged rules, where the original merged (removed) rule
 	// maps to the ID of the rule into which it was merged.
-	mergedRules := make(map[prompting.IDType]prompting.IDType)
+	mergedRules := make(map[*Rule]prompting.IDType)
 
 	f, err := os.Open(rdb.dbPath)
 	if err != nil {
@@ -254,14 +256,14 @@ func (rdb *RuleDB) load() (retErr error) {
 		if err != nil {
 			return err
 		}
-		expired, err := rule.validate(at)
+		fullyExpired, partiallyExpired, err := rule.validate(at)
 		if err != nil {
 			// we're loading previously saved rules, so this should not happen
 			errInvalid = fmt.Errorf("internal error: %w", err)
 			break
 		}
-		if expired {
-			expiredRules[rule.ID] = true
+		if fullyExpired {
+			expiredRules = append(expiredRules, rule)
 			continue
 		}
 
@@ -273,16 +275,21 @@ func (rdb *RuleDB) load() (retErr error) {
 			break
 		}
 		if merged {
-			mergedRules[rule.ID] = mergedRule.ID
+			mergedRules[rule] = mergedRule.ID
+			continue
+		}
+
+		// Being merged is more important than being partially expired, so only
+		// check this after first adding the rule to the DB.
+		if partiallyExpired {
+			partiallyExpiredRules = append(partiallyExpiredRules, rule)
 		}
 	}
 
 	if errInvalid != nil {
 		// The DB on disk was invalid, so drop every rule and start over
 		data := map[string]string{"removed": "dropped"}
-		for _, rule := range wrapped.Rules {
-			rdb.notifyRule(rule.User, rule.ID, data)
-		}
+		rdb.notifyRules(wrapped.Rules, data)
 		rdb.indexByID = make(map[prompting.IDType]int)
 		rdb.rules = make([]*Rule, 0)
 		rdb.perUser = make(map[uint32]*userDB)
@@ -292,18 +299,15 @@ func (rdb *RuleDB) load() (retErr error) {
 		return strutil.JoinErrors(errInvalid, rdb.save())
 	}
 
+	rdb.notifyRules(partiallyExpiredRules, nil)
 	expiredData := map[string]string{"removed": "expired"}
-	for _, rule := range wrapped.Rules {
-		var data map[string]string
-		if expiredRules[rule.ID] {
-			data = expiredData
-		} else if newID, exists := mergedRules[rule.ID]; exists {
-			data = map[string]string{
-				"removed":     "merged",
-				"merged-into": newID.String(),
-			}
+	rdb.notifyRules(expiredRules, expiredData)
+	for rule, newID := range mergedRules {
+		data := map[string]string{
+			"removed":     "merged",
+			"merged-into": newID.String(),
 		}
-		rdb.notifyRule(rule.User, rule.ID, data)
+		rdb.notifyRules([]*Rule{rule}, data)
 	}
 
 	if len(expiredRules) > 0 || len(mergedRules) > 0 {
@@ -731,7 +735,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
-			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, expiredData)
+			rdb.notifyRules([]*Rule{maybeExpired}, expiredData)
 		}
 	}
 
@@ -1015,7 +1019,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 
-	rdb.notifyRule(user, newRule.ID, nil)
+	rdb.notifyRules([]*Rule{newRule}, nil)
 	return newRule, nil
 }
 
@@ -1263,7 +1267,7 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
-	rdb.notifyRule(user, id, data)
+	rdb.notifyRules([]*Rule{rule}, data)
 	return rule, nil
 }
 
@@ -1313,13 +1317,13 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	}
 
 	// Save successful, now remove rules' variants from tree
-	data := map[string]string{"removed": "removed"}
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree, and no other
 		// rule was affected. We want the rule fully removed, so this is fine.
-		rdb.notifyRule(user, rule.ID, data)
 	}
+	data := map[string]string{"removed": "removed"}
+	rdb.notifyRules(rules, data)
 	return nil
 }
 
@@ -1444,7 +1448,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
-	rdb.notifyRule(newRule.User, newRule.ID, nil)
+	rdb.notifyRules([]*Rule{newRule}, nil)
 	return newRule, nil
 }
 
