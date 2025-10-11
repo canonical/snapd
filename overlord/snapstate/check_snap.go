@@ -22,8 +22,6 @@ package snapstate
 import (
 	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
@@ -35,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -55,79 +54,6 @@ var featureSet = map[string]bool{
 	"app-refresh-mode": true,
 	// Support for "SNAP_UID" and "SNAP_EUID" environment variables
 	"snap-uid-envvars": true,
-}
-
-func checkAssumes(si *snap.Info) error {
-	missing := ([]string)(nil)
-	for _, flag := range si.Assumes {
-		if strings.HasPrefix(flag, "snapd") && checkVersion(flag[5:]) {
-			continue
-		}
-		if !featureSet[flag] {
-			missing = append(missing, flag)
-		}
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("snap %q assumes unsupported features: %s (try to refresh snapd)", si.InstanceName(), strings.Join(missing, ", "))
-	}
-	return nil
-}
-
-// regular expression which matches a version expressed as groups of digits
-// separated with dots, with optional non-numbers afterwards
-var versionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
-
-func checkVersion(version string) bool {
-	// double check that the input looks like a snapd version
-	reqVersionNumMatch := versionExp.FindStringSubmatch(version)
-	if reqVersionNumMatch == nil {
-		return false
-	}
-	// this check ensures that no one can use an assumes like snapd2.48.3~pre2
-	// or snapd2.48.5+20.10, as modifiers past the version number are not meant
-	// to be relied on for snaps via assumes, however the check against the real
-	// snapd version number below allows such non-numeric modifiers since real
-	// snapds do have versions like that (for example debian pkg of snapd)
-	if reqVersionNumMatch[0] != version {
-		return false
-	}
-
-	req := strings.Split(reqVersionNumMatch[0], ".")
-
-	if snapdtool.Version == "unknown" {
-		return true // Development tree.
-	}
-
-	// We could (should?) use strutil.VersionCompare here and simplify
-	// this code (see PR#7344). However this would change current
-	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
-	// (which the code below does).
-	curVersionNumMatch := versionExp.FindStringSubmatch(snapdtool.Version)
-	if curVersionNumMatch == nil {
-		return false
-	}
-	cur := strings.Split(curVersionNumMatch[0], ".")
-
-	for i := range req {
-		if i == len(cur) {
-			// we hit the end of the elements of the current version number and have
-			// more required version numbers left, so this doesn't match, if the
-			// previous element was higher we would have broken out already, so the
-			// only case left here is where we have version requirements that are
-			// not met
-			return false
-		}
-		reqN, err1 := strconv.Atoi(req[i])
-		curN, err2 := strconv.Atoi(cur[i])
-		if err1 != nil || err2 != nil {
-			panic("internal error: version regexp is broken")
-		}
-		if curN != reqN {
-			return curN > reqN
-		}
-	}
-
-	return true
 }
 
 type SnapNeedsDevModeError struct {
@@ -216,8 +142,9 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 	}
 
 	// check assumes
-	if err := checkAssumes(info); err != nil {
-		return err
+	err := naming.ValidateAssumes(info.Assumes, snapdtool.Version, featureSet)
+	if err != nil {
+		return fmt.Errorf("snap %q assumes %w (try to refresh snapd)", info.InstanceName(), err)
 	}
 
 	// check and create system-usernames
