@@ -197,7 +197,18 @@ func (ss *SeedSnaps) makeAssertedSnap(
 
 	for _, db := range dbs {
 		err := db.Add(declA)
-		c.Assert(err, IsNil)
+		if err != nil {
+			var re *asserts.RevisionError
+			if errors.As(err, &re) {
+				// This function will always try to create both a declaration and a
+				// revision assertion when called. By ignoring revision error when
+				// attempting to add a declaration assertion, we can use this function
+				// for adding new revision assertions for snaps that already have a
+				// declaration in the database.
+			} else {
+				c.Assert(err, IsNil)
+			}
+		}
 		err = db.Add(revA)
 		c.Assert(err, IsNil)
 	}
