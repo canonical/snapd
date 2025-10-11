@@ -94,7 +94,7 @@ func FmtServiceStatus(svc *client.AppInfo, opts FmtServiceStatusOptions) string 
 	// When requesting global service status, we don't have any active
 	// information available for user daemons.
 	current := i18n.G("inactive")
-	if svc.DaemonScope == snap.UserDaemon && opts.IsUserGlobal {
+	if svc.DaemonScope.IsUserDaemon() && opts.IsUserGlobal {
 		current = "-"
 	} else if svc.Active {
 		current = i18n.G("active")

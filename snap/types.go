@@ -187,9 +187,30 @@ const (
 type DaemonScope string
 
 const (
-	SystemDaemon DaemonScope = "system"
-	UserDaemon   DaemonScope = "user"
+	SystemDaemonScope        DaemonScope = "system"
+	UserDaemonScope          DaemonScope = "user"
+	GraphicalUserDaemonScope DaemonScope = "user-graphical-session"
 )
+
+// Returns if the daemon is a System daemon
+func (daemonScope DaemonScope) IsSystemDaemon() bool {
+	switch daemonScope {
+	case SystemDaemonScope:
+		return true
+	default:
+		return false
+	}
+}
+
+// Returns if the daemon is an User daemon
+func (daemonScope DaemonScope) IsUserDaemon() bool {
+	switch daemonScope {
+	case UserDaemonScope, GraphicalUserDaemonScope:
+		return true
+	default:
+		return false
+	}
+}
 
 // UnmarshalJSON sets *daemonScope to a copy of data, assuming validation passes
 func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
@@ -213,7 +234,7 @@ func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(any) error) error {
 
 func (daemonScope *DaemonScope) fromString(str string) error {
 	d := DaemonScope(str)
-	if d != SystemDaemon && d != UserDaemon {
+	if d != SystemDaemonScope && d != UserDaemonScope && d != GraphicalUserDaemonScope {
 		return fmt.Errorf("invalid daemon scope: %q", str)
 	}
 

@@ -238,7 +238,7 @@ NeedDaemonReload=no
 			Snap:        snapName,
 			Name:        app,
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		if snapName != "snap-b" {
 			// snap-b is not active (all the others are)
@@ -247,7 +247,7 @@ NeedDaemonReload=no
 		}
 		if snapName == "snap-e" {
 			// snap-e contains user services
-			needle.DaemonScope = snap.UserDaemon
+			needle.DaemonScope = snap.UserDaemonScope
 			needle.Active = false
 		}
 		c.Check(apps, testutil.DeepContains, needle)
@@ -343,7 +343,7 @@ func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
 			Snap:        snapName,
 			Name:        app,
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		if snapName != "snap-b" {
 			// snap-b is not active (all the others are)
@@ -352,7 +352,7 @@ func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
 		}
 		if snapName == "snap-e" {
 			// snap-e contains user services
-			needle.DaemonScope = snap.UserDaemon
+			needle.DaemonScope = snap.UserDaemonScope
 			needle.Active = false
 		}
 		c.Check(svcs, testutil.DeepContains, needle)
@@ -400,7 +400,7 @@ NeedDaemonReload=no
 			Snap:        snapName,
 			Name:        app,
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		if snapName != "snap-b" {
 			// snap-b is not active (all the others are)
@@ -409,7 +409,7 @@ NeedDaemonReload=no
 		}
 		if snapName == "snap-e" {
 			// snap-e contains user services
-			needle.DaemonScope = snap.UserDaemon
+			needle.DaemonScope = snap.UserDaemonScope
 			needle.Active = false
 		}
 		c.Check(svcs, testutil.DeepContains, needle)
@@ -478,7 +478,7 @@ func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
 			Snap:        snapName,
 			Name:        app,
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		if snapName != "snap-b" {
 			// snap-b is not active (all the others are)
@@ -487,7 +487,7 @@ func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
 		}
 		if snapName == "snap-e" {
 			// snap-e contains user services
-			needle.DaemonScope = snap.UserDaemon
+			needle.DaemonScope = snap.UserDaemonScope
 			needle.Active = true
 		}
 		c.Check(svcs, testutil.DeepContains, needle)
