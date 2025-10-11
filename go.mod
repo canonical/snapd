@@ -7,6 +7,7 @@ replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
+	github.com/brutella/dnssd v1.2.11
 	github.com/canonical/go-efilib v1.6.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.13.0
@@ -24,7 +25,7 @@ require (
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
 	github.com/snapcore/secboot v0.0.0-20250925122121-f8400226f49a
 	golang.org/x/crypto v0.23.0
-	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sys v0.21.0
 	golang.org/x/text v0.15.0
 	golang.org/x/time v0.10.0
@@ -46,8 +47,12 @@ require (
 	github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981 // indirect
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
 	github.com/kr/text v0.1.0 // indirect
+	github.com/miekg/dns v1.1.59 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
-	golang.org/x/term v0.20.0 // indirect
+	golang.org/x/mod v0.18.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/term v0.21.0 // indirect
+	golang.org/x/tools v0.20.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
