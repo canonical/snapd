@@ -2260,7 +2260,7 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 
 	for _, indexPart := range []string{"[0]", "[{n}]"} {
 		opts := confdb.ParseOptions{AllowPlaceholders: true}
-		path, err := confdb.ParsePathIntoAccessors("foo"+indexPart, opts)
+		path, err := confdb.ParsePathIntoAccessors("foo"+indexPart, nil, opts)
 		c.Assert(err, IsNil)
 
 		schemas, err := schema.SchemaAt(path)

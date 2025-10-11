@@ -117,7 +117,7 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	var deltas []pathValuePair
 	for _, delta := range mt.Deltas {
 		for path, value := range delta {
-			accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+			accs, err := confdb.ParsePathIntoAccessors(path, nil, confdb.ParseOptions{})
 			if err != nil {
 				return fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
 			}
