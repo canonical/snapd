@@ -135,6 +135,14 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 	return a.(*asserts.Serial), nil
 }
 
+// Serial returns the device's serial assertion.
+//
+// XXX: This is currently only used by clusterstate. Consumers should be
+// reworked so that this function isn't needed.
+func Serial(st *state.State) (*asserts.Serial, error) {
+	return findSerial(st, nil)
+}
+
 // findKnownRevisionOfModel returns the model assertion revision if any in the
 // assertion database for the given model, otherwise it returns -1.
 func findKnownRevisionOfModel(st *state.State, mod *asserts.Model) (modRevision int, err error) {
