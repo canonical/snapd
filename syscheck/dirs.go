@@ -105,6 +105,8 @@ var (
 func checkLibExecDir() error {
 	d := dirs.StripRootDir(dirs.DistroLibExecDir)
 	switch {
+	case release.DistroLike([]string{"opensuse-leap",}...):
+		return nil
 	case release.DistroLike(altLibExecDirDistros...) && d != dirs.AltDistroLibexecDir:
 		// RHEL, CentOS, Fedora and derivatives, openSUSE Tumbleweed (since
 		// snapshot 20200826) and Slowroll; both RHEL and CentOS list "fedora"
