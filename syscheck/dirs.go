@@ -94,6 +94,11 @@ var (
 		"fedora",
 		"opensuse-tumbleweed",
 		"opensuse-slowroll",
+		"opensuse-leap",
+		// openSUSE Leap 16.0 has switch to /usr/libexec/snapd/ like Tumbleweed, while Leap 15.6 is still using /usr/lib/snapd now.
+		// So till now snapd on Leap 16.0 does not work.
+		// Since We do not have distro version check here,
+		// The most simple way to fix the problem is to let 'opensuse-leap' both two list above.
 	}
 )
 
@@ -106,6 +111,7 @@ func checkLibExecDir() error {
 		// in ID_LIKE
 		fallthrough
 	case release.DistroLike(defaulLibExectDirDistros...) && d != dirs.DefaultDistroLibexecDir:
+		// It is possible to write  distro version check here, but introduce complexity
 		return fmt.Errorf("unexpected snapd tooling directory %v on %v", d, release.ReleaseInfo.ID)
 	}
 
