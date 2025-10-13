@@ -697,7 +697,8 @@ type Accessor interface {
 	// Type returns a type that represents the kind of path sub-key the accessor is.
 	Type() AccessorType
 
-	// TODO
+	// FieldFilters returns a mapping of field names to filters to which
+	// constraints may be applied.
 	FieldFilters() map[string]string
 }
 
@@ -2121,17 +2122,6 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 		return fmt.Errorf("cannot use %q to access map at path %q", key.Access(), pathPrefix)
 	}
 
-	//if index > 0 {
-	//	ok, err := matchesConstraints(subKeys[index-1], node, cstrs)
-	//	if err != nil {
-	//		// TODO: in some cases, a "wrong type" error should be just a no? Like a final value
-	//		return err
-	//	}
-	//	if !ok {
-	//		return &NoDataError{}
-	//	}
-	//}
-
 	// read the final value
 	if index == len(subKeys)-1 {
 		if matchAll {
@@ -2156,8 +2146,7 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 			*result = level
 			return nil
 		}
-		// TODO: don't unmarshal the final values because we might still filter some
-		// paths which means we're wasting the unmarshalling
+
 		if err := json.Unmarshal(rawLevel, result); err != nil {
 			return fmt.Errorf(`internal error: %w`, err)
 		}
