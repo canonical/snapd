@@ -390,8 +390,10 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		return "", retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
+	st.Lock()
 	var hasPrepareSerialRequestHook bool
 	err = st.Get("has-prepare-serial-request-hook", &hasPrepareSerialRequestHook)
+	st.Unlock()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
