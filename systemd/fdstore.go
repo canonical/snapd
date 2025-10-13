@@ -35,11 +35,11 @@ type FdName string
 
 const (
 	FdNameRemoved          FdName = "removed"
-	FdNameRecoveryKeyStore FdName = "rkey"
+	FdNameMemfdSecretState FdName = "memfd-secret-state"
 )
 
 var knownFdNames = map[FdName]bool{
-	FdNameRecoveryKeyStore: true,
+	FdNameMemfdSecretState: true,
 }
 
 func (name FdName) Validate() error {

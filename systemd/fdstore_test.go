@@ -49,15 +49,15 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 
 func (s *fdstoreTestSuite) TestGetFds(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "4"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.socket:rkey:snapd.socket"
+	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.socket:memfd-secret-state:snapd.socket"
 	// fds starts from 3
 	c.Check(systemd.GetFds("snapd.socket"), DeepEquals, []int{3, 4, 6})
-	c.Check(systemd.GetFds(systemd.FdNameRecoveryKeyStore), DeepEquals, []int{5})
+	c.Check(systemd.GetFds(systemd.FdNameMemfdSecretState), DeepEquals, []int{5})
 	c.Check(systemd.GetFds("no-fd"), IsNil)
 
 	delete(s.fakeEnv, "LISTEN_FDS")
 	c.Check(systemd.GetFds("snapd.socket"), IsNil)
-	c.Check(systemd.GetFds(systemd.FdNameRecoveryKeyStore), IsNil)
+	c.Check(systemd.GetFds(systemd.FdNameMemfdSecretState), IsNil)
 	c.Check(systemd.GetFds("no-fd"), IsNil)
 }
 
@@ -65,13 +65,13 @@ func (s *fdstoreTestSuite) TestAddFds(c *C) {
 	called := 0
 	restore := systemd.MockSdNotifyWithFds(func(notifyState string, fds ...int) error {
 		called++
-		c.Check(notifyState, Equals, "FDSTORE=1\nFDNAME=rkey")
+		c.Check(notifyState, Equals, "FDSTORE=1\nFDNAME=memfd-secret-state")
 		c.Check(fds, DeepEquals, []int{7, 8, 9})
 		return nil
 	})
 	defer restore()
 
-	c.Assert(systemd.AddFds(systemd.FdNameRecoveryKeyStore, 7, 8, 9), IsNil)
+	c.Assert(systemd.AddFds(systemd.FdNameMemfdSecretState, 7, 8, 9), IsNil)
 	c.Check(called, Equals, 1)
 }
 
@@ -82,7 +82,7 @@ func (s *fdstoreTestSuite) TestAddFdsInvalidFdName(c *C) {
 
 func (s *fdstoreTestSuite) TestPruneFds(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "6"
-	s.fakeEnv["LISTEN_FDNAMES"] = "err-on-remove:snapd.socket:err-on-close:snapd.session-agent.socket:unknown-fd:rkey:snapd.socket"
+	s.fakeEnv["LISTEN_FDNAMES"] = "err-on-remove:snapd.socket:err-on-close:snapd.session-agent.socket:unknown-fd:memfd-secret-state:snapd.socket"
 
 	var states []string
 	restore := systemd.MockSdNotify(func(notifyState string) error {
@@ -109,7 +109,7 @@ func (s *fdstoreTestSuite) TestPruneFds(c *C) {
 
 	systemd.PruneFds()
 
-	// *.socket and rkey are skipped
+	// *.socket and memfd-secret-state are skipped
 	c.Check(states, DeepEquals, []string{
 		"FDSTOREREMOVE=1\nFDNAME=err-on-remove",
 		"FDSTOREREMOVE=1\nFDNAME=err-on-close",
@@ -118,7 +118,7 @@ func (s *fdstoreTestSuite) TestPruneFds(c *C) {
 	// and fd names are marked as "removed"
 	c.Check(s.fakeEnv, DeepEquals, map[string]string{
 		"LISTEN_FDS":     "6", // kept as is to avoid disrupting existing fds
-		"LISTEN_FDNAMES": "removed:snapd.socket:removed:snapd.session-agent.socket:removed:rkey:snapd.socket",
+		"LISTEN_FDNAMES": "removed:snapd.socket:removed:snapd.session-agent.socket:removed:memfd-secret-state:snapd.socket",
 	})
 	// since they are marked as "removed", they should be ignored
 	c.Check(systemd.GetFds("err-on-remove"), IsNil)
@@ -128,7 +128,7 @@ func (s *fdstoreTestSuite) TestPruneFds(c *C) {
 
 func (s *fdstoreTestSuite) TestActivationSocketFiles(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "4"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.session-agent.socket:rkey:snapd.socket"
+	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.session-agent.socket:memfd-secret-state:snapd.socket"
 	// fds starts from 3
 	socketFds := systemd.ActivationSocketFds()
 	c.Check(socketFds, DeepEquals, map[string][]int{
