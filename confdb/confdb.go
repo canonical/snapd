@@ -2110,9 +2110,9 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 			return &NoDataError{}
 		}
 
-		if ok, err := filterValue(key, rawLevel, cstrs); err != nil {
+		if ok, err := matchesConstraints(key, rawLevel, cstrs); err != nil {
 			return err
-		} else if ok {
+		} else if !ok {
 			return &NoDataError{}
 		}
 	} else if key.Type() == KeyPlaceholderType {
@@ -2128,11 +2128,11 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]any, len(node))
 			for k, v := range node {
-				if ok, err := filterValue(key, v, cstrs); err != nil {
+				if ok, err := matchesConstraints(key, v, cstrs); err != nil {
 					// TODO: this is the final value, a "wrong type" sort of error should
 					// probably be just a no
 					return err
-				} else if ok {
+				} else if !ok {
 					continue
 				}
 
@@ -2158,9 +2158,9 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, cstr
 		results := make(map[string]any)
 
 		for k, v := range node {
-			if ok, err := filterValue(key, v, cstrs); err != nil {
+			if ok, err := matchesConstraints(key, v, cstrs); err != nil {
 				return err
-			} else if ok {
+			} else if !ok {
 				continue
 			}
 
@@ -2222,9 +2222,9 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 			return &NoDataError{}
 		}
 
-		if ok, err := filterValue(key, list[listIndex], cstrs); err != nil {
+		if ok, err := matchesConstraints(key, list[listIndex], cstrs); err != nil {
 			return err
-		} else if ok {
+		} else if !ok {
 			return &NoDataError{}
 		}
 	} else if key.Type() == IndexPlaceholderType {
@@ -2240,9 +2240,10 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make([]any, 0, len(list))
 			for _, v := range list {
-				if ok, err := filterValue(key, v, cstrs); err != nil {
+				if ok, err := matchesConstraints(key, v, cstrs); err != nil {
 					return err
-				} else if ok {
+				} else if !ok {
+					// filter out this value
 					continue
 				}
 
@@ -2259,9 +2260,9 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 			return nil
 		}
 
-		if ok, err := filterValue(key, list[listIndex], cstrs); err != nil {
+		if ok, err := matchesConstraints(key, list[listIndex], cstrs); err != nil {
 			return err
-		} else if ok {
+		} else if !ok {
 			return &NoDataError{}
 		}
 
@@ -2276,9 +2277,10 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
-			if ok, err := filterValue(key, el, cstrs); err != nil {
+			if ok, err := matchesConstraints(key, el, cstrs); err != nil {
 				return err
-			} else if ok {
+			} else if !ok {
+				// filter out this value
 				continue
 			}
 
@@ -2323,21 +2325,20 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, cstrs map
 	return get(subKeys, keyIndex+1, level, cstrs, result)
 }
 
-// filterValue returns true only if the object should be filtered out and it
-// returns false if the object matches the constraints or if the constraints are
-// deemed to not be applicable.
-func filterValue(acc Accessor, val json.RawMessage, cstrs map[string]any) (bool, error) {
+// matchesConstraints returns true only if the object should not be filtered out,
+// either because it matches the constraints or they're not applicable.
+func matchesConstraints(acc Accessor, val json.RawMessage, cstrs map[string]any) (bool, error) {
 	filters := acc.FieldFilters()
 	if len(filters) == 0 || len(cstrs) == 0 {
 		// no filters to apply to this value
-		return false, nil
+		return true, nil
 	}
 
 	var mapVal map[string]json.RawMessage
 	if err := json.Unmarshal(val, &mapVal); err != nil {
 		if _, ok := err.(*json.UnmarshalTypeError); ok {
 			// field filters aren't applicable to this field (not a map)
-			return false, nil
+			return true, nil
 		}
 		return false, err
 	}
@@ -2351,25 +2352,26 @@ func filterValue(acc Accessor, val json.RawMessage, cstrs map[string]any) (bool,
 
 		if _, ok := mapVal[field]; !ok {
 			// the value doesn't contain the field, so it cannot match its constraint
-			return true, nil
+			return false, nil
 		}
 
 		// unmarshal the value for comparison, must be scalar (assume string for now)
 		var fieldVal string
 		if err := json.Unmarshal(mapVal[field], &fieldVal); err != nil {
 			if _, ok := err.(*json.UnmarshalTypeError); ok {
-				return false, nil
+				// can't compare this field to constraints
+				return true, nil
 			}
 			return false, err
 		}
 
 		if fieldVal != constrVal {
 			// the filtered field doesn't match the provided constraint, filter out the map
-			return true, nil
+			return false, nil
 		}
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // noContainerError is used when the traversal logic expected some JSON to
