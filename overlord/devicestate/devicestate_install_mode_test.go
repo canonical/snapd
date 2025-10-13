@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -78,6 +79,7 @@ type deviceMgrInstallSuite struct {
 func (s *deviceMgrInstallSuite) SetUpTest(c *C) {
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 	s.SeedDir = dirs.SnapSeedDir
+	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 }
 
 func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision, snapdVersionByType map[snap.Type]string) *asserts.Model {

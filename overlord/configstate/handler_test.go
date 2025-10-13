@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -64,6 +65,7 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 
 	s.state = state.New(nil)
 	s.state.Lock()

@@ -43,6 +43,11 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
+// IsConfdbHookname is a hook set by confdbstate (see confdbstate.go).
+var IsConfdbHookname = func(string) bool {
+	panic("internal error: hookstate.IsConfdbHookname is unset")
+}
+
 type hijackFunc func(ctx *Context) error
 type hijackKey struct{ hook, snap string }
 
@@ -168,8 +173,13 @@ func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 		return false
 	}
 
-	_, snapst, err := hookSetup(cand, "hook-setup")
-	if err != nil || !snapst.IsInstalled() {
+	// XXX: this prevents the confdb hooks from running while the snap/base is disabled
+	// (e.g,. refresh). While in theory we shouldn't run any hooks if the snap is
+	// disabled, we've always allowed removals of disabled snaps. Those hooks runs
+	// fail silently which we should eventually prevent (at least require the user
+	// to acknowledge that any removal hooks won't run by --force'ing or similar).
+	hooksup, snapst, err := hookSetup(cand, "hook-setup")
+	if err != nil || !snapst.IsInstalled() || !IsConfdbHookname(hooksup.Hook) {
 		return false
 	}
 
