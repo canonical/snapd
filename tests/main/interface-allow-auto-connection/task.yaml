@@ -20,7 +20,13 @@ restore: |
 execute: |
     # We can install a snap with an interface by default, install an older revision
     # so we can try refreshing it
-    snap install gnome-calculator --revision=972
+    revision=
+    if os.query is_arm; then
+        revision=973
+    else
+        revision=972
+    fi
+    snap install gnome-calculator --revision="$revision"
     "$TESTSTOOLS"/snaps-state install-local x11-consumer
 
     snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
@@ -38,7 +44,12 @@ execute: |
     snap connections gnome-calculator | tr -s ' ' | MATCH "gnome-calculator:x11 :x11"
 
     # Refreshing keeps the connection, and does not break it
-    snap refresh gnome-calculator --revision=975
+    if os.query is_arm; then
+        revision=976
+    else
+        revision=975
+    fi
+    snap refresh gnome-calculator --revision="$revision"
     "$TESTSTOOLS"/snaps-state install-local x11-consumer
 
     snap connections x11-consumer | tr -s ' ' | MATCH "x11-consumer:x11 :x11"
