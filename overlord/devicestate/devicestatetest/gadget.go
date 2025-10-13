@@ -39,11 +39,17 @@ import (
 type PrepareDeviceBehavior struct {
 	DeviceSvcURL   string
 	Headers        map[string]string
-	RegBody        map[string]string
 	ProposedSerial string
+	RegBody        map[string]string
 }
 
-func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior) (restore func()) {
+type PrepareSerialRequestBehavior struct {
+	RegBody        map[string]string
+}
+
+type restoreFunc func()
+
+func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restoreFuncs []restoreFunc) {
 
 	sideInfoGadget := &snap.SideInfo{
 		RealName: name,
@@ -55,12 +61,22 @@ type: gadget
 version: gadget
 `, name)
 
-	if pDBhv != nil {
+	if pDBhv != nil || pSRBhv != nil {
 		snapYaml += `hooks:
-  prepare-device:
 `
 	}
 
+	if pDBhv != nil {
+		snapYaml += `  prepare-device:
+`
+	}
+
+	if pSRBhv != nil {
+		snapYaml += `  prepare-serial-request:
+`
+	}
+
+	
 	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
 	snapstate.Set(st, name, &snapstate.SnapState{
 		SnapType: "gadget",
@@ -68,15 +84,16 @@ version: gadget
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfoGadget}),
 		Current:  revision,
 	})
-
-	if pDBhv == nil {
+	
+	if pDBhv == nil && pSRBhv == nil {
 		// nothing to restore
-		return func() {}
+		return []restoreFunc{func() {}}
 	}
 
 	// mock the prepare-device hook
 
-	return hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+	if pDBhv != nil {
+		restoreFuncs = append([]restoreFunc{hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
@@ -103,5 +120,26 @@ version: gadget
 		}
 
 		return nil, nil
-	})
+	})}, restoreFuncs...)
+	}
+
+	// mock the prepare-serial-request hook
+
+	if pSRBhv != nil {
+		// we add the hooks in reverse order to respect the defer order
+		restoreFuncs = append([]restoreFunc{hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		c.Assert(ctx.HookName(), Equals, "prepare-serial-request")
+
+		if len(pSRBhv.RegBody) != 0 {
+			d, err := json.Marshal(pSRBhv.RegBody)
+			c.Assert(err, IsNil)
+			_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
+			c.Assert(err, IsNil)
+		}
+
+		return nil, nil
+	})}, restoreFuncs...)
+	}
+
+	return restoreFuncs
 }
