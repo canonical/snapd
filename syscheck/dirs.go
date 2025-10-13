@@ -78,7 +78,6 @@ var (
 		"ubuntu-core",
 		"ubuntucoreinitramfs",
 		"debian",
-		"opensuse-leap",
 		"yocto",
 		"altlinux",
 		"antergos",
@@ -95,11 +94,21 @@ var (
 		"opensuse-tumbleweed",
 		"opensuse-slowroll",
 	}
+
+	bothLibExecDirDistros = []string{
+		"opensuse-leap", // openSUSE Leap uses /usr/libexec/snapd
+		// starting from 16.0, but used /usr/lib/snapd
+		// in earlier versions
+	}
 )
 
 func checkLibExecDir() error {
 	d := dirs.StripRootDir(dirs.DistroLibExecDir)
 	switch {
+	case release.DistroLike(bothLibExecDirDistros...):
+	// Distributions which use either location, likely depending on their
+	// version, but doing version check is too much a hassle. openSUSE Leap is
+	// one of those cases.
 	case release.DistroLike(altLibExecDirDistros...) && d != dirs.AltDistroLibexecDir:
 		// RHEL, CentOS, Fedora and derivatives, openSUSE Tumbleweed (since
 		// snapshot 20200826) and Slowroll; both RHEL and CentOS list "fedora"

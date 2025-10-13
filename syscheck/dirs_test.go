@@ -158,7 +158,7 @@ func (s *dirsSuite) TestMountDirKnownDistroSpecial(c *C) {
 func (s *dirsSuite) TestLibExecDirDefault(c *C) {
 	defer dirs.SetRootDir("")
 
-	for _, tc := range syscheck.DefaultLibExecDirDistros {
+	for _, tc := range append(syscheck.DefaultLibExecDirDistros, syscheck.BothLibExecDirDistros...) {
 		c.Logf("distro libexecdir default case %+v", tc)
 		func() {
 			defer release.MockReleaseInfo(&release.OS{ID: tc})()
@@ -174,7 +174,7 @@ func (s *dirsSuite) TestLibExecDirDefault(c *C) {
 func (s *dirsSuite) TestLibExecDirAlt(c *C) {
 	defer dirs.SetRootDir("")
 
-	for _, tc := range syscheck.AltLibExecDirDistros {
+	for _, tc := range append(syscheck.AltLibExecDirDistros, syscheck.BothLibExecDirDistros...) {
 		c.Logf("distro libexecdir alt case %+v", tc)
 		func() {
 			defer release.MockReleaseInfo(&release.OS{ID: tc})()
