@@ -544,17 +544,17 @@ func (s *ValidateSuite) TestValidateAssumes(c *C) {
 		assumes:  []string{"UPPERCASE"},
 		version:  "",
 		features: nil,
-		err:      `unsupported features: UPPERCASE`,
+		err:      `invalid features: UPPERCASE`,
 	}, {
 		assumes:  []string{"-starts-dash"},
 		version:  "",
 		features: nil,
-		err:      `unsupported features: -starts-dash`,
+		err:      `invalid features: -starts-dash`,
 	}, {
 		assumes:  []string{"double--dash"},
 		version:  "",
 		features: nil,
-		err:      `unsupported features: double--dash`,
+		err:      `invalid features: double--dash`,
 	}, {
 		assumes:  []string{"common-data-dir", "bad-feature"},
 		version:  "",

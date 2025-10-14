@@ -318,7 +318,7 @@ var assumeFormat = regexp.MustCompile("^[a-z0-9]+(?:-[a-z0-9]+)*$")
 // Pass empty currentSnapdVersion to skip checking the assumed version against the current snap version.
 // Pass nil/empty featureSet to only validate assumes format & not feature support.
 func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet map[string]bool) error {
-	var missing []string
+	var failed []string
 	for _, flag := range assumes {
 		if strings.HasPrefix(flag, "snapd") {
 			validVersion, err := validateAssumedSnapdVersion(flag[5:], currentSnapdVersion)
@@ -332,7 +332,8 @@ func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet ma
 			}
 		}
 
-		// If featureSet is provided, check feature support; otherwise only validate format
+		// if featureSet is provided, check feature support;
+		// otherwise only validate format
 		isValid := false
 		if len(featureSet) > 0 {
 			isValid = featureSet[flag]
@@ -341,12 +342,16 @@ func ValidateAssumes(assumes []string, currentSnapdVersion string, featureSet ma
 		}
 
 		if !isValid {
-			missing = append(missing, flag)
+			failed = append(failed, flag)
 		}
 	}
 
-	if len(missing) > 0 {
-		return fmt.Errorf("unsupported features: %s", strings.Join(missing, ", "))
+	if len(failed) > 0 {
+		if currentSnapdVersion == "" && len(featureSet) == 0 {
+			return fmt.Errorf("invalid features: %s", strings.Join(failed, ", "))
+		}
+
+		return fmt.Errorf("unsupported features: %s", strings.Join(failed, ", "))
 	}
 
 	return nil

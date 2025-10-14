@@ -204,7 +204,7 @@ func checkAssumes(headers map[string]any) ([]string, error) {
 
 	err = naming.ValidateAssumes(assumes, "", nil)
 	if err != nil {
-		return nil, fmt.Errorf("invalid assumes: %w", err)
+		return nil, fmt.Errorf("assumes: %w", err)
 	}
 
 	return assumes, nil
