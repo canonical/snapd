@@ -146,6 +146,9 @@ package() {
   # Install the "info" data file with snapd version
   install -m 644 -D "data/info" "$pkgdir/usr/lib/snapd/info"
 
+  # Install the news file
+  install -m 644 -D "NEWS.md" "$pkgdir/usr/share/doc/snapd/NEWS.md"
+
   # these locations are created at runtime but were not part of the packaging
   # previously, thus would trigger a file conflict on upgrade
   rm -rfv "$pkgdir/var/cache/snapd"

@@ -32,3 +32,5 @@ usr/lib/snapd/system-shutdown
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
 usr/share/man/
+# upstream changelog
+NEWS.md /usr/share/doc/snapd/

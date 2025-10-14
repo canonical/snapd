@@ -30,3 +30,5 @@ usr/lib/snapd/snap-mgmt
 usr/lib/systemd/system-environment-generators
 usr/lib/systemd/system-generators
 usr/share/man/
+# upstream changelog
+NEWS.md /usr/share/doc/snapd/

@@ -42,6 +42,9 @@ usr/lib/snapd/snap-gdbserver-shim
 # install squashfuse as snapfuse to ensure it is available in e.g. lxd
 c-vendor/squashfuse/snapfuse usr/bin
 
+# upstream changelog
+NEWS.md /usr/share/doc/snapd/
+
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
 # but system generators end up in lib
