@@ -21,9 +21,9 @@ prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-nvme-control
 
   mock() {
-    "$TESTSTOOLS"/fs-state mock-file $1
-    tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file $1
-    echo "mocked" > $1
+    "$TESTSTOOLS"/fs-state mock-file "$1"
+    tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file "$1"
+    echo "mocked" > "$1"
   }
 
   # Create mock NVMe configuration files
