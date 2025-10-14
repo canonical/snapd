@@ -416,7 +416,7 @@ jobs:
             exit 0
           fi
 
-          SPREAD_FLAGS='-no-debug-output -logs spread-logs -json results.json'
+          SPREAD_FLAGS='-logs spread-logs -json results.json'
           if [ "${{ inputs.upload-artifacts }}" = true ]; then
             SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
@@ -433,13 +433,6 @@ jobs:
               ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
               tee spread.log
           )
-
-    - name: Cat spread debug output
-      if: failed()
-      run: | 
-        if [ -d spread-logs ]; then
-          find spread-logs -name '*.log' -exec sh -c 'filename=${1#*tests}; echo "::group::tests${filename%%.*}"; cat $1; echo "::endgroup::"' _ {} \;
-        fi
 
     - name: Discard spread workers
       if: always()
