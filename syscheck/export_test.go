@@ -32,6 +32,7 @@ var (
 
 	DefaultLibExecDirDistros = defaulLibExectDirDistros
 	AltLibExecDirDistros     = altLibExecDirDistros
+	BothLibExecDirDistros    = bothLibExecDirDistros
 )
 
 func Checks() []func() error {
