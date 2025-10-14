@@ -91,9 +91,3 @@ parts:
     stage-packages:
     - libseccomp2
     #- on amd64: ["libseccomp2:i386"] # possible if sources.list is modified
-  dumper:
-    plugin: dump
-    source: files
-    after:
-    - test-snapd-daemon-user
-
