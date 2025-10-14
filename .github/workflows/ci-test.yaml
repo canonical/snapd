@@ -492,6 +492,26 @@ jobs:
             fi
           fi
 
+  spread-image-garden:
+    uses: ./.github/workflows/spread-ig-tests.yaml
+    name: "spread IG ${{ matrix.group }}"
+    with:
+      runs-on: '["ubuntu-latest"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ''
+      use-snapd-snap-from-master: true
+    strategy:
+      include:
+        - group: jammy
+          backend: google
+          systems: 'ubuntu-22.04-64'
+          tasks: 'tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers'
+
+
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
