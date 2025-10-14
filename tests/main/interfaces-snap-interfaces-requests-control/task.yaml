@@ -30,9 +30,15 @@ prepare: |
         tests.exec skip-test "Ubuntu 22.04 AppArmor parser doesn't support prompting" && exit 0
     fi
 
+    tests.session prepare -u test
+
     snap remove --purge api-client || true
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
+
+restore: |
+    tests.exec is-skipped && exit 0
+    tests.session restore -u test
 
 debug: |
     tests.exec is-skipped && exit 0
@@ -58,17 +64,14 @@ execute: |
     snap connect api-client:snap-interfaces-requests-control
 
     echo "Check snap can access interfaces-requests-prompt and interfaces-requests-rule-update notices under /v2/notices"
-    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | \
-        gojq '."status-code"' | MATCH '^200$'
-    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | \
-        gojq '."status-code"' | MATCH '^200$'
-    api-client --socket /run/snapd-snap.socket "/v2/notices" | gojq '."status-code"' | MATCH '^200$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | MATCH '"status-code":200'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | MATCH '"status-code":200'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/notices" | MATCH '"status-code":200'
     echo "But not other notice types"
-    api-client --socket /run/snapd-snap.socket "/v2/notices?types=change-update,warning" | \
-        gojq '."status-code"' | MATCH '^403$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/notices?types=change-update,warning" | MATCH '"status-code":403'
 
     echo "Check snap can access system info via /v2/system-info"
-    api-client --socket /run/snapd-snap.socket "/v2/system-info" | gojq '."status-code"' | MATCH '^200$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/system-info" | MATCH '"status-code":200'
 
     SNAP_NAME="snapd"
     if os.query is-core16; then
@@ -76,76 +79,47 @@ execute: |
     fi
 
     echo "Check snap can access snap info via /v2/snaps/{name}"
-    api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | gojq '."status-code"' | MATCH '^200$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | MATCH '"status-code":200'
 
     echo "Enable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=true
 
     echo 'Check "apparmor-prompting" is shown as enabled in /v2/system-info'
-    api-client --socket /run/snapd-snap.socket "/v2/system-info" | \
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/system-info" | \
         gojq '."result"."features"."apparmor-prompting"."enabled"' | MATCH '^true$'
 
     echo "Check snap can access prompts via /v2/interfaces/requests/prompts"
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | \
-        gojq '."status-code"' | MATCH '^200$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | MATCH '"status-code":200'
+
     echo "Check snap can access a single prompt via /v2/interfaces/requests/prompts/<ID>"
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | \
-        gojq '."status-code"' | MATCH '^404$' # nonexistent prompt ID
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | MATCH '"status-code":404'
     # TODO: include the "home" interface and create a request prompt by attempting to list contents of $HOME
     # PROMPT_ID=FIXME
-    # api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$PROMPT_ID" | \
-    #     gojq '."status-code"' | MATCH '^200$'
+    # tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code":200'
     # echo "Check snap can reply to a prompt via /v2/interfaces/requests/prompts/<ID>
     # TODO: split this line more
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"allow","lifespan":"forever","constraints":{"path-pattern":"/**","permissions":["read"]}}' "/v2/interfaces/requests/prompts/$PROMPT_ID" | \
-    #     gojq '."status-code"' | MATCH '^200$'
+    # tests.session -u test exec api-client --socket /run/snapd-snap.socket --method=POST '{"action":"allow","lifespan":"forever","constraints":{"path-pattern":"/**","permissions":["read"]}}' "/v2/interfaces/requests/prompts/$PROMPT_ID" | MATCH '"status-code":200'
     # TODO: check that thread which triggered request completed successfully
 
     echo "Check snap can access rules via /v2/interfaces/requests/rules"
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | \
-        gojq '."status-code"' | MATCH '^200$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | MATCH '"status-code":200'
 
-    # XXX: creating rules requires polkit authentication, so for now, use snap debug api instead of api-client
-    # echo "Check snap can create rule via /v2/interfaces/requests/rules"
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"forever"},"execute":{"outcome":"allow","lifespan":"timespan","duration":"1h"}}}}}' "/v2/interfaces/requests/rules" > result.json
-    echo '{
-      "action": "add",
-      "rule": {
-        "snap": "api-client",
-        "interface": "home",
-        "constraints": {
-          "path-pattern": "/path/to/file",
-          "permissions": {
-            "read": {
-              "outcome": "allow",
-              "lifespan": "forever"
-            },
-            "write": {
-              "outcome": "deny",
-              "lifespan": "forever"
-            },
-            "execute": {
-              "outcome": "allow",
-              "lifespan": "timespan",
-              "duration": "1h"
-            }
-          }
-        }
-      }
-    }' | \
-        snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests/rules" | \
-        tee result.json
-    gojq '."status-code"' < result.json | MATCH '^200$'
+    echo "Check snap can create rule via /v2/interfaces/requests/rules"
+    tests.session -u test exec sh -c 'api-client --socket /run/snapd-snap.socket --method=POST "/v2/interfaces/requests/rules" '\''{"action":"add","rule":{"snap":"api-client","interface":"home","constraints":{"path-pattern":"/path/to/file","permissions":{"read":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"session"},"execute":{"outcome":"allow","lifespan":"timespan","duration":"1h"}}}}}'\' | tee result.json
+    MATCH '"status-code":200' result.json
     RULE_ID=$(gojq '."result"."id"' < result.json | tr -d '"')
+
     echo "Check snap can view a single rule via /v2/interfaces/requests/rules/<ID>"
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | \
-        gojq '."status-code"' | MATCH '^200$'
-    # XXX: modifying rules requires polkit authentication
-    # echo "Check snap can modify a single rule via /v2/interfaces/requests/rules/<ID>"
-    # api-client --socket /run/snapd-snap.socket --method=POST '{"action":"remove"}' "/v2/interfaces/requests/rules/$RULE_ID" | gojq '."status-code"' | MATCH '^200$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | MATCH '"status-code":200'
+
+    echo "Check that another user cannot view that rule via /v2/interfaces/requests/rules/<ID>"
+    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | MATCH '"status-code":404,.*"message":"user not allowed to request the rule with the given ID"'
+
+    echo "Check snap can modify/remove a single rule via /v2/interfaces/requests/rules/<ID>"
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket --method=POST "/v2/interfaces/requests/rules/$RULE_ID" '{"action":"remove"}' | MATCH '"status-code":200'
 
     echo "Check that snap can access icons info via /v2/icons and gets 404 if icon is not found"
-    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | gojq '."status-code"' | MATCH '^404$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | MATCH '"status-code":404'
 
     echo "Without snap-interfaces-requests-control the snap cannot access those API endpoints"
     snap disconnect api-client:snap-interfaces-requests-control
@@ -154,22 +128,13 @@ execute: |
     # the prerequisite of there being a snap with snap-interfaces-requests-control
     # connected and a handler service running is no longer true. Otherwise, the error
     # code would be 500 instead of 403.
-    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/system-info" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | \
-        gojq '."status-code"' | MATCH '^403$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-prompt" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/notices?types=interfaces-requests-rule-update" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/system-info" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/snaps/$SNAP_NAME" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts" | MATCH '"status-code":403'
     # Try to access an arbitrary prompt ID, should fail with 403 rather than 404
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | \
-        gojq '."status-code"' | MATCH '^403$'
-    api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | \
-        gojq '."status-code"' | MATCH '^403$'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/prompts/1234123412341234" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/interfaces/requests/rules/$RULE_ID" | MATCH '"status-code":403'
+    tests.session -u test exec api-client --socket /run/snapd-snap.socket "/v2/icons/api-client/icon" | MATCH '"status-code":403'
