@@ -454,7 +454,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "results.json"
         if-no-files-found: ignore
 
@@ -536,6 +536,14 @@ jobs:
       with:
         name: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}"
         path: "spread-artifacts-${{ inputs.group }}-${{ inputs.systems }}_${{ github.run_id }}_${{ github.run_attempt }}.tar.gz"
+        if-no-files-found: ignore
+    
+    - name: Save spread.json as an artifact
+      if: ${{ failure() && github.event.pull_request.number && env.TEST_FAILED == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: "spread-json-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}" 
+        path: "spread-results.json"
         if-no-files-found: ignore
 
     - name: Save spread test results to cache
