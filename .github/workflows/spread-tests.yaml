@@ -385,6 +385,11 @@ jobs:
             exit 0
           fi
 
+          if [[ "${{ inputs.backend }}" != "garden" ]]; then
+            echo "Don't run any tests unless it's with garden"
+            exit 0
+          fi
+
           spread_list="$($SPREAD -list $RUN_TESTS 2>&1 || true)"
           if [ -n "${{ inputs.skip-tests }}" ]; then
             for test in ${{ inputs.skip-tests }}; do
