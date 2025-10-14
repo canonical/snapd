@@ -6,21 +6,28 @@ originally in https://github.com/canonical/core-initrd. This contains
 subfolders, each of them for a currently supported Ubuntu release.
 
 Each subfolder contains the sources for a debian package. The `latest`
-subdir contains the sources for the most recent Ubuntu release. When
-releasing, first checkout the desired snapd release. Then `dch -i`
-should be run for each package to update version and changelog, and
-this should be committed to the snapd release and master branches.
+subdir contains the sources for the most recent Ubuntu release.
 
-To finally create source packages that can later be built by
-Launchpad, run from this folder:
+When doing changes, add information about them by running either `dch -i` if
+this is the first change after a PPA upload, or `dch -a` for subsequent
+changes. Leave the distro release as UNRELEASED. The value of the debian
+version it not important at this point.
+
+When releasing a new version, first check out the desired snapd
+release/commit - the repo needs to be initially in a clean state. Then create
+source packages that can later be built by Launchpad, by running:
 
 ```
 ./build-source-pkgs.sh
 ```
 
-This will pull the sources to build `snap-bootstrap` from the snapd
-tree and copy duplicated files from the `latest` folder to older
-releases. Then it is recommended to compare the source packages with
+This will pull the sources to build `snap-bootstrap` from the snapd tree and
+copy duplicated files from the `latest` folder to older releases. It will also
+finalize the packages changelog, setting the final version and the
+distribution. A pull request to the snapd repository should be proposed at this
+point, to get the changes reviewed and merged.
+
+Then it is recommended to compare the source packages with
 the previous versions in the snappy-dev PPA:
 
 ```
@@ -28,7 +35,7 @@ dget https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+sourcefiles/ubuntu
 debdiff ubuntu-core-initramfs_<old_version>.dsc ubuntu-core-initramfs_<new_version>.dsc > diff.txt
 ```
 
-And finally upload with:
+And finally upload the new packages with:
 
 ```
 dput ppa:snappy-dev/image ubuntu-core-initramfs_<new_version>_source.changes
