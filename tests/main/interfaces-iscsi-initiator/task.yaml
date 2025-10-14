@@ -30,7 +30,7 @@ prepare: |
   echo "InitiatorName=iqn.1993-08.org.debian:01:abcdef123" > /etc/iscsi/initiatorname.iscsi
   echo "node.startup = automatic" > /etc/iscsi/iscsid.conf
 
-  snap install test-iscsi-initiator-support-interfaces --channel=latest/edge
+  snap install "$TEST_SNAP" --channel=latest/edge
 
   tests.pkgs install socat
   systemd-run --unit socat-for-test.service --collect -- socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
