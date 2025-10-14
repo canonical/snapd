@@ -1502,15 +1502,29 @@ nested_setup_vm(){
         remote.exec "sudo sync"
     fi
     if [ -n "${NTP_SERVER:-}" ]; then
-        # Configure systemd-timesyncd to use the predefined ntp server
-        CONF_FILE="/etc/systemd/timesyncd.conf"
-        remote.exec "cp \"$CONF_FILE\" /tmp/timesyncd.conf"
-        remote.exec "sed -i -e '/^NTP=/d' -e '/^FallbackNTP=/d' /tmp/timesyncd.conf"
-        remote.exec "sed -i '/^\[Time\]/a NTP='\"$NTP_SERVER\" /tmp/timesyncd.conf"
-        remote.exec "sed -i '/^\[Time\]/a FallbackNTP=' /tmp/timesyncd.conf"
-        remote.exec "sudo cp /tmp/timesyncd.conf \"$CONF_FILE\""
-        remote.exec "sudo systemctl restart systemd-timesyncd"
-        remote.exec "sudo sync"
+        # We reconfigure both chrony and timesyncd if installed. But
+        # we only restart the one started.
+        if remote.exec "[ -d /etc/chrony/sources.d ]"; then
+            remote.exec "sudo rm /etc/chrony/sources.d/*.sources"
+            echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" | remote.exec "sudo tee /etc/chrony/sources.d/proxy.sources"
+            # try-restart will not restart if not started. Important
+            # if both timesyncd and chrony are installed but only one is
+            # running
+            remote.exec "sudo systemctl try-restart chrony.service"
+        fi
+        if remote.exec "[ -f /etc/systemd/timesyncd.conf ]"; then
+            # Configure systemd-timesyncd to use the predefined ntp server
+            CONF_FILE="/etc/systemd/timesyncd.conf"
+            remote.exec "cp \"$CONF_FILE\" /tmp/timesyncd.conf"
+            remote.exec "sed -i -e '/^NTP=/d' -e '/^FallbackNTP=/d' /tmp/timesyncd.conf"
+            remote.exec "sed -i '/^\[Time\]/a NTP='\"$NTP_SERVER\" /tmp/timesyncd.conf"
+            remote.exec "sed -i '/^\[Time\]/a FallbackNTP=' /tmp/timesyncd.conf"
+            remote.exec "sudo cp /tmp/timesyncd.conf \"$CONF_FILE\""
+            # try-restart will not restart if not started. Important
+            # if both timesyncd and chrony are installed but only one is
+            # running
+            remote.exec "sudo systemctl try-restart systemd-timesyncd"
+        fi
     fi
 }
 
