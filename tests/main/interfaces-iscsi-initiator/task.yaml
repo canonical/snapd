@@ -44,25 +44,21 @@ execute: |
   snap connect "$TEST_SNAP":iscsi-initiator
 
   echo "Then the snap is able to access iSCSI configuration files"
-  "$TEST_SNAP".client -c "test -r /etc/iscsi/initiatorname.iscsi"
-  "$TEST_SNAP".client -c "test -r /etc/iscsi/iscsid.conf"
+  "$TEST_SNAP".client -c "cat /etc/iscsi/initiatorname.iscsi"
+  "$TEST_SNAP".client -c "cat /etc/iscsi/iscsid.conf"
 
   echo "And the snap is able to access iSCSI nodes directory"
-  "$TEST_SNAP".client -c "test -d /etc/iscsi/nodes"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/nodes"
 
   echo "And the snap is able to access ConfigFS for LIO target management"
-  if [ -d /sys/kernel/config/target ]; then
-      "$TEST_SNAP".client -c "test -d /sys/kernel/config/target"
-  fi
+  "$TEST_SNAP".client -c "ls /sys/kernel/config/target"
 
   echo "And the snap is able to access iSCSI runtime directories"
   "$TEST_SNAP".client -c "mkdir -p /run/lock/iscsi"
-  "$TEST_SNAP".client -c "test -d /run/lock/iscsi"
+  "$TEST_SNAP".client -c "ls /run/lock/iscsi"
 
   echo "And the snap is able to access iSCSI transport information"
-  if [ -d /sys/devices/virtual/iscsi_transport/tcp ]; then
-      "$TEST_SNAP".client -c "test -d /sys/devices/virtual/iscsi_transport/tcp"
-  fi
+  "$TEST_SNAP".client -c "ls /sys/devices/virtual/iscsi_transport/tcp"
 
   echo "And the snap is able to communicate with the iSCSI abstract socket"
   if ! "$TEST_SNAP".client -c "echo test | socat -v - abstract-connect:ISCSIADM_ABSTRACT_NAMESPACE"; then
@@ -78,17 +74,15 @@ execute: |
   snap disconnect "$TEST_SNAP":iscsi-initiator
 
   echo "Then the snap is not able to access iSCSI configuration files"
-  if ! "$TEST_SNAP".client -c "test -r /etc/iscsi/initiatorname.iscsi"; then
+  if "$TEST_SNAP".client -c "cat /etc/iscsi/initiatorname.iscsi"; then
       echo "Expected permission error accessing iSCSI configuration with disconnected plug"
       exit 1
   fi
 
   echo "And the snap is not able to access ConfigFS"
-  if [ -d /sys/kernel/config/target ]; then
-      if ! "$TEST_SNAP".client -c "test -d /sys/kernel/config/target"; then
-          echo "Expected permission error accessing ConfigFS with disconnected plug"
-          exit 1
-      fi
+  if "$TEST_SNAP".client -c "ls /sys/kernel/config/target"; then
+      echo "Expected permission error accessing ConfigFS with disconnected plug"
+      exit 1
   fi
 
   echo "And the snap is not able to communicate with the iSCSI abstract socket"
