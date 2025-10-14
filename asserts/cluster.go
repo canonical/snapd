@@ -266,6 +266,7 @@ func checkClusterSubcluster(subcluster map[string]any) (Subcluster, error) {
 
 func checkClusterSubclusters(subclusters []any) ([]Subcluster, error) {
 	result := make([]Subcluster, 0, len(subclusters))
+	names := make(map[string]bool, len(subclusters))
 	for _, entry := range subclusters {
 		subcluster, ok := entry.(map[string]any)
 		if !ok {
@@ -276,6 +277,11 @@ func checkClusterSubclusters(subclusters []any) ([]Subcluster, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if names[s.Name] {
+			return nil, fmt.Errorf(`"subclusters" field contains duplicate subcluster name %q`, s.Name)
+		}
+		names[s.Name] = true
 
 		result = append(result, s)
 	}

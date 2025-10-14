@@ -194,6 +194,7 @@ func (cs *clusterSuite) TestDecodeInvalidSubclusters(c *C) {
 		{"        channel: stable\n", "        channel: invalid//channel\n", `invalid channel name "invalid//channel": invalid risk in channel name: invalid//channel`},
 		{"      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n", "      - snap-string\n", `"snaps" field must be a list of maps`},
 		{"  -\n    name: default\n    devices:\n      - 1\n      - 2\n    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n", "  - subcluster-string\n", `"subclusters" field must be a list of maps`},
+		{"    name: additional-cluster\n", "    name: default\n", `"subclusters" field contains duplicate subcluster name "default"`},
 		{"    devices:\n      - 1\n      - 2\n", "    devices: not-a-list\n", `"devices" header must be a list of strings`},
 		{"    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n", "    snaps: not-a-list\n", `"snaps" header must be a list`},
 		{"      - 2\n    snaps:", "      - 999\n    snaps:", `"subclusters" references unknown device id 999`},
