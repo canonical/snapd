@@ -76,7 +76,8 @@ parts:
     - libc6-dev
     - libseccomp-dev
     - on amd64:
-      - gcc-multilib
+      - gcc-i686-linux-gnu
+      - libc6-dev-i386-cross
     - on arm64:
       - gcc # ideally: "gcc-multilib:armhf" (LP: #1827067)
     - on armhf:
