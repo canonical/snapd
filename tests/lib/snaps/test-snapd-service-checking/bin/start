@@ -1,0 +1,7 @@
+#!/bin/sh -ex
+
+echo "starting"
+while true; do
+    echo "running"
+    sleep 5
+done
