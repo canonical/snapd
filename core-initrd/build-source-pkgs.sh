@@ -31,6 +31,11 @@ pushd ..
 SNAPD_VERSION=$VERSION
 popd
 
+if [[ $SNAPD_VERSION == *"-dirty"* ]]; then
+    printf "repo is dirty, please clean-up before building the initramfs source packages\n"
+    exit 1
+fi
+
 contains_element() {
     local e match="$1"
     shift
