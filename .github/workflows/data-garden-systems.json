@@ -1,0 +1,20 @@
+{
+    "include": [
+      {
+        "group": "jammy (garden)",
+        "backend": "garden",
+        "alternative-backend": "google",
+        "systems": "ubuntu-22.04-64",
+        "tasks": "tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers",
+        "rules": ""
+      },
+      {
+        "group": "ubuntu-core-18 (garden)",
+        "backend": "garden",
+        "alternative-backend": "google-core",
+        "systems": "ubuntu-core-18-64",
+        "tasks": "tests/core/auto-refresh-backoff-after-reboot:kernel tests/core/failover:emptyinitrd tests/core/gadget-kernel-refs-update-pc tests/core/kernel-base-gadget-pair-single-reboot-failover tests/core/kernel-base-gadget-pair-single-reboot tests/core/kernel-base-gadget-single-reboot tests/core/kernel-base-gadget-single-reboot-failover",
+        "rules": ""
+      }
+    ]
+  }

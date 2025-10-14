@@ -467,6 +467,7 @@ jobs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
+      garden-systems: ${{ steps.read-systems.outputs.garden-systems }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -478,6 +479,7 @@ jobs:
           echo "fundamental-systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
+          echo "garden-systems=$(jq -c . ./.github/workflows/data-image-garden-systems.json)" >> $GITHUB_OUTPUT
 
           if [ -n "${{ github.event.pull_request.number }}" ]; then
             labels=$(gh pr view ${{ github.event.pull_request.number }} --repo github.com/canonical/snapd --json labels | jq -r '.labels[].name')
@@ -491,6 +493,23 @@ jobs:
               fi
             fi
           fi
+
+  spread-image-garden:
+    uses: ./.github/workflows/spread-tests.yaml
+    name: "spread ${{ matrix.group }}"
+    needs: read-systems
+    with:
+      runs-on: '["ubuntu-latest"]'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ''
+      use-snapd-snap-from-master: true
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.garden-systems) }}
 
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
