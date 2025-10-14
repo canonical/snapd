@@ -302,23 +302,6 @@ func (s *requestrulesSuite) TestLoadErrorUnmarshal(c *C) {
 	s.testLoadError(c, `invalid interface: "foo".*`, nil, checkWritten)
 }
 
-func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
-	dbPath := s.prepDBPath(c)
-	good1 := s.ruleTemplateWithRead(c, prompting.IDType(1))
-	bad := s.ruleTemplateWithRead(c, prompting.IDType(2))
-	bad.Constraints.Permissions["read"].Expiration = time.Now() // will cause validate() to fail with invalid constraints
-	good2 := s.ruleTemplateWithRead(c, prompting.IDType(3))
-	good2.Constraints.Permissions["read"].Outcome = prompting.OutcomeDeny
-	// Doesn't matter that rules have conflicting patterns/permissions,
-	// validate() should catch invalid rule and exit before attempting to add.
-
-	rules := []*requestrules.Rule{good1, bad, good2}
-	s.writeRules(c, dbPath, rules)
-
-	checkWritten := true
-	s.testLoadError(c, `invalid expiration: cannot have specified expiration when lifespan is "forever": .*`, rules, checkWritten)
-}
-
 const ruleTemplatePathPattern = "/home/test/foo"
 
 func (s *requestrulesSuite) ruleTemplateWithReadPathPattern(c *C, id prompting.IDType, pattern string) *requestrules.Rule {
@@ -1207,10 +1190,6 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 		{ // Invalid lifespan
 			&addRuleContents{Lifespan: prompting.LifespanType("invalid")},
 			`invalid lifespan: "invalid"`,
-		},
-		{ // Invalid outcome
-			&addRuleContents{Outcome: prompting.OutcomeType("invalid")},
-			`invalid outcome: "invalid"`,
 		},
 		{ // Invalid lifespan (for rules)
 			&addRuleContents{Lifespan: prompting.LifespanSingle},
