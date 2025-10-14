@@ -15,11 +15,11 @@ show_help() {
 }
 
 cmd_defer() {
-    if [ ! -e "$TESTSTMP"/defer.sh ]; then
-        truncate --size=0 "$TESTSTMP"/defer.sh
-        chmod +x "$TESTSTMP"/defer.sh
+    if [ ! -e defer.sh ]; then
+        truncate --size=0 defer.sh
+        chmod +x defer.sh
     fi
-    echo "$*" >> "$TESTSTMP"/defer.sh
+    echo "$*" >> defer.sh
 }
 
 run_one_cmd() {
@@ -35,23 +35,23 @@ run_one_cmd() {
 }
 
 cmd_pop() {
-    if [ ! -s "$TESTSTMP"/defer.sh ]; then
+    if [ ! -s defer.sh ]; then
         echo "tests.cleanup: cannot pop, cleanup stack is empty" >&2
         exit 1
     fi
-    head -n-1 "$TESTSTMP"/defer.sh >"$TESTSTMP"/defer.sh.pop
-    trap "mv "$TESTSTMP"/defer.sh.pop "$TESTSTMP"/defer.sh" EXIT
-    tail -n-1 "$TESTSTMP"/defer.sh | while read -r CMD; do
+    head -n-1 defer.sh >defer.sh.pop
+    trap "mv defer.sh.pop defer.sh" EXIT
+    tail -n-1 defer.sh | while read -r CMD; do
         run_one_cmd "$CMD"
     done
 }
 
 cmd_restore() {
-    if [ -e "$TESTSTMP"/defer.sh ]; then
-        tac "$TESTSTMP"/defer.sh | while read -r CMD; do
+    if [ -e defer.sh ]; then
+        tac defer.sh | while read -r CMD; do
             run_one_cmd "$CMD"
         done
-        rm -f "$TESTSTMP"/defer.sh
+        rm -f defer.sh
     fi
 }
 

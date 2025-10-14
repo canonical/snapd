@@ -121,8 +121,8 @@ check_stray_dbus_daemon() {
 
 check_leftover_defer_sh() {
 	n="$1" # invariant name
-	if [ -e "$TESTSTMP"/defer.sh ]; then
-		ls "$TESTSTMP"/defer.sh > "$TESTSTMP/tests.invariant.$n"
+	if [ -e defer.sh ]; then
+		ls defer.sh > "$TESTSTMP/tests.invariant.$n"
 	fi
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: leftover defer.sh script" >&2
