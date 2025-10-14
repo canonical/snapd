@@ -355,6 +355,8 @@ func (c *RuleConstraints) MarshalJSON() ([]byte, error) {
 	return json.Marshal(constraintsJSON)
 }
 
+// PermExpirationStatus is used to indicate whether all, some, or no permissions
+// within a rule permission map expired.
 type PermExpirationStatus int
 
 const (
