@@ -77,7 +77,7 @@ subclusters:
         instance: evacuated-snap
         channel: edge
   -
-    name: additional-cluter
+    name: additional-cluster
     devices:
       - 2
     snaps:
@@ -132,7 +132,7 @@ func (cs *clusterSuite) TestDecodeOK(c *C) {
 	c.Check(subclusters[0].Snaps[1].Instance, Equals, "evacuated-snap")
 	c.Check(subclusters[0].Snaps[1].Channel, Equals, "edge")
 
-	c.Check(subclusters[1].Name, Equals, "additional-cluter")
+	c.Check(subclusters[1].Name, Equals, "additional-cluster")
 	c.Check(subclusters[1].Devices, DeepEquals, []int{2})
 	c.Assert(subclusters[1].Snaps, HasLen, 1)
 	c.Check(subclusters[1].Snaps[0].State, Equals, asserts.ClusterSnapStateRemoved)
@@ -148,7 +148,7 @@ func (cs *clusterSuite) TestDecodeInvalidTopLevel(c *C) {
 		{"cluster-id: bf3675f5-cffa-40f4-a119-7492ccc08e04\n", "cluster-id: \n", `"cluster-id" header should not be empty`},
 		{"sequence: 3\n", "sequence: 0\n", `"sequence" must be >=1: 0`},
 		{"devices:\n  -\n    id: 1\n    brand-id: canonical\n    model: ubuntu-core-24-amd64\n    serial: 9cc45ad6-d01b-4efd-9f76-db55b76c076b\n    addresses:\n      - 192.168.1.10\n      - 10.0.0.10\n  -\n    id: 2\n    brand-id: canonical\n    model: ubuntu-core-24-amd64\n    serial: bc3c0a19-cdad-4cfc-a6f0-85e917bc6280\n    addresses:\n      - 192.168.1.20\n", "devices: not-a-list\n", `"devices" header must be a list`},
-		{"subclusters:\n  -\n    name: default\n    devices:\n      - 1\n      - 2\n    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n  -\n    name: additional-cluter\n    devices:\n      - 2\n    snaps:\n      -\n        state: removed\n        instance: removed-snap\n        channel: 24/stable\n", "subclusters: not-a-list\n", `"subclusters" header must be a list`},
+		{"subclusters:\n  -\n    name: default\n    devices:\n      - 1\n      - 2\n    snaps:\n      -\n        state: clustered\n        instance: clustered-snap\n        channel: stable\n      -\n        state: evacuated\n        instance: evacuated-snap\n        channel: edge\n  -\n    name: additional-cluster\n    devices:\n      - 2\n    snaps:\n      -\n        state: removed\n        instance: removed-snap\n        channel: 24/stable\n", "subclusters: not-a-list\n", `"subclusters" header must be a list`},
 	}
 
 	for _, test := range invalidTests {
