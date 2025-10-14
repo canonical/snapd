@@ -434,6 +434,13 @@ jobs:
               tee spread.log
           )
 
+    - name: Cat spread debug output
+      if: failed()
+      run: | 
+        if [ -d spread-logs ]; then
+          find spread-logs -name '*.log' -exec sh -c 'filename=${1#*tests}; echo "::group::tests${filename%%.*}"; cat $1; echo "::endgroup::"' _ {} \;
+        fi
+
     - name: Discard spread workers
       if: always()
       run: |
