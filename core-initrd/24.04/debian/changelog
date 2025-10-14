@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (69+2.72+g149.d9c5491+24.04) UNRELEASED; urgency=medium
+
+  * Remove duplicated dependencies in control file
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Tue, 14 Oct 2025 14:52:51 -0400
+
 ubuntu-core-initramfs (69+2.72+g99.77dc6ef-dirty+24.04) noble; urgency=medium
 
   * Update to snapd version 2.72+g99.77dc6ef-dirty
