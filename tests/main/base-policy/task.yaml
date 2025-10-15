@@ -60,10 +60,17 @@ execute: |
         test-snapd-sh-other18.sh -c 'ls -l /var' 2>&1 | NOMATCH "Permission denied"
     fi
 
-    # core26 chose to ship uutils-coreutils at their native
+    # core26 chose to ship coreutils-uutils at their native
     # installation location used by cargo. the template was updated
     # accordingly to allow them.
     echo "Check if expected coreutils paths are allowed"
-    test-snapd-sh-core26.sh -c '/usr/bin/true' | NOMATCH "Permission denied"
+    # /usr/bin/true - usually a symlink to /usr/lib/cargo/bin/coreutils/true
+    # /usr/lib/cargo/bin/coreutils/true - true from coreutils-uutils
+    # /usr/bin/gnutrue - GNU coreutils
+    for variant in /usr/bin/true /usr/bin/gnutrue /usr/lib/cargo/bin/coreutils/true; do
+        test-snapd-sh-core26.sh -c "$variant"
+    done
     # template doesn't contain permissions for whoami
-    test-snapd-sh-core26.sh -c '/usr/bin/whoami' 2>&1 | MATCH "Permission denied"
+    for variant in /usr/bin/whoami /usr/bin/gnuwhoami /usr/lib/cargo/bin/coreutils/whoami; do
+        test-snapd-sh-core26.sh -c "$variant" 2>&1 | MATCH "Permission denied"
+    done
