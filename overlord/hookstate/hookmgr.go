@@ -166,24 +166,24 @@ func snapIsRunningHook(cand *state.Task, running []*state.Task) bool {
 	return false
 }
 
-// snapOrBaseAreInactive returns true if the snap referenced by the given hook or its
-// base are inactive.
+// snapOrBaseAreInactive returns true if the hook should be prevented from
+// running due to the snap it belongs to or its base being inactive.
 func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() != "run-hook" {
 		return false
 	}
 
-	// XXX: this prevents the confdb hooks from running while the snap/base is disabled
+	hooksup, snapst, err := hookSetup(cand, "hook-setup")
+	if err != nil || !snapst.IsInstalled() {
+		return false
+	}
+
+	// XXX: this prevents the confdb hooks from running while the snap is disabled
 	// (e.g,. refresh). While in theory we shouldn't run any hooks if the snap is
 	// disabled, we've always allowed removals of disabled snaps. Those hooks runs
 	// fail silently which we should eventually prevent (at least require the user
 	// to acknowledge that any removal hooks won't run by --force'ing or similar).
-	hooksup, snapst, err := hookSetup(cand, "hook-setup")
-	if err != nil || !snapst.IsInstalled() || !IsConfdbHookname(hooksup.Hook) {
-		return false
-	}
-
-	if !snapst.Active {
+	if !snapst.Active && IsConfdbHookname(hooksup.Hook) {
 		return true
 	}
 
@@ -198,6 +198,7 @@ func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 		return false
 	}
 
+	// no hooks (confdb or otherwise) can run if the snap's base is currently unlinked
 	return !baseSnapst.Active
 }
 

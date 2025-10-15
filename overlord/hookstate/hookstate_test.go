@@ -1047,9 +1047,17 @@ func (s *hookManagerSuite) testConfdbHookTasksWaitUntilActive(c *C, conflictSnap
 	confdbHook = s.state.Task(confdbHook.ID())
 	c.Assert(confdbHook.Status(), Equals, state.DoStatus)
 
-	// the non-confdb hook task did (see XXX in snapOrBaseAreInactive)
+	// the non-confdb hook task runs if the unlinked snap is the hook's snap but
+	// not if it's that snap's base (see XXX in snapOrBaseAreInactive)
 	task := s.state.Task(s.task.ID())
-	c.Assert(task.Status(), Equals, state.DoingStatus)
+	switch conflictSnap {
+	case "test-base":
+		c.Assert(task.Status(), Equals, state.DoStatus)
+	case "test-snap":
+		c.Assert(task.Status(), Equals, state.DoingStatus)
+	default:
+		c.Fatal("unknown snap")
+	}
 
 	setActive(true)
 
