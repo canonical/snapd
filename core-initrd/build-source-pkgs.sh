@@ -31,7 +31,7 @@ pushd ..
 SNAPD_VERSION=$VERSION
 popd
 
-if [[ $SNAPD_VERSION == *"-dirty"* ]]; then
+if [[ $SNAPD_VERSION == *"-dirty"* ]] && [ -z "${TEST_BUILD-}" ]; then
     printf "repo is dirty, please clean-up before building the initramfs source packages\n"
     exit 1
 fi
@@ -82,7 +82,13 @@ if [ "$#" -eq 0 ]; then
     set -- "${deb_dir[@]%/debian}"
 fi
 for rel; do
-    series=$(dpkg-parsechangelog --file "$rel"/debian/changelog --show-field Distribution)
+    # We cannot use dpkg-parsechangelog as latest entry might be "UNRELEASED".
+    # Instead, get first not-unreleased entry and get distro from there
+    # (removing comma at the end).
+    series=$(grep ^ubuntu-core-initramfs "$rel"/debian/changelog |
+                 grep -v UNRELEASED |
+                 head -n1 |
+                 awk '{print substr($3, 1, length($3)-1)}')
     if [ "$rel" = latest ]; then
         ubuntu_ver=$(ubuntu-distro-info --series="$series" -r)
         # We might have "xx.xx LTS"
