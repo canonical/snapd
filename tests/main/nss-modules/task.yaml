@@ -38,6 +38,10 @@ prepare: |
     backup_if_exists() {
         local item=$1
         if [ -f "$item" ]; then
+            if [ -f "$item.bak" ]; then
+                echo "file $item.back already exists"
+                exit 1
+            fi
             cp "$item" "$item.bak"
             tests.cleanup defer mv "$item.bak" "$item"
         elif [ -d "$item" ]; then
