@@ -1120,13 +1120,6 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		updateRefreshCandidates(st, hints, plan.requested)
 	}
 
-	// validate snaps to be refreshed against validation sets. if we are
-	// refreshing all snaps, then we filter out the snaps that cannot be
-	// validated and log them
-	if err := plan.validateAndFilterTargets(st, opts); err != nil {
-		return nil, nil, err
-	}
-
 	changeKind := "refresh"
 	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
 	for _, t := range plan.targets {
@@ -1189,7 +1182,7 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 	return updated, uts, nil
 }
 
-// storeInstallGoal implements the UpdateGoal interface and represents a group
+// storeUpdateGoal implements the UpdateGoal interface and represents a group
 // of snaps that are to be updated from the store.
 type storeUpdateGoal struct {
 	// snaps is a mapping of snap names to StoreUpdate structs.
@@ -1245,6 +1238,13 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 	refreshOpts := &store.RefreshOptions{Scheduled: opts.Flags.IsAutoRefresh}
 	plan, err := storeUpdatePlan(ctx, st, allSnaps, s.snaps, user, refreshOpts, opts)
 	if err != nil {
+		return updatePlan{}, err
+	}
+
+	// validate snaps to be refreshed against validation sets. if we are
+	// refreshing all snaps, then we filter out the snaps that cannot be
+	// validated and log them
+	if err := plan.validateAndFilterTargets(st, opts); err != nil {
 		return updatePlan{}, err
 	}
 
