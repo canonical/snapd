@@ -75,7 +75,7 @@ func (iface *openglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 		return err
 	}
 	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

@@ -109,7 +109,7 @@ slots:
       - /snap/opengles-provider/current/lib1
 `, nil, "opengles")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`opengles-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`opengles-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: opengles-provider
 version: 0

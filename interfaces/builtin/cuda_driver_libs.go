@@ -73,7 +73,7 @@ func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) err
 		return err
 	}
 	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *cudaDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

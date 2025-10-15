@@ -74,17 +74,6 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 		return fmt.Errorf("priority must be a positive integer")
 	}
 
-	var icdDirs []string
-	if err := slot.Attr("icd-source", &icdDirs); err != nil {
-		return fmt.Errorf("invalid icd-source: %w", err)
-	}
-	// Directories in icd-source must start with $SNAP
-	for _, icdDir := range icdDirs {
-		if err := validateSnapDir(icdDir); err != nil {
-			return err
-		}
-	}
-
 	var compatField string
 	if err := slot.Attr("compatibility", &compatField); err != nil {
 		return err
@@ -99,8 +88,11 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 		return err
 	}
 
-	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	// Validate *-source directories
+	if err := validateSourceDirs(slot, sourceDirAttr{attrName: "icd-source", isOptional: false}); err != nil {
+		return err
+	}
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -126,7 +118,8 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 		return fmt.Errorf("invalid priority: %w", err)
 	}
 
-	icdPaths, err := icdSourceDirsCheck(slot)
+	icdPaths, err := icdSourceDirsCheck(slot,
+		sourceDirAttr{attrName: "icd-source", isOptional: false})
 	if err != nil {
 		return fmt.Errorf("invalid icd-source: %w", err)
 	}

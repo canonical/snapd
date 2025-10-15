@@ -36,28 +36,31 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// validateSnapDir checks that dir starts with either $SNAP or ${SNAP}.
-func validateSnapDir(dir string) error {
-	if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
-		return fmt.Errorf("source directory %q must start with $SNAP/ or ${SNAP}/", dir)
-	}
-	return nil
+// sourceDirAttr contains information about a *-source interface attribute.
+type sourceDirAttr struct {
+	// attribute naem
+	attrName string
+	// set if the attribute is optional for the interface
+	isOptional bool
 }
 
-// validateLdconfigLibDirs checks that the list of directories in the
-// "library-source" attribute of some slots (which is used by some interfaces
-// that pass them to the ldconfig backend) is valid.
-func validateLdconfigLibDirs(slot *snap.SlotInfo) error {
+// validateSourceDirs checks that the list of directories in the "*-source"
+// slot attribute specified in sda is valid. sda.isOptional should be set if
+// the attribute is optional, so no error is returned if it is not found.
+func validateSourceDirs(slot *snap.SlotInfo, sda sourceDirAttr) error {
 	// Validate directories and make sure the client driver is around
 	libDirs := []string{}
-	if err := slot.Attr("library-source", &libDirs); err != nil {
+	if err := slot.Attr(sda.attrName, &libDirs); err != nil {
+		if sda.isOptional && errors.Is(err, snap.AttributeNotFoundError{}) {
+			return nil
+		}
 		return err
 	}
 	for _, dir := range libDirs {
 		if !strings.HasPrefix(dir, "$SNAP/") && !strings.HasPrefix(dir, "${SNAP}/") {
 			return fmt.Errorf(
-				"%s source directory %q must start with $SNAP/ or ${SNAP}/",
-				slot.Interface, dir)
+				"%s %s directory %q must start with $SNAP/ or ${SNAP}/",
+				slot.Interface, sda.attrName, dir)
 		}
 	}
 
@@ -114,12 +117,15 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
 }
 
-// icdSourceDirsCheck returns a list of file paths found in the icd-source
-// directories of the slot, after checking that the library_path in these files
+// icdSourceDirsCheck returns a list of file paths found in the directories
+// specified by sda, after checking that the library_path in these files
 // matches a file found in the directories specified by library-source.
-func icdSourceDirsCheck(slot *interfaces.ConnectedSlot) (checked []string, err error) {
+func icdSourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr) (checked []string, err error) {
 	var icdDir []string
-	if err := slot.Attr("icd-source", &icdDir); err != nil {
+	if err := slot.Attr(sda.attrName, &icdDir); err != nil {
+		if sda.isOptional && errors.Is(err, snap.AttributeNotFoundError{}) {
+			return checked, nil
+		}
 		return nil, err
 	}
 
