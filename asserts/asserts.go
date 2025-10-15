@@ -23,7 +23,14 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -1406,15 +1413,38 @@ func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 }
 
 // RequestIDCheck checks the signature of the nonce against the given public key. Used by model service to verify nonce of the request-id.
-func RequestIDCheck(nonce []byte, signature []byte, pubKey PublicKey) error {
-	sig, err := decodeSignature(signature)
+func RequestIDCheck(nonce, signature []byte, pubKey crypto.PublicKey) error {
+	switch keyType := pubKey.(type) {
+	case *rsa.PublicKey:
+		return verifyRSAKey(nonce, signature, pubKey.(*rsa.PublicKey))
+	case *dsa.PublicKey:
+		return verifyDSAKey(nonce, signature, pubKey.(*rsa.PublicKey))
+	case *ecdsa.PublicKey:
+		return verifyECDSAKey(nonce, signature, pubKey.(*rsa.PublicKey))
+	case ed25519.PublicKey:
+		return verifyED25519Key(nonce, signature, pubKey.(*rsa.PublicKey))
+	default:
+		return fmt.Errorf("unsupported algorithm type: %s", keyType)
+	}
+}
+
+func verifyRSAKey(nonce, signature []byte, pubKey *rsa.PublicKey) error {
+	hashed := sha256.Sum256(nonce)
+	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hashed[:], signature)
+}
+
+
+func verifyECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKey) error {
+	hashed := sha256.Sum256(nonce)
+	sig := ecdsa.ECDSASignature{}
+	_, err := asn1.Unmarshal(signature, &sig)
 	if err != nil {
 		return err
 	}
-	err = pubKey.verify(nonce, sig)
-	if err != nil {
-		return fmt.Errorf("failed signature verification: %v", err)
+	if !ecdsa.Verify(pubKey, hashed[:], sig.R, sig.S) {
+		return errors.New("signature invalude")
 	}
+
 	return nil
 }
 
