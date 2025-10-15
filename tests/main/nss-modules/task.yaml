@@ -184,15 +184,16 @@ prepare: |
         lxc exec server -- apt install -y rpcbind nis
         lxc exec server -- sh -c "echo \"$domain_name\" > /etc/defaultdomain"
         lxc exec server -- domainname "$domain_name"
-        lxc exec server -- /etc/init.d/rpcbind restart
-        lxc exec server -- /etc/init.d/ypserv start
+        lxc exec server -- systemctl restart rpcbind.service
+        lxc exec server -- systemctl enable ypserv.service
+        lxc exec server -- systemctl restart ypserv.service
 
         lxc file push ypinit.sh server/root/ypinit.sh
         lxc exec server -- /root/ypinit.sh
         lxc exec server -- systemctl restart ypserv
         lxc exec server -- make -C /var/yp
         lxc exec server -- sh -c "echo \"domain ${domain_name} server localhost\" >> /etc/yp.conf"
-        lxc exec server -- systemctl enable ypbind
+        lxc exec server -- systemctl enable ypbind || true
         lxc exec server -- systemctl start ypbind
         
         if ! [ -f /etc/defaultdomain ]; then
@@ -215,12 +216,9 @@ prepare: |
             printf "[Service]\nExecStartPre=\n" > /usr/lib/systemd/system/ypbind.service.d/override.conf
             systemctl daemon-reload
         fi
-        if ! systemctl is-enabled ypbind; then
-            systemctl enable ypbind
-            systemctl start ypbind
-        else
-            systemctl restart ypbind
-        fi
+        systemctl enable ypbind || true
+        systemctl restart ypbind
+
         # Update NSS to use nis
         sed -i "s/^passwd\:.*/& nis/" /etc/nsswitch.conf
         sed -i "s/^group\:.*/& nis/" /etc/nsswitch.conf
