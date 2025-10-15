@@ -1138,12 +1138,11 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 		},
 	}
 
-	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
-	for _, r := range r2 {
-		defer r()
-	}
-
-
+	rPD2, rPSR2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
+	defer rPSR2()
+	defer rPD2()
+	
+	
 	// as device-service.url is set, should not need to do this but just in case
 	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
 	defer r3()
@@ -1178,7 +1177,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 	// and run the device registration again
 	s.state.Unlock()
 	s.settle(c)
-	fmt.Println("snap mocked")
+	
 	s.state.Lock()
 
 	becomeOperational = s.findBecomeOperationalChange()
@@ -1283,10 +1282,8 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 			"x-extra-header": "extra",
 		},
 	}
-	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, nil)
-	for _, r := range r2 {
-		defer r()
-	}
+	rPD2, _ := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, nil)
+	defer rPD2()
 
 	// as device-service.url is set, should not need to do this but just in case
 	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")

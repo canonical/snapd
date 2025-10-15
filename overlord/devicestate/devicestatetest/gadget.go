@@ -49,7 +49,7 @@ type PrepareSerialRequestBehavior struct {
 
 type restoreFunc func()
 
-func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restoreFuncs []restoreFunc) {
+func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restorePD func(), restorePSR func()) {
 
 	sideInfoGadget := &snap.SideInfo{
 		RealName: name,
@@ -87,13 +87,13 @@ version: gadget
 	
 	if pDBhv == nil && pSRBhv == nil {
 		// nothing to restore
-		return []restoreFunc{func() {}}
+		return func(){}, func(){}
 	}
 
 	// mock the prepare-device hook
 
 	if pDBhv != nil {
-		restoreFuncs = append([]restoreFunc{hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		restorePD = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
@@ -120,14 +120,14 @@ version: gadget
 		}
 
 		return nil, nil
-	})}, restoreFuncs...)
+	})
 	}
 
 	// mock the prepare-serial-request hook
 
 	if pSRBhv != nil {
 		// we add the hooks in reverse order to respect the defer order
-		restoreFuncs = append([]restoreFunc{hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		restorePSR = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		c.Assert(ctx.HookName(), Equals, "prepare-serial-request")
 
 		if len(pSRBhv.RegBody) != 0 {
@@ -138,8 +138,8 @@ version: gadget
 		}
 
 		return nil, nil
-	})}, restoreFuncs...)
+	})
 	}
 
-	return restoreFuncs
+	return restorePD, restorePSR
 }
