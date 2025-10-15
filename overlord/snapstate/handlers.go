@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -409,6 +409,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		RequireTypeBase: requireTypeBase,
 		Transaction:     flags.Transaction,
 		Lane:            flags.Lane,
+		ImplicitlyInstalled: true,
 	}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
@@ -563,6 +564,10 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 		flags.Transaction = client.TransactionPerSnap
 	}
 
+	// Set ImplicitlyInstalled to true as any snap being installed as a prerequisite is implicitly installed.
+	// NOTE: flags must also be set here because of how flags gets passed to installOneBaseOrRequired.
+	flags.ImplicitlyInstalled = true
+
 	// We try to install all wanted snaps. If one snap cannot be installed
 	// because of change conflicts or similar we retry. Only if all snaps
 	// can be installed together we add the tasks to the change.
@@ -596,6 +601,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 			tsBase, err = m.installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{
 				Transaction: flags.Transaction,
 				Lane:        flags.Lane,
+				ImplicitlyInstalled: true,
 			})
 		})
 		if err != nil {
@@ -625,6 +631,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 			tsSnapd, err = m.installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{
 				Transaction: flags.Transaction,
 				Lane:        flags.Lane,
+				ImplicitlyInstalled: true,
 			})
 		})
 		if err != nil {
@@ -2281,6 +2288,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 	// keep instance key
 	snapst.InstanceKey = snapsup.InstanceKey
+
+	// propagate!
+	snapst.ImplicitlyInstalled = snapsup.ImplicitlyInstalled
 
 	// don't keep the old state because, if we fail, we may or may not be able to
 	// revert the migration. We set the migration status after undoing any

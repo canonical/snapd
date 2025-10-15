@@ -1,0 +1,16 @@
+summary: Check that an explicitly installed "dependency" remains marked explicitly installed
+
+prepare: |
+  snap install --devmode jq
+  snap install core18
+  tests.cleanup defer snap remove core18
+  tests.cleanup defer snap remove jq
+
+execute: |
+  snap pack "$TESTSLIB/snaps/basic18"
+  snap install --dangerous basic18_1.0_all.snap
+
+  jq -r '.data.snaps.core18["implicitly-installed"]' /var/lib/snapd/state.json | MATCH false
+
+  snap remove basic18
+  jq -r '.data.snaps.core18["implicitly-installed"]' /var/lib/snapd/state.json | MATCH false
