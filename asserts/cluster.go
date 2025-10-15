@@ -119,6 +119,10 @@ func checkClusterDevice(device map[string]any) (ClusterDevice, error) {
 		return ClusterDevice{}, err
 	}
 
+	if id <= 0 {
+		return ClusterDevice{}, fmt.Errorf(`"id" header must be >=1: %d`, id)
+	}
+
 	// TODO: revisit how we represent/parse this information once the
 	// request-message assertion has been merged
 	brandID, err := checkStringMatches(device, "brand-id", validAccountID)
@@ -243,6 +247,9 @@ func checkClusterSubcluster(subcluster map[string]any) (Subcluster, error) {
 		id, err := atoi(dev, "device id %q", dev)
 		if err != nil {
 			return Subcluster{}, err
+		}
+		if id <= 0 {
+			return Subcluster{}, fmt.Errorf("device id must be >=1: %d", id)
 		}
 		ids = append(ids, id)
 	}
