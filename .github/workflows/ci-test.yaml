@@ -36,7 +36,7 @@ jobs:
       matrix:
         runs-on:
           - '["ubuntu-22.04"]'
-          - '["ubuntu-22.04-arm"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
         toolchain:
           - default
           - FIPS
@@ -50,9 +50,9 @@ jobs:
         # to keep the number of builds down as we currently don't have a
         # clear need for these excluded builds.
         exclude:
-          - runs-on: '["ubuntu-22.04-arm"]'
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
             toolchain: FIPS
-          - runs-on: '["ubuntu-22.04-arm"]'
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
             variant: pristine
 
   create-vendor-dir:
