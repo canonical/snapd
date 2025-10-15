@@ -6,14 +6,8 @@ details: |
     https://git.launchpad.net/ubuntu/+source/sssd/tree/debian/tests
 
 systems: 
-    - -fedora-*
-    - -debian-*
-    - -arch-*
-    - -opensuse-*
-    - -centos-9-*
-    - -amazon-*
-    - -ubuntu-core*
-    - -ubuntu-16.04-64
+    - ubuntu-2*
+    - ubuntu-18.04-64
 
 environment:
     domain_name: example.com
@@ -290,7 +284,7 @@ prepare: |
 restore: |
     tests.exec is-skipped && exit 0
     tests.pkgs list-installed > installed-final.pkgs
-    diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
+    comm -13 installed-initial.pkgs installed-final.pkgs > installed-in-test.pkgs
     packages="$(tr "\n" " " < installed-in-test.pkgs)"
     if [ -n "$packages" ]; then
         # purge install traces of the packages so that if installed again
