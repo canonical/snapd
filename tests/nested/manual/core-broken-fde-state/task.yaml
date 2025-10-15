@@ -1,0 +1,60 @@
+summary: Verify that inconsistent FDE state generates warning on reseal
+
+details: |
+    When the primary key digests or the revocation counter handles
+    from the FDE state do not match what we get from resealing, we
+    should at least warn about it in the logs.
+
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    unsquashfs -d pc-kernel "$(tests.nested get assets-path)"/pc-kernel*.snap
+    quiet apt install -y systemd-boot-efi systemd-ukify
+
+    objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux
+
+    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --section=.spread:test --output=pc-kernel/kernel.efi
+
+    KEY_NAME=$(tests.nested download snakeoil-key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+    tests.nested secboot-sign file "$PWD/pc-kernel/kernel.efi" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+
+    # We need to update to a modified kernel so that the boot chains
+    # does change and we do not hit the boot chain cache that would
+    # prevent resealing.
+    snap pack pc-kernel --filename=new-pc-kernel.snap
+    remote.push new-pc-kernel.snap
+
+execute: |
+    remote.exec "sudo snap wait system seed.loaded"
+
+    remote.exec "sudo systemctl stop snapd.socket snapd.service"
+
+    remote.exec "sudo journalctl -u snapd.service" >snapd.before.log
+    NOMATCH "WARNING: primary key is not matching the FDE state" <snapd.before.log
+    NOMATCH "WARNING: policy counter handle .* is not matching the FDE state" <snapd.before.log
+
+    remote.exec "sudo cat /var/lib/snapd/state.json" >state.json
+
+    gojq '.data.fde."primary-keys"."0".digest.digest = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAK"' <state.json |
+      gojq '(.data.fde."keyslot-roles".[]|."tpm2-pcr-policy-revocation-counter")=42'>broken-state.json
+
+    remote.push broken-state.json
+
+    remote.exec "sudo cp broken-state.json /var/lib/snapd/state.json"
+
+    remote.exec "sudo systemctl start snapd.socket snapd.service"
+
+    # Note installing a kernel snap reboots. So we need to inhibit it
+    # until we captured the journal.
+    remote.exec "sudo systemd-inhibit bash -c 'snap install --dangerous new-pc-kernel.snap; journalctl -u snapd.service'" >snapd.log
+    MATCH "WARNING: primary key is not matching the FDE state" <snapd.log
+    MATCH "WARNING: policy counter handle .* is not matching the FDE state" <snapd.log

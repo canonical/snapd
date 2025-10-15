@@ -94,120 +94,24 @@ architectures:
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
-var assumesTests = []struct {
-	version string
-	assumes string
-	classic bool
-	error   string
-}{{
-	assumes: "[common-data-dir]",
-}, {
-	assumes: "[f1, f2]",
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
-}, {
-	assumes: "[f1, f2]",
-	classic: true,
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
-}, {
-	assumes: "[snapd2.15]",
-	version: "unknown",
-}, {
-	assumes: "[snapdnono]",
-	version: "unknown",
-	error:   `.* unsupported features: snapdnono .*`,
-}, {
-	assumes: "[snapd2.15nono]",
-	version: "unknown",
-	error:   `.* unsupported features: snapd2.15nono .*`,
-}, {
-	assumes: "[snapd2.15~pre1]",
-	version: "unknown",
-	error:   `.* unsupported features: snapd2.15~pre1 .*`,
-}, {
-	assumes: "[snapd2.15]",
-	version: "2.15",
-}, {
-	assumes: "[snapd2.15]",
-	version: "2.15.1",
-}, {
-	assumes: "[snapd2.15]",
-	version: "2.15+git",
-}, {
-	assumes: "[snapd2.15]",
-	version: "2.16",
-}, {
-	assumes: "[snapd2.15.1]",
-	version: "2.16",
-}, {
-	assumes: "[snapd2.15.1]",
-	version: "2.15.1",
-}, {
-	assumes: "[snapd2.15.1.2]",
-	version: "2.15.1.2",
-}, {
-	assumes: "[snapd2.15.1.2]",
-	version: "2.15.1.3",
-}, {
-	// the horror the horror!
-	assumes: "[snapd2.15.1.2.4.5.6.7.8.8]",
-	version: "2.15.1.2.4.5.6.7.8.8",
-}, {
-	assumes: "[snapd2.15.1.2.4.5.6.7.8.8]",
-	version: "2.15.1.2.4.5.6.7.8.9",
-}, {
-	assumes: "[snapd2.15.1.2]",
-	version: "2.15.1.3",
-}, {
-	assumes: "[snapd2.15.2]",
-	version: "2.16.1",
-}, {
-	assumes: "[snapd2.1000]",
-	version: "3.1",
-}, {
-	assumes: "[snapd3]",
-	version: "3.1",
-}, {
-	assumes: "[snapd2]",
-	version: "3.1",
-}, {
-	assumes: "[snapd3]",
-	version: "2.48",
-	error:   `.* unsupported features: snapd3 .*`,
-}, {
-	assumes: "[snapd2.15.1.2]",
-	version: "2.15.1.1",
-	error:   `.* unsupported features: snapd2\.15\.1\.2 .*`,
-}, {
-	assumes: "[snapd2.15.1.2.4.5.6.7.8.8]",
-	version: "2.15.1.2.4.5.6.7.8.1",
-	error:   `.* unsupported features: snapd2\.15\.1\.2\.4\.5\.6\.7\.8\.8 .*`,
-}, {
-	assumes: "[snapd2.16]",
-	version: "2.15",
-	error:   `.* unsupported features: snapd2\.16 .*`,
-}, {
-	assumes: "[snapd2.15.1]",
-	version: "2.15",
-	error:   `.* unsupported features: snapd2\.15\.1 .*`,
-}, {
-	assumes: "[snapd2.15.1]",
-	version: "2.15.0",
-	error:   `.* unsupported features: snapd2\.15\.1 .*`,
-}, {
-	// Note that this is different from how strconv.VersionCompare
-	// (dpkg version numbering) would behave - it would error here
-	assumes: "[snapd2.15]",
-	version: "2.15~pre1",
-}, {
-	assumes: "[command-chain]",
-}, {
-	assumes: "[kernel-assets]",
-}, {
-	assumes: "[snap-uid-envvars]",
-},
-}
-
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
+	var assumesTests = []struct {
+		version string
+		assumes string
+		classic bool
+		error   string
+	}{{
+		assumes: "[common-data-dir]",
+	}, {
+		assumes: "[f1, f2]",
+		error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
+	}, {
+		assumes: "[f1, f2]",
+		classic: true,
+		error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
+	},
+	}
+
 	restore := snapdtool.MockVersion("2.15")
 	defer restore()
 
@@ -215,7 +119,6 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 	defer restore()
 
 	for _, test := range assumesTests {
-
 		snapdtool.Version = test.version
 		if snapdtool.Version == "" {
 			snapdtool.Version = "2.15"

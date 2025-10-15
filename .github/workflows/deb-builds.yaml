@@ -75,8 +75,8 @@ jobs:
           --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
           deb-base:latest \
           bash -c "
-            chown -R test:test /home/test/snapd-parent/snapd && \
-            cd /home/test/snapd-parent/snapd && \
+            chown -R test:test /home/test/snapd-parent/snapd* && \
+            cd /home/test/snapd-parent/snapd* && \
             tests/lib/packaging/build-deb.sh --user test --pkg-version "$(cat /tmp/pkg/version)" && \
             cp /home/test/snapd-parent/*.deb /tmp/builds
           "

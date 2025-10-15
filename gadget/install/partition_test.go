@@ -1025,14 +1025,18 @@ const gptGadgetContentWithRangeForSeed = `volumes:
 
 // createdDuringInstall returns a list of partitions created during the
 // install process.
-func createdDuringInstall(gv *gadget.Volume, layout *gadget.OnDiskVolume) (created []string) {
+func createdDuringInstall(gv *gadget.Volume, layout *gadget.OnDiskVolume) (created []string, yamlIdxes []int) {
 	created = make([]string, 0, len(layout.Structure))
+	startFromIdx := 0
 	for _, s := range layout.Structure {
-		if install.IndexIfCreatedDuringInstall(gv, s) >= 0 {
+		gadgetIndexes := install.IndexIfCreatedDuringInstall(gv, s, startFromIdx)
+		if gadgetIndexes.YamlIdx >= 0 {
+			yamlIdxes = append(yamlIdxes, gadgetIndexes.YamlIdx)
+			startFromIdx = gadgetIndexes.OrderIdx + 1
 			created = append(created, s.Node)
 		}
 	}
-	return created
+	return created, yamlIdxes
 }
 
 func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
@@ -1114,9 +1118,10 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	list := createdDuringInstall(pv.Volume, dl)
+	list, indexes := createdDuringInstall(pv.Volume, dl)
 	// only save and writable should show up
 	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
+	c.Check(indexes, DeepEquals, []int{3, 4})
 
 	// min-size for ubuntu-save for this gadget will match the third partition size
 	// (but size wouldn't)
@@ -1128,9 +1133,10 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	dl, err = gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	list = createdDuringInstall(pv.Volume, dl)
+	list, indexes = createdDuringInstall(pv.Volume, dl)
 	// only save and writable should show up
 	c.Check(list, DeepEquals, []string{"/dev/node3", "/dev/node4"})
+	c.Check(indexes, DeepEquals, []int{3, 4})
 }
 
 // this is an mbr gadget like the pi, but doesn't have the amd64 mbr structure
@@ -1250,6 +1256,206 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
-	list := createdDuringInstall(pv.Volume, dl)
+	list, indexes := createdDuringInstall(pv.Volume, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
+	c.Check(indexes, DeepEquals, []int{1, 2, 3})
+}
+
+const gptGadgetWithMinSize = `volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        offset: 1M
+        min-size: 99
+        size: 999M
+      - name: Save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 100M
+        size: 1000M
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 100M
+        size: 1000M
+`
+
+func (s *partitionTestSuite) TestCreatedDuringInstallOverlaps(c *C) {
+	const oneMeg = 1 * 1024 * 1024
+	m := map[string]*disks.MockDiskMapping{
+		"node": {
+			DevNum:              "42:0",
+			DevNode:             "/dev/node",
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "gpt",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			Structure: []disks.Partition{
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     oneMeg,
+					SizeInBytes:      399 * oneMeg,
+					PartitionType:    "0a",
+					PartitionLabel:   "Recovery",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     400 * oneMeg,
+					SizeInBytes:      600 * oneMeg,
+					PartitionType:    "c",
+					PartitionLabel:   "Save",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-save",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     1000 * oneMeg,
+					SizeInBytes:      200 * oneMeg,
+					PartitionType:    "0d",
+					PartitionLabel:   "Data",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8123-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("node")
+	c.Assert(err, IsNil)
+
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetWithMinSize)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	list, indexes := createdDuringInstall(pv.Volume, dl)
+	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3"})
+	c.Check(indexes, DeepEquals, []int{1, 2})
+}
+
+func (s *partitionTestSuite) TestRemovePartitionsMinSize(c *C) {
+	const oneMeg = 1 * 1024 * 1024
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": {
+			DevNum:              "42:0",
+			DevNode:             "/dev/node",
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "gpt",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			Structure: []disks.Partition{
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     oneMeg,
+					SizeInBytes:      399 * oneMeg,
+					PartitionType:    "0a",
+					PartitionLabel:   "Recovery",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     400 * oneMeg,
+					SizeInBytes:      600 * oneMeg,
+					PartitionType:    "c",
+					PartitionLabel:   "Save",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-save",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     1000 * oneMeg,
+					SizeInBytes:      200 * oneMeg,
+					PartitionType:    "0d",
+					PartitionLabel:   "Data",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8123-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
+	defer cmdSfdisk.Restore()
+
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetWithMinSize)
+	c.Assert(err, IsNil)
+	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
+	c.Assert(err, IsNil)
+
+	deletedOffsetSize, err := install.RemoveCreatedPartitions(s.gadgetRoot, gInfo.Volumes["pc"], dl)
+	c.Assert(err, IsNil)
+	c.Assert(deletedOffsetSize, DeepEquals, map[int]install.StructOffsetSize{
+		1: {StartOffset: 400 * oneMeg, Size: 600 * oneMeg},
+		2: {StartOffset: 1000 * oneMeg, Size: 200 * oneMeg},
+	})
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--no-reread", "--delete", "/dev/node", "2", "3"},
+	})
+
+	c.Assert(s.cmdPartx.Calls(), DeepEquals, [][]string{
+		{"partx", "-u", "/dev/node"},
+	})
+
+	// check that the OnDiskVolume was updated as expected
+	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
+		{
+			PartitionFSLabel: "ubuntu-seed",
+			Name:             "Recovery",
+			Type:             "0a",
+			PartitionFSType:  "vfat",
+			StartOffset:      oneMeg,
+			DiskIndex:        1,
+			Node:             "/dev/node1",
+			Size:             399 * oneMeg,
+		},
+	})
 }

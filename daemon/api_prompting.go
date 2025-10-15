@@ -53,21 +53,26 @@ var (
 	}
 
 	requestsRulesCmd = &Command{
-		Path:        "/v2/interfaces/requests/rules",
-		GET:         getRules,
-		POST:        postRules,
-		Actions:     []string{"add", "remove"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: polkitActionManage},
+		Path:       "/v2/interfaces/requests/rules",
+		GET:        getRules,
+		POST:       postRules,
+		Actions:    []string{"add", "remove"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		// postRules can only operate on rules associated with the user making
+		// the API request, so there is no need for polkit authentication.
+		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 
 	requestsRuleCmd = &Command{
-		Path:        "/v2/interfaces/requests/rules/{id}",
-		GET:         getRule,
-		POST:        postRule,
-		Actions:     []string{"patch", "remove"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
-		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-interfaces-requests-control"}, Polkit: polkitActionManage},
+		Path:       "/v2/interfaces/requests/rules/{id}",
+		GET:        getRule,
+		POST:       postRule,
+		Actions:    []string{"patch", "remove"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
+		// postRule can only operate on a rule if the rule is associated with
+		// the user making the API request, so there is no need for polkit
+		// authentication.
+		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}},
 	}
 )
 

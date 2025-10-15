@@ -231,6 +231,11 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 			return BadRequest(`invalid value for n: %q: %v`, s, err)
 		}
 		n = int(m)
+		// The special value -1 represents "snap logs -n=all".
+		// The backend handles negative values as "all the log" by passing --no-tail to journalctl.
+		if n != -1 && n <= 0 {
+			return BadRequest(`invalid value for n: %v`, n)
+		}
 	}
 	follow := false
 	if s := query.Get("follow"); s != "" {

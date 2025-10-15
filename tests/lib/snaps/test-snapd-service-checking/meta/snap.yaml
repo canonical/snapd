@@ -1,0 +1,11 @@
+name: test-snapd-service
+version: 1.0
+base: core24
+
+apps:
+    daemon:
+        command: bin/start
+        daemon: simple
+    oneshot:
+        command: bin/oneshot
+        daemon: oneshot

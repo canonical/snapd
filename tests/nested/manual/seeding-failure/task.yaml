@@ -13,7 +13,7 @@ details: |
 systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
-  MODEL_JSON: $TESTSLIB/assertions/test-snapd-failed-seeding-pc-24.json
+  MODEL_JSON: $TESTSLIB/assertions/test-snapd-failed-seeding-pc-VERSION.json
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -37,7 +37,8 @@ prepare: |
 
     "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
 
-    gendeveloper1 sign-model < "${MODEL_JSON}" > model.assert
+    VERSION="$(tests.nested show version)"
+    gendeveloper1 sign-model < "${MODEL_JSON/VERSION/${VERSION}}" > model.assert
 
     cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
     cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
@@ -49,6 +50,8 @@ prepare: |
     # the snap used here has a oneshot service that is written so that it fails
     # the first time it is started, but succeeds the second time it is started.
     # it uses the system-files interface to achieve this.
+    VERSION="$(tests.nested show version)"
+    sed "s/@@BASE@@/core${VERSION}/g" ./failing-service/meta/snap.yaml.in >./failing-service/meta/snap.yaml
     snap pack --filename=failing-service.snap ./failing-service
     "${TESTSTOOLS}/store-state" make-snap-installable --noack \
         --extra-decl-json ./failing-service-decl-extras.json \

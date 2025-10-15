@@ -164,7 +164,8 @@ static void test_sc_security_tag_to_unit_name(void) {
 
 static void test_sc_security_tag_to_unit_name_invalid(void) {
     if (g_test_subprocess()) {
-        sc_security_tag_to_unit_name("snap.foo|dev.bar");
+        char *unit_name SC_CLEANUP(sc_cleanup_string) __attribute__((unused)) =
+            sc_security_tag_to_unit_name("snap.foo|dev.bar");
         g_test_message("expected sc_security_tag_to_unit_name to not return");
         g_test_fail();
         return;

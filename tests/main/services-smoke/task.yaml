@@ -1,0 +1,23 @@
+summary: Check that snap with services can be installed
+
+details: |
+    Install a snap with services which are in fact shell scripts using set -e.
+    Observe that services are happily running.
+
+restore: |
+    snap remove --purge test-snapd-service || true
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service-checking
+
+    echo "We can see it running"
+    systemctl status snap.test-snapd-service.daemon.service > systemd-daemon.out
+    MATCH "running" < systemd-daemon.out
+    # systemctl status exits with status code 3 for inactive services
+    systemctl status snap.test-snapd-service.oneshot.service > systemd-oneshot.out || test "$?" = 3
+    MATCH "inactive" < systemd-oneshot.out
+    MATCH "code=exited.* status=0/" < systemd-oneshot.out
+
+    snap services test-snapd-service > services.out
+    MATCH 'test-snapd-service.daemon +enabled +active' < services.out
+    MATCH 'test-snapd-service.oneshot +enabled +inactive' < services.out   

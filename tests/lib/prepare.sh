@@ -1862,8 +1862,11 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
-    # Wait until snapd  is-active
-    retry -n 10 --wait 1 sh -c 'systemctl is-enabled snapd snapd.socket'
+    # Wait for the snap command to become available and snapd is active.
+    if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
+        # shellcheck disable=SC2016
+        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
+    fi
     retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
     setup_snapd_proxy
@@ -1879,13 +1882,6 @@ prepare_ubuntu_core() {
             exit 1
         fi
     fi
-
-    # Wait for the snap command to become available.
-    if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
-        # shellcheck disable=SC2016
-        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
-    fi
-
 
     # Wait for seeding to finish.
     snap wait system seed.loaded
