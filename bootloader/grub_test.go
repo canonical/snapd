@@ -1410,6 +1410,59 @@ func (s *grubTestSuite) TestBootChainsArm64WithFallback(c *C) {
 	})
 }
 
+func (s *grubTestSuite) TestBootChainsRiscv64(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	r := archtest.MockArchitecture("riscv64")
+	defer r()
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chains, err := tab.BootChains(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/grubriscv64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubriscv64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootriscv64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubriscv64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubriscv64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsRiscv64WithFallback(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	s.makeFakeShimFallback(c)
+	r := archtest.MockArchitecture("riscv64")
+	defer r()
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chains, err := tab.BootChains(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chains, HasLen, 2)
+	c.Assert(chains[0], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/grubriscv64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubriscv64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+	c.Assert(chains[1], DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootriscv64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubriscv64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubriscv64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
 func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
 	s.makeFakeGrubEnv(c)
 	g := bootloader.NewGrub(s.rootdir, nil)
