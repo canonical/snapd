@@ -442,11 +442,7 @@ func exitCodeFromError(err error) int {
 }
 
 func main() {
-	if err := loggerWithJournalMaybe(); err != nil {
-		fmt.Fprintf(Stderr, "cannot initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-
+	loggerWithJournalMaybe()
 	snapdtool.ExecInSnapdOrCoreSnap()
 
 	if err := snapdtool.MaybeSetupFIPS(); err != nil {
@@ -541,30 +537,27 @@ func (e unknownCommandError) Error() string {
 	return e.msg
 }
 
-func loggerWithJournalMaybe() error {
-	maybeJournal := func() error {
-		if !osutil.GetenvBool("SNAP_LOG_TO_JOURNAL") {
-			return fmt.Errorf("no need to log to journal")
-		}
-		journalWriter, err := systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+func loggerWithJournalMaybe() {
+	if !osutil.GetenvBool("SNAP_LOG_TO_JOURNAL") {
+		return
+	}
+
+	// unset so that it doesn't trickle down to the snap application
+	os.Unsetenv("SNAP_LOG_TO_JOURNAL")
+
+	journalWriter, err := systemd.NewJournalStreamFile(
+		systemd.JournalStreamFileParams{
 			Identifier: "snap",
 			Priority:   syslog.LOG_DEBUG,
 		})
-		if err != nil {
-			return err
-		}
-		l := logger.New(journalWriter, logger.DefaultFlags, nil)
-		logger.SetLogger(l)
-		return nil
+
+	if err != nil {
+		logger.Noticef("WARNING: cannot create new systemd journal stream: %v", err)
+		return
 	}
 
-	if err := maybeJournal(); err != nil {
-		// try simple setup
-		logger.SimpleSetup(nil)
-	}
-	// unset so that it doesn't trickle down to the snap application
-	os.Unsetenv("SNAP_LOG_TO_JOURNAL")
-	return nil
+	l := logger.New(journalWriter, logger.DefaultFlags, nil)
+	logger.SetLogger(l)
 }
 
 func composeSubCmd(cmd *flags.Command, subArgIndex int, cmdNames []string) string {
