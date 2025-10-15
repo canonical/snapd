@@ -1989,7 +1989,7 @@ func (s *clusterSuite) TestRunTimeout(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// when Run is called, the clock will return a time past the 1-hour limit
-	_, err = as.Run(context.Background(), testListener("addr"), transport, discover, RunOptions{})
+	_, _, err = as.Run(context.Background(), testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, check.ErrorMatches, "cannot resume an assembly session that began more than an hour ago")
 }
 
@@ -2016,7 +2016,7 @@ func (s *clusterSuite) TestRunServerError(c *check.C) {
 	}, commit, db)
 	c.Assert(err, check.IsNil)
 
-	_, err = as.Run(context.Background(), testListener("addr"), transport, discover, RunOptions{})
+	_, _, err = as.Run(context.Background(), testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, testutil.ErrorIs, serverError)
 }
 
@@ -2052,7 +2052,7 @@ func (s *clusterSuite) TestMaxSizeCompletionOnStartup(c *check.C) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
+	_, _, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }
 
@@ -2093,7 +2093,7 @@ func (s *clusterSuite) TestMaxSizeCompletionOnCommitDevices(c *check.C) {
 	defer cancel()
 
 	discover := make(chan []string)
-	_, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
+	_, _, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }
 
@@ -2134,7 +2134,7 @@ func (s *clusterSuite) TestMaxSizeCompletionOnCommitRoutes(c *check.C) {
 	defer cancel()
 
 	discover := make(chan []string)
-	_, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
+	_, _, err = as.Run(ctx, testListener("addr"), transport, discover, RunOptions{})
 	c.Assert(err, check.IsNil)
 }
 
