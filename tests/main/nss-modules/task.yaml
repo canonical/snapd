@@ -253,10 +253,8 @@ prepare: |
 
         DNS="$(lxc exec server -- resolvectl | grep 'Current DNS Server' | awk -F':' '{print $2}')"
         lxc exec server -- sed -i "s/^\(.*dns forwarder = \).*/\1${DNS}/" /etc/samba/smb.conf
-        lxc exec server -- unlink /etc/resolv.conf
-        lxc exec server -- sh -c "echo 'nameserver 127.0.0.1' >> /etc/resolv.conf"
-        lxc exec server -- sh -c "echo \"search ${domain_name}\" >> /etc/resolv.conf"
-        lxc exec server -- systemctl disable --now systemd-resolved
+        INTERFACE=$(lxc exec server -- ls /sys/class/net/ | grep -v lo)
+        lxc exec server -- resolvectl domain "${INTERFACE}" "${domain_name}"
         lxc exec server -- mv /var/lib/samba/private/krb5.conf /etc/
         lxc exec server -- systemctl start samba-ad-dc
         lxc exec server -- samba-tool user add --random-password "${nss_user}"
