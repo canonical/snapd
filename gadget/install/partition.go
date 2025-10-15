@@ -328,12 +328,14 @@ func removeCreatedPartitions(gadgetRoot string, gv *gadget.Volume, dl *gadget.On
 	// ubuntu-data, ubuntu-boot, and ubuntu-save
 	deletedIndexes := make(map[int]bool, 3)
 	deletedOffsetSize := make(map[int]StructOffsetSize, 3)
+	startFromIdx := 0
 	for i, s := range dl.Structure {
-		yamlIdx := indexIfCreatedDuringInstall(gv, s)
-		if yamlIdx >= 0 {
+		gadgetIndexes := indexIfCreatedDuringInstall(gv, s, startFromIdx)
+		if gadgetIndexes.YamlIdx >= 0 {
+			startFromIdx = gadgetIndexes.OrderIdx + 1
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			sfdiskIndexes = append(sfdiskIndexes, strconv.Itoa(i+1))
-			deletedOffsetSize[yamlIdx] = StructOffsetSize{
+			deletedOffsetSize[gadgetIndexes.YamlIdx] = StructOffsetSize{
 				StartOffset: s.StartOffset,
 				Size:        s.Size,
 			}
@@ -458,33 +460,52 @@ func udevTrigger(device string) error {
 	return nil
 }
 
-// indexIfCreatedDuringInstall returns the gadget index if the OnDiskStructure
-// was created during install by referencing the gadget volume, -1 otherwise. A
-// structure is only considered to be created during install if it is a role
+// GadgetVolumeIdexes has indexes for volumes defined in gadget.yaml.
+type GadgetVolumeIdexes struct {
+	// YamlIdx is the index in the yaml file
+	YamlIdx int
+	// OrderIdx is the index after ordering (offsets in gadget.yaml make it
+	// possible that this is different to YamlIdx)
+	OrderIdx int
+}
+
+// indexIfCreatedDuringInstall returns the gadget indexes (yaml and order ones)
+// for a gadget structure if the OnDiskStructure was created during install by
+// referencing the gadget volume, -1 for both indexes otherwise. The OrderIdx
+// can be used by the caller to avoid duplicated matches, as gadget partition
+// definitions can have ranges for the start offset if using min-size. For
+// this, the minimum expected order index startFromIdx can be passed to the
+// function, and it should be the last matched order index plus 1.
+//
+// A structure is only considered to be created during install if it is a role
 // that is created during install and the start offsets match. We specifically
 // don't look at anything on the structure such as filesystem information since
 // this may be incomplete due to a failed installation, or due to the partial
 // layout that is created by some ARM tools (i.e. ptool and fastboot) when
 // flashing images to internal MMC.
-func indexIfCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure) int {
-	// for a structure to have been created during install, it must be one of
-	// the system-boot, system-data, or system-save roles from the gadget, and
-	// as such the on disk structure must exist in the exact same location as
-	// the role from the gadget, so only return true if the provided structure
-	// has the exact same StartOffset as one of those roles
-	for i, gs := range gv.Structure {
+func indexIfCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure, startFromIdx int) GadgetVolumeIdexes {
+	// For a structure to have been created during install, it must be one
+	// of the system-boot, system-data, or system-save roles from the
+	// gadget, and as such the on disk structure must exist in the exact
+	// same location as the role from the gadget, so only return true if
+	// the provided structure has the exact same StartOffset as one of
+	// those roles. We start from the first partition not assigned
+	// previously. This is relevant as multiple partitions can match a
+	// given gadget structure, if having big valid intervals when using
+	// min-size.
+	for i := startFromIdx; i < len(gv.Structure); i++ {
 		// TODO: how to handle ubuntu-save here? maybe a higher level function
 		//       should decide whether to delete it or not?
-		switch gs.Role {
+		switch gv.Structure[i].Role {
 		case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure
 			// has
 			if gadget.CheckValidStartOffset(s.StartOffset, gv.Structure, i) == nil {
-				return gs.YamlIndex
+				return GadgetVolumeIdexes{YamlIdx: gv.Structure[i].YamlIndex, OrderIdx: i}
 			}
 		}
 	}
 
-	return -1
+	return GadgetVolumeIdexes{YamlIdx: -1, OrderIdx: -1}
 }
