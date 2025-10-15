@@ -211,7 +211,8 @@ prepare: |
             # ExecStartPre section of the ypbind service. Since the domain name is already set,
             # comment out that line. Once https://gitlab.com/apparmor/apparmor/-/merge_requests/1814
             # is deployed, this can be removed.
-            sed -i 's/^ExecStartPre=.*/# &/' /usr/lib/systemd/system/ypbind.service
+            mkdir -p /usr/lib/systemd/system/ypbind.service.d
+            printf "[Service]\nExecStartPre=\n" > /usr/lib/systemd/system/ypbind.service.d/override.conf
             systemctl daemon-reload
         fi
         if ! systemctl is-enabled ypbind; then
