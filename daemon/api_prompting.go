@@ -304,16 +304,16 @@ var getInterfaceManager = func(c *Command) interfaceManager {
 }
 
 type postPromptBody struct {
-	Outcome     prompting.OutcomeType       `json:"action"`
-	Lifespan    prompting.LifespanType      `json:"lifespan"`
-	Duration    string                      `json:"duration,omitempty"`
-	Constraints *prompting.ReplyConstraints `json:"constraints"`
+	Outcome     prompting.OutcomeType     `json:"action"`
+	Lifespan    prompting.LifespanType    `json:"lifespan"`
+	Duration    string                    `json:"duration,omitempty"`
+	Constraints prompting.ConstraintsJSON `json:"constraints"`
 }
 
 type addRuleContents struct {
-	Snap        string                 `json:"snap"`
-	Interface   string                 `json:"interface"`
-	Constraints *prompting.Constraints `json:"constraints"`
+	Snap        string                    `json:"snap"`
+	Interface   string                    `json:"interface"`
+	Constraints prompting.ConstraintsJSON `json:"constraints"`
 }
 
 type removeRulesSelector struct {
@@ -322,7 +322,8 @@ type removeRulesSelector struct {
 }
 
 type patchRuleContents struct {
-	Constraints *prompting.RuleConstraintsPatch `json:"constraints,omitempty"`
+	// The fields within the constraints patch need to be optional
+	Constraints prompting.ConstraintsJSON `json:"constraints,omitempty"`
 }
 
 type postRulesRequestBody struct {

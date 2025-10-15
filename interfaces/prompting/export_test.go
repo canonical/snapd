@@ -24,6 +24,10 @@ import (
 )
 
 var (
+	ParseInterfaceSpecificConstraints = parseInterfaceSpecificConstraints
+
+	InterfaceSpecificConstraintsPathPattern = InterfaceSpecificConstraints.pathPattern
+
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
 )
