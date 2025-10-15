@@ -1,5 +1,5 @@
-ARG IMAGE
-ARG TAG
+ARG IMAGE=opensuse/tumbleweed
+ARG TAG=latest
 ARG PACKAGING_DIR
 FROM ${IMAGE}:${TAG}
 
