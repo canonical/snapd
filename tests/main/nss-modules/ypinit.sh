@@ -27,7 +27,7 @@ fi
 
 if [ ! -d "$YPMAPDIR" ] || [ -f "$YPMAPDIR" ]; then
         echo "The directory $YPMAPDIR doesn't exist."
-        echo "Create it or run make install-* from the sourcen."
+        echo "Create it or run make install-* from the source."
         exit 1
 fi
 

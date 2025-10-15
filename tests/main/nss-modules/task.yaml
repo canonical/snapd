@@ -306,7 +306,7 @@ execute: |
     # there should be no warnings nor errors like seen in https://bugs.launchpad.net/snapd/+bug/2083890
     if [ -n "$(cat stderr)" ]; then
         echo "got errors/warnings when running a snap as ${nss_user}"
-        cat errors
+        cat stderr
         exit 1
     fi
 
