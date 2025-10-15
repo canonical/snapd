@@ -693,6 +693,9 @@ install -m 644 -D data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/sn
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -m 644 -D data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
+# Install the NEWS file
+install -pm 644 -D NEWS.md %{buildroot}%{_defaultdocdir}/snapd/NEWS.md
+
 # Install snap-confine
 pushd ./cmd
 %make_install
@@ -889,6 +892,9 @@ make -C data -k check
 %dir %{_datadir}/zsh/site-functions
 # similar case for fish
 %dir %{_datadir}/fish/vendor_conf.d
+
+%dir %{_defaultdocdir}/snapd
+%{_defaultdocdir}/snapd/NEWS.md
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
