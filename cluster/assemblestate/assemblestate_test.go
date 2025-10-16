@@ -116,8 +116,10 @@ func (s *assembleSuite) TestRun(c *check.C) {
 		)
 		c.Assert(err, check.IsNil)
 
-		disco := make(chan []string, 1)
-		disco <- addrs
+		disco := make(chan string, len(addrs))
+		for _, addr := range addrs {
+			disco <- addr
+		}
 
 		wg.Add(1)
 		go func() {
@@ -155,8 +157,10 @@ func (s *assembleSuite) TestRun(c *check.C) {
 	)
 	c.Assert(err, check.IsNil)
 
-	disco := make(chan []string, 1)
-	disco <- addrs
+	disco := make(chan string, len(addrs))
+	for _, addr := range addrs {
+		disco <- addr
+	}
 
 	ids, routes, err := as.Run(
 		ctx,
