@@ -10,7 +10,7 @@ details: |
     the command and the security profiles are no longer there. Then it checks
     that the snap runs normally after it is enabled.
 
-    It also checks that the important snaps (core, gadget and kernel) can't
+    It also checks that the important snaps (core, gadget, kernel and bases) can't
     be disabled.    
 
 prepare: |
@@ -52,12 +52,14 @@ execute: |
     test-snapd-sh.sh -c 'echo Hello' |MATCH Hello
 
     echo "Ensure the important snaps can not be disabled"
-    for sn in core $(snaps.name kernel) $(snaps.name gadget); do
+    snap install bare
+    for sn in core $(snaps.name kernel) $(snaps.name gadget) core bare; do
         if snap disable "$sn"; then
             echo "It should not be possible to disable $sn"
             exit 1
         fi
     done
+    snap remove bare
 
     # XXX: removing a disabled snap works but will fail to run its "remove" hook.
     # We should fix this but it's unclear how at the moment. Ideally, we would
