@@ -87,6 +87,42 @@ func (s *managerSuite) TestEnsureClusterAssertionFromUntrustedBrand(c *check.C) 
 	c.Assert(err, check.ErrorMatches, `(?s)cannot add cluster assertion bundle:.*no matching public key.*`)
 }
 
+func (s *managerSuite) TestEnsureIdempotent(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	bundle, _ := makeClusterBundle(c, stack, []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}, []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	})
+
+	serial := makeSerialAssertion(c, "serial-1")
+	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
+		return serial, nil
+	})
+	defer restore()
+
+	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+
+	err := mgr.Ensure()
+	c.Assert(err, check.IsNil)
+
+	// make sure that calling Ensure a second time with the same assertion
+	// doesn't result in an error
+	err = mgr.Ensure()
+	c.Assert(err, check.IsNil)
+}
+
 func (s *managerSuite) TestEnsureClusteringDisabled(c *check.C) {
 	st, _ := newStateWithStoreStack(c)
 
