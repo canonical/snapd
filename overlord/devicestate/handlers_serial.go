@@ -398,6 +398,8 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		return "", err
 	}
 
+	fmt.Println("has prepare hook: ", hasPrepareSerialRequestHook)
+
 	if hasPrepareSerialRequestHook {
 		hooksup := &hookstate.HookSetup{
 			//we can be confident this value is non-nil because we checked if the hook exists in the first place
@@ -562,6 +564,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 		},
 	})
 
+	fmt.Println(regCtx.SerialRequestExtraHeaders())
 	cfg, err := getSerialRequestConfig(t, regCtx, client)
 	if err != nil {
 		return nil, nil, err
@@ -760,6 +763,8 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+	
+	
 
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)

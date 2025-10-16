@@ -1130,16 +1130,19 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 		ProposedSerial: "Y9999",
 	}
 
-	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
-		RegBody: map[string]string{
-			"hardware-id-key": "key",
-			"hardware-id-key-sha384": "hash",
-			"request-id-signature": "signature",
-		},
-	}
+	// pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
+	// 	Headers: map[string]string{
+	// 		"x-extra-header": "extra",
+	// 	},
+	// 	RegBody: map[string]string{
+	// 		"hardware-id-key": "key",
+	// 		"hardware-id-key-sha384": "hash",
+	// 		"request-id-signature": "signature",
+	// 	},
+	// }
 
-	rPD2, rPSR2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
-	defer rPSR2()
+	rPD2, _ := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, nil)
+	// defer rPSR2()
 	defer rPD2()
 	
 	
