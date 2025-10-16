@@ -811,7 +811,7 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 			return nil
 		},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func(st *state.State) backend.RecoveryKeyCache {
 		return mockStore
 	})()
 
@@ -852,7 +852,7 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKeyMaxRetriesError(c *C) {
 			return backend.CachedRecoverKey{}, nil
 		},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func(st *state.State) backend.RecoveryKeyCache {
 		return mockStore
 	})()
 
@@ -906,7 +906,7 @@ func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
 			}
 		},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func(st *state.State) backend.RecoveryKeyCache {
 		return mockStore
 	})()
 
