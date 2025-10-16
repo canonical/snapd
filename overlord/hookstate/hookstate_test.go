@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -70,6 +71,7 @@ var (
 func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
+	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 	hooktype1 := snap.NewHookType(regexp.MustCompile("^do-something$"))
 	hooktype2 := snap.NewHookType(regexp.MustCompile("^undo-something$"))
 	s.AddCleanup(snap.MockAppendSupportedHookTypes([]*snap.HookType{hooktype1, hooktype2}))
@@ -100,6 +102,11 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 		s.context = context
 		return s.mockHandler
 	})
+	s.manager.Register(regexp.MustCompile("change-view-"), func(context *hookstate.Context) hookstate.Handler {
+		s.context = context
+		return s.mockHandler
+	})
+
 }
 
 func (s *baseHookManagerSuite) commonTearDownTest(c *C) {
@@ -155,6 +162,7 @@ hooks:
     prepare-device:
     do-something:
     undo-something:
+    change-view-setup-wifi:
 `
 
 var snapYaml1 = `
@@ -979,11 +987,11 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	c.Assert(atomic.LoadInt32(&Executing), Equals, int32(0))
 }
 
-func (s *hookManagerSuite) TestHookTasksWaitForActiveSnap(c *C) {
-	s.testHookTasksWaitUntilActive(c, "test-snap")
+func (s *hookManagerSuite) TestConfdbHookTasksWaitForActiveSnap(c *C) {
+	s.testConfdbHookTasksWaitUntilActive(c, "test-snap")
 }
 
-func (s *hookManagerSuite) TestHookTasksWaitForActiveBase(c *C) {
+func (s *hookManagerSuite) TestConfdbHookTasksWaitForActiveBase(c *C) {
 	func() {
 		s.state.Lock()
 		defer s.state.Unlock()
@@ -1005,10 +1013,10 @@ func (s *hookManagerSuite) TestHookTasksWaitForActiveBase(c *C) {
 		})
 	}()
 
-	s.testHookTasksWaitUntilActive(c, "test-base")
+	s.testConfdbHookTasksWaitUntilActive(c, "test-base")
 }
 
-func (s *hookManagerSuite) testHookTasksWaitUntilActive(c *C, conflictSnap string) {
+func (s *hookManagerSuite) testConfdbHookTasksWaitUntilActive(c *C, conflictSnap string) {
 	setActive := func(active bool) {
 		var snapst snapstate.SnapState
 		err := snapstate.Get(s.state, conflictSnap, &snapst)
@@ -1021,6 +1029,13 @@ func (s *hookManagerSuite) testHookTasksWaitUntilActive(c *C, conflictSnap strin
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	hooksup := &hookstate.HookSetup{
+		Snap: "test-snap",
+		Hook: "change-view-setup-wifi",
+	}
+	confdbHook := hookstate.HookTask(s.state, "confdb hook task", hooksup, nil)
+	s.change.AddTask(confdbHook)
+
 	setActive(false)
 
 	s.state.Unlock()
@@ -1028,8 +1043,21 @@ func (s *hookManagerSuite) testHookTasksWaitUntilActive(c *C, conflictSnap strin
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
+	// the confdb hook task didn't run
+	confdbHook = s.state.Task(confdbHook.ID())
+	c.Assert(confdbHook.Status(), Equals, state.DoStatus)
+
+	// the non-confdb hook task runs if the unlinked snap is the hook's snap but
+	// not if it's that snap's base (see XXX in snapOrBaseAreInactive)
 	task := s.state.Task(s.task.ID())
-	c.Assert(task.Status(), Equals, state.DoStatus)
+	switch conflictSnap {
+	case "test-base":
+		c.Assert(task.Status(), Equals, state.DoStatus)
+	case "test-snap":
+		c.Assert(task.Status(), Equals, state.DoingStatus)
+	default:
+		c.Fatal("unknown snap")
+	}
 
 	setActive(true)
 
@@ -1038,8 +1066,9 @@ func (s *hookManagerSuite) testHookTasksWaitUntilActive(c *C, conflictSnap strin
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	task = s.state.Task(s.task.ID())
-	c.Assert(task.Status(), Equals, state.DoneStatus)
+	// once the snap is enabled, the confdb hook runs
+	confdbHook = s.state.Task(confdbHook.ID())
+	c.Assert(confdbHook.Status(), Equals, state.DoneStatus)
 }
 
 type MockConcurrentHandler struct {

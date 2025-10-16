@@ -50,6 +50,7 @@ type ConfdbManager struct{}
 
 func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner) *ConfdbManager {
 	snapstate.IsConfdbHookname = IsConfdbHookname
+	hookstate.IsConfdbHookname = IsConfdbHookname
 
 	m := &ConfdbManager{}
 

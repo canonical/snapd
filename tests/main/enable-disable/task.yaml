@@ -58,3 +58,17 @@ execute: |
             exit 1
         fi
     done
+
+    # XXX: removing a disabled snap works but will fail to run its "remove" hook.
+    # We should fix this but it's unclear how at the moment. Ideally, we would
+    # link enough stuff back to run the hook but, even then, the hook might run
+    # the snap which would be unexpected given that the user disabled it.
+    # Alternatively, we can warn the user that the hook won't run and require a --force.
+    "$TESTSTOOLS"/snaps-state install-local snap-hooks
+    snap disable snap-hooks
+    snap remove snap-hooks
+
+    CHG_ID=$(snap changes | tail -n 2 | awk '{print $1}')
+    snap change "$CHG_ID" > remove.out
+    MATCH "ERROR ignoring failure in hook \"remove\"" < remove.out
+    MATCH "error: cannot find current revision for snap snap-hooks: readlink $SNAP_MOUNT_DIR/snap-hooks/current: no such file or directory" < remove.out

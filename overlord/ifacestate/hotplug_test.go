@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -136,6 +137,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.secBackend = &ifacetest.TestSecurityBackend{}
 	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
+	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)

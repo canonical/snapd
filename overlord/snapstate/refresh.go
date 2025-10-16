@@ -40,7 +40,7 @@ var pidsOfSnap = cgroup.PidsOfSnap
 
 // IsConfdbHookname is a hook set by confdbstate (see confdbstate.go).
 var IsConfdbHookname = func(string) bool {
-	panic("internal error: confdbstate.IsConfdbHookname is unset")
+	panic("internal error: snapstate.IsConfdbHookname is unset")
 }
 
 // refreshAppsCheck returns an error if the snap has processes running that aren't
