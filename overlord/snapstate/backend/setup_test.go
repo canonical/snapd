@@ -1275,5 +1275,6 @@ func (s *setupSuite) TestSetupSnapWithIntegrityDataButIntegrityFileMissing(c *C)
 	}
 
 	_, _, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, setupOpts, progress.Null)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("stat %s: no such file or directory", snapPath+".dmverity_aaa"))
+	c.Check(errors.Is(err, backend.ErrDmVerityDataMissing), Equals, true)
+	c.Check(err, ErrorMatches, fmt.Sprintf("dm-verity data missing for snap: stat %s: no such file or directory", snapPath+".dmverity_aaa"))
 }
