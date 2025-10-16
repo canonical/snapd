@@ -243,7 +243,7 @@ func (iface *vulkanDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Spe
 	for _, sourceAttr := range []struct {
 		sda       sourceDirAttr
 		targetDir string
-		checker   func(slot *interfaces.ConnectedSlot, icdContent []byte) error
+		checker   func(slot *interfaces.ConnectedSlot, content []byte) error
 	}{
 		{sourceDirAttr{attrName: "icd-source", isOptional: false},
 			vulkanIcdPath, checkVulkanIcdFile},
@@ -260,29 +260,29 @@ func (iface *vulkanDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Spe
 	return nil
 }
 
-func (iface *vulkanDriverLibsInterface) symlinksForSourceDir(spec *symlinks.Specification, slot *interfaces.ConnectedSlot, sda sourceDirAttr, targetDir string, checker func(slot *interfaces.ConnectedSlot, icdContent []byte) error) error {
-	icdPaths, err := icdSourceDirsCheck(slot, sda, checker)
+func (iface *vulkanDriverLibsInterface) symlinksForSourceDir(spec *symlinks.Specification, slot *interfaces.ConnectedSlot, sda sourceDirAttr, targetDir string, checker func(slot *interfaces.ConnectedSlot, content []byte) error) error {
+	sourcePaths, err := sourceDirsCheck(slot, sda, checker)
 	if err != nil {
 		return fmt.Errorf("invalid %s: %w", sda.attrName, err)
 	}
 
 	// Create symlinks to snap content (which is fine as this is a super-privileged slot)
-	for _, icdPath := range icdPaths {
+	for _, path := range sourcePaths {
 		// Strip out mount dir and snap name and revision
-		relIcdPath, err := filepath.Rel(dirs.SnapMountDir, icdPath)
+		relPath, err := filepath.Rel(dirs.SnapMountDir, path)
 		if err != nil {
 			return err
 		}
-		dirs := strings.SplitN(relIcdPath, "/", 3)
+		dirs := strings.SplitN(relPath, "/", 3)
 		if len(dirs) < 3 {
-			return fmt.Errorf("internal error: wrong file path: %s", relIcdPath)
+			return fmt.Errorf("internal error: wrong file path: %s", relPath)
 		}
 		// Make path an easier to handle name
 		escapedRelPath := systemd.EscapeUnitNamePath(filepath.Join(dirs[2]))
-		// Note that icdFilePathsCheck already ensures a .json suffix
+		// Note that sourceDirsCheck already ensures a .json suffix
 		linkPath := filepath.Join(targetDir, fmt.Sprintf("snap_%s_%s_%s",
 			slot.Snap().InstanceName(), slot.Name(), escapedRelPath))
-		if err := spec.AddSymlink(icdPath, linkPath); err != nil {
+		if err := spec.AddSymlink(path, linkPath); err != nil {
 			return err
 		}
 	}
