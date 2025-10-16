@@ -52,14 +52,14 @@ execute: |
     test-snapd-sh.sh -c 'echo Hello' |MATCH Hello
 
     echo "Ensure the important snaps can not be disabled"
-    snap install bare
-    for sn in core $(snaps.name kernel) $(snaps.name gadget) core bare; do
+    snap install bare core24
+    for sn in core $(snaps.name kernel) $(snaps.name gadget) core24 bare; do
         if snap disable "$sn"; then
             echo "It should not be possible to disable $sn"
             exit 1
         fi
     done
-    snap remove bare
+    snap remove bare core24
 
     # XXX: removing a disabled snap works but will fail to run its "remove" hook.
     # We should fix this but it's unclear how at the moment. Ideally, we would
