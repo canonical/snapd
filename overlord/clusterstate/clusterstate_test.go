@@ -24,8 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -46,48 +45,255 @@ import (
 
 func Test(t *testing.T) { check.TestingT(t) }
 
-type managerSuite struct{}
+type clusterStateSuite struct{}
 
-var _ = check.Suite(&managerSuite{})
+var _ = check.Suite(&clusterStateSuite{})
 
-type MockClusterAssertionSource struct {
-	CurrentClusterFn func() ([]byte, error)
+func (s *clusterStateSuite) TestUpdateWithoutInitializing(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	bundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, nil, nil)
+
+	st.Lock()
+	defer st.Unlock()
+	err := clusterstate.UpdateCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, testutil.ErrorIs, clusterstate.ErrNoClusterAssertion)
 }
 
-func (s *MockClusterAssertionSource) CurrentCluster() ([]byte, error) {
-	return s.CurrentClusterFn()
+func (s *clusterStateSuite) TestGetWithoutInitializing(c *check.C) {
+	st, _ := newStateWithStoreStack(c)
+
+	st.Lock()
+	defer st.Unlock()
+	_, err := clusterstate.CurrentCluster(st)
+	c.Assert(err, testutil.ErrorIs, clusterstate.ErrNoClusterAssertion)
 }
 
-func fileClusterAssertionSource(c *check.C, bundle []byte) clusterstate.ClusterAssertionSource {
-	dir := c.MkDir()
+func (s *clusterStateSuite) TestUpdateSequenceNotGreater(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
 
-	path := filepath.Join(dir, "cluster.assert")
-	err := os.WriteFile(path, bundle, 0600)
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	devices := []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}
+	subclusters := []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	}
+
+	initialBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 2, devices, subclusters)
+
+	st.Lock()
+	defer st.Unlock()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initialBundle))
 	c.Assert(err, check.IsNil)
 
-	return clusterstate.NewFileClusterAssertionSource(path)
+	updateBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 2, devices, subclusters)
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(updateBundle))
+	c.Assert(err, check.ErrorMatches, "cluster assertion sequence 2 must be greater than current sequence 2")
+
+	updateBundle, _ = makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(updateBundle))
+	c.Assert(err, check.ErrorMatches, "cluster assertion sequence 1 must be greater than current sequence 2")
 }
 
-func (s *managerSuite) TestEnsureMissingClusterAssertion(c *check.C) {
+func (s *clusterStateSuite) TestUpdateClusterIDMismatch(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	devices := []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}
+	subclusters := []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	initialBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initialBundle))
+	c.Assert(err, check.IsNil)
+
+	updateBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "other-cluster-id", 2, devices, subclusters)
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(updateBundle))
+	c.Assert(err, check.ErrorMatches, `cluster assertion id "other-cluster-id" does not match expected id "cluster-id"`)
+}
+
+func (s *clusterStateSuite) TestUpdateAuthorityMismatch(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	devices := []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}
+	subclusters := []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	initialBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initialBundle))
+	c.Assert(err, check.IsNil)
+
+	otherAccount := "other-brand"
+	otherKey, _ := assertstest.GenerateKey(752)
+	sa.Register(otherAccount, otherKey, map[string]any{
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
+
+	updateBundle, _ := makeClusterBundleWithSigning(c, sa, otherAccount, "cluster-id", 2, devices, subclusters)
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(updateBundle))
+	c.Assert(err, check.ErrorMatches, `cluster assertion authority "other-brand" does not match expected authority "cluster-brand"`)
+}
+
+func (s *clusterStateSuite) TestUpdateAllowsSequenceSkip(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	devices := []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}
+	subclusters := []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	initialBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initialBundle))
+	c.Assert(err, check.IsNil)
+
+	updateBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 5, devices, subclusters)
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(updateBundle))
+	c.Assert(err, check.IsNil)
+
+	cluster, err := clusterstate.CurrentCluster(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(cluster.Sequence(), check.Equals, 5)
+}
+
+func (s *clusterStateSuite) TestUpdateSuccess(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	devices := []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}
+	subclusters := []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	initialBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initialBundle))
+	c.Assert(err, check.IsNil)
+
+	updateBundle, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 2, devices, subclusters)
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(updateBundle))
+	c.Assert(err, check.IsNil)
+
+	cluster, err := clusterstate.CurrentCluster(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(cluster.Sequence(), check.Equals, 2)
+}
+
+func (s *clusterStateSuite) TestInitializeNewClusterMissingClusterAssertion(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
 
 	bundle := makeBundleWithoutCluster(c, stack)
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
 
-	err := mgr.Ensure()
+	st.Lock()
+	defer st.Unlock()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.ErrorMatches, "assertion bundle missing cluster assertion")
 }
 
-func (s *managerSuite) TestEnsureClusterAssertionFromUntrustedBrand(c *check.C) {
+func (s *clusterStateSuite) TestInitializeNewClusterUntrustedBrand(c *check.C) {
 	st, _ := newStateWithStoreStack(c)
 
 	bundle := makeBundleWithUntrustedBrand(c)
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
 
-	err := mgr.Ensure()
+	st.Lock()
+	defer st.Unlock()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `(?s)cannot add cluster assertion bundle:.*no matching public key.*`)
 }
+
+type managerSuite struct{}
+
+var _ = check.Suite(&managerSuite{})
 
 func (s *managerSuite) TestEnsureIdempotent(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
@@ -108,12 +314,20 @@ func (s *managerSuite) TestEnsureIdempotent(c *check.C) {
 		},
 	})
 
+	st.Lock()
+	defer st.Unlock()
+
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
 
-	err := mgr.Ensure()
+	st.Unlock()
+	defer st.Lock()
+
+	err = mgr.Ensure()
 	c.Assert(err, check.IsNil)
 
 	// make sure that calling Ensure a second time with the same assertion
@@ -126,24 +340,20 @@ func (s *managerSuite) TestEnsureClusteringDisabled(c *check.C) {
 	st, _ := newStateWithStoreStack(c)
 
 	st.Lock()
+	defer st.Unlock()
+
 	tr := config.NewTransaction(st)
 	err := tr.Set("core", "experimental.clustering", false)
 	c.Assert(err, check.IsNil)
 	tr.Commit()
-	st.Unlock()
 
-	called := false
-	source := &MockClusterAssertionSource{
-		CurrentClusterFn: func() ([]byte, error) {
-			called = true
-			return nil, nil
-		},
-	}
-	mgr := clusterstate.Manager(st, source)
+	st.Unlock()
+	defer st.Lock()
+
+	mgr := clusterstate.Manager(st)
 
 	err = mgr.Ensure()
 	c.Assert(err, check.IsNil)
-	c.Assert(called, check.Equals, false)
 }
 
 func (s *managerSuite) TestEnsureLoopHasLogging(c *check.C) {
@@ -167,6 +377,9 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 		"snaps":   []any{},
 	}})
 
+	st.Lock()
+	defer st.Unlock()
+
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
@@ -188,8 +401,12 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 	})
 	defer restore()
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
 
+	st.Unlock()
+	defer st.Lock()
 	c.Assert(mgr.Ensure(), check.IsNil)
 
 	st.Lock()
@@ -230,6 +447,9 @@ func (s *managerSuite) TestApplyClusterStateDeviceNotInAnySubcluster(c *check.C)
 		},
 	}})
 
+	st.Lock()
+	defer st.Unlock()
+
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
 
@@ -251,8 +471,13 @@ func (s *managerSuite) TestApplyClusterStateDeviceNotInAnySubcluster(c *check.C)
 	})
 	defer restore()
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
 
+	mgr := clusterstate.Manager(st)
+
+	st.Unlock()
+	defer st.Lock()
 	c.Assert(mgr.Ensure(), check.IsNil)
 
 	st.Lock()
@@ -264,6 +489,7 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
 
 	st.Lock()
+	defer st.Unlock()
 
 	snapstate.Set(st, "to-remove", &snapstate.SnapState{
 		Current:         snap.R(1),
@@ -294,8 +520,6 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 			},
 		},
 	})
-
-	st.Unlock()
 
 	bundle, _ := makeClusterBundle(c, stack, []map[string]any{
 		{
@@ -377,9 +601,14 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	})
 	defer restore()
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
 
+	st.Unlock()
+	defer st.Lock()
 	c.Assert(mgr.Ensure(), check.IsNil)
+
 	c.Assert(removals, check.DeepEquals, []string{"to-remove"})
 	c.Assert(installs, check.DeepEquals, []snapstate.StoreSnap{
 		{
@@ -417,6 +646,7 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
 
 	st.Lock()
+	defer st.Unlock()
 
 	snapstate.Set(st, "snap-two-remove", &snapstate.SnapState{
 		Current:         snap.R(1),
@@ -427,8 +657,6 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 			},
 		},
 	})
-
-	st.Unlock()
 
 	bundle, _ := makeClusterBundle(c, stack, []map[string]any{
 		{
@@ -484,8 +712,12 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 	})
 	defer restore()
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
 
+	st.Unlock()
+	defer st.Lock()
 	c.Assert(mgr.Ensure(), check.IsNil)
 
 	st.Lock()
@@ -533,12 +765,19 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 		},
 	}, []map[string]any{})
 
+	st.Lock()
+	defer st.Unlock()
+
 	serial := makeSerialAssertion(c, stack, "serial-9")
 	addSerialToState(c, st, serial)
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
 
-	err := mgr.Ensure()
+	st.Unlock()
+	defer st.Lock()
+	err = mgr.Ensure()
 	c.Assert(err, check.ErrorMatches, `device with serial "serial-9" not found in cluster assertion`)
 
 	st.Lock()
@@ -549,8 +788,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 func (s *managerSuite) TestApplyClusterStateNoClusterData(c *check.C) {
 	st, _ := newStateWithStoreStack(c)
 
-	path := filepath.Join(c.MkDir(), "missing.assert")
-	mgr := clusterstate.Manager(st, clusterstate.NewFileClusterAssertionSource(path))
+	mgr := clusterstate.Manager(st)
 
 	c.Assert(mgr.Ensure(), check.IsNil)
 
@@ -564,6 +802,8 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
 
 	st.Lock()
+	defer st.Unlock()
+
 	snapstate.Set(st, "snap-two", &snapstate.SnapState{
 		Current:         snap.R(1),
 		TrackingChannel: "latest/stable",
@@ -573,7 +813,6 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 			},
 		},
 	})
-	st.Unlock()
 
 	bundle, cluster := makeClusterBundle(c, stack, []map[string]any{
 		{
@@ -610,12 +849,10 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 
 	subclusters := cluster.Subclusters()
 
-	st.Lock()
 	existing := st.NewChange(fmt.Sprintf("apply-cluster-subcluster-%s", subclusters[0].Name), "existing subcluster change")
 	existingTask := st.NewTask("existing", "existing task")
 	existing.AddAll(state.NewTaskSet(existingTask))
 	existing.SetStatus(state.DoStatus)
-	st.Unlock()
 
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
@@ -638,8 +875,12 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	})
 	defer restore()
 
-	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
 
+	st.Unlock()
+	defer st.Lock()
 	c.Assert(mgr.Ensure(), check.IsNil)
 
 	st.Lock()
@@ -661,6 +902,59 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 
 	c.Assert(oneChanges, check.Equals, 1)
 	c.Assert(twoChanges, check.Equals, 1)
+}
+
+func registerAccount(stack *assertstest.StoreStack, accountID string) *assertstest.SigningAccounts {
+	sa := assertstest.NewSigningAccounts(stack)
+
+	key, _ := assertstest.GenerateKey(752)
+	sa.Register(accountID, key, map[string]any{
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
+
+	return sa
+}
+
+func makeClusterBundleWithSigning(
+	c *check.C,
+	sa *assertstest.SigningAccounts,
+	accountID string,
+	clusterID string,
+	sequence int,
+	devices []map[string]any,
+	subclusters []map[string]any,
+) ([]byte, *asserts.Cluster) {
+	devs := make([]any, 0, len(devices))
+	for _, dev := range devices {
+		devs = append(devs, dev)
+	}
+
+	scs := make([]any, 0, len(subclusters))
+	for _, sc := range subclusters {
+		scs = append(scs, sc)
+	}
+
+	headers := map[string]any{
+		"type":        "cluster",
+		"cluster-id":  clusterID,
+		"sequence":    strconv.Itoa(sequence),
+		"devices":     devs,
+		"subclusters": scs,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+
+	clusterAssertion, err := sa.Signing(accountID).Sign(asserts.ClusterType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+	cluster := clusterAssertion.(*asserts.Cluster)
+
+	var buf bytes.Buffer
+	enc := asserts.NewEncoder(&buf)
+	for _, as := range []asserts.Assertion{sa.Account(accountID), sa.AccountKey(accountID), cluster} {
+		err := enc.Encode(as)
+		c.Assert(err, check.IsNil)
+	}
+
+	return buf.Bytes(), cluster
 }
 
 func makeSerialAssertion(c *check.C, stack *assertstest.StoreStack, serial string) *asserts.Serial {
@@ -685,9 +979,6 @@ func makeSerialAssertion(c *check.C, stack *assertstest.StoreStack, serial strin
 }
 
 func addSerialToState(c *check.C, st *state.State, serial *asserts.Serial) {
-	st.Lock()
-	defer st.Unlock()
-
 	err := assertstate.Add(st, serial)
 	c.Assert(err, check.IsNil)
 

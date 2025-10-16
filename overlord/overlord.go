@@ -193,8 +193,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	o.addManager(deviceMgr)
 
-	// TODO: once a real assertion source is merged/useful, this will change
-	o.addManager(clusterstate.Manager(s, clusterstate.NewNullClusterAssertionSource()))
+	o.addManager(clusterstate.Manager(s))
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))

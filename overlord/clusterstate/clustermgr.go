@@ -20,14 +20,10 @@
 package clusterstate
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"os"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
@@ -35,63 +31,14 @@ import (
 
 var applyClusterSubclusterChangeKind = swfeats.RegisterChangeKind("apply-cluster-subcluster-%s")
 
-// ErrNoClusterAssertion indicates there is no current cluster assertion
-// available.
-var ErrNoClusterAssertion = errors.New("clusterstate: no cluster assertion")
-
-// ClusterAssertionSource serves as the source of the current cluster assertion.
-type ClusterAssertionSource interface {
-	// CurrentCluster returns the serialized assertion bundle that describes the
-	// current cluster. If there is no current cluster assertion, the
-	// implementation must return [ErrNoClusterAssertion].
-	CurrentCluster() ([]byte, error)
-}
-
-type fileClusterAssertionSource struct {
-	path string
-}
-
-// NewFileClusterAssertionSource returns a [ClusterAssertionSource] backed by
-// the assertion file at the provided path.
-func NewFileClusterAssertionSource(path string) ClusterAssertionSource {
-	return &fileClusterAssertionSource{path: path}
-}
-
-func (s *fileClusterAssertionSource) CurrentCluster() ([]byte, error) {
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, ErrNoClusterAssertion
-		}
-		return nil, err
-	}
-	return data, nil
-}
-
-type nullClusterAssertionSource struct{}
-
-// NewNullClusterAssertionSource returns a [ClusterAssertionSource] that always
-// reports that no cluster assertion is available.
-//
-// TODO: remove this once it isn't needed
-func NewNullClusterAssertionSource() ClusterAssertionSource {
-	return nullClusterAssertionSource{}
-}
-
-func (nullClusterAssertionSource) CurrentCluster() ([]byte, error) {
-	return nil, ErrNoClusterAssertion
-}
-
 type ClusterManager struct {
-	state  *state.State
-	source ClusterAssertionSource
+	state *state.State
 }
 
 // Manager returns a new ClusterManager.
-func Manager(st *state.State, source ClusterAssertionSource) *ClusterManager {
+func Manager(st *state.State) *ClusterManager {
 	return &ClusterManager{
-		state:  st,
-		source: source,
+		state: st,
 	}
 }
 
@@ -107,49 +54,15 @@ func (m *ClusterManager) Ensure() error {
 		return nil
 	}
 
-	bundle, err := m.source.CurrentCluster()
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	cluster, err := CurrentCluster(m.state)
 	if err != nil {
 		if errors.Is(err, ErrNoClusterAssertion) {
 			return nil
 		}
-		return fmt.Errorf("cannot read cluster assertion bundle: %w", err)
-	}
-
-	batch := asserts.NewBatch(nil)
-	refs, err := batch.AddStream(bytes.NewReader(bundle))
-	if err != nil {
-		return fmt.Errorf("cannot decode cluster assertion bundle: %w", err)
-	}
-
-	var cref *asserts.Ref
-	for _, ref := range refs {
-		if ref.Type == asserts.ClusterType {
-			cref = ref
-			break
-		}
-	}
-
-	if cref == nil {
-		return errors.New("assertion bundle missing cluster assertion")
-	}
-
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	if err := assertstate.AddBatch(m.state, batch, nil); err != nil {
-		return fmt.Errorf("cannot add cluster assertion bundle: %w", err)
-	}
-
-	a, err := cref.Resolve(func(assertType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
-		return assertstate.DB(m.state).Find(assertType, headers)
-	})
-	if err != nil {
-		return fmt.Errorf("cannot resolve cluster assertion: %w", err)
-	}
-
-	cluster, ok := a.(*asserts.Cluster)
-	if !ok {
-		return fmt.Errorf("internal error: invalid cluster assertion in bundle")
+		return fmt.Errorf("cannot get cluster assertion: %w", err)
 	}
 
 	tasksets, err := applyClusterState(m.state, cluster)
