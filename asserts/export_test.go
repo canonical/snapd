@@ -368,3 +368,11 @@ func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
 	assertionPrereqs = f
 	return r
 }
+
+func MockDBFindMany(f func(RODatabase, *AssertionType, map[string]string) ([]Assertion, error)) (restore func()) {
+	origDBFindMany := dbFindMany
+	dbFindMany = f
+	return func() {
+		dbFindMany = origDBFindMany
+	}
+}
