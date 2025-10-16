@@ -59,7 +59,7 @@ type SetupSnapOptions struct {
 	IntegrityData
 }
 
-var ErrDmVerityDataMissing = errors.New("dm-verity data missing for snap")
+var ErrDmVerityDataFileError = errors.New("dm-verity data access error")
 
 // SetupSnap does prepare and mount the snap for further processing.
 func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, retErr error) {
@@ -112,12 +112,10 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	if setupOpts.IntegrityRootHash != "" {
 		integrityDataPath := integrity.DmVerityHashFileName(snapFilePath, setupOpts.IntegrityRootHash)
 		_, err := os.Stat(integrityDataPath)
-		if err != nil && os.IsNotExist(err) {
-			// setup a snap with integrity data was requested but no corresponding
-			// integrity data file found
-			return snapType, nil, fmt.Errorf("%w: %w", ErrDmVerityDataMissing, err)
-
-			// ignore other Stat errors
+		if err != nil {
+			// setup a snap with integrity data was requested but there was an issue
+			// when accessing the file
+			return snapType, nil, fmt.Errorf("%w: %w", ErrDmVerityDataFileError, err)
 		}
 
 		opts.IntegrityRootHash = setupOpts.IntegrityRootHash
