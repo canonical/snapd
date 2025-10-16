@@ -34,7 +34,7 @@ execute: |
         MATCH 'Please report any issues in the snapcraft forum' < migrate.log
         # and also failing due to running applications
         MATCH "Please ensure all snap services or applications are stopped" < migrate.log
-        MATCH "snap.test-snapd-service.svc1" < migrate.log
+        MATCH "/system.slice/snap.test-snapd-service.test-snapd-service.service" < migrate.log
         MATCH "likely owned by snap: 'test-snapd-service'" < migrate.log
 
         # stop the services
@@ -44,8 +44,9 @@ execute: |
         
         not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
         MATCH "Please ensure all snap services or applications are stopped" < migrate.log
-        MATCH "snap.test-snapd-sh-core24.sh" < migrate.log
+        MATCH "/app.slice/snap.test-snapd-sh-core24.sh" < migrate.log
         MATCH "likely owned by snap: 'test-snapd-sh-core24'" < migrate.log
+        NOMATCH "test-snapd-service" < migrate.log
 
         # kill whole process group
         kill -9 $!
@@ -54,10 +55,9 @@ execute: |
         # still blocked by user services
         not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
         MATCH "Please ensure all snap services or applications are stopped" < migrate.log
-        MATCH "snap.test-snapd-sh-core24.sh" < migrate.log
+        MATCH "/app.slice/snap.test-snapd-user-service.test-snapd-user-service.service" < migrate.log
         MATCH "likely owned by snap: 'test-snapd-user-service'" < migrate.log
-        MATCH "snap.test-snapd-user-service.asdad" < migrate.log
-        # no matches for remove snap
+        # no matches for process which was blocking previously snap
         NOMATCH "test-snapd-sh-core24" < migrate.log
 
         snap stop test-snapd-user-service
