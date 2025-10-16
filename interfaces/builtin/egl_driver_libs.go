@@ -114,9 +114,6 @@ func (iface *eglDriverLibsInterface) TrackedDirectories() []string {
 }
 
 func checkEglIcdFile(slot *interfaces.ConnectedSlot, icdContent []byte) error {
-	// We will check only library_path
-	// TODO check api_version when this gets to be used by icd
-	// files for vulkan or others that use this field.
 	var icdJson struct {
 		Icd struct {
 			LibraryPath string `json:"library_path"`
@@ -144,7 +141,7 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 		return fmt.Errorf("invalid priority: %w", err)
 	}
 
-	icdPaths, err := icdSourceDirsCheck(slot,
+	icdPaths, err := sourceDirsCheck(slot,
 		sourceDirAttr{attrName: "icd-source", isOptional: false}, checkEglIcdFile)
 	if err != nil {
 		return fmt.Errorf("invalid icd-source: %w", err)

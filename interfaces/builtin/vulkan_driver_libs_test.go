@@ -395,9 +395,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBadApiVersion(c *C) {
 		errMsg     string
 	}{
 		{"foo", "api_version is not a version: foo"},
-		{"1.-1", "while parsing minor: api_version 1.-1"},
-		{"1x.1", "while parsing major: api_version 1x.1"},
-		{"1.1x", "while parsing minor: api_version 1.1x"},
+		{"1.-1", "invalid minor: api_version 1.-1"},
+		{"1x.1", "invalid major: api_version 1x.1"},
+		{"1.1x", "invalid minor: api_version 1.1x"},
 		{"0.1", `api_version 0.1 is not compatible with the interface compatibility label vulkan-1-\(2..5\)-ubuntu-2404`},
 	} {
 		c.Logf("tc %d: %+v", i, tc)

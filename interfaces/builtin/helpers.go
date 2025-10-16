@@ -116,22 +116,22 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
 }
 
-// icdSourceDirsCheck returns a list of file paths found in the directories
+// sourceDirsCheck returns a list of file paths found in the directories
 // specified by sda, after checking that the library_path in these files
 // matches a file found in the directories specified by library-source.
-func icdSourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, checker func(slot *interfaces.ConnectedSlot, icdContent []byte) error) (checked []string, err error) {
-	var icdDir []string
-	if err := slot.Attr(sda.attrName, &icdDir); err != nil {
+func sourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, checker func(slot *interfaces.ConnectedSlot, content []byte) error) (checked []string, err error) {
+	var sourceDir []string
+	if err := slot.Attr(sda.attrName, &sourceDir); err != nil {
 		if sda.isOptional && errors.Is(err, snap.AttributeNotFoundError{}) {
 			return checked, nil
 		}
 		return nil, err
 	}
 
-	for _, icdDir := range icdDir {
-		icdDir = filepath.Join(dirs.GlobalRootDir,
-			slot.AppSet().Info().ExpandSnapVariables(icdDir))
-		paths, err := icdSourceDirFilesCheck(slot, icdDir, checker)
+	for _, dir := range sourceDir {
+		dir = filepath.Join(dirs.GlobalRootDir,
+			slot.AppSet().Info().ExpandSnapVariables(dir))
+		paths, err := sourceDirFilesCheck(slot, dir, checker)
 		if err != nil {
 			return nil, err
 		}
@@ -140,9 +140,9 @@ func icdSourceDirsCheck(slot *interfaces.ConnectedSlot, sda sourceDirAttr, check
 	return checked, nil
 }
 
-// icdSourceDirFilesCheck does the checks of all icd files in a single directory.
-func icdSourceDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string, checker func(slot *interfaces.ConnectedSlot, icdContent []byte) error) (checked []string, err error) {
-	icdFiles, err := os.ReadDir(icdDir)
+// sourceDirFilesCheck does the checks of all source files in a single directory.
+func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, checker func(slot *interfaces.ConnectedSlot, content []byte) error) (checked []string, err error) {
+	sourceFiles, err := os.ReadDir(sourceDir)
 	if err != nil {
 		// We do not care if the directory does not exist
 		if errors.Is(err, fs.ErrNotExist) {
@@ -152,7 +152,7 @@ func icdSourceDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string, check
 		}
 	}
 
-	for _, entry := range icdFiles {
+	for _, entry := range sourceFiles {
 		// Only regular files are considered - note that even symlinks
 		// are ignored as we eventually will want to use apparmor to
 		// allow access to these paths.
@@ -164,16 +164,16 @@ func icdSourceDirFilesCheck(slot *interfaces.ConnectedSlot, icdDir string, check
 			continue
 		}
 
-		icdContent, err := os.ReadFile(filepath.Join(icdDir, entry.Name()))
+		content, err := os.ReadFile(filepath.Join(sourceDir, entry.Name()))
 		if err != nil {
 			return nil, err
 		}
-		if err := checker(slot, icdContent); err != nil {
+		if err := checker(slot, content); err != nil {
 			return nil, fmt.Errorf("%s: %w", entry.Name(), err)
 		}
 
 		// Good enough
-		checked = append(checked, filepath.Join(icdDir, entry.Name()))
+		checked = append(checked, filepath.Join(sourceDir, entry.Name()))
 	}
 
 	return checked, nil
