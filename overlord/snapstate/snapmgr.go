@@ -1554,25 +1554,27 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			mountOptions.Fstype = fsType
 			mountOptions.MountUnitType = mountUnitType
 
-			snapID := snapSt.Sequence.Revisions[0].Snap.SnapID
-			rev, err := assertsSnapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapSt.Current.N)
-			if err != nil {
-				return err
-			}
+			if !snapSt.Current.Local() {
+				snapID := snapSt.Sequence.Revisions[0].Snap.SnapID
+				rev, err := assertsSnapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapSt.Current.N)
+				if err != nil {
+					return err
+				}
 
-			idp, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+				idp, err := integrity.NewIntegrityDataParamsFromRevision(rev)
 
-			// Currently integrity data are not enforced therefore errors returned when integrity data
-			// are not found for a snap revision are ignored.
-			if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
-				return err
-			}
+				// Currently integrity data are not enforced therefore errors returned when integrity data
+				// are not found for a snap revision are ignored.
+				if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
+					return err
+				}
 
-			if idp != nil {
-				hashDevicePath := dirs.StripRootDir(integrity.DmVerityHashFileName(info.MountFile(), idp.Digest))
+				if idp != nil {
+					hashDevicePath := dirs.StripRootDir(integrity.DmVerityHashFileName(info.MountFile(), idp.Digest))
 
-				options = append(options, fmt.Sprintf("verity.roothash=%s", idp.Digest))
-				options = append(options, fmt.Sprintf("verity.hashdevice=%s", hashDevicePath))
+					options = append(options, fmt.Sprintf("verity.roothash=%s", idp.Digest))
+					options = append(options, fmt.Sprintf("verity.hashdevice=%s", hashDevicePath))
+				}
 			}
 
 			mountOptions.Options = options
