@@ -31,18 +31,17 @@ import (
 )
 
 var (
-	installWithGoal   = snapstate.InstallWithGoal
-	removeMany        = snapstate.RemoveMany
-	updateWithGoal    = snapstate.UpdateWithGoal
-	storeUpdateGoal   = snapstate.StoreUpdateGoal
-	storeInstallGoal  = snapstate.StoreInstallGoal
-	devicestateSerial = devicestate.Serial
+	installWithGoal  = snapstate.InstallWithGoal
+	removeMany       = snapstate.RemoveMany
+	updateWithGoal   = snapstate.UpdateWithGoal
+	storeUpdateGoal  = snapstate.StoreUpdateGoal
+	storeInstallGoal = snapstate.StoreInstallGoal
 )
 
 // applyClusterState creates the tasks needed to apply the state described by
 // the cluster assertion on this device.
 func applyClusterState(st *state.State, cluster *asserts.Cluster) (map[string]*state.TaskSet, error) {
-	serial, err := devicestateSerial(st)
+	serial, err := devicestate.Serial(st)
 	if err != nil {
 		return nil, err
 	}

@@ -32,8 +32,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/clusterstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
@@ -106,11 +108,8 @@ func (s *managerSuite) TestEnsureIdempotent(c *check.C) {
 		},
 	})
 
-	serial := makeSerialAssertion(c, "serial-1")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
 
 	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
 
@@ -168,13 +167,10 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 		"snaps":   []any{},
 	}})
 
-	serial := makeSerialAssertion(c, "serial-1")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
 
-	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		c.Fatal("unexpected install")
 		return nil, nil, errors.New("unexpected")
 	})
@@ -234,13 +230,10 @@ func (s *managerSuite) TestApplyClusterStateDeviceNotInAnySubcluster(c *check.C)
 		},
 	}})
 
-	serial := makeSerialAssertion(c, "serial-1")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
 
-	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		c.Fatal("unexpected install")
 		return nil, nil, errors.New("unexpected")
 	})
@@ -344,17 +337,14 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 		},
 	}})
 
-	serial := makeSerialAssertion(c, "serial-1")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
 
 	var updates []snapstate.StoreUpdate
 	var installs []snapstate.StoreSnap
 	var removals []string
 
-	restore = clusterstate.MockStoreUpdateGoal(func(upds ...snapstate.StoreUpdate) snapstate.UpdateGoal {
+	restore := clusterstate.MockStoreUpdateGoal(func(upds ...snapstate.StoreUpdate) snapstate.UpdateGoal {
 		updates = append(updates, upds...)
 		return snapstate.StoreUpdateGoal(upds...)
 	})
@@ -473,13 +463,10 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 		},
 	})
 
-	serial := makeSerialAssertion(c, "serial-1")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
 
-	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		task := st.NewTask("install", "install snap one")
 		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
 	})
@@ -546,11 +533,8 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 		},
 	}, []map[string]any{})
 
-	serial := makeSerialAssertion(c, "serial-9")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-9")
+	addSerialToState(c, st, serial)
 
 	mgr := clusterstate.Manager(st, fileClusterAssertionSource(c, bundle))
 
@@ -633,13 +617,10 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	existing.SetStatus(state.DoStatus)
 	st.Unlock()
 
-	serial := makeSerialAssertion(c, "serial-1")
-	restore := clusterstate.MockDevicestateSerial(func(*state.State) (*asserts.Serial, error) {
-		return serial, nil
-	})
-	defer restore()
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
 
-	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		task := st.NewTask("one-task", "apply subcluster one")
 		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
 	})
@@ -682,10 +663,7 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	c.Assert(twoChanges, check.Equals, 1)
 }
 
-func makeSerialAssertion(c *check.C, serial string) *asserts.Serial {
-	pk, _ := assertstest.GenerateKey(752)
-	signing := assertstest.NewSigningDB("canonical", pk)
-
+func makeSerialAssertion(c *check.C, stack *assertstest.StoreStack, serial string) *asserts.Serial {
 	deviceKey, _ := assertstest.GenerateKey(752)
 	encodedKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
 	c.Assert(err, check.IsNil)
@@ -700,10 +678,25 @@ func makeSerialAssertion(c *check.C, serial string) *asserts.Serial {
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}
 
-	a, err := signing.Sign(asserts.SerialType, headers, nil, "")
+	a, err := stack.Sign(asserts.SerialType, headers, nil, "")
 	c.Assert(err, check.IsNil)
 
 	return a.(*asserts.Serial)
+}
+
+func addSerialToState(c *check.C, st *state.State, serial *asserts.Serial) {
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, serial)
+	c.Assert(err, check.IsNil)
+
+	err = devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  serial.BrandID(),
+		Model:  serial.Model(),
+		Serial: serial.Serial(),
+	})
+	c.Assert(err, check.IsNil)
 }
 
 func makeClusterBundle(c *check.C, stack *assertstest.StoreStack, devices []map[string]any, subclusters []map[string]any) ([]byte, *asserts.Cluster) {
