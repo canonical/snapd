@@ -6,12 +6,12 @@ systems: [ubuntu-24.04-64]
 
 environment:
   NVIDIA_TEST_SNAP: test-nvidia-interfaces
-  NVIDIA_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/test-nvidia-interfaces_1.0_amd64.snap
+  NVIDIA_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/test-nvidia-interfaces_1.1_amd64.snap
 
 prepare: |
   # TODO: install snap from the store once it is uploaded
   wget -q "$NVIDIA_SNAP_URL"
-  snap install --dangerous test-nvidia-interfaces_1.0_amd64.snap
+  snap install --dangerous test-nvidia-interfaces_1.1_amd64.snap
   snap pack test-nvidia-libs
 
 restore: |
@@ -20,16 +20,25 @@ restore: |
 
 execute: |
   SNAP_LDCONF_P=/etc/ld.so.conf.d/snap.system.conf
-  for iface in cuda egl gbm opengl opengles; do
+  for iface in cuda egl gbm opengl opengles vulkan; do
       snap connect system:"$iface"-driver-libs "$NVIDIA_TEST_SNAP":"$iface"-dl
       MATCH "$iface" < "$SNAP_LDCONF_P"
   done
 
   EGL_VENDOR_P=/etc/glvnd/egl_vendor.d/10_snap_"$NVIDIA_TEST_SNAP"_egl-dl_usr-share-glvnd-egl_vendor.d-nvidia.json
   MATCH libEGL_nvidia.so.0 < "$EGL_VENDOR_P"
+
   ARCH_TRIPLET=$(gcc -dumpmachine)
   GBM_LIB_P=$(realpath /usr/lib/"$ARCH_TRIPLET"/gbm/nvidia-drm_gbm.so)
   [[ "$GBM_LIB_P" = /snap/"$NVIDIA_TEST_SNAP"/x1/usr/lib/"$ARCH_TRIPLET"/libnvidia-allocator.* ]]
+
+  VULKAN_SNAP_P=/snap/"$NVIDIA_TEST_SNAP"/x1/usr/share/vulkan
+  VULKAN_ICD_P=/etc/vulkan/icd.d/snap_"$NVIDIA_TEST_SNAP"_vulkan-dl_usr-share-vulkan-icd.d-nvidia_icd.json
+  VULKAN_IMPLICIT_P=/etc/vulkan/implicit_layer.d/snap_"$NVIDIA_TEST_SNAP"_vulkan-dl_usr-share-vulkan-implicit_layer.d-nvidia_layers.json
+  MATCH libGLX_nvidia.so.0 < "$VULKAN_ICD_P"
+  MATCH VK_LAYER_NV_optimus < "$VULKAN_IMPLICIT_P"
+  test "$(realpath "$VULKAN_ICD_P")" = "$VULKAN_SNAP_P"/icd.d/nvidia_icd.json
+  test "$(realpath "$VULKAN_IMPLICIT_P")" = "$VULKAN_SNAP_P"/implicit_layer.d/nvidia_layers.json
 
   # Check libraries are accessible
   snap_lib_dir=/snap/test-nvidia-interfaces/x1/usr/lib

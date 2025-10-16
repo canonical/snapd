@@ -156,11 +156,11 @@ func checkVulkanApiVersion(slot *interfaces.ConnectedSlot, apiVersion string) er
 	if len(version) < 2 {
 		return fmt.Errorf("api_version is not a version: %s", apiVersion)
 	}
-	major, err := strconv.Atoi(version[0])
+	major, err := strconv.ParseUint(version[0], 10, 64)
 	if err != nil {
 		return fmt.Errorf("while parsing major: api_version %s", apiVersion)
 	}
-	minor, err := strconv.Atoi(version[1])
+	minor, err := strconv.ParseUint(version[1], 10, 64)
 	if err != nil {
 		return fmt.Errorf("while parsing minor: api_version %s", apiVersion)
 	}
