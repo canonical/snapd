@@ -33,7 +33,7 @@ prepare: |
   snap install "$TEST_SNAP" --channel=latest/edge
 
   tests.pkgs install socat
-  systemd-run --unit socat-for-test.service --collect -- socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork - &
+  systemd-run --unit socat-for-test.service --collect -- socat abstract-listen:ISCSIADM_ABSTRACT_NAMESPACE,fork -
   tests.cleanup defer systemctl stop socat-for-test.service
 
 execute: |
