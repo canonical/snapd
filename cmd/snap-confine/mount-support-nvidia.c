@@ -502,17 +502,17 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 }
 
 static int sc_mount_exported_paths(const char *rootfs_dir) {
-    // We are interested only in exports from GPU related interfaces, so we
-    // check the interface name in the files.
+    // We are interested only in exports from GPU related interfaces to the
+    // system, so we check the interface name in the files.
     // TODO we need to think what would happen if at some point these
     // interfaces are used by some GPU that is not Nvidia.
     static const char *export_globs[] = {
-        SC_SNAPD_EXPORT "/*_egl-driver-libs.library-source",
-        SC_SNAPD_EXPORT "/*_gbm-driver-libs.library-source",
-        SC_SNAPD_EXPORT "/*_cuda-driver-libs.library-source",
-        SC_SNAPD_EXPORT "/*_opengl-driver-libs.library-source",
-        SC_SNAPD_EXPORT "/*_opengles-driver-libs.library-source",
-        SC_SNAPD_EXPORT "/*_vulkan-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_egl-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_gbm-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_cuda-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_opengl-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_opengles-driver-libs.library-source",
+        SC_SNAPD_EXPORT "/system_*_vulkan-driver-libs.library-source",
     };
     size_t export_globs_len = SC_ARRAY_SIZE(export_globs);
     glob_t glob_res SC_CLEANUP(globfree) = {.gl_pathv = NULL};

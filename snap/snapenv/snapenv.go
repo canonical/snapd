@@ -150,7 +150,7 @@ func buildLibPath() string {
 	for _, iface := range []string{"egl-driver-libs", "gbm-driver-libs", "cuda-driver-libs",
 		"opengl-driver-libs", "opengles-driver-libs", "vulkan-driver-libs"} {
 		sourcesGlob := filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir),
-			"*_"+iface+".library-source")
+			"system_*_"+iface+".library-source")
 		// Only possible error is a malformed pattern
 		ifaceFiles, _ := filepath.Glob(sourcesGlob)
 		sourceFiles = append(sourceFiles, ifaceFiles...)

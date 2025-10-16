@@ -80,7 +80,7 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 // dir, for different instances and slots.
 func librarySourcePath(instance, slotName, ifaceName string) string {
 	return filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
-		"%s_%s_%s.library-source", instance, slotName, ifaceName))
+		"system_%s_%s_%s.library-source", instance, slotName, ifaceName))
 }
 
 // addConfigfilesForLibrarySourcePaths adds a file containing a list with the library
