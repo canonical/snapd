@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -112,6 +113,31 @@ func (iface *eglDriverLibsInterface) TrackedDirectories() []string {
 	return []string{eglVendorPath}
 }
 
+func checkEglIcdFile(slot *interfaces.ConnectedSlot, icdContent []byte) error {
+	// We will check only library_path
+	// TODO check api_version when this gets to be used by icd
+	// files for vulkan or others that use this field.
+	var icdJson struct {
+		Icd struct {
+			LibraryPath string `json:"library_path"`
+		} `json:"ICD"`
+	}
+	err := json.Unmarshal(icdContent, &icdJson)
+	if err != nil {
+		return fmt.Errorf("while unmarshalling: %w", err)
+	}
+	if icdJson.Icd.LibraryPath == "" {
+		return fmt.Errorf("no library_path value found")
+	}
+	// Here we are implicitly limiting library_path to be a file
+	// name instead of a full path.
+	_, err = filePathInLibDirs(slot, icdJson.Icd.LibraryPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var priority int64
 	if err := slot.Attr("priority", &priority); err != nil {
@@ -119,7 +145,7 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 	}
 
 	icdPaths, err := icdSourceDirsCheck(slot,
-		sourceDirAttr{attrName: "icd-source", isOptional: false})
+		sourceDirAttr{attrName: "icd-source", isOptional: false}, checkEglIcdFile)
 	if err != nil {
 		return fmt.Errorf("invalid icd-source: %w", err)
 	}

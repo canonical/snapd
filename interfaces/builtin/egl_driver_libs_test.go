@@ -321,7 +321,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 	// Now check symlinks to be created
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`invalid icd-source: "libEGL_nvidia.so.0" not found in the library-source directories`)
+		`invalid icd-source: nvidia.json: "libEGL_nvidia.so.0" not found in the library-source directories`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
@@ -334,7 +334,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 	// Now check symlinks to be created
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`invalid icd-source: while unmarshalling nvidia.json: invalid character 'l' looking for beginning of value`)
+		`invalid icd-source: nvidia.json: while unmarshalling: invalid character 'l' looking for beginning of value`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
