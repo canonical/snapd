@@ -1,0 +1,310 @@
+summary: Run a snap as an LDAP user
+
+details: |
+    Test that a user defined in LDAP can run a snap without errors or warnings.
+    The system setup is mostly taken from the sssd tests found at 
+    https://git.launchpad.net/ubuntu/+source/sssd/tree/debian/tests
+
+systems: 
+    - ubuntu-2*
+    - ubuntu-18.04-64
+
+environment:
+    domain_name: example.com
+    host_name: server.${domain_name}
+    ldap_suffix: dc=example,dc=com
+    admin_dn: cn=admin,${ldap_suffix}
+    admin_pw: secret
+    nss_user: nsstestuser1
+    nss_user_pw: testuser1secret
+    ldap_group: ldapusers
+    realm_name: EXAMPLE.COM
+    kerberos_principal_pw: testuser1kerberos
+    MODULE/ldap: ldap
+    MODULE/sss: sss
+    MODULE/nis: nis
+    MODULE/winbind: winbind
+
+prepare: |
+    if [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is_arm && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }; then
+        tests.exec skip-test "The openstack ARM environment is not KVM-enabled and cannot run LXD VMs" && exit 0
+    fi
+    backup_if_exists() {
+        local item=$1
+        if [ -f "$item" ]; then
+            if [ -f "$item.bak" ]; then
+                echo "file $item.back already exists"
+                exit 1
+            fi
+            cp "$item" "$item.bak"
+            tests.cleanup defer mv "$item.bak" "$item"
+        elif [ -d "$item" ]; then
+            tests.backup prepare "$item"
+            tests.cleanup defer tests.backup restore "$item"
+        fi
+    }
+
+    backup_if_exists /etc/hostname
+    backup_if_exists /etc/hosts
+    backup_if_exists /etc/defaultdomain
+    backup_if_exists /var/lib/ldap
+
+    backup_if_exists /etc/nsswitch.conf
+    backup_if_exists /etc/nslcd.conf
+    backup_if_exists /etc/pam.d
+    backup_if_exists /var/lib/sss
+    backup_if_exists /etc/sssd/sssd.conf
+
+    backup_if_exists /etc/krb5.conf
+    backup_if_exists /etc/krb5kdc
+    backup_if_exists /var/lib/krb5kdc
+
+    backup_if_exists /etc/samba/smb.conf
+    backup_if_exists /etc/yp.conf
+
+    packages=
+    case ${MODULE} in
+        ldap)
+            packages="slapd libnss-ldapd debconf-utils"
+            ;;
+        sss)
+            packages="slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc"
+            ;;
+        nis)
+            packages="nis rpcbind"
+            ;;
+        winbind)
+            packages="winbind libnss-winbind libpam-winbind realmd adcli samba-common-bin"
+            ;;
+    esac
+
+    # shellcheck disable=SC2086
+    tests.pkgs install $packages
+
+    if [ "$MODULE" = "ldap" ] || [ "$MODULE" = "sss" ]; then
+        if ! [ -f /etc/hostname ]; then
+            tests.cleanup defer rm /etc/hostname
+        fi
+        hostname > /tmp/hostname.orig
+        tests.cleanup defer hostname "\"$(cat /tmp/hostname.orig)\""
+
+        echo "${host_name}" > /etc/hostname
+        hostname "${host_name}"
+        echo "127.0.1.10 ${host_name}" >> /etc/hosts
+
+        # backup debconf
+        debconf-get-selections > debconf_selections.bak
+        tests.cleanup defer 'debconf-set-selections < debconf_selections.bak'
+
+        # configure slapd with ldap values
+        debconf-set-selections << EOF
+    slapd	slapd/domain	string	${domain_name}
+    slapd	shared/organization	string	${domain_name}
+    slapd	slapd/password1	password	${admin_pw}
+    slapd	slapd/password2	password	${admin_pw}
+    EOF
+        dpkg-reconfigure -fnoninteractive -pcritical slapd
+
+        # generate certificates
+        envsubst < openssl.cnf > /etc/ldap/openssl.cnf
+        cert="/etc/ldap/server.pem"
+        key="/etc/ldap/server.key"
+        openssl req -new -x509 -nodes -out "$cert" -keyout "$key" -config /etc/ldap/openssl.cnf
+        chmod 0640 "$key"
+        chgrp openldap "$key"
+        [ ! -f "$cert" ] && echo "ERROR, failed to generate certificate for ldap test" && exit 1
+        [ ! -f "$key" ] && echo "ERROR, failed to generate key for ldap test" && exit 1
+
+        # configure ldap to use the generated certificates
+        cat > /etc/ldap/ldap.conf <<EOF
+    BASE ${ldap_suffix}
+    URI ldap://${host_name}
+    TLS_CACERT /etc/ldap/server.pem
+    EOF
+
+        cat <<EOF | ldapmodify -H ldapi:/// -Y EXTERNAL -Q 
+    dn: cn=config
+    add: olcTLSCACertificateFile
+    olcTLSCACertificateFile: /etc/ldap/server.pem
+    -
+    add: olcTLSCertificateFile
+    olcTLSCertificateFile: /etc/ldap/server.pem
+    -
+    add: olcTLSCertificateKeyFile
+    olcTLSCertificateKeyFile: /etc/ldap/server.key
+    EOF
+
+        # populate ldap 
+        envsubst < data.ldif | ldapadd -x -D "${admin_dn}" -w "${admin_pw}"
+
+        if [ "$MODULE" = "ldap" ]; then
+            sed -i "s/^uri.*ldap.*/uri ldap\:\/\/${host_name}/" /etc/nslcd.conf
+            sed -i "s/^base.*/base ${ldap_suffix}/" /etc/nslcd.conf
+            sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
+            sed -i "s/^group\:.*/& ldap/" /etc/nsswitch.conf
+            sed -i "s/^shadow\:.*/& ldap/" /etc/nsswitch.conf
+            systemctl restart nslcd nscd
+
+        elif [ "$MODULE" = "sss" ]; then
+            # setup some defaults
+            envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
+            envsubst < krb5.conf > /etc/krb5.conf
+            touch /etc/krb5kdc/kadm5.acl
+
+            # create the realm
+            kdb5_util create -s -P secretpassword
+
+            # restart services
+            systemctl restart krb5-kdc.service krb5-admin-server.service
+
+            # create the kerberos prinicpal
+            kadmin.local -q "addprinc -pw ${kerberos_principal_pw} ${nss_user}"
+            
+            # configure sssd to use ldap/kerberos
+            envsubst < sssd.conf > /etc/sssd/sssd.conf
+            chmod 0600 /etc/sssd/sssd.conf
+            chown root:root /etc/sssd/sssd.conf
+            systemctl restart sssd || {
+                systemctl status --lines 100 sssd
+                false
+            }
+        fi
+
+    elif [ "$MODULE" = "nis" ]; then
+        "$TESTSTOOLS"/lxd-state prepare-snap
+        "$TESTSTOOLS"/lxd-state launch --name server --remote ubuntu --image 24.04 --params '--vm'
+        lxc exec server -- apt update
+        lxc exec server -- useradd --uid 12346 --create-home ${nss_user}
+        lxc exec server -- apt install -y rpcbind nis
+        lxc exec server -- sh -c "echo \"$domain_name\" > /etc/defaultdomain"
+        lxc exec server -- domainname "$domain_name"
+        lxc exec server -- systemctl restart rpcbind.service
+        lxc exec server -- systemctl enable ypserv.service
+        lxc exec server -- systemctl restart ypserv.service
+
+        lxc file push ypinit.sh server/root/ypinit.sh
+        lxc exec server -- /root/ypinit.sh
+        lxc exec server -- systemctl restart ypserv
+        lxc exec server -- make -C /var/yp
+        lxc exec server -- sh -c "echo \"domain ${domain_name} server localhost\" >> /etc/yp.conf"
+        lxc exec server -- systemctl enable ypbind || true
+        lxc exec server -- systemctl start ypbind
+        
+        if ! [ -f /etc/defaultdomain ]; then
+            tests.cleanup defer rm /etc/defaultdomain
+        fi
+        domainname > /tmp/domainname.orig
+        tests.cleanup defer domainname "\"$(cat /tmp/domainname.orig)\""
+
+        echo "${domain_name}" > /etc/defaultdomain
+        domainname "${domain_name}"
+        echo "domain $domain_name" >> /etc/yp.conf
+        echo "ypserver $(lxc ls server -c 4 -f csv | awk '{print $1}')" >> /etc/yp.conf
+        if os.query is_ubuntu_ge 25.10; then
+            # the apparmor profile for hostname (which covers also execution of domainname)
+            # doesn't grant read permissions to /etc/defaultdomain, which is used in the
+            # ExecStartPre section of the ypbind service. Since the domain name is already set,
+            # comment out that line. Once https://gitlab.com/apparmor/apparmor/-/merge_requests/1814
+            # is deployed, this can be removed.
+            mkdir -p /usr/lib/systemd/system/ypbind.service.d
+            printf "[Service]\nExecStartPre=\n" > /usr/lib/systemd/system/ypbind.service.d/override.conf
+            systemctl daemon-reload
+        fi
+        systemctl enable ypbind || true
+        systemctl restart ypbind
+
+        # Update NSS to use nis
+        sed -i "s/^passwd\:.*/& nis/" /etc/nsswitch.conf
+        sed -i "s/^group\:.*/& nis/" /etc/nsswitch.conf
+        sed -i "s/^shadow\:.*/& nis/" /etc/nsswitch.conf
+
+    elif [ "$MODULE" = "winbind" ]; then
+        "$TESTSTOOLS"/lxd-state prepare-snap
+        "$TESTSTOOLS"/lxd-state launch --name server --remote ubuntu --image 24.04 --params '--vm'
+        lxc exec server -- sh -c "apt update"
+        lxc exec server -- sh -c "DEBIAN_FRONTEND=noninteractive apt install -y samba-ad-dc krb5-user bind9-dnsutils"
+
+        # Add initial kerberos configuration to permit initial setup.
+        # This will be later overwritten by what the samba-tool produces.
+        envsubst < krb5.conf > tmp; mv tmp krb5.conf
+        lxc file push krb5.conf server/etc/krb5.conf
+
+        lxc exec server -- systemctl disable --now smbd nmbd winbind
+        lxc exec server -- systemctl mask smbd nmbd winbind
+        lxc exec server -- systemctl unmask samba-ad-dc
+        lxc exec server -- systemctl enable samba-ad-dc
+        lxc exec server -- mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
+
+        lxc exec server -- samba-tool domain provision \
+                                    --domain EXAMPLE \
+                                    --realm=${realm_name} \
+                                    --adminpass=Passw0rd \
+                                    --server-role=dc \
+                                    --use-rfc2307 \
+                                    --dns-backend=SAMBA_INTERNAL
+
+        DNS="$(lxc exec server -- resolvectl | grep 'Current DNS Server' | awk -F':' '{print $2}')"
+        lxc exec server -- sed -i "s/^\(.*dns forwarder = \).*/\1${DNS}/" /etc/samba/smb.conf
+        INTERFACE=$(lxc exec server -- ls /sys/class/net/ | grep -v lo)
+        lxc exec server -- resolvectl domain "${INTERFACE}" "${domain_name}"
+        lxc exec server -- mv /var/lib/samba/private/krb5.conf /etc/
+        lxc exec server -- systemctl start samba-ad-dc
+        lxc exec server -- samba-tool user add --random-password "${nss_user}"
+
+        echo "$(lxc ls server -c 4 -f csv | awk '{print $1}') ${domain_name} ${host_name}" >> /etc/hosts
+        # Add kerberos configuration file to not have KDC contact issues
+        mv krb5.conf /etc
+
+        retry -n 10 realm discover -v "${domain_name}"
+        echo "Passw0rd" | realm join -v --membership-software=samba --client-software=winbind "${host_name}"
+        realm permit --all
+
+        # Remove domain name prefix to usernames
+        sed -i 's/.*winbind use default domain.*/winbind use default domain = yes/' /etc/samba/smb.conf
+
+        # Allow winbind to get users and groups
+        sed -i 's/.*winbind enum groups.*/winbind enum groups = yes/' /etc/samba/smb.conf
+        sed -i 's/.*winbind enum users.*/winbind enum users = yes/' /etc/samba/smb.conf
+
+        # On some systems, /etc/nsswitch.conf doesn't get modified so do so manually here
+        if ! grep -q winbind /etc/nsswitch.conf; then
+            sed -i "s/^passwd\:.*/& winbind/" /etc/nsswitch.conf
+            sed -i "s/^group\:.*/& winbind/" /etc/nsswitch.conf
+        fi
+        systemctl restart winbind
+    fi
+
+    # enable home directory creation
+    pam-auth-update --enable mkhomedir
+    tests.cleanup defer rm -rf /home/${nss_user}*
+
+    snap install test-snapd-sh
+    tests.cleanup defer snap remove --purge test-snapd-sh
+
+restore: |
+    tests.exec is-skipped && exit 0
+    tests.pkgs list-installed > installed-final.pkgs
+    comm -13 installed-initial.pkgs installed-final.pkgs > installed-in-test.pkgs
+    packages="$(tr "\n" " " < installed-in-test.pkgs)"
+    if [ -n "$packages" ]; then
+        # purge install traces of the packages so that if installed again
+        # sssd will modify the /etc/nsswitch.conf file
+        # shellcheck disable=SC2086
+        tests.pkgs remove --purge $packages
+    fi
+    snap remove --purge lxd
+
+execute: |
+    tests.exec is-skipped && exit 0
+    su -l -c "test-snapd-sh.sh -c 'echo hello'" ${nss_user} 2>stderr | MATCH 'hello'
+
+    # there should be no warnings nor errors like seen in https://bugs.launchpad.net/snapd/+bug/2083890
+    if [ -n "$(cat stderr)" ]; then
+        echo "got errors/warnings when running a snap as ${nss_user}"
+        cat stderr
+        exit 1
+    fi
+
+    # TODO: Switch from NOMATCH to MATCH when snapd is able to see users by other NSS ID providers.
+    #       Currently, we expect the ldap user to not be visible (https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1963864).
+    snap run --shell test-snapd-sh.sh -c "getent passwd" | NOMATCH "$(getent passwd "$nss_user")"

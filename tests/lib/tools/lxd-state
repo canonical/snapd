@@ -84,6 +84,8 @@ launch() {
     # shellcheck disable=SC2086
     lxc launch --quiet "${remote}:${image}" "$name" $params
 
+    # wait for the machine to become available
+    retry -n 10 --wait 5 lxc exec "$name" -- true
     # wait for cloud-init to finish before doing any apt operations
     local ret=0
     lxc exec "$name" -- sh -c "cloud-init status --wait" || ret=$?

@@ -6,28 +6,28 @@ dn: ou=Group,${ldap_suffix}
 ou: Group
 objectClass: organizationalUnit
 
-dn: uid=${ldap_user},ou=People,${ldap_suffix}
-uid: ${ldap_user}
+dn: uid=${nss_user},ou=People,${ldap_suffix}
+uid: ${nss_user}
 objectClass: inetOrgPerson
 objectClass: posixAccount
-cn: ${ldap_user}
-sn: ${ldap_user}
-givenName: ${ldap_user}
-mail: ${ldap_user}@${domain_name}
-userPassword: ${ldap_user_pw}
+cn: ${nss_user}
+sn: ${nss_user}
+givenName: ${nss_user}
+mail: ${nss_user}@${domain_name}
+userPassword: ${nss_user_pw}
 uidNumber: 10001
 gidNumber: 10001
 loginShell: /bin/bash
-homeDirectory: /home/${ldap_user}
+homeDirectory: /home/${nss_user}
 
-dn: cn=${ldap_user},ou=Group,${ldap_suffix}
-cn: ${ldap_user}
+dn: cn=${nss_user},ou=Group,${ldap_suffix}
+cn: ${nss_user}
 objectClass: posixGroup
 gidNumber: 10001
-memberUid: ${ldap_user}
+memberUid: ${nss_user}
 
 dn: cn=${ldap_group},ou=Group,${ldap_suffix}
 cn: ${ldap_group}
 objectClass: posixGroup
 gidNumber: 10100
-memberUid: ${ldap_user}
+memberUid: ${nss_user}
