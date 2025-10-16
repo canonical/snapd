@@ -564,9 +564,8 @@ int main(int argc, char **argv) {
     // allows the creation of directories inside ~/ on NFS with root_squash
     // attribute.
     setup_user_data();
-#if 0
 	setup_user_xdg_runtime_dir();
-#endif
+
     // https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
     sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
 #ifdef HAVE_SELINUX
