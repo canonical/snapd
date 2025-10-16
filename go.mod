@@ -5,8 +5,17 @@ go 1.22
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
+replace golang.org/x/crypto => golang.org/x/crypto v0.23.0
+
+replace golang.org/x/net => golang.org/x/net v0.21.0
+
+replace golang.org/x/term => golang.org/x/term v0.20.0
+
+replace golang.org/x/text => golang.org/x/text v0.15.0
+
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
+	github.com/brutella/dnssd v1.2.14
 	github.com/canonical/go-efilib v1.6.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.13.0
@@ -24,7 +33,7 @@ require (
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
 	github.com/snapcore/secboot v0.0.0-20251003110504-6eb3f89cb235
 	golang.org/x/crypto v0.23.0
-	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sys v0.21.0
 	golang.org/x/text v0.15.0
 	golang.org/x/time v0.10.0
@@ -46,8 +55,14 @@ require (
 	github.com/canonical/tcglog-parser v0.0.0-20240924110432-d15eaf652981 // indirect
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
 	github.com/kr/text v0.1.0 // indirect
+	github.com/miekg/dns v1.1.61 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
+	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
+	golang.org/x/mod v0.18.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/term v0.20.0 // indirect
+	golang.org/x/tools v0.22.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
