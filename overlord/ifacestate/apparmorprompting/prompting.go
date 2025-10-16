@@ -22,11 +22,11 @@ package apparmorprompting
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
@@ -274,7 +274,9 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
 			// There were no tags registered with a snapd interface, so we
 			// look at the path to decide whether it's "home" or "camera".
-			if strings.HasPrefix(req.Path, "/dev/video") || req.Path == "/dev/vchiq" {
+			// XXX: this is a temporary workaround until metadata tags are
+			// supported by the AppArmor parser and kernel.
+			if builtin.DetectCameraFromPath(req.Path) {
 				iface = "camera"
 			} else {
 				iface = "home"
