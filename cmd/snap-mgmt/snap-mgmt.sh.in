@@ -26,6 +26,7 @@ optional arguments:
 EOF
 }
 
+# TODO make purge aware of both mount directories
 SNAP_UNIT_PREFIX="$(systemd-escape -p ${STATIC_SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
@@ -247,7 +248,13 @@ ensure_snap_apps_stopped() {
     if [ -n "$apps_or_services" ]; then
         echo "Found active snap services or applications in the following cgroups:"
         for n in $apps_or_services; do
-            echo "- $n: PIDs: $(cat "$n/cgroup.procs" | paste -s -d' ')"
+            # transform snap.foo.bar.service into foo
+            sn="$(basename "$n")"
+            sn="${sn#snap.}"
+            sn="${sn%%.*}"
+            echo "- $n"
+            echo "  likely owned by snap: '$sn'"
+            echo "  PIDs: $(cat "$n/cgroup.procs" | paste -s -d' ')"
         done
         return 1
     fi
@@ -273,6 +280,14 @@ discard_mount_namespaces() {
 }
 
 _mount_dir_migrate() {
+    echo "#############################################"
+    echo "####### sanp mount directory migration ######"
+    echo "#############################################"
+    echo
+    echo "Please report any issues in the snapcraft forum at: htps://forum.snapcraft.io/"
+    echo
+
+
     mount_from="$1"
     mount_from_nopref="${mount_from#/}"
     mount_to="$2"
