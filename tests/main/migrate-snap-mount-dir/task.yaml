@@ -29,16 +29,23 @@ execute: |
         test-snapd-sh-core24.sh -c true
         systemctl is-active snap.test-snapd-service.test-snapd-service.service
         not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
-        
+
+        # we're showing the prompt
+        MATCH 'Please report any issues in the snapcraft forum' < migrate.log
+        # and also failing due to running applications
         MATCH "Please ensure all snap services or applications are stopped" < migrate.log
-        
+        MATCH "snap.test-snapd-service.svc1" < migrate.log
+        MATCH "likely owned by snap: 'test-snapd-service'" < migrate.log
+
         # stop the services
         snap stop test-snapd-service
         # but start the application
         test-snapd-sh-core24.sh -c 'exec sleep infinity' &
         
         not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
-        MATCH "test-snapd-sh-core24.sh" < migrate.log
+        MATCH "Please ensure all snap services or applications are stopped" < migrate.log
+        MATCH "snap.test-snapd-sh-core24.sh" < migrate.log
+        MATCH "likely owned by snap: 'test-snapd-sh-core24'" < migrate.log
 
         # kill whole process group
         kill -9 $!
@@ -46,7 +53,11 @@ execute: |
 
         # still blocked by user services
         not snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
-        MATCH "test-snapd-user-service" < migrate.log
+        MATCH "Please ensure all snap services or applications are stopped" < migrate.log
+        MATCH "snap.test-snapd-sh-core24.sh" < migrate.log
+        MATCH "likely owned by snap: 'test-snapd-user-service'" < migrate.log
+        MATCH "snap.test-snapd-user-service.asdad" < migrate.log
+        # no matches for remove snap
         NOMATCH "test-snapd-sh-core24" < migrate.log
 
         snap stop test-snapd-user-service
