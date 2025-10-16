@@ -31,7 +31,8 @@ prepare: |
   mock /etc/nvme/hostid
   mock /etc/nvme/hostnqn
 
-  # Create mock NVMe device files
+  # Create mock NVMe files
+  # These are not actual devices nodes
   mock /dev/nvme0
   mock /dev/nvme0n1
   mock /dev/nvme-fabrics
