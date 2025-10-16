@@ -1241,8 +1241,8 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return updatePlan{}, err
 	}
 
-	// validate snaps to be refreshed against validation sets. if we are
-	// refreshing all snaps, then we filter out the snaps that cannot be
+	// validate snaps to be refreshed against refresh control assertions. If we
+	// are refreshing all snaps, then we filter out the snaps that cannot be
 	// validated and log them
 	if err := plan.validateAndFilterTargets(st, opts); err != nil {
 		return updatePlan{}, err
