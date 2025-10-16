@@ -84,6 +84,19 @@ type ScopeOptions struct {
 	Users []string `json:"users,omitempty"`
 }
 
+type ServiceOperationReason string
+
+const (
+	// ServiceOperationReasonManual indicates that the service operation is
+	// being performed as part of a manual operation (i.e user-requested).
+	ServiceOperationReasonManual ServiceOperationReason = "manual"
+	// Add additional reasons here as needed (e.g snap install, etc)
+)
+
+func (so ServiceOperationReason) isManualRequest() bool {
+	return so == ServiceOperationReasonManual
+}
+
 type userServiceClient struct {
 	cli   *client.Client
 	inter Interacter
@@ -108,7 +121,7 @@ func newUserServiceClientNames(users []string, inter Interacter) (*userServiceCl
 	return newUserServiceClientUids(keys, inter)
 }
 
-func (c *userServiceClient) stopServices(disable bool, services ...string) error {
+func (c *userServiceClient) stopServices(disable bool, reason ServiceOperationReason, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
@@ -116,13 +129,19 @@ func (c *userServiceClient) stopServices(disable bool, services ...string) error
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not stop service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
+
+	// when the request is not manual, we want to ignore errors, and
+	// just log them as we do above
+	if err != nil && !reason.isManualRequest() {
+		err = nil
+	}
 	return err
 }
 
 // startServices attempts to start the provided list of services on each available
 // system user. 'disabledServices' can be used to filter services that should be ignored on a per-user basis.
 // It will return an error if any of the services fail to start.
-func (c *userServiceClient) startServices(enable bool, disabledServices map[int][]string, services ...string) error {
+func (c *userServiceClient) startServices(enable bool, reason ServiceOperationReason, disabledServices map[int][]string, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
@@ -141,20 +160,32 @@ func (c *userServiceClient) startServices(enable bool, disabledServices map[int]
 	for _, f := range stopFailures {
 		c.inter.Notify(fmt.Sprintf("while trying to stop previously started service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
+
+	// when the request is not manual, we want to ignore errors, and
+	// just log them as we do above
+	if err != nil && !reason.isManualRequest() {
+		err = nil
+	}
 	return err
 }
 
-func (c *userServiceClient) restartServices(reload bool, services ...string) error {
+func (c *userServiceClient) restartServices(reload bool, reason ServiceOperationReason, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	failures, err := c.cli.ServicesRestart(ctx, services, reload)
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not restart service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
+
+	// when the request is not manual, we want to ignore errors, and
+	// just log them as we do above
+	if err != nil && !reason.isManualRequest() {
+		err = nil
+	}
 	return err
 }
 
-func reloadOrRestartServices(sysd systemd.Systemd, cli *userServiceClient, reload bool, scope snap.DaemonScope, svcs []string) error {
+func reloadOrRestartServices(sysd systemd.Systemd, cli *userServiceClient, reload bool, reason ServiceOperationReason, scope snap.DaemonScope, svcs []string) error {
 	switch scope {
 	case snap.SystemDaemon:
 		if reload {
@@ -167,7 +198,7 @@ func reloadOrRestartServices(sysd systemd.Systemd, cli *userServiceClient, reloa
 			}
 		}
 	case snap.UserDaemon:
-		if err := cli.restartServices(reload, svcs...); err != nil {
+		if err := cli.restartServices(reload, reason, svcs...); err != nil {
 			return err
 		}
 	default:
@@ -243,6 +274,9 @@ func filterUserServicesNotInDisabledMap(disabledSvcs *DisabledServices, original
 type StartServicesOptions struct {
 	Enable bool
 	ScopeOptions
+	// Reason is the reason for the operation, helpful in how we handle some
+	// operating errors.
+	Reason ServiceOperationReason
 }
 
 // StartServices starts service units for the applications from the snap which
@@ -378,7 +412,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 		// Undo logic is handled by user session agent, we only handle undo logic for system services
 		// in this function
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
-			err = cli.startServices(opts.Enable, disabledUserSvcs, userServices...)
+			err = cli.startServices(opts.Enable, opts.Reason, disabledUserSvcs, userServices...)
 		})
 		if err != nil {
 			return err
@@ -958,9 +992,10 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 		if opts.Disable && serviceIsSlotActivated(app) {
 			logger.Noticef("Disabling %s may not have the intended effect as the service is currently always activated by a slot", app.Name)
 		}
-		if app.DaemonScope == snap.SystemDaemon {
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
 			sys = append(sys, app)
-		} else if app.DaemonScope == snap.UserDaemon {
+		case snap.UserDaemon:
 			usr = append(usr, app)
 		}
 	}
@@ -971,6 +1006,9 @@ func filterAppsForStop(apps []*snap.AppInfo, reason snap.ServiceStopReason, opts
 type StopServicesOptions struct {
 	Disable bool
 	ScopeOptions
+	// Reason is the reason for the operation, helpful in how we handle some
+	// operating errors.
+	Reason ServiceOperationReason
 }
 
 // StopServices stops and optionally disables service units for the applications
@@ -1005,7 +1043,7 @@ func StopServices(apps []*snap.AppInfo, opts *StopServicesOptions, reason snap.S
 	// Save any potentionally expensive calls if there is no need
 	if len(userServices) != 0 {
 		timings.Run(tm, "stop-user-services", "stop user services", func(nested timings.Measurer) {
-			err = cli.stopServices(opts.Disable, userServices...)
+			err = cli.stopServices(opts.Disable, opts.Reason, userServices...)
 		})
 		if err != nil {
 			return err
@@ -1198,6 +1236,9 @@ type RestartServicesOptions struct {
 	// AlsoEnabledNonActive set if we to restart also enabled but not running units
 	AlsoEnabledNonActive bool
 	ScopeOptions
+	// Reason is the reason for the operation, helpful in how we handle some
+	// operating errors.
+	Reason ServiceOperationReason
 }
 
 func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices []string,
@@ -1262,7 +1303,7 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 
 		var err error
 		timings.Run(tm, "restart-service", fmt.Sprintf("restart service(s) %s", unitName), func(nested timings.Measurer) {
-			err = reloadOrRestartServices(sysd, cli, opts.Reload, unitScope, unitsToRestart)
+			err = reloadOrRestartServices(sysd, cli, opts.Reload, opts.Reason, unitScope, unitsToRestart)
 		})
 		if err != nil {
 			// there is nothing we can do about failed service
