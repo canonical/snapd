@@ -413,6 +413,8 @@ _mount_dir_migrate() {
         cp -av "$mount_from/README" "$mount_to/README"
     fi
 
+    # TODO: restore SELinux context of created files and directories?
+
     echo "Reloading systemd"
     systemctl daemon-reload
 
@@ -430,6 +432,14 @@ _mount_dir_migrate() {
     fi
 
     systemctl start snapd.socket snapd.service
+
+    echo "######################################################"
+    echo "####### sanp mount directory migration complete ######"
+    echo "######################################################"
+    echo
+    echo "You may start using snaps again."
+    echo "System reboot is recommended."
+    echo
 }
 
 mount_dir_migrate() {
