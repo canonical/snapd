@@ -34,6 +34,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -1432,4 +1433,34 @@ func SnapRevisionFromSnapIdAndRevisionNumber(db RODatabase, snapId string, revN 
 
 	rev := revs[0].(*SnapRevision)
 	return rev, nil
+}
+
+var ErrNoDeclarationFound = errors.New("no snap-declaration assertion found")
+
+// SnapDeclarationFromNameAndAuthority is a helper that searches for a snap declaration in the database given
+// a snap's name, authority id and a series. This is to be used in cases where the snap-id which is the primary
+// key is not known.
+func SnapDeclarationFromNameAndAuthority(db RODatabase, name string, authority string) (*SnapDeclaration, error) {
+	decls, err := dbFindMany(db, SnapDeclarationType, map[string]string{
+		"authority-id": authority,
+		"series":       release.Series,
+		"snap-name":    name,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(decls) < 1 {
+		return nil, fmt.Errorf("no snap-declaration assertion found that matches (authority-id=%s, series=%s, snap-name=%s).", "canonical", release.Series, name)
+	}
+
+	if len(decls) > 1 {
+		return nil, fmt.Errorf("multiple snap-declaration assertions found that match (authority-id=%s, series=%s, snap-name=%s).", "canonical", release.Series, name)
+	}
+
+	decl := decls[0].(*SnapDeclaration)
+
+	decl.SnapID()
+
+	return decl, nil
 }

@@ -1412,3 +1412,61 @@ func (as *assertsSuite) TestSnapRevisionFromSnapIdAndRevisionNumberErrorOnMultip
 	c.Check(err, ErrorMatches, regexp.QuoteMeta("multiple snap-revision assertions found that match (snap-id=1, snap-revision=1)."))
 	c.Check(rev, IsNil)
 }
+
+func (as *assertsSuite) TestSnapDeclarationFromNameAndAuthoritySuccess(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return []asserts.Assertion{
+			&asserts.SnapDeclaration{},
+		}, nil
+	})
+	defer restore()
+
+	rev, err := asserts.SnapDeclarationFromNameAndAuthority(db, "name", "authority")
+	c.Assert(err, IsNil)
+	c.Check(rev, FitsTypeOf, &asserts.SnapDeclaration{})
+}
+
+func (as *assertsSuite) TestSnapDeclarationFromNameAndAuthorityErrorOnFind(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	expErr := errors.New("test")
+	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return nil, expErr
+	})
+	defer restore()
+
+	rev, err := asserts.SnapDeclarationFromNameAndAuthority(db, "name", "authority")
+	c.Check(err, Equals, expErr)
+	c.Check(rev, IsNil)
+}
+
+func (as *assertsSuite) TestSnapDeclarationFromNameAndAuthorityErrorNoneFound(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	rev, err := asserts.SnapDeclarationFromNameAndAuthority(db, "name", "authority")
+	c.Check(err, ErrorMatches, regexp.QuoteMeta("no snap-declaration assertion found that matches (authority-id=canonical, series=16, snap-name=name)."))
+	c.Check(rev, IsNil)
+}
+
+func (as *assertsSuite) TestSnapDeclarationFromNameAndAuthorityErrorMultipleFound(c *C) {
+	_, db := makeStoreAndCheckDB(c)
+
+	restore := asserts.MockDBFindMany(func(asserts.RODatabase, *asserts.AssertionType, map[string]string) ([]asserts.Assertion, error) {
+		return []asserts.Assertion{
+			&asserts.SnapDeclaration{},
+			&asserts.SnapDeclaration{},
+		}, nil
+	})
+	defer restore()
+
+	rev, err := asserts.SnapDeclarationFromNameAndAuthority(db, "name", "authority")
+	c.Check(err, ErrorMatches, regexp.QuoteMeta("multiple snap-declaration assertions found that match (authority-id=canonical, series=16, snap-name=name)."))
+	c.Check(rev, IsNil)
+}
