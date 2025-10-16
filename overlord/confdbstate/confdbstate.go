@@ -126,7 +126,7 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
-func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]string) (any, error) {
+func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]any) (any, error) {
 	if len(requests) == 0 {
 		return view.Get(bag, "", constraints)
 	}
@@ -646,7 +646,7 @@ func GetTransactionForSnapctlGet(ctx *hookstate.Context, view *confdb.View, path
 // LoadConfdbAsync schedules a change to load a confdb, running any appropriate
 // hooks and fulfilling the requests by reading the view and placing the resulting
 // data in the change's data (so it can be read by the client).
-func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]string) (changeID string, err error) {
+func LoadConfdbAsync(st *state.State, view *confdb.View, requests []string, constraints map[string]any) (changeID string, err error) {
 	account, schemaName := view.Schema().Account, view.Schema().Name
 
 	txs, _, err := getOngoingTxs(st, account, schemaName)

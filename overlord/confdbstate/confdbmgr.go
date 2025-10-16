@@ -157,7 +157,7 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 	return readViewIntoChange(t.Change(), tx, view, requests, constraints)
 }
 
-func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string, constraints map[string]string) error {
+func readViewIntoChange(chg *state.Change, tx *Transaction, view *confdb.View, requests []string, constraints map[string]any) error {
 	var apiData map[string]any
 	err := chg.Get("api-data", &apiData)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

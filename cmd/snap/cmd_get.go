@@ -303,9 +303,9 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys, rawConstraints []strin
 		return nil, err
 	}
 
-	var constraints map[string]string
+	var constraints map[string]any
 	if len(rawConstraints) > 0 {
-		constraints = make(map[string]string, len(rawConstraints))
+		constraints = make(map[string]any, len(rawConstraints))
 	}
 
 	for _, constraint := range rawConstraints {
@@ -313,8 +313,13 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys, rawConstraints []strin
 		if len(splitConstr) != 2 {
 			return nil, fmt.Errorf(`constraint provided to "--with" must be in the form <name>=<value>: %v`, constraint)
 		}
+		key, value := splitConstr[0], splitConstr[1]
 
-		constraints[splitConstr[0]] = splitConstr[1]
+		var v any
+		if err := json.Unmarshal([]byte(value), &v); err != nil {
+			return nil, err
+		}
+		constraints[key] = v
 	}
 
 	if x.Default != "" && len(confKeys) > 1 {

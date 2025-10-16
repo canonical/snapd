@@ -731,13 +731,13 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 		return nil
 	}
 
-	pathBytes := []byte(path)
-	for len(pathBytes) > 0 {
-		char, width := utf8.DecodeRune(pathBytes)
+	pathBytes := bytes.NewBufferString(path)
+	for pathBytes.Len() > 0 {
+		// err can only be EOF so it can be safely ignored here
+		char, _, _ := pathBytes.ReadRune()
 		if char == utf8.RuneError {
 			return nil, fmt.Errorf("non UTF-8 character")
 		}
-		pathBytes = pathBytes[width:]
 
 		switch char {
 		case '.':
@@ -746,24 +746,22 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 			}
 
 		case '[':
-			if len(pathBytes) == 0 {
+			if pathBytes.Len() == 0 {
 				return nil, fmt.Errorf(`invalid subkey "["`)
 			}
 
 			// both field filters and list accesses start with '[', check the next character
-			nextChar, width := utf8.DecodeRune(pathBytes)
+			nextChar, _, _ := pathBytes.ReadRune()
 			if nextChar == utf8.RuneError {
 				return nil, fmt.Errorf("non UTF-8 character")
 			}
 
 			if nextChar == '.' {
 				// we're parsing a field filter [.foo={foo}], let's parse the entire thing
-				pathBytes = pathBytes[width:]
-				field, filter, n, err := parseFieldFilter(pathBytes)
+				field, filter, err := parseFieldFilter(pathBytes)
 				if err != nil {
 					return nil, err
 				}
-				pathBytes = pathBytes[n:]
 
 				if filters == nil {
 					filters = make(map[string]string)
@@ -779,6 +777,7 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 
 			// we're parsing a new list accessor (e.g, [{n}]), save the previous
 			// sub-key and continue
+			pathBytes.UnreadRune()
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
@@ -797,15 +796,13 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 	return subkeys, nil
 }
 
-func parseFieldFilter(pathBytes []byte) (field, filter string, n int, err error) {
+func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error) {
 	constraintSb := &strings.Builder{}
-	for len(pathBytes) > 0 {
-		nextChar, width := utf8.DecodeRune(pathBytes)
+	for pathBytes.Len() > 0 {
+		nextChar, _, _ := pathBytes.ReadRune()
 		if nextChar == utf8.RuneError {
-			return "", "", 0, fmt.Errorf("non UTF-8 character")
+			return "", "", fmt.Errorf("non UTF-8 character")
 		}
-		pathBytes = pathBytes[width:]
-		n += width
 
 		if nextChar == ']' {
 			// we're done reading the field filter, don't store the terminating ']'
@@ -817,11 +814,11 @@ func parseFieldFilter(pathBytes []byte) (field, filter string, n int, err error)
 	constraintPair := constraintSb.String()
 	parts := strings.Split(constraintPair, "=")
 	if len(parts) != 2 || !strings.HasPrefix(parts[1], "{") || !strings.HasSuffix(parts[1], "}") {
-		return "", "", 0, fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
+		return "", "", fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
 	}
 
 	field, filter = parts[0], strings.Trim(parts[1], "{}")
-	return field, filter, n, nil
+	return field, filter, nil
 }
 
 // countAccessorsOfType returns the number of occurrences of path sub-keys of
