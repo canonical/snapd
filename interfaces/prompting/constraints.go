@@ -33,7 +33,7 @@ import (
 )
 
 // ConstraintsJSON hold permissions and any additional interface-specific
-// fields. Specific constraints type (e.g. ReplyConstraints, RuleConstraints,
+// fields. Specific constraints type (e.g. Constraints, RuleConstraints,
 // and RuleConstraintsPatch) should be capable of parsing from ConstraintsJSON.
 // This type exists as a helper so that the daemon can unmarshal POST request
 // bodies containing constraints without knowing which interface relates to
@@ -216,16 +216,10 @@ func UnmarshalConstraints(iface string, constraintsJSON ConstraintsJSON) (*Const
 	if !ok {
 		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
-	var permissionMap PermissionMap
-	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+	permissionMap, err := unmarshalPermissionMap(iface, permissionsJSON, isPatch)
+	if err != nil {
 		return nil, err
 	}
-	// Permissions must be validated later via ToRuleConstraints to check if
-	// any permission entries are invalid.
-	// TODO: validate permissions here while unmarshalling, rather than later,
-	// and leave the later checks to just be for expiration. That would better
-	// match the behavior of UnmarshalReplyConstraints. Furthermore, validation
-	// could occur as part of unmarshalling the PermissionMap itself.
 	constraints := &Constraints{
 		InterfaceSpecific: interfaceSpecific,
 		Permissions:       permissionMap,
@@ -280,6 +274,8 @@ func (c *Constraints) ContainPermissions(permissions []string) bool {
 func (c *Constraints) ToRuleConstraints(iface string, at At) (*RuleConstraints, error) {
 	rulePermissions, err := c.Permissions.toRulePermissionMap(iface, at)
 	if err != nil {
+		// Constraints should have been validated when unmarshalling, so this
+		// should not occur.
 		return nil, err
 	}
 	ruleConstraints := &RuleConstraints{
@@ -325,16 +321,10 @@ func UnmarshalRuleConstraints(iface string, constraintsJSON ConstraintsJSON) (*R
 	if !ok {
 		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
-	var permissionMap RulePermissionMap
-	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+	permissionMap, err := unmarshalRulePermissionMap(iface, permissionsJSON)
+	if err != nil {
 		return nil, err
 	}
-	// Permissions must be validated later via ValidateForInterface to check if
-	// any/all permission entries are invalid or expired.
-	// TODO: validate permissions here while unmarshalling, rather than later,
-	// and leave the later checks to just be for expiration. That would better
-	// match the behavior of UnmarshalReplyConstraints. Furthermore, validation
-	// could occur as part of unmarshalling the RulePermissionMap itself.
 	constraints := &RuleConstraints{
 		InterfaceSpecific: interfaceSpecific,
 		Permissions:       permissionMap,
@@ -355,16 +345,12 @@ func (c *RuleConstraints) MarshalJSON() ([]byte, error) {
 	return json.Marshal(constraintsJSON)
 }
 
-// ValidateForInterface checks that the rule constraints are valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// rule is If the rule is invalid, returns an error.
-func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
-	// XXX: this is called only when loading rules from disk. Any interface-
-	// specific fields were validated while unmarshalling, but we don't have
-	// the means to properly handle expired rules then, so this method is still
-	// necessary.
-	return c.Permissions.validateForInterface(iface, at)
+// PruneExpired prunes any permissions from the permission map which have
+// expired at the given point in time. If all permissions have expired, then
+// returns true.
+func (c *RuleConstraints) PruneExpired(at At) (allExpired bool) {
+	// XXX: this is called only when loading rules from disk.
+	return c.Permissions.pruneExpired(at)
 }
 
 // Match returns true if the constraints match the given path, otherwise false.
@@ -480,19 +466,11 @@ func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON
 
 	permissionsJSON, ok := constraintsJSON["permissions"]
 	if ok {
-		var permissionMap PermissionMap
-		if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+		permissionMap, err := unmarshalPermissionMap(iface, permissionsJSON, isPatch)
+		if err != nil {
 			return nil, err
 		}
 		constraints.Permissions = permissionMap
-		// Permissions must be validated later via ValidateForInterface to check
-		// if any/all permission entries are invalid or expired.
-		// TODO: validate permissions here while unmarshalling, rather than later.
-		// That would better match the behavior of UnmarshalReplyConstraints.
-		// Furthermore, validation could occur as part of unmarshalling the
-		// PermissionMap itself, though this needs to be slightly different from
-		// that in UnmarshalConstraints, since we want to allow and preserve any
-		// permissions which map to nil.
 	}
 
 	return constraints, nil
@@ -512,7 +490,7 @@ func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON
 // permissions and compute any expirations for new permissions.
 //
 // The existing rule constraints are not mutated.
-func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, iface string, at At) (*RuleConstraints, error) {
+func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, at At) (*RuleConstraints, error) {
 	ruleConstraints := &RuleConstraints{
 		InterfaceSpecific: existing.InterfaceSpecific,
 	}
@@ -531,18 +509,8 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 			newPermissions[perm] = entry
 		}
 	}
-	availablePerms, ok := interfacePermissionsAvailable[iface]
-	if !ok {
-		// Should not occur, as we should use the interface from the existing rule
-		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
-	}
 	var errs []error
-	var invalidPerms []string
 	for perm, entry := range c.Permissions {
-		if !strutil.ListContains(availablePerms, perm) {
-			invalidPerms = append(invalidPerms, perm)
-			continue
-		}
 		if entry == nil {
 			// nil value for permission indicates that it should be removed.
 			// (In contrast, omitted permissions are left unchanged from the
@@ -556,9 +524,6 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 			continue
 		}
 		newPermissions[perm] = ruleEntry
-	}
-	if len(invalidPerms) > 0 {
-		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
 		return nil, strutil.JoinErrors(errs...)
@@ -575,42 +540,73 @@ func (c *RuleConstraintsPatch) PatchRuleConstraints(existing *RuleConstraints, i
 // permissions.
 type PermissionMap map[string]*PermissionEntry
 
-// toRulePermissionMap validates the receiving PermissionMap and converts it
-// to a RulePermissionMap, using the given at information to convert each
-// PermissionEntry to a RulePermissionEntry. If the permission map is not valid
-// with respect to the given interface, returns an error.
-func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermissionMap, error) {
+// unmarshalPermissionMap unmarshals given data into a PermissionMap, checking
+// that all permissions are valid with respect to the given interface. If
+// isPatch is true, then permissions which map to nil entries are left in the
+// map; otherwise, nil permissions are discarded, and if there are no non-nil
+// permissions, then an error is returned.
+func unmarshalPermissionMap(iface string, permissionsJSON json.RawMessage, isPatch bool) (PermissionMap, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
+	var permissionMap PermissionMap
+	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+		return nil, err
+	}
 	var errs []error
 	var invalidPerms []string
-	rulePermissionMap := make(RulePermissionMap, len(pm))
-	for perm, entry := range pm {
+	var nilPerms []string
+	for perm, entry := range permissionMap {
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
 			continue
 		}
 		if entry == nil {
-			// treat permissions with nil entries as if they were not present
+			nilPerms = append(nilPerms, perm)
 			continue
 		}
-		rulePermissionEntry, err := entry.toRulePermissionEntry(at)
-		if err != nil {
+		if err := entry.validate(); err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		rulePermissionMap[perm] = rulePermissionEntry
 	}
 	if len(invalidPerms) > 0 {
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
+		// TODO:GOVERSION: user errors.Join once on Go 1.20+
 		return nil, strutil.JoinErrors(errs...)
 	}
-	if len(rulePermissionMap) == 0 {
-		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	if !isPatch {
+		for _, perm := range nilPerms {
+			delete(permissionMap, perm)
+		}
+		if len(permissionMap) == 0 {
+			return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+		}
+	}
+	return permissionMap, nil
+}
+
+// toRulePermissionMap converts the PermissionMap to a RulePermissionMap,
+// using the given at information to convert each PermissionEntry to a
+// RulePermissionEntry.
+func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermissionMap, error) {
+	var errs []error
+	rulePermissionMap := make(RulePermissionMap, len(pm))
+	for perm, entry := range pm {
+		// unmarshalPermissionMap ensures no entries are nil
+		rulePermissionEntry, err := entry.toRulePermissionEntry(at)
+		if err != nil {
+			// Should not occur, as permissions are validated when unmarshalling
+			errs = append(errs, err)
+			continue
+		}
+		rulePermissionMap[perm] = rulePermissionEntry
+	}
+	if len(errs) > 0 {
+		return nil, strutil.JoinErrors(errs...)
 	}
 	return rulePermissionMap, nil
 }
@@ -620,38 +616,31 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 // permissions.
 type RulePermissionMap map[string]*RulePermissionEntry
 
-// validateForInterface checks that the rule permission map is valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// permission map is invalid, returns an error.
-func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired bool, err error) {
+// unmarshalRulePermissionMap unmarshals given data into a RulePermissionMap,
+// checking that all permissions are valid with respect to the given interface.
+func unmarshalRulePermissionMap(iface string, permissionsJSON json.RawMessage) (RulePermissionMap, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return false, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
-	if len(pm) == 0 {
-		return false, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	var permissionMap RulePermissionMap
+	if err := json.Unmarshal(permissionsJSON, &permissionMap); err != nil {
+		return nil, err
 	}
 	var errs []error
 	var invalidPerms []string
-	var expiredPerms []string
-	for perm, entry := range pm {
+	var nilPerms []string
+	for perm, entry := range permissionMap {
 		if !strutil.ListContains(availablePerms, perm) {
 			invalidPerms = append(invalidPerms, perm)
 			continue
 		}
 		if entry == nil {
-			// This should never occur unless rules on disk corrupted.
-			// Treat this as if the permission had expired.
-			expiredPerms = append(expiredPerms, perm)
+			nilPerms = append(nilPerms, perm)
 			continue
 		}
 		if err := entry.validate(); err != nil {
 			errs = append(errs, err)
-			continue
-		}
-		if entry.Expired(at) {
-			expiredPerms = append(expiredPerms, perm)
 			continue
 		}
 	}
@@ -659,16 +648,36 @@ func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired b
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
-		return false, strutil.JoinErrors(errs...)
+		// TODO:GOVERSION: user errors.Join once on Go 1.20+
+		return nil, strutil.JoinErrors(errs...)
+	}
+	for _, perm := range nilPerms {
+		delete(permissionMap, perm)
+	}
+	if len(permissionMap) == 0 {
+		return nil, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+	}
+	return permissionMap, nil
+}
+
+// pruneExpired prunes any permissions from the permission map which have
+// expired at the given point in time. If all permissions have expired, then
+// returns true.
+func (pm RulePermissionMap) pruneExpired(at At) (allExpired bool) {
+	var expiredPerms []string
+	for perm, entry := range pm {
+		if entry.Expired(at) {
+			expiredPerms = append(expiredPerms, perm)
+		}
 	}
 	for _, perm := range expiredPerms {
 		delete(pm, perm)
 	}
 	if len(pm) == 0 {
 		// All permissions expired
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 // Expired returns true if all permissions in the map have expired at the given
@@ -693,25 +702,33 @@ type PermissionEntry struct {
 	Duration string       `json:"duration,omitempty"`
 }
 
-// toRulePermissionEntry validates the receiving PermissionEntry and converts
-// it to a RulePermissionEntry.
-//
-// Checks that the entry has a valid outcome, and that its lifespan is valid
-// for a rule (i.e. not LifespanSingle), and that it has an appropriate
-// duration for that lifespan. If the lifespan is LifespanTimespan, then the
-// expiration is computed as the entry's duration after the given point in time.
-// If the lifespan is LifepanSession, then the sessionID at the given point in
-// time must be non-zero, and is saved in the RulePermissionEntry.
-func (e *PermissionEntry) toRulePermissionEntry(at At) (*RulePermissionEntry, error) {
+// validate checks that the entry has a valid outcome, and that it has a
+// lifespan with an appropriate duration.
+func (e *PermissionEntry) validate() error {
 	if _, err := e.Outcome.AsBool(); err != nil {
-		return nil, err
+		return err
 	}
+	if _, err := e.Lifespan.ParseDuration(e.Duration, time.Now()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// toRulePermissionEntry converts the PermissionEntry to a RulePermissionEntry.
+//
+// If the lifespan is LifespanTimespan, then the expiration is computed as the
+// entry's duration after the given point in time. If the lifespan is
+// LifepanSession, then the sessionID at the given point in time must be
+// non-zero, and is saved in the RulePermissionEntry.
+func (e *PermissionEntry) toRulePermissionEntry(at At) (*RulePermissionEntry, error) {
 	if e.Lifespan == LifespanSingle {
 		// We don't allow rules with lifespan "single"
 		return nil, prompting_errors.NewRuleLifespanSingleError(SupportedRuleLifespans)
 	}
 	expiration, err := e.Lifespan.ParseDuration(e.Duration, at.Time)
 	if err != nil {
+		// Error should not occur, since the permission entry should already
+		// have been validated.
 		return nil, err
 	}
 	var sessionIDToUse IDType
@@ -772,8 +789,8 @@ func (e *RulePermissionEntry) Expired(at At) bool {
 	return false
 }
 
-// validate checks that the entry has a valid outcome, and that its lifespan
-// is valid for a rule (i.e. not LifespanSingle), and has an appropriate
+// validate checks that the entry has a valid outcome, that its lifespan is
+// valid for a rule (i.e. not LifespanSingle), and that it has appropriate
 // expiration information for that lifespan.
 func (e *RulePermissionEntry) validate() error {
 	if _, err := e.Outcome.AsBool(); err != nil {
