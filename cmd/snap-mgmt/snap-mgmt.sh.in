@@ -282,10 +282,10 @@ discard_mount_namespaces() {
 
 _mount_dir_migrate() {
     echo "#############################################"
-    echo "####### sanp mount directory migration ######"
+    echo "####### snap mount directory migration ######"
     echo "#############################################"
     echo
-    echo "Please report any issues in the snapcraft forum at: htps://forum.snapcraft.io/"
+    echo "Please report any issues in the snapcraft forum at: https://forum.snapcraft.io/"
     echo
 
 
@@ -402,7 +402,7 @@ _mount_dir_migrate() {
         mkdir -p "$n_where_mount"
 
         # recreate current symlink
-        if [ -s "$snap_where_mount/current" ] && [ ! -s "$n_snap_where_mount/current" ]; then
+        if [ -L "$snap_where_mount/current" ] && [ ! -L "$n_snap_where_mount/current" ]; then
             cp -av "$snap_where_mount/current" "$n_snap_where_mount/current"
         fi
     done
@@ -435,7 +435,7 @@ _mount_dir_migrate() {
     systemctl start snapd.socket snapd.service
 
     echo "######################################################"
-    echo "####### sanp mount directory migration complete ######"
+    echo "####### snap mount directory migration complete ######"
     echo "######################################################"
     echo
     echo "You may start using snaps again."
