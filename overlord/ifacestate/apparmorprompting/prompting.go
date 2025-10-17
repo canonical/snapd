@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
@@ -272,8 +273,14 @@ func (m *InterfacesRequestsManager) handleListenerReq(req *listener.Request) err
 	if err != nil {
 		if errors.Is(err, prompting_errors.ErrNoInterfaceTags) {
 			// There were no tags registered with a snapd interface, so we
-			// default to the "home" interface.
-			iface = "home"
+			// look at the path to decide whether it's "home" or "camera".
+			// XXX: this is a temporary workaround until metadata tags are
+			// supported by the AppArmor parser and kernel.
+			if builtin.DetectCameraFromPath(req.Path) {
+				iface = "camera"
+			} else {
+				iface = "home"
+			}
 		} else {
 			// There was either more than one interface associated with tags, or
 			// none which applied to all requested permissions. Since we can't

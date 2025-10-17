@@ -226,41 +226,80 @@ func (s *apparmorpromptingSuite) TestHandleListenerRequestInterfaceSelection(c *
 	time.Sleep(10 * time.Millisecond)
 	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
-	c.Check(prompts, HasLen, 1)
+	c.Assert(prompts, HasLen, 1)
 	c.Check(prompts[0].Interface, Equals, "home")
 	restore()
 
-	// Return ErrNoInterfaceTags and check that the manager defaults to "home"
+	// Explicitly set "camera" interface based on tags
 	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "", prompting_errors.ErrNoInterfaceTags
+		return "camera", nil
 	})
 	req = &listener.Request{
 		// Most fields don't matter here
 		ID:         2,
 		Label:      "snap2",
 		SubjectUID: s.defaultUser,
-		Permission: notify.AA_MAY_EXEC,
+		Permission: notify.AA_MAY_OPEN,
 	}
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
 	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
 	c.Check(err, IsNil)
-	c.Check(prompts, HasLen, 2, Commentf("%+v", prompts[0]))
+	c.Assert(prompts, HasLen, 2)
 	c.Check(prompts[0].Interface, Equals, "home")
-	c.Check(prompts[1].Interface, Equals, "home")
+	c.Check(prompts[1].Interface, Equals, "camera")
 	restore()
 
-	// Explicitly set some other interface based on tags.
-	// Currently only "home" is supported, so we expect a later error in order
-	// to see that the given interface was used when mapping permissions.
-	// TODO: when other interfaces are supported, use one here instead.
+	// Return ErrNoInterfaceTags and check that the manager defaults to "home" or "camera"
 	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
-		return "foo", nil
+		return "", prompting_errors.ErrNoInterfaceTags
 	})
 	req = &listener.Request{
 		// Most fields don't matter here
 		ID:         3,
 		Label:      "snap3",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_EXEC,
+		Path:       "/home/test/foo",
+	}
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Assert(prompts, HasLen, 3, Commentf("%+v", prompts[0]))
+	c.Check(prompts[0].Interface, Equals, "home")
+	c.Check(prompts[1].Interface, Equals, "camera")
+	c.Check(prompts[2].Interface, Equals, "home")
+	req = &listener.Request{
+		// Most fields don't matter here
+		ID:         4,
+		Label:      "snap4",
+		SubjectUID: s.defaultUser,
+		Permission: notify.AA_MAY_WRITE,
+		Path:       "/dev/video1",
+	}
+	reqChan <- req
+	time.Sleep(10 * time.Millisecond)
+	prompts, err = mgr.Prompts(s.defaultUser, clientActivity)
+	c.Check(err, IsNil)
+	c.Assert(prompts, HasLen, 4, Commentf("%+v", prompts[0]))
+	c.Check(prompts[0].Interface, Equals, "home")
+	c.Check(prompts[1].Interface, Equals, "camera")
+	c.Check(prompts[2].Interface, Equals, "home")
+	c.Check(prompts[3].Interface, Equals, "camera")
+	restore()
+
+	// Explicitly set some other interface based on tags.
+	// Currently only "home" and "camera" are supported, so we expect a later
+	// error in order to see that the given interface was used when mapping
+	// permissions.
+	restore = apparmorprompting.MockPromptingInterfaceFromTagsets(func(notify.TagsetMap) (string, error) {
+		return "foo", nil
+	})
+	req = &listener.Request{
+		// Most fields don't matter here
+		ID:         5,
+		Label:      "snap5",
 		SubjectUID: s.defaultUser,
 		Permission: notify.AA_MAY_OPEN,
 	}
