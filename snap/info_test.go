@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -2798,4 +2799,49 @@ func (s *infoSuite) TestDesktopFilesFromInstalledSnap(c *C) {
 func (s *infoSuite) TestDesktopFilesFromInstalledSnapMangled(c *C) {
 	const mangle = true
 	s.testDesktopFilesFromInstalledSnap(c, mangle)
+}
+
+func (s *infoSuite) TestDmVerityParamsIfPresent(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	info.IntegrityData = &snap.IntegrityDataInfo{
+		Type:   "dm-verity",
+		Digest: "aaa",
+	}
+
+	expected_hash_file := integrity.DmVerityHashFileName(info.MountFile(), "aaa")
+
+	dmverity_file, digest, err := info.DmVerityParamsIfPresent()
+	c.Check(err, IsNil)
+	c.Check(dmverity_file, Equals, expected_hash_file)
+	c.Check(digest, Equals, "aaa")
+}
+
+func (s *infoSuite) TestDmVerityParamsIfPresentErrors(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	dmverity_file, digest, err := info.DmVerityParamsIfPresent()
+	c.Assert(dmverity_file, Equals, "")
+	c.Assert(digest, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
+
+	info.IntegrityData = &snap.IntegrityDataInfo{
+		Type:   "some type",
+		Digest: "aaa",
+	}
+
+	dmverity_file, digest, err = info.DmVerityParamsIfPresent()
+	c.Assert(dmverity_file, Equals, "")
+	c.Assert(digest, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
 }

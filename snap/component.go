@@ -18,6 +18,7 @@
 package snap
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -164,6 +165,16 @@ func (c *componentPlaceInfo) MountFile() string {
 // MountDescription returns the mount unit Description field.
 func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
+}
+
+// DmVerityParamsIfPresent returns the necessary parameters for mounting a component with
+// dm-verity. These are the path to the dm-verity hash file currently used with this component
+// revision, and its dm-verity digest.
+// If the component doesn't contain integrity data or contains integrity data but not of type
+// "dm-verity", this will return an error.
+// XXX: dm-verity for components is not supported yet.
+func (c *componentPlaceInfo) DmVerityParamsIfPresent() (string, string, error) {
+	return "", "", errors.New("dm-verity for components not supported.")
 }
 
 // ComponentLinkPath returns the path for the symlink for a component for a

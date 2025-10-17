@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -64,6 +65,13 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
+
+	// DmVerityParamsIfPresent returns the necessary parameters for mounting a container with
+	// dm-verity. These are the path to the dm-verity hash file currently used with this container
+	// revision, and its dm-verity digest.
+	// If the container doesn't contain integrity data or contains integrity data but not of type
+	// "dm-verity", this will return an error.
+	DmVerityParamsIfPresent() (string, string, error)
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -437,6 +445,9 @@ type Info struct {
 
 	// Categories this snap is in.
 	Categories []CategoryInfo
+
+	// IntegrityData available for this snap
+	IntegrityData *IntegrityDataInfo
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -2134,4 +2145,31 @@ type RefreshFailuresInfo struct {
 	// LastFailureSeverity identifies how severe the last failure was.
 	// This allows for more aggressive backoff delay for snaps that fail after a reboot.
 	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
+}
+
+// IntegrityDataInfo contains all the integrity metadata associated with a snap.
+type IntegrityDataInfo struct {
+	// add json tags in this struct
+	Type          string `json:"type"`
+	Version       uint   `json:"version"`
+	HashAlg       string `json:"hash-algorithm"`
+	DataBlockSize uint   `json:"data-block-size"`
+	HashBlockSize uint   `json:"hash-block-size"`
+	Digest        string `json:"digest"`
+	Salt          string `json:"salt"`
+
+	DownloadInfo `json:"download-info,omitempty"`
+}
+
+// DmVerityParamsIfPresent returns the necessary parameters for mounting a snap with
+// dm-verity. These are the path to the dm-verity hash file currently used with this snap
+// revision, and its dm-verity digest.
+// If the snap doesn't contain integrity data or contains integrity data but not of type
+// "dm-verity", this will return an error.
+func (s *Info) DmVerityParamsIfPresent() (dmVerityHashFilePath string, digest string, err error) {
+	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
+		return "", "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
+	}
+
+	return integrity.DmVerityHashFileName(s.MountFile(), s.IntegrityData.Digest), s.IntegrityData.Digest, nil
 }
