@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -128,7 +129,7 @@ func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.Dev
 	}
 }
 
-func MockCreateInterfacesRequestsManager(new func(s *state.State) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
+func MockCreateInterfacesRequestsManager(new func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error)) (restore func()) {
 	return testutil.Mock(&createInterfacesRequestsManager, new)
 }
 
