@@ -74,26 +74,26 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs))
 }
 
-// librarySourcePath returns the path for files containing directories
-// specified in library-source fields. The file names have instance name / slot
-// name and interface name as different interfaces will write to the export
-// dir, for different instances and slots.
-func librarySourcePath(instance, slotName, ifaceName string) string {
+// systemLibrarySourcePath returns the path for files containing directories
+// specified in system library-source fields. The file names have instance name
+// / slot name and interface name as different interfaces will write to the
+// export dir, for different instances and slots.
+func systemLibrarySourcePath(instance, slotName, ifaceName string) string {
 	return filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
 		"system_%s_%s_%s.library-source", instance, slotName, ifaceName))
 }
 
-// addConfigfilesForLibrarySourcePaths adds a file containing a list with the library
-// sources for an interface to the /var/lib/snapd/export directory. These files
-// are used by snap-confine on classic for snaps connected to the opengl
-// interface.
-func addConfigfilesForLibrarySourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
+// addConfigfilesForSystemLibrarySourcePaths adds a file containing a list with
+// the system library sources for an interface to the /var/lib/snapd/export
+// directory. These files are used by snap-confine on classic for snaps
+// connected to the opengl interface.
+func addConfigfilesForSystemLibrarySourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
 	libDirs := []string{}
 	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
 	content := strings.Join(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
-	return spec.AddPathContent(librarySourcePath(slot.Snap().InstanceName(), slot.Name(), iface),
+	return spec.AddPathContent(systemLibrarySourcePath(slot.Snap().InstanceName(), slot.Name(), iface),
 		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
 

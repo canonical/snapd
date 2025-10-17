@@ -87,7 +87,7 @@ func (iface *openglesDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.S
 const openglesDriverLibs = "opengles-driver-libs"
 
 func (t *openglesDriverLibsInterface) PathPatterns() []string {
-	return []string{librarySourcePath("*", "*", openglesDriverLibs)}
+	return []string{systemLibrarySourcePath("*", "*", openglesDriverLibs)}
 }
 
 func (iface *openglesDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -95,7 +95,7 @@ func (iface *openglesDriverLibsInterface) ConfigfilesConnectedPlug(spec *configf
 
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesForLibrarySourcePaths(openglesDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForSystemLibrarySourcePaths(openglesDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}

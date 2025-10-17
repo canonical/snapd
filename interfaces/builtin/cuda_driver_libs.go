@@ -86,7 +86,7 @@ var _ = interfaces.ConfigfilesUser(&cudaDriverLibsInterface{})
 const cudaDriverLibs = "cuda-driver-libs"
 
 func (t *cudaDriverLibsInterface) PathPatterns() []string {
-	return []string{librarySourcePath("*", "*", cudaDriverLibs)}
+	return []string{systemLibrarySourcePath("*", "*", cudaDriverLibs)}
 }
 
 func (iface *cudaDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -94,7 +94,7 @@ func (iface *cudaDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles
 
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesForLibrarySourcePaths(cudaDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForSystemLibrarySourcePaths(cudaDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}

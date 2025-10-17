@@ -144,7 +144,7 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 const gbmDriverLibs = "gbm-driver-libs"
 
 func (t *gbmDriverLibsInterface) PathPatterns() []string {
-	return []string{librarySourcePath("*", "*", gbmDriverLibs)}
+	return []string{systemLibrarySourcePath("*", "*", gbmDriverLibs)}
 }
 
 func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -152,7 +152,7 @@ func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.
 
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesForLibrarySourcePaths(gbmDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForSystemLibrarySourcePaths(gbmDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}

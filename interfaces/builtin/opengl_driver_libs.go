@@ -86,7 +86,7 @@ func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Spe
 const openglDriverLibs = "opengl-driver-libs"
 
 func (t *openglDriverLibsInterface) PathPatterns() []string {
-	return []string{librarySourcePath("*", "*", openglDriverLibs)}
+	return []string{systemLibrarySourcePath("*", "*", openglDriverLibs)}
 }
 
 func (iface *openglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -94,7 +94,7 @@ func (iface *openglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfil
 
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesForLibrarySourcePaths(openglDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForSystemLibrarySourcePaths(openglDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}

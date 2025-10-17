@@ -156,13 +156,13 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 }
 
 func (t *eglDriverLibsInterface) PathPatterns() []string {
-	return []string{librarySourcePath("*", "*", eglDriverLibs)}
+	return []string{systemLibrarySourcePath("*", "*", eglDriverLibs)}
 }
 
 func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Files used by snap-confine on classic
 	if release.OnClassic {
-		if err := addConfigfilesForLibrarySourcePaths(eglDriverLibs, spec, slot); err != nil {
+		if err := addConfigfilesForSystemLibrarySourcePaths(eglDriverLibs, spec, slot); err != nil {
 			return err
 		}
 	}
