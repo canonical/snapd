@@ -447,7 +447,7 @@ type Info struct {
 	Categories []CategoryInfo
 
 	// IntegrityData available for this snap
-	IntegrityData *IntegrityData
+	IntegrityData *IntegrityDataInfo
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -2131,8 +2131,8 @@ type RefreshFailuresInfo struct {
 	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
 }
 
-// IntegrityData contains all the integrity metadata associated with a snap.
-type IntegrityData struct {
+// IntegrityDataInfo contains all the integrity metadata associated with a snap.
+type IntegrityDataInfo struct {
 	// add json tags in this struct
 	Type          string `json:"type"`
 	Version       uint   `json:"version"`

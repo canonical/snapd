@@ -427,7 +427,7 @@ func addIntegrityData(info *snap.Info, integrityData []storeIntegrity) error {
 		return err
 	}
 
-	integrity := &snap.IntegrityData{
+	integrity := &snap.IntegrityDataInfo{
 		Type:          i.Type,
 		Version:       uint(version),
 		HashAlg:       i.HashAlg,

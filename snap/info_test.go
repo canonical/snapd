@@ -2791,7 +2791,7 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	info.IntegrityData = &snap.IntegrityData{
+	info.IntegrityData = &snap.IntegrityDataInfo{
 		Type:   "dm-verity",
 		Digest: "aaa",
 	}
@@ -2817,7 +2817,7 @@ apps:
 	c.Assert(digest, Equals, "")
 	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
 
-	info.IntegrityData = &snap.IntegrityData{
+	info.IntegrityData = &snap.IntegrityDataInfo{
 		Type:   "some type",
 		Digest: "aaa",
 	}

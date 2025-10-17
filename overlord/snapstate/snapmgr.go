@@ -181,7 +181,7 @@ type SnapSetup struct {
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 
 	// IntegrityDataParams contains the integrity data to be used when mounting this snap.
-	IntegrityDataParams *snap.IntegrityData `json:"integrity-data,omitempty"`
+	IntegrityDataParams *snap.IntegrityDataInfo `json:"integrity-data,omitempty"`
 }
 
 // ConfdbSchemaID identifies a confdb schema.
