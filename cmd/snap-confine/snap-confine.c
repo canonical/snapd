@@ -401,7 +401,8 @@ int main(int argc, char **argv) {
     }
 
     /* Assert all our expected capabilities are permitted */
-    sc_cap_assert_permitted(caps_privileged, snap_confine_caps, SC_ARRAY_SIZE(snap_confine_caps), NULL);
+    sc_cap_assert_permitted(caps_privileged, snap_confine_caps, SC_ARRAY_SIZE(snap_confine_caps),
+                            "snap-confine is packaged without necessary permissions and cannot continue\n");
 
     if (cap_set_flag(caps_privileged, CAP_EFFECTIVE, SC_ARRAY_SIZE(snap_confine_caps), snap_confine_caps, CAP_SET) !=
         0) {
@@ -453,7 +454,7 @@ int main(int argc, char **argv) {
          * permissions or if we bail out early with a clear error message. */
         sc_cap_assert_permitted(
             caps_privileged, snap_confine_caps_extra_cgroup_v1, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
-            "snap-confine is packaged without permissions necessary to operate on legacy cgroup-v1 systems");
+            "snap-confine is packaged without permissions necessary to operate on legacy cgroup-v1 systems\n");
     }
 
     /* set privileged capabilities */
