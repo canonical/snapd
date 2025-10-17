@@ -61,9 +61,12 @@ void sc_cleanup_cap_t(cap_t *ptr);
 
 /**
  * Assert that given caps are listed in the permitted set of the provided,
- * current capability set. The function works like assert() and invokes die()
- * when missing capabilities are found.
+ * current capability set.
+ *
+ * The function works like assert() and invokes die() when missing capabilities
+ * are found. Optional context message will be prepended to the error message
+ * displayed by die().
  */
-void sc_cap_assert_permitted(cap_t current, const cap_value_t caps[], size_t caps_n);
+void sc_cap_assert_permitted(cap_t current, const cap_value_t caps[], size_t caps_n, const char *die_context);
 
 #endif

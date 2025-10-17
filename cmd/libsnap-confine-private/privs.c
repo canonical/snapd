@@ -113,7 +113,7 @@ int sc_cap_reset_ambient(void) {
 #endif
 }
 
-void sc_cap_assert_permitted(cap_t current, const cap_value_t caps[], size_t caps_n) {
+void sc_cap_assert_permitted(cap_t current, const cap_value_t caps[], size_t caps_n, const char *die_context) {
     for (size_t i = 0; i < caps_n; i++) {
         cap_value_t val = caps[i];
         cap_flag_value_t is_permitted = CAP_CLEAR;
@@ -124,7 +124,8 @@ void sc_cap_assert_permitted(cap_t current, const cap_value_t caps[], size_t cap
         if (is_permitted == CAP_CLEAR) {
             char *name SC_CLEANUP(sc_cleanup_cap_str) = cap_to_name(val);
             char *current_text SC_CLEANUP(sc_cleanup_cap_str) = cap_to_text(current, NULL);
-            die("required permitted capability %s not found in current capabilities:\n  %s", name, current_text);
+            die("%srequired permitted capability %s not found in current capabilities:\n  %s",
+                die_context ? die_context : "", name, current_text);
         }
     }
 }
