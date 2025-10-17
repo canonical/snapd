@@ -122,7 +122,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return s.schema.View(viewName), nil
 		})
 
-		restoreLoad := daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]string) (string, error) {
+		restoreLoad := daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]any) (string, error) {
 			c.Assert(view.Name, Equals, "wifi-setup")
 			c.Assert(requests, DeepEquals, []string{"ssid"})
 			return "123", nil
@@ -152,7 +152,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, view *confdb.View, requests []string, _ map[string]any) (string, error) {
 		c.Assert(requests, DeepEquals, []string{"ssid", "password"})
 		c.Assert(view.Name, Equals, "wifi-setup")
 		return "123", nil
@@ -268,7 +268,7 @@ func (s *confdbSuite) TestGetTxError(c *C) {
 		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), status: 400, kind: client.ErrorKindOptionNotAvailable},
 		{name: "internal", err: errors.New("internal"), status: 500},
 	} {
-		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]string) (string, error) {
+		restore := daemon.MockConfdbstateLoadConfdbAsync(func(*state.State, *confdb.View, []string, map[string]any) (string, error) {
 			return "", t.err
 		})
 
@@ -295,7 +295,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]any) (string, error) {
 		c.Check(requests, DeepEquals, []string{"foo.bar", "[1].foo", "foo"})
 		return "123", nil
 	})
@@ -413,7 +413,7 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	s.st.Unlock()
 	c.Assert(err, IsNil)
 
-	path, err := confdb.ParsePathIntoAccessors("wifi.ssid", confdb.ParseOptions{})
+	path, err := confdb.ParsePathIntoAccessors("wifi.ssid", nil, confdb.ParseOptions{})
 	c.Assert(err, IsNil)
 
 	err = tx.Set(path, "foo")
@@ -567,7 +567,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]string) (string, error) {
+	restore = daemon.MockConfdbstateLoadConfdbAsync(func(_ *state.State, _ *confdb.View, requests []string, _ map[string]any) (string, error) {
 		c.Assert(requests, IsNil)
 		return "123", nil
 	})

@@ -166,9 +166,9 @@ func toAPIError(err error) *apiError {
 			Kind:    client.ErrorKindConfigNoSuchOption,
 			Value:   err,
 		}
-	case errors.As(err, new(json.SyntaxError)):
+	case errors.As(err, new(*json.SyntaxError)):
 		fallthrough
-	case errors.As(err, new(json.UnmarshalTypeError)):
+	case errors.As(err, new(*json.UnmarshalTypeError)):
 		return BadRequest(err.Error())
 	case errors.Is(err, &confdb.BadRequestError{}):
 		return BadRequest(err.Error())

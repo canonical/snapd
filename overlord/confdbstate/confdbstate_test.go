@@ -167,7 +167,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 }
 
 func parsePath(c *C, path string) []confdb.Accessor {
-	accs, err := confdb.ParsePathIntoAccessors(path, confdb.ParseOptions{})
+	accs, err := confdb.ParsePathIntoAccessors(path, nil, confdb.ParseOptions{})
 	c.Assert(err, IsNil)
 	return accs
 }
@@ -230,7 +230,7 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get(parsePath(c, "wifi.ssid"))
+	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "foo")
 }
@@ -267,7 +267,7 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	err = confdbstate.SetViaView(bag, view, map[string]any{"ssid": nil})
 	c.Assert(err, IsNil)
 
-	val, err := bag.Get(parsePath(c, "wifi.ssid"))
+	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(val, Equals, nil)
 }
@@ -889,7 +889,7 @@ func (s *confdbTestSuite) TestGetStoredTransaction(c *C) {
 		tx, _, _, err = confdbstate.GetStoredTransaction(t)
 		c.Assert(err, IsNil)
 
-		val, err := tx.Get(parsePath(c, "foo"))
+		val, err := tx.Get(parsePath(c, "foo"), nil)
 		c.Assert(err, IsNil)
 		c.Assert(val, Equals, "bar")
 
@@ -1107,7 +1107,7 @@ func (s *confdbTestSuite) checkSetConfdbChange(c *C, chg *state.Change, hooks *[
 	c.Assert(err, IsNil)
 
 	// was committed (otherwise would've been removed by Clear)
-	val, err := tx.Get(parsePath(c, "wifi.ssid"))
+	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }
@@ -1133,7 +1133,7 @@ func (s *confdbTestSuite) TestGetTransactionFromChangeViewHook(c *C) {
 	tx, _, _, err := confdbstate.GetStoredTransaction(t)
 	c.Assert(err, IsNil)
 
-	val, err := tx.Get(parsePath(c, "wifi.ssid"))
+	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 }
@@ -1484,7 +1484,7 @@ func (s *confdbTestSuite) testGetTransactionForSnapctl(c *C, ctx *hookstate.Cont
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
-	val, err := tx.Get(parsePath(c, "wifi.ssid"))
+	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 
@@ -1527,7 +1527,7 @@ func (s *confdbTestSuite) TestGetTransactionInConfdbHook(c *C) {
 	c.Assert(s.state.Changes(), HasLen, 1)
 	c.Assert(chg.Tasks(), HasLen, 2)
 
-	val, err := tx.Get(parsePath(c, "wifi.ssid"))
+	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }
@@ -1566,7 +1566,7 @@ func (s *confdbTestSuite) TestGetTransactionNoConfdbHooks(c *C) {
 	// no tasks were scheduled
 	c.Assert(s.state.Changes(), HasLen, 0)
 
-	val, err := tx.Get(parsePath(c, "wifi.ssid"))
+	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 

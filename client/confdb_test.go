@@ -22,9 +22,7 @@ package client_test
 import (
 	"encoding/json"
 	"io"
-	"strings"
 
-	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -36,15 +34,14 @@ func (cs *clientSuite) TestConfdbGet(c *C) {
 		"type": "async"
 	}`
 
-	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"}, map[string]string{"field": "value", "other-field": "baz"})
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"}, map[string]any{"field": "value", "other-field": "baz"})
 	c.Assert(err, IsNil)
 	c.Assert(chgID, Equals, "123")
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
 	c.Check(cs.reqs[0].URL.Query().Get("keys"), DeepEquals, "foo,bar")
 	constraints := cs.reqs[0].URL.Query().Get("constraints")
-	cstrs := strings.Split(constraints, ",")
-	c.Check(cstrs, testutil.DeepUnsortedMatches, []string{"field=value", "other-field=baz"})
+	c.Check(constraints, Equals, `{"field":"value","other-field":"baz"}`)
 }
 
 func (cs *clientSuite) TestConfdbSet(c *C) {

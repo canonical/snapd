@@ -147,7 +147,7 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal error: cannot get view: %w", err)
 	}
 
-	var constraints map[string]string
+	var constraints map[string]any
 	if err := t.Get("constraints", &constraints); err != nil {
 		if !errors.As(err, new(*state.NoStateError)) {
 			return err
