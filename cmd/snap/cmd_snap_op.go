@@ -981,6 +981,7 @@ type cmdRefresh struct {
 	Time             bool                   `long:"time"`
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Tracking		 bool					`long:"tracking"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
 	Unhold           bool                   `long:"unhold"`
@@ -1166,6 +1167,13 @@ func (x *cmdRefresh) Execute([]string) error {
 		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
 		x.Transaction != client.TransactionPerSnap
 
+	// Ensure --tracking is mutually exclusive
+	if (x.Tracking && (x.Hold != "" || x.Unhold || otherFlags)) {
+		return errors.New(i18n.G("cannot use --tracking with other flags"))
+	} else if x.Tracking {
+		return x.TrackRefreshes()
+	}
+
 	if x.Hold != "" && (x.Unhold || otherFlags) {
 		return errors.New(i18n.G("cannot use --hold with other flags"))
 	} else if x.Unhold && (x.Hold != "" || otherFlags) {
@@ -1207,6 +1215,18 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	return x.refreshMany(names, opts)
+}
+
+func (x *cmdRefresh) TrackRefreshes() (err error) {
+	names := installedSnapNames(x.Positional.Snaps)
+
+	fmt.Print("snaps:")
+	snaps, err := x.client.List(names, nil)
+	for i := 0; i < len(snaps); i++ {
+		fmt.Printf("  %s:\n    channel: %s", snaps[i].Name, snaps[i].TrackingChannel)
+	}
+
+	return nil
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {
