@@ -2150,7 +2150,7 @@ type IntegrityDataInfo struct {
 // revision, and its dm-verity digest.
 // If the snap doesn't contain integrity data or contains integrity data but not of type
 // "dm-verity", this will return an error.
-func (s *Info) DmVerityParamsIfPresent() (string, string, error) {
+func (s *Info) DmVerityParamsIfPresent() (dmVerityHashFilePath string, digest string, err error) {
 	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
 		return "", "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
 	}
