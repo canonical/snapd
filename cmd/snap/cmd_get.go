@@ -317,7 +317,15 @@ func (x *cmdGet) getConfdb(confdbViewID string, confKeys, rawConstraints []strin
 
 		var v any
 		if err := json.Unmarshal([]byte(value), &v); err != nil {
-			return nil, err
+			if !errors.As(err, new(*json.SyntaxError)) {
+				return nil, err
+			}
+
+			if x.Typed {
+				return nil, fmt.Errorf(`cannot unmarshal constraints as strictly typed`)
+			}
+			// default to parsing as string
+			v = string(value)
 		}
 		constraints[key] = v
 	}

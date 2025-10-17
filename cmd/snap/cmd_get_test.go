@@ -833,8 +833,8 @@ func (s *confdbSuite) TestConfdbGetWithConstraints(c *C) {
 			q := r.URL.Query()
 			keys := strutil.CommaSeparatedList(q.Get("keys"))
 			c.Check(keys, DeepEquals, []string{"abc"})
-			constraints := strutil.CommaSeparatedList(q.Get("constraints"))
-			c.Check(constraints, DeepEquals, []string{"foo=bar", "abc=123"})
+			constraints := q.Get("constraints")
+			c.Check(constraints, Equals, `{"abc":123,"foo":"bar"}`)
 
 			w.WriteHeader(202)
 			fmt.Fprintf(w, asyncResp)
