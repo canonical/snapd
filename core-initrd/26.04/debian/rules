@@ -1,0 +1,88 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+export DH_VERBOSE=1
+export DH_OPTIONS
+
+BUILDFLAGS:=
+# disable DWARF generation in go linker
+BUILDFLAGS+=-ldflags=-w
+# Disable -buildmode=pie mode on all our 32bit platforms
+# (i386 and armhf). For i386 because of LP: #1711052 and for
+# armhf because of LP: #1822738
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
+BUILDFLAGS+=-buildmode=pie
+endif
+
+# check if we need to include the testkeys in the binary
+ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
+# if enabled also enable bootloader assets testing and fault injection
+_SNAP_TAGS:=nomanagers,withtestkeys,faultinject
+else
+_SNAP_TAGS:=nomanagers
+endif
+
+ifneq (,$(filter arm64 armhf,$(DEB_HOST_ARCH)))
+_SNAP_TAGS:=$(_SNAP_TAGS),optee
+endif
+
+ifeq (${FIPSBUILD},1)
+_SNAP_TAGS:=$(_SNAP_TAGS),goexperiment.opensslcrypto,snapdfips
+endif
+
+SNAP_TAGS=-tags "$(_SNAP_TAGS)"
+
+######## targets start here
+
+%:
+	dh $@
+
+override_dh_auto_build:
+# very ugly test for FIPS variant of a toolchain
+# see https://warthogs.atlassian.net/browse/FR-8860
+ifeq (${FIPSBUILD},1)
+	if ! test -f /usr/lib/go-1.21/src/crypto/internal/backend/openssl_linux.go; then \
+		echo "Go 1.21 FIPS toolchain not found"; \
+		exit 1; \
+	fi
+endif
+# dh-golang sets GO111MODULE=off if present, fix that
+	GOCACHE=/tmp/cache GO111MODULE=on go build -mod=vendor $(BUILDFLAGS) $(SNAP_TAGS) ./cmd/snap-bootstrap
+
+override_dh_auto_install:
+	rm -rf debian/tmp
+	mkdir debian/tmp
+	cp -ar factory/* debian/tmp
+
+# splash functionality
+	mkdir -p debian/tmp/usr/share/plymouth/themes/
+	cp -a plymouth-theme-ubuntu-core/ubuntu-core \
+		debian/tmp/usr/share/plymouth/themes/
+	mkdir -p debian/tmp/usr/share/fonts/
+	cp /usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf \
+		debian/tmp/usr/share/fonts/Plymouth.ttf
+
+	touch debian/tmp/etc/machine-id
+
+override_dh_clean:
+	dh_clean
+	rm -f snap-bootstrap
+
+# to avoid dh-golang breaking the build
+override_dh_auto_test:
+
+# disable dh_dwz (breaks build for go 1.22)
+override_dh_dwz:
+
+override_dh_python3:
+	dh_python3 --no-ext-rename
+
+override_dh_fixperms:
+	dh_fixperms -Xusr/lib/ubuntu-core-initramfs/main
+
+override_dh_makeshlibs:
+	dh_makeshlibs -Xusr/lib/ubuntu-core-initramfs/main
+
+override_dh_shlibdeps:
+	dh_shlibdeps -Xusr/lib/ubuntu-core-initramfs/main

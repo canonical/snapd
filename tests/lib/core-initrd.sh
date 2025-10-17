@@ -9,15 +9,8 @@ build_initramfs_deb() (
     # mkversion.sh) and to have the tools needed to build the source package.
     quiet eatmydata apt-get install -y dpkg-dev debhelper devscripts distro-info
 
-    codename=$(lsb_release -c -s)
-    latest=$(dpkg-parsechangelog --file latest/debian/changelog --show-field Distribution)
-    if [ "$codename" = "$latest" ]; then
-        rel=latest
-    else
-        rel=$(lsb_release -r -s)
-    fi
-
-    # build source packages using local code
+    # build source package for the running release
+    rel=$(lsb_release -r -s)
     TEST_BUILD=1 ./build-source-pkgs.sh "$rel"
 
     # build binary package
