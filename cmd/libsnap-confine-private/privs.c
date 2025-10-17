@@ -112,3 +112,19 @@ int sc_cap_reset_ambient(void) {
     return prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
 #endif
 }
+
+void sc_cap_assert_permitted(cap_t current, const cap_value_t caps[], size_t caps_n) {
+    for (size_t i = 0; i < caps_n; i++) {
+        cap_value_t val = caps[i];
+        cap_flag_value_t is_permitted = CAP_CLEAR;
+        if (cap_get_flag(current, val, CAP_PERMITTED, &is_permitted) != 0) {
+            die("cannot check capability value");
+        }
+
+        if (is_permitted == CAP_CLEAR) {
+            char *name SC_CLEANUP(sc_cleanup_cap_str) = cap_to_name(val);
+            char *current_text SC_CLEANUP(sc_cleanup_cap_str) = cap_to_text(current, NULL);
+            die("required permitted capability %s not found in current capabilities:\n  %s", name, current_text);
+        }
+    }
+}

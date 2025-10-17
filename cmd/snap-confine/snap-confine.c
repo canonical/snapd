@@ -400,6 +400,9 @@ int main(int argc, char **argv) {
         die("cannot obtain current caps");
     }
 
+    /* Assert all our expected capabilities are permitted */
+    sc_cap_assert_permitted(caps_privileged, snap_confine_caps, SC_ARRAY_SIZE(snap_confine_caps));
+
     if (cap_set_flag(caps_privileged, CAP_EFFECTIVE, SC_ARRAY_SIZE(snap_confine_caps), snap_confine_caps, CAP_SET) !=
         0) {
         die("cannot fill effective capability set");
