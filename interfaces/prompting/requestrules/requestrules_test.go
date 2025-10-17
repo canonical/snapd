@@ -465,29 +465,14 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 
 	expectedNoticeInfo := []*noticeInfo{
 		{
-			userID: good1.User,
-			ruleID: good1.ID,
-			data:   nil,
-		},
-		{
 			userID: expired1.User,
 			ruleID: expired1.ID,
 			data:   map[string]string{"removed": "expired"},
 		},
 		{
-			userID: good2.User,
-			ruleID: good2.ID,
-			data:   nil,
-		},
-		{
 			userID: expired2.User,
 			ruleID: expired2.ID,
 			data:   map[string]string{"removed": "expired"},
-		},
-		{
-			userID: good3.User,
-			ruleID: good3.ID,
-			data:   nil,
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
@@ -641,11 +626,6 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 
 	expectedNoticeInfo := []*noticeInfo{
 		{
-			userID: good1.User,
-			ruleID: good1.ID,
-			data:   nil,
-		},
-		{
 			userID: identical1.User,
 			ruleID: identical1.ID,
 			data: map[string]string{
@@ -654,22 +634,12 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 			},
 		},
 		{
-			userID: good2.User,
-			ruleID: good2.ID,
-			data:   nil,
-		},
-		{
 			userID: nonOverlap2.User,
 			ruleID: nonOverlap2.ID,
 			data: map[string]string{
 				"removed":     "merged",
 				"merged-into": good2.ID.String(),
 			},
-		},
-		{
-			userID: good3.User,
-			ruleID: good3.ID,
-			data:   nil,
 		},
 		{
 			userID: overlap3.User,
@@ -721,7 +691,7 @@ func (s *requestrulesSuite) TestLoadHappy(c *C) {
 	c.Check(logbuf.String(), HasLen, 0)
 
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, nil, rules...)
+	s.checkNewNotices(c, nil)
 }
 
 func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
