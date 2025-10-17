@@ -59,7 +59,8 @@ execute: |
             exit 1
         fi
     done
-    snap remove bare core24
+    # ignore error because core24 may be used by the model
+    snap remove bare core24 || :
 
     # XXX: removing a disabled snap works but will fail to run its "remove" hook.
     # We should fix this but it's unclear how at the moment. Ideally, we would
