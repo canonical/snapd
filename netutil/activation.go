@@ -24,11 +24,10 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"syscall"
 	unix "syscall"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/fdstore"
 )
 
 // GetListener tries to get a listener for the given socket path from
@@ -69,12 +68,11 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 // ActivationListeners builds a map of addresses to listeners that were passed
 // during systemd activation
 func ActivationListeners() (lns map[string]net.Listener, err error) {
-	socketFds := systemd.ActivationSocketFds()
+	socketFds := fdstore.ActivationSocketFds()
 
 	lns = make(map[string]net.Listener, len(socketFds))
 	for name, fds := range socketFds {
 		for _, fd := range fds {
-			syscall.CloseOnExec(fd)
 			f := os.NewFile(uintptr(fd), name)
 			ln, err := net.FileListener(f)
 			if err != nil {

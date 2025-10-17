@@ -32,9 +32,7 @@ import (
 // SdNotify sends the given state string notification to systemd.
 //
 // inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
-var SdNotify = sdNotifyImpl
-
-func sdNotifyImpl(notifyState string) error {
+func SdNotify(notifyState string) error {
 	if notifyState == "" {
 		return fmt.Errorf("cannot use empty notify state")
 	}
@@ -53,9 +51,7 @@ func sdNotifyImpl(notifyState string) error {
 // descriptors to systemd.
 //
 // inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
-var SdNotifyWithFds = sdNotifyWithFdsImpl
-
-func sdNotifyWithFdsImpl(notifyState string, fds ...int) error {
+func SdNotifyWithFds(notifyState string, fds ...int) error {
 	if notifyState == "" {
 		return fmt.Errorf("cannot use empty notify state")
 	}
@@ -95,6 +91,8 @@ func sdNotifyWithFdsImpl(notifyState string, fds ...int) error {
 
 	return nil
 }
+
+var osGetenv = os.Getenv
 
 func sdNotifyConn() (*net.UnixConn, error) {
 	notifySocket := osGetenv("NOTIFY_SOCKET")

@@ -22,14 +22,17 @@ package systemd
 
 import (
 	"errors"
+	"os"
 )
 
 var errUnsupported = errors.New("unsupported on non-Linux systems")
 
-var SdNotify = func(notifyState string) error {
+var osGetenv = os.Getenv
+
+func SdNotify(notifyState string) error {
 	return errUnsupported
 }
 
-var SdNotifyWithFds = func(notifyState string, fds ...int) error {
+func SdNotifyWithFds(notifyState string, fds ...int) error {
 	return errUnsupported
 }
