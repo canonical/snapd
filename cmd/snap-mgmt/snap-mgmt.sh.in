@@ -254,6 +254,7 @@ ensure_snap_apps_stopped() {
             sn="${sn%%.*}"
             echo "- $n"
             echo "  likely owned by snap: '$sn'"
+            # shellcheck disable=SC2002
             echo "  PIDs: $(cat "$n/cgroup.procs" | paste -s -d' ')"
         done
         return 1
