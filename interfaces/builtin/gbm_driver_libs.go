@@ -106,7 +106,7 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 		return compatErr
 	}
 	// Validate directories
-	return validateLdconfigLibDirs(slot)
+	return validateSourceDirs(slot, sourceDirAttr{attrName: "library-source", isOptional: false})
 }
 
 func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

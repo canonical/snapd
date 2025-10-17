@@ -46,6 +46,7 @@ execute: |
 
     declare -A exclusion_map
     # Example exclusion_map["<interface-name>"]="<yyyy/mm>"
+    exclusion_map["vulkan-driver-libs"]="2026/02"
 
     # If the interface is in the exclusion_map and it is currently sooner
     # than its specified expiration date, then return true

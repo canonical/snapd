@@ -108,7 +108,7 @@ slots:
       - /snap/opengl-provider/current/lib1
 `, nil, "opengl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`opengl-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`opengl-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: opengl-provider
 version: 0

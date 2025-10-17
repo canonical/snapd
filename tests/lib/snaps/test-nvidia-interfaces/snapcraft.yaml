@@ -1,5 +1,5 @@
 name: test-nvidia-interfaces
-version: 1.0
+version: '1.1'
 type: app
 summary: Test for nvidia interfaces
 description: |
@@ -43,18 +43,32 @@ slots:
       - $SNAP/usr/lib/i386-linux-gnu
   opengl-dl:
     interface: opengl-driver-libs
-    compatibility: opengl-4-6-ubuntu-2510
+    compatibility: opengl-1-(0..5)-ubuntu-2510 OR
+                   opengl-2-(0..1)-ubuntu-2510 OR
+                   opengl-3-(0..3)-ubuntu-2510 OR
+                   opengl-4-(0..6)-ubuntu-2510
     library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       # Empty folder for arm64
       - $SNAP/usr/lib/i386-linux-gnu
   opengles-dl:
     interface: opengles-driver-libs
-    compatibility: opengles-4-6-ubuntu-2510
+    compatibility: opengles-1-(0..1)-ubuntu-2510 OR
+                   opengles-2-0-ubuntu-2510 OR
+                   opengles-3-(0..2)-ubuntu-2510
     library-source:
       - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
       # Empty folder for arm64
       - $SNAP/usr/lib/i386-linux-gnu
+  vulkan-dl:
+    interface: vulkan-driver-libs
+    compatibility: vulkan-1-(0..5)-ubuntu-2510
+    icd-source:
+      - $SNAP/usr/share/vulkan/icd.d/
+    implicit-layer-source:
+      - $SNAP/usr/share/vulkan/implicit_layer.d/
+    library-source:
+      - $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR
 
 parts:
   nvidia:
