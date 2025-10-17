@@ -785,17 +785,20 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON inside the
-// snap's mount namespace.
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON in path for this snap.
 func (s *Info) ExpandSnapVariables(path string) string {
+	// NOTE: We use dirs.CoreSnapMountDir here as the path used will be
+	// always inside the mount namespace snap-confine creates and there
+	// we will always have a /snap directory available regardless if the
+	// system we're running on supports this or not.
+	return s.expandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir)
+}
+
+func (s *Info) expandSnapVariablesSetSnapMountDir(path, snapMountDir string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
-			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be
-			// always inside the mount namespace snap-confine creates and there
-			// we will always have a /snap directory available regardless if the
-			// system we're running on supports this or not.
-			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
+			return filepath.Join(snapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
 		case "SNAP_COMMON":
@@ -803,6 +806,19 @@ func (s *Info) ExpandSnapVariables(path string) string {
 		}
 		return ""
 	})
+}
+
+// ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA and $SNAP_COMMON
+// for paths, using the rootfs as mount namespace.
+func (s *Info) ExpandSliceSnapVariablesInRootfs(paths []string) []string {
+	expandedDirs := make([]string, 0, len(paths))
+	for _, dir := range paths {
+		expandedDirs = append(expandedDirs, filepath.Clean(
+			s.expandSnapVariablesSetSnapMountDir(
+				filepath.Join(dirs.GlobalRootDir, dir),
+				dirs.StripRootDir(dirs.SnapMountDir))))
+	}
+	return expandedDirs
 }
 
 // InstallDate returns the "install date" of the snap.

@@ -93,6 +93,11 @@ const openglConnectedPlugAppArmor = `
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{OpenGL,GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
+# GPU libraries exported by a snap. These directories are filled by
+# sc_mount_exported_paths() in mount-support-nvidia.c. See also creation
+# of *.library-source files in *-driver-libs.
+/var/lib/snapd/lib/system/gpu/{,**} rm,
+
 # Allow access to all cards since a) this is common on hybrid systems, b) ARM
 # devices commonly have two devices (such as on the Raspberry Pi 4, one for KMS
 # and another that does not) and c) there is nothing saying that /dev/dri/card0

@@ -403,6 +403,18 @@
     /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/ r,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/** rw,
 
+    ## nvidia libraries exported by a snap
+    # read source paths
+    /var/lib/snapd/export/{,*} r,
+    # for the tmpfs
+    /var/lib/snapd/lib/system/ w,
+    /var/lib/snapd/lib/system/gpu/ w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/,
+    # mounts for the source paths
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/{,**} w,
+    mount options=(ro bind) /{,var/lib/snapd/}snap/** -> /tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/**,
+
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
 

@@ -243,6 +243,16 @@ static void test_sc_is_container__no_file(void) {
     g_assert_false(_sc_is_in_container("container"));
 }
 
+static void test_sc_is_container__long(void) {
+    g_test_in_ephemeral_dir();
+    g_test_queue_destroy((GDestroyNotify)my_unlink, "container");
+    g_assert_true(g_file_set_contents("container",
+                                      "01234567890123456789012345678901234567890123456789012345678901234567890123456789"
+                                      "01234567890123456789012345678901234567890123456789",
+                                      -1, NULL));
+    g_assert_true(_sc_is_in_container("container"));
+}
+
 static void test_sc_array_size(void) {
     char a1[] = {1, 2, 3, 4, 5};
     char a_empty[] = {};
@@ -272,6 +282,7 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/utils/sc_is_in_container/empty", test_sc_is_container__empty);
     g_test_add_func("/utils/sc_is_in_container/no_file", test_sc_is_container__no_file);
     g_test_add_func("/utils/sc_is_in_container/lxc", test_sc_is_container__lxc);
+    g_test_add_func("/utils/sc_is_in_container/long", test_sc_is_container__long);
     g_test_add_func("/utils/sc_is_in_container/lxc_newline", test_sc_is_container__lxc_with_newline);
     g_test_add_func("/utils/sc_array_size", test_sc_array_size);
 }

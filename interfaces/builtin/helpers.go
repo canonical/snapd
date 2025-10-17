@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -70,12 +71,30 @@ func addLdconfigLibDirs(spec *ldconfig.Specification, slot *interfaces.Connected
 	if err := slot.Attr("library-source", &libDirs); err != nil {
 		return err
 	}
-	expandedDirs := make([]string, 0, len(libDirs))
-	for _, dir := range libDirs {
-		expandedDirs = append(expandedDirs, filepath.Clean(slot.Snap().ExpandSnapVariables(
-			filepath.Join(dirs.GlobalRootDir, dir))))
+	return spec.AddLibDirs(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs))
+}
+
+// systemLibrarySourcePath returns the path for files containing directories
+// specified in system library-source fields. The file names have instance name
+// / slot name and interface name as different interfaces will write to the
+// export dir, for different instances and slots.
+func systemLibrarySourcePath(instance, slotName, ifaceName string) string {
+	return filepath.Join(dirs.SnapExportDirUnder(dirs.GlobalRootDir), fmt.Sprintf(
+		"system_%s_%s_%s.library-source", instance, slotName, ifaceName))
+}
+
+// addConfigfilesForSystemLibrarySourcePaths adds a file containing a list with
+// the system library sources for an interface to the /var/lib/snapd/export
+// directory. These files are used by snap-confine on classic for snaps
+// connected to the opengl interface.
+func addConfigfilesForSystemLibrarySourcePaths(iface string, spec *configfiles.Specification, slot *interfaces.ConnectedSlot) error {
+	libDirs := []string{}
+	if err := slot.Attr("library-source", &libDirs); err != nil {
+		return err
 	}
-	return spec.AddLibDirs(expandedDirs)
+	content := strings.Join(slot.Snap().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
+	return spec.AddPathContent(systemLibrarySourcePath(slot.Snap().InstanceName(), slot.Name(), iface),
+		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
 
 // filePathInLibDirs returns the path of the first occurrence of fileName in the
