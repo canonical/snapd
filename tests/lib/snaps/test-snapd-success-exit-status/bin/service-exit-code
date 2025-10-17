@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+trap 'echo "Exiting with 42 (SUCCESS)"; exit 42' USR1
+trap 'echo "Exiting with 250 (SUCCESS)"; exit 250' USR2
+trap 'echo "Exiting with 1 (FAILURE)"; exit 1' TRAP
+
+echo "Service starting (PID: $$)..."
+
+while true; do
+    echo "Service running..."
+    sleep 10
+done

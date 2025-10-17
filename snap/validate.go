@@ -813,6 +813,32 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
+func validateAppSuccessExitStatus(app *AppInfo) error {
+	if len(app.SuccessExitStatus) == 0 {
+		return nil
+	}
+
+	if !app.IsService() {
+		return errors.New("success exit status is only applicable to services")
+	}
+
+	for _, status := range app.SuccessExitStatus {
+		if status == "" {
+			return errors.New("success exit status cannot contain empty values")
+		}
+
+		if code, err := strconv.Atoi(status); err == nil {
+			if code < 0 || code > 255 {
+				return fmt.Errorf("exit code %d is out of range, exit codes must be between 0 and 255", code)
+			}
+		} else {
+			return errors.New("success exit status must be a number between 0 and 255")
+		}
+	}
+
+	return nil
+}
+
 func validateAppActivatesOn(app *AppInfo) error {
 	if len(app.ActivatesOn) == 0 {
 		return nil
@@ -939,6 +965,10 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	if err := validateAppTimeouts(app); err != nil {
+		return err
+	}
+
+	if err := validateAppSuccessExitStatus(app); err != nil {
 		return err
 	}
 
