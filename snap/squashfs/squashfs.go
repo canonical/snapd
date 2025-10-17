@@ -585,6 +585,15 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		"-no-progress",
 	)
 
+	if opts.SnapType == "kernel" {
+		// Do not double compress:
+		// * Kernel are usually already compressed, and maybe contain a compress initrd. And since they are copied, they should be.
+		// * Initrd are already compressed
+		// * Firmware and modules are compressed
+		// Double compress prevent xdelta3 doing a good job.
+		cmd.Args = append(cmd.Args, "-action", "uncompressed @ name(kernel.efi) || name(kernel.img) || name(initrd.img) || name(*.zst) || name(*.xz)")
+	}
+
 	if len(opts.ExcludeFiles) > 0 {
 		cmd.Args = append(cmd.Args, "-wildcards")
 		for _, excludeFile := range opts.ExcludeFiles {
