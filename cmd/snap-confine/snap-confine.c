@@ -401,7 +401,7 @@ int main(int argc, char **argv) {
     }
 
     /* Assert all our expected capabilities are permitted */
-    sc_cap_assert_permitted(caps_privileged, snap_confine_caps, SC_ARRAY_SIZE(snap_confine_caps));
+    sc_cap_assert_permitted(caps_privileged, snap_confine_caps, SC_ARRAY_SIZE(snap_confine_caps), NULL);
 
     if (cap_set_flag(caps_privileged, CAP_EFFECTIVE, SC_ARRAY_SIZE(snap_confine_caps), snap_confine_caps, CAP_SET) !=
         0) {
@@ -451,16 +451,9 @@ int main(int argc, char **argv) {
         /* On cgroup v1 systems we need CAP_SETUID and CAP_SETGID to manipulate
          * the freezer. Do an early check if packaging contains those
          * permissions or if we bail out early with a clear error message. */
-        cap_flag_value_t can_cap_setuid, can_cap_setgid;
-        if (cap_get_flag(caps_privileged, CAP_SETUID, CAP_PERMITTED, &can_cap_setuid) != 0) {
-            die("cannot check if CAP_SETUID is permitted");
-        }
-        if (cap_get_flag(caps_privileged, CAP_SETGID, CAP_PERMITTED, &can_cap_setgid) != 0) {
-            die("cannot check if CAP_SETGID is permitted");
-        }
-        if (can_cap_setuid == CAP_CLEAR || can_cap_setgid == CAP_CLEAR) {
-            die("snap-confine is packaged without permissions necessary to operate on legacy cgroup-v1 systems");
-        }
+        sc_cap_assert_permitted(
+            caps_privileged, snap_confine_caps_extra_cgroup_v1, SC_ARRAY_SIZE(snap_confine_caps_extra_cgroup_v1),
+            "snap-confine is packaged without permissions necessary to operate on legacy cgroup-v1 systems");
     }
 
     /* set privileged capabilities */

@@ -97,14 +97,14 @@ static void test_sc_cap_assert_permitted_happy(void) {
         CAP_FOWNER,
     };
 
-    sc_cap_assert_permitted(mock_current, test_set1, SC_ARRAY_SIZE(test_set1));
+    sc_cap_assert_permitted(mock_current, test_set1, SC_ARRAY_SIZE(test_set1), NULL);
 
     const cap_value_t test_set2[] = {
         CAP_SYS_ADMIN,
         CAP_FOWNER,
     };
 
-    sc_cap_assert_permitted(mock_current, test_set2, SC_ARRAY_SIZE(test_set2));
+    sc_cap_assert_permitted(mock_current, test_set2, SC_ARRAY_SIZE(test_set2), NULL);
 
     const cap_value_t test_set3[] = {
         CAP_SYS_ADMIN,
@@ -112,9 +112,9 @@ static void test_sc_cap_assert_permitted_happy(void) {
         CAP_SYS_ADMIN,
     };
 
-    sc_cap_assert_permitted(mock_current, test_set3, SC_ARRAY_SIZE(test_set3));
+    sc_cap_assert_permitted(mock_current, test_set3, SC_ARRAY_SIZE(test_set3), NULL);
 
-    sc_cap_assert_permitted(mock_current, NULL, 0);
+    sc_cap_assert_permitted(mock_current, NULL, 0, NULL);
 }
 
 static void test_sc_cap_assert_permitted_error(void) {
@@ -135,7 +135,7 @@ static void test_sc_cap_assert_permitted_error(void) {
             CAP_AUDIT_CONTROL,
         };
 
-        sc_cap_assert_permitted(mock_current, test_set, SC_ARRAY_SIZE(test_set));
+        sc_cap_assert_permitted(mock_current, test_set, SC_ARRAY_SIZE(test_set), NULL);
         // All done.
         return;
     }
@@ -146,9 +146,41 @@ static void test_sc_cap_assert_permitted_error(void) {
         "cap_fowner,cap_net_admin,cap_sys_admin=p\n");
 }
 
+static void test_sc_cap_assert_permitted_context_error(void) {
+    if (g_test_subprocess()) {
+        cap_t mock_current SC_CLEANUP(sc_cleanup_cap_t) = cap_init();
+        g_assert_nonnull(mock_current);
+        const cap_value_t mock_set[] = {
+            CAP_SYS_ADMIN,
+            CAP_FOWNER,
+            CAP_NET_ADMIN,
+        };
+        g_assert_cmpint(cap_set_flag(mock_current, CAP_PERMITTED, SC_ARRAY_SIZE(mock_set), mock_set, CAP_SET), ==, 0);
+
+        const cap_value_t test_set[] = {
+            CAP_NET_ADMIN,
+            CAP_FOWNER,
+            CAP_SYS_ADMIN,
+            CAP_AUDIT_CONTROL,
+        };
+
+        sc_cap_assert_permitted(mock_current, test_set, SC_ARRAY_SIZE(test_set),
+                                "snap-confine is missing some caps and cannot continue\n");
+        // All done.
+        return;
+    }
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr(
+        "snap-confine is missing some caps and cannot continue\n"
+        "required permitted capability cap_audit_control not found in current capabilities:\n  "
+        "cap_fowner,cap_net_admin,cap_sys_admin=p\n");
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/privs/sc_privs_drop", test_sc_privs_drop);
     g_test_add_func("/privs/sc_cleanup_cap", test_sc_privs_cleanup);
     g_test_add_func("/privs/sc_cap_assert_permitted_happy", test_sc_cap_assert_permitted_happy);
     g_test_add_func("/privs/sc_cap_assert_permitted_error", test_sc_cap_assert_permitted_error);
+    g_test_add_func("/privs/sc_cap_assert_permitted_context_error", test_sc_cap_assert_permitted_context_error);
 }
