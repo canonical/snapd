@@ -3866,7 +3866,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 // canDisable verifies that a snap can be deactivated.
 func canDisable(si *snap.Info) bool {
-	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
+	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS, snap.TypeBase} {
 		if importantSnapType == si.Type() {
 			return false
 		}

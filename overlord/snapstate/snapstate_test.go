@@ -1127,6 +1127,31 @@ func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
+func (s *snapmgrTestSuite) TestDisableForbiddenSnapTypes(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, typ := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS, snap.TypeBase} {
+		restore := snapstate.MockSnapReadInfo(func(string, *snap.SideInfo) (*snap.Info, error) {
+			return &snap.Info{
+				SnapType: typ,
+			}, nil
+		})
+
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{RealName: "some-snap", Revision: snap.R(11)},
+			}),
+			Current: snap.R(11),
+			Active:  true,
+		})
+
+		_, err := snapstate.Disable(s.state, "some-snap")
+		c.Assert(err, ErrorMatches, `snap "some-snap" cannot be disabled`, Commentf("failed for snap type %q", typ))
+		restore()
+	}
+}
+
 func (s *snapmgrTestSuite) TestDoInstallWithSlots(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
