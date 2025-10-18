@@ -8091,3 +8091,39 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 		c.Assert(err, IsNil)
 	}
 }
+
+func (s *snapmgrTestSuite) TestInstallPathManyIgnoresValidation(c *C) {
+	snapstate.ValidateRefreshes = func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+		return nil, fmt.Errorf("error: InstallPathMany should bypass refresh control checks")
+	}
+	defer func() { snapstate.ValidateRefreshes = nil }()
+
+	path := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("11"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.SideInfo{si}, []string{path}, 0, nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "path install")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(11))
+}
