@@ -1008,6 +1008,8 @@ debug-each: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
+    echo '::group::General info'
+
     echo '# System information'
     cat /etc/os-release || true
 
@@ -1020,23 +1022,32 @@ debug-each: |
     echo '# Go information'
     go version || true
 
+    echo '::endgroup::'
+
     if tests.nested is-nested; then
+        echo '::group::General nested info'
         echo '# free space on the host'
         df -h || true
         du -ch /var/tmp/work-dir || true
 
         echo '# nested VM status'
         tests.nested vm status
+        echo '::endgroup::'
+        echo '::group::Serial log'
         # filter out ^[ to ensure that the debug output gets not messed up
         tests.nested get serial-log | sed 's/\x1b//g'
         # add another echo in case the serial log is missing a newline
         echo
+        echo '::endgroup::'
 
+        echo '::group::journalctl -u snapd'
         remote.exec "sudo journalctl --no-pager -u snapd" || true
+        echo '::endgroup::'
 
         exit
     fi
 
+    echo '::group::snapd service'
     echo "# definition of snapd.service"
     systemctl cat snapd.service || true
     echo "# status of snapd service"
@@ -1045,13 +1056,19 @@ debug-each: |
     systemctl show snapd.service | grep -e MemoryMax= -e MemoryLimit= || true
     echo "# memory limits of snapd service that are actually set"
     cat /sys/fs/cgroup/memory/system.slice/snapd.service/memory.limit_in_bytes || true
+    echo '::endgroup::'
+    echo '::group::journalctl -u snapd'
     echo '# journal messages for snapd'
     "$TESTSTOOLS"/journal-state get-log -u snapd
+    echo '::endgroup::'
 
+    echo '::group::User sessions'
     echo '# user sessions information'
     journalctl --user -u snapd.session-agent.service || true
     systemctl status --user snapd.session-agent  || true
+    echo '::endgroup::'
 
+    echo '::group::device cgroups or snap confinement device filtering maps'
     if ! is_cgroupv2; then
         # dump any information on device cgroup of current session
         cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
@@ -1063,7 +1080,9 @@ debug-each: |
         echo "# snap confinement device filtering maps"
         ls -l /sys/fs/bpf/snap || true
     fi
+    echo '::endgroup::'
 
+    echo '::group::apparmor denials'
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
             if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
@@ -1086,22 +1105,40 @@ debug-each: |
             dmesg --ctime | grep DENIED || true
             ;;
     esac
+    echo '::endgroup::'
+
+    echo '::group:: seccomp denials'    
     echo '# seccomp denials (kills) '
     dmesg --ctime | grep type=1326 || true
+    echo '::endgroup::'
+    echo '::group:: snap connections'    
     echo '# snap connections --all'
     snap connections --all || true
+    echo '::endgroup::'
+    echo '::group::free space'    
     echo '# free space'
     df -h || true
+    echo '::endgroup::'
+    echo '::group::mounts'    
     echo '# mounts'
     # use ascii output to prevent travis from messing up the encoding
     findmnt --ascii -o+PROPAGATION || true
+    echo '::endgroup::'
+    echo '::group::processes'
     echo "# processes"
     ps axl
+    echo '::endgroup::'
+    echo '::group::/var/lib/snapd'
     echo "# /var/lib/snapd"
     find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
+    echo '::endgroup::'
+
+    echo '::group::journalctl -e'
     echo '# system journal messages'
     journalctl -e
+    echo '::endgroup::'
 
+    echo '::group::executed tests'
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
     if [ -f "$RUNTIME_STATE_PATH/runs" ]; then
@@ -1109,6 +1146,7 @@ debug-each: |
     fi
     # Add new line at the end of the debug output
     echo ''
+    echo '::endgroup::'
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit

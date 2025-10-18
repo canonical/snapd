@@ -416,7 +416,7 @@ jobs:
             exit 0
           fi
 
-          SPREAD_FLAGS='-no-debug-output -logs spread-logs -json results.json'
+          SPREAD_FLAGS='-logs spread-logs -json results.json'
           if [ "${{ inputs.upload-artifacts }}" = true ]; then
             SPREAD_FLAGS="$SPREAD_FLAGS -artifacts spread-artifacts"
             echo "ARTIFACTS_FOLDER=spread-artifacts" >> $GITHUB_ENV
