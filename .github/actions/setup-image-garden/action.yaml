@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Canonical Ltd.
+name: Run tests with image-garden and spread
+description: |
+    This is a modified version of the image-garden-action found at https://github.com/zyga/image-garden-action,
+    and only installs image garden and spread
+inputs:
+    cache-host-snaps:
+        description: Use GitHub cache to store snaps needed on the host (recommended)
+        default: "true"
+    cache-pristine-images:
+        description: Use GitHub cache to store pristine images (recommended)
+        default: "true"
+    garden-system:
+        description: Name of the image-garden system image to prepare
+        required: true
+    spread-subdir:
+        description: Sub-directory of the project where spread.yaml resides in
+        default: "."
+branding:
+    icon: download
+    color: orange
+runs:
+    using: composite
+    steps:
+        - name: Inspect the host system
+          shell: bash
+          run: |
+            echo "::group::Host system information"
+            echo "Kernel version"
+            uname -a
+            echo "Available memory"
+            free -m
+            echo "Number of CPU cores"
+            nproc
+            echo "Group membership"
+            groups
+            echo "List of IP addresses"
+            ip addr list
+            echo "Presence of /dev/kvm"
+            ls -l /dev/kvm || true
+            echo "::endgroup::"
+        - name: Enter project subdirectory
+          shell: bash
+          run: |
+            cd "${{ inputs.spread-subdir }}"
+        - name: Cache downloaded snaps (host only)
+          if: ${{ fromJSON(inputs.cache-host-snaps) }}
+          uses: actions/cache@v4
+          with:
+            path: .image-garden/host-snap-cache
+            key: host-snaps
+        - name: Cache pristine virtual machine images
+          if: ${{ fromJSON(inputs.cache-pristine-images) }}
+          uses: actions/cache@v4
+          with:
+            path: ~/snap/image-garden/common/cache/dl
+            key: image-garden-dl-${{ inputs.garden-system }}
+        - name: Restore mtime of .image-garden.mk
+          shell: bash
+          run: |
+            echo "::group::Restore mtime of .image-garden.mk"
+            # Disable man page updates which is time-consuming.
+            echo "man-db man-db/auto-update boolean false" | sudo debconf-set-selections
+            # Download the deb and install it by hand.
+            wget http://ftp.us.debian.org/debian/pool/main/g/git-mestrelion-tools/git-restore-mtime_2022.12-1_all.deb
+            sudo dpkg -i git-restore-mtime_2022.12-1_all.deb
+            rm -f git-restore-mtime_2022.12-1_all.deb
+            # sudo apt update
+            # sudo apt install -y git-restore-mtime
+            git restore-mtime .image-garden.mk
+            ls -l .image-garden.mk
+            echo "::endgroup::"
+        - name: Make permissions on /dev/kvm more lax
+          shell: bash
+          run: sudo chmod -v 666 /dev/kvm
+        - name: Install image garden
+          shell: bash
+          run: |
+            git clone https://gitlab.com/zygoon/image-garden.git -b 'v0.3.4' /tmp/image-garden
+            sudo make install -C /tmp/image-garden
+        - name: Install spread
+          shell: bash
+          run: |
+            git clone https://github.com/maykathm/spread.git -b 'spread-plus-main' /tmp/spread
+            cd /tmp/spread
+            sudo go build -o /usr/bin ./...
+        - name: Install dependencies
+          shell: bash
+          run: sudo apt install -y ovmf whois xorriso qemu-system-x86
