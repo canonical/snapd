@@ -697,7 +697,9 @@ def mkcpio(path, output, *, compress=True):
                                 cwd=path)
 
     if compress:
-        zstd_cmd = subprocess.Popen(['zstd', '-1', '-T0'],
+        # We compress by block of 128K. It does not affect much the
+        # size, but improves xdelta3
+        zstd_cmd = subprocess.Popen(['zstd', '--block-size=131072', '-1', '-T0'],
                                     stdin=cpio_cmd.stdout, stdout=output)
     else:
         zstd_cmd = None
