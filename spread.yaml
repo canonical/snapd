@@ -200,6 +200,10 @@ backends:
                   image: ubuntu-2404-64
                   workers: 8
                   storage: 20G
+            - ubuntu-core-26-64:
+                  image: ubuntu-2510-64
+                  workers: 8
+                  storage: 20G
 
     google-pro:
         type: google
@@ -301,6 +305,10 @@ backends:
                   image: ubuntu-24.04-arm-64
                   workers: 6
                   storage: 30G
+            - ubuntu-core-26-arm-64:
+                  image: ubuntu-25.10-arm-64
+                  workers: 6
+                  storage: 30G
     # TODO add garden-sru backend
     google-nested:
         type: google
@@ -331,6 +339,10 @@ backends:
                   image: ubuntu-2404-64-virt-enabled
                   storage: 25G
                   workers: 14
+            - ubuntu-26.04-64:
+                  image: ubuntu-2510-64-virt-enabled
+                  storage: 25G
+                  workers: 14
 
     google-nested-arm:
         type: google
@@ -350,6 +362,10 @@ backends:
                   workers: 8
             - ubuntu-24.04-arm-64:
                   image: ubuntu-2404-arm-64-virt-enabled
+                  storage: 25G
+                  workers: 8
+            - ubuntu-26.04-arm-64:
+                  image: ubuntu-2510-arm-64-virt-enabled
                   storage: 25G
                   workers: 8
 
@@ -443,6 +459,9 @@ backends:
             - ubuntu-core-24-64:
                 image: snapd-spread/ubuntu-24.04-64-uefi
                 workers: 8
+            - ubuntu-core-26-64:
+                image: snapd-spread/ubuntu-25.10-64-uefi
+                workers: 8
 
             - debian-12-64:
                 image: snapd-spread/debian-12-64
@@ -505,6 +524,10 @@ backends:
                   workers: 12
             - ubuntu-24.04-64:
                   image: snapd-spread/ubuntu-24.04-64
+                  storage: 25G
+                  workers: 12
+            - ubuntu-26.04-64:
+                  image: snapd-spread/ubuntu-25.10-64
                   storage: 25G
                   workers: 12
 
@@ -608,6 +631,8 @@ backends:
             - ubuntu-24.04-64:
                   workers: 8
             - ubuntu-25.10-64:
+                  workers: 8
+            - ubuntu-26.04-64:
                   workers: 8
 
     qemu-nested:
@@ -734,6 +759,10 @@ backends:
                   password: root
             - ubuntu-core-24-64:
                   image: ubuntu-24.04-64
+                  username: root
+                  password: root
+            - ubuntu-core-26-64:
+                  image: ubuntu-25.10-64
                   username: root
                   password: root
             - ubuntu-16.04-64:
@@ -973,6 +1002,12 @@ backends:
                   username: external
                   password: ubuntu123
             - ubuntu-core-24-arm-64:
+                  username: external
+                  password: ubuntu123
+            - ubuntu-core-26-64:
+                  username: external
+                  password: ubuntu123
+            - ubuntu-core-26-arm-64:
                   username: external
                   password: ubuntu123
 

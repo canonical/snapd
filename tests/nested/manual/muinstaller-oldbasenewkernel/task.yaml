@@ -42,6 +42,11 @@ execute: |
 
   core_version=22
   kernel_version="$(nested_get_version)"
+  case "${kernel_version}" in
+    26)
+      kernel_version=25.10
+      ;;
+  esac
 
   # Retrieve the gadget
   snap download --basename=pc --channel="$core_version/edge" pc
