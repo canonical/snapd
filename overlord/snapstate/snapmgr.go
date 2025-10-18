@@ -30,6 +30,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -43,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
@@ -54,8 +57,9 @@ import (
 )
 
 var (
-	removeSnapChangeKind           = swfeats.RegisterChangeKind("remove-snap")
-	transitionUbuntuCoreChangeKind = swfeats.RegisterChangeKind("transition-ubuntu-core")
+	removeSnapChangeKind                           = swfeats.RegisterChangeKind("remove-snap")
+	transitionUbuntuCoreChangeKind                 = swfeats.RegisterChangeKind("transition-ubuntu-core")
+	assertsSnapRevisionFromSnapIdAndRevisionNumber = asserts.SnapRevisionFromSnapIdAndRevisionNumber
 )
 
 func init() {
@@ -179,6 +183,9 @@ type SnapSetup struct {
 	// ComponentExclusiveOperation is set if this SnapSetup exists only to deal with
 	// components, and not the snap itself.
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
+
+	// IntegrityDataParams contains the integrity data to be used when mounting this snap.
+	IntegrityDataParams *snap.IntegrityData `json:"integrity-data,omitempty"`
 }
 
 // ConfdbSchemaID identifies a confdb schema.
@@ -1493,6 +1500,12 @@ func (m *SnapManager) ensureMountsUpdated() error {
 	if len(allStates) != 0 {
 		sysd := getSystemD()
 
+		// Open the assertion db to lookup integrity data for snaps
+		db, err := sysdb.Open()
+		if err != nil {
+			return err
+		}
+
 		for _, snapSt := range allStates {
 			info, err := snapSt.CurrentInfo()
 			if err != nil {
@@ -1521,14 +1534,51 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if snapType == snap.TypeKernel && dev == nil {
 				continue
 			}
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
-				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{
-					PreventRestartIfModified: true,
-					// We need early mounts only for UC20+/hybrid, also 16.04
-					// systemd seems to be buggy if we enable this.
-					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
-						dev.HasModeenv()}); err != nil {
+
+			// We need early mounts only for UC20+/hybrid, also 16.04
+			// systemd seems to be buggy if we enable this.
+			startBeforeDriversLoad := snapType == snap.TypeKernel && dev.HasModeenv()
+
+			mountOptions := &systemd.MountUnitOptions{
+				Lifetime:                 systemd.Persistent,
+				Description:              info.MountDescription(),
+				What:                     squashfsPath,
+				Where:                    whereDir,
+				PreventRestartIfModified: true,
+			}
+
+			fsType, options, mountUnitType := sysd.MountUnitOptions(squashfsPath, "squashfs", startBeforeDriversLoad)
+
+			mountOptions.Fstype = fsType
+			mountOptions.MountUnitType = mountUnitType
+
+			if !snapSt.Current.Local() {
+				snapID := snapSt.Sequence.Revisions[0].Snap.SnapID
+				rev, err := assertsSnapRevisionFromSnapIdAndRevisionNumber(db, snapID, snapSt.Current.N)
+				if err != nil {
+					return err
+				}
+
+				idp, err := integrity.NewIntegrityDataParamsFromRevision(rev)
+
+				// Currently integrity data are not enforced therefore errors returned when integrity data
+				// are not found for a snap revision are ignored.
+				if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
+					return err
+				}
+
+				if idp != nil {
+					hashDevicePath := dirs.StripRootDir(integrity.DmVerityHashFileName(info.MountFile(), idp.Digest))
+
+					options = append(options, fmt.Sprintf("verity.roothash=%s", idp.Digest))
+					options = append(options, fmt.Sprintf("verity.hashdevice=%s", hashDevicePath))
+				}
+			}
+
+			mountOptions.Options = options
+
+			_, err = sysd.EnsureMountUnitFileWithOptions(mountOptions)
+			if err != nil {
 				return err
 			}
 		}
