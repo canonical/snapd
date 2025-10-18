@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -64,6 +65,10 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
+
+	// DmVerityInfo returns the path of the dm-verity data file and the dm-verity
+	// digest if they exist.
+	DmVerityInfo() (string, string, error)
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -437,6 +442,9 @@ type Info struct {
 
 	// Categories this snap is in.
 	Categories []CategoryInfo
+
+	// IntegrityData available for this snap
+	IntegrityData *IntegrityData
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -1092,6 +1100,21 @@ type DownloadInfo struct {
 	// server will provide single matching deltas only, from the clients
 	// revision to the target revision when available, per requested format.
 	Deltas []DeltaInfo `json:"deltas,omitempty"`
+}
+
+// GetVerityDigest returns the digest part of a dm-verity data URL from the store.
+func (di *DownloadInfo) GetVerityDigest() string {
+	// example integrity data URLs from the store
+	// https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_<snap-id>_<revision>.dmverity_<root-hash>
+	// https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_<snap-id>.<resource-name>_<resource-revision>.dmverity_<root-hash>
+	dmVerityInfo := strings.Split(di.DownloadURL, ".")
+	lastExt := dmVerityInfo[len(dmVerityInfo)-1]
+
+	if strings.Contains(lastExt, "dmverity") {
+		return strings.Split(lastExt, "_")[1]
+	}
+
+	return ""
 }
 
 // DeltaInfo contains the information to download a delta
@@ -2134,4 +2157,28 @@ type RefreshFailuresInfo struct {
 	// LastFailureSeverity identifies how severe the last failure was.
 	// This allows for more aggressive backoff delay for snaps that fail after a reboot.
 	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
+}
+
+// IntegrityData contains all the integrity metadata associated with a snap.
+type IntegrityData struct {
+	// add json tags in this struct
+	Type          string `json:"type"`
+	Version       uint   `json:"version"`
+	HashAlg       string `json:"hash-algorithm"`
+	DataBlockSize uint   `json:"data-block-size"`
+	HashBlockSize uint   `json:"hash-block-size"`
+	Digest        string `json:"digest"`
+	Salt          string `json:"salt"`
+
+	DownloadInfo `json:"download-info,omitempty"`
+}
+
+// DmVerityInfo returns the name of the dm-verity hash file
+// currently used with this snap and the dm-verity digest.
+func (s *Info) DmVerityInfo() (string, string, error) {
+	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
+		return "", "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
+	}
+
+	return integrity.DmVerityHashFileName(s.MountFile(), s.IntegrityData.Digest), s.IntegrityData.Digest, nil
 }

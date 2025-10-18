@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -48,9 +49,17 @@ type InstallRecord struct {
 	TargetSnapExisted bool `json:"target-snap-existed,omitempty"`
 }
 
+type IntegrityData struct {
+	Type              string
+	IntegrityRootHash string
+}
+
 type SetupSnapOptions struct {
 	SkipKernelExtraction bool
+	IntegrityData
 }
+
+var ErrDmVerityDataFileError = errors.New("dm-verity data access error")
 
 // SetupSnap does prepare and mount the snap for further processing.
 func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
@@ -100,6 +109,25 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		opts.MustNotCrossDevices = true
 	}
 
+	if setupOpts.IntegrityRootHash != "" {
+		integrityDataPath := integrity.DmVerityHashFileName(snapFilePath, setupOpts.IntegrityRootHash)
+		_, err := os.Stat(integrityDataPath)
+		if err != nil {
+			// setup a snap with integrity data was requested but there was an issue
+			// when accessing the file
+			return snapType, nil, fmt.Errorf("%w: %w", ErrDmVerityDataFileError, err)
+		}
+
+		opts.IntegrityRootHash = setupOpts.IntegrityRootHash
+
+		// we also fill the bare minimum info that we need to discover the
+		// dm-verity data when calling DmVerityInfo() in addMountUnit.
+		s.IntegrityData = &snap.IntegrityData{
+			Type:   "dm-verity",
+			Digest: setupOpts.IntegrityRootHash,
+		}
+	}
+
 	var didNothing bool
 	if didNothing, err = snapf.Install(s.MountFile(), instdir, opts); err != nil {
 		return snapType, nil, err
@@ -107,13 +135,14 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	// generate the mount unit for the squashfs
 	t := s.Type()
-	mountFlags := systemd.EnsureMountUnitFlags{
+	mountFlags := MountUnitFlags{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
 	}
-	if err := addMountUnit(s, mountFlags, newSystemd(b.preseed, meter)); err != nil {
+
+	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountFlags); err != nil {
 		return snapType, nil, err
 	}
 
@@ -190,13 +219,13 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// generate the mount unit for the squashfs
-	mountFlags := systemd.EnsureMountUnitFlags{
+	mountFlags := MountUnitFlags{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: compInfo.Type == snap.KernelModulesComponent && dev.HasModeenv(),
 	}
-	if err := addMountUnit(compPi, mountFlags, newSystemd(b.preseed, meter)); err != nil {
+	if err := addMountUnit(compPi, newSystemd(b.preseed, meter), mountFlags); err != nil {
 		return nil, err
 	}
 
@@ -229,10 +258,20 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
 		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
-			// remove the snap
-			if err := os.RemoveAll(snapPath); err != nil {
+			// remove the snap and other associated companion files such as integrity data
+			// dm-verity data follow the naming convention:
+			// foo_1.snap.dmverity_<digest>
+			snapFiles, err := filepath.Glob(snapPath + "*")
+			if err != nil {
 				return err
 			}
+			for _, f := range snapFiles {
+				err = os.RemoveAll(f)
+				if err != nil {
+					return err
+				}
+			}
+
 		}
 	}
 

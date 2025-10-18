@@ -65,6 +65,9 @@ type Options struct {
 	// pre-existing behavior of calling InstallMany with one snap vs calling
 	// Install.
 	ExpectOneSnap bool
+	// RequestIntegrityData is set to true to indicate that dm-verity data should be
+	// requested.
+	RequestIntegrityData bool
 }
 
 func (opts *Options) setDefaultLane(st *state.State) error {
@@ -149,7 +152,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 
-	return SnapSetup{
+	snapsup := SnapSetup{
 		Channel:      t.setup.Channel,
 		CohortKey:    t.setup.CohortKey,
 		DownloadInfo: t.setup.DownloadInfo,
@@ -174,7 +177,16 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			// XXX we store this for the benefit of old snapd
 			Website: t.info.Website(),
 		},
-	}, compsups, nil
+	}
+
+	// TODO until dm-verity data are used for all snaps, we will only
+	// use integrity data for specific snap types (the essential snaps).
+	typ := t.info.Type()
+	if typ == snap.TypeBase || typ == snap.TypeKernel || typ == snap.TypeGadget || typ == snap.TypeSnapd {
+		snapsup.IntegrityDataParams = t.setup.IntegrityDataParams
+	}
+
+	return snapsup, compsups, nil
 }
 
 // InstallGoal represents a single snap or a group of snaps to be installed.
@@ -303,9 +315,10 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 		installs = append(installs, target{
 			setup: SnapSetup{
-				DownloadInfo: &r.DownloadInfo,
-				Channel:      channel,
-				CohortKey:    sn.RevOpts.CohortKey,
+				DownloadInfo:        &r.DownloadInfo,
+				Channel:             channel,
+				CohortKey:           sn.RevOpts.CohortKey,
+				IntegrityDataParams: r.IntegrityData,
 			},
 			info:       r.Info,
 			snapst:     *snapst,
