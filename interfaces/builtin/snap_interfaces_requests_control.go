@@ -88,7 +88,7 @@ func (iface *requestsControlInterface) BeforePreparePlug(plug *snap.PlugInfo) er
 		return fmt.Errorf("declared handler service %q not found in snap", handlerService)
 	}
 
-	if !svc.IsService() || svc.DaemonScope != snap.UserDaemon {
+	if !svc.IsService() || !svc.DaemonScope.IsUserDaemon() {
 		return fmt.Errorf("declared handler service %q is not a user service", handlerService)
 	}
 
