@@ -22,7 +22,6 @@ package clusterstate
 import (
 	"context"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -56,11 +55,5 @@ func MockStoreUpdateGoal(f func(...snapstate.StoreUpdate) snapstate.UpdateGoal) 
 func MockStoreInstallGoal(f func(...snapstate.StoreSnap) snapstate.InstallGoal) func() {
 	restore := testutil.Backup(&storeInstallGoal)
 	storeInstallGoal = f
-	return restore
-}
-
-func MockDevicestateSerial(f func(*state.State) (*asserts.Serial, error)) func() {
-	restore := testutil.Backup(&devicestateSerial)
-	devicestateSerial = f
 	return restore
 }
