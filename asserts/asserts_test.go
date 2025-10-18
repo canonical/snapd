@@ -60,6 +60,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"preseed",
 		"repair",
 		"request-message",
+		"response-message",
 		"serial",
 		"serial-request",
 		"snap-build",
@@ -1212,8 +1213,8 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"repair",
 		"request-message",
 	}
-	// excluding device-session-request, serial-request, account-key-request, confdb-control
-	c.Check(withAuthority, HasLen, asserts.NumAssertionType-4)
+	// excluding device-session-request, serial-request, account-key-request, confdb-control, response-message
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-5)
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
 		_, err := asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1)
