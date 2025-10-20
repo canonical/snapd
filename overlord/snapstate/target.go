@@ -1046,8 +1046,8 @@ type UpdateGoal interface {
 	// toUpdate returns the data needed to update the snaps.
 	toUpdate(context.Context, *state.State, Options) (updatePlan, error)
 
-	// filterGatedSnaps validates the plan against refresh control, if applicable,
-	// and filters out gated snaps.
+	// filterGatedSnaps validates the update plan against refresh control and, if
+	// applicable, filters out gated snaps.
 	filterGatedSnaps(*state.State, *updatePlan, Options) error
 }
 
@@ -1405,7 +1405,10 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 	}, nil
 }
 
-func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) error { return nil }
+func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) error {
+	// local installs ignore refresh control by design
+	return nil
+}
 
 func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
