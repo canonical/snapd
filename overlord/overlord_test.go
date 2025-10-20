@@ -125,6 +125,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.InterfaceManager(), NotNil)
 	c.Check(o.HookManager(), NotNil)
 	c.Check(o.DeviceManager(), NotNil)
+	c.Check(o.ClusterManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
 	c.Check(o.SnapshotManager(), NotNil)
 	c.Check(o.FDEManager(), NotNil)

@@ -688,6 +688,11 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
 }
 
+// ClusterManager returns the manager responsible for the state of clustering.
+func (o *Overlord) ClusterManager() *clusterstate.ClusterManager {
+	return o.clusterMgr
+}
+
 // CommandManager returns the manager responsible for running odd
 // jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
