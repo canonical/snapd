@@ -8,6 +8,7 @@ details: |
 systems: 
     - ubuntu-2*
     - ubuntu-18.04-64
+    - fedora-*
 
 environment:
     domain_name: example.com
@@ -65,16 +66,32 @@ prepare: |
     packages=
     case ${MODULE} in
         ldap)
-            packages="slapd libnss-ldapd debconf-utils"
+            if os.query is_ubuntu; then
+                packages="slapd libnss-ldapd debconf-utils"
+            elif os.query is_fedora; then
+                packages="slapd nss-pam-ldapd openldap-clients oddjob-mkhomedir"
+            fi
             ;;
         sss)
-            packages="slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc"
+            if os.query is_ubuntu; then
+                packages="slapd ldap-utils sssd debconf-utils krb5-user krb5-admin-server krb5-kdc"
+            elif os.query is_fedora; then
+                packages="slapd nss-pam-ldapd openldap-clients sssd-krb5 krb5-server-ldap krb5-libs krb5-server krb5-workstation sssd-ldap oddjob-mkhomedir"
+            fi
             ;;
         nis)
-            packages="nis rpcbind"
+            if os.query is_ubuntu; then
+                packages="nis rpcbind"
+            elif os.query is_fedora; then
+                packages="nss_nis rpcbind oddjob-mkhomedir ypbind"
+            fi
             ;;
         winbind)
-            packages="winbind libnss-winbind libpam-winbind realmd adcli samba-common-bin"
+            if os.query is_ubuntu; then
+                packages="winbind libnss-winbind libpam-winbind realmd adcli samba-common-bin"
+            elif os.query is_fedora; then
+                packages="realmd oddjob oddjob-mkhomedir samba-winbind samba-winbind-clients samba-common-tools"
+            fi
             ;;
     esac
 
@@ -92,46 +109,68 @@ prepare: |
         hostname "${host_name}"
         echo "127.0.1.10 ${host_name}" >> /etc/hosts
 
-        # backup debconf
-        debconf-get-selections > debconf_selections.bak
-        tests.cleanup defer 'debconf-set-selections < debconf_selections.bak'
+        if os.query is_ubuntu; then
+            # backup debconf
+            debconf-get-selections > debconf_selections.bak
+            tests.cleanup defer 'debconf-set-selections < debconf_selections.bak'
 
-        # configure slapd with ldap values
-        debconf-set-selections << EOF
+            # configure slapd with ldap values
+            debconf-set-selections << EOF
     slapd	slapd/domain	string	${domain_name}
     slapd	shared/organization	string	${domain_name}
     slapd	slapd/password1	password	${admin_pw}
     slapd	slapd/password2	password	${admin_pw}
     EOF
-        dpkg-reconfigure -fnoninteractive -pcritical slapd
+            dpkg-reconfigure -fnoninteractive -pcritical slapd
+        elif os.query is_fedora; then
+            systemctl start slapd
+            ldapmodify -a -Q -Y EXTERNAL -H ldapi:/// -f fedora-root.ldif
+            ldapmodify -a -Q -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+            ldapmodify -a -Q -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+            ldapmodify -a -Q -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
+            cat << EOF > domain.ldif
+    dn: ${ldap_suffix}
+    objectClass: top
+    objectClass: domain
+    dc: example
+    EOF
+            envsubst < domain.ldif | ldapadd -x -D "${admin_dn}" -w "${admin_pw}"
+        fi
+
+        ldapdir='/etc/ldap'
+        group='openldap'
+        if os.query is_fedora; then
+            ldapdir='/etc/openldap'
+            group='ldap'
+        fi
 
         # generate certificates
-        envsubst < openssl.cnf > /etc/ldap/openssl.cnf
-        cert="/etc/ldap/server.pem"
-        key="/etc/ldap/server.key"
-        openssl req -new -x509 -nodes -out "$cert" -keyout "$key" -config /etc/ldap/openssl.cnf
+        envsubst < openssl.cnf > "$ldapdir"/openssl.cnf
+        cert="$ldapdir/server.pem"
+        key="$ldapdir/server.key"
+        openssl req -new -x509 -nodes -out "$cert" -keyout "$key" -config "$ldapdir"/openssl.cnf
         chmod 0640 "$key"
-        chgrp openldap "$key"
+        chgrp "$group" "$key"
         [ ! -f "$cert" ] && echo "ERROR, failed to generate certificate for ldap test" && exit 1
         [ ! -f "$key" ] && echo "ERROR, failed to generate key for ldap test" && exit 1
 
         # configure ldap to use the generated certificates
-        cat > /etc/ldap/ldap.conf <<EOF
+        cat > "$ldapdir"/ldap.conf <<EOF
     BASE ${ldap_suffix}
     URI ldap://${host_name}
-    TLS_CACERT /etc/ldap/server.pem
+    TLS_CACERT ${ldapdir}/server.pem
     EOF
 
         cat <<EOF | ldapmodify -H ldapi:/// -Y EXTERNAL -Q 
     dn: cn=config
     add: olcTLSCACertificateFile
-    olcTLSCACertificateFile: /etc/ldap/server.pem
+    olcTLSCACertificateFile: ${ldapdir}/server.pem
     -
     add: olcTLSCertificateFile
-    olcTLSCertificateFile: /etc/ldap/server.pem
+    olcTLSCertificateFile: ${ldapdir}/server.pem
     -
     add: olcTLSCertificateKeyFile
-    olcTLSCertificateKeyFile: /etc/ldap/server.key
+    olcTLSCertificateKeyFile: ${ldapdir}/server.key
     EOF
 
         # populate ldap 
@@ -140,22 +179,51 @@ prepare: |
         if [ "$MODULE" = "ldap" ]; then
             sed -i "s/^uri.*ldap.*/uri ldap\:\/\/${host_name}/" /etc/nslcd.conf
             sed -i "s/^base.*/base ${ldap_suffix}/" /etc/nslcd.conf
-            sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
-            sed -i "s/^group\:.*/& ldap/" /etc/nsswitch.conf
-            sed -i "s/^shadow\:.*/& ldap/" /etc/nsswitch.conf
-            systemctl restart nslcd nscd
+            if os.query is_ubuntu; then
+                sed -i "s/^passwd\:.*/& ldap/" /etc/nsswitch.conf
+                sed -i "s/^group\:.*/& ldap/" /etc/nsswitch.conf
+                sed -i "s/^shadow\:.*/& ldap/" /etc/nsswitch.conf
+                systemctl restart nscd
+            elif os.query is_fedora; then
+                authselect create-profile nss-ldap -b local --symlink-meta --symlink-pam
+                sed -i "s/^passwd\:.*/& ldap/" /etc/authselect/custom/nss-ldap/nsswitch.conf
+                sed -i "s/^shadow\:.*/& ldap/" /etc/authselect/custom/nss-ldap/nsswitch.conf
+                sed -i "s/^group\:.*/& ldap/" /etc/authselect/custom/nss-ldap/nsswitch.conf
+                echo "auth required pam_ldap.so use_first_pass" >> /etc/authselect/custom/nss-ldap/system-auth
+                echo "account required pam_ldap.so" >> /etc/authselect/custom/nss-ldap/system-auth
+                systemctl enable --now oddjobd.service
+                authselect select custom/nss-ldap
+            fi
+            systemctl restart nslcd
+
 
         elif [ "$MODULE" = "sss" ]; then
             # setup some defaults
-            envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
-            envsubst < krb5.conf > /etc/krb5.conf
-            touch /etc/krb5kdc/kadm5.acl
+            if os.query is_ubuntu; then
+                envsubst < kdc.conf > /etc/krb5kdc/kdc.conf
+                envsubst < krb5.conf > /etc/krb5.conf
+                touch /etc/krb5kdc/kadm5.acl
+            elif os.query is_fedora; then
+                sed -i "s/^\#.*default_realm.*/    default_realm = ${realm_name}/" /etc/krb5.conf
+                sed -i "/^\[realms\]/a\\
+                ${realm_name} = {\\
+                    kdc = ${host_name}\\
+                    admin_server = ${host_name}\\
+                }" /etc/krb5.conf
+                sed -i "/^\[domain_realm\]/a\\
+                .${domain_name} = ${realm_name}\\
+                ${domain_name} = ${realm_name}" /etc/krb5.conf
+            fi
 
             # create the realm
             kdb5_util create -s -P secretpassword
 
             # restart services
-            systemctl restart krb5-kdc.service krb5-admin-server.service
+            if os.query is_ubuntu; then
+                systemctl restart krb5-kdc.service krb5-admin-server.service
+            elif os.query is_fedora; then
+                systemctl restart krb5kdc kadmin
+            fi
 
             # create the kerberos prinicpal
             kadmin.local -q "addprinc -pw ${kerberos_principal_pw} ${nss_user}"
@@ -168,6 +236,10 @@ prepare: |
                 systemctl status --lines 100 sssd
                 false
             }
+            if os.query is_fedora; then
+                systemctl enable --now oddjobd.service
+                authselect select sssd
+            fi
         fi
 
     elif [ "$MODULE" = "nis" ]; then
@@ -213,10 +285,15 @@ prepare: |
         systemctl enable ypbind || true
         systemctl restart ypbind
 
-        # Update NSS to use nis
-        sed -i "s/^passwd\:.*/& nis/" /etc/nsswitch.conf
-        sed -i "s/^group\:.*/& nis/" /etc/nsswitch.conf
-        sed -i "s/^shadow\:.*/& nis/" /etc/nsswitch.conf
+        if os.query is_ubuntu; then
+            # Update NSS to use nis
+            sed -i "s/^passwd\:.*/& nis/" /etc/nsswitch.conf
+            sed -i "s/^group\:.*/& nis/" /etc/nsswitch.conf
+            sed -i "s/^shadow\:.*/& nis/" /etc/nsswitch.conf
+        elif os.query is_fedora; then
+            systemctl enable --now oddjobd.service
+            authselect select nis
+        fi
 
     elif [ "$MODULE" = "winbind" ]; then
         "$TESTSTOOLS"/lxd-state prepare-snap
@@ -266,6 +343,11 @@ prepare: |
         sed -i 's/.*winbind enum groups.*/winbind enum groups = yes/' /etc/samba/smb.conf
         sed -i 's/.*winbind enum users.*/winbind enum users = yes/' /etc/samba/smb.conf
 
+        if os.query is_fedora; then
+            systemctl enable --now oddjobd.service
+            authselect select winbind
+        fi
+
         # On some systems, /etc/nsswitch.conf doesn't get modified so do so manually here
         if ! grep -q winbind /etc/nsswitch.conf; then
             sed -i "s/^passwd\:.*/& winbind/" /etc/nsswitch.conf
@@ -275,7 +357,11 @@ prepare: |
     fi
 
     # enable home directory creation
-    pam-auth-update --enable mkhomedir
+    if os.query is_ubuntu; then
+        pam-auth-update --enable mkhomedir
+    elif os.query is_fedora; then
+        authselect enable-feature with-mkhomedir
+    fi
     tests.cleanup defer rm -rf /home/${nss_user}*
 
     snap install test-snapd-sh
@@ -303,6 +389,13 @@ execute: |
         echo "got errors/warnings when running a snap as ${nss_user}"
         cat stderr
         exit 1
+    fi
+
+    if os.query is_fedora && [[ "$MODULE" = "nis" ]]; then
+        # On Fedora, the snap uses the host's nsswitch.conf file since it's a symbolic link.
+        # The nss library modules are missing for all variants except for nis. 
+        # Because the core base has libnss_nis.so.2, nis-specific users are visibile inside the snap.
+        exit 0
     fi
 
     # TODO: Switch from NOMATCH to MATCH when snapd is able to see users by other NSS ID providers.
