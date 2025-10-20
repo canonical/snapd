@@ -54,7 +54,7 @@ runs:
           if: ${{ fromJSON(inputs.cache-pristine-images) }}
           uses: actions/cache@v4
           with:
-            path: ~/snap/image-garden/common/cache/dl
+            path: ~/.cache/image-garden/dl
             key: image-garden-dl-${{ inputs.garden-system }}
         - name: Restore mtime of .image-garden.mk
           shell: bash
