@@ -13,15 +13,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SNAP_MOUNT_DIR := /snap
+USE_CANONICAL_SNAP_MOUNT_DIR ?= true
+USE_ALT_SNAP_MOUNT_DIR ?= false
+
 ENVD := /usr/lib/environment.d/
 
 %.conf: %.conf.in
-	sed   < $< > $@ \
-		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
+	m4 -P -E \
+		-D "USE_CANONICAL_SNAP_MOUNT_DIR=$(USE_CANONICAL_SNAP_MOUNT_DIR)" \
+		-D "USE_ALT_SNAP_MOUNT_DIR=$(USE_ALT_SNAP_MOUNT_DIR)" \
+		< $< > $@
 
 GENERATED = 990-snapd.conf
-
 
 all: ${GENERATED}
 .PHONY: all
