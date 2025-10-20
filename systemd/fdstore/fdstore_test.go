@@ -166,12 +166,12 @@ func (s *fdstoreTestSuite) TestAdd(c *C) {
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 7)
 
 	// but only once
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 8), ErrorMatches, `cannot add file descriptor: "memfd-secret-state" already exists`)
+	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 8), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
 	// also, cannot add unknown fds
-	c.Check(fdstore.Add(fdstore.FdName("unknown"), 9), ErrorMatches, `cannot add file descriptor: unknown file descriptor name "unknown"`)
+	c.Check(fdstore.Add(fdstore.FdName("unknown"), 9), ErrorMatches, `cannot add file descriptor to fdstore: unknown file descriptor name "unknown"`)
 	// also, cannot add socket fds
-	c.Check(fdstore.Add(fdstore.FdName("snapd.socket"), 10), ErrorMatches, "cannot add file descriptor: sockets cannot be added")
-	c.Check(fdstore.Add(fdstore.FdName("some-svc.socket"), 10), ErrorMatches, "cannot add file descriptor: sockets cannot be added")
+	c.Check(fdstore.Add(fdstore.FdName("snapd.socket"), 10), ErrorMatches, "cannot add file descriptor to fdstore: sockets are not allowed")
+	c.Check(fdstore.Add(fdstore.FdName("some-svc.socket"), 10), ErrorMatches, "cannot add file descriptor to fdstore: sockets are not allowed")
 
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
 		"sd-notify-with-fds: FDSTORE=1\nFDNAME=memfd-secret-state [7]",
@@ -183,7 +183,7 @@ func (s *fdstoreTestSuite) TestAddExistingFdError(c *C) {
 	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state"
 
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor: "memfd-secret-state" already exists`)
+	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
@@ -193,7 +193,7 @@ func (s *fdstoreTestSuite) TestAddSdNotifyError(c *C) {
 	s.errOn = []string{"sd-notify-with-fds: FDSTORE=1\nFDNAME=memfd-secret-state [7]"}
 
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor: boom!`)
+	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: boom!`)
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, -1)
 
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 8), IsNil)
@@ -205,14 +205,14 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket:snapd.socket"
 
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor: "memfd-secret-state" already exists`)
+	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 3)
 	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), IsNil)
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), IsNil)
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 7)
 
 	// cannot remove socket fds
-	c.Check(fdstore.Remove(fdstore.FdName("snapd.socket")), ErrorMatches, "cannot remove file descriptor: sockets cannot be removed")
+	c.Check(fdstore.Remove(fdstore.FdName("snapd.socket")), ErrorMatches, "cannot remove file descriptor from fdstore: sockets cannot be removed")
 
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
 		"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state",

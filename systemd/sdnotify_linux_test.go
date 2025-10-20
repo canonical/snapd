@@ -40,11 +40,11 @@ type sdNotifyTestSuite struct{}
 var _ = Suite(&sdNotifyTestSuite{})
 
 func (sd *sdNotifyTestSuite) TestSdNotifyMissingNotifyState(c *C) {
-	c.Check(systemd.SdNotify(""), ErrorMatches, "cannot use empty notify state")
+	c.Check(systemd.SdNotify(""), ErrorMatches, "invalid empty notify state")
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingNotifyState(c *C) {
-	c.Check(systemd.SdNotifyWithFds("", 1, 2), ErrorMatches, "cannot use empty notify state")
+	c.Check(systemd.SdNotifyWithFds("", 1, 2), ErrorMatches, "invalid empty notify state")
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingFds(c *C) {
@@ -56,7 +56,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 		env    string
 		errStr string
 	}{
-		{"", "cannot find NOTIFY_SOCKET environment"},
+		{"", "cannot find NOTIFY_SOCKET environment variable"},
 		{"xxx", `cannot use NOTIFY_SOCKET "xxx"`},
 	} {
 		os.Setenv("NOTIFY_SOCKET", t.env)

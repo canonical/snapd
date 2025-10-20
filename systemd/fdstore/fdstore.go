@@ -109,6 +109,7 @@ func initFdstore() {
 		name := FdName(names[i])
 		fdstore[name] = append(fdstore[name], fd)
 
+		// TODO: Use raw fcntl and check for errors.
 		unixCloseOnExec(fd)
 	}
 
@@ -125,9 +126,9 @@ func initFdstore() {
 			shouldRemove = true
 		}
 		if shouldRemove {
-			logger.Noticef("removing fdstore entry %q", name)
+			logger.Noticef("removing unexpected fdstore entry %q", name)
 			if err := removeUnlocked(name); err != nil {
-				logger.Noticef("internal error: cannot remove fstore entry %q: %v\n", name, err)
+				logger.Noticef("internal error: cannot remove fdstore entry %q: %v\n", name, err)
 				continue
 			}
 		}
@@ -144,7 +145,7 @@ func Remove(name FdName) (err error) {
 	if name.isSocket() {
 		// Activation sockets can only be passed down from systemd
 		// i.e. file descriptors whose name has a ".socket" suffix
-		return fmt.Errorf("cannot remove file descriptor: sockets cannot be removed")
+		return fmt.Errorf("cannot remove file descriptor from fdstore: sockets cannot be removed")
 	}
 
 	mu.Lock()
@@ -171,7 +172,10 @@ func removeUnlocked(name FdName) (err error) {
 }
 
 // Get retrieves file descriptors passed from systemd by their name.
-// close-on-exec is set on the returned file descriptor.
+// close-on-exec is set on the returned file descriptor. -1 is returned
+// if no matching file descriptor is found or if the passed name
+// corresponds to a socket (i.e. ends in ".socket"). To get activation
+// sockets use fdstore.ActivationSocketFds() instead.
 func Get(name FdName) (fd int) {
 	initFdstore()
 
@@ -203,20 +207,20 @@ func Add(name FdName, fd int) error {
 	defer mu.Unlock()
 
 	if err := name.validate(); err != nil {
-		return fmt.Errorf("cannot add file descriptor: %v", err)
+		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
 	}
 	if name.isSocket() {
 		// Activation sockets can only be passed down from systemd
 		// i.e. file descriptors whose name has a ".socket" suffix
-		return fmt.Errorf("cannot add file descriptor: sockets cannot be added")
+		return fmt.Errorf("cannot add file descriptor to fdstore: sockets are not allowed")
 	}
 	if len(fdstore[name]) != 0 {
-		return fmt.Errorf("cannot add file descriptor: %q already exists", name)
+		return fmt.Errorf("cannot add file descriptor to fdstore: %q already exists", name)
 	}
 
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
 	if err := sdNotifyWithFds(state, fd); err != nil {
-		return fmt.Errorf("cannot add file descriptor: %v", err)
+		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
 	}
 
 	fdstore[name] = []int{fd}
