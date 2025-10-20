@@ -283,26 +283,43 @@ func verifySerialBundle(bundle string, db asserts.RODatabase) (*asserts.Serial, 
 	tmpDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
 	batch := asserts.NewBatch(nil)
 
-	if _, err := batch.AddStream(strings.NewReader(bundle)); err != nil {
+	refs, err := batch.AddStream(strings.NewReader(bundle))
+	if err != nil {
 		return nil, err
 	}
 
-	var serials []*asserts.Serial
-	observe := func(a asserts.Assertion) {
-		if s, ok := a.(*asserts.Serial); ok {
-			serials = append(serials, s)
+	if err := batch.CommitTo(tmpDB, nil); err != nil {
+		return nil, err
+	}
+
+	var serial *asserts.Serial
+	for _, r := range refs {
+		if r.Type != asserts.SerialType {
+			continue
 		}
+
+		if serial != nil {
+			return nil, errors.New("unexpectedly found multiple serial assertions in bundle")
+		}
+
+		a, err := r.Resolve(tmpDB.Find)
+		if err != nil {
+			return nil, err
+		}
+
+		s, ok := a.(*asserts.Serial)
+		if !ok {
+			return nil, errors.New("internal error: invalid assertion type")
+		}
+
+		serial = s
 	}
 
-	if err := batch.CommitToAndObserve(tmpDB, observe, nil); err != nil {
-		return nil, err
+	if serial == nil {
+		return nil, errors.New("bundle missing serial assertion")
 	}
 
-	if len(serials) != 1 {
-		return nil, errors.New("exactly one serial assertion expected in bundle")
-	}
-
-	return serials[0], nil
+	return serial, nil
 }
 
 func (d *DeviceQueryTracker) validateID(id Identity) error {
