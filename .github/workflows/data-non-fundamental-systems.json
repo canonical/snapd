@@ -141,7 +141,7 @@
         "backend": "garden",
         "alternative-backend": "google",
         "systems": "ubuntu-22.04-64",
-        "tasks": "tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers",
+        "tasks": "tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": ""
       },
       {
@@ -150,7 +150,43 @@
         "backend": "garden",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-18-64",
-        "tasks": "tests/core/auto-refresh-backoff-after-reboot:kernel tests/core/failover:emptyinitrd tests/core/gadget-kernel-refs-update-pc tests/core/kernel-base-gadget-pair-single-reboot-failover tests/core/kernel-base-gadget-pair-single-reboot tests/core/kernel-base-gadget-single-reboot tests/core/kernel-base-gadget-single-reboot-failover",
+        "tasks": "tests/core/auto-refresh-backoff-after-reboot:kernel tests/core/failover:emptyinitrd tests/core/gadget-kernel-refs-update-pc tests/core/kernel-base-gadget-pair-single-reboot-failover tests/core/kernel-base-gadget-pair-single-reboot tests/core/kernel-base-gadget-single-reboot tests/core/kernel-base-gadget-single-reboot-failover tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": ""
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-core-24 (garden)",
+        "backend": "garden",
+        "alternative-backend": "google-core",
+        "systems": "ubuntu-core-24-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": ""
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "focal (garden)",
+        "backend": "garden",
+        "alternative-backend": "google",
+        "systems": "ubuntu-20.04-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": ""
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "questing (garden)",
+        "backend": "garden",
+        "alternative-backend": "google",
+        "systems": "ubuntu-25.10-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": ""
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "fedora-42 (garden)",
+        "backend": "garden",
+        "alternative-backend": "google",
+        "systems": "fedora-42-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": ""
       }
     ]
