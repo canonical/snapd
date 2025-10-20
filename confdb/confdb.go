@@ -30,6 +30,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
@@ -267,7 +268,7 @@ func pathChangeAffects(modified, affected []Accessor) bool {
 			return true
 		}
 
-		if modified[i] != affectedKey {
+		if modified[i].Name() != affectedKey.Name() {
 			return false
 		}
 	}
@@ -573,13 +574,19 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 		return nil, nil
 	}
 
-	subkeys, err := splitViewPath(path, opts)
+	pathParts, err := splitViewPath(path, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	accessors := make([]Accessor, 0, len(subkeys))
-	for _, subkey := range subkeys {
+	accessors := make([]Accessor, 0, len(pathParts))
+	for _, part := range pathParts {
+		subkey := part.value
+		// TODO: we should ensure that accessors after field filters are maps (otherwise
+		// we're allowing paths to be written that don't match the filters)
+
+		// TODO: check field filters against parameters when they're introduced
+
 		isKey := validSubkey.MatchString(subkey)
 		isIndex := validIndexSubkey.MatchString(subkey)
 		isKeyPlaceholder := validPlaceholder.MatchString(subkey)
@@ -587,12 +594,12 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 
 		switch {
 		case isKey:
-			accessors = append(accessors, key(subkey))
+			accessors = append(accessors, newKey(subkey, part.filters))
 		case isIndex:
 			if opts.ForbidIndexes {
 				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
 			}
-			accessors = append(accessors, index(subkey[1:len(subkey)-1]))
+			accessors = append(accessors, newIndex(subkey[1:len(subkey)-1], part.filters))
 
 		case !opts.AllowPlaceholders:
 			// user supplied paths cannot contain placeholders
@@ -603,9 +610,9 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 			return nil, fmt.Errorf("invalid subkey %q%s", subkey, errSuffix)
 
 		case isKeyPlaceholder:
-			accessors = append(accessors, keyPlaceholder(subkey[1:len(subkey)-1]))
+			accessors = append(accessors, newKeyPlaceholder(subkey[1:len(subkey)-1], part.filters))
 		case isIndexPlaceholder:
-			accessors = append(accessors, indexPlaceholder(subkey[2:len(subkey)-2]))
+			accessors = append(accessors, newIndexPlaceholder(subkey[2:len(subkey)-2], part.filters))
 		default:
 			return nil, fmt.Errorf("invalid subkey %q", subkey)
 		}
@@ -634,10 +641,20 @@ type Accessor interface {
 
 	// Type returns a type that represents the kind of path sub-key the accessor is.
 	Type() AccessorType
+
+	// FieldFilters returns a mapping of field names to filters to which
+	// constraints may be applied.
+	FieldFilters() map[string]string
 }
 
-func splitViewPath(path string, opts ParseOptions) ([]string, error) {
-	var subkeys []string
+type splitSubkey struct {
+	value   string
+	filters map[string]string
+}
+
+func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
+	var subkeys []splitSubkey
+	var rawFilters map[string]string
 	sb := &strings.Builder{}
 
 	finishSubkey := func() error {
@@ -649,28 +666,70 @@ func splitViewPath(path string, opts ParseOptions) ([]string, error) {
 			}
 			return errors.New("cannot have empty subkeys")
 		}
-		subkeys = append(subkeys, sb.String())
+		subkeys = append(subkeys, splitSubkey{
+			value:   sb.String(),
+			filters: rawFilters,
+		})
+
 		sb.Reset()
+		rawFilters = nil
 		return nil
 	}
 
-	for _, c := range path {
-		switch c {
+	pathBytes := bytes.NewBufferString(path)
+	for pathBytes.Len() > 0 {
+		// err can only be EOF so it can be safely ignored here
+		char, _, _ := pathBytes.ReadRune()
+		if char == utf8.RuneError {
+			return nil, fmt.Errorf("non UTF-8 character")
+		}
+
+		switch char {
 		case '.':
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
 
 		case '[':
+			if pathBytes.Len() == 0 {
+				return nil, fmt.Errorf(`invalid subkey "["`)
+			}
+
+			// both field filters and list accesses start with '[', check the next character
+			nextChar, _, _ := pathBytes.ReadRune()
+			if nextChar == utf8.RuneError {
+				return nil, fmt.Errorf("non UTF-8 character")
+			}
+
+			if nextChar == '.' {
+				// we're parsing a field filter [.foo={foo}], let's parse the entire thing
+				field, filter, err := parseFieldFilter(pathBytes)
+				if err != nil {
+					return nil, err
+				}
+
+				if rawFilters == nil {
+					rawFilters = make(map[string]string)
+				}
+
+				if prevFilter, ok := rawFilters[field]; ok {
+					return nil, fmt.Errorf("cannot apply more than one filter to the same field: [.%[1]s={%[2]s}] and [.%[1]s={%[3]s}]", field, prevFilter, filter)
+				}
+
+				rawFilters[field] = filter
+				continue
+			}
+
+			// we're parsing a new list accessor (e.g, [{n}]), save the previous
+			// sub-key and continue
+			pathBytes.UnreadRune()
 			if err := finishSubkey(); err != nil {
 				return nil, err
 			}
-
-			// include the square brackets as they imply a different type of placeholder
 			fallthrough
 
 		default:
-			sb.WriteRune(c)
+			sb.WriteRune(char)
 		}
 	}
 
@@ -680,6 +739,33 @@ func splitViewPath(path string, opts ParseOptions) ([]string, error) {
 	}
 
 	return subkeys, nil
+}
+
+func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error) {
+	constraintSb := &strings.Builder{}
+	for pathBytes.Len() > 0 {
+		nextChar, _, _ := pathBytes.ReadRune()
+		if nextChar == utf8.RuneError {
+			return "", "", fmt.Errorf("non UTF-8 character")
+		}
+
+		if nextChar == ']' {
+			// we're done reading the field filter, don't store the terminating ']'
+			break
+		}
+		constraintSb.WriteRune(nextChar)
+	}
+
+	constraintPair := constraintSb.String()
+	parts := strings.Split(constraintPair, "=")
+	if len(parts) != 2 ||
+		!strings.HasPrefix(parts[1], "{") || !strings.HasSuffix(parts[1], "}") ||
+		len(parts[1]) <= 2 {
+		return "", "", fmt.Errorf("field filter must be in the format [.<field>={<param_name>}]")
+	}
+
+	field, filter = parts[0], strings.Trim(parts[1], "{}")
+	return field, filter, nil
 }
 
 // countAccessorsOfType returns the number of occurrences of path sub-keys of
@@ -723,9 +809,6 @@ func (v *View) Schema() *Schema {
 type expandedMatch struct {
 	// storagePath is a parsed storage path with all placeholders filled in.
 	storagePath []Accessor
-
-	// request is the original request field that the request was matched with.
-	request string
 
 	// value is the nested value obtained after removing the original values' outer
 	// layers that correspond to the unmatched suffix.
@@ -818,7 +901,6 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		for _, pathValuePair := range pathValuePairs {
 			expandedMatches = append(expandedMatches, expandedMatch{
 				storagePath: pathValuePair.path,
-				request:     match.request,
 				value:       pathValuePair.value,
 			})
 		}
@@ -1055,7 +1137,10 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 			// suffix has an unmatched placeholder, try all possible values to fill it and
 			// find the corresponding nested value.
 			for cand, candVal := range mapVal {
-				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), KeyPlaceholderType, key(cand))
+				// we're using the possible paths to extract the relevant values from an
+				// object to set so the field filters don't matter since these accessors
+				// won't be used to traverse the databag
+				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), KeyPlaceholderType, newKey(cand, nil))
 				nestedPathValuePairs, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], candVal)
 				if err != nil {
 					return nil, err
@@ -1079,7 +1164,7 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 
 			val, ok = mapVal[unmatchedPart.Name()]
 			if !ok {
-				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart, mapVal)
+				return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, unmatchedPart.Name(), mapVal)
 			}
 
 		case IndexPlaceholderType:
@@ -1092,7 +1177,8 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 			// match-aware instead of using these values to expand the matches?
 			var pathValuePairs []pathValuePair
 			for i, el := range list {
-				cand := index(strconv.Itoa(i))
+				// constraints don't matter here (see comment under KeyPlaceholderType case)
+				cand := newIndex(strconv.Itoa(i), nil)
 				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), IndexPlaceholderType, cand)
 				nestedPathValuePairs, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], el)
 				if err != nil {
@@ -1256,7 +1342,7 @@ func prunePathInValue(parts []Accessor, val any) (any, error) {
 		nested, ok := mapVal[parts[0].Name()]
 		if !ok {
 			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0], mapVal)
+			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0].Name(), mapVal)
 		}
 
 		newValue, err := prunePathInValue(parts[1:], nested)
@@ -1701,12 +1787,12 @@ func (p *viewRule) storagePath(matched *matchedPlaceholders) []Accessor {
 		switch acc.Type() {
 		case KeyPlaceholderType:
 			if match, ok := matched.key[acc.Name()]; ok {
-				acc = key(match)
+				acc = newKey(match, acc.FieldFilters())
 			}
 
 		case IndexPlaceholderType:
 			if match, ok := matched.index[acc.Name()]; ok {
-				acc = index(match)
+				acc = newIndex(match, acc.FieldFilters())
 			}
 		}
 		accessors = append(accessors, acc)
@@ -1733,7 +1819,17 @@ type requestMatcher interface {
 
 // placeholder represents a subkey of a name/path (e.g., "{foo}") that can match
 // with any value and map it from the input name to the path.
-type keyPlaceholder string
+type keyPlaceholder struct {
+	value        string
+	fieldFilters map[string]string
+}
+
+func newKeyPlaceholder(value string, fieldFilters map[string]string) keyPlaceholder {
+	return keyPlaceholder{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
 
 // match adds an entry to matchedPlaceholders mapping this placeholder key to the
 // supplied name subkey and returns true (a placeholder matches with any value).
@@ -1742,16 +1838,17 @@ func (p keyPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) boo
 		return false
 	}
 
-	matched.setKey(string(p), subkey.Name())
+	matched.setKey(p.Name(), subkey.Name())
 	return true
 }
 
 func (p keyPlaceholder) Access() string {
-	return "{" + string(p) + "}"
+	return "{" + p.Name() + "}"
 }
 
-func (p keyPlaceholder) Name() string       { return string(p) }
-func (p keyPlaceholder) Type() AccessorType { return KeyPlaceholderType }
+func (p keyPlaceholder) Name() string                    { return p.value }
+func (p keyPlaceholder) Type() AccessorType              { return KeyPlaceholderType }
+func (p keyPlaceholder) FieldFilters() map[string]string { return p.fieldFilters }
 
 type matchedPlaceholders struct {
 	index map[string]string
@@ -1774,7 +1871,17 @@ func (m *matchedPlaceholders) setIndex(placeholderName, indexValue string) {
 
 // indexPlaceholder represents a subkey of a name/path (e.g., "[{n}]") that can
 // match an index value and map it from the input name to the path.
-type indexPlaceholder string
+type indexPlaceholder struct {
+	value        string
+	fieldFilters map[string]string
+}
+
+func newIndexPlaceholder(value string, fieldFilters map[string]string) indexPlaceholder {
+	return indexPlaceholder{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
 
 // match checks if the subkey can be used to index a list. If so, it adds an
 // entry to matchedPlaceholders mapping this placeholder key to the supplied
@@ -1784,31 +1891,54 @@ func (p indexPlaceholder) match(subkey Accessor, matched *matchedPlaceholders) b
 		return false
 	}
 
-	matched.setIndex(string(p), subkey.Name())
+	matched.setIndex(p.Name(), subkey.Name())
 	return true
 }
 
-func (p indexPlaceholder) Access() string     { return "[{" + string(p) + "}]" }
-func (p indexPlaceholder) Name() string       { return string(p) }
-func (p indexPlaceholder) Type() AccessorType { return IndexPlaceholderType }
+func (p indexPlaceholder) Access() string                  { return "[{" + p.Name() + "}]" }
+func (p indexPlaceholder) Name() string                    { return p.value }
+func (p indexPlaceholder) Type() AccessorType              { return IndexPlaceholderType }
+func (p indexPlaceholder) FieldFilters() map[string]string { return p.fieldFilters }
 
 // key is a non-placeholder object key.
-type key string
+type key struct {
+	value        string
+	fieldFilters map[string]string
+}
+
+func newKey(value string, fieldFilters map[string]string) key {
+	return key{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
 
 // match returns true if the subkey is equal to the literal key.
 func (k key) match(subkey Accessor, _ *matchedPlaceholders) bool {
-	return subkey.Type() == MapKeyType && string(k) == subkey.Name()
+	return subkey.Type() == MapKeyType && k.Name() == subkey.Name()
 }
 
-func (k key) Access() string     { return k.Name() }
-func (k key) Name() string       { return string(k) }
-func (k key) Type() AccessorType { return MapKeyType }
+func (k key) Access() string                  { return k.Name() }
+func (k key) Name() string                    { return k.value }
+func (k key) Type() AccessorType              { return MapKeyType }
+func (p key) FieldFilters() map[string]string { return p.fieldFilters }
 
-type index string
+type index struct {
+	value        string
+	fieldFilters map[string]string
+}
 
-func (i index) Access() string     { return "[" + i.Name() + "]" }
-func (i index) Name() string       { return string(i) }
-func (i index) Type() AccessorType { return ListIndexType }
+func newIndex(value string, fieldFilters map[string]string) index {
+	return index{
+		value:        value,
+		fieldFilters: fieldFilters,
+	}
+}
+
+func (i index) Access() string                  { return "[" + i.Name() + "]" }
+func (i index) Name() string                    { return i.value }
+func (i index) Type() AccessorType              { return ListIndexType }
+func (i index) FieldFilters() map[string]string { return i.fieldFilters }
 
 // JSONDatabag is a simple Databag implementation that keeps JSON in-memory.
 type JSONDatabag map[string]json.RawMessage
