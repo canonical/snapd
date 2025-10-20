@@ -143,7 +143,7 @@ static void test_sc_cap_assert_permitted_error(void) {
     g_test_trap_assert_failed();
     g_test_trap_assert_stderr(
         "required permitted capability cap_audit_control not found in current capabilities:\n  "
-        "cap_fowner,cap_net_admin,cap_sys_admin*p\n");
+        "*cap_fowner,cap_net_admin,cap_sys_admin*p\n");
 }
 
 static void test_sc_cap_assert_permitted_context_error(void) {
@@ -174,7 +174,7 @@ static void test_sc_cap_assert_permitted_context_error(void) {
     g_test_trap_assert_stderr(
         "snap-confine is missing some caps and cannot continue\n"
         "required permitted capability cap_audit_control not found in current capabilities:\n  "
-        "cap_fowner,cap_net_admin,cap_sys_admin*p\n");
+        "*cap_fowner,cap_net_admin,cap_sys_admin*p\n");
 }
 
 static void __attribute__((constructor)) init(void) {
