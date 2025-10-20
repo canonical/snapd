@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/swfeats"
 )
 
-var applyClusterSubclusterChangeKind = swfeats.RegisterChangeKind("apply-cluster-subcluster-%s")
+var applyClusterSubclusterChangeKind = swfeats.RegisterChangeKind("apply-cluster-subcluster")
 
 type ClusterManager struct {
 	state *state.State
@@ -74,24 +74,47 @@ func (m *ClusterManager) Ensure() error {
 		return nil
 	}
 
-	changesInProgress := make(map[string]bool)
-	for _, chg := range m.state.Changes() {
-		if !chg.Status().Ready() {
-			changesInProgress[chg.Kind()] = true
-		}
-	}
+	clusterChanges := inProgressClusterChanges(m.state)
 
 	for name, tasks := range tasksets {
-		kind := fmt.Sprintf(applyClusterSubclusterChangeKind, name)
-		if changesInProgress[kind] {
+		ref := clusterChangeRef{ClusterID: cluster.ClusterID(), Subcluster: name}
+
+		// if we already have a change going on for this cluster id/subcluster
+		// pair, do not create another one
+		if clusterChanges[ref] {
 			continue
 		}
 
-		chg := m.state.NewChange(kind, fmt.Sprintf("Apply subcluster %q state", name))
+		chg := m.state.NewChange(applyClusterSubclusterChangeKind, fmt.Sprintf("Apply subcluster %q state", name))
+		chg.Set("cluster-change-ref", ref)
+
 		chg.AddAll(tasks)
 	}
 
 	return nil
+}
+
+type clusterChangeRef struct {
+	ClusterID  string `json:"cluster-id"`
+	Subcluster string `json:"subcluster"`
+}
+
+func inProgressClusterChanges(st *state.State) map[clusterChangeRef]bool {
+	changes := make(map[clusterChangeRef]bool)
+	for _, chg := range st.Changes() {
+		if chg.Kind() != applyClusterSubclusterChangeKind || chg.Status().Ready() {
+			continue
+		}
+
+		var ref clusterChangeRef
+		if err := chg.Get("cluster-change-ref", &ref); err != nil {
+			continue // this should never happen
+		}
+
+		changes[ref] = true
+	}
+
+	return changes
 }
 
 func clusteringEnabled(st *state.State) (bool, error) {

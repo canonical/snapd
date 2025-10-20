@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -707,7 +706,8 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	changes := st.Changes()
 	c.Assert(changes, check.HasLen, 1)
 	chg := changes[0]
-	c.Assert(chg.Kind(), check.Equals, "apply-cluster-subcluster-default")
+	c.Assert(chg.Kind(), check.Equals, "apply-cluster-subcluster")
+	c.Assert(chg.Summary(), check.Equals, `Apply subcluster "default" state`)
 	tasks := chg.Tasks()
 	c.Assert(tasks, check.HasLen, 3)
 	c.Assert([]string{tasks[0].Kind(), tasks[1].Kind(), tasks[2].Kind()}, check.DeepEquals, []string{"remove", "update", "install"})
@@ -797,25 +797,23 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 	changes := st.Changes()
 	c.Assert(changes, check.HasLen, 2)
 
-	var (
-		seenOne bool
-		seenTwo bool
-	)
-
+	var seenOne, seenTwo bool
 	for _, chg := range changes {
-		switch chg.Kind() {
-		case "apply-cluster-subcluster-one":
+		c.Assert(chg.Kind(), check.Equals, "apply-cluster-subcluster")
+
+		switch chg.Summary() {
+		case `Apply subcluster "one" state`:
 			seenOne = true
 			tasks := chg.Tasks()
 			c.Assert(tasks, check.HasLen, 1)
 			c.Assert(tasks[0].Kind(), check.Equals, "install")
-		case "apply-cluster-subcluster-two":
+		case `Apply subcluster "two" state`:
 			seenTwo = true
 			tasks := chg.Tasks()
 			c.Assert(tasks, check.HasLen, 1)
 			c.Assert(tasks[0].Kind(), check.Equals, "remove")
 		default:
-			c.Fatalf("unexpected change kind %q", chg.Kind())
+			c.Fatalf("unexpected change summary %q", chg.Summary())
 		}
 	}
 
@@ -920,10 +918,19 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 
 	subclusters := cluster.Subclusters()
 
-	existing := st.NewChange(fmt.Sprintf("apply-cluster-subcluster-%s", subclusters[0].Name), "existing subcluster change")
-	existingTask := st.NewTask("existing", "existing task")
-	existing.AddAll(state.NewTaskSet(existingTask))
+	existing := st.NewChange("apply-cluster-subcluster", `Apply subcluster "`+subclusters[0].Name+`" state`)
+	existing.Set("cluster-change-ref", map[string]string{
+		"cluster-id": cluster.ClusterID(),
+		"subcluster": subclusters[0].Name,
+	})
 	existing.SetStatus(state.DoStatus)
+
+	ready := st.NewChange("apply-cluster-subcluster", `Apply subcluster "`+subclusters[1].Name+`" state`)
+	ready.Set("cluster-change-ref", map[string]string{
+		"cluster-id": cluster.ClusterID(),
+		"subcluster": subclusters[1].Name,
+	})
+	ready.SetStatus(state.DoneStatus)
 
 	serial := makeSerialAssertion(c, stack, "serial-1")
 	addSerialToState(c, st, serial)
@@ -957,22 +964,18 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 
-	var (
-		oneChanges int
-		twoChanges int
-	)
-
+	// make sure that the only new change created is for subcluster two. we skip
+	// creating a change for subcluster one because it already has one in
+	// progress. subcluster two has an old change, but it is already completed
 	for _, chg := range st.Changes() {
-		switch chg.Kind() {
-		case fmt.Sprintf("apply-cluster-subcluster-%s", subclusters[0].Name):
-			oneChanges++
-		case fmt.Sprintf("apply-cluster-subcluster-%s", subclusters[1].Name):
-			twoChanges++
+		switch chg.ID() {
+		case ready.ID(), existing.ID():
+			continue
 		}
-	}
 
-	c.Assert(oneChanges, check.Equals, 1)
-	c.Assert(twoChanges, check.Equals, 1)
+		c.Assert(chg.Kind(), check.Equals, "apply-cluster-subcluster")
+		c.Assert(chg.Summary(), check.Equals, `Apply subcluster "`+subclusters[1].Name+`" state`)
+	}
 }
 
 func registerAccount(stack *assertstest.StoreStack, accountID string) *assertstest.SigningAccounts {
