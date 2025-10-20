@@ -160,7 +160,7 @@ NeedDaemonReload=no
 			Snap:        snp,
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 
 		err = sd.DecorateWithStatus(app, snapApp)
@@ -178,7 +178,7 @@ NeedDaemonReload=no
 			Snap:        snp,
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		snapApp.Timer = &snap.TimerInfo{
 			App:   snapApp,
@@ -203,7 +203,7 @@ NeedDaemonReload=no
 			Snap:        snp,
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		snapApp.Sockets = map[string]*snap.SocketInfo{
 			"socket1": {
@@ -232,7 +232,7 @@ NeedDaemonReload=no
 			Snap:        snp,
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		}
 		snapApp.ActivatesOn = []*snap.SlotInfo{
 			{
@@ -265,7 +265,7 @@ NeedDaemonReload=no
 			Snap:        snp,
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		}
 		snapApp.Sockets = map[string]*snap.SocketInfo{
 			"socket1": {
@@ -373,7 +373,7 @@ NeedDaemonReload=no
 			Snap:        snp,
 			Name:        "svc",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		}
 		snapApp.Sockets = map[string]*snap.SocketInfo{
 			"socket1": {
@@ -433,24 +433,24 @@ func (s *instructionSuite) SetUpTest(c *C) {
 		{
 			Name:        "foo",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 		{
 			Name:        "bar",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 	}
 	s.mixServices = []*snap.AppInfo{
 		{
 			Name:        "foo",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 		{
 			Name:        "bar",
 			Daemon:      "simple",
-			DaemonScope: snap.SystemDaemon,
+			DaemonScope: snap.SystemDaemonScope,
 		},
 	}
 }
@@ -723,13 +723,13 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 			Snap:        snp,
 			Name:        "svc1",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 		{
 			Snap:        snp,
 			Name:        "svc2",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 	}
 
@@ -804,13 +804,13 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 			Snap:        snp,
 			Name:        "svc1",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 		{
 			Snap:        snp,
 			Name:        "svc2",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 	}
 
@@ -934,13 +934,13 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 			Snap:        snp,
 			Name:        "svc1",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 		{
 			Snap:        snp,
 			Name:        "svc2",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 	}
 
@@ -981,7 +981,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
 			Snap:        snp,
 			Name:        "svc1",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 		// Introduce a non-service to make sure we fail on this
 		{
@@ -1012,13 +1012,13 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 			Snap:        snp,
 			Name:        "svc1",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 		{
 			Snap:        snp,
 			Name:        "svc2",
 			Daemon:      "simple",
-			DaemonScope: snap.UserDaemon,
+			DaemonScope: snap.UserDaemonScope,
 		},
 	}
 
