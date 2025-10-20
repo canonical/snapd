@@ -112,6 +112,7 @@ Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  m4
 # /usr/libexec/snapd/snap-mgmt: line 46: /etc/os-release: No such file or directory
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
@@ -352,7 +353,9 @@ export SNAPD_SKIP_SLOW_TESTS=1
 		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		TMPFILESDIR=%{_tmpfilesdir} \
-		SNAP_MOUNT_DIR=%{snap_mount_dir}
+        USE_CANONICAL_SNAP_MOUNT_DIR=true \
+        USE_ALT_SNAP_MOUNT_DIR=false
+
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.
