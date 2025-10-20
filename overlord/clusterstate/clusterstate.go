@@ -78,6 +78,18 @@ func InitializeNewCluster(st *state.State, bundle io.Reader) error {
 		return err
 	}
 
+	var existing clusterState
+	if err := st.Get("cluster", &existing); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	if existing.Current.ClusterID != "" && existing.Current.ClusterID == cluster.ClusterID() {
+		return fmt.Errorf(
+			"cluster assertion id %q matches existing cluster id",
+			cluster.ClusterID(),
+		)
+	}
+
 	if err := assertstate.AddBatch(st, batch, nil); err != nil {
 		return fmt.Errorf("cannot add cluster assertion bundle: %w", err)
 	}

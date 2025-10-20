@@ -291,6 +291,41 @@ func (s *clusterStateSuite) TestInitializeNewClusterUntrustedBrand(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `(?s)cannot add cluster assertion bundle:.*no matching public key.*`)
 }
 
+func (s *clusterStateSuite) TestInitializeNewClusterSameIDAsExisting(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	devices := []map[string]any{
+		{
+			"id":        "1",
+			"brand-id":  "canonical",
+			"model":     "ubuntu-core-24-amd64",
+			"serial":    "serial-1",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}
+	subclusters := []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps":   []any{},
+		},
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	initial, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initial))
+	c.Assert(err, check.IsNil)
+
+	duplicate, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 2, devices, subclusters)
+	err = clusterstate.InitializeNewCluster(st, bytes.NewReader(duplicate))
+	c.Assert(err, check.ErrorMatches, `cluster assertion id "cluster-id" matches existing cluster id`)
+}
+
 type managerSuite struct{}
 
 var _ = check.Suite(&managerSuite{})
