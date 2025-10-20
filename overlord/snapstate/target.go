@@ -1045,6 +1045,10 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 type UpdateGoal interface {
 	// toUpdate returns the data needed to update the snaps.
 	toUpdate(context.Context, *state.State, Options) (updatePlan, error)
+
+	// filterGatedSnaps validates the plan against refresh control, if applicable,
+	// and filters out gated snaps.
+	filterGatedSnaps(*state.State, *updatePlan, Options) error
 }
 
 // UpdateOne is a convenience wrapper for UpdateWithGoal that ensures that a
@@ -1118,6 +1122,11 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 
 		// TODO: why not check this error?
 		updateRefreshCandidates(st, hints, plan.requested)
+	}
+
+	// filter out snaps that have been gated by refresh control
+	if err := goal.filterGatedSnaps(st, &plan, opts); err != nil {
+		return nil, nil, err
 	}
 
 	changeKind := "refresh"
@@ -1241,14 +1250,14 @@ func (s *storeUpdateGoal) toUpdate(ctx context.Context, st *state.State, opts Op
 		return updatePlan{}, err
 	}
 
+	return plan, nil
+}
+
+func (*storeUpdateGoal) filterGatedSnaps(st *state.State, plan *updatePlan, opts Options) error {
 	// validate snaps to be refreshed against refresh control assertions. If we
 	// are refreshing all snaps, then we filter out the snaps that cannot be
 	// validated and log them
-	if err := plan.validateAndFilterTargets(st, opts); err != nil {
-		return updatePlan{}, err
-	}
-
-	return plan, nil
+	return plan.validateAndFilterTargets(st, opts)
 }
 
 func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
@@ -1395,6 +1404,8 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 		requested: names,
 	}, nil
 }
+
+func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) error { return nil }
 
 func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
