@@ -209,6 +209,9 @@ func decodeClusterBundle(bundle io.Reader) (*asserts.Batch, *asserts.Cluster, er
 		if !ok {
 			continue
 		}
+		if cluster != nil {
+			return nil, nil, errors.New("cluster assertion bundle contains multiple cluster assertions")
+		}
 		cluster = c
 	}
 

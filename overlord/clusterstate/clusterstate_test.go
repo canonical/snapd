@@ -324,6 +324,42 @@ func (s *clusterStateSuite) TestInitializeNewClusterSameIDAsExisting(c *check.C)
 	duplicate, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 2, devices, subclusters)
 	err = clusterstate.InitializeNewCluster(st, bytes.NewReader(duplicate))
 	c.Assert(err, check.ErrorMatches, `cluster assertion id "cluster-id" matches existing cluster id`)
+
+	cluster, err := clusterstate.CurrentCluster(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(cluster.ClusterID(), check.Equals, "cluster-id")
+	c.Assert(cluster.Sequence(), check.Equals, 1)
+}
+
+func (s *clusterStateSuite) TestRejectMultipleClusterAssertions(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	const accountID = "cluster-brand"
+	sa := registerAccount(stack, accountID)
+
+	_, one := makeClusterBundleWithSigning(c, sa, accountID, "cluster-one", 1, nil, nil)
+	_, two := makeClusterBundleWithSigning(c, sa, accountID, "cluster-two", 2, nil, nil)
+
+	var bundle bytes.Buffer
+	enc := asserts.NewEncoder(&bundle)
+	for _, as := range []asserts.Assertion{
+		sa.Account(accountID),
+		sa.AccountKey(accountID),
+		one,
+		two,
+	} {
+		err := enc.Encode(as)
+		c.Assert(err, check.IsNil)
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle.Bytes()))
+	c.Assert(err, check.ErrorMatches, "cluster assertion bundle contains multiple cluster assertions")
+
+	err = clusterstate.UpdateCluster(st, bytes.NewReader(bundle.Bytes()))
+	c.Assert(err, check.ErrorMatches, "cluster assertion bundle contains multiple cluster assertions")
 }
 
 type managerSuite struct{}
