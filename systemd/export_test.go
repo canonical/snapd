@@ -21,16 +21,20 @@ package systemd
 
 import (
 	"io"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
 	Jctl = jctl
 )
 
-func MockOsGetenv(f func(string) string) func() {
-	oldOsGetenv := osGetenv
-	osGetenv = f
-	return func() { osGetenv = oldOsGetenv }
+func MockOsGetenv(f func(key string) string) (restore func()) {
+	return testutil.Mock(&osGetenv, f)
+}
+
+func MockOsSetenv(f func(key string, value string) error) (restore func()) {
+	return testutil.Mock(&osSetenv, f)
 }
 
 func MockOsutilStreamCommand(f func(string, ...string) (io.ReadCloser, error)) func() {
@@ -69,4 +73,16 @@ func (e *Error) SetExitCode(i int) {
 
 func (e *Error) SetMsg(msg []byte) {
 	e.msg = msg
+}
+
+func MockSdNotify(f func(notifyState string) error) (restore func()) {
+	return testutil.Mock(&SdNotify, f)
+}
+
+func MockSdNotifyWithFds(f func(notifyState string, fds ...int) error) (restore func()) {
+	return testutil.Mock(&SdNotifyWithFds, f)
+}
+
+func MockSyscallClose(f func(fd int) (err error)) (restore func()) {
+	return testutil.Mock(&syscallClose, f)
 }

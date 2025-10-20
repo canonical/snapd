@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,7 +41,7 @@ func (k *keysSuite) TestInMemoryRecoveryKeyCache(c *C) {
 		Expiration: time.Now(),
 	}
 
-	cache := backend.NewInMemoryRecoveryKeyCache()
+	cache := backend.NewInMemoryRecoveryKeyCache(state.New(nil))
 
 	err := cache.AddKey("1", mockRecoveryKey)
 	c.Assert(err, IsNil)

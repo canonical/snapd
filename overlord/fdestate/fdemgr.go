@@ -106,7 +106,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		}
 	}
 
-	m.recoveryKeyCache = backendNewInMemoryRecoveryKeyCache()
+	m.recoveryKeyCache = backendNewInMemoryRecoveryKeyCache(st)
 
 	st.Lock()
 	defer st.Unlock()

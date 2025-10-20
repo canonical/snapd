@@ -21,9 +21,9 @@ package backend
 
 import (
 	"errors"
-	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
@@ -43,11 +43,9 @@ var ErrNoRecoveryKey = errors.New("no recovery key entry for key-id")
 
 // NewInMemoryRecoveryKeyCache returns a memory-backed recovery key cache.
 //
-// Note: This store will not survive snapd restarts.
-func NewInMemoryRecoveryKeyCache() RecoveryKeyCache {
-	return &inMemoryRecoveryKeyCache{
-		rkeys: make(map[string]CachedRecoverKey),
-	}
+// Note: This store might not survive snapd restarts.
+func NewInMemoryRecoveryKeyCache(st *state.State) RecoveryKeyCache {
+	return &inMemoryRecoveryKeyCache{st}
 }
 
 type CachedRecoverKey struct {
@@ -65,38 +63,31 @@ func (rkeyInfo *CachedRecoverKey) Expired(currTime time.Time) bool {
 }
 
 type inMemoryRecoveryKeyCache struct {
-	rkeys map[string]CachedRecoverKey
+	st *state.State
+}
 
-	mu sync.RWMutex
+func rkeySecretID(keyID string) string {
+	return "rkey:" + keyID
 }
 
 func (s *inMemoryRecoveryKeyCache) AddKey(keyID string, rkeyInfo CachedRecoverKey) (err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.rkeys[keyID]; exists {
+	secretID := rkeySecretID(keyID)
+	if s.st.HasSecret(secretID) {
 		return errors.New("recovery key id already exists")
 	}
-	s.rkeys[keyID] = rkeyInfo
-	return nil
+	return s.st.SetSecret(secretID, rkeyInfo)
 }
 
 func (s *inMemoryRecoveryKeyCache) Key(keyID string) (rkeyInfo CachedRecoverKey, err error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	rkeyInfo, exists := s.rkeys[keyID]
-	if !exists {
+	err = s.st.GetSecret(rkeySecretID(keyID), &rkeyInfo)
+	if errors.Is(err, state.ErrNoState) {
 		return CachedRecoverKey{}, ErrNoRecoveryKey
+	} else if err != nil {
+		return CachedRecoverKey{}, err
 	}
-
 	return rkeyInfo, nil
 }
 
 func (s *inMemoryRecoveryKeyCache) RemoveKey(keyID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.rkeys, keyID)
-	return nil
+	return s.st.SetSecret(rkeySecretID(keyID), nil)
 }
