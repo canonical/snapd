@@ -82,7 +82,7 @@ runs:
         - name: Install spread
           shell: bash
           run: |
-            git clone https://github.com/maykathm/spread.git -b 'spread-plus-main' /tmp/spread
+            git clone https://github.com/canonical/spread-plus.git /tmp/spread
             cd /tmp/spread
             sudo go build -o /usr/bin ./...
         - name: Install dependencies
