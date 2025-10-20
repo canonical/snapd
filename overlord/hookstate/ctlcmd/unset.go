@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
 )
@@ -51,7 +52,17 @@ Nested values may be removed via a dotted path:
 $ snapctl unset user.name
 `)
 
+var longConfdbUnsetHelp = i18n.G(`
+If the --view flag is used, 'snapctl unset' expects the name of a connected
+interface plug referencing a confdb view. In that case, the command removes
+the data at the provided paths according to the view referenced by the plug.
+`)
+
 func init() {
+	if features.Confdb.IsEnabled() {
+		longUnsetHelp += longConfdbUnsetHelp
+	}
+
 	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() command { return &unsetCommand{} })
 }
 
@@ -77,7 +88,7 @@ func (s *unsetCommand) Execute(args []string) error {
 		return nil
 	}
 
-	if err := validateConfdbsFeatureFlag(context.State()); err != nil {
+	if err := validateConfdbFeatureFlag(context.State()); err != nil {
 		return err
 	}
 
