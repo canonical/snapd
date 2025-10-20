@@ -56,7 +56,7 @@ execute: |
         MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
 
     # For Ubuntu 22.04, prompting is only supported if the kernel is at least 6.7"
-    elif os.query is-ubuntu 22.04 && "$TESTSTOOLS"/version-compare --strict -lt "$(uname -r)" 6.7 ; then
+    elif os.query is-ubuntu 22.04 && os.query is-kernel-lt 6.7 ; then
         echo "Expect failure to enable prompting on Ubuntu 22.04 with kernel < 6.7"
         not snap set system experimental.apparmor-prompting=true >& err.out
         MATCH "cannot enable prompting feature as it is not supported by the system" < err.out
