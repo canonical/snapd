@@ -1926,7 +1926,9 @@ echo "stdout output 2"
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
-			"sudo", "-E",
+			"sudo",
+			"--preserve-env=SNAP,SNAP_ARCH,SNAP_COMMON,SNAP_DATA,SNAP_EUID,SNAP_INSTANCE_KEY,SNAP_INSTANCE_NAME,SNAP_LIBRARY_PATH,SNAP_NAME,SNAP_REAL_HOME,SNAP_REEXEC,SNAP_REVISION,SNAP_UID,SNAP_USER_COMMON,SNAP_USER_DATA,SNAP_VERSION",
+			"--",
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
@@ -1949,7 +1951,9 @@ echo "stdout output 2"
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
-			"sudo", "-E",
+			"sudo",
+			"--preserve-env=SNAP,SNAP_ARCH,SNAP_COMMON,SNAP_DATA,SNAP_EUID,SNAP_INSTANCE_KEY,SNAP_INSTANCE_NAME,SNAP_LIBRARY_PATH,SNAP_NAME,SNAP_REAL_HOME,SNAP_REEXEC,SNAP_REVISION,SNAP_UID,SNAP_USER_COMMON,SNAP_USER_DATA,SNAP_VERSION",
+			"--",
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
@@ -1990,7 +1994,9 @@ and more
 		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 			append(append([]string{
-				"sudo", "-E",
+				"sudo",
+				"--preserve-env=SNAP,SNAP_ARCH,SNAP_COMMON,SNAP_DATA,SNAP_EUID,SNAP_INSTANCE_KEY,SNAP_INSTANCE_NAME,SNAP_LIBRARY_PATH,SNAP_NAME,SNAP_REAL_HOME,SNAP_REEXEC,SNAP_REVISION,SNAP_UID,SNAP_USER_COMMON,SNAP_USER_DATA,SNAP_VERSION",
+				"--",
 				filepath.Join(straceCmd.BinDir(), "strace"),
 				"-u", user.Username,
 				"-f",
@@ -2035,7 +2041,9 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
-			"sudo", "-E",
+			"sudo",
+			"--preserve-env=SNAP,SNAP_ARCH,SNAP_COMMON,SNAP_DATA,SNAP_EUID,SNAP_INSTANCE_KEY,SNAP_INSTANCE_NAME,SNAP_LIBRARY_PATH,SNAP_NAME,SNAP_REAL_HOME,SNAP_REEXEC,SNAP_REVISION,SNAP_UID,SNAP_USER_COMMON,SNAP_USER_DATA,SNAP_VERSION",
+			"--",
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
