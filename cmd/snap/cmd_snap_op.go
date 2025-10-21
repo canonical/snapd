@@ -1220,10 +1220,16 @@ func (x *cmdRefresh) Execute([]string) error {
 func (x *cmdRefresh) TrackRefreshes() (err error) {
 	names := installedSnapNames(x.Positional.Snaps)
 
-	fmt.Print("snaps:")
 	snaps, err := x.client.List(names, nil)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, "snaps:\n")
+
 	for i := 0; i < len(snaps); i++ {
-		fmt.Printf("  %s:\n    channel: %s", snaps[i].Name, snaps[i].TrackingChannel)
+		fmt.Fprintf(Stdout, "  %s:\n    channel: %s\n", snaps[i].Name, snaps[i].TrackingChannel)
 	}
 
 	return nil
@@ -1620,6 +1626,8 @@ func init() {
 			"amend": i18n.G("Allow refresh attempt on snap unknown to the store"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Refresh to the given revision"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"tracking": i18n.G("Show channel tracking information for provided snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"list": i18n.G("Show the new versions of snaps that would be updated with the next refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.

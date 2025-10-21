@@ -1847,6 +1847,37 @@ foo +4.2update1 +17 +436MB +bar +-.*
 	c.Check(n, check.Equals, 1)
 }
 
+func (s *SnapSuite) TestRefreshTrackingExclusive(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "--hold"})
+	expect := "cannot use --tracking with other flags"
+	c.Check(err.Error(), check.Equals, expect)
+	c.Check(err, check.NotNil)
+
+
+}
+
+func (s *SnapSuite) TestRefreshTrackingSingle(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass"})
+	expect := "snaps:\n  multipass:\n    channel: latest/stable\n"
+	
+	c.Check(s.Stdout(), check.Equals, expect)
+	c.Check(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestRefreshTrackingMultiple(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "multipass", "lxd"})
+	// list returns the snaps in ambigious order
+	expect := "snaps:\n  multipass:\n    channel: latest/stable\n  lxd:\n    channel: 5.21/stable\n"
+	c.Check(s.Stdout(), check.Equals, expect)
+	c.Check(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestRefreshTrackingInvalid(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--tracking", "invalidapp"})
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(err.Error(), check.Equals, "no snaps installed")
+}
+
 func (s *SnapSuite) TestRefreshLegacyTime(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
