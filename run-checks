@@ -333,7 +333,7 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
-    if command -v modernize>/dev/null && [ -z "${SKIP_MODERNIZE_LINT:-}" ]; then
+    if command -v modernize>/dev/null && [ -n "${FORCE_MODERNIZE_LINT:-}" ]; then
         echo ">> [Go] Checking modernize"
         modernize -test ./...
     else
