@@ -34,50 +34,53 @@ import (
 )
 
 func (s *assembleSuite) TestAssertionDevices(c *check.C) {
-	_, signing := mockAssertDB(c)
-
 	const secret = "secret"
 
 	type expected struct {
-		brand     string
-		model     string
-		serial    string
+		device    string
 		addresses []any
 	}
 
-	var identities []assemblestate.Identity
-	var rdts []assemblestate.DeviceToken
-
-	expectedByRDT := make(map[assemblestate.DeviceToken]expected)
-	addrsByRDT := map[assemblestate.DeviceToken][]any{
-		"device-0": {"10.0.1.1:8080"},
-		"device-1": {"10.0.2.1:8080", "10.0.2.2:8080"},
-		"device-2": {"10.0.3.1:8080"},
+	brands := []string{"brand-b", "brand-a", "brand-a"}
+	models := []string{"model-b", "model-b", "model-a"}
+	serials := []string{"serial-1", "serial-2", "serial-3"}
+	rdts := []assemblestate.DeviceToken{
+		assemblestate.DeviceToken("device-0"),
+		assemblestate.DeviceToken("device-1"),
+		assemblestate.DeviceToken("device-2"),
+	}
+	addrs := [][]string{
+		{"10.0.1.1:8080"},
+		{"10.0.2.1:8080", "10.0.2.2:8080"},
+		{"10.0.3.1:8080"},
 	}
 
-	for i := 0; i < 3; i++ {
-		serial, bundle, key := createTestSerialBundle(c, signing)
-		rdt := assemblestate.DeviceToken(fmt.Sprintf("device-%d", i))
+	var identities []assemblestate.Identity
+	expectedByRDT := make(map[assemblestate.DeviceToken]expected)
+	for i := range rdts {
+		serial, bundle, key := makeBundleWithID(c, brands[i], models[i], serials[i])
 		fp := assemblestate.CalculateFP([]byte(fmt.Sprintf("certificate-%d", i)))
 
-		hmac := assemblestate.CalculateHMAC(rdt, fp, secret)
+		hmac := assemblestate.CalculateHMAC(rdts[i], fp, secret)
 		proof, err := asserts.RawSignWithKey(hmac, key)
 		c.Assert(err, check.IsNil)
 
 		identities = append(identities, assemblestate.Identity{
-			RDT:          rdt,
+			RDT:          rdts[i],
 			FP:           fp,
 			SerialBundle: bundle,
 			SerialProof:  proof,
 		})
 
-		expectedByRDT[rdt] = expected{
-			brand:     serial.BrandID(),
-			model:     serial.Model(),
-			serial:    serial.Serial(),
-			addresses: addrsByRDT[rdt],
+		addresses := make([]any, 0, len(addrs[i]))
+		for _, addr := range addrs[i] {
+			addresses = append(addresses, addr)
 		}
-		rdts = append(rdts, rdt)
+
+		expectedByRDT[rdts[i]] = expected{
+			device:    serial.DeviceID().String(),
+			addresses: addresses,
+		}
 	}
 
 	routes := assemblestate.Routes{
@@ -103,25 +106,31 @@ func (s *assembleSuite) TestAssertionDevices(c *check.C) {
 
 	c.Assert(devices, check.HasLen, len(identities))
 
+	expectedDeviceOrder := []assemblestate.DeviceToken{
+		rdts[2], // brand-a / model-a / serial-3
+		rdts[1], // brand-a / model-b / serial-2
+		rdts[0], // brand-b / model-b / serial-1
+	}
+
 	for i, raw := range devices {
 		dev, ok := raw.(map[string]any)
 		c.Assert(ok, check.Equals, true)
 
 		c.Assert(dev["id"], check.Equals, strconv.Itoa(i+1))
 
-		exp := expectedByRDT[identities[i].RDT]
+		exp := expectedByRDT[expectedDeviceOrder[i]]
 
-		c.Assert(dev["brand-id"], check.Equals, exp.brand)
-		c.Assert(dev["model"], check.Equals, exp.model)
-		c.Assert(dev["serial"], check.Equals, exp.serial)
+		deviceID, ok := dev["device"].(string)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(deviceID, check.Equals, exp.device)
 
 		addrs, ok := dev["addresses"].([]any)
 		c.Assert(ok, check.Equals, true)
 		c.Assert(addrs, check.DeepEquals, exp.addresses)
 	}
 
-	// make sure that the output of assemblestate.AssertionDevices matches the
-	// expected format of asserts.Cluster
+	// make sure that the output of [assemblestate.Routes] matches the expected
+	// format of [asserts.Cluster]
 	assertDevicesFormCluster(c, devices)
 }
 
@@ -142,6 +151,37 @@ func assertDevicesFormCluster(c *check.C, devices []any) {
 
 	cluster := as.(*asserts.Cluster)
 	c.Assert(cluster.Devices(), check.HasLen, len(devices))
+}
+
+func makeBundleWithID(
+	c *check.C,
+	brand string,
+	model string,
+	serial string,
+) (*asserts.Serial, string, asserts.PrivateKey) {
+	signing := assertstest.NewStoreStack(brand, nil)
+
+	deviceKey, _ := assertstest.GenerateKey(752)
+	pubkey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	headers := map[string]any{
+		"authority-id":        brand,
+		"brand-id":            brand,
+		"model":               model,
+		"serial":              serial,
+		"device-key":          string(pubkey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+
+	assertion, err := signing.Sign(asserts.SerialType, headers, nil, "")
+	c.Assert(err, check.IsNil)
+
+	serialAssertion := assertion.(*asserts.Serial)
+	bundle := buildSerialBundle(c, serialAssertion, signing.Database)
+
+	return serialAssertion, bundle, deviceKey
 }
 
 func (s *assembleSuite) TestAssertionDevicesMissingAddresses(c *check.C) {
@@ -197,6 +237,19 @@ func (s *assembleSuite) TestAssertionDevicesErrors(c *check.C) {
 		setup func() ([]assemblestate.Identity, assemblestate.Routes)
 		err   string
 	}{
+		{
+			name: "duplicate rdt",
+			setup: func() ([]assemblestate.Identity, assemblestate.Routes) {
+				first := copyID()
+				second := copyID()
+				return []assemblestate.Identity{first, second}, assemblestate.Routes{
+					Devices:   []assemblestate.DeviceToken{"device-0"},
+					Addresses: []string{"10.0.0.1:443"},
+					Routes:    []int{0, 0, 0},
+				}
+			},
+			err: `duplicate device token found in identities: "device-0"`,
+		},
 		{
 			name: "serial bundle missing serial assertion",
 			setup: func() ([]assemblestate.Identity, assemblestate.Routes) {

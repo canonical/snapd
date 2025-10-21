@@ -38,13 +38,38 @@ func AssertionDevices(ids []Identity, routes Routes) ([]any, error) {
 		return nil, err
 	}
 
-	devices := make([]any, 0, len(ids))
-	for i, identity := range ids {
+	serials := make(map[DeviceToken]*asserts.Serial, len(ids))
+	for _, identity := range ids {
 		serial, err := serialFromBundle(identity.SerialBundle)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse serial bundle for device %q: %w", identity.RDT, err)
 		}
 
+		if _, ok := serials[identity.RDT]; ok {
+			return nil, fmt.Errorf("duplicate device token found in identities: %q", identity.RDT)
+		}
+
+		serials[identity.RDT] = serial
+	}
+
+	// sort identities based on brand, model, then serial so that numeric id
+	// assignment is consistent, even across multiple assemble sessions.
+	sort.Slice(ids, func(i, j int) bool {
+		left := serials[ids[i].RDT]
+		right := serials[ids[j].RDT]
+
+		if left.BrandID() != right.BrandID() {
+			return left.BrandID() < right.BrandID()
+		}
+		if left.Model() != right.Model() {
+			return left.Model() < right.Model()
+		}
+
+		return left.Serial() < right.Serial()
+	})
+
+	devices := make([]any, 0, len(ids))
+	for i, identity := range ids {
 		addrs := append([]string(nil), addresses[identity.RDT]...)
 		if len(addrs) == 0 {
 			return nil, fmt.Errorf("no addresses available for device %q", identity.RDT)
@@ -55,11 +80,10 @@ func AssertionDevices(ids []Identity, routes Routes) ([]any, error) {
 			header = append(header, addr)
 		}
 
+		serial := serials[identity.RDT]
 		devices = append(devices, map[string]any{
 			"id":        strconv.Itoa(i + 1),
-			"brand-id":  serial.BrandID(),
-			"model":     serial.Model(),
-			"serial":    serial.Serial(),
+			"device":    serial.DeviceID().String(),
 			"addresses": header,
 		})
 	}
