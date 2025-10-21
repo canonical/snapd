@@ -54,6 +54,8 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeutil"
@@ -1085,6 +1087,11 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 }
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
+	straceShim, err := snapdtool.InternalToolPath("snap-strace-shim")
+	if err != nil {
+		return fmt.Errorf("cannot locate snap-strace-shim: %w", err)
+	}
+
 	// setup private tmp dir with strace fifo
 	straceTmp, err := os.MkdirTemp("", "exec-trace")
 	if err != nil {
@@ -1103,27 +1110,59 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	}
 	defer fw.Close()
 
+	appCmd := exec.Command(straceShim, origCmd...)
+	appCmd.Stdin = os.Stdin
+	appCmd.Stdout = os.Stdout
+	appCmd.Stderr = os.Stderr
+	appCmd.Env = envForExec(nil)
+	if err := appCmd.Start(); err != nil {
+		return err
+	}
+
+	if err := awaitTraceHelperCheckpoint(appCmd.Process.Pid); err != nil {
+		return err
+	}
+
+	logger.Debugf("child stopped, ready to be traced")
+	childStopped := true
+
 	// read strace data from fifo async
 	var slg *strace.ExecveTiming
-	var straceErr error
+	var traceErr error
 	doneCh := make(chan bool, 1)
 	go func() {
 		// FIXME: make this configurable?
 		nSlowest := 10
-		slg, straceErr = strace.TraceExecveTimings(straceLog, nSlowest)
+		slg, traceErr = strace.TraceExecveTimings(straceLog, nSlowest, func() {
+			logger.Debug("strace attached to child process")
+			if childStopped {
+				childStopped = false
+				if err := appCmd.Process.Signal(syscall.SIGCONT); err != nil {
+					fmt.Fprintf(Stderr, "cannot signal child to continue: %v\n", err)
+				}
+			}
+		})
 		close(doneCh)
 	}()
 
-	cmd, err := strace.TraceExecCommand(straceLog, origCmd...)
+	straceCmd, err := strace.TraceExecCommandForPid(appCmd.Process.Pid, straceLog)
 	if err != nil {
 		return err
 	}
-	// run
-	cmd.Env = envForExec(nil)
-	cmd.Stdin = Stdin
-	cmd.Stdout = Stdout
-	cmd.Stderr = Stderr
-	err = cmd.Run()
+	logger.Debugf("trace exec command: %v", straceCmd.Args)
+	straceCmd.Stdin = Stdin
+	straceCmd.Stdout = Stdout
+	straceCmd.Stderr = Stderr
+
+	// before starting strace in blocking mode await app to exit, so that we do
+	// not end up with zombies
+	appCmdErrC := make(chan error, 1)
+	go func() {
+		defer close(appCmdErrC)
+		appCmdErrC <- appCmd.Wait()
+	}()
+
+	straceCmdErr := straceCmd.Run()
 	// ensure we close the fifo here so that the strace.TraceExecCommand()
 	// helper gets a EOF from the fifo (i.e. all writers must be closed
 	// for this)
@@ -1131,12 +1170,74 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 
 	// wait for strace reader
 	<-doneCh
-	if straceErr == nil {
+	if traceErr == nil {
 		slg.Display(Stderr)
 	} else {
-		logger.Noticef("cannot extract runtime data: %v", straceErr)
+		logger.Noticef("cannot extract runtime data: %v", traceErr)
 	}
-	return err
+
+	// see comment at a similar place in runCmdUnderStrace()
+	appKillSent, killErr := maybeKillTracedApp(appCmd)
+	if killErr != nil {
+		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", killErr)
+	}
+	appCmdErr := <-appCmdErrC
+
+	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent))
+}
+
+// maybeIgnoreTracedAppKillError processes the error from a snap application that may
+// have been forcefully killed during trace as a result of strace process
+// finishing prematurely.
+func maybeIgnoreTracedAppKillError(err error, killed bool) error {
+	if !killed {
+		return err
+	}
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+
+	ws, ok := exitErr.ProcessState.Sys().(syscall.WaitStatus)
+	if !ok {
+		return err
+	}
+
+	if ws.Signal() != syscall.SIGKILL {
+		return err
+	}
+
+	return nil
+}
+
+func maybeKillTracedApp(appCmd *exec.Cmd) (killSent bool, err error) {
+	alreadyDead := func(killErr error) bool {
+		return errors.Is(killErr, syscall.ESRCH) || errors.Is(killErr, os.ErrProcessDone)
+	}
+
+	err = appCmd.Process.Kill()
+	if err != nil && !alreadyDead(err) {
+		return false, fmt.Errorf("cannot kill child application: %w", err)
+	}
+
+	// kill was sent if the target process was found
+	return !alreadyDead(err), nil
+}
+
+func awaitTraceHelperCheckpoint(pid int) error {
+	// wait for the child process executing tracing helper to raise SIGSTOP
+	// signalling readiness to attach strace
+	var status syscall.WaitStatus
+	_, err := syscall.Wait4(pid, &status, syscall.WUNTRACED, nil)
+	if err != nil {
+		return err
+	}
+	if status.StopSignal() != syscall.SIGSTOP {
+		return fmt.Errorf("child terminated prematurely with unexpected status: %v", status)
+	}
+
+	return nil
 }
 
 func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
@@ -1144,99 +1245,182 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	if err != nil {
 		return err
 	}
-	cmd, err := strace.Command(extraStraceOpts, origCmd...)
+
+	straceShim, err := snapdtool.InternalToolPath("snap-strace-shim")
 	if err != nil {
+		return fmt.Errorf("cannot locate snap-strace-shim: %w", err)
+	}
+
+	appCmd := exec.Command(straceShim, origCmd...)
+	appCmd.Stdin = os.Stdin
+	appCmd.Stdout = os.Stdout
+	appCmd.Stderr = os.Stderr
+	appCmd.Env = envForExec(nil)
+	if err := appCmd.Start(); err != nil {
 		return err
 	}
 
-	// run with filter
-	cmd.Env = envForExec(nil)
-	cmd.Stdin = Stdin
-	if raw {
-		// no output filtering, we can pass the child's stdout/stderr
-		// directly
-		cmd.Stdout = Stdout
-		cmd.Stderr = Stderr
+	if err := awaitTraceHelperCheckpoint(appCmd.Process.Pid); err != nil {
+		return err
+	}
 
-		return cmd.Run()
+	childContinue := func() error {
+		if err := appCmd.Process.Signal(syscall.SIGCONT); err != nil {
+			return fmt.Errorf("cannot signal child to continue: %w", err)
+		}
+		return nil
+	}
+
+	logger.Debugf("child stopped, ready to be traced")
+
+	straceCmd, err := strace.CommandWithTraceePid(appCmd.Process.Pid, extraStraceOpts)
+	if err != nil {
+		return err
+	}
+	logger.Debugf("strace command: %v", straceCmd.Args)
+
+	straceCmd.Stdin = Stdin
+	stderr, err := straceCmd.StderrPipe()
+	if err != nil {
+		return err
 	}
 
 	// note hijacking stdout, means it is no longer a tty and programs
 	// expecting stdout to be on a terminal (eg. bash) may misbehave at this
 	// point
-	stdout, err := cmd.StdoutPipe()
+	stdout, err := straceCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
+
+	errWrapIf := func(msg string, err error) error {
+		if err != nil {
+			return fmt.Errorf(msg, err)
+		}
 		return err
 	}
-	filterDone := make(chan struct{})
-	stdoutProxyDone := make(chan struct{})
+
+	filterDone := make(chan error, 1)
+	stdoutProxyDone := make(chan error, 1)
 	go func() {
 		defer close(filterDone)
 
 		r := bufio.NewReader(stderr)
 
-		// The first thing from strace if things work is
-		// "exeve(" - show everything until we see this to
-		// not swallow real strace errors.
+		// The first thing we want to see is strace attaching to the child
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
-				break
+				filterDone <- errWrapIf("cannot read while waiting for attach: %w", err)
+				return
 			}
-			if strings.Contains(s, "execve(") {
-				break
-			}
-			fmt.Fprint(Stderr, s)
-		}
 
-		// The last thing that snap-exec does is to
-		// execve() something inside the snap dir so
-		// we know that from that point on the output
-		// will be interessting to the user.
-		//
-		// We need check both /snap (which is where snaps
-		// are located inside the mount namespace) and the
-		// distro snap mount dir (which is different on e.g.
-		// fedora/arch) to fully work with classic snaps.
-		needle1 := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
-		needle2 := `execve("/snap`
-		for {
-			s, err := r.ReadString('\n')
-			if err != nil {
-				if err != io.EOF {
-					fmt.Fprintf(Stderr, "cannot read strace output: %s\n", err)
+			fmt.Fprint(Stderr, s)
+
+			if strace.StraceAttachedStart(s) {
+				logger.Debug("strace attached to child process")
+				if err := childContinue(); err != nil {
+					fmt.Fprintf(Stderr, "cannot signal child to continue: %v\n", err)
 				}
 				break
 			}
-			// Ensure we catch the execve but *not* the
-			// exec into
-			// /snap/core/current/usr/lib/snapd/snap-confine
-			// which is just `snap run` using the core version
-			// snap-confine.
-			if (strings.Contains(s, needle1) || strings.Contains(s, needle2)) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
+		}
+
+		if !raw {
+			// The first thing from strace if things work is
+			// "exeve(" - show everything until we see this to
+			// not swallow real strace errors.
+			for {
+				s, err := r.ReadString('\n')
+				if err != nil {
+					filterDone <- errWrapIf("cannot read while waiting for exec(): %w", err)
+					return
+				}
+
+				if strings.Contains(s, "execve(") {
+					break
+				}
 				fmt.Fprint(Stderr, s)
-				break
+			}
+
+			// The last thing that snap-exec does is to
+			// execve() something inside the snap dir so
+			// we know that from that point on the output
+			// will be interesting to the user.
+			//
+			// We need check both /snap (which is where snaps
+			// are located inside the mount namespace) and the
+			// distro snap mount dir (which is different on e.g.
+			// fedora/arch) to fully work with classic snaps.
+			needle1 := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
+			needle2 := `execve("/snap`
+			for {
+				s, err := r.ReadString('\n')
+				if err != nil {
+					filterDone <- errWrapIf("cannot read while waiting for exec() to snap-confine: %w", err)
+					return
+				}
+				// Ensure we catch the execve but *not* the
+				// exec into
+				// /snap/core/current/usr/lib/snapd/snap-confine
+				// which is just `snap run` using the core version
+				// snap-confine.
+				if (strings.Contains(s, needle1) || strings.Contains(s, needle2)) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
+					fmt.Fprint(Stderr, s)
+					break
+				}
 			}
 		}
-		io.Copy(Stderr, r)
+		_, err := io.Copy(Stderr, r)
+		// strace runs independently, so depending on when the goroutine happens
+		// to observe that we may get some errors which are expected
+		if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) {
+			err = nil
+		}
+
+		filterDone <- errWrapIf("cannot read while forwarding strace stderr: %w", err)
 	}()
 
 	go func() {
 		defer close(stdoutProxyDone)
-		io.Copy(Stdout, stdout)
+		_, err := io.Copy(Stdout, stdout)
+		// strace runs independently, so depending on when the goroutine happens
+		// to observe that we may get some errors which are expected
+		if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) {
+			err = nil
+		}
+
+		stdoutProxyDone <- errWrapIf("cannot read while forwarding strace stdout: %w", err)
 	}()
 
-	if err := cmd.Start(); err != nil {
+	if err := straceCmd.Start(); err != nil {
 		return err
 	}
-	<-filterDone
-	<-stdoutProxyDone
-	err = cmd.Wait()
-	return err
+
+	appCmdErrC := make(chan error, 1)
+	go func() {
+		defer close(appCmdErrC)
+		appCmdErrC <- appCmd.Wait()
+	}()
+
+	// pipes before calling Wait() on strace process will close stderr/stdout
+	// pipes, so all the reads must be done before that
+	filterErr := <-filterDone
+	proxyErr := <-stdoutProxyDone
+
+	// strace exits when the app finishes, however it may exit early if
+	// arguments weren't right or it failed, in which case we need to clean up
+	// the snap application process by sending KILL
+	straceCmdErr := straceCmd.Wait()
+
+	appKillSent, killErr := maybeKillTracedApp(appCmd)
+	if killErr != nil {
+		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", killErr)
+	}
+
+	appCmdErr := <-appCmdErrC
+
+	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent), filterErr, proxyErr)
 }
 
 func newHookRunnable(info *snap.Info, hook *snap.HookInfo, component *snap.ComponentInfo) runnable {
