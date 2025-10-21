@@ -168,6 +168,7 @@ func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, p
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
 func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data map[string]string) error {
+	logger.Debugf("called addNotice(%d, %s, %v)", userID, id, data)
 	ntb.rwmu.Lock()
 	defer ntb.rwmu.Unlock()
 	key := id.String()
@@ -175,6 +176,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 
 	userNotices, existingNotice, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
 	if err != nil {
+		logger.Debugf("error when searching for existing notice with userID %d, noticeID %s: %v", userID, noticeID, err)
 		return err
 	}
 
@@ -198,8 +200,10 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	if existingNotice != nil && !existingNotice.Expired(timestamp) {
 		newNotice = existingNotice.DeepCopy()
 		newNotice.Reoccur(timestamp, data, 0)
+		logger.Debugf("calling newNotice.Reoccur() for notice with ID %s", noticeID)
 	} else {
 		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
+		logger.Debugf("calling NewNotice(%s, %d, %s, %s, ...)", noticeID, userID, ntb.noticeType, key)
 	}
 
 	newUserNotices := appendNotice(userNotices, newNotice, existingIndex, expiredCount)
@@ -214,6 +218,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		} else {
 			delete(ntb.idToNotice, noticeID)
 		}
+		logger.Debugf("error when saving prompting %s notice backend: %v", ntb.noticeType, err)
 		return fmt.Errorf("cannot add notice to prompting %s backend: %w", ntb.noticeType, err)
 	}
 
@@ -224,10 +229,12 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 
 	ntb.cond.Broadcast()
 
+	logger.Debugf("successfully added notice with ID %s", noticeID)
+
 	return nil
 }
 
-// searchExistingNotice looks up the list of existing notices for the given
+// searchExistingNotices looks up the list of existing notices for the given
 // userID and checks whether a notice with the given noticeID already exists.
 //
 // Returns the slice of existing notices for the given userID. If the notice
