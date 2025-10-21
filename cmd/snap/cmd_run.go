@@ -1077,7 +1077,7 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	fmt.Fprintf(Stdout, gdbServerWelcomeFmt, addr)
 	// note that only gdbserver needs to run as root, the application
 	// keeps running as the user
-	gdbSrvCmd := exec.Command("sudo", "-E", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
+	gdbSrvCmd := exec.Command("sudo", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
 	if output, err := gdbSrvCmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
