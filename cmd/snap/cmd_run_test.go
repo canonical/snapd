@@ -104,6 +104,30 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.fakeHome = c.MkDir()
 
+	env := os.Environ()
+	// one may be using Go from a snap, which will cause additional SNAP_
+	// environment variables to show up possibly breaking the tests, let's patch
+	// them up
+	droppedEnvs := map[string]string{}
+	for _, e := range env {
+		n := strings.SplitN(e, "=", 2)
+		name := n[0]
+		if strings.HasPrefix(name, "SNAP") {
+			if len(n) > 1 {
+				droppedEnvs[name] = n[1]
+			} else {
+				droppedEnvs[name] = ""
+			}
+			os.Unsetenv(name)
+		}
+	}
+
+	s.AddCleanup(func() {
+		for n, v := range droppedEnvs {
+			os.Setenv(n, v)
+		}
+	})
+
 	u, err := user.Current()
 	c.Assert(err, check.IsNil)
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
