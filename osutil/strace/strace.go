@@ -17,6 +17,29 @@
  *
  */
 
+// The package provides helpers for invoking strace to trace the snap execution.
+// Since bootstrapping a snap environment involves running a privileged binary,
+// the tracing is composed of 2 parts:
+//
+// - tracee, whose 'lifetime' begins as the first stage of the bootstrap, right
+// - after transitioning from `snap run`. This will eventually transition into
+// - the desired snap application.
+// - tracing application, strace, which attaches to the tracee's execution chain
+//
+// Running strace as a standalone process which only attaches to the traced
+// application has a significant advantage, bootstrapping and the application
+// runs in a pristine environment and continues execution in the security
+// context of a regular user, in the assigned snap cgroup.
+//
+// The usual entry point doing all the orchestration is `snap run`. The
+// execution injects an additional synchronization step to properly identify a
+// moment when the tracee execution check is ready to attach strace and next
+// when strace successfully attached to the traced process. The synchronization
+// is provided by snap-strace-shim, which has the purpose of raising SIGSTOP,
+// which provides the first synchronization point, after which snap run launches
+// strace and processes its stderr to identify a moment when strace attached
+// to the process held in SIGSTOP handler. At this point sending SIGCONT will
+// unblock further execution.
 package strace
 
 import (
@@ -24,10 +47,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/user"
 )
 
 // These syscalls are excluded because they make strace hang on all or
@@ -48,27 +72,23 @@ func getExcludedSyscalls() string {
 // testsuites
 var ExcludedSyscalls = getExcludedSyscalls()
 
-func findStrace(u *user.User) (stracePath string, userOpts []string, err error) {
+func findStrace() (stracePath string, err error) {
 	if path := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace"); osutil.FileExists(path) {
-		// Strace v6.9 supports -u UID:GID which avoids the need to resolve usernames with nss.
-		return path, []string{"-u", fmt.Sprintf("%s:%s", u.Uid, u.Gid)}, nil
+		return path, nil
 	}
 
 	stracePath, err = exec.LookPath("strace")
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
+		return "", fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 	}
 
-	return stracePath, []string{"-u", u.Username}, nil
+	return stracePath, nil
 }
 
-// Command returns how to run strace in the users context with the
-// right set of excluded system calls.
-func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
-	current, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
+// Command returns how to run strace in the users context with the right set of
+// excluded system calls. The returned invocation of strace is wrapped with
+// sudo.
+func Command(extraStraceOpts []string) (*exec.Cmd, error) {
 	sudoPath, err := exec.LookPath("sudo")
 	if err != nil {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
@@ -81,21 +101,19 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 	// have _newselect). In https://github.com/strace/strace/issues/57 options
 	// are discussed. We could use "-e trace=?syscall" but that is only
 	// available since strace 4.17 which is not even in Ubuntu 17.10.
-	stracePath, userOpts, err := findStrace(current)
+	stracePath, err := findStrace()
 	if err != nil {
 		return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 	}
 
 	args := []string{
 		sudoPath,
-		"-E",
+		"--",
 		stracePath,
+		"-f",
+		"-e", ExcludedSyscalls,
 	}
-
-	args = append(args, userOpts...)
-	args = append(args, "-f", "-e", ExcludedSyscalls)
 	args = append(args, extraStraceOpts...)
-	args = append(args, traceeCmd...)
 
 	return &exec.Cmd{
 		Path: sudoPath,
@@ -103,10 +121,36 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 	}, nil
 }
 
-// TraceExecCommand returns an exec.Cmd suitable for tracking timings of
-// execve{,at}() calls
-func TraceExecCommand(straceLogPath string, origCmd ...string) (*exec.Cmd, error) {
-	extraStraceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLogPath)}
+// CommandWithTraceePid returns strace invocation command with parameters for
+// attaching to a specific process ID.
+func CommandWithTraceePid(pid int, extraStraceOpts []string) (*exec.Cmd, error) {
+	return Command(append(extraStraceOpts, "-p", strconv.Itoa(pid)))
+}
 
-	return Command(extraStraceOpts, origCmd...)
+// TraceExecCommandForPid returns an exec.Cmd suitable for attaching to a given
+// process ID and tracking timings of execve{,at}() calls. Internally invokes
+// strace wrapped with sudo.
+func TraceExecCommandForPid(pid int, straceLogPath string) (*exec.Cmd, error) {
+	extraStraceOpts := []string{
+		"-ttt",                        // timestamps
+		"-e", "trace=execve,execveat", // pick exec*() syscalls
+		"-o", fmt.Sprintf("%s", straceLogPath), // output to FIFO
+	}
+
+	return CommandWithTraceePid(pid, extraStraceOpts)
+}
+
+func StraceAttachedStart(s string) bool {
+	// we are expecting the tracing shim to issue a SIGSTOP notifying the parent
+	// process it is ready to have strace attached to it, at which point the
+	// parent will start strace, pass the child's pid and observe the output to
+	// see an indication that strace attached to the child. In strace's output this looks like:
+	//
+	// strace: Process 1607676 attached
+	// 1761133249.302069 --- stopped by SIGSTOP ---
+	// 1761133255.979005 --- SIGCONT {si_signo=SIGCONT, si_code=SI_USER, si_pid=76275, si_uid=1000} ---
+	//
+	// where the timestamp's presence depends on the format parameters strace
+	// was started with
+	return strings.Contains(s, "--- stopped by SIGSTOP ---")
 }
