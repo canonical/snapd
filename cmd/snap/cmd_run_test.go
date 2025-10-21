@@ -104,6 +104,30 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.fakeHome = c.MkDir()
 
+	env := os.Environ()
+	// one may be using Go from a snap, which will cause additional SNAP_
+	// environment variables to show up possibly breaking the tests, let's patch
+	// them up
+	droppedEnvs := map[string]string{}
+	for _, e := range env {
+		n := strings.SplitN(e, "=", 2)
+		name := n[0]
+		if strings.HasPrefix(name, "SNAP") {
+			if len(n) > 1 {
+				droppedEnvs[name] = n[1]
+			} else {
+				droppedEnvs[name] = ""
+			}
+			os.Unsetenv(name)
+		}
+	}
+
+	s.AddCleanup(func() {
+		for n, v := range droppedEnvs {
+			os.Setenv(n, v)
+		}
+	})
+
 	u, err := user.Current()
 	c.Assert(err, check.IsNil)
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
@@ -1891,6 +1915,28 @@ func (s *RunSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 	}
 }
 
+func mockTraceShim(c *check.C, libexecdir string) (cmd *testutil.MockCmd, readShimPid func() string) {
+	traceShimCmd := testutil.MockCommand(c, filepath.Join(libexecdir, "snap-strace-shim"), `
+echo "$$" > "$(dirname "$0")/shim.pid"
+
+# uncomment when debugging tracing tests, this is too noisy
+# >&2 echo "before STOP"
+
+kill -STOP $$
+
+# >&2 echo "after STOP"
+`)
+	defer traceShimCmd.Restore()
+
+	readShimPid = func() string {
+		d, err := os.ReadFile(filepath.Join(traceShimCmd.BinDir(), "shim.pid"))
+		c.Assert(err, check.IsNil)
+		return strings.TrimSpace(string(d))
+	}
+
+	return traceShimCmd, readShimPid
+}
+
 func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
@@ -1902,7 +1948,28 @@ func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	// pretend we have sudo and simulate some useful output that would
 	// normally come from strace
 	sudoCmd := testutil.MockCommand(c, "sudo", fmt.Sprintf(`
+other_pid=
+while [ -n "$1" ]; do
+    case "$1" in
+        -p)
+            shift
+            other_pid="$1"
+            shift
+            ;;
+         *)
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$other_pid" ]; then
+    echo "missing other PID"
+    exit 99
+fi
+
 echo "stdout output 1"
+>&2 echo 'strace: Process 1234 attached'
+>&2 echo '--- stopped by SIGSTOP ---'
 >&2 echo 'execve("/path/to/snap-confine")'
 >&2 echo "snap-confine/snap-exec strace stuff"
 >&2 echo "getuid() = 1000"
@@ -1910,6 +1977,12 @@ echo "stdout output 1"
 >&2 echo "interessting strace output"
 >&2 echo "and more"
 echo "stdout output 2"
+
+# pretend we are strace and we wait for the other process to
+# finish before completing
+while [ -e "/proc/$other_pid" ]; do
+    sleep 0.1
+done
 `, dirs.SnapMountDir))
 	defer sudoCmd.Restore()
 
@@ -1917,58 +1990,79 @@ echo "stdout output 2"
 	straceCmd := testutil.MockCommand(c, "strace", "")
 	defer straceCmd.Restore()
 
-	user, err := user.Current()
-	c.Assert(err, check.IsNil)
+	traceShimCmd, shimPid := mockTraceShim(c, dirs.DistroLibExecDir)
+	defer traceShimCmd.Restore()
 
 	// and run it under strace
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace", "--", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
-			"sudo", "-E",
+			"sudo",
+			"--",
 			filepath.Join(straceCmd.BinDir(), "strace"),
-			"-u", user.Username,
 			"-f",
 			"-e", strace.ExcludedSyscalls,
+			"-p", shimPid(),
+		},
+	})
+
+	// because the goroutines processing the outputs are effectively racing with
+	// the spawned strace and app processes which may close their outputs at any
+	// time, there is no guarantee that we will observe the whole output,
+	// however, the captured stdout/stderr will be no longer than the full
+	// anticipated output of a best case scenario
+	c.Check("stdout output 1\nstdout output 2\n", testutil.Contains, s.Stdout())
+	c.Check(fmt.Sprintf(`
+strace: Process 1234 attached
+--- stopped by SIGSTOP ---
+execve(%q)
+interessting strace output
+and more
+`[1:], filepath.Join(dirs.SnapMountDir, "snapName/x2/bin/foo")), testutil.Contains, s.Stderr())
+
+	c.Check(traceShimCmd.Calls(), check.DeepEquals, [][]string{
+		{
+			"snap-strace-shim",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 			"snapname.app", "--arg1", "arg2",
 		},
 	})
-	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
-	c.Check(s.Stderr(), check.Equals, fmt.Sprintf("execve(%q)\ninteressting strace output\nand more\n", filepath.Join(dirs.SnapMountDir, "snapName/x2/bin/foo")))
 
 	s.ResetStdStreams()
 	sudoCmd.ForgetCalls()
+	traceShimCmd.ForgetCalls()
 
 	// try again without filtering
 	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
-			"sudo", "-E",
+			"sudo",
+			"--",
 			filepath.Join(straceCmd.BinDir(), "strace"),
-			"-u", user.Username,
 			"-f",
 			"-e", strace.ExcludedSyscalls,
-			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
-			"snap.snapname.app",
-			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-			"snapname.app", "--arg1", "arg2",
+			"-p", shimPid(),
 		},
 	})
-	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
-	expectedFullFmt := `execve("/path/to/snap-confine")
+	c.Check("stdout output 1\nstdout output 2\n", testutil.Contains, s.Stdout())
+	expectedFullFmt := `
+strace: Process 1234 attached
+--- stopped by SIGSTOP ---
+execve("/path/to/snap-confine")
 snap-confine/snap-exec strace stuff
 getuid() = 1000
 execve("%s/snapName/x2/bin/foo")
 interessting strace output
 and more
-`
+`[1:]
 	expectedFull := fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir)
+	c.Check(fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir), testutil.Contains, s.Stderr())
 
 	for _, tc := range []struct {
 		arg   string
@@ -1982,32 +2076,28 @@ and more
 	} {
 		s.ResetStdStreams()
 		sudoCmd.ForgetCalls()
+		traceShimCmd.ForgetCalls()
 
 		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{
 			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
 		})
-		c.Assert(err, check.IsNil)
-		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+		c.Check(err, check.IsNil)
+		c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 			append(append([]string{
-				"sudo", "-E",
+				"sudo",
+				"--",
 				filepath.Join(straceCmd.BinDir(), "strace"),
-				"-u", user.Username,
 				"-f",
 				"-e", strace.ExcludedSyscalls,
 			},
 				tc.entry...),
-				[]string{
-					filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
-					"snap.snapname.app",
-					filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-					"snapname.app", "--arg1", "arg2",
-				}...),
+				"-p", shimPid(),
+			),
 		})
-		c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
-		c.Check(s.Stderr(), check.Equals, expectedFull)
+		c.Check("stdout output 1\nstdout output 2\n", testutil.Contains, s.Stdout())
+		c.Check(expectedFull, testutil.Contains, s.Stderr())
 	}
-	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 }
 
 func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
@@ -2019,30 +2109,80 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	})
 
 	// pretend we have sudo
-	sudoCmd := testutil.MockCommand(c, "sudo", "")
+	sudoCmd := testutil.MockCommand(c, "sudo", `
+>&2 echo 'strace: Process 1234 attached'
+>&2 echo '--- stopped by SIGSTOP ---'
+>&2 echo 'execve("/path/to/snap-confine")'
+`)
 	defer sudoCmd.Restore()
 
 	// pretend we have strace
 	straceCmd := testutil.MockCommand(c, "strace", "")
 	defer straceCmd.Restore()
 
-	user, err := user.Current()
-	c.Assert(err, check.IsNil)
+	traceShimCmd, shimPid := mockTraceShim(c, dirs.DistroLibExecDir)
+	defer traceShimCmd.Restore()
 
 	// and run it under strace
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--strace=-tt --raw -o "file with spaces"`, "--", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
-			"sudo", "-E",
+			"sudo",
+			"--",
 			filepath.Join(straceCmd.BinDir(), "strace"),
-			"-u", user.Username,
 			"-f",
 			"-e", strace.ExcludedSyscalls,
 			"-tt",
-			"-o",
-			"file with spaces",
+			"-o", "file with spaces",
+			"-p", shimPid(),
+		},
+	})
+
+	c.Check(traceShimCmd.Calls(), check.DeepEquals, [][]string{
+		{
+			"snap-strace-shim",
+			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+			"snap.snapname.app",
+			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+			"snapname.app", "--arg1", "arg2",
+		},
+	})
+}
+
+func (s *RunSuite) TestSnapRunAppWithStraceBadShim(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend we have sudo
+	sudoCmd := testutil.MockCommand(c, "sudo", ``)
+	defer sudoCmd.Restore()
+
+	// pretend we have strace
+	straceCmd := testutil.MockCommand(c, "strace", "")
+	defer straceCmd.Restore()
+
+	traceShimCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-strace-shim"), `
+# simulate unexpected exit
+exit 1
+`)
+	defer traceShimCmd.Restore()
+
+	// and run it under strace
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--strace`, "--", "snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.ErrorMatches, "child terminated prematurely with unexpected status: [0-9]+")
+	c.Check(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
+	// no calls to sudo
+	c.Check(sudoCmd.Calls(), check.HasLen, 0)
+
+	c.Check(traceShimCmd.Calls(), check.DeepEquals, [][]string{
+		{
+			"snap-strace-shim",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -2158,8 +2298,11 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	straceCmd := testutil.MockCommand(c, "strace", "")
 	defer straceCmd.Restore()
 
+	traceShimCmd, _ := mockTraceShim(c, dirs.DistroLibExecDir)
+	defer traceShimCmd.Restore()
+
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.ErrorMatches, "exit status 12")
+	c.Assert(err, check.ErrorMatches, "exit status 12.*")
 	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
 	c.Check(s.Stdout(), check.Equals, "unhappy\n")
 	c.Check(s.Stderr(), check.Equals, "")
