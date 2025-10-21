@@ -25,10 +25,7 @@ prepare: |
       tests.exec skip-test "This test fails when proxy is set for snapd" && exit 0
   fi
 
-  device=ens4
-  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-    device=ens3
-  fi
+  device="$(ip route show default | awk '{print $5}')"
 
   if not os.query is-pc-amd64; then
       echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
@@ -44,10 +41,7 @@ prepare: |
 restore: |
   tests.exec is-skipped && exit 0
 
-  device=ens4
-  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-    device=ens3
-  fi
+  device="$(ip route show default | awk '{print $5}')"
 
   if not os.query is-pc-amd64; then
       echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
@@ -68,10 +62,7 @@ restore: |
 execute: |
   tests.exec is-skipped && exit 0
 
-  device=ens4
-  if [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-    device=ens3
-  fi
+  device="$(ip route show default | awk '{print $5}')"
 
   if not os.query is-pc-amd64; then
       echo "tc fail to add a device in arm architecture with error: \"Cannot find device $device\""
