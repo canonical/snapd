@@ -192,34 +192,24 @@ func chooser(cli *client.Client) (reboot bool, err error) {
 
 var syslogNew = func(p syslog.Priority, tag string) (io.Writer, error) { return syslog.New(p, tag) }
 
-func loggerWithSyslogMaybe() error {
-	maybeSyslog := func() error {
-		if os.Getenv("TERM") == "" {
-			// set up the syslog logger only when we're running on a
-			// terminal
-			return fmt.Errorf("not on terminal, syslog not needed")
-		}
-		syslogWriter, err := syslogNew(syslog.LOG_INFO|syslog.LOG_DAEMON, "snap-recovery-chooser")
-		if err != nil {
-			return err
-		}
-		l := logger.New(syslogWriter, logger.DefaultFlags, nil)
-		logger.SetLogger(l)
-		return nil
+func loggerWithSyslogMaybe() {
+	if os.Getenv("TERM") == "" {
+		// set up the syslog logger only when we're running on a terminal
+		return
 	}
 
-	if err := maybeSyslog(); err != nil {
-		// try simple setup
-		logger.SimpleSetup(nil)
+	syslogWriter, err := syslogNew(syslog.LOG_INFO|syslog.LOG_DAEMON, "snap-recovery-chooser")
+	if err != nil {
+		logger.Noticef("WARNING: cannot create new syslog writer: %v", err)
+		return
 	}
-	return nil
+
+	l := logger.New(syslogWriter, logger.DefaultFlags, nil)
+	logger.SetLogger(l)
 }
 
 func main() {
-	if err := loggerWithSyslogMaybe(); err != nil {
-		fmt.Fprintf(Stderr, "cannot initialize logger: %v\n", err)
-		os.Exit(1)
-	}
+	loggerWithSyslogMaybe()
 
 	reboot, err := chooser(client.New(nil))
 	if err != nil {
@@ -230,4 +220,8 @@ func main() {
 	if reboot {
 		fmt.Fprintf(Stderr, "The system is rebooting...\n")
 	}
+}
+
+func init() {
+	logger.SimpleSetup(nil)
 }

@@ -46,18 +46,18 @@ func Test(t *testing.T) { TestingT(t) }
 
 type baseCmdSuite struct {
 	testutil.BaseTest
-
+	buf            *bytes.Buffer
 	stdout, stderr bytes.Buffer
 	markerFile     string
 }
 
 func (s *baseCmdSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	_, r := logger.MockLogger()
+	buf, r := logger.MockLogger()
+	s.buf = buf
 	s.AddCleanup(r)
 	r = main.MockStdStreams(&s.stdout, &s.stderr)
 	s.AddCleanup(r)
-
 	d := c.MkDir()
 	s.markerFile = filepath.Join(d, "marker")
 	err := os.WriteFile(s.markerFile, nil, 0644)
@@ -524,11 +524,12 @@ func (s *mockedSyslogCmdSuite) TestNoSyslogFallback(c *C) {
 		return nil, fmt.Errorf("no syslog")
 	})
 	defer r()
-	err = main.LoggerWithSyslogMaybe()
-	c.Assert(err, IsNil)
+	main.LoggerWithSyslogMaybe()
 	c.Check(called, Equals, true)
-	// this likely goes to stderr
+
 	logger.Noticef("ping")
+	c.Check(s.buf.String(), testutil.Contains, "WARNING: cannot create new syslog writer: no syslog")
+	c.Check(s.buf.String(), testutil.Contains, "ping")
 }
 
 func (s *mockedSyslogCmdSuite) TestWithSyslog(c *C) {
@@ -546,8 +547,7 @@ func (s *mockedSyslogCmdSuite) TestWithSyslog(c *C) {
 		return &buf, nil
 	})
 	defer r()
-	err = main.LoggerWithSyslogMaybe()
-	c.Assert(err, IsNil)
+	main.LoggerWithSyslogMaybe()
 	c.Check(called, Equals, true)
 	c.Check(tag, Equals, "snap-recovery-chooser")
 	c.Check(prio, Equals, syslog.LOG_INFO|syslog.LOG_DAEMON)
@@ -565,6 +565,5 @@ func (s *mockedSyslogCmdSuite) TestSimple(c *C) {
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer r()
-	err = main.LoggerWithSyslogMaybe()
-	c.Assert(err, IsNil)
+	main.LoggerWithSyslogMaybe()
 }
