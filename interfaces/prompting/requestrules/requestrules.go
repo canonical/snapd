@@ -314,6 +314,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		// The DB on disk was invalid, so drop every rule and start over
 		data := map[string]string{"removed": "dropped"}
 		for _, rule := range wrapped.Rules {
+			logger.Debugf("calling notifyRule(%d, %s, %v) because DB was invalid and all rules dropped", rule.User, rule.ID, data)
 			rdb.notifyRule(rule.User, rule.ID, data)
 		}
 		rdb.indexByID = make(map[prompting.IDType]int)
@@ -330,13 +331,16 @@ func (rdb *RuleDB) load() (retErr error) {
 		var data map[string]string
 		if expiredRules[rule.ID] {
 			data = expiredData
+			logger.Debugf("calling notifyRule(%d, %s, %v) because it was expired on load", rule.User, rule.ID, data)
 		} else if newID, exists := mergedRules[rule.ID]; exists {
 			data = map[string]string{
 				"removed":     "merged",
 				"merged-into": newID.String(),
 			}
+			logger.Debugf("calling notifyRule(%d, %s, %v) because it merged into rule %s on load", rule.User, rule.ID, data, newID)
 		} else if partiallyExpiredRules[rule.ID] {
 			// no-op, want to record notice with empty data
+			logger.Debugf("calling notifyRule(%d, %s, %v) on load because some (but not all) permissions were expired", rule.User, rule.ID, data)
 		} else {
 			// not expired or merged, so don't record notice
 			continue
@@ -765,11 +769,16 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			// a new rule which overlaps with another rule which has partially
 			// expired.
 			continue
+
+			// XXX: shouldn't there be a notice here recorded here?
 		}
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
+			logger.Debugf("calling notifyRule(%d, %s, %v) because it was expired when another rule was added", maybeExpired.User, maybeExpired.ID, expiredData)
 			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, expiredData)
+		} else {
+			logger.Debugf("not calling notifyRule(%d, %s, %v) because an error occurred when trying to remove the maybe expired rule", maybeExpired.User, maybeExpired.ID, expiredData)
 		}
 	}
 
@@ -1053,6 +1062,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 
+	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was first added", user, newRule.ID, nil)
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
 }
@@ -1301,6 +1311,7 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
+	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was removed", user, id, data)
 	rdb.notifyRule(user, id, data)
 	return rule, nil
 }
@@ -1356,6 +1367,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree, and no other
 		// rule was affected. We want the rule fully removed, so this is fine.
+		logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was removed", user, rule.ID, data)
 		rdb.notifyRule(user, rule.ID, data)
 	}
 	return nil
@@ -1482,6 +1494,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
+	logger.Debugf("calling notifyRule(%d, %s, %v) when the rule was patched", newRule.User, newRule.ID, nil)
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
 }
