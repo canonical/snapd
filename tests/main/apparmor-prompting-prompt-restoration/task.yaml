@@ -2,9 +2,9 @@ summary: Check that outstanding prompts are restored after snapd restart
 
 details: |
     Test that snapd is able to restore prompts after restarting. This requires
-    that snapd register the listener ID with the kernel, re-register that ID
-    after snapd restarts, re-receive outstanding requests from the kernel, and
-    use those requests to rebuild the prompt state as it was prior to the
+    that snapd registers the listener ID with the kernel, re-registers that ID
+    after restarting, re-receives outstanding requests from the kernel, and
+    uses those requests to rebuild the prompt state as it was prior to the
     restart. This requires kernel support for notification protocol v5, which
     is only found in kernel 6.16+, which is currently only in questing or later.
 
@@ -13,7 +13,7 @@ systems:
 
 prepare: |
     if os.query is-ubuntu-lt 25.10; then
-        tests.exec skip-test "Requires AppArmor notification protocol v5+ which is only in 25.10+ (kernel 6.16+)"
+        tests.exec skip-test "Requires AppArmor notification protocol v5+ which is only in 25.10+ (kernel 6.16+)" && exit 0
     fi
 
     echo "Check that the system AppArmor supports notification protocol v5"
@@ -23,16 +23,15 @@ prepare: |
     ls /sys/kernel/security/apparmor/features/policy/notify_versions
     test -f /sys/kernel/security/apparmor/features/policy/notify_versions/v5
 
-    # Before enabling prompting, we must have a snap installed which provides
-    # a prompting `handler-service` attribute with a connection via the
-    # `snap-interfaces-requests-control` interface.
     # Prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
 
     tests.session prepare -u test
+    tests.cleanup defer tests.session restore -u test
     tests.session -u test exec sh -c 'mkdir -p /home/test'
     tests.session -u test exec sh -c 'echo hello-foo > /home/test/foo'
     tests.session -u test exec sh -c 'echo hello-bar > /home/test/bar'
+    tests.cleanup defer rm -f /home/test/{foo,bar}
 
     # Install a snap which identifies itself to snapd as a prompting handler-service
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
@@ -44,13 +43,7 @@ prepare: |
 
     # Enable prompting
     snap set system experimental.apparmor-prompting=true
-
-restore: |
-    tests.exec is-skipped && exit 0
-
-    snap set system experimental.apparmor-prompting=false
-    rm -f /home/test/{foo,bar}
-    tests.session restore -u test
+    tests.cleanup defer snap set system experimental.apparmor-prompting=false
 
 debug: |
     tests.exec is-skipped && exit 0
@@ -70,44 +63,53 @@ execute: |
     echo "Check that there are no prompts initially"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 0
+    echo "$RESULT" | gojq '.result | length' | MATCH 0
+
+    sleep 1
+    BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
+    sleep 1
 
     echo "Trigger first prompt"
-    BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
     tests.session -u test exec prompt-requester.cat /home/test/foo &
 
     echo "Wait for notice for first prompt"
     RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 1
-    NOTICE_ID_1="$(echo "$RESULT" | jq .result[0].id)"
-    NOTICE_KEY_1="$(echo "$RESULT" | jq .result[0].key | tr -d '"')"
+    echo "$RESULT" | gojq '.result | length' | MATCH 1
+    NOTICE_ID_1="$(echo "$RESULT" | gojq .result[0].id)"
+    NOTICE_KEY_1="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
 
     echo "Check that the prompt with the ID given by the first notice is present"
     RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$NOTICE_KEY_1")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq .result.constraints.path | MATCH '"/home/test/foo"'
-    PROMPT_ID_1="$(echo "$RESULT" | jq .result.id | tr -d '"')"
+    echo "$RESULT" | gojq .result.constraints.path | MATCH '"/home/test/foo"'
+    PROMPT_ID_1="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
+
+    sleep 1
+    BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
+    sleep 1
 
     echo "Trigger second prompt"
-    BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
     tests.session -u test exec prompt-requester.cat /home/test/bar &
 
     echo "Wait for notice for second prompt"
     RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 1
-    NOTICE_ID_2="$(echo "$RESULT" | jq .result[0].id)"
-    NOTICE_KEY_2="$(echo "$RESULT" | jq .result[0].key | tr -d '"')"
+    echo "$RESULT" | gojq '.result | length' | MATCH 1
+    NOTICE_ID_2="$(echo "$RESULT" | gojq .result[0].id)"
+    NOTICE_KEY_2="$(echo "$RESULT" | gojq .result[0].key | tr -d '"')"
 
     echo "Check that the prompt with the ID given by the second notice is present"
     RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$NOTICE_KEY_2")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq .result.constraints.path | MATCH '"/home/test/bar"'
-    PROMPT_ID_2="$(echo "$RESULT" | jq .result.id | tr -d '"')"
+    echo "$RESULT" | gojq .result.constraints.path | MATCH '"/home/test/bar"'
+    PROMPT_ID_2="$(echo "$RESULT" | gojq .result.id | tr -d '"')"
+
+    sleep 1
+    BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
+    sleep 1
 
     echo "Restart snapd"
-    BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
     systemctl restart snapd.service snapd.socket
     systemctl daemon-reload
 
@@ -116,33 +118,36 @@ execute: |
     echo "Check whether prompts are still present after restart"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 2
+    echo "$RESULT" | gojq '.result | length' | MATCH 2
     RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$PROMPT_ID_1")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq .result.constraints.path | MATCH '"/home/test/foo"'
+    echo "$RESULT" | gojq .result.constraints.path | MATCH '"/home/test/foo"'
     RESULT="$(tests.session -u test exec snap debug api "/v2/interfaces/requests/prompts/$PROMPT_ID_2")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq .result.constraints.path | MATCH '"/home/test/bar"'
+    echo "$RESULT" | gojq .result.constraints.path | MATCH '"/home/test/bar"'
 
     echo "Check that notices with the same IDs have been re-recorded"
     RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 2
+    echo "$RESULT" | gojq '.result | length' | MATCH 2
     echo "$RESULT" | MATCH '"id": '"$NOTICE_ID_1"
     echo "$RESULT" | MATCH '"id": '"$NOTICE_ID_2"
 
-    echo "Reply to the prompt with an allow which handles both"
+    sleep 1
     BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
+    sleep 1
+
+    echo "Reply to the prompt with an allow which handles both"
     echo '{"action": "allow", "lifespan": "timespan", "duration": "1ms", "constraints": {"path-pattern": "/**", "permissions": ["read"]}}' | tests.session -u test exec snap debug api -X POST "/v2/interfaces/requests/prompts/$PROMPT_ID_1" | MATCH '"status-code": 200'
 
     echo "Wait for notices for replied prompts"
     RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 2
-    echo "$RESULT" | jq '.result.[]."last-data"' | MATCH '"resolved": "replied"'
-    echo "$RESULT" | jq '.result.[]."last-data"' | MATCH '"resolved": "satisfied"'
+    echo "$RESULT" | gojq '.result | length' | MATCH 2
+    echo "$RESULT" | gojq '.result.[]."last-data"' | MATCH '"resolved": "replied"'
+    echo "$RESULT" | gojq '.result.[]."last-data"' | MATCH '"resolved": "satisfied"'
 
     echo "Check that the prompts were resolved"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
     echo "$RESULT" | MATCH '"status-code": 200'
-    echo "$RESULT" | jq '.result | length' | MATCH 0
+    echo "$RESULT" | gojq '.result | length' | MATCH 0
