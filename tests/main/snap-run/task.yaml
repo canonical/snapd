@@ -9,9 +9,6 @@ systems:
   # strace does not support _newselect on s390x
   # (https://github.com/strace/strace/issues/57)
   - -*-s390x
-  # TODO fix this on questing - strace and trace-exec
-  # currently don't work due to sudo-rs not accepting -E
-  - -ubuntu-25.10-64
 
 environment:
     STRACE_STATIC_CHANNEL: candidate
