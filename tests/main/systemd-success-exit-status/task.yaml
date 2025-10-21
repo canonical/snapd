@@ -24,13 +24,13 @@ execute: |
     systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
 
     echo "When the service initialization is completed"
-    while [[ ! $(systemctl status "$SERVICE_NAME" | grep -oP 'Main PID: \d+ \([^)]+\)' | grep -oP '\([^)]+\)' | tr -d '()') =~ ^service-exit- ]]; do sleep 0.5; done
+    retry -n 20 --wait 1 stat /var/snap/test-snapd-success-exit-status/common/ready
 
     echo "Terminate the service with success exit status 42"
     systemctl kill -s USR1 --wait "$SERVICE_NAME"
 
     echo "When the signal is propagated to the service"
-    timeout 20 bash -c "while ! systemctl show -p ActiveState \"$SERVICE_NAME\" | grep -Pq \"ActiveState=inactive\"; do sleep 0.5; done" || true
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
 
     echo "Then systemctl reports the status of the service as terminated with the custom status"
     expected='(?s).*?\(code=exited, status=42\)'
@@ -49,13 +49,13 @@ execute: |
     systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
 
     echo "When the service initialization is completed"
-    while [[ ! $(systemctl status "$SERVICE_NAME" | grep -oP 'Main PID: \d+ \([^)]+\)' | grep -oP '\([^)]+\)' | tr -d '()') =~ ^service-exit- ]]; do sleep 0.5; done
+    retry -n 20 --wait 1 stat /var/snap/test-snapd-success-exit-status/common/ready
 
     echo "Terminate the service with success exit status 250"
     systemctl kill -s USR2 --wait "$SERVICE_NAME"
 
     echo "When the signal is propagated to the service"
-    timeout 20 bash -c "while ! systemctl show -p ActiveState \"$SERVICE_NAME\" | grep -Pq \"ActiveState=inactive\"; do sleep 0.5; done" || true
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
 
     echo "Then systemctl reports the status of the service as terminated"
     expected='(?s).*?\(code=exited, status=250\)'
@@ -74,13 +74,13 @@ execute: |
     systemctl status "$SERVICE_NAME" | grep -Pqz "$expected"
 
     echo "When the service initialization is completed"
-    while [[ ! $(systemctl status "$SERVICE_NAME" | grep -oP 'Main PID: \d+ \([^)]+\)' | grep -oP '\([^)]+\)' | tr -d '()') =~ ^service-exit- ]]; do sleep 0.5; done
+    retry -n 20 --wait 1 stat /var/snap/test-snapd-success-exit-status/common/ready
 
     echo "Terminate the service with failure exit status sending TRAP"
     systemctl kill -s TRAP --wait "$SERVICE_NAME"
 
     echo "When the signal is propagated to the service"
-    timeout 20 bash -c "while ! systemctl show -p ActiveState \"$SERVICE_NAME\" | grep -Pq \"ActiveState=active\"; do sleep 0.5; done" || true
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=active'"
 
     echo "Then systemctl reports the status of the service as loaded, active and running"
     expected='(?s).*?Loaded: loaded .*?Active: active \(running\)'

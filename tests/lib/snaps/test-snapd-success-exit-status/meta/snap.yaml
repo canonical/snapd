@@ -12,4 +12,7 @@ apps:
     command: bin/service-exit-code
     daemon: simple
     restart-condition: on-failure
-    success-exit-status: [42, 250]
+    success-exit-status:
+      - 42  # magic number
+      - 250 # nothing in particular
+      - 235 # EXIT_CHOWN

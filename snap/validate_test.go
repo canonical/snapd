@@ -2057,15 +2057,15 @@ apps:
 	}, {
 		name: "foo success-exit-status with empty value",
 		desc: fooSuccessExitStatusEmpty,
-		err:  `success exit status cannot contain empty values`,
+		err:  `exit code must be an integer in range 1 to 255`,
 	}, {
 		name: "foo success-exit-status with status code out of range",
 		desc: fooSuccessExitStatusCodeOutOfRange,
-		err:  `exit code 400 is out of range, exit codes must be between 0 and 255`,
+		err:  `exit code must be an integer in range 1 to 255`,
 	}, {
 		name: "foo success-exit-status with wrong status name",
 		desc: fooSuccessExitStatusWrongName,
-		err:  `success exit status must be a number between 0 and 255`,
+		err:  `exit code must be an integer in range 1 to 255`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)

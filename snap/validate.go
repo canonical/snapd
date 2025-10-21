@@ -823,16 +823,8 @@ func validateAppSuccessExitStatus(app *AppInfo) error {
 	}
 
 	for _, status := range app.SuccessExitStatus {
-		if status == "" {
-			return errors.New("success exit status cannot contain empty values")
-		}
-
-		if code, err := strconv.Atoi(status); err == nil {
-			if code < 0 || code > 255 {
-				return fmt.Errorf("exit code %d is out of range, exit codes must be between 0 and 255", code)
-			}
-		} else {
-			return errors.New("success exit status must be a number between 0 and 255")
+		if code, err := strconv.Atoi(status); err != nil || code < 1 || code > 255 {
+			return fmt.Errorf("exit code must be an integer in range 1 to 255")
 		}
 	}
 
