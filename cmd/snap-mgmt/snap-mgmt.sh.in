@@ -295,8 +295,6 @@ _mount_dir_migrate() {
     mount_from_escaped="$(systemd-escape -p "${mount_from_nopref}")"
     mount_to_escaped="$(systemd-escape -p "${mount_to_nopref}")"
 
-    # TODO banner to stop all snap applications
-
     echo "Attempting migration of snap mount location:"
     echo "  $mount_from -> $mount_to"
 
@@ -322,8 +320,6 @@ _mount_dir_migrate() {
     mkdir -p "$tmpdir/backup"
     echo "Backup saved to $tmpdir"
 
-    # TODO expect the user to stop all services
-    
     # stop service units first, the services could theoretically reach out to
     # snapd while stopping
     echo "Stopping snap services..."
