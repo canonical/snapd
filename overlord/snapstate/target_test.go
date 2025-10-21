@@ -1188,7 +1188,7 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataEssentialSnap(c *C) {
 		snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 		c.Assert(err, IsNil)
 
-		c.Check(snapsup.IntegrityDataParams, Not(IsNil), Commentf(tc.Comment))
+		c.Check(snapsup.IntegrityDataInfo, Not(IsNil), Commentf(tc.Comment))
 	}
 }
 
@@ -1210,5 +1210,5 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataApplicationSnap(c *C) {
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
 
-	c.Check(snapsup.IntegrityDataParams, IsNil)
+	c.Check(snapsup.IntegrityDataInfo, IsNil)
 }

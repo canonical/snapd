@@ -180,7 +180,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	// use integrity data for specific snap types (the essential snaps).
 	typ := t.info.Type()
 	if typ == snap.TypeBase || typ == snap.TypeKernel || typ == snap.TypeGadget || typ == snap.TypeSnapd {
-		snapsup.IntegrityDataParams = t.setup.IntegrityDataParams
+		snapsup.IntegrityDataInfo = t.setup.IntegrityDataInfo
 	}
 
 	return snapsup, compsups, nil
@@ -312,10 +312,10 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 		installs = append(installs, target{
 			setup: SnapSetup{
-				DownloadInfo:        &r.DownloadInfo,
-				Channel:             channel,
-				CohortKey:           sn.RevOpts.CohortKey,
-				IntegrityDataParams: r.IntegrityData,
+				DownloadInfo:      &r.DownloadInfo,
+				Channel:           channel,
+				CohortKey:         sn.RevOpts.CohortKey,
+				IntegrityDataInfo: r.IntegrityData,
 			},
 			info:       r.Info,
 			snapst:     *snapst,
