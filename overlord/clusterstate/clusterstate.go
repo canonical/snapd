@@ -102,6 +102,9 @@ func InitializeNewCluster(st *state.State, bundle io.Reader) error {
 		},
 	})
 
+	// trigger an ensure pass so that the new assertion is picked up and applied
+	st.EnsureBefore(0)
+
 	return nil
 }
 
@@ -156,6 +159,9 @@ func UpdateCluster(st *state.State, bundle io.Reader) error {
 			AuthorityID: cluster.AuthorityID(),
 		},
 	})
+
+	// trigger an ensure pass so that the new assertion is picked up and applied
+	st.EnsureBefore(0)
 
 	return nil
 }
