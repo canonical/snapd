@@ -994,7 +994,7 @@ type cmdRefresh struct {
 	Time             bool                   `long:"time"`
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
-	Tracking		 bool					`long:"tracking"`
+	Tracking         bool                   `long:"tracking"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
 	Unhold           bool                   `long:"unhold"`
@@ -1181,7 +1181,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		x.Transaction != client.TransactionPerSnap
 
 	// Ensure --tracking is mutually exclusive
-	if (x.Tracking && (x.Hold != "" || x.Unhold || otherFlags)) {
+	if x.Tracking && (x.Hold != "" || x.Unhold || otherFlags) {
 		return errors.New(i18n.G("cannot use --tracking with other flags"))
 	} else if x.Tracking {
 		return x.TrackRefreshes()
@@ -1231,40 +1231,40 @@ func (x *cmdRefresh) Execute([]string) error {
 }
 
 func (x *cmdRefresh) TrackRefreshes() (err error) {
-    names := installedSnapNames(x.Positional.Snaps)
+	names := installedSnapNames(x.Positional.Snaps)
 
-    snaps, err := x.client.List(names, nil)
-    if err != nil {
-        return err
-    }
+	snaps, err := x.client.List(names, nil)
+	if err != nil {
+		return err
+	}
 
-    // This sort is no longer strictly necessary because the YAML library
-    // will sort the map keys by default, but it doesn't hurt.
-    sort.Sort(snapsByName(snaps))
+	// This sort is no longer strictly necessary because the YAML library
+	// will sort the map keys by default, but it doesn't hurt.
+	sort.Sort(snapsByName(snaps))
 
-    // 1. Create the Go struct to hold all the snap data
-    config := SnapConfig{
-        Snaps: make(map[string]SnapChannel),
-    }
+	// 1. Create the Go struct to hold all the snap data
+	config := SnapConfig{
+		Snaps: make(map[string]SnapChannel),
+	}
 
-    // 2. Populate the map instead of printing
-    for _, snap := range snaps {
-        config.Snaps[snap.Name] = SnapChannel{
-            Channel: snap.TrackingChannel,
-        }
-    }
+	// 2. Populate the map instead of printing
+	for _, snap := range snaps {
+		config.Snaps[snap.Name] = SnapChannel{
+			Channel: snap.TrackingChannel,
+		}
+	}
 
-    // 3. Marshal the entire struct into YAML
-    yamlData, err := yaml.Marshal(&config)
-    if err != nil {
-        return fmt.Errorf("failed to marshal snap tracking info: %w", err)
-    }
+	// 3. Marshal the entire struct into YAML
+	yamlData, err := yaml.Marshal(&config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal snap tracking info: %w", err)
+	}
 
-    // 4. Print the final YAML output to Stdout
-    //    (Fprintln adds a newline at the end)
-    fmt.Fprintln(Stdout, string(yamlData))
+	// 4. Print the final YAML output to Stdout
+	//    (Fprintln adds a newline at the end)
+	fmt.Fprintln(Stdout, string(yamlData))
 
-    return nil
+	return nil
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {
