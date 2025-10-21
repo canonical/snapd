@@ -151,7 +151,7 @@ var (
 	ConfdbSchemaType         = &AssertionType{"confdb-schema", []string{"account-id", "name"}, nil, assembleConfdbSchema, jsonBody}
 	ClusterType              = &AssertionType{"cluster", []string{"cluster-id", "sequence"}, nil, assembleCluster, sequenceForming}
 	RequestMessageType       = &AssertionType{"request-message", []string{"account-id", "message-id"}, nil, assembleRequestMessage, 0}
-
+	HardwareIdentityType     = &AssertionType{"hardware-identity", []string{"issuer-id", "hardware-id-key-sha3-384"}, nil, assembleHardwareIdentity, 0}
 	// ...
 )
 
@@ -184,7 +184,7 @@ var typeRegistry = map[string]*AssertionType{
 	ConfdbSchemaType.Name:         ConfdbSchemaType,
 	ClusterType.Name:              ClusterType,
 	RequestMessageType.Name:       RequestMessageType,
-
+	HardwareIdentityType.Name:     HardwareIdentityType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
