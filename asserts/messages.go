@@ -43,21 +43,21 @@ type DeviceID struct {
 	BrandID string
 }
 
-func newDeviceIDFromString(rawID string) (*DeviceID, error) {
+func newDeviceIDFromString(rawID string) (DeviceID, error) {
 	parts := strutil.SplitRightN(rawID, ".", 3)
 	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid device id format: expected 3 parts separated by '.', got %d: %s", len(parts), rawID)
+		return DeviceID{}, fmt.Errorf("invalid device id format: expected 3 parts separated by '.', got %d: %s", len(parts), rawID)
 	}
 
 	if !validModel.MatchString(parts[1]) {
-		return nil, fmt.Errorf("invalid model %q in device id %q", parts[1], rawID)
+		return DeviceID{}, fmt.Errorf("invalid model %q in device id %q", parts[1], rawID)
 	}
 
 	if !validAccountID.MatchString(parts[2]) {
-		return nil, fmt.Errorf("invalid brand-id %q in device id %q", parts[2], rawID)
+		return DeviceID{}, fmt.Errorf("invalid brand-id %q in device id %q", parts[2], rawID)
 	}
 
-	return &DeviceID{Serial: parts[0], Model: parts[1], BrandID: parts[2]}, nil
+	return DeviceID{Serial: parts[0], Model: parts[1], BrandID: parts[2]}, nil
 }
 
 // RequestMessage represents a request message assertion used to trigger actions on snapd.
@@ -190,7 +190,7 @@ func parseDevices(headers map[string]any) ([]DeviceID, error) {
 			return nil, fmt.Errorf("cannot parse device at position %d: %w", i+1, err)
 		}
 
-		deviceIDs = append(deviceIDs, *deviceID)
+		deviceIDs = append(deviceIDs, deviceID)
 	}
 
 	return deviceIDs, nil
@@ -242,13 +242,13 @@ const (
 	MessageStatusRejected MessageStatus = "rejected"
 )
 
-func newMessageStatus(status string) (*MessageStatus, error) {
+func newMessageStatus(status string) (MessageStatus, error) {
 	ms := MessageStatus(status)
 	switch ms {
 	case MessageStatusSuccess, MessageStatusError, MessageStatusUnauthorized, MessageStatusRejected:
-		return &ms, nil
+		return ms, nil
 	default:
-		return nil, fmt.Errorf(`expected "status" to be one of [success, error, unauthorized, rejected] but was %q`, status)
+		return "", fmt.Errorf(`expected "status" to be one of [success, error, unauthorized, rejected] but was %q`, status)
 	}
 }
 
@@ -323,8 +323,8 @@ func assembleResponseMessage(assert assertionBase) (Assertion, error) {
 		assertionBase: assert,
 		id:            id,
 		seqNum:        seqNum,
-		device:        *deviceID,
-		status:        *status,
+		device:        deviceID,
+		status:        status,
 		timestamp:     timestamp,
 	}, nil
 }
