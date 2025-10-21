@@ -101,6 +101,15 @@ func init() {
 	cmd.hidden = true
 }
 
+func (c *refreshCommand) nonRootExecute(context *hookstate.Context) error {
+	switch {
+	case c.Tracking:
+		return c.printTrackingInfo(context)
+	default:
+		return fmt.Errorf("non-root user only supports --tracking")
+	}
+}
+
 func (c *refreshCommand) Execute(args []string) error {
 	context, err := c.ensureContext()
 	if err != nil {
@@ -129,24 +138,12 @@ func (c *refreshCommand) Execute(args []string) error {
 		}
 	}
 
-	if c.Tracking {
-		// Check for mutual exclusion with remaining flag
-		if c.Pending {
-			return fmt.Errorf("--tracking cannot be used with --pending")
-		}
-
-		// This is allowed for any user in any snap context.
-		if err := c.printTrackingInfo(context); err != nil {
-			return err
-		}
-		return nil
+	if c.Tracking && c.Pending {
+		return fmt.Errorf("--tracking cannot be used with --pending")
 	}
 
-	// Root authentication check moved to expose the --tracking flag to non-privileged users
 	if c.uid != "0" {
-		return &ForbiddenCommandError{
-			Message: fmt.Sprintf(`cannot use "refresh" without --tracking as non-root user (uid %s)`, c.uid),
-		}
+		return c.nonRootExecute(context)
 	}
 
 	// --pending --proceed is a verbose way of saying --proceed, so only
@@ -164,6 +161,8 @@ func (c *refreshCommand) Execute(args []string) error {
 		return c.hold()
 	case c.PrintInhibitLock:
 		return c.printInhibitLockHint()
+	case c.Tracking && !c.Pending:
+		return c.nonRootExecute(context)
 	}
 
 	return nil
