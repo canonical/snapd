@@ -1401,3 +1401,28 @@ func (s *fdeMgrSuite) TestManagerVerifyPrimaryKey(c *C) {
 	c.Assert(mgr.VerifyPrimaryKeyAgainstState(1, []byte{2, 2, 2, 2}), Equals, false)
 	c.Assert(mgr.VerifyPrimaryKeyAgainstState(2, primaryKey), Equals, false)
 }
+
+func (s *fdeMgrSuite) TestNextKeyID(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var idRaw int
+	err := st.Get("fde-last-key-id", &idRaw)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	id, err := mgr.NextKeyID()
+	c.Assert(err, IsNil)
+	c.Check(id, Equals, "1")
+
+	id, err = mgr.NextKeyID()
+	c.Assert(err, IsNil)
+	c.Check(id, Equals, "2")
+
+	err = st.Get("fde-last-key-id", &idRaw)
+	c.Assert(err, IsNil)
+	c.Check(idRaw, Equals, 2)
+}

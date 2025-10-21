@@ -75,12 +75,12 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 		{ContainerRole: "system-data", Name: "default-recovery"},
 	}
 	tmpKeyslots := []fdestate.KeyslotRef{
-		{ContainerRole: "system-data", Name: "snapd-tmp:default-recovery"},
+		{ContainerRole: "system-data", Name: "tmp-1"},
 	}
 	if defaultKeyslots {
 		// system-save also
 		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-recovery"})
-		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "snapd-tmp:default-recovery"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-2"})
 	}
 
 	s.mockDeviceInState(&asserts.Model{}, "run")
@@ -165,12 +165,12 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	c.Assert(tsks[2].Get("renames", &renames), IsNil)
 	if defaultKeyslots {
 		c.Check(renames, DeepEquals, map[string]string{
-			`(container-role: "system-data", name: "snapd-tmp:default-recovery")`: "default-recovery",
-			`(container-role: "system-save", name: "snapd-tmp:default-recovery")`: "default-recovery",
+			`(container-role: "system-data", name: "tmp-1")`: "default-recovery",
+			`(container-role: "system-save", name: "tmp-2")`: "default-recovery",
 		})
 	} else {
 		c.Check(renames, DeepEquals, map[string]string{
-			`(container-role: "system-data", name: "snapd-tmp:default-recovery")`: "default-recovery",
+			`(container-role: "system-data", name: "tmp-1")`: "default-recovery",
 		})
 	}
 }
@@ -490,13 +490,13 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 		{ContainerRole: "system-data", Name: "default"},
 	}
 	tmpKeyslots := []fdestate.KeyslotRef{
-		{ContainerRole: "system-data", Name: "snapd-tmp:default"},
+		{ContainerRole: "system-data", Name: "tmp-1"},
 	}
 	if defaultKeyslots {
 		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"})
 		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"})
-		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "snapd-tmp:default-fallback"})
-		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "snapd-tmp:default-fallback"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "tmp-2"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-3"})
 	}
 
 	keyType := "platform"
@@ -562,13 +562,13 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 	c.Assert(tsks[0].Get("roles", &tskRoles), IsNil)
 	if defaultKeyslots {
 		c.Check(tskRoles, DeepEquals, map[string][]string{
-			`(container-role: "system-data", name: "snapd-tmp:default")`:          {"run"},
-			`(container-role: "system-data", name: "snapd-tmp:default-fallback")`: {"run"},
-			`(container-role: "system-save", name: "snapd-tmp:default-fallback")`: {"run"},
+			`(container-role: "system-data", name: "tmp-1")`: {"run"},
+			`(container-role: "system-data", name: "tmp-2")`: {"run"},
+			`(container-role: "system-save", name: "tmp-3")`: {"run"},
 		})
 	} else {
 		c.Check(tskRoles, DeepEquals, map[string][]string{
-			`(container-role: "system-data", name: "snapd-tmp:default")`: {"run"},
+			`(container-role: "system-data", name: "tmp-1")`: {"run"},
 		})
 	}
 
@@ -588,13 +588,13 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 	c.Assert(tsks[2].Get("renames", &renames), IsNil)
 	if defaultKeyslots {
 		c.Check(renames, DeepEquals, map[string]string{
-			`(container-role: "system-data", name: "snapd-tmp:default")`:          "default",
-			`(container-role: "system-data", name: "snapd-tmp:default-fallback")`: "default-fallback",
-			`(container-role: "system-save", name: "snapd-tmp:default-fallback")`: "default-fallback",
+			`(container-role: "system-data", name: "tmp-1")`: "default",
+			`(container-role: "system-data", name: "tmp-2")`: "default-fallback",
+			`(container-role: "system-save", name: "tmp-3")`: "default-fallback",
 		})
 	} else {
 		c.Check(renames, DeepEquals, map[string]string{
-			`(container-role: "system-data", name: "snapd-tmp:default")`: "default",
+			`(container-role: "system-data", name: "tmp-1")`: "default",
 		})
 	}
 

@@ -451,13 +451,8 @@ func (k KeyslotRef) Validate() error {
 	return nil
 }
 
-const tmpKeyslotPrefix = "snapd-tmp"
-
-func tmpKeyslotRef(ref KeyslotRef) KeyslotRef {
-	return KeyslotRef{
-		Name:          fmt.Sprintf("%s:%s", tmpKeyslotPrefix, ref.Name),
-		ContainerRole: ref.ContainerRole,
-	}
+func tmpKeyslotName(id string) string {
+	return fmt.Sprintf("tmp-%s", id)
 }
 
 func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
@@ -499,8 +494,6 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 		)
 	}
 
-	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
-	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	for _, keyslotRef := range keyslotRefs {
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
@@ -509,10 +502,6 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 		if keyslotRef.Name != "default-recovery" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default-recovery"`, keyslotRef.String())
 		}
-
-		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
-		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
-		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
 	}
 
 	// Note: checking that there are no ongoing conflicting changes and that the
@@ -537,10 +526,25 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	if len(missing) != 0 {
 		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
 	}
+
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	for _, keyslot := range currentKeyslots {
 		if keyslot.Type != KeyslotTypeRecovery {
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypeRecovery)
 		}
+
+		tmpKeyslotID, err := fdemgr.NextKeyID()
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot obtain next key ID: %v", err)
+		}
+
+		tmpKeyslotRef := KeyslotRef{
+			Name:          tmpKeyslotName(tmpKeyslotID),
+			ContainerRole: keyslot.ContainerRole,
+		}
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslot.Name
 	}
 
 	ts := state.NewTaskSet()
@@ -705,8 +709,6 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		)
 	}
 
-	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
-	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	for _, keyslotRef := range keyslotRefs {
 		if err := keyslotRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid key slot reference %s: %v", keyslotRef.String(), err)
@@ -715,10 +717,6 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		if keyslotRef.Name != "default" && keyslotRef.Name != "default-fallback" {
 			return nil, fmt.Errorf(`invalid key slot reference %s: unsupported name, expected "default" or "default-fallback"`, keyslotRef.String())
 		}
-
-		tmpKeyslotRef := tmpKeyslotRef(keyslotRef)
-		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
-		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslotRef.Name
 	}
 
 	unlockedWithRecoveryKey, err := boot.IsUnlockedWithRecoveryKey()
@@ -754,6 +752,8 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		return nil, &KeyslotRefsNotFoundError{KeyslotRefs: missing}
 	}
 
+	tmpKeyslotRefs := make([]KeyslotRef, 0, len(keyslotRefs))
+	tmpKeyslotRenames := make(map[string]string, len(keyslotRefs))
 	tmpKeyslotRoles := make(map[string][]string, len(keyslots))
 	for _, keyslot := range keyslots {
 		if keyslot.Type != KeyslotTypePlatform {
@@ -769,7 +769,17 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported platform %q, expected %q", keyslot.Ref().String(), kd.PlatformName(), secboot.PlatformTpm2)
 		}
 
-		tmpKeyslotRef := tmpKeyslotRef(keyslot.Ref())
+		tmpKeyslotID, err := mgr.NextKeyID()
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot obtain next key ID: %v", err)
+		}
+
+		tmpKeyslotRef := KeyslotRef{
+			Name:          tmpKeyslotName(tmpKeyslotID),
+			ContainerRole: keyslot.ContainerRole,
+		}
+		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
+		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslot.Name
 		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()
 	}
 

@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/boot"
@@ -460,6 +461,24 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 
 	// XXX: return error if len(keyslots) != keyslotRefs to indicate duplicates?
 	return keyslots, missingRefs, nil
+}
+
+// NextKeyID returns a monotonically increasing id that
+// can be used for conflict free ephemeral key names. This
+// can be used in temporary key names during key replacement
+// or re-provisioning.
+//
+// The state needs to be locked by the caller.
+func (m *FDEManager) NextKeyID() (string, error) {
+	var lastKeyID int
+	err := m.state.Get("fde-last-key-id", &lastKeyID)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return "", err
+	}
+	lastKeyID++
+	id := strconv.Itoa(lastKeyID)
+	m.state.Set("fde-last-key-id", lastKeyID)
+	return id, nil
 }
 
 // GetKeyslots returns the key slots for the specified key slot references.
