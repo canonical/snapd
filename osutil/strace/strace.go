@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -62,9 +63,12 @@ func findStrace(u *user.User) (stracePath string, userOpts []string, err error) 
 	return stracePath, []string{"-u", u.Username}, nil
 }
 
-// Command returns how to run strace in the users context with the
-// right set of excluded system calls.
-func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
+// Command returns how to run strace in the users context with the right set of
+// excluded system calls. The returned invocation of strace is wrapped with
+// sudo. Depending on the host sudo configuration the process environment may be
+// cleared. Names of environment variables which need to be preserved need to be
+// passed in sudoPreservedEnv list.
+func Command(extraStraceOpts []string, sudoPreservedEnv []string, traceeCmd ...string) (*exec.Cmd, error) {
 	current, err := user.Current()
 	if err != nil {
 		return nil, err
@@ -88,10 +92,14 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 
 	args := []string{
 		sudoPath,
-		"-E",
-		stracePath,
 	}
 
+	if len(sudoPreservedEnv) > 0 {
+		args = append(args, "--preserve-env="+strings.Join(sudoPreservedEnv, ","))
+	}
+
+	args = append(args, "--")
+	args = append(args, stracePath)
 	args = append(args, userOpts...)
 	args = append(args, "-f", "-e", ExcludedSyscalls)
 	args = append(args, extraStraceOpts...)
@@ -104,9 +112,9 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 }
 
 // TraceExecCommand returns an exec.Cmd suitable for tracking timings of
-// execve{,at}() calls
-func TraceExecCommand(straceLogPath string, origCmd ...string) (*exec.Cmd, error) {
+// execve{,at}() calls. Internally invokes strace wrapped with sudo.
+func TraceExecCommand(straceLogPath string, sudoPreservedEnv []string, origCmd ...string) (*exec.Cmd, error) {
 	extraStraceOpts := []string{"-ttt", "-e", "trace=execve,execveat", "-o", fmt.Sprintf("%s", straceLogPath)}
 
-	return Command(extraStraceOpts, origCmd...)
+	return Command(extraStraceOpts, sudoPreservedEnv, origCmd...)
 }
