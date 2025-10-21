@@ -1413,9 +1413,11 @@ func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 	return nil
 }
 
-// RequestIDCheck checks the signature of the nonce against the given public key. Used by model service to verify nonce of the request-id.
-// It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519. The nonce
-func RequestIDCheck(nonce, signature []byte, pubKey crypto.PublicKey) error {
+// VerifySignature checks the signature of a given boady against the given public key.
+// It is used by model service to verify nonce of the request-id.
+// It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519.
+// All data is expected to use the SHA3-384 hash.
+func VerifySignature(nonce, signature []byte, pubKey crypto.PublicKey) error {
 	switch keyType := pubKey.(type) {
 	case *rsa.PublicKey:
 		return verifyRSAKey(nonce, signature, pubKey.(*rsa.PublicKey))
