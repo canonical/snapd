@@ -538,12 +538,12 @@ func (e unknownCommandError) Error() string {
 }
 
 func loggerWithJournalMaybe() {
+	// unset so that it doesn't trickle down to the snap application
+	defer os.Unsetenv("SNAP_LOG_TO_JOURNAL")
+
 	if !osutil.GetenvBool("SNAP_LOG_TO_JOURNAL") {
 		return
 	}
-
-	// unset so that it doesn't trickle down to the snap application
-	os.Unsetenv("SNAP_LOG_TO_JOURNAL")
 
 	journalWriter, err := systemd.NewJournalStreamFile(
 		systemd.JournalStreamFileParams{
