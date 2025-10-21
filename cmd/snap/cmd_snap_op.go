@@ -29,6 +29,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -128,6 +130,17 @@ The disable command disables a snap. The binaries and services of the
 snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
+
+type SnapChannel struct {
+	Channel string `yaml:"channel"`
+}
+
+// SnapConfig represents the top-level structure.
+// The "snaps" field is a map where the key is the
+// snap name (like "lxd") and the value is its channel info.
+type SnapConfig struct {
+	Snaps map[string]SnapChannel `yaml:"snaps"`
+}
 
 type cmdRemove struct {
 	waitMixin
@@ -1218,21 +1231,40 @@ func (x *cmdRefresh) Execute([]string) error {
 }
 
 func (x *cmdRefresh) TrackRefreshes() (err error) {
-	names := installedSnapNames(x.Positional.Snaps)
+    names := installedSnapNames(x.Positional.Snaps)
 
-	snaps, err := x.client.List(names, nil)
+    snaps, err := x.client.List(names, nil)
+    if err != nil {
+        return err
+    }
 
-	if err != nil {
-		return err
-	}
+    // This sort is no longer strictly necessary because the YAML library
+    // will sort the map keys by default, but it doesn't hurt.
+    sort.Sort(snapsByName(snaps))
 
-	fmt.Fprintf(Stdout, "snaps:\n")
+    // 1. Create the Go struct to hold all the snap data
+    config := SnapConfig{
+        Snaps: make(map[string]SnapChannel),
+    }
 
-	for i := 0; i < len(snaps); i++ {
-		fmt.Fprintf(Stdout, "  %s:\n    channel: %s\n", snaps[i].Name, snaps[i].TrackingChannel)
-	}
+    // 2. Populate the map instead of printing
+    for _, snap := range snaps {
+        config.Snaps[snap.Name] = SnapChannel{
+            Channel: snap.TrackingChannel,
+        }
+    }
 
-	return nil
+    // 3. Marshal the entire struct into YAML
+    yamlData, err := yaml.Marshal(&config)
+    if err != nil {
+        return fmt.Errorf("failed to marshal snap tracking info: %w", err)
+    }
+
+    // 4. Print the final YAML output to Stdout
+    //    (Fprintln adds a newline at the end)
+    fmt.Fprintln(Stdout, string(yamlData))
+
+    return nil
 }
 
 func (x *cmdRefresh) holdRefreshes() (err error) {
