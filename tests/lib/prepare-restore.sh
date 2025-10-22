@@ -87,6 +87,8 @@ build_deb(){
         # dpkg-buildpackage choke later.
         mv packaging/debian-sid debian
 
+        apt build-dep -y ./
+
         # ensure we really build without vendored packages
         mv ./vendor /tmp
     fi
