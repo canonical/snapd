@@ -21,7 +21,9 @@ package assemblestate_test
 
 import (
 	"bytes"
+	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -121,6 +123,51 @@ func buildSerialBundle(c *check.C, serial *asserts.Serial, db asserts.RODatabase
 
 	fetcher := asserts.NewFetcher(db, retrieve, enc.Encode)
 	err := fetcher.Save(serial)
+	c.Assert(err, check.IsNil)
+
+	return buf.String()
+}
+
+func bundleWithoutSerial(c *check.C, bundle string) string {
+	dec := asserts.NewDecoder(strings.NewReader(bundle))
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, check.IsNil)
+
+		if a.Type() == asserts.SerialType {
+			continue
+		}
+
+		err = enc.Encode(a)
+		c.Assert(err, check.IsNil)
+	}
+
+	return buf.String()
+}
+
+func bundleWithAdditionalSerial(c *check.C, bundle string, extra *asserts.Serial) string {
+	dec := asserts.NewDecoder(strings.NewReader(bundle))
+	buf := bytes.NewBuffer(nil)
+	enc := asserts.NewEncoder(buf)
+
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, check.IsNil)
+
+		err = enc.Encode(a)
+		c.Assert(err, check.IsNil)
+	}
+
+	err := enc.Encode(extra)
 	c.Assert(err, check.IsNil)
 
 	return buf.String()
@@ -758,6 +805,111 @@ func (s *deviceTrackerSuite) TestDeviceTrackerWithAssertionValidation(c *check.C
 	}
 	err = dt.RecordIdentity(malformed)
 	c.Assert(err, check.ErrorMatches, "invalid serial assertion for device malformed-serial: invalid identity for device malformed-serial: unexpected EOF")
+}
+
+func (s *deviceTrackerSuite) TestRecordIdentityAllowsExistingSerial(c *check.C) {
+	db, signing := mockAssertDB(c)
+	serial, bundle, key := createTestSerialBundle(c, signing)
+
+	// add serial to database before recording identity to mimic pre-existing assertion
+	err := db.Add(serial)
+	c.Assert(err, check.IsNil)
+
+	dt, err := assemblestate.NewDeviceQueryTracker(
+		assemblestate.DeviceQueryTrackerData{},
+		time.Minute,
+		time.Now,
+		db,
+		"test-secret",
+	)
+	c.Assert(err, check.IsNil)
+
+	const rdt = assemblestate.DeviceToken("known-device")
+	fp := assemblestate.CalculateFP([]byte("known-device"))
+
+	hmac := assemblestate.CalculateHMAC(rdt, fp, "test-secret")
+	proof, err := asserts.RawSignWithKey(hmac, key)
+	c.Assert(err, check.IsNil)
+
+	identity := assemblestate.Identity{
+		RDT:          rdt,
+		FP:           fp,
+		SerialBundle: bundle,
+		SerialProof:  proof,
+	}
+
+	err = dt.RecordIdentity(identity)
+	c.Assert(err, check.IsNil)
+
+	stored, ok := dt.Lookup(rdt)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(stored, check.DeepEquals, identity)
+}
+
+func (s *deviceTrackerSuite) TestRecordIdentityRejectsMultipleSerials(c *check.C) {
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(
+		assemblestate.DeviceQueryTrackerData{},
+		time.Minute,
+		time.Now,
+		db,
+		"test-secret",
+	)
+	c.Assert(err, check.IsNil)
+
+	_, bundle, key := createTestSerialBundle(c, signing)
+	extraSerial, _, _ := createTestSerialBundle(c, signing)
+
+	multi := bundleWithAdditionalSerial(c, bundle, extraSerial)
+
+	rdt := assemblestate.DeviceToken("multi-serial")
+	fp := assemblestate.CalculateFP([]byte("multi-serial"))
+	hmac := assemblestate.CalculateHMAC(rdt, fp, "test-secret")
+	proof, err := asserts.RawSignWithKey(hmac, key)
+	c.Assert(err, check.IsNil)
+
+	identity := assemblestate.Identity{
+		RDT:          rdt,
+		FP:           fp,
+		SerialBundle: multi,
+		SerialProof:  proof,
+	}
+
+	err = dt.RecordIdentity(identity)
+	c.Assert(err, check.ErrorMatches, ".*unexpectedly found multiple serial assertions in bundle")
+	c.Assert(dt.Identified(rdt), check.Equals, false)
+}
+
+func (s *deviceTrackerSuite) TestRecordIdentityRejectsSerialMissingFromBundle(c *check.C) {
+	db, signing := mockAssertDB(c)
+	dt, err := assemblestate.NewDeviceQueryTracker(
+		assemblestate.DeviceQueryTrackerData{},
+		time.Minute,
+		time.Now,
+		db,
+		"test-secret",
+	)
+	c.Assert(err, check.IsNil)
+
+	_, bundle, key := createTestSerialBundle(c, signing)
+
+	noSerial := bundleWithoutSerial(c, bundle)
+	rdt := assemblestate.DeviceToken("missing-serial")
+	fp := assemblestate.CalculateFP([]byte("missing-serial"))
+	hmac := assemblestate.CalculateHMAC(rdt, fp, "test-secret")
+	proof, err := asserts.RawSignWithKey(hmac, key)
+	c.Assert(err, check.IsNil)
+
+	identity := assemblestate.Identity{
+		RDT:          rdt,
+		FP:           fp,
+		SerialBundle: noSerial,
+		SerialProof:  proof,
+	}
+
+	err = dt.RecordIdentity(identity)
+	c.Assert(err, check.ErrorMatches, ".*bundle missing serial assertion")
+	c.Assert(dt.Identified(rdt), check.Equals, false)
 }
 
 func (s *deviceTrackerSuite) TestRecordIdentityWithValidAssertion(c *check.C) {
