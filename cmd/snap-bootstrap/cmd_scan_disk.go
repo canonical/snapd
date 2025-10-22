@@ -94,8 +94,9 @@ func (c *cmdScanDisk) Execute([]string) error {
 }
 
 type Partition struct {
-	Name string
-	UUID string
+	Number int
+	Name   string
+	UUID   string
 
 	// FilesystemLabel is the label of the filesystem of the
 	// partition. On MBR schemas, partitions do not have a name,
@@ -174,8 +175,9 @@ func probeDisk(node string) ([]Partition, error) {
 	for _, partition := range partitions.GetPartitions() {
 		if gpt {
 			ret = append(ret, Partition{
-				Name: partition.GetName(),
-				UUID: partition.GetUUID(),
+				Number: partition.GetNumber(),
+				Name:   partition.GetName(),
+				UUID:   partition.GetUUID(),
 			})
 		} else {
 			// For MBR we have to probe the filesystem for details
@@ -185,9 +187,10 @@ func probeDisk(node string) ([]Partition, error) {
 				// can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
 				// case we try to probe the filesystem too early, before it's formatted (so no LABEL).
 				// So log a warning, but continue processing other partitions.
-				logger.Noticef("WARNING: cannot probe filesystem on non-GPT partition: %s", err)
+				logger.Noticef("WARNING: cannot probe filesystem on partition: %s", err)
 				continue
 			}
+			p.Number = partition.GetNumber()
 			ret = append(ret, p)
 		}
 	}
