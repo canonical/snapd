@@ -73,7 +73,7 @@ fmt-check:: $(wildcard $(addsuffix /*.[ch],$(addprefix $(srcdir)/,$(subdirs))))
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: PROF_NAME=$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
-hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor snap-strace-shim/snap-strace-shim
 	sudo install -D -m 755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	sudo setcap "$$(cat $(top_srcdir)/snap-confine/snap-confine.v2-only.caps)" $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d $(DESTDIR)$(APPARMOR_SYSCONFIG) ]; then \
@@ -91,6 +91,7 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 	sudo install -m 755 snap-device-helper/snap-device-helper $(DESTDIR)$(libexecdir)/snap-device-helper
 	sudo install -m 755 snapd-apparmor/snapd-apparmor $(DESTDIR)$(libexecdir)/snapd-apparmor
 	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
+	sudo install -m 755 snap-strace-shim/snap-strace-shim $(DESTDIR)$(libexecdir)/snap-strace-shim
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: $(top_srcdir)/snap-update-ns/*.go $(top_srcdir)/snap-update-ns/*.[ch]
@@ -554,6 +555,19 @@ snap_gdb_shim_snap_gdbserver_shim_SOURCES = \
 
 snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
 snap_gdb_shim_snap_gdbserver_shim_LDFLAGS = $(STATIC_LDFLAGS)
+
+##
+## snap-strace-shim
+##
+
+libexec_PROGRAMS += snap-strace-shim/snap-strace-shim
+
+snap_strace_shim_snap_strace_shim_SOURCES = \
+	snap-strace-shim/snap-strace-shim.c
+
+snap_strace_shim_snap_strace_shim_LDADD = libsnap-confine-private.a
+snap_strace_shim_snap_strace_shim_LDFLAGS = $(SANITIZE_LDFLAGS)
+
 
 ##
 ## snapd-generator
