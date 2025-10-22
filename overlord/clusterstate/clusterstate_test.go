@@ -45,9 +45,7 @@ func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
 	cluster := makeClusterAssertion(c, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}, []map[string]any{{
@@ -93,16 +91,12 @@ func (s *managerSuite) TestApplyClusterStateDeviceNotInAnySubcluster(c *check.C)
 	cluster := makeClusterAssertion(c, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 		{
 			"id":        "2",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-2",
+			"device":    "serial-2.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.11"},
 		},
 	}, []map[string]any{{
@@ -156,9 +150,7 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	cluster := makeClusterAssertion(c, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}, []map[string]any{{
@@ -302,9 +294,7 @@ func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 	cluster := makeClusterAssertion(c, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}, []map[string]any{
@@ -387,9 +377,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 	cluster := makeClusterAssertion(c, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}, []map[string]any{})
