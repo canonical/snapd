@@ -489,8 +489,9 @@ distro_install_build_snapd(){
         if ! systemctl is-enabled snapd.socket ; then
             # Can't use --now here as not all distributions we run on support it
             systemctl enable snapd.socket
-            systemctl restart snapd.socket
         fi
+        # # If this is a re-installation (like in snap-mgmt), snapd.socket and snapd.service might be stopped
+        systemctl restart snapd.socket snapd.service
         snap wait system seed.loaded
     fi
 }
