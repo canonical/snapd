@@ -1141,29 +1141,28 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 		},
 	}
 
-	rPD2, rPSR2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
-	defer rPSR2()
-	defer rPD2()
+	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
+	defer r2()
 	
 	
 	// as device-service.url is set, should not need to do this but just in case
 	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
 	defer r3()
-
+	
 	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
 	})
-
+	
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc2",
 	})
-
+	
 	// avoid full seeding
 	s.seeding()
-
+	
 	// runs the whole device registration process, note that the
 	// device is not seeded yet
 	s.state.Unlock()
@@ -1285,8 +1284,8 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 			"x-extra-header": "extra",
 		},
 	}
-	rPD2, _ := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, nil)
-	defer rPD2()
+	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, nil)
+	defer r2()
 
 	// as device-service.url is set, should not need to do this but just in case
 	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")

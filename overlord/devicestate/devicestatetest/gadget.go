@@ -48,7 +48,7 @@ type PrepareSerialRequestBehavior struct {
 	RegBody        map[string]string
 }
 
-func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restorePD func(), restorePSR func()) {
+func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restore func()) {
 
 	sideInfoGadget := &snap.SideInfo{
 		RealName: name,
@@ -75,7 +75,6 @@ version: gadget
 `
 	}
 
-	fmt.Println(snapYaml)
 
 	
 	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
@@ -88,16 +87,13 @@ version: gadget
 	
 	if pDBhv == nil && pSRBhv == nil {
 		// nothing to restore
-		return func(){}, func(){}
+		return func(){}
 	}
 
 	// mock the prepare-device hook
 
-	if pDBhv != nil {
-		restorePD = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
-			fmt.Println("prepare device hook mocked")
-			c.Assert(ctx.HookName(), Equals, "prepare-device")
-			
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		if ctx.HookName() == "prepare-device" {
 			// snapctl set the registration params
 			_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", pDBhv.DeviceSvcURL)}, 0)
 			c.Assert(err, IsNil)
@@ -121,40 +117,29 @@ version: gadget
 				c.Assert(err, IsNil)
 			}
 
-			fmt.Println("prepare device finished")
-
-
 			return nil, nil
-		})
-	}
-
-// mock the prepare-serial-request hook
-
-if pSRBhv != nil {
-	// we add the hooks in reverse order to respect the defer order
-	restorePSR = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
-		fmt.Println("prepare serial hook mocked")
-		c.Check(ctx.HookName(), Equals, "prepare-serial-request")
-
-		if len(pDBhv.Headers) != 0 {
-			h, err := json.Marshal(pDBhv.Headers)
-			c.Assert(err, IsNil)
-			_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
-			c.Assert(err, IsNil)
+		} else if ctx.HookName() == "prepare-serial-request" {
+			if len(pDBhv.Headers) != 0 {
+				h, err := json.Marshal(pDBhv.Headers)
+				c.Assert(err, IsNil)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
+				c.Assert(err, IsNil)
+			}
+			
+			
+			if len(pSRBhv.RegBody) != 0 {
+				d, err := json.Marshal(pSRBhv.RegBody)
+				c.Assert(err, IsNil)
+				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
+				c.Assert(err, IsNil)
+			}
+			
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("unexpected hook type %q", ctx.HookName())
 		}
-		
-		
-		fmt.Println("prepare serial hook finished")
-		if len(pSRBhv.RegBody) != 0 {
-			d, err := json.Marshal(pSRBhv.RegBody)
-			c.Assert(err, IsNil)
-			_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
-			c.Assert(err, IsNil)
-		}
-		
-		return nil, nil
 	})
-	}
 
-	return restorePD, restorePSR
+	
+	return restore
 }

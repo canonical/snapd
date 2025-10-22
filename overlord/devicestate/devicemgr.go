@@ -689,8 +689,6 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	fmt.Println("This function gets called")
-
 	var hasPrepareDeviceHook bool
 	var hasPrepareSerialRequestHook bool
 	// if there's a gadget specified wait for it

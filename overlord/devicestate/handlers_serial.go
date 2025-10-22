@@ -399,7 +399,6 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 	}
 
 	if hasPrepareSerialRequestHook {
-		fmt.Println("executing prepare serial request hook")
 		hooksup := &hookstate.HookSetup{
 			//we can be confident this value is non-nil because we checked if the hook exists in the first place
 			Snap: regCtx.GadgetForSerialRequestConfig(),
@@ -761,6 +760,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
 	
 	
 
