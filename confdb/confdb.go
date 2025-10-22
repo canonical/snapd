@@ -327,7 +327,7 @@ func NewSchema(account string, dbSchemaName string, views map[string]any, schema
 func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	view := &View{
 		Name:   name,
-		rules:  make([]*viewRule, 0, len(viewRules)),
+		rules:  make([]viewRule, 0, len(viewRules)),
 		schema: dbSchema,
 	}
 
@@ -352,17 +352,41 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 		}
 	}
 
-	// check that the rules matching a given request can be satisfied with some
-	// data type (otherwise, no data can ever be written there)
-	pathToRules := make(map[string][]*viewRule)
+	pathToRules := make(map[string][]viewRule)
 	for _, rule := range view.rules {
-		// TODO: once the paths support list index placeholders, also add mapping
-		// for the prefixes of each path and their implied types (Map or Array)
+		// check that the rules matching a given request can be satisfied with some
+		// data type (otherwise, no data can ever be written there)
 		path := rule.originalRequest
 		pathToRules[path] = append(pathToRules[path], rule)
+
+		// check the field filters in the last accessor against the schema
+		if rule.storage[len(rule.storage)-1].FieldFilters() != nil {
+			schemaAlts, err := dbSchema.DatabagSchema.SchemaAt(rule.storage)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, schema := range schemaAlts {
+				if schema.Type() != Map && schema.Type() != Any {
+					return nil, fmt.Errorf("field filters can only be applied to maps but schema at %s expects %s", rule.originalStorage, schema.Type())
+				}
+			}
+		}
+
+		// check field filters in the remaining accessors are consistent with the rest
+		// of the path (i.e., if there's a field filter then the next accessor
+		// must be key accessor)
+		for i, acc := range rule.storage[1:] {
+			if rule.storage[i].FieldFilters() != nil && acc.Type() != MapKeyType && acc.Type() != KeyPlaceholderType {
+				return nil, fmt.Errorf("can only apply field filters to maps but %q expects list after filters", rule.originalStorage)
+			}
+		}
 	}
 
 	for _, rules := range pathToRules {
+		// this also implicitly checks that the paths are consistent with the schema.
+		// For instance, if the schema expects foo.bar to be a boolean, the path
+		// "foo.bar.baz" would fail because it cannot key a boolean
 		if err := checkSchemaMismatch(dbSchema.DatabagSchema, rules); err != nil {
 			return nil, err
 		}
@@ -371,7 +395,7 @@ func newView(dbSchema *Schema, name string, viewRules []any) (*View, error) {
 	return view, nil
 }
 
-func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
+func parseRule(parent *viewRule, ruleRaw any) ([]viewRule, error) {
 	ruleMap, ok := ruleRaw.(map[string]any)
 	if !ok {
 		return nil, errors.New("each view rule should be a map")
@@ -442,12 +466,24 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		}
 	}
 
-	rule, err := newViewRule(reqAccessors, storageAccessors, access)
-	if err != nil {
-		return nil, err
+	requestMatchers := make([]requestMatcher, 0, len(reqAccessors))
+	for _, acc := range reqAccessors {
+		matcher, ok := acc.(requestMatcher)
+		if !ok {
+			return nil, fmt.Errorf("internal error: cannot convert accessor into requestMatcher")
+		}
+		requestMatchers = append(requestMatchers, matcher)
 	}
 
-	rules := []*viewRule{rule}
+	rule := viewRule{
+		originalRequest: request,
+		originalStorage: storage,
+		request:         requestMatchers,
+		storage:         storageAccessors,
+		access:          access,
+	}
+
+	rules := []viewRule{rule}
 	if contentRaw, ok := ruleMap["content"]; ok {
 		contentRulesRaw, ok := contentRaw.([]any)
 		if !ok || len(contentRulesRaw) == 0 {
@@ -455,7 +491,7 @@ func parseRule(parent *viewRule, ruleRaw any) ([]*viewRule, error) {
 		}
 
 		for _, contentRule := range contentRulesRaw {
-			nestedRules, err := parseRule(rule, contentRule)
+			nestedRules, err := parseRule(&rule, contentRule)
 			if err != nil {
 				return nil, err
 			}
@@ -581,12 +617,8 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 
 	accessors := make([]Accessor, 0, len(pathParts))
 	for _, part := range pathParts {
+		// TODO: check field filters against parameters, when we add those
 		subkey := part.value
-		// TODO: we should ensure that accessors after field filters are maps (otherwise
-		// we're allowing paths to be written that don't match the filters)
-
-		// TODO: check field filters against parameters when they're introduced
-
 		isKey := validSubkey.MatchString(subkey)
 		isIndex := validIndexSubkey.MatchString(subkey)
 		isKeyPlaceholder := validPlaceholder.MatchString(subkey)
@@ -798,7 +830,7 @@ func (s *Schema) View(view string) *View {
 // View carries access rules for a particular view in a confdb schema.
 type View struct {
 	Name   string
-	rules  []*viewRule
+	rules  []viewRule
 	schema *Schema
 }
 
@@ -1027,7 +1059,7 @@ func (v *View) matchWriteRequest(request []Accessor) ([]requestMatch, error) {
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
 // If not, then no data can satisfy these rules and the view should be rejected.
-func checkSchemaMismatch(schema DatabagSchema, rules []*viewRule) error {
+func checkSchemaMismatch(schema DatabagSchema, rules []viewRule) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, rule := range rules {
@@ -1710,25 +1742,6 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 
 func (v *View) ID() string { return v.schema.Account + "/" + v.schema.Name + "/" + v.Name }
 
-func newViewRule(request, storage []Accessor, access accessType) (*viewRule, error) {
-	requestMatchers := make([]requestMatcher, 0, len(request))
-	for _, acc := range request {
-		matcher, ok := acc.(requestMatcher)
-		if !ok {
-			return nil, fmt.Errorf("internal error: cannot convert accessor into requestMatcher")
-		}
-		requestMatchers = append(requestMatchers, matcher)
-	}
-
-	return &viewRule{
-		originalRequest: JoinAccessors(request),
-		originalStorage: JoinAccessors(storage),
-		request:         requestMatchers,
-		storage:         storage,
-		access:          access,
-	}, nil
-}
-
 func JoinAccessors(parts []Accessor) string {
 	var sb strings.Builder
 	for i, part := range parts {
@@ -1758,7 +1771,7 @@ type viewRule struct {
 // If placeholders are "filled in" when matching, those are returned in "matched"
 // according to which kind of placeholder they are. If the subkeys match as a
 // prefix, the remaining suffix is returned.
-func (p *viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, unmatched []Accessor, match bool) {
+func (p viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, unmatched []Accessor, match bool) {
 	if len(p.request) < len(reqSubkeys) {
 		return nil, nil, false
 	}
@@ -1781,7 +1794,7 @@ func (p *viewRule) match(reqSubkeys []Accessor) (matched *matchedPlaceholders, u
 // storagePath takes a matchedPlaceholders struct mapping key and index
 // placeholder names to their values in the view name and returns the path with
 // its placeholder values filled in with the map's values.
-func (p *viewRule) storagePath(matched *matchedPlaceholders) []Accessor {
+func (p viewRule) storagePath(matched *matchedPlaceholders) []Accessor {
 	var accessors []Accessor
 	for _, acc := range p.storage {
 		switch acc.Type() {

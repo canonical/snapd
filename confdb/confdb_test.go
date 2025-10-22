@@ -3729,3 +3729,35 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 		}
 	}
 }
+
+func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
+	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo[{m}]", "storage": "foo[.bar={bar}][{m}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot define view "foo": can only apply field filters to maps but "foo[.bar={bar}][{m}]" expects list after filters`)
+
+	schema, err := confdb.ParseStorageSchema([]byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "bool"
+		}
+	}
+}`))
+	c.Assert(err, IsNil)
+
+	_, err = confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo[{m}]", "storage": "foo[{m}][.bar={bar}]"},
+			},
+		},
+	}, schema)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot define view "foo": field filters can only be applied to maps but schema at foo[{m}][.bar={bar}] expects bool`)
+}

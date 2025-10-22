@@ -635,7 +635,7 @@ func (v *mapSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 
 	key := path[0]
 	if key.Type() != MapKeyType && key.Type() != KeyPlaceholderType {
-		return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key.Name())
+		return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key.Access())
 	}
 
 	if v.entrySchemas != nil {
@@ -643,7 +643,7 @@ func (v *mapSchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 			// the subkey is a literal map key so there has to be a corresponding entry
 			valSchema, ok := v.entrySchemas[key.Name()]
 			if !ok {
-				return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key.Name())
+				return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key.Access())
 			}
 
 			return valSchema.SchemaAt(path[1:])
@@ -1332,7 +1332,7 @@ func (v *arraySchema) SchemaAt(path []Accessor) ([]DatabagSchema, error) {
 	// key can be a number or a placeholder in square brackets ([1] or [{n}])
 	key := path[0]
 	if key.Type() != IndexPlaceholderType && key.Type() != ListIndexType {
-		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key.Name())
+		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key.Access())
 	}
 
 	return v.elementType.SchemaAt(path[1:])
