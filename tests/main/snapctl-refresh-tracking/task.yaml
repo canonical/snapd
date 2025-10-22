@@ -1,11 +1,15 @@
 summary: Check that `snapctl refresh` works with the tracking flag
 
 details: |
-    Verifies the `snapctl` command can be used in a non-privileged context
+    Verifies the `snapctl` command can be used in a privileged context
     and returns the channel being tracked when passed the --tracking flag.
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    snap switch test-snapd-sh-core24 --channel latest/stable
+
+restore: |
+  snap remove --purge test-snapd-sh-core24
 
 execute: |
     echo "Verify snapctl refresh --tracking"
