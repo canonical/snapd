@@ -252,7 +252,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRWithOnePartitionWithoutFile
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, true)
 	c.Assert(len(lines), Equals, 1)
-	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on partition: Probe value was not found: LABEL")
+	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on partition 0: Probe value was not found: LABEL")
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRNoPartitions(c *C) {
@@ -282,7 +282,7 @@ func (s *scanDiskSuite) TestDetectBootDiskFallbackMBRNoPartitions(c *C) {
 	_, hasDisk := lines["UBUNTU_DISK=1"]
 	c.Assert(hasDisk, Equals, false)
 	c.Assert(len(lines), Equals, 0)
-	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on partition: Probe value was not found: LABEL")
+	c.Check(s.logs.String(), Matches, "(?m).*WARNING: cannot probe filesystem on partition 0: Probe value was not found: LABEL")
 }
 
 func (s *scanDiskSuite) TestDetectBootDiskFallbackInstall(c *C) {

@@ -514,6 +514,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamName(c *
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
+	s.mockBlkidDisk("gpt")
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -579,6 +580,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamPath(c *
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
+	s.mockBlkidDisk("gpt")
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{

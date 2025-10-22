@@ -1392,16 +1392,10 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	})
 	defer restore()
 
-	n := 0
-	restore = main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
-		n++
-		return nil
-	})
-	defer restore()
-
-	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "", &main.SystemdMountOptions{})
+	parts, bootPart, err := main.FindPartitionsOfBootDisk("")
 	c.Check(err, ErrorMatches, "cannot find device: error")
-	c.Check(n, Equals, 0)
+	c.Check(parts, IsNil)
+	c.Check(bootPart, Equals, "")
 	c.Check(waitFile, DeepEquals, []string{
 		filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid"),
 	})
@@ -1416,23 +1410,17 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
 	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
 	defer restore()
 
-	n := 0
-	restore = main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
-		n++
-		return nil
-	})
-	defer restore()
-
 	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid")
-	err := os.MkdirAll(filepath.Dir(fakedPartSrc), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(fakedPartSrc, nil, 0644)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)
+	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda2")
+	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
+	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
-	err = main.MountNonDataPartitionMatchingKernelDisk("some-target", "", &main.SystemdMountOptions{})
+	s.mockBlkidDisk("gpt")
+
+	_, _, err := main.FindPartitionsOfBootDisk("")
 	c.Check(err, IsNil)
 	c.Check(s.logs.String(), Equals, "")
-	c.Check(n, Equals, 1)
 }
 
 func (s *initramfsMountsSuite) TestWaitFileErr(c *C) {
@@ -1698,7 +1686,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLinkFallback(c *
 	c.Assert(err, IsNil)
 }
 
-func (s *initramfsClassicMountsSuite) mockBlkidDisk(diskType string) {
+func (s *baseInitramfsMountsSuite) mockBlkidDisk(diskType string) {
 	diskProbeMap := make(map[string]*blkid.FakeBlkidProbe)
 	partProbeMap := make(map[int64]*blkid.FakeBlkidProbe)
 

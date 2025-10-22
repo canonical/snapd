@@ -1878,10 +1878,8 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 }
 
 func diskNodeFromDiskSnapdSymlink() (string, error) {
-	fmt.Println("diskNodeFromDiskSnapdSymlink")
 	symLink, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk"))
 	if err != nil {
-		fmt.Println("diskNodeFromDiskSnapdSymlink error", err)
 		return "", err
 	}
 	node := filepath.Base(symLink)
@@ -1890,14 +1888,7 @@ func diskNodeFromDiskSnapdSymlink() (string, error) {
 
 // findPartNodeInDisk returns the expected kernel name for a partition in
 // diskNode that matches the criteria of the passed match callback.
-func findPartNodeInDisk(diskNode string, match func(Partition) bool) (string, error) {
-	fmt.Println("probing", diskNode)
-	parts, err := probeDisk(diskNode)
-	if err != nil {
-		fmt.Println("while probing", diskNode, err)
-		return "", err
-	}
-
+func findPartNodeInDisk(parts []Partition, diskNode string, match func(Partition) bool) (string, error) {
 	for _, p := range parts {
 		fmt.Println("part", p)
 		if match(p) {
@@ -1914,10 +1905,9 @@ func findPartNodeInDisk(diskNode string, match func(Partition) bool) (string, er
 	return "", fmt.Errorf("%s: partition not found", diskNode)
 }
 
-// mountNonDataPartitionMatchingKernelDisk will select the partition
-// to mount at dir using the boot package function
-// FindPartitionUUIDForBootedKernelDisk to determine what partition
-// the booted kernel came from.
+// findPartitionsOfBootDisk finds the boot disk partitions using the boot
+// package function FindPartitionUUIDForBootedKernelDisk to determine what
+// partition the booted kernel came from.
 //
 // If "snap-bootstrap scan-disk" was run as part of udev it will
 // restrict the search of the partition from the boot disk it found.
@@ -1925,51 +1915,72 @@ func findPartNodeInDisk(diskNode string, match func(Partition) bool) (string, er
 // If "snap-bootstrap scan-disk" is not in use (legacy case),
 // it will look for any partition that matches the boot.
 //
-// If which disk the kernel came from cannot be determined, then it
-// will fallback to mounting via the specified disk label. If
-// "snap-bootstrap scan-disk" was used, it will restrict the search to
-// the boot disk.
-func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
-	var partSrc string
+// If the disk kernel came from cannot be determined, then it will fallback to
+// looking at the specified disk label.
+func findPartitionsOfBootDisk(fallbacklabel string) ([]Partition, string, error) {
+	var bootPart string
+	var parts []Partition
 
 	if diskNode, err := diskNodeFromDiskSnapdSymlink(); err == nil {
+		// We have symlinks, we already know the disk
+		fmt.Println("probing", diskNode)
+		parts, err = probeDisk(diskNode)
+		if err != nil {
+			fmt.Println("while probing", diskNode, err)
+			return nil, "", err
+		}
+
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
-			fmt.Println("looking for", partuuid)
-			partSrc, err = findPartNodeInDisk(diskNode,
+			bootPart, err = findPartNodeInDisk(parts, diskNode,
 				func(p Partition) bool { return p.UUID == partuuid })
 			if err != nil {
-				return err
+				return nil, "", err
 			}
 		} else {
-			fmt.Println("looking for label", fallbacklabel)
-			partSrc, err = findPartNodeInDisk(diskNode,
+			bootPart, err = findPartNodeInDisk(parts, diskNode,
 				func(p Partition) bool { return p.FilesystemLabel == fallbacklabel })
 			if err != nil {
-				return err
+				return nil, "", err
 			}
 		}
 	} else {
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
-			// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-			//       to use by-uuid or by-id
-			partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+			bootPart = filepath.Join("/dev/disk/by-partuuid", partuuid)
 		} else {
-			partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+			bootPart, err = getNonUEFISystemDisk(fallbacklabel)
 			if err != nil {
-				return err
+				return nil, "", err
 			}
 		}
 
 		// The partition uuid is read from the EFI variables. At this point
 		// the kernel may not have initialized the storage HW yet so poll
 		// here.
-		if err := waitForDevice(partSrc); err != nil {
-			return err
+		if err := waitForDevice(bootPart); err != nil {
+			return nil, "", err
+		}
+
+		// Resolve if it is a symlink
+		fmt.Println("readlink of", bootPart)
+		if target, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, bootPart)); err == nil {
+			bootPart = filepath.Join("/dev", filepath.Base(target))
+			fmt.Println("bootPart changed", bootPart)
+		}
+		// Find out disk and probe
+		diskNode = strings.TrimRight(bootPart, "0123456789")
+		lenNode := len(diskNode)
+		if diskNode[lenNode-1] == 'p' && unicode.IsDigit(rune(diskNode[lenNode-2])) {
+			diskNode = diskNode[0 : lenNode-1]
+		}
+		parts, err = probeDisk(diskNode)
+		if err != nil {
+			fmt.Println("while probing", diskNode, err)
+			return nil, "", err
 		}
 	}
-	return doSystemdMount(partSrc, dir, opts)
+	return parts, bootPart, nil
 }
 
 func createSysrootMount() bool {
@@ -2019,7 +2030,11 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed", seedMountOpts); err != nil {
+	_, seedPart, err := findPartitionsOfBootDisk("ubuntu-seed")
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := doSystemdMount(seedPart, boot.InitramfsUbuntuSeedDir, seedMountOpts); err != nil {
 		return nil, nil, err
 	}
 
@@ -2416,7 +2431,11 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 1. mount ubuntu-boot
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot", bootMountOpts); err != nil {
+	_, bootPart, err := findPartitionsOfBootDisk("ubuntu-boot")
+	if err != nil {
+		return err
+	}
+	if err := doSystemdMount(bootPart, boot.InitramfsUbuntuBootDir, bootMountOpts); err != nil {
 		return err
 	}
 
@@ -2472,6 +2491,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			return err
 		}
 	}
+	// XXX use instead device node with fs label ubuntu-seed
 	// fsck is safe to run on ubuntu-seed as per the manpage, it should not
 	// meaningfully contribute to corruption if we fsck it every time we boot,
 	// and it is important to fsck it because it is vfat and mounted writable

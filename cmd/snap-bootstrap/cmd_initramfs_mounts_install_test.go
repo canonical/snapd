@@ -723,12 +723,19 @@ grade=signed
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartitionUUIDHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-seed-partuuid")
 	defer restore()
+	s.mockBlkidDisk("gpt")
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/ubuntu-seed-partuuid")
+	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)
+	fakeDevice := filepath.Join(dirs.GlobalRootDir, "/dev/sda2")
+	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
+	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		{
-			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
+			"/dev/sda2",
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckAndNoSuidNoDevNoExecMountOpts,
 			nil,
