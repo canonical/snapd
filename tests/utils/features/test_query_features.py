@@ -69,7 +69,7 @@ class FakeMongoCollection:
     def __init__(self, list_json):
         self.list_json = list_json
 
-    def find(self, dictionary=None):
+    def find(self, dictionary=None, projection=None):
         l = []
         for doc in self.list_json:
             if not dictionary or all(FakeMongoCollection.check_equals(key, dictionary, doc) for key in dictionary.keys()):
