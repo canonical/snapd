@@ -907,6 +907,7 @@ make -C data -k check
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-gdbserver-shim
+%{_libexecdir}/snapd/snap-strace-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_mandir}/man8/snap-confine.8*

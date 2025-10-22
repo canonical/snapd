@@ -27,6 +27,7 @@ usr/lib/snapd/snap-discard-ns
 # gdb helper
 usr/lib/snapd/snap-gdb-shim
 usr/lib/snapd/snap-gdbserver-shim
+usr/lib/snapd/snap-strace-shim
 usr/lib/snapd/snap-mgmt
 usr/lib/snapd/system-shutdown
 # use "usr/lib" here because apparently systemd looks only there
