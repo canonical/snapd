@@ -44,8 +44,8 @@ type PrepareDeviceBehavior struct {
 }
 
 type PrepareSerialRequestBehavior struct {
-	Headers        map[string]string
-	RegBody        map[string]string
+	Headers map[string]string
+	RegBody map[string]string
 }
 
 func MockGadget(c *C, st *state.State, name string, revision snap.Revision, pDBhv *PrepareDeviceBehavior, pSRBhv *PrepareSerialRequestBehavior) (restore func()) {
@@ -75,8 +75,6 @@ version: gadget
 `
 	}
 
-
-	
 	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
 	snapstate.Set(st, name, &snapstate.SnapState{
 		SnapType: "gadget",
@@ -84,10 +82,10 @@ version: gadget
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfoGadget}),
 		Current:  revision,
 	})
-	
+
 	if pDBhv == nil && pSRBhv == nil {
 		// nothing to restore
-		return func(){}
+		return func() {}
 	}
 
 	// mock the prepare-device hook
@@ -104,7 +102,7 @@ version: gadget
 				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
 				c.Assert(err, IsNil)
 			}
-			
+
 			if pDBhv.ProposedSerial != "" {
 				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", pDBhv.ProposedSerial)}, 0)
 				c.Assert(err, IsNil)
@@ -125,21 +123,19 @@ version: gadget
 				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
 				c.Assert(err, IsNil)
 			}
-			
-			
+
 			if len(pSRBhv.RegBody) != 0 {
 				d, err := json.Marshal(pSRBhv.RegBody)
 				c.Assert(err, IsNil)
 				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)}, 0)
 				c.Assert(err, IsNil)
 			}
-			
+
 			return nil, nil
 		} else {
 			return nil, fmt.Errorf("unexpected hook type %q", ctx.HookName())
 		}
 	})
 
-	
 	return restore
 }

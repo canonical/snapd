@@ -761,9 +761,6 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	
-	
-
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 

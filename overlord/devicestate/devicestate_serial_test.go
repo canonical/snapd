@@ -1135,34 +1135,33 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 			"x-extra-header": "extra",
 		},
 		RegBody: map[string]string{
-			"hardware-id-key": "key",
+			"hardware-id-key":        "key",
 			"hardware-id-key-sha384": "hash",
-			"request-id-signature": "signature",
+			"request-id-signature":   "signature",
 		},
 	}
 
 	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
 	defer r2()
-	
-	
+
 	// as device-service.url is set, should not need to do this but just in case
 	r3 := devicestate.MockBaseStoreURL(mockServer.URL + "/direct/baad/")
 	defer r3()
-	
+
 	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "gadget",
 	})
-	
+
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc2",
 	})
-	
+
 	// avoid full seeding
 	s.seeding()
-	
+
 	// runs the whole device registration process, note that the
 	// device is not seeded yet
 	s.state.Unlock()
@@ -1171,19 +1170,18 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 
 	// without a seeded device, there is no become-operational change
 	becomeOperational := s.findBecomeOperationalChange()
-	
+
 	c.Assert(becomeOperational, IsNil)
-	
+
 	// now mark it as seeded
 	s.state.Set("seeded", true)
 	// and run the device registration again
 	s.state.Unlock()
 	s.settle(c)
-	
+
 	s.state.Lock()
 
 	becomeOperational = s.findBecomeOperationalChange()
-
 
 	c.Assert(becomeOperational, NotNil)
 
