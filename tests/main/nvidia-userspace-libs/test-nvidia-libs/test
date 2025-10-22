@@ -20,3 +20,8 @@ ldd "$snap_i386_dir"/libEGL_nvidia.so.0 | grep "libnvidia-glsi.* => $snap_i386_d
 egl_file=10_snap_test-nvidia-interfaces_egl-dl_usr-share-glvnd-egl_vendor.d-nvidia.json
 egl_cfg_path=/var/lib/snapd/lib/glvnd/egl_vendor.d/"$egl_file"
 grep '"library_path" *: *"libEGL_nvidia.so.0"' "$egl_cfg_path"
+
+# and vulkan configuration
+vulkan_file=snap_test-nvidia-interfaces_vulkan-dl_usr-share-vulkan-icd.d-nvidia_icd.json
+vulkan_cfg_path=/var/lib/snapd/lib/vulkan/icd.d/"$vulkan_file"
+grep '"library_path" *: *"libGLX_nvidia.so.0"' "$vulkan_cfg_path"

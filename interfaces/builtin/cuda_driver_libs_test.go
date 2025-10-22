@@ -100,7 +100,7 @@ slots:
       - /snap/cuda-provider/current/lib1
 `, nil, "cuda")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`cuda-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`cuda-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: cuda-provider
 version: 0

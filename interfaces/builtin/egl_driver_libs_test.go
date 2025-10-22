@@ -119,7 +119,7 @@ slots:
       - /snap/egl-provider/current/lib1
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`egl-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`egl-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -169,7 +169,7 @@ slots:
     compatibility: egl-1-5-ubuntu-2404
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`invalid icd-source: snap "egl-provider" does not have attribute "icd-source" for interface "egl-driver-libs"`)
+		`snap "egl-provider" does not have attribute "icd-source" for interface "egl-driver-libs"`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -195,7 +195,7 @@ slots:
       - /abs/path/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`source directory "/abs/path/egl.d/" must start with \$SNAP/ or \$\{SNAP\}/`)
+		`egl-driver-libs icd-source directory "/abs/path/egl.d/" must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -203,11 +203,11 @@ slots:
   egl:
     interface: egl-driver-libs
     priority: 15
-    compatibility: egl-ubuntu-2404
+    compatibility: egl-1-5-ubuntu-2404
     icd-source: $SNAP/egl.d/
 `, nil, "egl")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`invalid icd-source: snap "egl-provider" has interface "egl-driver-libs" with invalid value type string for "icd-source" attribute: \*\[\]string`)
+		`snap "egl-provider" has interface "egl-driver-libs" with invalid value type string for "icd-source" attribute: \*\[\]string`)
 
 	slot = MockSlot(c, `name: egl-provider
 version: 0
@@ -321,7 +321,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 	// Now check symlinks to be created
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`invalid icd-source: "libEGL_nvidia.so.0" not found in the library-source directories`)
+		`invalid icd-source: nvidia.json: "libEGL_nvidia.so.0" not found in the library-source directories`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
@@ -334,7 +334,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 	// Now check symlinks to be created
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`invalid icd-source: while unmarshalling nvidia.json: invalid character 'l' looking for beginning of value`)
+		`invalid icd-source: nvidia.json: while unmarshalling: invalid character 'l' looking for beginning of value`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestStaticInfo(c *C) {

@@ -112,7 +112,7 @@ slots:
       - /snap/gbm-provider/current/lib1
 `, nil, "gbm")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		`gbm-driver-libs source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
+		`gbm-driver-libs library-source directory .* must start with \$SNAP/ or \$\{SNAP\}/`)
 
 	slot = MockSlot(c, `name: gbm-provider
 version: 0
