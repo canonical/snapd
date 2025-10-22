@@ -971,7 +971,27 @@ func (s *serviceUnitGenSuite) TestSuccessExitStatus(c *C) {
 	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=42 250\n.*`)
 }
 
-func (s *serviceUnitGenSuite) TestSuccessExitStatusEmpty(c *C) {
+func (s *serviceUnitGenSuite) TestSuccessExitStatusEmptyList(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.SystemDaemon,
+		SuccessExitStatus: []string{},
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Not(Matches), `(?s).*SuccessExitStatus.*`)
+}
+
+func (s *serviceUnitGenSuite) TestSuccessExitStatusNotPresent(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SuggestedName: "snap",
