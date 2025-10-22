@@ -162,7 +162,7 @@ func (c *refreshCommand) Execute(args []string) error {
 	case c.PrintInhibitLock:
 		return c.printInhibitLockHint()
 	case c.Tracking && !c.Pending:
-		return c.nonRootExecute(context)
+		return c.printTrackingInfo(context)
 	}
 
 	return nil
