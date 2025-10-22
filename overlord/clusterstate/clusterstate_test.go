@@ -290,7 +290,7 @@ func (s *clusterStateSuite) TestInitializeNewClusterUntrustedBrand(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `(?s)cannot add cluster assertion bundle:.*no matching public key.*`)
 }
 
-func (s *clusterStateSuite) TestInitializeNewClusterSameIDAsExisting(c *check.C) {
+func (s *clusterStateSuite) TestInitializeNewClusterExistingCluster(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
 
 	const accountID = "cluster-brand"
@@ -316,13 +316,13 @@ func (s *clusterStateSuite) TestInitializeNewClusterSameIDAsExisting(c *check.C)
 	st.Lock()
 	defer st.Unlock()
 
-	initial, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
-	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(initial))
+	existing, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 1, devices, subclusters)
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(existing))
 	c.Assert(err, check.IsNil)
 
-	duplicate, _ := makeClusterBundleWithSigning(c, sa, accountID, "cluster-id", 2, devices, subclusters)
-	err = clusterstate.InitializeNewCluster(st, bytes.NewReader(duplicate))
-	c.Assert(err, check.ErrorMatches, `cluster assertion id "cluster-id" matches existing cluster id`)
+	incoming, _ := makeClusterBundleWithSigning(c, sa, accountID, "other-id", 2, devices, subclusters)
+	err = clusterstate.InitializeNewCluster(st, bytes.NewReader(incoming))
+	c.Assert(err, check.ErrorMatches, `cannot initialize cluster "other-id" while tracking an existing cluster assertion "cluster-id"`)
 
 	cluster, err := clusterstate.CurrentCluster(st)
 	c.Assert(err, check.IsNil)

@@ -83,10 +83,12 @@ func InitializeNewCluster(st *state.State, bundle io.Reader) error {
 		return err
 	}
 
-	if existing.Current.ClusterID != "" && existing.Current.ClusterID == cluster.ClusterID() {
+	// TODO: we will need some way to handle updating a cluster to an assertion
+	// with a new ID, but it probably won't use this function here
+	if existing.Current.ClusterID != "" {
 		return fmt.Errorf(
-			"cluster assertion id %q matches existing cluster id",
-			cluster.ClusterID(),
+			"cannot initialize cluster %q while tracking an existing cluster assertion %q",
+			cluster.ClusterID(), existing.Current.ClusterID,
 		)
 	}
 
