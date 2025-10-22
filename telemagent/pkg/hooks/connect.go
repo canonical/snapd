@@ -28,6 +28,7 @@ type Config struct {
 	Endpoint   string `env:"ENDPOINT"     envDefault:"mqtt://localhost:1883"`
 	ServerPort int    `env:"PORT"         envDefault:"9090"`
 	BrokerPort string `env:"BROKER_PORT"  envDefault:":1884"`
+	Email      string `env:EMAIL`
 	TLSConfig  *tls.Config
 }
 

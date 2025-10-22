@@ -21,14 +21,18 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
+
+const TelemGWPrefix = "/device-registrations"
 
 func (c *Client) DeviceSession() (deviceSession []string, err error) {
 	_, err = c.doSync("GET", "/v2/devicesession", nil, nil, nil, &deviceSession)
@@ -61,7 +65,21 @@ func (client *Client) CheckEmail(email, password, otp string) (bool, error) {
 }
 
 func (c *Client) Associate(email string, password string, otp string, isLogged bool) error {
-	url := os.Getenv("TELEMGW_SERVICE_URL")
+	confs, err := c.Conf("system", []string{"telemagent.telemgw-url"})
+	if err != nil {
+		return err
+	}
+
+	var url string
+
+	for _, conf := range confs {
+		confStr, ok := conf.(string)
+		if !ok {
+			return errors.New("cannot convert to string")
+		}
+
+		url = confStr
+	}
 
 	if !isLogged {
 		isEmailOk, err := c.CheckEmail(email, password, otp)
@@ -92,14 +110,21 @@ func (c *Client) Associate(email string, password string, otp string, isLogged b
 		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	req, err := http.NewRequest("POST", url+TelemGWPrefix, bytes.NewBuffer(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
 	if err != nil {
 		return err
 	}
 
+	logger.Debugf("url = %s", url+TelemGWPrefix)
+
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
+		Transport: transport,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -112,8 +137,13 @@ func (c *Client) Associate(email string, password string, otp string, isLogged b
 		return err
 	}
 
+	var response struct {
+		Email    string `json:"email"`
+		Macaroon string `json:"macaroon"`
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("could not associate device: %s", string(body))
+		return fmt.Errorf("could not associate device with url %q: %s", url+TelemGWPrefix, string(body))
 	}
 
 	return nil

@@ -30,7 +30,7 @@ func (h *TelemAgentHook) OnSubscribe(cl *mochi.Client, pk packets.Packet) packet
 			var newTopic string
 
 			if (pk.Filters)[i].Filter[0] != '$' {
-				newTopic = fmt.Sprintf("/+/%s/%s", snapPublisher, (pk.Filters)[i].Filter)
+				newTopic = fmt.Sprintf("/%s/+/%s/%s", h.config.Cfg.Email, snapPublisher, (pk.Filters)[i].Filter)
 			} else {
 				h.Log.Error("Local namespace topics cannot start with $")
 				(pk.Filters)[i].Filter = DeniedTopic
@@ -106,7 +106,7 @@ func (h *TelemAgentHook) OnPublish(cl *mochi.Client, pk packets.Packet) (packets
 			return packets.Packet{}, errors.New("local namespace topic cannot start with $")
 		}
 
-		newTopic := fmt.Sprintf("/%s/%s/%s", deviceId, snapPublisher, pk.TopicName)
+		newTopic := fmt.Sprintf("/%s/%s/%s/%s", h.config.Cfg.Email, deviceId, snapPublisher, pk.TopicName)
 
 		msg := fmt.Sprintf("Converting topic %s to global namespace, prepending topic with snap name %s", pk.TopicName, snapPublisher)
 		h.Log.Info(msg)
@@ -130,7 +130,7 @@ func (h *TelemAgentHook) OnPacketEncode(cl *mochi.Client, pk packets.Packet) pac
 	if pk.FixedHeader.Type == packets.Publish {
 		levels := strings.Split(pk.TopicName, "/")
 		levels = levels[1:]
-		if len(levels) > 1 {
+		if len(levels) > 2 {
 			var err error
 			var snapPublisher string
 
@@ -144,8 +144,8 @@ func (h *TelemAgentHook) OnPacketEncode(cl *mochi.Client, pk packets.Packet) pac
 				h.Log.Warn(err.Error())
 			}
 
-			if deviceId == levels[0] && snapPublisher == levels[1] {
-				levels = levels[2:]
+			if deviceId == levels[1] && snapPublisher == levels[2] {
+				levels = levels[3:]
 			}
 
 			newTopic := strings.Join(levels, "/")

@@ -76,7 +76,7 @@ func init() {
 	// experimental.apparmor-prompting
 	addWithStateHandler(nil, doExperimentalApparmorPromptingDaemonRestart, nil)
 
-	// telemagent.ca-cert
+	// telemagent.*
 	addWithStateHandler(validateTelemAgentConf, handleTelemAgentConfiguration, nil)
 }
 

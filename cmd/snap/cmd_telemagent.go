@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,7 +34,8 @@ import (
 type cmdTelemAgent struct {
 	clientMixin
 	Positional struct {
-		Email string
+		Command string `required:"yes"`
+		Email   string
 	} `positional-args:"yes"`
 }
 
@@ -51,12 +53,20 @@ func init() {
 		longTelemAgentHelp,
 		func() flags.Commander {
 			return &cmdTelemAgent{}
-		}, nil, []argDesc{{
-			// TRANSLATORS: This is a noun, and it needs to begin with < and end with >
-			name: i18n.G("<email>"),
-			// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
-			desc: i18n.G("The login.ubuntu.com email to login as"),
-		}})
+		}, nil, []argDesc{
+			{
+				// TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+				name: i18n.G("<email>"),
+				// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
+				desc: i18n.G("The login.ubuntu.com email to login as"),
+			},
+			{
+				// TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+				name: i18n.G("<command>"),
+				// TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
+				desc: i18n.G("The telemagent command to execute"),
+			},
+		})
 }
 
 func associateDeviceWith2faRetry(cli *client.Client, email, password string) error {
@@ -101,7 +111,13 @@ func associateDevice(cli *client.Client, email string) error {
 }
 
 func (x *cmdTelemAgent) Execute(args []string) error {
-	email, err := x.client.WhoAmI()
+	if x.Positional.Command != "login" {
+		return errors.New("login is the only supported command")
+	}
+
+	var email string
+	var err error
+	email, err = x.client.WhoAmI()
 	if err != nil {
 		return err
 	}
@@ -134,6 +150,12 @@ func (x *cmdTelemAgent) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	_, err = x.client.SetConf("system", map[string]any{"telemagent.email": email})
+	if err != nil {
+		return err
+	}
+
 	fmt.Fprintln(Stdout, i18n.G("Association successful"))
 
 	return nil

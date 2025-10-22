@@ -31,17 +31,21 @@ import (
 )
 
 func init() {
+	supportedConfigurations["core.telemagent.telemgw-url"] = true
 	supportedConfigurations["core.telemagent.ca-cert"] = true
 	supportedConfigurations["core.telemagent.endpoint"] = true
 	supportedConfigurations["core.telemagent.port"] = true
+	supportedConfigurations["core.telemagent.email"] = true
 }
 
 func validateTelemAgentConf(tr RunTransaction) error {
-	// check cert
+
 	sslPath, err := coreCfg(tr, "telemagent.ca-cert")
 	if err != nil {
 		return err
 	}
+
+	// check cert
 
 	data, err := os.ReadFile(sslPath)
 	if err != nil {
@@ -67,7 +71,17 @@ func validateTelemAgentConf(tr RunTransaction) error {
 		return err
 	}
 
-	return err
+	//check url
+	u, err := coreCfg(tr, "telemagent.telemgw-url")
+	if err != nil {
+		return err
+	}
+	_, err = url.Parse(u)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func handleTelemAgentConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
