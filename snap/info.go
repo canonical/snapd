@@ -2137,14 +2137,7 @@ type RefreshFailuresInfo struct {
 
 // IntegrityDataInfo contains all the integrity metadata associated with a snap.
 type IntegrityDataInfo struct {
-	// add json tags in this struct
-	Type          string `json:"type"`
-	Version       uint   `json:"version"`
-	HashAlg       string `json:"hash-algorithm"`
-	DataBlockSize uint   `json:"data-block-size"`
-	HashBlockSize uint   `json:"hash-block-size"`
-	Digest        string `json:"digest"`
-	Salt          string `json:"salt"`
+	integrity.IntegrityDataParams `json:"integrity-data-params"`
 
 	DownloadInfo `json:"download-info,omitempty"`
 }

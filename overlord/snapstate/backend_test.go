@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -449,13 +450,15 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		}
 	case "channel-with-integrity-data":
 		info.IntegrityData = &snap.IntegrityDataInfo{
-			Version:       1,
-			Type:          "dm-verity",
-			HashAlg:       "sha256",
-			DataBlockSize: 1000,
-			HashBlockSize: 1000,
-			Salt:          "salt",
-			Digest:        "digest",
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Version:       1,
+				Type:          "dm-verity",
+				HashAlg:       "sha256",
+				DataBlockSize: 1000,
+				HashBlockSize: 1000,
+				Salt:          "salt",
+				Digest:        "digest",
+			},
 			DownloadInfo: snap.DownloadInfo{
 				DownloadURL: "foo_1.snap.dmverity_digest1",
 			},

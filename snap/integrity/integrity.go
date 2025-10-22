@@ -40,24 +40,24 @@ var (
 // are supported via the GenerateDmVerityData and LookupDmVerityData functions.
 type IntegrityDataParams struct {
 	// Type is the type of integrity data (Currently only "dm-verity" is supported).
-	Type string
+	Type string `json:"type"`
 	// Version is the type-specific format type.
-	Version uint
+	Version uint `json:"version"`
 	// HashAlg is the hash algorithm used for integrity data.
-	HashAlg string
+	HashAlg string `json:"hash-algorithm"`
 	// DataBlocks is the number of data blocks on the data/target device. Blocks after
 	// DataBlocks are inaccessible. This is not included in the assertion and is generated
 	// by dividing the entire snap's size by the DataBlockSize field.
-	DataBlocks uint64
+	DataBlocks uint64 `json:"data-blocks"`
 	// DataBlockSize is the block size in bytes on a data/target device.
-	DataBlockSize uint64
+	DataBlockSize uint64 `json:"data-block-size"`
 	// HashBlockSize is the size of a hash block in bytes.
-	HashBlockSize uint64
+	HashBlockSize uint64 `json:"hash-block-size"`
 	// Digest (for the dm-verity type) is the hash of the root hash block in
 	// hexadecimanl encoding.
-	Digest string
+	Digest string `json:"digest"`
 	// Salt is the salt value used during generation in hexadecimal encoding.
-	Salt string
+	Salt string `json:"salt"`
 }
 
 func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) error {

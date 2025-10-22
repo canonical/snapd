@@ -2792,8 +2792,10 @@ apps:
 	c.Assert(err, IsNil)
 
 	info.IntegrityData = &snap.IntegrityDataInfo{
-		Type:   "dm-verity",
-		Digest: "aaa",
+		IntegrityDataParams: integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
 	}
 
 	expected_hash_file := integrity.DmVerityHashFileName(info.MountFile(), "aaa")
@@ -2826,8 +2828,10 @@ apps:
 
 	// Error if IntegrityData is not of type "dm-verity"
 	info.IntegrityData = &snap.IntegrityDataInfo{
-		Type:   "some type",
-		Digest: "aaa",
+		IntegrityDataParams: integrity.IntegrityDataParams{
+			Type:   "some type",
+			Digest: "aaa",
+		},
 	}
 	// Error if IntegrityData is nil
 	digest, err = info.DmVerityDigest()

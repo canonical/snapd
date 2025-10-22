@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -382,13 +383,15 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		OriginalLinks:   map[string][]string{},
 		LegacyAliases:   map[string]*snap.AppInfo{},
 		IntegrityData: &snap.IntegrityDataInfo{
-			Type:          "dm-verity",
-			Digest:        "b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
-			Version:       1,
-			Salt:          "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
-			HashAlg:       "sha256",
-			HashBlockSize: 4096,
-			DataBlockSize: 4096,
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Type:          "dm-verity",
+				Digest:        "b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+				Version:       1,
+				Salt:          "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
+				HashAlg:       "sha256",
+				HashBlockSize: 4096,
+				DataBlockSize: 4096,
+			},
 			DownloadInfo: snap.DownloadInfo{
 				Sha3_384:    "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
 				Size:        73728,

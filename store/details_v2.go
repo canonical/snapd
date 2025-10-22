@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -428,13 +429,15 @@ func addIntegrityData(info *snap.Info, integrityData []storeIntegrity) error {
 	}
 
 	integrity := &snap.IntegrityDataInfo{
-		Type:          i.Type,
-		Version:       uint(version),
-		HashAlg:       i.HashAlg,
-		DataBlockSize: i.DataBlockSize,
-		HashBlockSize: i.HashBlockSize,
-		Digest:        i.Digest,
-		Salt:          i.Salt,
+		IntegrityDataParams: integrity.IntegrityDataParams{
+			Type:          i.Type,
+			Version:       uint(version),
+			HashAlg:       i.HashAlg,
+			DataBlockSize: uint64(i.DataBlockSize),
+			HashBlockSize: uint64(i.HashBlockSize),
+			Digest:        i.Digest,
+			Salt:          i.Salt,
+		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: i.Download.URL,
 			Size:        i.Download.Size,
