@@ -2798,10 +2798,13 @@ apps:
 
 	expected_hash_file := integrity.DmVerityHashFileName(info.MountFile(), "aaa")
 
-	dmverity_file, digest, err := info.DmVerityParamsIfPresent()
+	digest, err := info.DmVerityDigest()
+	c.Check(err, IsNil)
+	c.Check(digest, Equals, "aaa")
+
+	dmverity_file, err := info.DmVerityFile()
 	c.Check(err, IsNil)
 	c.Check(dmverity_file, Equals, expected_hash_file)
-	c.Check(digest, Equals, "aaa")
 }
 
 func (s *infoSuite) TestDmVerityParamsIfPresentErrors(c *C) {
@@ -2812,18 +2815,26 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	dmverity_file, digest, err := info.DmVerityParamsIfPresent()
-	c.Assert(dmverity_file, Equals, "")
-	c.Assert(digest, Equals, "")
+	// Error if IntegrityData is nil
+	digest, err := info.DmVerityDigest()
+	c.Check(digest, Equals, "")
 	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
 
+	dmverity_file, err := info.DmVerityFile()
+	c.Check(dmverity_file, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
+
+	// Error if IntegrityData is not of type "dm-verity"
 	info.IntegrityData = &snap.IntegrityDataInfo{
 		Type:   "some type",
 		Digest: "aaa",
 	}
+	// Error if IntegrityData is nil
+	digest, err = info.DmVerityDigest()
+	c.Check(digest, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
 
-	dmverity_file, digest, err = info.DmVerityParamsIfPresent()
-	c.Assert(dmverity_file, Equals, "")
-	c.Assert(digest, Equals, "")
+	dmverity_file, err = info.DmVerityFile()
+	c.Check(dmverity_file, Equals, "")
 	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
 }

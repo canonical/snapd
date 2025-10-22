@@ -724,11 +724,18 @@ func (s *infoSuite) TestComponentSize(c *C) {
 	c.Check(err, ErrorMatches, `unexpected file type for component file .*snap\+comp_1\.comp"`)
 }
 
-func (s *infoSuite) TestComponentDmVerityParamsIfPresentError(c *C) {
+func (s *infoSuite) TestComponentDmVerityFileError(c *C) {
 	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
 
-	dmverity_file, digest, err := cpi.DmVerityParamsIfPresent()
+	dmverity_file, err := cpi.DmVerityFile()
 	c.Assert(dmverity_file, Equals, "")
+	c.Check(err, ErrorMatches, "dm-verity for components not supported.")
+}
+
+func (s *infoSuite) TestComponentDmVerityDigestError(c *C) {
+	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
+
+	digest, err := cpi.DmVerityDigest()
 	c.Assert(digest, Equals, "")
 	c.Check(err, ErrorMatches, "dm-verity for components not supported.")
 }
