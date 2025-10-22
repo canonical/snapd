@@ -32,6 +32,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/jessevdk/go-flags"
 
@@ -1876,6 +1877,43 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 	return candidate, nil
 }
 
+func diskNodeFromDiskSnapdSymlink() (string, error) {
+	fmt.Println("diskNodeFromDiskSnapdSymlink")
+	symLink, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk"))
+	if err != nil {
+		fmt.Println("diskNodeFromDiskSnapdSymlink error", err)
+		return "", err
+	}
+	node := filepath.Base(symLink)
+	return filepath.Join("/dev", node), nil
+}
+
+// findPartNodeInDisk returns the expected kernel name for a partition in
+// diskNode that matches the criteria of the passed match callback.
+func findPartNodeInDisk(diskNode string, match func(Partition) bool) (string, error) {
+	fmt.Println("probing", diskNode)
+	parts, err := probeDisk(diskNode)
+	if err != nil {
+		fmt.Println("while probing", diskNode, err)
+		return "", err
+	}
+
+	for _, p := range parts {
+		fmt.Println("part", p)
+		if match(p) {
+			// Build the name now, as in Linux add_partition():
+			// https://elixir.bootlin.com/linux/v6.17.4/source/block/partitions/core.c#L335
+			partNode := diskNode
+			if unicode.IsDigit(rune(diskNode[len(diskNode)-1])) {
+				partNode += "p"
+			}
+			return fmt.Sprint(partNode, p.Number), nil
+		}
+	}
+
+	return "", fmt.Errorf("%s: partition not found", diskNode)
+}
+
 // mountNonDataPartitionMatchingKernelDisk will select the partition
 // to mount at dir using the boot package function
 // FindPartitionUUIDForBootedKernelDisk to determine what partition
@@ -1894,24 +1932,22 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
 	var partSrc string
 
-	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
-		disk, err := disks.DiskFromDeviceName("/dev/disk/snapd/disk")
-		if err != nil {
-			return err
-		}
+	if diskNode, err := diskNodeFromDiskSnapdSymlink(); err == nil {
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
-			partition, err := disk.FindMatchingPartitionWithPartUUID(partuuid)
+			fmt.Println("looking for", partuuid)
+			partSrc, err = findPartNodeInDisk(diskNode,
+				func(p Partition) bool { return p.UUID == partuuid })
 			if err != nil {
 				return err
 			}
-			partSrc = partition.KernelDeviceNode
 		} else {
-			partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+			fmt.Println("looking for label", fallbacklabel)
+			partSrc, err = findPartNodeInDisk(diskNode,
+				func(p Partition) bool { return p.FilesystemLabel == fallbacklabel })
 			if err != nil {
 				return err
 			}
-			partSrc = partition.KernelDeviceNode
 		}
 	} else {
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
