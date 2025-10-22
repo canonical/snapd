@@ -72,6 +72,10 @@ execute: |
     echo "Trigger first prompt"
     tests.session -u test exec prompt-requester.cat /home/test/foo &
 
+    # To disambiguate prompting vs notice failures, wait for the prompt directly first
+    echo "Wait for prompt to appear"
+    retry --wait 1 -n 30 sh -c 'tests.session -u test exec snap debug api /v2/interfaces/requests/prompts | gojq ".result | length" | MATCH 1'
+
     echo "Wait for notice for first prompt"
     RESULT="$(tests.session -u test exec snap debug api '/v2/notices?types=interfaces-requests-prompt&timeout=60s&after='"$BEFORE")"
     echo "$RESULT" | MATCH '"status-code": 200'
