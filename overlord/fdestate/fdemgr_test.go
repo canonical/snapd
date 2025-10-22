@@ -1402,27 +1402,58 @@ func (s *fdeMgrSuite) TestManagerVerifyPrimaryKey(c *C) {
 	c.Assert(mgr.VerifyPrimaryKeyAgainstState(2, primaryKey), Equals, false)
 }
 
-func (s *fdeMgrSuite) TestNextKeyID(c *C) {
+func (s *fdeMgrSuite) TestNextUniqueKeyslot(c *C) {
 	st := s.st
 	onClassic := true
 	mgr := s.startedManager(c, onClassic)
 
+	rkeys := []fdestate.KeyslotRef{
+		{ContainerRole: "system-save", Name: "reprovision-2"},
+	}
+	unlockKeys := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "tmp-1"},
+		{ContainerRole: "system-data", Name: "tmp-3"},
+		{ContainerRole: "system-save", Name: "tmp-2"},
+	}
+	s.mockCurrentKeys(c, rkeys, unlockKeys)
+
 	st.Lock()
 	defer st.Unlock()
 
-	var idRaw int
-	err := st.Get("fde-last-key-id", &idRaw)
-	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	var keyslots []fdestate.KeyslotRef
+	for i := 0; i < 3; i++ {
+		ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
 
-	id, err := mgr.NextKeyID()
-	c.Assert(err, IsNil)
-	c.Check(id, Equals, "1")
+		ref, err = mgr.NextUniqueKeyslot("system-save", "tmp")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
 
-	id, err = mgr.NextKeyID()
-	c.Assert(err, IsNil)
-	c.Check(id, Equals, "2")
+		ref, err = mgr.NextUniqueKeyslot("system-data", "reprovision")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
 
-	err = st.Get("fde-last-key-id", &idRaw)
-	c.Assert(err, IsNil)
-	c.Check(idRaw, Equals, 2)
+		ref, err = mgr.NextUniqueKeyslot("system-save", "reprovision")
+		c.Assert(err, IsNil)
+		keyslots = append(keyslots, ref)
+	}
+
+	c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
+		// 1st iteration
+		{ContainerRole: "system-data", Name: "tmp-2"},
+		{ContainerRole: "system-save", Name: "tmp-1"},
+		{ContainerRole: "system-data", Name: "reprovision-1"},
+		{ContainerRole: "system-save", Name: "reprovision-1"},
+		// 2nd iteration
+		{ContainerRole: "system-data", Name: "tmp-4"},
+		{ContainerRole: "system-save", Name: "tmp-3"},
+		{ContainerRole: "system-data", Name: "reprovision-2"},
+		{ContainerRole: "system-save", Name: "reprovision-3"},
+		// 3rd iteration
+		{ContainerRole: "system-data", Name: "tmp-5"},
+		{ContainerRole: "system-save", Name: "tmp-4"},
+		{ContainerRole: "system-data", Name: "reprovision-3"},
+		{ContainerRole: "system-save", Name: "reprovision-4"},
+	})
 }

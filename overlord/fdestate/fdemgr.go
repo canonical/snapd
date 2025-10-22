@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/boot"
@@ -463,24 +462,6 @@ func (m *FDEManager) GetKeyslots(keyslotRefs []KeyslotRef) (keyslots []Keyslot, 
 	return keyslots, missingRefs, nil
 }
 
-// NextKeyID returns a monotonically increasing id that
-// can be used for conflict free ephemeral key names. This
-// can be used in temporary key names during key replacement
-// or re-provisioning.
-//
-// The state needs to be locked by the caller.
-func (m *FDEManager) NextKeyID() (string, error) {
-	var lastKeyID int
-	err := m.state.Get("fde-last-key-id", &lastKeyID)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return "", err
-	}
-	lastKeyID++
-	id := strconv.Itoa(lastKeyID)
-	m.state.Set("fde-last-key-id", lastKeyID)
-	return id, nil
-}
-
 // GetKeyslots returns the key slots for the specified key slot references.
 // If keyslotRefs is empty, all key slots on all encrypted containers will
 // be returned.
@@ -489,6 +470,53 @@ func (m *FDEManager) NextKeyID() (string, error) {
 func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot, missingRefs []KeyslotRef, err error) {
 	mgr := fdeMgr(st)
 	return mgr.GetKeyslots(keyslotRefs)
+}
+
+// NextUniqueKeyslot returns a unique keyslot reference given a
+// container role and a prefix which  can be used for conflict
+// free ephemeral key names. This can be used for temporary
+// key names during key replacement or re-provisioning.
+// The returned keyslot is only unique within the specified
+// container.
+//
+// The state needs to be locked by the caller.
+func (m *FDEManager) NextUniqueKeyslot(containerRole, prefix string) (ref KeyslotRef, err error) {
+	var reservedKeyslots map[string]bool
+
+	type fdeReservedKeyslots struct{}
+	cached := m.state.Cached(fdeReservedKeyslots{})
+	if cached == nil {
+		keyslots, _, err := m.GetKeyslots(nil)
+		if err != nil {
+			return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q: %v", containerRole, prefix, err)
+		}
+		reservedKeyslots = make(map[string]bool, len(keyslots))
+		for _, keyslot := range keyslots {
+			reservedKeyslots[keyslot.Ref().String()] = true
+		}
+	} else {
+		reservedKeyslots = cached.(map[string]bool)
+	}
+
+	// We should run out of real LUKS2 keyslots ages before we hit this
+	// artificial limit. Realistically LUKS2 allows a maximum of 32 keyslots,
+	// and since we are aggressively reusing available postfix numbers, all
+	// should be good.
+	const unrealisticallyLargeNumber = 1024 * 1024
+	for i := 1; i < unrealisticallyLargeNumber; i++ {
+		ref = KeyslotRef{ContainerRole: containerRole, Name: fmt.Sprintf("%s-%d", prefix, i)}
+		if !reservedKeyslots[ref.String()] {
+			// Mark as reserved even if it is still not used yet to
+			// avoid the name being used twice causing a conflict
+			// (or worse, incorrect behaviour) later in task
+			// handlers.
+			reservedKeyslots[ref.String()] = true
+			m.state.Cache(fdeReservedKeyslots{}, reservedKeyslots)
+			return ref, nil
+		}
+	}
+
+	return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q", containerRole, prefix)
 }
 
 var _ backend.FDEStateManager = (*unlockedStateManager)(nil)

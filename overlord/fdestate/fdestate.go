@@ -451,10 +451,6 @@ func (k KeyslotRef) Validate() error {
 	return nil
 }
 
-func tmpKeyslotName(id string) string {
-	return fmt.Sprintf("tmp-%s", id)
-}
-
 func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
 	if err != nil {
@@ -534,15 +530,11 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypeRecovery)
 		}
 
-		tmpKeyslotID, err := fdemgr.NextKeyID()
+		tmpKeyslotRef, err := fdemgr.NextUniqueKeyslot(keyslot.ContainerRole, "tmp")
 		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot obtain next key ID: %v", err)
+			return nil, err
 		}
 
-		tmpKeyslotRef := KeyslotRef{
-			Name:          tmpKeyslotName(tmpKeyslotID),
-			ContainerRole: keyslot.ContainerRole,
-		}
 		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
 		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslot.Name
 	}
@@ -769,15 +761,11 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported platform %q, expected %q", keyslot.Ref().String(), kd.PlatformName(), secboot.PlatformTpm2)
 		}
 
-		tmpKeyslotID, err := mgr.NextKeyID()
+		tmpKeyslotRef, err := mgr.NextUniqueKeyslot(keyslot.ContainerRole, "tmp")
 		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot obtain next key ID: %v", err)
+			return nil, err
 		}
 
-		tmpKeyslotRef := KeyslotRef{
-			Name:          tmpKeyslotName(tmpKeyslotID),
-			ContainerRole: keyslot.ContainerRole,
-		}
 		tmpKeyslotRefs = append(tmpKeyslotRefs, tmpKeyslotRef)
 		tmpKeyslotRenames[tmpKeyslotRef.String()] = keyslot.Name
 		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()

@@ -80,7 +80,7 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	if defaultKeyslots {
 		// system-save also
 		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-recovery"})
-		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-2"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-1"})
 	}
 
 	s.mockDeviceInState(&asserts.Model{}, "run")
@@ -166,7 +166,7 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	if defaultKeyslots {
 		c.Check(renames, DeepEquals, map[string]string{
 			`(container-role: "system-data", name: "tmp-1")`: "default-recovery",
-			`(container-role: "system-save", name: "tmp-2")`: "default-recovery",
+			`(container-role: "system-save", name: "tmp-1")`: "default-recovery",
 		})
 	} else {
 		c.Check(renames, DeepEquals, map[string]string{
@@ -496,7 +496,7 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default-fallback"})
 		keyslots = append(keyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "default-fallback"})
 		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "tmp-2"})
-		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-3"})
+		tmpKeyslots = append(tmpKeyslots, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-1"})
 	}
 
 	keyType := "platform"
@@ -564,7 +564,7 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 		c.Check(tskRoles, DeepEquals, map[string][]string{
 			`(container-role: "system-data", name: "tmp-1")`: {"run"},
 			`(container-role: "system-data", name: "tmp-2")`: {"run"},
-			`(container-role: "system-save", name: "tmp-3")`: {"run"},
+			`(container-role: "system-save", name: "tmp-1")`: {"run"},
 		})
 	} else {
 		c.Check(tskRoles, DeepEquals, map[string][]string{
@@ -590,7 +590,7 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 		c.Check(renames, DeepEquals, map[string]string{
 			`(container-role: "system-data", name: "tmp-1")`: "default",
 			`(container-role: "system-data", name: "tmp-2")`: "default-fallback",
-			`(container-role: "system-save", name: "tmp-3")`: "default-fallback",
+			`(container-role: "system-save", name: "tmp-1")`: "default-fallback",
 		})
 	} else {
 		c.Check(renames, DeepEquals, map[string]string{
