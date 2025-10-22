@@ -477,7 +477,7 @@ func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot,
 // free ephemeral key names. This can be used for temporary
 // key names during key replacement or re-provisioning.
 // The returned keyslot is only unique within the specified
-// container.
+// container and is formatted as `<prefix>-XX`.
 //
 // The state needs to be locked by the caller.
 func (m *FDEManager) NextUniqueKeyslot(containerRole, prefix string) (ref KeyslotRef, err error) {

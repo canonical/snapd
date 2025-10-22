@@ -470,6 +470,8 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	return nil
 }
 
+const tmpKeyslotPrefix = "snapd-tmp"
+
 // ReplaceRecoveryKey creates a taskset that replaces the
 // recovery key for the specified target key slots using
 // the recovery key identified by recoveryKeyID.
@@ -530,7 +532,7 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported type %q, expected %q", keyslot.Ref().String(), keyslot.Type, KeyslotTypeRecovery)
 		}
 
-		tmpKeyslotRef, err := fdemgr.NextUniqueKeyslot(keyslot.ContainerRole, "tmp")
+		tmpKeyslotRef, err := fdemgr.NextUniqueKeyslot(keyslot.ContainerRole, tmpKeyslotPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -761,7 +763,7 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported platform %q, expected %q", keyslot.Ref().String(), kd.PlatformName(), secboot.PlatformTpm2)
 		}
 
-		tmpKeyslotRef, err := mgr.NextUniqueKeyslot(keyslot.ContainerRole, "tmp")
+		tmpKeyslotRef, err := mgr.NextUniqueKeyslot(keyslot.ContainerRole, tmpKeyslotPrefix)
 		if err != nil {
 			return nil, err
 		}
