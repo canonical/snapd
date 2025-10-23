@@ -2137,7 +2137,7 @@ type RefreshFailuresInfo struct {
 
 // IntegrityDataInfo contains all the integrity metadata associated with a snap.
 type IntegrityDataInfo struct {
-	integrity.IntegrityDataParams `json:"integrity-data-params"`
+	integrity.IntegrityDataParams `json:"params"`
 
 	DownloadInfo `json:"download-info,omitempty"`
 }
