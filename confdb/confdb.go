@@ -775,17 +775,22 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 
 func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error) {
 	constraintSb := &strings.Builder{}
+	var char rune
 	for pathBytes.Len() > 0 {
-		nextChar, _, _ := pathBytes.ReadRune()
-		if nextChar == utf8.RuneError {
+		char, _, _ = pathBytes.ReadRune()
+		if char == utf8.RuneError {
 			return "", "", fmt.Errorf("non UTF-8 character")
 		}
 
-		if nextChar == ']' {
+		if char == ']' {
 			// we're done reading the field filter, don't store the terminating ']'
 			break
 		}
-		constraintSb.WriteRune(nextChar)
+		constraintSb.WriteRune(char)
+	}
+
+	if char != ']' {
+		return "", "", fmt.Errorf("field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]")
 	}
 
 	constraintPair := constraintSb.String()

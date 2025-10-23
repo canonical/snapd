@@ -687,7 +687,7 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 		},
 		{
 			testName: "invalid terminating [ character",
-			request:  "a[.foo", storage: "a.b", err: `invalid request "a[.foo": field filter must be in the format [.<field>={<param_name>}]`,
+			request:  "a[.foo", storage: "a.b", err: `invalid request "a[.foo": field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]`,
 		},
 	} {
 		_, err := confdb.NewSchema("acc", "foo", map[string]any{
@@ -3708,6 +3708,10 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 		{
 			path: "foo[." + string(rune(0xDFFF)),
 			err:  "non UTF-8 character",
+		},
+		{
+			path: "foo[{n}][.bar={baz}",
+			err:  "field filter terminated unexpectedly: must be in the format [.<field>={<param_name>}]",
 		},
 	}
 
