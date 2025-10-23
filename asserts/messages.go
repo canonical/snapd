@@ -43,6 +43,11 @@ type DeviceID struct {
 	BrandID string
 }
 
+// String returns the string representation of the device identifier.
+func (id DeviceID) String() string {
+	return fmt.Sprintf("%s.%s.%s", id.Serial, id.Model, id.BrandID)
+}
+
 func newDeviceIDFromString(rawID string) (DeviceID, error) {
 	parts := strutil.SplitRightN(rawID, ".", 3)
 	if len(parts) != 3 {

@@ -205,6 +205,16 @@ func (s *responseMessageSuite) TestDecodeOK(c *C) {
 	c.Check(string(resp.Body()), Equals, responseBodyExample)
 }
 
+func (s *requestMessageSuite) TestDeviceIDString(c *C) {
+	device := asserts.DeviceID{
+		Serial:  "serial-1",
+		Model:   "model-a",
+		BrandID: "test-brand",
+	}
+
+	c.Check(device.String(), Equals, "serial-1.model-a.test-brand")
+}
+
 func (s *responseMessageSuite) TestDecodeSequencedOK(c *C) {
 	encoded := fmt.Sprintf(responseMessageExample, responseBodyExample)
 	encoded = strings.Replace(encoded, "message-id: someId", "message-id: someId-4", 1)
