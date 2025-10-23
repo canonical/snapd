@@ -302,9 +302,7 @@ func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstat
 
 func (s *deviceMgrBaseSuite) settle(c *C) {
 	err := s.o.Settle(settleTimeout)
-
 	c.Assert(err, IsNil)
-
 }
 
 // seeding avoids triggering a real full seeding, it simulates having it in process instead

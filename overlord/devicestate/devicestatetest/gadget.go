@@ -117,6 +117,11 @@ version: gadget
 
 			return nil, nil
 		} else if ctx.HookName() == "prepare-serial-request" {
+			// snapctl set the registration params
+			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "request-id"}, 0)
+			c.Assert(err, IsNil)
+			fmt.Println("snapctl response: ", string(stdout))
+			
 			if len(pDBhv.Headers) != 0 {
 				h, err := json.Marshal(pDBhv.Headers)
 				c.Assert(err, IsNil)

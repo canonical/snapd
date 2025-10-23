@@ -408,6 +408,9 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		contextData := map[string]any{
 			"request-id": requestID.RequestID,
 		}
+
+		
+
 		_, err := hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
 		if err != nil {
 			return "", fmt.Errorf("cannot run prepare serial request hook: %v", err)
