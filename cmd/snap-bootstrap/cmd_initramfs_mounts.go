@@ -1888,24 +1888,24 @@ func diskNodeFromDiskSnapdSymlink() (string, error) {
 
 // findPartNodeInDisk returns the expected kernel name for a partition in
 // diskNode that matches the criteria of the passed match callback.
-func findPartNodeInDisk(parts []Partition, diskNode string, match func(Partition) bool) (string, error) {
-	for _, p := range parts {
+func findPartNodeInDisk(disk *Disk, match func(Partition) bool) (string, error) {
+	for _, p := range disk.Parts {
 		fmt.Println("part", p)
 		if match(p) {
 			// Build the name now, as in Linux add_partition():
 			// https://elixir.bootlin.com/linux/v6.17.4/source/block/partitions/core.c#L335
-			partNode := diskNode
-			if unicode.IsDigit(rune(diskNode[len(diskNode)-1])) {
+			partNode := disk.Node
+			if unicode.IsDigit(rune(disk.Node[len(disk.Node)-1])) {
 				partNode += "p"
 			}
 			return fmt.Sprint(partNode, p.Number), nil
 		}
 	}
 
-	return "", fmt.Errorf("%s: partition not found", diskNode)
+	return "", fmt.Errorf("%s: partition not found", disk.Node)
 }
 
-// findPartitionsOfBootDisk finds the boot disk partitions using the boot
+// findBootDisk finds the boot disk partitions using the boot
 // package function FindPartitionUUIDForBootedKernelDisk to determine what
 // partition the booted kernel came from.
 //
@@ -1917,14 +1917,14 @@ func findPartNodeInDisk(parts []Partition, diskNode string, match func(Partition
 //
 // If the disk kernel came from cannot be determined, then it will fallback to
 // looking at the specified disk label.
-func findPartitionsOfBootDisk(fallbacklabel string) ([]Partition, string, error) {
+func findBootDisk(fallbacklabel string) (*Disk, string, error) {
 	var bootPart string
-	var parts []Partition
+	var disk *Disk
 
 	if diskNode, err := diskNodeFromDiskSnapdSymlink(); err == nil {
 		// We have symlinks, we already know the disk
 		fmt.Println("probing", diskNode)
-		parts, err = probeDisk(diskNode)
+		disk, err = probeDisk(diskNode)
 		if err != nil {
 			fmt.Println("while probing", diskNode, err)
 			return nil, "", err
@@ -1932,13 +1932,13 @@ func findPartitionsOfBootDisk(fallbacklabel string) ([]Partition, string, error)
 
 		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 		if err == nil {
-			bootPart, err = findPartNodeInDisk(parts, diskNode,
+			bootPart, err = findPartNodeInDisk(disk,
 				func(p Partition) bool { return p.UUID == partuuid })
 			if err != nil {
 				return nil, "", err
 			}
 		} else {
-			bootPart, err = findPartNodeInDisk(parts, diskNode,
+			bootPart, err = findPartNodeInDisk(disk,
 				func(p Partition) bool { return p.FilesystemLabel == fallbacklabel })
 			if err != nil {
 				return nil, "", err
@@ -1974,13 +1974,13 @@ func findPartitionsOfBootDisk(fallbacklabel string) ([]Partition, string, error)
 		if diskNode[lenNode-1] == 'p' && unicode.IsDigit(rune(diskNode[lenNode-2])) {
 			diskNode = diskNode[0 : lenNode-1]
 		}
-		parts, err = probeDisk(diskNode)
+		disk, err = probeDisk(diskNode)
 		if err != nil {
 			fmt.Println("while probing", diskNode, err)
 			return nil, "", err
 		}
 	}
-	return parts, bootPart, nil
+	return disk, bootPart, nil
 }
 
 func createSysrootMount() bool {
@@ -2030,7 +2030,7 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	_, seedPart, err := findPartitionsOfBootDisk("ubuntu-seed")
+	_, seedPart, err := findBootDisk("ubuntu-seed")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2431,7 +2431,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 1. mount ubuntu-boot
-	_, bootPart, err := findPartitionsOfBootDisk("ubuntu-boot")
+	_, bootPart, err := findBootDisk("ubuntu-boot")
 	if err != nil {
 		return err
 	}

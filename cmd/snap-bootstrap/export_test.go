@@ -40,7 +40,7 @@ var (
 
 	DoSystemdMount = doSystemdMountImpl
 
-	FindPartitionsOfBootDisk = findPartitionsOfBootDisk
+	FindPartitionsOfBootDisk = findBootDisk
 
 	GetNonUEFISystemDisk = getNonUEFISystemDisk
 

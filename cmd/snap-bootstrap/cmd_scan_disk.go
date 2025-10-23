@@ -105,6 +105,14 @@ type Partition struct {
 	FilesystemLabel string
 }
 
+// Disk contains information about a disk detected in the system.
+type Disk struct {
+	// Path in /dev
+	Node string
+	// Partition information read from disk
+	Parts []Partition
+}
+
 func isGpt(probe blkid.AbstractBlkidProbe) bool {
 	pttype, err := probe.LookupValue("PTTYPE")
 	if err != nil {
@@ -136,7 +144,7 @@ func probeFilesystemLabel(node string, start, size int64) (string, error) {
 	return label, nil
 }
 
-func probeDisk(node string) ([]Partition, error) {
+func probeDisk(node string) (*Disk, error) {
 	probe, err := blkid.NewProbeFromFilename(node)
 	if err != nil {
 		return nil, err
@@ -166,7 +174,7 @@ func probeDisk(node string) ([]Partition, error) {
 		return nil, err
 	}
 
-	ret := make([]Partition, 0)
+	parts := make([]Partition, 0)
 	ss64 := int64(sectorSize)
 	for _, partition := range partitions.GetPartitions() {
 		var p Partition
@@ -184,10 +192,10 @@ func probeDisk(node string) ([]Partition, error) {
 			p.Name = partition.GetName()
 			p.UUID = partition.GetUUID()
 		}
-		ret = append(ret, p)
+		parts = append(parts, p)
 	}
 
-	return ret, nil
+	return &Disk{Node: node, Parts: parts}, nil
 }
 
 func samePath(a, b string) (bool, error) {
@@ -205,7 +213,7 @@ func samePath(a, b string) (bool, error) {
 func scanDiskNodeFallback(output io.Writer, node string) error {
 	var fallbackPartition string
 
-	partitions, err := probeDisk(node)
+	disk, err := probeDisk(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -273,7 +281,7 @@ func scanDiskNodeFallback(output io.Writer, node string) error {
 		}
 	}
 
-	for _, part := range partitions {
+	for _, part := range disk.Parts {
 		if part.Name == fallbackPartition || part.FilesystemLabel == fallbackPartition {
 			fmt.Fprintf(output, "UBUNTU_DISK=1\n")
 			return nil
@@ -312,7 +320,7 @@ func scanDiskNode(output io.Writer, node string) error {
 		return scanDiskNodeFallback(output, node)
 	}
 
-	partitions, err := probeDisk(node)
+	disk, err := probeDisk(node)
 	if err != nil {
 		return fmt.Errorf("cannot get partitions: %s\n", err)
 	}
@@ -324,7 +332,7 @@ func scanDiskNode(output io.Writer, node string) error {
 	found := false
 	hasSeed := false
 	hasBoot := false
-	for _, part := range partitions {
+	for _, part := range disk.Parts {
 		if part.UUID == bootUUID {
 			/*
 			 * We have just found the ESP boot partition!
