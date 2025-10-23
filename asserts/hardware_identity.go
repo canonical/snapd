@@ -22,14 +22,22 @@ package asserts
 import (
 	"bytes"
 	"crypto"
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"golang.org/x/crypto/sha3"
 )
 
+// HardwareIdentity holds a hardware identity assertion, which is a statement
+// that verifies that identity of a physical piece of hardware
 type HardwareIdentity struct {
 	assertionBase
 
@@ -150,4 +158,87 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 	}
 
 	return pubKey, nil
+}
+
+// VerifySignature checks the signature of a given nonce against the hardware id key.
+// It is used by the model service to verify the request-id.
+// It currently supports key with algorithms RSA, DSA, ECDSA, and ED25519.
+// All data is expected to use the SHA3-384 hash.
+func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte) error {
+	switch keyType := h.hardwareKey.(type) {
+	case *rsa.PublicKey:
+		return verifyRSAKey(nonce, signature, h.hardwareKey.(*rsa.PublicKey))
+	case *dsa.PublicKey:
+		return verifyDSAKey(nonce, signature, h.hardwareKey.(*dsa.PublicKey))
+	case *ecdsa.PublicKey:
+		return verifyECDSAKey(nonce, signature, h.hardwareKey.(*ecdsa.PublicKey))
+	case ed25519.PublicKey:
+		return verifyED25519Key(nonce, signature, h.hardwareKey.(ed25519.PublicKey))
+	default:
+		return fmt.Errorf("unsupported algorithm type: %s", keyType)
+	}
+}
+
+func verifyRSAKey(nonce, signature []byte, pubKey *rsa.PublicKey) error {
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA384, hashed, signature)
+}
+
+func verifyDSAKey(nonce, signature []byte, pubKey *dsa.PublicKey) error {
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	// DsaSignature struct defines ASN.1 layout of DSA signature
+	type DsaSignature struct {
+		R, S *big.Int
+	}
+
+	var sig DsaSignature
+	_, err := asn1.Unmarshal(signature, &sig)
+	if err != nil {
+		return err
+	}
+
+	if !dsa.Verify(pubKey, hashed, sig.R, sig.S) {
+		return errors.New("signature invalid")
+	}
+
+	return nil
+}
+
+func verifyECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKey) error {
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+
+	// DsaSignature struct defines ASN.1 layout of ECDSA signature
+	type EcdsaSignature struct {
+		R, S *big.Int
+	}
+
+	var sig EcdsaSignature
+	_, err := asn1.Unmarshal(signature, &sig)
+	if err != nil {
+		return err
+	}
+
+	if !ecdsa.Verify(pubKey, hashed, sig.R, sig.S) {
+		return errors.New("signature invalid")
+	}
+
+	return nil
+}
+
+func verifyED25519Key(nonce, signature []byte, pubKey ed25519.PublicKey) error {
+	hash := sha3.New384()
+	hash.Write(nonce)
+	hashed := hash.Sum(nil)
+	if !ed25519.Verify(pubKey, hashed, signature) {
+		return errors.New("signature invalid")
+	}
+
+	return nil
 }
