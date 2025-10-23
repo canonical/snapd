@@ -22,6 +22,7 @@ package secboot
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -37,7 +38,31 @@ import (
 type systemdAuthRequestor struct {
 }
 
-func (r *systemdAuthRequestor) askPassword(sourceDevicePath, msg, credentialName string) (string, error) {
+func getAskPasswordMessage(authType sb.UserAuthType, name, path string) (string, error) {
+	var fmtMsg string
+	switch authType {
+	case sb.UserAuthTypePassphrase:
+		fmtMsg = "Enter passphrase for %[1]s (%[2]s):"
+	case sb.UserAuthTypePIN:
+		fmtMsg = "Enter PIN for %[1]s (%[2]s):"
+	case sb.UserAuthTypeRecoveryKey:
+		fmtMsg = "Enter recovery key for %[1]s (%[2]s):"
+	case sb.UserAuthTypePassphrase | sb.UserAuthTypePIN:
+		fmtMsg = "Enter passphrase or PIN for %[1]s (%[2]s):"
+	case sb.UserAuthTypePassphrase | sb.UserAuthTypeRecoveryKey:
+		fmtMsg = "Enter passphrase or recovery key for %[1]s (%[2]s):"
+	case sb.UserAuthTypePIN | sb.UserAuthTypeRecoveryKey:
+		fmtMsg = "Enter PIN or recovery key for %[1]s (%[2]s):"
+	case sb.UserAuthTypePassphrase | sb.UserAuthTypePIN | sb.UserAuthTypeRecoveryKey:
+		fmtMsg = "Enter passphrase, PIN or recovery key for %[1]s (%[2]s):"
+	default:
+		return "", errors.New("unexpected UserAuthType")
+	}
+	return fmt.Sprintf(fmtMsg, name, path), nil
+}
+
+// RequestUserCredential implements AuthRequestor.RequestUserCredential
+func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, path string, authTypes sb.UserAuthType) (string, error) {
 	enableCredential := true
 	err := systemd.EnsureAtLeast(249)
 	if systemd.IsSystemdTooOld(err) {
@@ -47,22 +72,26 @@ func (r *systemdAuthRequestor) askPassword(sourceDevicePath, msg, credentialName
 	var args []string
 
 	args = append(args, "--icon", "drive-harddisk")
-	args = append(args, "--id", filepath.Base(os.Args[0])+":"+sourceDevicePath)
+	args = append(args, "--id", filepath.Base(os.Args[0])+":"+path)
 
 	if enableCredential {
-		args = append(args, fmt.Sprintf("--credential=snapd.%s", credentialName))
+		args = append(args, "--credential=snapd.fde.password")
 	}
 
+	msg, err := getAskPasswordMessage(authTypes, name, path)
+	if err != nil {
+		return "", err
+	}
 	args = append(args, msg)
 
-	cmd := exec.Command(
-		"systemd-ask-password",
-		args...,
-	)
+	cmd := exec.CommandContext(
+		ctx, "systemd-ask-password",
+		args...)
 	out := new(bytes.Buffer)
 	cmd.Stdout = out
+	cmd.Stdin = os.Stdin
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("cannot execute systemd-ask-password: %v", err)
+		return "", fmt.Errorf("cannot execute systemd-ask-password: %w", err)
 	}
 	result, err := out.ReadString('\n')
 	if err != nil {
@@ -72,26 +101,8 @@ func (r *systemdAuthRequestor) askPassword(sourceDevicePath, msg, credentialName
 	return strings.TrimRight(result, "\n"), nil
 }
 
-func (r *systemdAuthRequestor) RequestPassphrase(volumeName, sourceDevicePath string) (string, error) {
-	msg := fmt.Sprintf("Please enter the passphrase for volume %s for device %s", volumeName, sourceDevicePath)
-	return r.askPassword(sourceDevicePath, msg, "passphrase")
-}
-
-func (r *systemdAuthRequestor) RequestRecoveryKey(volumeName, sourceDevicePath string) (sb.RecoveryKey, error) {
-	msg := fmt.Sprintf("Please enter the recovery key for volume %s for device %s", volumeName, sourceDevicePath)
-	passphrase, err := r.askPassword(sourceDevicePath, msg, "recovery")
-	if err != nil {
-		return sb.RecoveryKey{}, err
-	}
-
-	key, err := sb.ParseRecoveryKey(passphrase)
-	if err != nil {
-		return sb.RecoveryKey{}, fmt.Errorf("cannot parse recovery key: %w", err)
-	}
-
-	return key, nil
-}
-
+// NewSystemdAuthRequestor creates an AuthRequestor
+// which calls systemd-ask-password with credential parameter.
 func NewSystemdAuthRequestor() sb.AuthRequestor {
 	return &systemdAuthRequestor{}
 }
