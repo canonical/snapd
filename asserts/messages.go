@@ -184,8 +184,8 @@ func parseDevices(headers map[string]any) ([]DeviceID, error) {
 	}
 
 	var deviceIDs []DeviceID
-	for i, rawDeviceId := range devices {
-		deviceID, err := newDeviceIDFromString(rawDeviceId)
+	for i, rawDeviceID := range devices {
+		deviceID, err := newDeviceIDFromString(rawDeviceID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse device at position %d: %w", i+1, err)
 		}
