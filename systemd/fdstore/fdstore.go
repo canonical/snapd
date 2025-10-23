@@ -58,6 +58,7 @@ func (name FdName) isSocket() bool {
 var (
 	osGetenv        = os.Getenv
 	osUnsetenv      = os.Unsetenv
+	osLookupEnv     = os.LookupEnv
 	osGetpid        = os.Getpid
 	unixClose       = unix.Close
 	unixCloseOnExec = unix.CloseOnExec
@@ -98,7 +99,21 @@ func initFdstore() {
 		return
 	}
 
-	names := strings.Split(osGetenv("LISTEN_FDNAMES"), ":")
+	var names []string
+	namesEnv, namesEnvExists := osLookupEnv("LISTEN_FDNAMES")
+	if namesEnvExists {
+		names = strings.Split(namesEnv, ":")
+	} else {
+		// Likely old systemd <227 (e.g. amazon-linux-2), Assume all passed
+		// fds are activation sockets as a fallback.
+		names = make([]string, nfds)
+		for i := 0; i < nfds; i++ {
+			// A generic name with .socket suffix is enough
+			// to be picked up by ActivationSocketFds.
+			names[i] = "activation.socket"
+		}
+	}
+
 	if len(names) != nfds {
 		logger.Noticef("internal error: cannot initialize fdstore: $LISTEN_FDNAMES does not match $LISTEN_FDS")
 		return
@@ -154,6 +169,13 @@ func Remove(name FdName) (err error) {
 }
 
 func removeUnlocked(name FdName) (err error) {
+	// FDSTOREREMOVE=1 was added in systemd v236
+	//
+	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDSTOREREMOVE=1
+	if err := systemd.EnsureAtLeast(236); err != nil {
+		return fmt.Errorf("cannot remove file descriptor from fdstore: %v", err)
+	}
+
 	state := fmt.Sprintf("FDSTOREREMOVE=1\nFDNAME=%s", name)
 	if err := sdNotify(state); err != nil {
 		return err
@@ -202,6 +224,15 @@ func Get(name FdName) (fd int) {
 //   - Only a single file descriptor can associated with a FdName.
 func Add(name FdName, fd int) error {
 	initFdstore()
+
+	// FDNAME=... was added in systemd v233, but for the sake
+	// of being consistent with removal (FDSTOREREMOVE=1 was
+	// added in systemd v236), require at least systemd v236.
+	//
+	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDNAME=%E2%80%A6
+	if err := systemd.EnsureAtLeast(236); err != nil {
+		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()

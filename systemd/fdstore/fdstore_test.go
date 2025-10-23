@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -60,6 +61,10 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 		delete(s.fakeEnv, key)
 		return nil
 	}))
+	s.AddCleanup(fdstore.MockOsLookupEnv(func(key string) (string, bool) {
+		val, exists := s.fakeEnv[key]
+		return val, exists
+	}))
 	s.AddCleanup(fdstore.MockOsGetpid(func() int {
 		return 1984
 	}))
@@ -89,6 +94,7 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(fdstore.MockUnixCloseOnExec(func(fd int) {
 		s.closeOnExecFds = append(s.closeOnExecFds, fd)
 	}))
+	s.AddCleanup(systemd.MockSystemdVersion(236, nil))
 	s.AddCleanup(fdstore.Clear)
 }
 
@@ -200,6 +206,16 @@ func (s *fdstoreTestSuite) TestAddSdNotifyError(c *C) {
 	c.Check(fdstore.Get(fdstore.FdNameMemfdSecretState), Equals, 8)
 }
 
+func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
+	restore := systemd.MockSystemdVersion(235, nil)
+	defer restore()
+
+	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, 7), ErrorMatches, `cannot add file descriptor to fdstore: systemd version 235 is too old \(expected at least 236\)`)
+
+	c.Check(s.sdNotifyCalls, HasLen, 0)
+	c.Check(s.closedFds, HasLen, 0)
+}
+
 func (s *fdstoreTestSuite) TestRemove(c *C) {
 	s.fakeEnv["LISTEN_FDS"] = "3"
 	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket:snapd.socket"
@@ -234,6 +250,19 @@ func (s *fdstoreTestSuite) TestRemoveSdNotifyError(c *C) {
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 	c.Check(s.closedFds, HasLen, 0)
+}
+
+func (s *fdstoreTestSuite) TestRemoveLowSystemdVersionError(c *C) {
+	s.fakeEnv["LISTEN_FDS"] = "2"
+	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket"
+
+	restore := systemd.MockSystemdVersion(235, nil)
+	defer restore()
+
+	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, `cannot remove file descriptor from fdstore: systemd version 235 is too old \(expected at least 236\)`)
+
+	c.Check(s.sdNotifyCalls, HasLen, 0)
+	c.Check(s.closedFds, HasLen, 0)
 	c.Check(s.closeOnExecFds, DeepEquals, []int{3, 4})
 }
 
@@ -245,6 +274,16 @@ func (s *fdstoreTestSuite) TestActivationSocketFiles(c *C) {
 	c.Check(socketFds, DeepEquals, map[string][]int{
 		"snapd.socket":               {3, 6},
 		"snapd.session-agent.socket": {4},
+	})
+}
+
+func (s *fdstoreTestSuite) TestActivationSocketFilesMissingFdNamesEnv(c *C) {
+	s.fakeEnv["LISTEN_FDS"] = "4"
+	// make sure that older versions of systemd (e.g. v219 on amazon-linux-2)
+	// are supported where the $LISTEN_FDNAMES env var is not passed.
+	socketFds := fdstore.ActivationSocketFds()
+	c.Check(socketFds, DeepEquals, map[string][]int{
+		"activation.socket": {3, 4, 5, 6},
 	})
 }
 
