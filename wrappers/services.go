@@ -119,6 +119,7 @@ func (c *userServiceClient) stopServices(disable bool, reason snap.ServiceStopRe
 
 	// if the request is removal, then we want to just log it
 	if err != nil && reason == snap.StopReasonRemove {
+		logger.Noticef("cannot stop user-services for snap during removal: %v", err)
 		err = nil
 	}
 	return err
