@@ -476,6 +476,54 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
+
+	c.Assert(rdb.Close(), IsNil)
+
+	// Restart, reloading the rule db should not emit new notices
+	rdb, err = requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	s.checkNewNotices(c, nil)
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	c.Assert(rdb.Close(), IsNil)
+}
+
+func (s *requestrulesSuite) TestLoadPartiallyExpiredRules(c *C) {
+	dbPath := s.prepDBPath(c)
+
+	partialRule := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(1), "/home/test/partial")
+	expiredTime := time.Now().Add(-time.Minute)
+	// Add a permission which will be expired
+	setPermissionsOutcomeLifespanExpirationSession(c, partialRule, []string{"write"}, prompting.OutcomeAllow, prompting.LifespanTimespan, expiredTime, 0)
+
+	s.writeRules(c, dbPath, []*requestrules.Rule{partialRule})
+
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	// The expired permission should be pruned and the trimmed rule persisted
+	trimmedRule := s.ruleTemplateWithReadPathPattern(c, partialRule.ID, "/home/test/partial")
+	trimmedRule.Timestamp = partialRule.Timestamp
+	expectedWrittenRules := []*requestrules.Rule{trimmedRule}
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	// First load emits a notice because the rule was partially expired
+	s.checkNewNoticesSimple(c, nil, partialRule)
+
+	c.Assert(rdb.Close(), IsNil)
+
+	// Restart, reloading the rule db should not emit new notices
+	rdb, err = requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	s.checkNewNotices(c, nil)
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	c.Assert(rdb.Close(), IsNil)
 }
 
 func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
@@ -664,6 +712,18 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
+
+	c.Assert(rdb.Close(), IsNil)
+
+	// Restart, reloading the rule db should not emit new notices
+	rdb, err = requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	s.checkNewNotices(c, nil)
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	c.Assert(rdb.Close(), IsNil)
 }
 
 func (s *requestrulesSuite) TestLoadHappy(c *C) {
