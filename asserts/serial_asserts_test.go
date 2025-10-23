@@ -77,6 +77,11 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 	c.Check(serial.BrandID(), Equals, "brand-id1")
 	c.Check(serial.Model(), Equals, "baz-3000")
 	c.Check(serial.Serial(), Equals, "2700")
+	c.Check(serial.DeviceID(), Equals, asserts.DeviceID{
+		Serial:  "2700",
+		Model:   "baz-3000",
+		BrandID: "brand-id1",
+	})
 	c.Check(serial.DeviceKey().ID(), Equals, ss.deviceKey.PublicKey().ID())
 }
 

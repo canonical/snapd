@@ -52,6 +52,15 @@ func (ser *Serial) Serial() string {
 	return ser.HeaderString("serial")
 }
 
+// DeviceID returns the device identifier for this serial assertion.
+func (ser *Serial) DeviceID() DeviceID {
+	return DeviceID{
+		Serial:  ser.Serial(),
+		Model:   ser.Model(),
+		BrandID: ser.BrandID(),
+	}
+}
+
 // DeviceKey returns the public key of the device.
 func (ser *Serial) DeviceKey() PublicKey {
 	return ser.pubKey
