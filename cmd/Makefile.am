@@ -566,7 +566,7 @@ snap_strace_shim_snap_strace_shim_SOURCES = \
 	snap-strace-shim/snap-strace-shim.c
 
 snap_strace_shim_snap_strace_shim_LDADD = libsnap-confine-private.a
-snap_strace_shim_snap_strace_shim_LDFLAGS = 
+snap_strace_shim_snap_strace_shim_LDFLAGS = $(SANITIZE_LDFLAGS)
 
 
 ##
