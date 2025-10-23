@@ -1416,7 +1416,7 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
 	c.Assert(os.WriteFile(fakeDevice, []byte{}, 0644), IsNil)
 	c.Assert(os.Symlink(fakeDevice, fakedPartSrc), IsNil)
 
-	s.mockBlkidDisk("gpt")
+	s.mockBlkidDisk("gpt", 2)
 
 	_, _, err := main.FindPartitionsOfBootDisk("")
 	c.Check(err, IsNil)
@@ -1564,7 +1564,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLink(c *C) {
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-boot-partuuid")
 	defer restore()
-	s.mockBlkidDisk("gpt")
+	s.mockBlkidDisk("gpt", 2)
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1584,7 +1584,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLink(c *C) {
 			nil,
 			nil,
 		},
-		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		{"/dev/sda2", boot.InitramfsUbuntuSeedDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
@@ -1631,7 +1631,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLinkFallback(c *
 	// NO UEFI
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
-	s.mockBlkidDisk("dos")
+	s.mockBlkidDisk("dos", 2)
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -1651,7 +1651,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLinkFallback(c *
 			nil,
 			nil,
 		},
-		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		{"/dev/sda2", boot.InitramfsUbuntuSeedDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
@@ -1686,7 +1686,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsObeyDevLinkFallback(c *
 	c.Assert(err, IsNil)
 }
 
-func (s *baseInitramfsMountsSuite) mockBlkidDisk(diskType string) {
+func (s *baseInitramfsMountsSuite) mockBlkidDisk(diskType string, seedIdx int) {
 	diskProbeMap := make(map[string]*blkid.FakeBlkidProbe)
 	partProbeMap := make(map[int64]*blkid.FakeBlkidProbe)
 
@@ -1697,16 +1697,16 @@ func (s *baseInitramfsMountsSuite) mockBlkidDisk(diskType string) {
 	disk_values["PTTYPE"] = diskType
 	disk_probe := blkid.BuildFakeProbe(disk_values)
 	for i, partition := range []struct {
-		node  string
 		label string
 		uuid  string
 	}{
-		{"/dev/sda2", "ubuntu-seed", "ubuntu-seed-partuuid"},
-		{"/dev/sda3", "ubuntu-boot", "ubuntu-boot-partuuid"},
-		{"/dev/sda4", "ubuntu-data", "ubuntu-save-partuuid"},
-		{"/dev/sda5", "ubuntu-save", "ubuntu-data-partuuid"},
+		{"ubuntu-seed", "ubuntu-seed-partuuid"},
+		{"ubuntu-boot", "ubuntu-boot-partuuid"},
+		{"ubuntu-data", "ubuntu-save-partuuid"},
+		{"ubuntu-save", "ubuntu-data-partuuid"},
 	} {
-		partProbeMap[int64(i)] = disk_probe.AddPartitionProbe(i+2, partition.label, partition.uuid, int64(i))
+		partProbeMap[int64(i)] = disk_probe.AddPartitionProbe(seedIdx+i,
+			partition.label, partition.uuid, int64(i))
 	}
 	diskProbeMap["/dev/sda"] = disk_probe
 }
@@ -1723,7 +1723,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsInstallObeyDevLink(c *C
 	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-seed-partuuid")
 	defer restore()
 
-	s.mockBlkidDisk("gpt")
+	s.mockBlkidDisk("gpt", 2)
 
 	restore = s.mockSystemdMountSequence(c, []systemdMount{
 		{

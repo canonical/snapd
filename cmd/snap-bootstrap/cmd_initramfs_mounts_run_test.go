@@ -752,7 +752,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("ubuntu-boot-partuuid")
 	defer restore()
-	s.mockBlkidDisk("gpt")
+	s.mockBlkidDisk("gpt", 2)
 
 	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/ubuntu-boot-partuuid")
 	c.Assert(os.MkdirAll(filepath.Dir(fakedPartSrc), 0755), IsNil)

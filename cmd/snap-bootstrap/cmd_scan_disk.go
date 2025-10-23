@@ -93,16 +93,21 @@ func (c *cmdScanDisk) Execute([]string) error {
 	return ScanDisk(os.Stdout)
 }
 
+type Filesystem struct {
+	// FilesystemLabel is the label of the filesystem of the partition.
+	FilesystemLabel string
+	// FilesystemUUID is the filesystem UUID.
+	FilesystemUUID string
+}
+
 type Partition struct {
 	Number int
-	Name   string
-	UUID   string
+	// Partition label, only for GPT
+	Name string
+	// Partition UUID, only for GPT
+	UUID string
 
-	// FilesystemLabel is the label of the filesystem of the
-	// partition. On MBR schemas, partitions do not have a name,
-	// instead we probe for the label of the filesystem. So this
-	// will only be set if it's a non-GPT.
-	FilesystemLabel string
+	Filesystem
 }
 
 // Disk contains information about a disk detected in the system.
@@ -121,27 +126,31 @@ func isGpt(probe blkid.AbstractBlkidProbe) bool {
 	return pttype == "gpt"
 }
 
-// probeFilesystemLabel probes a filesystem to obtain the filesystem label.
+// probeFilesystemInfo probes a filesystem to obtain the filesystem label.
 // <start> and <size> must be byte offsets, not sector counts.
-func probeFilesystemLabel(node string, start, size int64) (string, error) {
+func probeFilesystemInfo(node string, start, size int64) (*Filesystem, error) {
 	probe, err := blkid.NewProbeFromRange(node, start, size)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer probe.Close()
 
 	probe.EnableSuperblocks(true)
-	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL)
+	probe.SetSuperblockFlags(blkid.BLKID_SUBLKS_LABEL | blkid.BLKID_SUBLKS_UUID)
 
 	if err := probe.DoSafeprobe(); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	label, err := probe.LookupValue("LABEL")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return label, nil
+	fsUUID, err := probe.LookupValue("UUID")
+	if err != nil {
+		return nil, err
+	}
+	return &Filesystem{FilesystemLabel: label, FilesystemUUID: fsUUID}, nil
 }
 
 func probeDisk(node string) (*Disk, error) {
@@ -179,7 +188,7 @@ func probeDisk(node string) (*Disk, error) {
 	for _, partition := range partitions.GetPartitions() {
 		var p Partition
 		p.Number = partition.GetNumber()
-		p.FilesystemLabel, err = probeFilesystemLabel(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
+		fsInfo, err := probeFilesystemInfo(node, partition.GetStart()*ss64, partition.GetSize()*ss64)
 		if err != nil {
 			// On the pi, it has been observed during the installation of a preseeded image, that it
 			// can trigger udev, which retriggers snap-bootstrap scan-disk where in the non-gpt
@@ -188,6 +197,7 @@ func probeDisk(node string) (*Disk, error) {
 			logger.Noticef("WARNING: cannot probe filesystem on partition %d: %s", p.Number, err)
 			continue
 		}
+		p.Filesystem = *fsInfo
 		if gpt {
 			p.Name = partition.GetName()
 			p.UUID = partition.GetUUID()
