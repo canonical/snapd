@@ -1940,6 +1940,7 @@ kill -STOP $$
 }
 
 func checkTraceErr(c *check.C, err error) {
+	c.Logf("snap run with strace error: %v", err)
 	res := err == nil
 	if !res {
 		var eerr *exec.ExitError
