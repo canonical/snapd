@@ -344,7 +344,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		rdb.notifyRule(rule.User, rule.ID, data)
 	}
 
-	if len(expiredRules) > 0 || len(mergedRules) > 0 {
+	if len(expiredRules) > 0 || len(partiallyExpiredRules) > 0 || len(mergedRules) > 0 {
 		return rdb.save()
 	}
 
