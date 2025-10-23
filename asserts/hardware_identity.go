@@ -167,26 +167,26 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte) error {
 	switch keyType := h.hardwareKey.(type) {
 	case *rsa.PublicKey:
-		return verifyRSAKey(nonce, signature, h.hardwareKey.(*rsa.PublicKey))
+		return verifySignatureWithRSAKey(nonce, signature, h.hardwareKey.(*rsa.PublicKey))
 	case *dsa.PublicKey:
-		return verifyDSAKey(nonce, signature, h.hardwareKey.(*dsa.PublicKey))
+		return verifySignatureWithDSAKey(nonce, signature, h.hardwareKey.(*dsa.PublicKey))
 	case *ecdsa.PublicKey:
-		return verifyECDSAKey(nonce, signature, h.hardwareKey.(*ecdsa.PublicKey))
+		return verifySignatureWithECDSAKey(nonce, signature, h.hardwareKey.(*ecdsa.PublicKey))
 	case ed25519.PublicKey:
-		return verifyED25519Key(nonce, signature, h.hardwareKey.(ed25519.PublicKey))
+		return verifySignatureWithED25519Key(nonce, signature, h.hardwareKey.(ed25519.PublicKey))
 	default:
 		return fmt.Errorf("unsupported algorithm type: %s", keyType)
 	}
 }
 
-func verifyRSAKey(nonce, signature []byte, pubKey *rsa.PublicKey) error {
+func verifySignatureWithRSAKey(nonce, signature []byte, pubKey *rsa.PublicKey) error {
 	hash := sha3.New384()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
 	return rsa.VerifyPKCS1v15(pubKey, crypto.SHA384, hashed, signature)
 }
 
-func verifyDSAKey(nonce, signature []byte, pubKey *dsa.PublicKey) error {
+func verifySignatureWithDSAKey(nonce, signature []byte, pubKey *dsa.PublicKey) error {
 	hash := sha3.New384()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
@@ -209,7 +209,7 @@ func verifyDSAKey(nonce, signature []byte, pubKey *dsa.PublicKey) error {
 	return nil
 }
 
-func verifyECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKey) error {
+func verifySignatureWithECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKey) error {
 	hash := sha3.New384()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
@@ -232,7 +232,7 @@ func verifyECDSAKey(nonce, signature []byte, pubKey *ecdsa.PublicKey) error {
 	return nil
 }
 
-func verifyED25519Key(nonce, signature []byte, pubKey ed25519.PublicKey) error {
+func verifySignatureWithED25519Key(nonce, signature []byte, pubKey ed25519.PublicKey) error {
 	hash := sha3.New384()
 	hash.Write(nonce)
 	hashed := hash.Sum(nil)
