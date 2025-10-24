@@ -14,6 +14,7 @@ import hashlib
 from collections import namedtuple
 from enum import Enum, auto
 import json
+import contextlib
 
 
 class ModTable:
@@ -848,23 +849,22 @@ def create_initrd(parser, args):
             manifest_out_path = "-".join([manifest_out_path, args.kernelver])
         shutil.copyfile(manifest_path, manifest_out_path)
 
-        arch = dpkg_architecture(args.root, "DEB_HOST_ARCH")
-
         # Finally, write it
         with open(args.output, "wb") as output:
-            if arch == "amd64":
-                with tempfile.TemporaryDirectory(suffix='ubuntu-core-initramfs') as d:
-                    microcode_dir = os.path.join(d, 'kernel/x86/microcode')
-                    os.makedirs(microcode_dir)
-                    with open(os.path.join(microcode_dir, 'AuthenticAMD.bin'), 'wb') as f:
-                        mk_amd_ucode(args.root, f)
-                    mk_intel_ucode(args.root, os.path.join(microcode_dir, 'GenuineIntel.bin'))
-                    # Time is irrelevant. And we should make it reproducible.
-                    # It is also what update-microcode-initrd from package does.
-                    reset_time(d)
-                    mkcpio(d, output, compress=False)
-
             mkcpio(main, output)
+
+
+def generate_ucode(root, output):
+    with tempfile.TemporaryDirectory(suffix='ubuntu-core-initramfs') as d:
+        microcode_dir = os.path.join(d, 'kernel/x86/microcode')
+        os.makedirs(microcode_dir)
+        with open(os.path.join(microcode_dir, 'AuthenticAMD.bin'), 'wb') as f:
+            mk_amd_ucode(root, f)
+        mk_intel_ucode(root, os.path.join(microcode_dir, 'GenuineIntel.bin'))
+        # Time is irrelevant. And we should make it reproducible.
+        # It is also what update-microcode-initrd from package does.
+        reset_time(d)
+        mkcpio(d, output, compress=False)
 
 
 def create_efi(parser, args):
@@ -898,7 +898,6 @@ def create_efi(parser, args):
     ukify_cmd = [
         '/usr/lib/systemd/ukify', 'build',
         '--linux', args.kernel,
-        '--initrd', args.initrd,
         '--output', args.output,
         '--os-release', '@{}'.format(args.os_release),
     ]
@@ -919,7 +918,40 @@ def create_efi(parser, args):
         ukify_cmd += [
             '--cmdline', args.cmdline,
         ]
-    check_call(ukify_cmd)
+
+    with contextlib.ExitStack() as stack:
+        arch = dpkg_architecture(args.root or "/", "DEB_HOST_ARCH")
+        if arch == "amd64":
+            separate_ucode = args.separate_ucode
+            if separate_ucode is None:
+                ukify_raw_ver = check_output(['/usr/lib/systemd/ukify', '--version']).decode('utf-8')
+                if m := re.match(r'^ukify (?P<version>[0-9]*) [(].*[)]$', ukify_raw_ver):
+                    if int(m.group('version')) < 257:
+                        separate_ucode = False
+                else:
+                    print(f"WARNING: Cannot parse ukify version", file=sys.stderr)
+                    separate_ucode = False
+            if separate_ucode:
+                early = stack.enter_context(tempfile.NamedTemporaryFile(suffix='ubuntu-core-initramfs'))
+                generate_ucode(args.root or "/", early)
+                ukify_cmd += [
+                    '--initrd', args.initrd,
+                    '--microcode', early.name,
+                ]
+            else:
+                combined = stack.enter_context(tempfile.NamedTemporaryFile(suffix='ubuntu-core-initramfs'))
+                with open(args.initrd, 'rb') as i:
+                    shutil.copyfileobj(i, combined)
+                generate_ucode(args.root or "/", combined)
+                ukify_cmd += [
+                    '--initrd', combined,
+                ]
+        else:
+            ukify_cmd += [
+                '--initrd', args.initrd,
+            ]
+        check_call(ukify_cmd)
+
     if not args.unsigned:
         check_call(
             [
@@ -957,6 +989,7 @@ def main():
     efi_parser.add_argument(
         "--initrd", help="path to initramfs", default="/boot/ubuntu-core-initramfs.img"
     )
+    efi_parser.add_argument("--separate-ucode", help="separate the .ucode section from initrd", action=argparse.BooleanOptionalAction)
     efi_parser.add_argument(
         "--cmdline", help="commandline to embed (can be overridden with LoadOptions)"
     )
