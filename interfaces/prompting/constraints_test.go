@@ -894,9 +894,9 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	expired, err := constraints.ValidateForInterface("home", at)
+	status, err := constraints.ValidateForInterface("home", at)
 	c.Check(err, IsNil)
-	c.Check(expired, Equals, false)
+	c.Check(status, Equals, prompting.NoPermsExpired)
 	// "camera"
 	constraints = &prompting.RuleConstraints{
 		Permissions: prompting.RulePermissionMap{
@@ -907,9 +907,9 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 			},
 		},
 	}
-	expired, err = constraints.ValidateForInterface("camera", at)
+	status, err = constraints.ValidateForInterface("camera", at)
 	c.Check(err, IsNil)
-	c.Check(expired, Equals, false)
+	c.Check(status, Equals, prompting.NoPermsExpired)
 
 	// Bad interface or permissions
 	cases := []struct {
@@ -1010,9 +1010,9 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
 		constraints := &prompting.RuleConstraints{
 			Permissions: testCase.perms,
 		}
-		expired, err = constraints.ValidateForInterface(testCase.iface, at)
+		status, err = constraints.ValidateForInterface(testCase.iface, at)
 		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
-		c.Check(expired, Equals, false)
+		c.Check(status, Equals, prompting.NoPermsExpired)
 	}
 }
 
@@ -1023,9 +1023,9 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 	}
 
 	for _, testCase := range []struct {
-		perms    prompting.RulePermissionMap
-		expired  bool
-		expected prompting.RulePermissionMap
+		perms          prompting.RulePermissionMap
+		expectedStatus prompting.PermExpirationStatus
+		expected       prompting.RulePermissionMap
 	}{
 		{
 			prompting.RulePermissionMap{
@@ -1034,7 +1034,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					Lifespan: prompting.LifespanForever,
 				},
 			},
-			false,
+			prompting.NoPermsExpired,
 			prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:  prompting.OutcomeAllow,
@@ -1050,7 +1050,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					Expiration: at.Time,
 				},
 			},
-			true,
+			prompting.AllPermsExpired,
 			prompting.RulePermissionMap{},
 		},
 		{
@@ -1071,7 +1071,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					Expiration: at.Time,
 				},
 			},
-			false,
+			prompting.AnyPermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
@@ -1088,7 +1088,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID,
 				},
 			},
-			false,
+			prompting.NoPermsExpired,
 			prompting.RulePermissionMap{
 				"read": &prompting.RulePermissionEntry{
 					Outcome:   prompting.OutcomeAllow,
@@ -1105,7 +1105,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID + 1,
 				},
 			},
-			true,
+			prompting.AllPermsExpired,
 			prompting.RulePermissionMap{},
 		},
 		{
@@ -1126,7 +1126,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID + 1,
 				},
 			},
-			true,
+			prompting.AllPermsExpired,
 			prompting.RulePermissionMap{},
 		},
 		{
@@ -1147,7 +1147,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 					SessionID: at.SessionID,
 				},
 			},
-			false,
+			prompting.AnyPermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
@@ -1172,7 +1172,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				},
 				"execute": nil,
 			},
-			false,
+			prompting.AnyPermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
@@ -1188,7 +1188,7 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 				"write":   nil,
 				"execute": nil,
 			},
-			true,
+			prompting.AllPermsExpired,
 			prompting.RulePermissionMap{},
 		},
 	} {
@@ -1199,9 +1199,9 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 		constraints := &prompting.RuleConstraints{
 			Permissions: copiedPerms,
 		}
-		expired, err := constraints.ValidateForInterface("home", at)
+		status, err := constraints.ValidateForInterface("home", at)
 		c.Check(err, IsNil)
-		c.Check(expired, Equals, testCase.expired, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
+		c.Check(status, Equals, testCase.expectedStatus, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 		c.Check(constraints.Permissions, DeepEquals, testCase.expected, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 	}
 }

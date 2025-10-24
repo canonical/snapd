@@ -355,11 +355,22 @@ func (c *RuleConstraints) MarshalJSON() ([]byte, error) {
 	return json.Marshal(constraintsJSON)
 }
 
+// PermExpirationStatus is used to indicate whether all, some, or no permissions
+// within a rule permission map expired.
+type PermExpirationStatus int
+
+const (
+	NoPermsExpired PermExpirationStatus = iota
+	AnyPermsExpired
+	AllPermsExpired
+)
+
 // ValidateForInterface checks that the rule constraints are valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// rule is If the rule is invalid, returns an error.
-func (c *RuleConstraints) ValidateForInterface(iface string, at At) (expired bool, err error) {
+// given interface. If any permissions have expired at the given point in time,
+// they are pruned. Returns a [PermExpirationStatus] indicating whether all,
+// any, or no permissions were expired. If the rule is invalid, returns an
+// error.
+func (c *RuleConstraints) ValidateForInterface(iface string, at At) (status PermExpirationStatus, err error) {
 	// XXX: this is called only when loading rules from disk. Any interface-
 	// specific fields were validated while unmarshalling, but we don't have
 	// the means to properly handle expired rules then, so this method is still
@@ -621,16 +632,17 @@ func (pm PermissionMap) toRulePermissionMap(iface string, at At) (RulePermission
 type RulePermissionMap map[string]*RulePermissionEntry
 
 // validateForInterface checks that the rule permission map is valid for the
-// given interface. Any permissions which have expired at the given point in
-// time are pruned. If all permissions have expired, then returns true. If the
-// permission map is invalid, returns an error.
-func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired bool, err error) {
+// given interface. If any permissions have expired at the given point in time,
+// they are pruned. Returns a [PermExpirationStatus] indicating whether all,
+// any, or no permissions were expired. If the permission map is invalid,
+// returns an error.
+func (pm RulePermissionMap) validateForInterface(iface string, at At) (status PermExpirationStatus, err error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return false, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
+		return NoPermsExpired, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
 	}
 	if len(pm) == 0 {
-		return false, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
+		return NoPermsExpired, prompting_errors.NewPermissionsEmptyError(iface, availablePerms)
 	}
 	var errs []error
 	var invalidPerms []string
@@ -659,16 +671,19 @@ func (pm RulePermissionMap) validateForInterface(iface string, at At) (expired b
 		errs = append(errs, prompting_errors.NewInvalidPermissionsError(iface, invalidPerms, availablePerms))
 	}
 	if len(errs) > 0 {
-		return false, strutil.JoinErrors(errs...)
+		return NoPermsExpired, strutil.JoinErrors(errs...)
 	}
 	for _, perm := range expiredPerms {
 		delete(pm, perm)
 	}
 	if len(pm) == 0 {
 		// All permissions expired
-		return true, nil
+		return AllPermsExpired, nil
 	}
-	return false, nil
+	if len(expiredPerms) > 0 {
+		return AnyPermsExpired, nil
+	}
+	return NoPermsExpired, nil
 }
 
 // Expired returns true if all permissions in the map have expired at the given

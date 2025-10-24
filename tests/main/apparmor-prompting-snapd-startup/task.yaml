@@ -236,16 +236,26 @@ execute: |
     gojq < "$RULES_PATH" > current.json
     diff expected.json current.json
 
-    echo "Check that we received three notices, one of which marked a rule as expired"
+    echo "Check that we received two notices, one of which marked a rule as expired"
     snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | gojq
     snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result | length' | MATCH 3
+        gojq '.result | length' | MATCH '^2$'
     snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result' | grep -c '"removed": "expired"' | MATCH 1
+        gojq '.result' | grep -c '"removed": "expired"' | MATCH '^1$'
+    echo "One notice for rule with ID 0000000000000002, which was modified but not expired"
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000&keys=0000000000000002" | \
+        gojq '.result | length' | MATCH '^1$'
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000&keys=0000000000000002" | \
+        gojq '.result' | NOMATCH '"last-data"'
+    echo "One notice for rule with ID 0000000000000003, which expired"
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000&keys=0000000000000003" | \
+        gojq '.result | length' | MATCH '^1$'
+    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000&keys=0000000000000003" | \
+        gojq '.result[0]."last-data".removed' | MATCH '"expired"'
 
     echo "Check that only the first and last rules are still valid (must be done with UID 1000)"
     snap debug api --fail "/v2/interfaces/requests/rules?user-id=1000" | gojq
-    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result | length' | MATCH 2
+    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result | length' | MATCH '^2$'
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result[0].id' | MATCH "0000000000000002"
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result[1].id' | MATCH "0000000000000005"
 
@@ -269,17 +279,13 @@ execute: |
     gojq < "$RULES_PATH" > current.json
     diff expected.json current.json
 
-    echo "Check that we received two notices for the non-expired rules"
+    echo "Check that we received no new notices notices, as the non-expired rules did not change on restart"
     snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | gojq
     snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result | length' | MATCH 2
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result[0].key' | MATCH "0000000000000002"
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result[1].key' | MATCH "0000000000000005"
+        gojq '.result | length' | MATCH '^0$'
 
     echo "Check that only the non-expired rules are still valid (must be done with UID 1000)"
-    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result | length' | MATCH 2
+    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result | length' | MATCH '^2$'
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result[0].id' | MATCH "0000000000000002"
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result[1].id' | MATCH "0000000000000005"
 
@@ -312,7 +318,7 @@ execute: |
     diff expected.json current.json
 
     echo "Check that accessing a prompting endpoint results in an expected error"
-    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '."status-code"' | MATCH 500
+    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '."status-code"' | MATCH '^500$'
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result.message' | MATCH -i "Apparmor Prompting is not running"
 
     echo '### Remove the corrupted max prompt ID file and check that prompting backends can start again ###'
@@ -340,16 +346,12 @@ execute: |
     gojq < "$RULES_PATH" > current.json
     diff expected.json current.json
 
-    echo "Check that we received one notice each for the non-expired rules"
+    echo "Check that we received no new notices, as the non-expired rules did not changed on restart"
     snap debug api --fail "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | gojq
     snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result | length' | MATCH 2
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result[0].key' | MATCH "0000000000000002"
-    snap debug api "/v2/notices?after=$CURRTIME&types=interfaces-requests-rule-update&user-id=1000" | \
-        gojq '.result[1].key' | MATCH "0000000000000005"
+        gojq '.result | length' | MATCH '^0$'
 
     echo "Check that the non-expired rules are still valid (must be done with UID 1000)"
-    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result | length' | MATCH 2
+    snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result | length' | MATCH '^2$'
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result[0].id' | MATCH "0000000000000002"
     snap debug api "/v2/interfaces/requests/rules?user-id=1000" | gojq '.result[1].id' | MATCH "0000000000000005"

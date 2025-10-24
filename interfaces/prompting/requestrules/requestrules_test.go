@@ -465,32 +465,65 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 
 	expectedNoticeInfo := []*noticeInfo{
 		{
-			userID: good1.User,
-			ruleID: good1.ID,
-			data:   nil,
-		},
-		{
 			userID: expired1.User,
 			ruleID: expired1.ID,
 			data:   map[string]string{"removed": "expired"},
-		},
-		{
-			userID: good2.User,
-			ruleID: good2.ID,
-			data:   nil,
 		},
 		{
 			userID: expired2.User,
 			ruleID: expired2.ID,
 			data:   map[string]string{"removed": "expired"},
 		},
-		{
-			userID: good3.User,
-			ruleID: good3.ID,
-			data:   nil,
-		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
+
+	c.Assert(rdb.Close(), IsNil)
+
+	// Restart, reloading the rule db should not emit new notices
+	rdb, err = requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	s.checkNewNotices(c, nil)
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	c.Assert(rdb.Close(), IsNil)
+}
+
+func (s *requestrulesSuite) TestLoadPartiallyExpiredRules(c *C) {
+	dbPath := s.prepDBPath(c)
+
+	partialRule := s.ruleTemplateWithReadPathPattern(c, prompting.IDType(1), "/home/test/partial")
+	expiredTime := time.Now().Add(-time.Minute)
+	// Add a permission which will be expired
+	setPermissionsOutcomeLifespanExpirationSession(c, partialRule, []string{"write"}, prompting.OutcomeAllow, prompting.LifespanTimespan, expiredTime, 0)
+
+	s.writeRules(c, dbPath, []*requestrules.Rule{partialRule})
+
+	rdb, err := requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	// The expired permission should be pruned and the trimmed rule persisted
+	trimmedRule := s.ruleTemplateWithReadPathPattern(c, partialRule.ID, "/home/test/partial")
+	trimmedRule.Timestamp = partialRule.Timestamp
+	expectedWrittenRules := []*requestrules.Rule{trimmedRule}
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	// First load emits a notice because the rule was partially expired
+	s.checkNewNoticesSimple(c, nil, partialRule)
+
+	c.Assert(rdb.Close(), IsNil)
+
+	// Restart, reloading the rule db should not emit new notices
+	rdb, err = requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	s.checkNewNotices(c, nil)
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	c.Assert(rdb.Close(), IsNil)
 }
 
 func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
@@ -641,11 +674,6 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 
 	expectedNoticeInfo := []*noticeInfo{
 		{
-			userID: good1.User,
-			ruleID: good1.ID,
-			data:   nil,
-		},
-		{
 			userID: identical1.User,
 			ruleID: identical1.ID,
 			data: map[string]string{
@@ -654,22 +682,12 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 			},
 		},
 		{
-			userID: good2.User,
-			ruleID: good2.ID,
-			data:   nil,
-		},
-		{
 			userID: nonOverlap2.User,
 			ruleID: nonOverlap2.ID,
 			data: map[string]string{
 				"removed":     "merged",
 				"merged-into": good2.ID.String(),
 			},
-		},
-		{
-			userID: good3.User,
-			ruleID: good3.ID,
-			data:   nil,
 		},
 		{
 			userID: overlap3.User,
@@ -694,6 +712,18 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
+
+	c.Assert(rdb.Close(), IsNil)
+
+	// Restart, reloading the rule db should not emit new notices
+	rdb, err = requestrules.New(s.defaultNotifyRule)
+	c.Check(err, IsNil)
+	c.Check(rdb, NotNil)
+
+	s.checkNewNotices(c, nil)
+	s.checkWrittenRuleDB(c, expectedWrittenRules)
+
+	c.Assert(rdb.Close(), IsNil)
 }
 
 func (s *requestrulesSuite) TestLoadHappy(c *C) {
@@ -721,7 +751,7 @@ func (s *requestrulesSuite) TestLoadHappy(c *C) {
 	c.Check(logbuf.String(), HasLen, 0)
 
 	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, nil, rules...)
+	s.checkNewNotices(c, nil)
 }
 
 func (s *requestrulesSuite) TestJoinInternalErrors(c *C) {
