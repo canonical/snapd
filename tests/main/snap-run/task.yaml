@@ -104,7 +104,7 @@ execute: |
     echo "Test snap run --strace with options works"
     # this is not a sensible way of getting strace's version, but at least it
     # does not hang or break
-    not snap run --strace="-V" test-snapd-sh-core24.sh -c 'echo hello-world' >stdout 2>stderr
+    snap run --strace="-V" test-snapd-sh-core24.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH "strace -- version" < stdout
     # We don't want to test for an empty stderr should there be unrelated errors with
     # strace. Instead we look for a keyword
