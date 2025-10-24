@@ -22,7 +22,6 @@ package client_test
 import (
 	"encoding/json"
 	"io"
-	"net/url"
 
 	. "gopkg.in/check.v1"
 )
@@ -35,12 +34,14 @@ func (cs *clientSuite) TestConfdbGet(c *C) {
 		"type": "async"
 	}`
 
-	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"})
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"}, map[string]any{"field": "value", "other-field": "baz"})
 	c.Assert(err, IsNil)
 	c.Assert(chgID, Equals, "123")
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/confdb/a/b/c")
-	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"keys": []string{"foo,bar"}})
+	c.Check(cs.reqs[0].URL.Query().Get("keys"), DeepEquals, "foo,bar")
+	constraints := cs.reqs[0].URL.Query().Get("constraints")
+	c.Check(constraints, Equals, `{"field":"value","other-field":"baz"}`)
 }
 
 func (cs *clientSuite) TestConfdbSet(c *C) {

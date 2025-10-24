@@ -71,12 +71,19 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		keys = strutil.CommaSeparatedList(keysStr)
 	}
 
+	var constraints map[string]any
+	if cstrsRaw := r.URL.Query().Get("constraints"); cstrsRaw != "" {
+		if err := json.Unmarshal([]byte(cstrsRaw), &constraints); err != nil {
+			return toAPIError(err)
+		}
+	}
+
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys)
+	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -159,6 +166,10 @@ func toAPIError(err error) *apiError {
 			Kind:    client.ErrorKindConfigNoSuchOption,
 			Value:   err,
 		}
+	case errors.As(err, new(*json.SyntaxError)):
+		fallthrough
+	case errors.As(err, new(*json.UnmarshalTypeError)):
+		return BadRequest(err.Error())
 	case errors.Is(err, &confdb.BadRequestError{}):
 		return BadRequest(err.Error())
 
