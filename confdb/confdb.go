@@ -680,7 +680,7 @@ type Accessor interface {
 }
 
 // subKey holds information about a piece split out of a path, including the
-// actual path part and any field attached to it.
+// actual path part and any field filters attached to it.
 type subKey struct {
 	key     string
 	filters map[string]string
