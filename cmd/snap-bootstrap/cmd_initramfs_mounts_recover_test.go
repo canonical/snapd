@@ -545,13 +545,39 @@ func (s *initramfsMountsSuite) _testInitramfsMountsRecoverMode(c *C, base string
 
 	// Check sysroot mount unit bits
 	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
 
 	options := ""
+	what := "/run/mnt/ubuntu-seed/snaps/" + base + "_1.snap"
 	if baseIntegrityData != nil {
 		options = fmt.Sprintf("\nOptions=verity.roothash=%s,verity.hashdevice=%s", baseIntegrityData.Digest, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed/snaps/"+base+"_1.snap.verity"))
+
+		baseUnitPath := filepath.Join(unitDir, "sysroot-helper-loop-mounts.service")
+		c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
+Description=Setup helper loop devices for mounting the rootfs with dm-verity
+DefaultDependencies=no
+Before=initrd-root-fs.target sysroot.mount
+After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/losetup -f /dev/loop100 `+what+`; /sbin/losetup -f /dev/loop101 `+what+`
+ExecStop=/sbin/losetup -d /dev/loop100 /dev/loop101
+
+[Install]
+WantedBy=sysroot.mount
+`)
+
+		symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot-helper-loop-mounts.service")
+		target, err := os.Readlink(symlinkPath)
+		c.Assert(err, IsNil)
+		c.Assert(target, Equals, "../sysroot-helper-loop-mounts.service")
+
+		what = "/dev/loop101"
 	}
 
+	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
 	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
 DefaultDependencies=no
 Before=initrd-root-fs.target
@@ -560,7 +586,7 @@ Before=umount.target
 Conflicts=umount.target
 
 [Mount]
-What=/run/mnt/ubuntu-seed/snaps/`+base+`_1.snap
+What=`+what+`
 Where=/sysroot
 Type=squashfs`+options+`
 `)
