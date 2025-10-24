@@ -10,7 +10,6 @@ require (
 	github.com/canonical/go-efilib v1.6.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.13.0
-	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
