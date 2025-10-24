@@ -310,6 +310,9 @@ func (x *cmdRun) Execute(args []string) error {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
+	if x.Gdb {
+		return errors.New("--gdb is no longer supported: use --gdbserver option instead")
+	}
 
 	logger.StartupStageTimestamp("start")
 
@@ -1081,10 +1084,6 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	return nil
 }
 
-func (x *cmdRun) runCmdUnderGdb(_ []string, _ envForExecFunc) error {
-	return errors.New("--gdb is no longer supported: use --gdbserver option instead")
-}
-
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
 	straceTmp, err := os.MkdirTemp("", "exec-trace")
@@ -1459,9 +1458,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	if x.Shell {
 		cmd = append(cmd, "--command=shell")
 	}
-	if x.Gdb {
-		cmd = append(cmd, "--command=gdb")
-	}
 	if x.useGdbserver() {
 		cmd = append(cmd, "--command=gdbserver")
 	}
@@ -1633,8 +1629,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
-	} else if x.Gdb {
-		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useGdbserver() {
 		if _, err := exec.LookPath("gdbserver"); err != nil {
 			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
