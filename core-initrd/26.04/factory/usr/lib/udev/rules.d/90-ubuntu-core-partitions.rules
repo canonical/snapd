@@ -1,4 +1,5 @@
 SUBSYSTEM!="block", GOTO="ubuntu_core_partitions_end"
+KERNEL=="loop*|mmcblk[0-9]boot[0-9]", GOTO="ubuntu_core_partitions_end"
 
 ENV{DEVTYPE}=="disk", IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
 ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_DISK"
