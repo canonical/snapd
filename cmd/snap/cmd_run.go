@@ -1158,6 +1158,14 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	straceCmd.Stdin = Stdin
 	straceCmd.Stdout = Stdout
 	straceCmd.Stderr = Stderr
+
+	// before starting strace in blocking mode await app to exit, so that we do
+	// not end up with zombies
+	appCmdErrC := make(chan error, 1)
+	go func() {
+		appCmdErrC <- appCmd.Wait()
+	}()
+
 	straceCmdErr := straceCmd.Run()
 	// ensure we close the fifo here so that the strace.TraceExecCommand()
 	// helper gets a EOF from the fifo (i.e. all writers must be closed
@@ -1177,7 +1185,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	if killErr != nil {
 		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", err)
 	}
-	appCmdErr := appCmd.Wait()
+	appCmdErr := <-appCmdErrC
 
 	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent))
 }
@@ -1208,11 +1216,11 @@ func maybeIgnoreTracedAppKillError(err error, killed bool) error {
 }
 
 func maybeKillTracedApp(appCmd *exec.Cmd) (killSent bool, err error) {
-	if err := appCmd.Process.Kill(); err != nil && err != syscall.ESRCH {
-		return false, fmt.Errorf("cannot kill child application: %w\n", err)
+	if err := appCmd.Process.Kill(); err != nil && err != syscall.ESRCH && err != os.ErrProcessDone {
+		return false, fmt.Errorf("cannot kill child application: %w", err)
 	}
 	// kill was sent if the target process was found
-	return err != syscall.ESRCH, nil
+	return err != syscall.ESRCH && err != os.ErrProcessDone, nil
 }
 
 func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
@@ -1365,6 +1373,11 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		return err
 	}
 
+	appCmdErrC := make(chan error, 1)
+	go func() {
+		appCmdErrC <- appCmd.Wait()
+	}()
+
 	// strace exits when the app finishes, however it may exit early if
 	// arguments weren't right or it failed, in which case we need to clean up
 	// the snap application process by sending KILL
@@ -1372,10 +1385,10 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 
 	appKillSent, killErr := maybeKillTracedApp(appCmd)
 	if killErr != nil {
-		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", err)
+		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", killErr)
 	}
-	appCmdErr := appCmd.Wait()
 
+	appCmdErr := <-appCmdErrC
 	<-filterDone
 	<-stdoutProxyDone
 	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent))

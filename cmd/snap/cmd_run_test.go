@@ -1950,6 +1950,25 @@ func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	// pretend we have sudo and simulate some useful output that would
 	// normally come from strace
 	sudoCmd := testutil.MockCommand(c, "sudo", fmt.Sprintf(`
+other_pid=
+while [ -n "$1" ]; do
+    case "$1" in
+        -p)
+            shift
+            other_pid="$1"
+            shift
+            ;;
+         *)
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$other_pid" ]; then
+    echo "missing other PID"
+    exit 99
+fi
+
 echo "stdout output 1"
 >&2 echo 'strace: Process 1234 attached'
 >&2 echo '--- stopped by SIGSTOP ---'
@@ -1960,6 +1979,12 @@ echo "stdout output 1"
 >&2 echo "interessting strace output"
 >&2 echo "and more"
 echo "stdout output 2"
+
+# pretend we are strace and we wait for the other process to
+# finish before completing
+while [ -e "/proc/$other_pid" ]; do
+    sleep 0.1
+done
 `, dirs.SnapMountDir))
 	defer sudoCmd.Restore()
 
