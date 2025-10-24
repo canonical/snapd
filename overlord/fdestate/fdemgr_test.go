@@ -1402,7 +1402,7 @@ func (s *fdeMgrSuite) TestManagerVerifyPrimaryKey(c *C) {
 	c.Assert(mgr.VerifyPrimaryKeyAgainstState(2, primaryKey), Equals, false)
 }
 
-func (s *fdeMgrSuite) TestNextUniqueKeyslot(c *C) {
+func (s *fdeMgrSuite) testNextUniqueKeyslot(c *C, chgReady bool) {
 	st := s.st
 	onClassic := true
 	mgr := s.startedManager(c, onClassic)
@@ -1412,13 +1412,31 @@ func (s *fdeMgrSuite) TestNextUniqueKeyslot(c *C) {
 	}
 	unlockKeys := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "tmp-1"},
-		{ContainerRole: "system-data", Name: "tmp-3"},
 		{ContainerRole: "system-save", Name: "tmp-2"},
 	}
 	s.mockCurrentKeys(c, rkeys, unlockKeys)
 
 	st.Lock()
 	defer st.Unlock()
+
+	chg := st.NewChange("some-fde-change", "some-fde-chang")
+
+	// fde task with keyslots attribute
+	t1 := st.NewTask("fde-op-1", "fde-op-1") // has fde- prefix
+	t1.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "tmp-3"}})
+	// fde task without keyslots attribute
+	t2 := st.NewTask("fde-op-2", "fde-op-2") // has fde- prefix
+	// non-fde task with keyslots attribute doesn't count
+	t3 := st.NewTask("non-fde-op-3", "fde-op-3") // no fde- prefix
+	t3.Set("keyslots", []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "tmp-4"}})
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	if chgReady {
+		chg.SetStatus(state.DoneStatus)
+	}
 
 	var keyslots []fdestate.KeyslotRef
 	for i := 0; i < 3; i++ {
@@ -1439,21 +1457,127 @@ func (s *fdeMgrSuite) TestNextUniqueKeyslot(c *C) {
 		keyslots = append(keyslots, ref)
 	}
 
-	c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
-		// 1st iteration
-		{ContainerRole: "system-data", Name: "tmp-2"},
+	if chgReady {
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
+			// 1st iteration
+			{ContainerRole: "system-data", Name: "tmp-2"},
+			{ContainerRole: "system-save", Name: "tmp-1"},
+			{ContainerRole: "system-data", Name: "reprovision-1"},
+			{ContainerRole: "system-save", Name: "reprovision-1"},
+			// 2nd iteration
+			{ContainerRole: "system-data", Name: "tmp-3"},
+			{ContainerRole: "system-save", Name: "tmp-3"},
+			{ContainerRole: "system-data", Name: "reprovision-2"},
+			{ContainerRole: "system-save", Name: "reprovision-3"},
+			// 3rd iteration
+			{ContainerRole: "system-data", Name: "tmp-4"},
+			{ContainerRole: "system-save", Name: "tmp-4"},
+			{ContainerRole: "system-data", Name: "reprovision-3"},
+			{ContainerRole: "system-save", Name: "reprovision-4"},
+		})
+	} else {
+		c.Check(keyslots, DeepEquals, []fdestate.KeyslotRef{
+			// 1st iteration
+			{ContainerRole: "system-data", Name: "tmp-2"},
+			{ContainerRole: "system-save", Name: "tmp-1"},
+			{ContainerRole: "system-data", Name: "reprovision-1"},
+			{ContainerRole: "system-save", Name: "reprovision-1"},
+			// 2nd iteration
+			{ContainerRole: "system-data", Name: "tmp-4"},
+			{ContainerRole: "system-save", Name: "tmp-3"},
+			{ContainerRole: "system-data", Name: "reprovision-2"},
+			{ContainerRole: "system-save", Name: "reprovision-3"},
+			// 3rd iteration
+			{ContainerRole: "system-data", Name: "tmp-5"},
+			{ContainerRole: "system-save", Name: "tmp-4"},
+			{ContainerRole: "system-data", Name: "reprovision-3"},
+			{ContainerRole: "system-save", Name: "reprovision-4"},
+		})
+	}
+}
+
+func (s *fdeMgrSuite) TestNextUniqueKeyslot(c *C) {
+	const chgReady = false
+	s.testNextUniqueKeyslot(c, chgReady)
+}
+
+func (s *fdeMgrSuite) TestNextUniqueKeyslotChangeReady(c *C) {
+	const chgReady = true
+	s.testNextUniqueKeyslot(c, chgReady)
+}
+
+func (s *fdeMgrSuite) TestNextUniqueKeyslotCacheInvalidation(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, nil, nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("some-fde-change", "some-fde-chang")
+	// FDE task with keyslots attribute
+	t := st.NewTask("fde-op", "fde-op") // has fde- prefix
+	t.Set("keyslots", []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "tmp-1"},
 		{ContainerRole: "system-save", Name: "tmp-1"},
-		{ContainerRole: "system-data", Name: "reprovision-1"},
-		{ContainerRole: "system-save", Name: "reprovision-1"},
-		// 2nd iteration
-		{ContainerRole: "system-data", Name: "tmp-4"},
-		{ContainerRole: "system-save", Name: "tmp-3"},
-		{ContainerRole: "system-data", Name: "reprovision-2"},
-		{ContainerRole: "system-save", Name: "reprovision-3"},
-		// 3rd iteration
-		{ContainerRole: "system-data", Name: "tmp-5"},
-		{ContainerRole: "system-save", Name: "tmp-4"},
-		{ContainerRole: "system-data", Name: "reprovision-3"},
-		{ContainerRole: "system-save", Name: "reprovision-4"},
 	})
+	chg.AddTask(t)
+
+	// - maxID = 128 before cache is invalidated again
+	// - Starting from i=2 because tmp-1 is already present in a non-ready change
+	for i := 2; i <= 128; i++ {
+		ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, IsNil)
+		c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-data", Name: fmt.Sprintf("tmp-%d", i)})
+
+		ref, err = mgr.NextUniqueKeyslot("system-save", "tmp")
+		c.Assert(err, IsNil)
+		c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-save", Name: fmt.Sprintf("tmp-%d", i)})
+	}
+
+	// Mark change as ready
+	chg.SetStatus(state.ErrorStatus)
+	// The next call to NextUniqueKeyslot will clear the cache and
+	// and re-compute from ground truth (system keyslots + non-ready changes) because
+	// we exceeded maxID = 128.
+
+	ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+	c.Assert(err, IsNil)
+	c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-data", Name: "tmp-1"})
+
+	ref, err = mgr.NextUniqueKeyslot("system-save", "tmp")
+	c.Assert(err, IsNil)
+	c.Check(ref, Equals, fdestate.KeyslotRef{ContainerRole: "system-save", Name: "tmp-1"})
+}
+
+// This test checks that the cache invalidation retry logic is only
+// triggered once to avoid accidental infinite loops.
+func (s *fdeMgrSuite) TestNextUniqueKeyslotNoSlotsAvailableError(c *C) {
+	st := s.st
+	onClassic := true
+	mgr := s.startedManager(c, onClassic)
+	s.mockCurrentKeys(c, nil, nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	// Initialize the cache
+	var refs []fdestate.KeyslotRef
+	for i := 1; i <= 128; i++ {
+		ref, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, IsNil)
+		refs = append(refs, ref)
+	}
+
+	chg := st.NewChange("some-fde-change", "some-fde-chang")
+	// FDE task with keyslots attribute
+	t := st.NewTask("fde-op", "fde-op") // has fde- prefix
+	t.Set("keyslots", refs)
+	chg.AddTask(t)
+
+	for i := 0; i < 10; i++ {
+		_, err := mgr.NextUniqueKeyslot("system-data", "tmp")
+		c.Assert(err, ErrorMatches, `internal error: cannot find a unique keyslot for container role "system-data" with prefix "tmp"`)
+	}
 }

@@ -472,6 +472,25 @@ func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot,
 	return mgr.GetKeyslots(keyslotRefs)
 }
 
+func keyslotsAffectedByTask(t *state.Task) ([]KeyslotRef, error) {
+	if !isFDETask(t) {
+		return nil, nil
+	}
+
+	var keyslots []KeyslotRef
+	err := t.Get("keyslots", &keyslots)
+	if errors.Is(err, state.ErrNoState) {
+		// This is fine, not all FDE tasks should carry the
+		// keyslots attribute.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain keyslots from task %s (%s): %v", t.ID(), t.Summary(), err)
+	}
+
+	return keyslots, nil
+}
+
 // NextUniqueKeyslot returns a unique keyslot reference given a
 // container role and a prefix which  can be used for conflict
 // free ephemeral key names. This can be used for temporary
@@ -481,39 +500,71 @@ func GetKeyslots(st *state.State, keyslotRefs []KeyslotRef) (keyslots []Keyslot,
 //
 // The state needs to be locked by the caller.
 func (m *FDEManager) NextUniqueKeyslot(containerRole, prefix string) (ref KeyslotRef, err error) {
-	var reservedKeyslots map[string]bool
+	cacheInvalidated := false
+	for {
+		var reservedKeyslots map[string]bool
 
-	type fdeReservedKeyslots struct{}
-	cached := m.state.Cached(fdeReservedKeyslots{})
-	if cached == nil {
-		keyslots, _, err := m.GetKeyslots(nil)
-		if err != nil {
-			return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q: %v", containerRole, prefix, err)
-		}
-		reservedKeyslots = make(map[string]bool, len(keyslots))
-		for _, keyslot := range keyslots {
-			reservedKeyslots[keyslot.Ref().String()] = true
-		}
-	} else {
-		reservedKeyslots = cached.(map[string]bool)
-	}
+		type fdeReservedKeyslotsKey struct{}
+		cached := m.state.Cached(fdeReservedKeyslotsKey{})
+		if cached == nil {
+			// Cache was already empty, no need to invalidate it again
+			// below.
+			cacheInvalidated = true
 
-	// We should run out of real LUKS2 keyslots ages before we hit this
-	// artificial limit. Realistically LUKS2 allows a maximum of 32 keyslots,
-	// and since we are aggressively reusing available postfix numbers, all
-	// should be good.
-	const unrealisticallyLargeNumber = 1024 * 1024
-	for i := 1; i < unrealisticallyLargeNumber; i++ {
-		ref = KeyslotRef{ContainerRole: containerRole, Name: fmt.Sprintf("%s-%d", prefix, i)}
-		if !reservedKeyslots[ref.String()] {
-			// Mark as reserved even if it is still not used yet to
-			// avoid the name being used twice causing a conflict
-			// (or worse, incorrect behaviour) later in task
-			// handlers.
-			reservedKeyslots[ref.String()] = true
-			m.state.Cache(fdeReservedKeyslots{}, reservedKeyslots)
-			return ref, nil
+			// Mark current keyslots as reserved.
+			keyslots, _, err := m.GetKeyslots(nil)
+			if err != nil {
+				return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q: %v", containerRole, prefix, err)
+			}
+			reservedKeyslots = make(map[string]bool, len(keyslots))
+			for _, keyslot := range keyslots {
+				reservedKeyslots[keyslot.Ref().String()] = true
+			}
+			// Also, Mark keyslots in non-ready changes as reserved as well.
+			for _, chg := range m.state.Changes() {
+				if chg.Status().Ready() {
+					continue
+				}
+				for _, t := range chg.Tasks() {
+					tKeyslotRefs, err := keyslotsAffectedByTask(t)
+					if err != nil {
+						return KeyslotRef{}, err
+					}
+					for _, ref := range tKeyslotRefs {
+						reservedKeyslots[ref.String()] = true
+					}
+				}
+			}
+		} else {
+			reservedKeyslots = cached.(map[string]bool)
 		}
+
+		// We should run out of real LUKS2 keyslots ages before we hit this
+		// artificial limit. Realistically LUKS2 allows a maximum of 32 keyslots,
+		// and since we are aggressively reusing available postfix numbers, all
+		// should be good.
+		const maxID = 128
+		for i := 1; i <= maxID; i++ {
+			ref = KeyslotRef{ContainerRole: containerRole, Name: fmt.Sprintf("%s-%d", prefix, i)}
+			if !reservedKeyslots[ref.String()] {
+				// Mark as reserved even if it is still not used yet to
+				// avoid the name being used twice causing a conflict
+				// (or worse, incorrect behaviour) later in task
+				// handlers.
+				reservedKeyslots[ref.String()] = true
+				m.state.Cache(fdeReservedKeyslotsKey{}, reservedKeyslots)
+				return ref, nil
+			}
+		}
+		// No slots available, try to invalidate the cache and re-populate
+		// it from the system and non-ready changes to reuse stale keyslots
+		// that were reserved and no longer relevant.
+		if cacheInvalidated {
+			// Invalidating the cache once is enough.
+			break
+		}
+		m.state.Cache(fdeReservedKeyslotsKey{}, nil)
+		cacheInvalidated = true
 	}
 
 	return KeyslotRef{}, fmt.Errorf("internal error: cannot find a unique keyslot for container role %q with prefix %q", containerRole, prefix)
