@@ -1172,13 +1172,47 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		logger.Noticef("cannot extract runtime data: %v", traceErr)
 	}
 
-	if err := appCmd.Process.Kill(); err != nil && err != syscall.ESRCH {
-		logger.Noticef("cannot kill application: %v", err)
+	// see comment at a similar place in runCmdUnderStrace()
+	appKillSent, killErr := maybeKillTracedApp(appCmd)
+	if killErr != nil {
+		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", err)
 	}
-
 	appCmdErr := appCmd.Wait()
 
-	return strutil.JoinErrors(straceCmdErr, appCmdErr)
+	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent))
+}
+
+// maybeIgnoreTracedAppKillError processes the error from a snap application that may
+// have been forcefully killed during trace as a result of strace process
+// finishing prematurely.
+func maybeIgnoreTracedAppKillError(err error, killed bool) error {
+	if !killed {
+		return err
+	}
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+
+	ws, ok := exitErr.ProcessState.Sys().(syscall.WaitStatus)
+	if !ok {
+		return err
+	}
+
+	if ws.Signal() != syscall.SIGKILL {
+		return err
+	}
+
+	return nil
+}
+
+func maybeKillTracedApp(appCmd *exec.Cmd) (killSent bool, err error) {
+	if err := appCmd.Process.Kill(); err != nil && err != syscall.ESRCH {
+		return false, fmt.Errorf("cannot kill child application: %w\n", err)
+	}
+	// kill was sent if the target process was found
+	return err != syscall.ESRCH, nil
 }
 
 func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
@@ -1331,18 +1365,20 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		return err
 	}
 
-	// strace exits when the app finishes, or it may exit early if the arguments
-	// weren't correct
+	// strace exits when the app finishes, however it may exit early if
+	// arguments weren't right or it failed, in which case we need to clean up
+	// the snap application process by sending KILL
 	straceCmdErr := straceCmd.Wait()
-	if err := appCmd.Process.Kill(); err != nil && err != syscall.ESRCH {
+
+	appKillSent, killErr := maybeKillTracedApp(appCmd)
+	if killErr != nil {
 		fmt.Fprintf(Stderr, "error: cannot kill child application: %v\n", err)
 	}
-
 	appCmdErr := appCmd.Wait()
 
 	<-filterDone
 	<-stdoutProxyDone
-	return strutil.JoinErrors(straceCmdErr, appCmdErr)
+	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent))
 }
 
 func newHookRunnable(info *snap.Info, hook *snap.HookInfo, component *snap.ComponentInfo) runnable {

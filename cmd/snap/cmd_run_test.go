@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
+	// "os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
+	// "syscall"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -1939,20 +1939,6 @@ kill -STOP $$
 	return traceShimCmd, readShimPid
 }
 
-func checkTraceErr(c *check.C, err error) {
-	c.Logf("snap run with strace error: %v", err)
-	res := err == nil
-	if !res {
-		var eerr *exec.ExitError
-		if errors.As(err, &eerr) {
-			if ws, ok := eerr.ProcessState.Sys().(syscall.WaitStatus); ok {
-				res = c.Check(ws.Signal(), check.Equals, syscall.SIGKILL)
-			}
-		}
-	}
-	c.Check(res, check.Equals, true, check.Commentf("unexpected error: %v", err))
-}
-
 func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
@@ -1986,8 +1972,8 @@ echo "stdout output 2"
 
 	// and run it under strace
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace", "--", "snapname.app", "--arg1", "arg2"})
-	checkTraceErr(c, err)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
 			"sudo",
@@ -2023,8 +2009,8 @@ and more
 
 	// try again without filtering
 	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"})
-	checkTraceErr(c, err)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
 			"sudo",
@@ -2065,8 +2051,8 @@ and more
 		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{
 			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
 		})
-		checkTraceErr(c, err)
-		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+		c.Check(err, check.IsNil)
+		c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 			append(append([]string{
 				"sudo",
@@ -2110,8 +2096,8 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 
 	// and run it under strace
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", `--strace=-tt --raw -o "file with spaces"`, "--", "snapname.app", "--arg1", "arg2"})
-	checkTraceErr(c, err)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
 		{
 			"sudo",
@@ -2247,7 +2233,7 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	defer traceShimCmd.Restore()
 
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.ErrorMatches, "exit status 12\n.*")
+	c.Assert(err, check.ErrorMatches, "exit status 12.*")
 	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
 	c.Check(s.Stdout(), check.Equals, "unhappy\n")
 	c.Check(s.Stderr(), check.Equals, "")
