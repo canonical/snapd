@@ -77,6 +77,17 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	return rsp, err
 }
 
+// CloseIdleConnections calls the CloseIdleConnections method on the underlying
+// http.Transport, if it has one.
+func (tr *LoggedTransport) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if t, ok := tr.Transport.(closeIdler); ok {
+		t.CloseIdleConnections()
+	}
+}
+
 func (tr *LoggedTransport) getFlags() debugflag {
 	flags, err := strconv.Atoi(os.Getenv(tr.Key))
 	if err != nil {
