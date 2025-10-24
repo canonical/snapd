@@ -59,8 +59,8 @@ prepare: |
 
   # FIXME: find out why the key from test-snapd-ovmf is not accepted
   # by secboot. It has /O=Snake Oil/ but still it fails.
-  SNAKEOIL_KEY="${PROJECT_PATH}/core-initrd/latest/snakeoil/PkKek-1-snakeoil.key"
-  SNAKEOIL_CERT="${PROJECT_PATH}/core-initrd/latest/snakeoil/PkKek-1-snakeoil.pem"
+  SNAKEOIL_KEY="${PROJECT_PATH}/core-initrd/26.04/snakeoil/PkKek-1-snakeoil.key"
+  SNAKEOIL_CERT="${PROJECT_PATH}/core-initrd/26.04/snakeoil/PkKek-1-snakeoil.pem"
   #KEY_NAME=$(tests.nested download snakeoil-key)
   #SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   #SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
