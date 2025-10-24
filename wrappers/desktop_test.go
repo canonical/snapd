@@ -134,7 +134,7 @@ plugs:
   desktop:
 `
 	if hasDesktopFileIDs {
-		desktopAppYaml += "\n    desktop-file-ids: [org.example.Foo]"
+		desktopAppYaml += "\n    desktop-file-ids: [org.example.Foo.desktop]"
 	}
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 	c.Assert(info.Plugs["desktop"], NotNil)
