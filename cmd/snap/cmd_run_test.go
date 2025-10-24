@@ -2058,6 +2058,7 @@ interessting strace output
 and more
 `[1:]
 	expectedFull := fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir)
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 
 	for _, tc := range []struct {
 		arg   string
@@ -2093,7 +2094,6 @@ and more
 		c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
 		c.Check(s.Stderr(), check.Equals, expectedFull)
 	}
-	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 }
 
 func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {

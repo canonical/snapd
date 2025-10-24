@@ -1163,6 +1163,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	// not end up with zombies
 	appCmdErrC := make(chan error, 1)
 	go func() {
+		defer close(appCmdErrC)
 		appCmdErrC <- appCmd.Wait()
 	}()
 
@@ -1375,6 +1376,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 
 	appCmdErrC := make(chan error, 1)
 	go func() {
+		defer close(appCmdErrC)
 		appCmdErrC <- appCmd.Wait()
 	}()
 
