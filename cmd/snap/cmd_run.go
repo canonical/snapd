@@ -1260,7 +1260,6 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	}
 
 	logger.Debugf("child stopped, ready to be traced")
-	childStopped := true
 
 	straceCmd, err := strace.CommandWithTraceePid(appCmd.Process.Pid, extraStraceOpts)
 	if err != nil {
@@ -1298,9 +1297,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 
 			fmt.Fprint(Stderr, s)
 
-			if childStopped && strace.StraceAttachedStart(s) {
+			if strace.StraceAttachedStart(s) {
 				logger.Debug("strace attached to child process")
-				childStopped = false
 				if err := childContinue(); err != nil {
 					fmt.Fprintf(Stderr, "cannot signal child to continue: %v\n", err)
 				}
@@ -1316,14 +1314,6 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 				s, err := r.ReadString('\n')
 				if err != nil {
 					break
-				}
-
-				if childStopped && strace.StraceAttachedStart(s) {
-					logger.Debug("strace attached to child process")
-					childStopped = false
-					if err := childContinue(); err != nil {
-						fmt.Fprintf(Stderr, "cannot signal child to continue: %v\n", err)
-					}
 				}
 
 				if strings.Contains(s, "execve(") {
