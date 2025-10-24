@@ -5,7 +5,11 @@ details: |
   ubuntu-seed with grade signed. Check files have been copied depending on the variant
   and cloud-init is disabled after it is executed.
 
-systems: [ubuntu-2*]
+systems:
+  # core26 is not yet in grade that can work with a signed model
+  - ubuntu-20*
+  - ubuntu-22*
+  - ubuntu-24*
 
 environment:
   # three variants
