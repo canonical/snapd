@@ -1281,8 +1281,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		return err
 	}
 
-	filterDone := make(chan struct{})
-	stdoutProxyDone := make(chan struct{})
+	filterDone := make(chan error, 1)
+	stdoutProxyDone := make(chan error, 1)
 	go func() {
 		defer close(filterDone)
 
@@ -1292,7 +1292,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
-				break
+				filterDone <- err
+				return
 			}
 
 			fmt.Fprint(Stderr, s)
@@ -1313,7 +1314,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 			for {
 				s, err := r.ReadString('\n')
 				if err != nil {
-					break
+					filterDone <- err
+					return
 				}
 
 				if strings.Contains(s, "execve(") {
@@ -1336,10 +1338,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 			for {
 				s, err := r.ReadString('\n')
 				if err != nil {
-					if err != io.EOF {
-						fmt.Fprintf(Stderr, "cannot read strace output: %s\n", err)
-					}
-					break
+					filterDone <- err
+					return
 				}
 				// Ensure we catch the execve but *not* the
 				// exec into
@@ -1352,12 +1352,14 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 				}
 			}
 		}
-		io.Copy(Stderr, r)
+		_, err := io.Copy(Stderr, r)
+		filterDone <- err
 	}()
 
 	go func() {
 		defer close(stdoutProxyDone)
-		io.Copy(Stdout, stdout)
+		_, err := io.Copy(Stdout, stdout)
+		stdoutProxyDone <- err
 	}()
 
 	if err := straceCmd.Start(); err != nil {
@@ -1381,9 +1383,16 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	}
 
 	appCmdErr := <-appCmdErrC
-	<-filterDone
-	<-stdoutProxyDone
-	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent))
+	filterErr := <-filterDone
+	if filterErr != nil {
+		if !errors.Is(filterErr, io.EOF) {
+			filterErr = fmt.Errorf("cannot read strace output: %w", filterErr)
+		} else {
+			filterErr = nil
+		}
+	}
+	proxyErr := <-stdoutProxyDone
+	return strutil.JoinErrors(straceCmdErr, maybeIgnoreTracedAppKillError(appCmdErr, appKillSent), filterErr, proxyErr)
 }
 
 func newHookRunnable(info *snap.Info, hook *snap.HookInfo, component *snap.ComponentInfo) runnable {
