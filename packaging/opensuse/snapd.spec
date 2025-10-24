@@ -576,7 +576,6 @@ fi
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-exec
-%{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-mgmt
 %if %{with selinux}
