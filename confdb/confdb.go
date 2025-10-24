@@ -618,7 +618,7 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 	accessors := make([]Accessor, 0, len(pathParts))
 	for _, part := range pathParts {
 		// TODO: check field filters against parameters, when we add those
-		subkey := part.value
+		subkey := part.key
 		isKey := validSubkey.MatchString(subkey)
 		isIndex := validIndexSubkey.MatchString(subkey)
 		isKeyPlaceholder := validPlaceholder.MatchString(subkey)
@@ -679,13 +679,15 @@ type Accessor interface {
 	FieldFilters() map[string]string
 }
 
-type splitSubkey struct {
-	value   string
+// subKey holds information about a piece split out of a path, including the
+// actual path part and any field attached to it.
+type subKey struct {
+	key     string
 	filters map[string]string
 }
 
-func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
-	var subkeys []splitSubkey
+func splitViewPath(path string, opts ParseOptions) ([]subKey, error) {
+	var subkeys []subKey
 	var rawFilters map[string]string
 	sb := &strings.Builder{}
 
@@ -698,8 +700,8 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 			}
 			return errors.New("cannot have empty subkeys")
 		}
-		subkeys = append(subkeys, splitSubkey{
-			value:   sb.String(),
+		subkeys = append(subkeys, subKey{
+			key:     sb.String(),
 			filters: rawFilters,
 		})
 
@@ -710,7 +712,8 @@ func splitViewPath(path string, opts ParseOptions) ([]splitSubkey, error) {
 
 	pathBytes := bytes.NewBufferString(path)
 	for pathBytes.Len() > 0 {
-		// err can only be EOF so it can be safely ignored here
+		// ReadRune can only return EOF errors and we already checked Len() so the
+		// error can be safely ignored here
 		char, _, _ := pathBytes.ReadRune()
 		if char == utf8.RuneError {
 			return nil, fmt.Errorf("non UTF-8 character")
@@ -777,6 +780,8 @@ func parseFieldFilter(pathBytes *bytes.Buffer) (field, filter string, err error)
 	constraintSb := &strings.Builder{}
 	var char rune
 	for pathBytes.Len() > 0 {
+		// ReadRune can only return EOF errors and we already checked Len() so the
+		// error can be safely ignored here
 		char, _, _ = pathBytes.ReadRune()
 		if char == utf8.RuneError {
 			return "", "", fmt.Errorf("non UTF-8 character")
