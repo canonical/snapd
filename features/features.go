@@ -77,6 +77,8 @@ const (
 	AppArmorPrompting
 	// ContentCompatLabel enables compatibility labels for the content interface.
 	ContentCompatLabel
+	// Clustering enables experimental clustering support.
+	Clustering
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -126,6 +128,7 @@ var featureNames = map[SnapdFeature]string{
 
 	AppArmorPrompting:  "apparmor-prompting",
 	ContentCompatLabel: "content-compatibility-label",
+	Clustering:         "clustering",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

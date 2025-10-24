@@ -23,26 +23,217 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 var (
-	installWithGoal   = snapstate.InstallWithGoal
-	removeMany        = snapstate.RemoveMany
-	updateWithGoal    = snapstate.UpdateWithGoal
-	storeUpdateGoal   = snapstate.StoreUpdateGoal
-	storeInstallGoal  = snapstate.StoreInstallGoal
-	devicestateSerial = devicestate.Serial
+	installWithGoal  = snapstate.InstallWithGoal
+	removeMany       = snapstate.RemoveMany
+	updateWithGoal   = snapstate.UpdateWithGoal
+	storeUpdateGoal  = snapstate.StoreUpdateGoal
+	storeInstallGoal = snapstate.StoreInstallGoal
 )
 
-// ApplyClusterState creates the tasks needed to apply the state described by
+// ErrNoClusterAssertion indicates there is no current cluster assertion available.
+var ErrNoClusterAssertion = errors.New("clusterstate: no cluster assertion")
+
+// clusterState contains the state of clustering on this device.
+//
+// TODO: This is pretty verbose right now, but we might want to put everything
+// under one namespace in the state?
+type clusterState struct {
+	// Current contains the information needed to find the current cluster
+	// assertion. Maybe we should consider some sort of sequence container, like
+	// we use in snapstate?
+	Current clusterAssertionState `json:"current"`
+}
+
+// clusterAssertionState contains the information needed to find a specific
+// cluster assertion.
+type clusterAssertionState struct {
+	// ClusterID is the globally unique identifier for this cluster assertion.
+	ClusterID string `json:"cluster-id"`
+	// Sequence is the sequence point at which the cluster assertion with the
+	// ClusterID.
+	Sequence int `json:"sequence"`
+	// AuthorityID is the ID of the account that is associated with this
+	// cluster. When updating the cluster to a new sequence number, the new
+	// cluster assertion must be signed by an account-key associated with the
+	// same account.
+	AuthorityID string `json:"authority-id"`
+}
+
+// InitializeNewCluster installs a new cluster assertion bundle, replacing any
+// existing state. Callers must hold the state lock.
+func InitializeNewCluster(st *state.State, bundle io.Reader) error {
+	batch, cluster, err := decodeClusterBundle(bundle)
+	if err != nil {
+		return err
+	}
+
+	var existing clusterState
+	if err := st.Get("cluster", &existing); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	// TODO: we will need some way to handle updating a cluster to an assertion
+	// with a new ID, but it probably won't use this function here
+	if existing.Current.ClusterID != "" {
+		return fmt.Errorf(
+			"cannot initialize cluster %q while tracking an existing cluster assertion %q",
+			cluster.ClusterID(), existing.Current.ClusterID,
+		)
+	}
+
+	if err := assertstate.AddBatch(st, batch, nil); err != nil {
+		return fmt.Errorf("cannot add cluster assertion bundle: %w", err)
+	}
+
+	st.Set("cluster", clusterState{
+		Current: clusterAssertionState{
+			ClusterID:   cluster.ClusterID(),
+			Sequence:    cluster.Sequence(),
+			AuthorityID: cluster.AuthorityID(),
+		},
+	})
+
+	// trigger an ensure pass so that the new assertion is picked up and applied
+	st.EnsureBefore(0)
+
+	return nil
+}
+
+// UpdateCluster installs an incremental cluster assertion update. Callers must
+// hold the state lock.
+func UpdateCluster(st *state.State, bundle io.Reader) error {
+	batch, cluster, err := decodeClusterBundle(bundle)
+	if err != nil {
+		return err
+	}
+
+	var cs clusterState
+	if err := st.Get("cluster", &cs); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return ErrNoClusterAssertion
+		}
+		return err
+	}
+
+	if cluster.AuthorityID() != cs.Current.AuthorityID {
+		return fmt.Errorf(
+			"cluster assertion authority %q does not match expected authority %q",
+			cluster.AuthorityID(),
+			cs.Current.AuthorityID,
+		)
+	}
+
+	if cluster.ClusterID() != cs.Current.ClusterID {
+		return fmt.Errorf(
+			"cluster assertion id %q does not match expected id %q",
+			cluster.ClusterID(),
+			cs.Current.ClusterID,
+		)
+	}
+
+	if cluster.Sequence() <= cs.Current.Sequence {
+		return fmt.Errorf(
+			"cluster assertion sequence %d must be greater than current sequence %d",
+			cluster.Sequence(),
+			cs.Current.Sequence,
+		)
+	}
+
+	if err := assertstate.AddBatch(st, batch, nil); err != nil {
+		return fmt.Errorf("cannot add cluster assertion bundle: %w", err)
+	}
+
+	st.Set("cluster", clusterState{
+		Current: clusterAssertionState{
+			ClusterID:   cluster.ClusterID(),
+			Sequence:    cluster.Sequence(),
+			AuthorityID: cluster.AuthorityID(),
+		},
+	})
+
+	// trigger an ensure pass so that the new assertion is picked up and applied
+	st.EnsureBefore(0)
+
+	return nil
+}
+
+// CurrentCluster returns the currently tracked cluster assertion. Callers must
+// hold the state lock.
+func CurrentCluster(st *state.State) (*asserts.Cluster, error) {
+	var cs clusterState
+	if err := st.Get("cluster", &cs); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, ErrNoClusterAssertion
+		}
+		return nil, err
+	}
+
+	headers := map[string]string{
+		"cluster-id": cs.Current.ClusterID,
+		"sequence":   strconv.Itoa(cs.Current.Sequence),
+	}
+	a, err := assertstate.DB(st).Find(asserts.ClusterType, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve cluster assertion: %w", err)
+	}
+
+	cluster, ok := a.(*asserts.Cluster)
+	if !ok {
+		return nil, errors.New("internal error: stored assertion is not a cluster assertion")
+	}
+	return cluster, nil
+}
+
+func decodeClusterBundle(bundle io.Reader) (*asserts.Batch, *asserts.Cluster, error) {
+	var cluster *asserts.Cluster
+	batch := asserts.NewBatch(nil)
+
+	dec := asserts.NewDecoder(bundle)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot decode cluster assertion bundle: %w", err)
+		}
+
+		if err := batch.Add(a); err != nil {
+			return nil, nil, err
+		}
+
+		c, ok := a.(*asserts.Cluster)
+		if !ok {
+			continue
+		}
+		if cluster != nil {
+			return nil, nil, errors.New("cluster assertion bundle contains multiple cluster assertions")
+		}
+		cluster = c
+	}
+
+	if cluster == nil {
+		return nil, nil, errors.New("assertion bundle missing cluster assertion")
+	}
+
+	return batch, cluster, nil
+}
+
+// applyClusterState creates the tasks needed to apply the state described by
 // the cluster assertion on this device.
-func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.TaskSet, error) {
-	serial, err := devicestateSerial(st)
+func applyClusterState(st *state.State, cluster *asserts.Cluster) (map[string]*state.TaskSet, error) {
+	serial, err := devicestate.Serial(st)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +243,8 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 		return nil, fmt.Errorf("device with serial %q not found in cluster assertion", serial.Serial())
 	}
 
-	var tss []*state.TaskSet
+	// mapping of subcluster name to tasks to match desired subcluster state
+	tasksets := make(map[string]*state.TaskSet)
 	for _, subcluster := range cluster.Subclusters() {
 		if !deviceInSubcluster(subcluster, deviceID) {
 			continue
@@ -67,10 +259,10 @@ func ApplyClusterState(st *state.State, cluster *asserts.Cluster) ([]*state.Task
 			continue
 		}
 
-		tss = append(tss, ts)
+		tasksets[subcluster.Name] = ts
 	}
 
-	return tss, nil
+	return tasksets, nil
 }
 
 func applySubcluster(st *state.State, subcluster asserts.Subcluster) (*state.TaskSet, error) {

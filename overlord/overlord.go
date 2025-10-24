@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/clusterstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -113,6 +114,7 @@ type Overlord struct {
 	ifaceMgr   *ifacestate.InterfaceManager
 	hookMgr    *hookstate.HookManager
 	deviceMgr  *devicestate.DeviceManager
+	clusterMgr *clusterstate.ClusterManager
 	cmdMgr     *cmdstate.CommandManager
 	shotMgr    *snapshotstate.SnapshotManager
 	fdeMgr     *fdestate.FDEManager
@@ -191,6 +193,8 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	o.addManager(deviceMgr)
 
+	o.addManager(clusterstate.Manager(s))
+
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
@@ -229,6 +233,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.ifaceMgr = x
 	case *devicestate.DeviceManager:
 		o.deviceMgr = x
+	case *clusterstate.ClusterManager:
+		o.clusterMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
 	case *snapshotstate.SnapshotManager:
@@ -680,6 +686,11 @@ func (o *Overlord) HookManager() *hookstate.HookManager {
 // identity and policies.
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
+}
+
+// ClusterManager returns the manager responsible for the state of clustering.
+func (o *Overlord) ClusterManager() *clusterstate.ClusterManager {
+	return o.clusterMgr
 }
 
 // CommandManager returns the manager responsible for running odd
