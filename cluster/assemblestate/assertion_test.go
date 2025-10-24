@@ -41,18 +41,20 @@ func (s *assembleSuite) TestAssertionDevices(c *check.C) {
 		addresses []any
 	}
 
-	brands := []string{"brand-b", "brand-a", "brand-a"}
-	models := []string{"model-b", "model-b", "model-a"}
-	serials := []string{"serial-1", "serial-2", "serial-3"}
+	brands := []string{"brand-b", "brand-a", "brand-a", "brand-a"}
+	models := []string{"model-b", "model-b", "model-a", "model-b"}
+	serials := []string{"serial-1", "serial-2", "serial-3", "serial-0"}
 	rdts := []assemblestate.DeviceToken{
 		assemblestate.DeviceToken("device-0"),
 		assemblestate.DeviceToken("device-1"),
 		assemblestate.DeviceToken("device-2"),
+		assemblestate.DeviceToken("device-3"),
 	}
 	addrs := [][]string{
 		{"10.0.1.1:8080"},
 		{"10.0.2.1:8080", "10.0.2.2:8080"},
 		{"10.0.3.1:8080"},
+		{"10.0.4.1:8080"},
 	}
 
 	var identities []assemblestate.Identity
@@ -84,12 +86,13 @@ func (s *assembleSuite) TestAssertionDevices(c *check.C) {
 	}
 
 	routes := assemblestate.Routes{
-		Devices: []assemblestate.DeviceToken{rdts[0], rdts[1], rdts[2]},
+		Devices: []assemblestate.DeviceToken{rdts[0], rdts[1], rdts[2], rdts[3]},
 		Addresses: []string{
 			"10.0.2.1:8080",
 			"10.0.2.2:8080",
 			"10.0.3.1:8080",
 			"10.0.1.1:8080",
+			"10.0.4.1:8080",
 		},
 		Routes: []int{
 			0, 1, 0,
@@ -98,6 +101,8 @@ func (s *assembleSuite) TestAssertionDevices(c *check.C) {
 			1, 2, 2,
 			2, 0, 3,
 			1, 0, 3,
+			0, 3, 4,
+			1, 3, 4,
 		},
 	}
 
@@ -108,6 +113,7 @@ func (s *assembleSuite) TestAssertionDevices(c *check.C) {
 
 	expectedDeviceOrder := []assemblestate.DeviceToken{
 		rdts[2], // brand-a / model-a / serial-3
+		rdts[3], // brand-a / model-b / serial-0
 		rdts[1], // brand-a / model-b / serial-2
 		rdts[0], // brand-b / model-b / serial-1
 	}

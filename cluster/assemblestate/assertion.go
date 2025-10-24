@@ -70,21 +70,16 @@ func AssertionDevices(ids []Identity, routes Routes) ([]any, error) {
 
 	devices := make([]any, 0, len(ids))
 	for i, identity := range ids {
-		addrs := append([]string(nil), addresses[identity.RDT]...)
+		addrs := addresses[identity.RDT]
 		if len(addrs) == 0 {
 			return nil, fmt.Errorf("no addresses available for device %q", identity.RDT)
-		}
-
-		header := make([]any, 0, len(addrs))
-		for _, addr := range addrs {
-			header = append(header, addr)
 		}
 
 		serial := serials[identity.RDT]
 		devices = append(devices, map[string]any{
 			"id":        strconv.Itoa(i + 1),
 			"device":    serial.DeviceID().String(),
-			"addresses": header,
+			"addresses": addrs,
 		})
 	}
 
@@ -114,12 +109,12 @@ func serialFromBundle(bundle string) (*asserts.Serial, error) {
 	return nil, errors.New("serial assertion not found in bundle")
 }
 
-func addressesFromRoutes(routes Routes) (map[DeviceToken][]string, error) {
+func addressesFromRoutes(routes Routes) (map[DeviceToken][]any, error) {
 	if len(routes.Routes)%3 != 0 {
 		return nil, errors.New("routes array length must be multiple of 3")
 	}
 
-	addressSets := make(map[DeviceToken]map[string]struct{})
+	addressSets := make(map[DeviceToken]map[string]bool)
 
 	// TODO:GOVERSION: we repeat this iteration and validation construct a lot,
 	// real iterators would be a good fit here
@@ -142,19 +137,25 @@ func addressesFromRoutes(routes Routes) (map[DeviceToken][]string, error) {
 		addr := routes.Addresses[addrIdx]
 
 		if addressSets[destRDT] == nil {
-			addressSets[destRDT] = make(map[string]struct{})
+			addressSets[destRDT] = make(map[string]bool)
 		}
 
-		addressSets[destRDT][addr] = struct{}{}
+		addressSets[destRDT][addr] = true
 	}
 
-	addresses := make(map[DeviceToken][]string, len(addressSets))
+	addresses := make(map[DeviceToken][]any, len(addressSets))
 	for rdt, set := range addressSets {
-		addrs := make([]string, 0, len(set))
+		sorted := make([]string, 0, len(set))
 		for addr := range set {
+			sorted = append(sorted, addr)
+		}
+		sort.Strings(sorted)
+
+		addrs := make([]any, 0, len(sorted))
+		for _, addr := range sorted {
 			addrs = append(addrs, addr)
 		}
-		sort.Strings(addrs)
+
 		addresses[rdt] = addrs
 	}
 
