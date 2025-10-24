@@ -240,9 +240,6 @@ func execApp(snapTarget, revision, command string, args []string) error {
 			helper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
 		}
-	case "gdb":
-		fullCmd = append(fullCmd, fullCmd[0])
-		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdb-shim")
 	case "gdbserver":
 		fullCmd = append(fullCmd, fullCmd[0])
 		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdbserver-shim")
