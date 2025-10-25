@@ -388,11 +388,22 @@ jobs:
             echo RUN_TESTS="$RUN_TESTS"  >> $GITHUB_ENV
           fi
 
+          # To be removed - only run nss-modules tests
+          list=
+          for test in $spread_list; do
+            if [[ "$test" =~ 'nss-modules' ]]; then
+              list="$list $test"
+            fi
+          done
+          export RUN_TESTS="$list"
+          echo RUN_TESTS="$RUN_TESTS" >> $GITHUB_ENV
+
           # If all spread tests are skipped, exit
           if [ -z "${RUN_TESTS// /}" ]; then
             echo "All tests are skipped, exiting..."
             exit 0
           fi
+          
 
           if [[ "$spread_list" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
