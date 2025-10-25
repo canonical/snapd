@@ -524,22 +524,6 @@ system_shutdown_unit_tests_LDFLAGS =  $(system_shutdown_system_shutdown_LDFLAGS)
 endif
 
 ##
-## snap-gdb-shim
-##
-
-if !ENABLE_SANITIZE
-# snap-gdb-shim is statically linked and cannot be built when using
-# -fsanitize=address
-libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
-endif
-
-snap_gdb_shim_snap_gdb_shim_SOURCES = \
-	snap-gdb-shim/snap-gdb-shim.c
-
-snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
-snap_gdb_shim_snap_gdb_shim_LDFLAGS = $(STATIC_LDFLAGS)
-
-##
 ## snap-gdbserver-shim
 ##
 

@@ -83,7 +83,7 @@ endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
-# /usr/lib/snapd/snap-{update-ns,gdbserver-shim,gdb-shim} are always linked
+# /usr/lib/snapd/snap-{update-ns,gdbserver-shim} are always linked
 # statically against glibc. Use libc-dev-bin to avoid having to handle the
 # different soname (e.g. libc6 vs libc6.1)
 BUILT_USING_PACKAGES=libc-dev-bin
