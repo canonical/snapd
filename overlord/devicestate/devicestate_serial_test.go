@@ -194,7 +194,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	// mark it as seeded
 	s.state.Set("seeded", true)
 
@@ -287,7 +287,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
 		Model: "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	// mark as seeded
 	s.state.Set("seeded", true)
 
@@ -494,7 +494,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandAcceptGenericHap
 		"serial-authority": []any{"generic"},
 	})
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
@@ -557,7 +557,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandMismatchedAuthor
 		// no serial-authority set
 	})
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
@@ -601,7 +601,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C)
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -684,7 +684,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C)
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -758,7 +758,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -812,7 +812,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialMaxTentatives(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -971,7 +971,7 @@ func (s *deviceMgrSerialSuite) makeRequestChangeWithTransport(c *C, rt http.Roun
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -1056,7 +1056,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 		Model: "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	// mark as seeded
 	s.state.Set("seeded", true)
 
@@ -1130,7 +1130,18 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 		ProposedSerial: "Y9999",
 	}
 
-	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv)
+	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
+		Headers: map[string]string{
+			"x-extra-header": "extra",
+		},
+		RegBody: map[string]string{
+			"hardware-id-key":        "key",
+			"hardware-id-key-sha384": "hash",
+			"request-id-signature":   "signature",
+		},
+	}
+
+	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, pSRBhv)
 	defer r2()
 
 	// as device-service.url is set, should not need to do this but just in case
@@ -1159,6 +1170,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 
 	// without a seeded device, there is no become-operational change
 	becomeOperational := s.findBecomeOperationalChange()
+
 	c.Assert(becomeOperational, IsNil)
 
 	// now mark it as seeded
@@ -1166,9 +1178,11 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(
 	// and run the device registration again
 	s.state.Unlock()
 	s.settle(c)
+
 	s.state.Lock()
 
 	becomeOperational = s.findBecomeOperationalChange()
+
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -1268,7 +1282,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceRegistrationHappyWithHookAndProxy(c
 			"x-extra-header": "extra",
 		},
 	}
-	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv)
+	r2 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), pDBhv, nil)
 	defer r2()
 
 	// as device-service.url is set, should not need to do this but just in case
@@ -1366,7 +1380,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 		Model: "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	// mark as seeded
 	s.state.Set("seeded", true)
 
@@ -1449,7 +1463,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) 
 	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
-	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, nil)
 
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]any{
 		"architecture": "amd64",
@@ -1875,7 +1889,7 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "my-brand",
@@ -2103,7 +2117,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	// mark it as seeded
 	s.state.Set("seeded", true)
 	// skip boot ok logic
@@ -2413,7 +2427,7 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 		},
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 
 	// the mock has written key under snap asserts dir, but when ubuntu-save
 	// exists, the key is written under ubuntu-save/device, thus
@@ -2563,7 +2577,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerFullAccess(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	s.state.Set("seeded", true)
 	s.state.Unlock()
 
@@ -2599,7 +2613,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessHasKeyID(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	s.state.Set("seeded", true)
 
 	tr := config.NewTransaction(s.state)
@@ -2634,7 +2648,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
 		"gadget":       "pc",
 	})
 
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil, nil)
 	s.state.Set("seeded", true)
 
 	tr := config.NewTransaction(s.state)

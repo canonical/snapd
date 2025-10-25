@@ -221,6 +221,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
 	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-serial-request$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
@@ -689,6 +690,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	var hasPrepareDeviceHook bool
+	var hasPrepareSerialRequestHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
 		// if have a gadget wait until seeded to proceed
@@ -704,6 +706,7 @@ func (m *DeviceManager) ensureOperational() error {
 			return err
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
+		hasPrepareSerialRequestHook = (gadgetInfo.Hooks["prepare-serial-request"] != nil)
 	}
 
 	if device.KeyID == "" && model.Grade() != "" {
@@ -753,6 +756,10 @@ func (m *DeviceManager) ensureOperational() error {
 		genKey.WaitFor(prepareDevice)
 	}
 	tasks = append(tasks, genKey)
+
+	if hasPrepareSerialRequestHook {
+		m.state.Set("has-prepare-serial-request-hook", true)
+	}
 
 	if willRequestSerial {
 		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
