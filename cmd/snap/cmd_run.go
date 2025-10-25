@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -1077,7 +1078,7 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	fmt.Fprintf(Stdout, gdbServerWelcomeFmt, addr)
 	// note that only gdbserver needs to run as root, the application
 	// keeps running as the user
-	gdbSrvCmd := exec.Command("sudo", "-E", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
+	gdbSrvCmd := exec.Command("sudo", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
 	if output, err := gdbSrvCmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
@@ -1114,12 +1115,13 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		close(doneCh)
 	}()
 
-	cmd, err := strace.TraceExecCommand(straceLog, origCmd...)
+	env := envForExec(nil)
+	cmd, err := strace.TraceExecCommand(straceLog, sudoPreserveEnv(env), origCmd...)
 	if err != nil {
 		return err
 	}
 	// run
-	cmd.Env = envForExec(nil)
+	cmd.Env = env
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
@@ -1139,18 +1141,43 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	return err
 }
 
+func sudoPreserveEnv(env []string) []string {
+	// preserve some environment variables
+	// TODO needs a better list of allowed env variables
+	preservedEnv := make([]string, 0, len(env))
+	for _, e := range env {
+		n := strings.SplitN(e, "=", 2)
+		envName := n[0]
+		switch {
+		case strings.HasPrefix(envName, "SNAP_"):
+			fallthrough
+		case envName == "SNAP":
+			preservedEnv = append(preservedEnv, envName)
+		default:
+			// skip
+		}
+	}
+
+	// to keep the tests stable across different Go versions
+	sort.Strings(preservedEnv)
+
+	return preservedEnv
+}
+
 func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
 	extraStraceOpts, raw, err := x.straceOpts()
 	if err != nil {
 		return err
 	}
-	cmd, err := strace.Command(extraStraceOpts, origCmd...)
+
+	env := envForExec(nil)
+	cmd, err := strace.Command(extraStraceOpts, sudoPreserveEnv(env), origCmd...)
 	if err != nil {
 		return err
 	}
 
 	// run with filter
-	cmd.Env = envForExec(nil)
+	cmd.Env = env
 	cmd.Stdin = Stdin
 	if raw {
 		// no output filtering, we can pass the child's stdout/stderr

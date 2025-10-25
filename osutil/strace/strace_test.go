@@ -62,11 +62,11 @@ func (s *straceSuite) TestStraceCommandHappy(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 
-	cmd, err := strace.Command(nil, "foo")
+	cmd, err := strace.Command(nil, nil, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
-		s.mockSudo.Exe(), "-E",
+		s.mockSudo.Exe(), "--",
 		s.mockStrace.Exe(), "-u", u.Username, "-f",
 		"-e", strace.ExcludedSyscalls,
 		// the command
@@ -84,11 +84,13 @@ func (s *straceSuite) TestStraceCommandHappyFromSnap(c *C) {
 	mockStraceStatic := testutil.MockCommand(c, straceStaticPath, "")
 	defer mockStraceStatic.Restore()
 
-	cmd, err := strace.Command(nil, "foo")
+	cmd, err := strace.Command(nil, []string{"SNAP", "SNAP_COMMON"}, "foo")
 	c.Assert(err, IsNil)
 	c.Check(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Check(cmd.Args, DeepEquals, []string{
-		s.mockSudo.Exe(), "-E",
+		s.mockSudo.Exe(),
+		"--preserve-env=SNAP,SNAP_COMMON",
+		"--",
 		mockStraceStatic.Exe(),
 		"-u", u.Uid + ":" + u.Gid,
 		"-f",
@@ -112,7 +114,7 @@ func (s *straceSuite) TestStraceCommandNoSudo(c *C) {
 	defer func() { os.Setenv("PATH", origPath) }()
 	os.Setenv("PATH", tmp)
 
-	_, err := strace.Command(nil, "foo")
+	_, err := strace.Command(nil, nil, "foo")
 	c.Assert(err, ErrorMatches, `cannot use strace without sudo: exec: "sudo": executable file not found in \$PATH`)
 }
 
@@ -133,7 +135,7 @@ func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
 	err := os.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
 	c.Assert(err, IsNil)
 
-	_, err = strace.Command(nil, "foo")
+	_, err = strace.Command(nil, nil, "foo")
 	c.Assert(err, ErrorMatches, `cannot find an installed strace, please try 'snap install strace-static'`)
 }
 
@@ -141,11 +143,11 @@ func (s *straceSuite) TestTraceExecCommand(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 
-	cmd, err := strace.TraceExecCommand("/run/snapd/strace.log", "cmd")
+	cmd, err := strace.TraceExecCommand("/run/snapd/strace.log", nil, "cmd")
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
-		s.mockSudo.Exe(), "-E",
+		s.mockSudo.Exe(), "--",
 		s.mockStrace.Exe(), "-u", u.Username, "-f",
 		"-e", strace.ExcludedSyscalls,
 		// timing specific trace
