@@ -1,8 +1,13 @@
-# Expand $PATH to include the directory where snappy applications go.
-set -ul snap_bin_path "@SNAP_MOUNT_DIR@/bin"
+m4_changequote([,])m4_dnl
+m4_define([INJECT_DIR],[m4_dnl
+set -ul snap_bin_path "$1/bin"
 if not contains $snap_bin_path $PATH
     set PATH $PATH $snap_bin_path
 end
+])m4_dnl
+# Expand $PATH to include the directory where snappy applications go.
+m4_ifelse(USE_CANONICAL_SNAP_MOUNT_DIR,[true],[INJECT_DIR([/snap])])m4_dnl
+m4_ifelse(USE_ALT_SNAP_MOUNT_DIR,[true],[INJECT_DIR([/var/lib/snapd/snap])])m4_dnl
 
 # Desktop files (used by desktop environments within both X11 and Wayland) are
 # looked for in XDG_DATA_DIRS; make sure it includes the relevant directory for

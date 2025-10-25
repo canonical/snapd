@@ -13,17 +13,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SNAP_MOUNT_DIR := /snap
+USE_CANONICAL_SNAP_MOUNT_DIR ?= true
+USE_ALT_SNAP_MOUNT_DIR ?= false
 ENVD := /etc/profile.d
 DATADIR ?= /usr/share
 
 %.sh: %.sh.in
-	sed   < $< > $@ \
-		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
+	m4 -P -E \
+		-D "USE_CANONICAL_SNAP_MOUNT_DIR=$(USE_CANONICAL_SNAP_MOUNT_DIR)" \
+		-D "USE_ALT_SNAP_MOUNT_DIR=$(USE_ALT_SNAP_MOUNT_DIR)" \
+		< $< > $@
 
 %.fish: %.fish.in
-	sed   < $< > $@ \
-		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
+	m4 -P -E \
+		-D "USE_CANONICAL_SNAP_MOUNT_DIR=$(USE_CANONICAL_SNAP_MOUNT_DIR)" \
+		-D "USE_ALT_SNAP_MOUNT_DIR=$(USE_ALT_SNAP_MOUNT_DIR)" \
+		< $< > $@
 
 GENERATED_SH = snapd.sh
 GENERATED_FISH = snapd.fish
