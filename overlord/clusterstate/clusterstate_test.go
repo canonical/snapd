@@ -80,9 +80,7 @@ func (s *clusterStateSuite) TestUpdateSequenceNotGreater(c *check.C) {
 	devices := []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}
@@ -120,9 +118,7 @@ func (s *clusterStateSuite) TestUpdateClusterIDMismatch(c *check.C) {
 	devices := []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}
@@ -155,9 +151,7 @@ func (s *clusterStateSuite) TestUpdateAuthorityMismatch(c *check.C) {
 	devices := []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}
@@ -196,9 +190,7 @@ func (s *clusterStateSuite) TestUpdateAllowsSequenceSkip(c *check.C) {
 	devices := []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}
@@ -235,9 +227,7 @@ func (s *clusterStateSuite) TestUpdateSuccess(c *check.C) {
 	devices := []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}
@@ -299,9 +289,7 @@ func (s *clusterStateSuite) TestInitializeNewClusterExistingCluster(c *check.C) 
 	devices := []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}
@@ -371,9 +359,7 @@ func (s *managerSuite) TestEnsureIdempotent(c *check.C) {
 	bundle, _ := makeClusterBundle(c, stack, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}, []map[string]any{
@@ -874,9 +860,7 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 	bundle, cluster := makeClusterBundle(c, stack, []map[string]any{
 		{
 			"id":        "1",
-			"brand-id":  "canonical",
-			"model":     "ubuntu-core-24-amd64",
-			"serial":    "serial-1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 			"addresses": []any{"192.168.0.10"},
 		},
 	}, []map[string]any{
@@ -1136,9 +1120,7 @@ func makeBundleWithUntrustedBrand(c *check.C) []byte {
 		"devices": []any{
 			map[string]any{
 				"id":        "1",
-				"brand-id":  "canonical",
-				"model":     "ubuntu-core-24-amd64",
-				"serial":    "serial-1",
+				"device":    "serial-1.ubuntu-core-24-amd64.canonical",
 				"addresses": []any{"192.168.0.10"},
 			},
 		},
