@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -2798,4 +2799,64 @@ func (s *infoSuite) TestDesktopFilesFromInstalledSnap(c *C) {
 func (s *infoSuite) TestDesktopFilesFromInstalledSnapMangled(c *C) {
 	const mangle = true
 	s.testDesktopFilesFromInstalledSnap(c, mangle)
+}
+
+func (s *infoSuite) TestDmVerityParamsIfPresent(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	info.IntegrityData = &snap.IntegrityDataInfo{
+		IntegrityDataParams: integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+
+	expected_hash_file := integrity.DmVerityHashFileName(info.MountFile(), "aaa")
+
+	digest, err := info.DmVerityDigest()
+	c.Check(err, IsNil)
+	c.Check(digest, Equals, "aaa")
+
+	dmverity_file, err := info.DmVerityFile()
+	c.Check(err, IsNil)
+	c.Check(dmverity_file, Equals, expected_hash_file)
+}
+
+func (s *infoSuite) TestDmVerityParamsIfPresentErrors(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
+apps:
+   foo:
+   bar:
+`))
+	c.Assert(err, IsNil)
+
+	// Error if IntegrityData is nil
+	digest, err := info.DmVerityDigest()
+	c.Check(digest, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
+
+	dmverity_file, err := info.DmVerityFile()
+	c.Check(dmverity_file, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
+
+	// Error if IntegrityData is not of type "dm-verity"
+	info.IntegrityData = &snap.IntegrityDataInfo{
+		IntegrityDataParams: integrity.IntegrityDataParams{
+			Type:   "some type",
+			Digest: "aaa",
+		},
+	}
+	// Error if IntegrityData is nil
+	digest, err = info.DmVerityDigest()
+	c.Check(digest, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
+
+	dmverity_file, err = info.DmVerityFile()
+	c.Check(dmverity_file, Equals, "")
+	c.Check(err, ErrorMatches, fmt.Sprintf("internal error: dm-verity data not found for file %q", info.MountFile()))
 }
