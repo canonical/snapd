@@ -38,6 +38,7 @@ usr/share/man/
 # gdb helper
 usr/lib/snapd/snap-gdb-shim
 usr/lib/snapd/snap-gdbserver-shim
+usr/lib/snapd/snap-strace-shim
 
 # install squashfuse as snapfuse to ensure it is available in e.g. lxd
 c-vendor/squashfuse/snapfuse usr/bin
