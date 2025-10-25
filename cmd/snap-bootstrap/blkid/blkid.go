@@ -79,6 +79,8 @@ type AbstractBlkidPartition interface {
 	GetStart() int64
 	// GetSize is a wrapper for blkid_partition_get_size
 	GetSize() int64
+	// GetSize is a wrapper for blkid_partition_get_partno
+	GetNumber() int
 }
 
 type blkidProbe struct {
@@ -247,4 +249,8 @@ func (p *blkidPartition) GetStart() int64 {
 
 func (p *blkidPartition) GetSize() int64 {
 	return int64((C.blkid_loff_t)(C.blkid_partition_get_size(p.partitionHandle)))
+}
+
+func (p *blkidPartition) GetNumber() int {
+	return int(C.blkid_partition_get_partno(p.partitionHandle))
 }

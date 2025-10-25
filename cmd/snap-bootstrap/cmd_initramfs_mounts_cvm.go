@@ -219,7 +219,11 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	}
 
 	// Mount ESP as UbuntuSeedDir which has UEFI label
-	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI", mountOpts); err != nil {
+	_, bootPart, err := findPartitionsOfBootDisk("UEFI")
+	if err != nil {
+		return err
+	}
+	if err := doSystemdMount(bootPart, boot.InitramfsUbuntuSeedDir, mountOpts); err != nil {
 		return err
 	}
 
