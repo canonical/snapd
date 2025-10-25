@@ -443,7 +443,7 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
 }
 
-func assembleSysrootMountUnitContent(what, mntType string, opts []string) string {
+func assembleSysrootMountUnitContent(what string, mntType string, opts []string) string {
 	var typ string
 
 	if mntType == "" {
@@ -476,6 +476,26 @@ Where=/sysroot
 	return content
 }
 
+func assembleSysrootLoopDevicesForVerity(what string) string {
+	content := fmt.Sprintf(`[Unit]
+Description=Setup helper loop devices for mounting the rootfs with dm-verity
+DefaultDependencies=no
+Before=initrd-root-fs.target sysroot.mount
+After=snap-initramfs-mounts.service
+Before=umount.target
+Conflicts=umount.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/losetup -f /dev/loop100 %[1]s; /sbin/losetup -f /dev/loop101 %[1]s
+ExecStop=/sbin/losetup -d /dev/loop100 /dev/loop101
+
+[Install]
+WantedBy=sysroot.mount
+`, what)
+	return content
+}
+
 func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
 
 	// Writing the unit in this folder overrides
@@ -485,20 +505,55 @@ func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
 	if err = os.MkdirAll(unitDir, 0755); err != nil {
 		return err
 	}
-	unitFileName := "sysroot.mount"
-	unitPath := filepath.Join(unitDir, unitFileName)
+
 	what = dirs.StripRootDir(what)
 
+	wantsDir := filepath.Join(unitDir, "initrd-root-fs.target.wants")
+	if err := os.MkdirAll(wantsDir, 0755); err != nil {
+		return err
+	}
+
 	var options []string
+
 	switch o := opts.(type) {
 	case *dmVerityOptions:
 		if o != nil {
+			// setup the helper loop mounts first. When the rootfs is mounted with dm-verity,
+			// the subsequent attempt to mount the <base>.snap under /snaps/<base> by snapd
+			// will fail with "/dev/loopX already mounted or mount point busy". That happens due
+			// to mount detecting the existing loop mount and exiting. As a workaround, we
+			// explicitly create 2 loop devices /dev/loop100 and /dev/loop101 and use the second
+			// one for the dm-verity mount.
+			unitFileName := "sysroot-helper-loop-mounts.service"
+			unitPath := filepath.Join(unitDir, unitFileName)
+
+			unitContent := assembleSysrootLoopDevicesForVerity(what)
+			// This is in the initramfs, no need for atomic writes
+			if err := os.WriteFile(unitPath, []byte(unitContent), 0644); err != nil {
+				return err
+			}
+
+			// Pull the unit from initrd-root-fs.target
+			linkPath := filepath.Join(wantsDir, unitFileName)
+			if err := os.Symlink(filepath.Join("..", unitFileName), linkPath); err != nil &&
+				!os.IsExist(err) {
+				return err
+			}
+
+			// TODO if we mount a partition with dm-verity we need to create 2 loop devices
+			// and then get the last
 			options, err = opts.AppendOptions(options)
 			if err != nil {
 				return err
 			}
+
+			what = "/dev/loop101"
 		}
 	}
+
+	// setup the main sysroot mount
+	unitFileName := "sysroot.mount"
+	unitPath := filepath.Join(unitDir, unitFileName)
 
 	unitContent := assembleSysrootMountUnitContent(what, mntType, options)
 	// This is in the initramfs, no need for atomic writes
@@ -507,10 +562,6 @@ func writeSysrootMountUnit(what, mntType string, opts fsOpts) (err error) {
 	}
 
 	// Pull the unit from initrd-root-fs.target
-	wantsDir := filepath.Join(unitDir, "initrd-root-fs.target.wants")
-	if err := os.MkdirAll(wantsDir, 0755); err != nil {
-		return err
-	}
 	linkPath := filepath.Join(wantsDir, unitFileName)
 	if err := os.Symlink(filepath.Join("..", unitFileName), linkPath); err != nil &&
 		!os.IsExist(err) {
