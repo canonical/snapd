@@ -120,7 +120,7 @@ version: gadget
 			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "registration.request-id"}, 0)
 			c.Assert(err, IsNil)
 			c.Assert(string(stdout), Equals, ReqIDPrepareSerialHook+"\n")
-			
+
 			// snapctl set the registration params
 			if len(pSRBhv.RegBody) != 0 {
 				d, err := json.Marshal(pSRBhv.RegBody)
