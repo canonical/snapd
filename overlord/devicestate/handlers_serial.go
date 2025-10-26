@@ -405,10 +405,6 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			Hook: "prepare-serial-request",
 		}
 
-		contextData := map[string]any{
-			"request-id": requestID.RequestID,
-		}
-
 		// Add requset id to config for hook to use
 		st.Lock()
 		tr1 := config.NewTransaction(st)
@@ -419,7 +415,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 		tr1.Commit()
 		st.Unlock()
 
-		_, err := hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
+		_, err := hookMgr.EphemeralRunHook(context.Background(), hooksup, nil)
 		if err != nil {
 			return "", fmt.Errorf("cannot run prepare serial request hook: %v", err)
 		}
