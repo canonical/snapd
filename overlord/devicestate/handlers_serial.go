@@ -409,12 +409,33 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			"request-id": requestID.RequestID,
 		}
 
-		
+		// Add requset id to config for hook to use
+		st.Lock()
+		tr1 := config.NewTransaction(st)
+		err = tr1.Set(regCtx.GadgetForSerialRequestConfig(), "registration.request-id", requestID.RequestID)
+		if err != nil {
+			return "", fmt.Errorf("cannot set request id: %v", err)
+		}
+		tr1.Commit()
+		st.Unlock()
 
 		_, err := hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
 		if err != nil {
 			return "", fmt.Errorf("cannot run prepare serial request hook: %v", err)
 		}
+
+		// update registration body again after hook has been run
+		st.Lock()
+		tr2 := config.NewTransaction(st)
+
+		var bodyStr string
+		err = tr2.GetMaybe(regCtx.GadgetForSerialRequestConfig(), "registration.body", &bodyStr)
+		if err != nil {
+			return "", fmt.Errorf("failed to update registration body: %v", err)
+		}
+
+		cfg.body = []byte(bodyStr)
+		st.Unlock()
 	}
 
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())

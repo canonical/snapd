@@ -44,7 +44,6 @@ type PrepareDeviceBehavior struct {
 }
 
 type PrepareSerialRequestBehavior struct {
-	Headers map[string]string
 	RegBody map[string]string
 }
 
@@ -118,16 +117,9 @@ version: gadget
 			return nil, nil
 		} else if ctx.HookName() == "prepare-serial-request" {
 			// snapctl set the registration params
-			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "request-id"}, 0)
+			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "registration.request-id"}, 0)
 			c.Assert(err, IsNil)
-			fmt.Println("snapctl response: ", string(stdout))
-			
-			if len(pDBhv.Headers) != 0 {
-				h, err := json.Marshal(pDBhv.Headers)
-				c.Assert(err, IsNil)
-				_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))}, 0)
-				c.Assert(err, IsNil)
-			}
+			c.Check(string(stdout), Equals, ReqIDPrepareSerialHook+"\n")
 
 			if len(pSRBhv.RegBody) != 0 {
 				d, err := json.Marshal(pSRBhv.RegBody)
