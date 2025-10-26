@@ -39,8 +39,8 @@ import (
 type PrepareDeviceBehavior struct {
 	DeviceSvcURL   string
 	Headers        map[string]string
-	ProposedSerial string
 	RegBody        map[string]string
+	ProposedSerial string
 }
 
 type PrepareSerialRequestBehavior struct {
@@ -87,7 +87,7 @@ version: gadget
 		return func() {}
 	}
 
-	// mock the prepare-device hook
+	// mock the prepare-device and prepare-serial-request hooks
 
 	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		if ctx.HookName() == "prepare-device" {
@@ -116,11 +116,12 @@ version: gadget
 
 			return nil, nil
 		} else if ctx.HookName() == "prepare-serial-request" {
-			// snapctl set the registration params
+			// check registration id is present in config
 			stdout, _, err := ctlcmd.Run(ctx, []string{"get", "registration.request-id"}, 0)
 			c.Assert(err, IsNil)
-			c.Check(string(stdout), Equals, ReqIDPrepareSerialHook+"\n")
-
+			c.Assert(string(stdout), Equals, ReqIDPrepareSerialHook+"\n")
+			
+			// snapctl set the registration params
 			if len(pSRBhv.RegBody) != 0 {
 				d, err := json.Marshal(pSRBhv.RegBody)
 				c.Assert(err, IsNil)
