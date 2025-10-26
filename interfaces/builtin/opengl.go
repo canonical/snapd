@@ -80,6 +80,25 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/vulkan/** r,
 /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
+# Support reading Vulkan configuration from /etc (checked first by loader)
+# Even if empty, Vulkan loader tries these paths and AppArmor denials cause failures
+/etc/vulkan/ r,
+/etc/vulkan/icd.d/ r,
+/etc/vulkan/icd.d/*.json r,
+/etc/vulkan/implicit_layer.d/ r,
+/etc/vulkan/implicit_layer.d/*.json r,
+/etc/vulkan/explicit_layer.d/ r,
+/etc/vulkan/explicit_layer.d/*.json r,
+
+# Comprehensive Vulkan ICD/layer support (includes Mesa/Asahi)
+/usr/share/vulkan/ r,
+/usr/share/vulkan/icd.d/ r,
+/usr/share/vulkan/icd.d/*.json r,
+/usr/share/vulkan/implicit_layer.d/ r,
+/usr/share/vulkan/implicit_layer.d/*.json r,
+/usr/share/vulkan/explicit_layer.d/ r,
+/usr/share/vulkan/explicit_layer.d/*.json r,
+
 # Support reading the GLVND EGL vendor files
 /var/lib/snapd/lib/glvnd/ r,
 /var/lib/snapd/lib/glvnd/** r,
@@ -158,6 +177,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/dma_buf_te rw,
 /dev/dma_heap/linux,cma rw,
 /dev/dma_heap/system rw,
+
+# Apple Asahi DRM driver (Apple Silicon M-series)
+/sys/devices/platform/soc/[0-9a-f]*.gpu/** r,
+/sys/devices/platform/soc@*/[0-9a-f]*.gpu/** r,
 
 # NXP i.MX driver
 # https://github.com/Freescale/kernel-module-imx-gpu-viv
