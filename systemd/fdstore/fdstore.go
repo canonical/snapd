@@ -110,7 +110,7 @@ func initFdstore() {
 		for i := 0; i < nfds; i++ {
 			// A generic name with .socket suffix is enough
 			// to be picked up by ActivationSocketFds.
-			names[i] = "activation.socket"
+			names[i] = fmt.Sprintf("activation-fd-%d.socket", i)
 		}
 	}
 

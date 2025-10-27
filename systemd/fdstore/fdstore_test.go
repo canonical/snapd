@@ -283,7 +283,10 @@ func (s *fdstoreTestSuite) TestActivationSocketFilesMissingFdNamesEnv(c *C) {
 	// are supported where the $LISTEN_FDNAMES env var is not passed.
 	socketFds := fdstore.ActivationSocketFds()
 	c.Check(socketFds, DeepEquals, map[string][]int{
-		"activation.socket": {3, 4, 5, 6},
+		"activation-fd-0.socket": {3},
+		"activation-fd-1.socket": {4},
+		"activation-fd-2.socket": {5},
+		"activation-fd-3.socket": {6},
 	})
 }
 
