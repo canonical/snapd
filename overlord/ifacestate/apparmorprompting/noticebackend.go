@@ -60,13 +60,17 @@ func newNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackends, error
 		return nil, fmt.Errorf("cannot create interfaces requests run directory: %w", err)
 	}
 
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create interfaces requests state directory: %w", err)
+	}
+
 	path := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "prompt-notices.json")
 	promptNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsPromptNotice, promptNoticeNamespace)
 	if err != nil {
 		return nil, err
 	}
 
-	path = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "rule-notices.json")
+	path = filepath.Join(dirs.SnapInterfacesRequestsStateDir, "rule-notices.json")
 	ruleNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace)
 	if err != nil {
 		return nil, err
