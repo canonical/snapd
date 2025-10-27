@@ -15,8 +15,8 @@ environment:
   # set minimum download speed that is a bit higher than the rate-limited speed set with tc.
   # also force a 15s window, so the test doesn't have to run for full 5 minutes (the default
   # window).
-  SNAPD_MIN_DOWNLOAD_SPEED: 99000
-  SNAPD_DOWNLOAD_MEAS_WINDOW: 15s
+  SNAPD_MIN_DOWNLOAD_SPEED: 198000
+  SNAPD_DOWNLOAD_MEAS_WINDOW: 30s
   OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
