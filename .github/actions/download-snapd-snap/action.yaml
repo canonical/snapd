@@ -1,0 +1,85 @@
+name: 'Download snapd snap'
+description: 'Download snapd snap from either the current workflow or from a master push workflow'
+inputs:
+  use-master-push:
+    description: 'Use snapd snap from master push workflow'
+    required: true
+    type: boolean
+  is-amd:
+    description: 'Get AMD snapd snap build'
+    required: true
+    type: boolean
+  is-arm:
+    description: 'Get ARM snapd snap build'
+    required: true
+    type: boolean
+  is-fips:
+    description: 'Get fips snapd snap build'
+    required: true
+    type: boolean
+  download-folder:
+    description: 'Where to save downloaded snap'
+    required: false
+    type: string
+    default: "${{ github.workspace }}/built-snap"
+  
+runs:
+  using: "composite"
+  steps:
+  - name: Download built snap (amd64)
+    uses: actions/download-artifact@v5
+    if: "${{ inputs.use-master-push == 'false' && inputs.is-amd == 'true' && inputs.is-fips == 'false' }}"
+    with:
+      name: snap-files-amd64-default-test
+      # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
+      pattern: snapd_1337.*.snap
+      path: "${{ inputs.download-folder }}"
+
+  - name: Download built snap (arm64)
+    if: "${{ inputs.use-master-push == 'false' && inputs.is-arm == 'true' && inputs.is-fips == 'false' }}"
+    uses: actions/download-artifact@v5
+    with:
+      name: snap-files-arm64-default-test
+      pattern: snapd_1337.*.snap
+      # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
+      path: "${{ inputs.download-folder }}"
+
+  - name: Download built FIPS snap (amd64)
+    uses: actions/download-artifact@v5
+    # eg. ubuntu-fips-deb, ubuntu-fips-snap
+    if: "${{ inputs.use-master-push == 'false' && inputs.is-amd == 'true' && inputs.is-fips == 'true' }}"
+    with:
+      name: snap-files-amd64-FIPS-test
+      # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
+      pattern: snapd_1337.*-fips_*.snap
+      path: "${{ inputs.download-folder }}"
+
+  - name: Download built snap (amd64) from master
+    if: "${{ inputs.use-master-push == 'true' }}"
+    env:
+      GH_TOKEN: ${{ github.token }}
+    shell: bash
+    run: |
+      set -x
+      filename=
+      if [[ "${{ inputs.is-fips }}" = "true" ]] && [[ "${{ inputs.is-amd }}" = "true" ]]; then
+        filename="snap-files-amd64-FIPS-test"
+      elif [[ "${{ inputs.is-amd }}" = "true" ]]; then
+        filename="snap-files-amd64-default-test"
+      elif [[ "${{ inputs.is-arm }}" = "true" ]] && [[ "${{ inputs.is-fips }}" != "true" ]] ; then
+        filename="snap-files-arm64-default-test"
+      else
+        echo "There are no snapd builds with the specified combination"
+        exit 1
+      fi
+      run="$(gh run list -w ci-master-push.yaml --json databaseId,status --jq 'first(.[] | select(.status = "completed") | .databaseId)')"
+      gh run download "$run" -n "$filename"
+      mkdir -p built-snap
+      mv snapd*.snap built-snap
+
+  - name: Rename imported snap
+    shell: bash
+    run: |
+      for snap in built-snap/snapd_1337.*.snap; do
+        mv -v "${snap}" "${snap}.keep"
+      done
