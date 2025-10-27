@@ -32,6 +32,9 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/systemd"
+	"golang.org/x/sys/unix"
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
@@ -70,6 +73,74 @@ func (data customData) set(key string, value any) {
 	}
 	entryJSON := json.RawMessage(serialized)
 	data[key] = &entryJSON
+}
+
+type memfdSecretState struct {
+	data customData
+
+	buf *osutil.MemfdSecretBuffer
+}
+
+func newMemfdSecretState() (*memfdSecretState, error) {
+	fds := systemd.GetFds(systemd.FdNameMemfdSecretState)
+	if len(fds) == 0 {
+		fd, err := unix.MemfdSecret(0)
+		if err != nil {
+			return nil, err
+		}
+		if err := systemd.AddFds(systemd.FdNameMemfdSecretState, fd); err != nil {
+			return nil, err
+		}
+		fds = []int{fd}
+	}
+	if len(fds) > 1 {
+		panic("oh oh")
+	}
+
+	buf, err := osutil.NewMemfdSecretBuffer(fds[0])
+	if err != nil {
+		return nil, err
+	}
+
+	data := make(customData)
+	if buf.Len() > 0 {
+		if err := json.Unmarshal(buf.Bytes(), &data); err != nil {
+			return nil, err
+		}
+	}
+
+	return &memfdSecretState{
+		data: data,
+		buf:  buf,
+	}, nil
+}
+
+func (mem *memfdSecretState) get(key string, value any) error {
+	return mem.data.get(key, value)
+}
+
+func (mem *memfdSecretState) has(key string) bool {
+	return mem.data.has(key)
+}
+
+func (mem *memfdSecretState) set(key string, value any) error {
+	mem.data.set(key, value)
+
+	serialized, err := json.Marshal(mem.data)
+	if err != nil {
+		// should have already panicked above
+		logger.Panicf("internal error: could not marshal value for memfd-secret entry %q: %v", key, err)
+	}
+
+	if err := mem.buf.Truncate(len(serialized)); err != nil {
+		return err
+	}
+
+	if n := copy(mem.buf.Bytes(), serialized); n != len(serialized) {
+		logger.Panicf("internal error: could not copy serialized data into memfd-secret memory")
+	}
+
+	return nil
 }
 
 // State represents an evolving system state that persists across restarts.
@@ -123,6 +194,8 @@ type State struct {
 
 	cache map[any]any
 
+	secretState *memfdSecretState
+
 	pendingChangeByAttr map[string]func(*Change) bool
 
 	// task/changes observing
@@ -151,6 +224,14 @@ func New(backend Backend) *State {
 	// The noticeCond.L must be the same as the lock which is held during
 	// WaitNotices, since noticeCond.Wait() will unlock noticeCond.L.
 	st.noticeCond = sync.NewCond(st.noticesMu.RLocker())
+
+	secretState, err := newMemfdSecretState()
+	if err != nil {
+		logger.Noticef("cannot initialize memfd-secret state: %v", err)
+	} else {
+		st.secretState = secretState
+	}
+
 	return st
 }
 
@@ -361,6 +442,44 @@ func (s *State) Has(key string) bool {
 func (s *State) Set(key string, value any) {
 	s.writing()
 	s.data.set(key, value)
+}
+
+func (s *State) GetSecret(key string, value any) error {
+	if s.secretState == nil {
+		// fallback to memory-backed cache
+		// XXX: panic instead???
+		val := s.Cached(key)
+		if val == nil {
+			return &NoStateError{Key: key}
+		}
+		return json.Unmarshal(val.(json.RawMessage), value)
+	}
+	s.reading()
+	return s.secretState.get(key, value)
+}
+
+func (s *State) HasSecret(key string) bool {
+	if s.secretState == nil {
+		// fallback to memory-backed cache
+		return s.Cached(key) != nil
+	}
+	s.reading()
+	return s.secretState.has(key)
+}
+
+func (s *State) SetSecret(key string, value any) error {
+	if s.secretState == nil {
+		// fallback to memory-backed cache
+		data, err := json.Marshal(value)
+		if err != nil {
+			// XXX: panic instead???
+			return err
+		}
+		s.Cache(key, json.RawMessage(data))
+		return nil
+	}
+	s.reading() // Doesn't touch persisted data.
+	return s.secretState.set(key, value)
 }
 
 // Cached returns the cached value associated with the provided key.

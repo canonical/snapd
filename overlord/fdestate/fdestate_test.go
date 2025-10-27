@@ -121,11 +121,11 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	onClassic := true
 	manager := s.startedManager(c, onClassic)
 
-	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
-	c.Assert(err, IsNil)
-
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
 
 	var ts *state.TaskSet
 	if defaultKeyslots {
@@ -198,7 +198,7 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 			}
 		},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
+	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func(st *state.State) backend.RecoveryKeyCache {
 		return mockStore
 	})()
 
