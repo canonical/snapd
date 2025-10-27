@@ -21,6 +21,7 @@ prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-nvme-control
 
   mock() {
+    set -e
     "$TESTSTOOLS"/fs-state mock-file "$1"
     tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file "$1"
     echo "mocked" > "$1"
@@ -62,7 +63,7 @@ execute: |
   echo "When the plug is disconnected"
   snap disconnect "$TEST_SNAP":nvme-control
 
-  echo "Then the snap is able to access NVMe configuration files"
+  echo "Then the snap is not able to access NVMe configuration files"
   for file in /etc/nvme/discovery.conf /etc/nvme/hostid /etc/nvme/hostnqn; do
     if "$TEST_SNAP".with-nvme-control-plug -c "cat $file"; then
       echo "Expected permission error accessing $file"
