@@ -1290,7 +1290,11 @@ const mockInfoJSONWithStoreURL = `
       "type": "app",
       "version": "2.10",
       "license": "",
-      "tracking-channel": "beta"
+      "tracking-channel": "beta",
+      "links": {
+         "website": ["https://hello.world"],
+         "contact": ["mailto:local@hello.world"]
+       }
     }
 }
 `
