@@ -565,7 +565,7 @@ prepare_project() {
     # HACK: patches required to enable build on 18.04
     case "$SPREAD_SYSTEM" in
         ubuntu-18.04-*)
-            go mod edit -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
+            go mod edit -go=1.18 -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
             go mod tidy
             ;;
     esac
