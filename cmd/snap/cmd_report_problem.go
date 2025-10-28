@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/jessevdk/go-flags"
@@ -39,9 +41,10 @@ type reportProblemCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortReportProblemHelp = i18n.G("Report a problem with a snap to its publisher")
+var shortReportProblemHelp = i18n.G("List contact information for reporting problems with a snap")
 var longReportProblemHelp = i18n.G(`
-The report-problem command helps with reporting a problem to the snap's publisher.
+The report-problem command helps with reporting a problem with a snap by listing
+available contact information provided by the snap's publisher.
 `)
 
 func init() {
@@ -54,8 +57,8 @@ func init() {
 }
 
 func skipGenericLink(category, link string) bool {
-	if category == "website" && link == "https://snapcraft.io" {
-		//  skip a link poiting to the main store page
+	if category == "website" && strings.Contains(link, "://snapcraft.io") {
+		// store page is not the snap's website
 		return true
 	}
 	return false
@@ -71,6 +74,9 @@ func collectLinks(linksBag map[string]map[string]bool, fromSnap *client.Snap) {
 
 		for _, link := range links {
 			logger.Debugf("category %v link %v", category, link)
+			if link == "" {
+				continue
+			}
 			if skipGenericLink(category, link) {
 				continue
 			}
@@ -101,7 +107,17 @@ func addCategoryLinks(linksBag map[string]map[string]bool, category, link string
 	linksBag[category] = c
 }
 
+// TODO:GOVERSION: use maps.Keys()
+func keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func (x *reportProblemCmd) Execute([]string) error {
+	hadLinks := false
 	for i, snapName := range x.Positional.Snaps {
 		snapName := string(snapName)
 		if i > 0 {
@@ -112,14 +128,22 @@ func (x *reportProblemCmd) Execute([]string) error {
 			continue
 		}
 
-		remoteSnap, _, _ := x.client.FindOne(snap.InstanceSnap(snapName))
-		localSnap, _, _ := x.client.Snap(snapName)
+		remoteSnap, _, remoteErr := x.client.FindOne(snap.InstanceSnap(snapName))
+		localSnap, _, localErr := x.client.Snap(snapName)
 
 		allLinks := map[string]map[string]bool{}
+
+		if remoteErr != nil {
+			logger.Debugf("remote snap err: %v\n", remoteErr)
+		}
 		if remoteSnap != nil {
 			collectLinks(allLinks, remoteSnap)
 			addCategoryLinks(allLinks, "contact", remoteSnap.Contact)
 			addCategoryLinks(allLinks, "website", remoteSnap.Website)
+		}
+
+		if localErr != nil {
+			fmt.Printf("local snap err: %v\n", localErr)
 		}
 		if localSnap != nil {
 			collectLinks(allLinks, localSnap)
@@ -127,44 +151,59 @@ func (x *reportProblemCmd) Execute([]string) error {
 			addCategoryLinks(allLinks, "website", localSnap.Website)
 		}
 
+		logger.Debugf("all links: %+v", allLinks)
+
 		if len(allLinks) > 0 {
 			fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has listed the following points of contact:\n"), snapName)
 
 			w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 
 			if c, ok := allLinks["contact"]; ok {
+				c := keys(c)
+				sort.Strings(c)
 				fmt.Fprintf(w, i18n.G("\tContact:\n"))
-				for k := range c {
+				for _, k := range c {
 					fmt.Fprintf(w, "\t\t%s\n", k)
 				}
 			}
 
 			if c, ok := allLinks["issues"]; ok {
+				c := keys(c)
+				sort.Strings(c)
 				fmt.Fprintf(w, i18n.G("\tIssue reporting:\n"))
-				for k := range c {
+				for _, k := range c {
 					fmt.Fprintf(w, "\t\t%s\n", k)
 				}
 			}
 
 			if c, ok := allLinks["website"]; ok {
+				c := keys(c)
+				sort.Strings(c)
 				fmt.Fprintf(w, i18n.G("\tWebsite:\n"))
-				for k := range c {
+				for _, k := range c {
 					fmt.Fprintf(w, "\t\t%s\n", k)
 				}
 			}
 
-			if c, ok := allLinks["source"]; ok {
-				fmt.Fprintf(w, i18n.G("\tSource code:\n"))
-				for k := range c {
-					fmt.Fprintf(w, "\t\t%s\n", k)
+			for _, sourceName := range []string{"source", "source-code"} {
+				if c, ok := allLinks[sourceName]; ok {
+					fmt.Fprintf(w, i18n.G("\tSource code:\n"))
+					for k := range c {
+						fmt.Fprintf(w, "\t\t%s\n", k)
+					}
+					break
 				}
 			}
 			w.Flush()
 
+			hadLinks = true
 		} else {
-			fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has not listed any points of contact"), snapName)
+			fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has not listed any points of contact.\n"), snapName)
 		}
 	}
 
+	if hadLinks {
+		fmt.Fprint(Stdout, i18n.G("\nUse one of the links listed above to report a problem with the snap.\n"))
+	}
 	return nil
 }
