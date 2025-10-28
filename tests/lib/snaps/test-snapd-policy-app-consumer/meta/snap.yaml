@@ -321,3 +321,7 @@ plugs:
   sd-control:
     interface: sd-control
     flavor: dual-sd
+  mediatek-accel:
+    interface: mediatek-accel
+    apu: true
+    vpu: true

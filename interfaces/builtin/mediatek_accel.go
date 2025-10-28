@@ -38,31 +38,37 @@ const mediatekAccelBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const mediatekAccelConnectedPlugAppArmor = `
-# Description: Provide permissions for accessing the hardware accelerators on MediaTek Genio devices
-
-# APU (AI Processing Unit)
-/dev/apusys rw,
-`
-const mediatekAccelVcuConnectedPlugAppArmor = `
-# VPU (MediaTek Video Processor Unit)
-/dev/vcu rw,
-
-# MDP (MediaTek Data Path)
-/dev/vcu1 rw,
-`
-
-var mediatekAccelConnectedPlugUDev = []string{
-	/* For APU (MediaTek AI Processing Unit) */
-	`SUBSYSTEM=="misc", KERNEL=="apusys"`,
+type mediatekAccelRule struct {
+	AppArmor string
+	UDev     []string
 }
 
-var mediatekAccelVcuConnectedPlugUDev = []string{
-	/* For VPU (MediaTek Video Processor Unit) */
-	`SUBSYSTEM=="vcu", KERNEL=="vcu"`,
+const mediatekAccelConnectedPlugAppArmorHeader = `
+# Description: Provide permissions for accessing the hardware accelerators on MediaTek Genio devices
 
-	/* For MDP (MediaTek Data Path) */
-	`SUBSYSTEM=="vcu1", KERNEL=="vcu1"`,
+`
+
+var mediatekAccelUnitRules = map[string]mediatekAccelRule{
+	"apu": {
+		AppArmor: "# APU (AI Processing Unit)\n" +
+			"/dev/apusys rw,\n",
+		UDev: []string{
+			`SUBSYSTEM=="misc", KERNEL=="apusys"`,
+		},
+	},
+	"vcu": {
+		AppArmor: "# VPU (MediaTek Video Processor Unit)\n" +
+			"/dev/vcu rw,\n" +
+			"# MDP (MediaTek Media Data Path) and other vcu in the future\n" +
+			"/dev/vcu[0-9]* rw,\n",
+		UDev: []string{
+			/* For VPU (MediaTek Video Processor Unit) */
+			`SUBSYSTEM=="vcu", KERNEL=="vcu"`,
+
+			/* For MDP (MediaTek Media Data Path) */
+			`SUBSYSTEM=="vcu[0-9]*", KERNEL=="vcu[0-9]*"`,
+		},
+	},
 }
 
 type mediatekAccelInterface struct {
@@ -70,55 +76,64 @@ type mediatekAccelInterface struct {
 }
 
 func (iface *mediatekAccelInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	if p, ok := plug.Attrs["vcu"]; ok {
-		if _, ok := p.(bool); !ok {
-			return fmt.Errorf(`mediatek-accel "vcu" attribute must be boolean`)
+	allDisabled := true
+
+	for name := range mediatekAccelUnitRules {
+		if p, ok := plug.Attrs[name]; ok {
+			v, ok := p.(bool)
+			if !ok {
+				return fmt.Errorf(`mediatek-accel "%s" attribute must be boolean`, name)
+			}
+			if v {
+				allDisabled = false
+			}
 		}
+	}
+	if allDisabled {
+		return fmt.Errorf(`cannot connect mediatek-accel interface without any units enabled`)
 	}
 
 	return nil
 }
 
 func (iface *mediatekAccelInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var allowVcu bool
-	_ = plug.Attr("vcu", &allowVcu)
-
 	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
 		return err
 	}
-
-	if allowVcu {
-		spec.AddSnippet(mediatekAccelVcuConnectedPlugAppArmor)
+	spec.AddSnippet(mediatekAccelConnectedPlugAppArmorHeader)
+	for name, rule := range mediatekAccelUnitRules {
+		v := false
+		_ = plug.Attr(name, &v)
+		if v {
+			spec.AddSnippet(rule.AppArmor)
+		}
 	}
-
 	return nil
 }
 
 func (iface *mediatekAccelInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var allowVcu bool
-	_ = plug.Attr("vcu", &allowVcu)
-
 	if err := iface.commonInterface.UDevConnectedPlug(spec, plug, slot); err != nil {
 		return err
 	}
 
-	if allowVcu {
-		for _, rule := range mediatekAccelVcuConnectedPlugUDev {
-			spec.TagDevice(rule)
+	for name, rule := range mediatekAccelUnitRules {
+		v := false
+		_ = plug.Attr(name, &v)
+		if v {
+			for _, udev := range rule.UDev {
+				spec.TagDevice(udev)
+			}
 		}
 	}
-
 	return nil
 }
 
 func init() {
 	registerIface(&mediatekAccelInterface{commonInterface{
-		name:                  "mediatek-accel",
-		summary:               mediatekAccelSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  mediatekAccelBaseDeclarationSlots,
-		connectedPlugAppArmor: mediatekAccelConnectedPlugAppArmor,
-		connectedPlugUDev:     mediatekAccelConnectedPlugUDev,
+		name:                 "mediatek-accel",
+		summary:              mediatekAccelSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: mediatekAccelBaseDeclarationSlots,
 	}})
 }

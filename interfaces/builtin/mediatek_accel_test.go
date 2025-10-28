@@ -42,7 +42,7 @@ type mediatekAccelSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-const mediatekAccelMockPlugSnapInfoYaml = `name: consumer
+const mediatekAccelWithNoUnitEnabledMockPlugSnapInfoYaml = `name: consumer
 version: 1.0
 apps:
  app:
@@ -59,6 +59,27 @@ apps:
 plugs:
  mediatek-accel:
   vcu: true
+`
+const mediatekAccelWithApuMockPlugSnapInfoYaml = `name: consumer
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [mediatek-accel]
+plugs:
+ mediatek-accel:
+  apu: true
+`
+const mediatekAccelMockPlugSnapInfoYaml = `name: consumer
+version: 1.0
+apps:
+ app:
+  command: foo
+  plugs: [mediatek-accel]
+plugs:
+ mediatek-accel:
+  vcu: true
+  apu: true
 `
 
 const mediatekAccelCoreYaml = `name: core
@@ -107,6 +128,8 @@ func (s *mediatekAccelSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/apusys rw,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/vcu rw,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/vcu[0-9]* rw,\n")
 
 	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -116,7 +139,7 @@ func (s *mediatekAccelSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string(nil))
 }
 
-func (s *mediatekAccelSuite) TestConnectedPlugWithVcuApuSnippet(c *C) {
+func (s *mediatekAccelSuite) TestConnectedPlugWithVcuSnippet(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithVcuMockPlugSnapInfoYaml, nil, "mediatek-accel")
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -125,7 +148,24 @@ func (s *mediatekAccelSuite) TestConnectedPlugWithVcuApuSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/vcu rw,\n")
-	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/vcu1 rw,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/vcu[0-9]* rw,\n")
+
+	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	seccompSpec := seccomp.NewSpecification(appSet)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string(nil))
+}
+
+func (s *mediatekAccelSuite) TestConnectedPlugWithApuSnippet(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithApuMockPlugSnapInfoYaml, nil, "mediatek-accel")
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	apparmorSpec := apparmor.NewSpecification(appSet)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/apusys rw,\n")
 
 	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
@@ -149,7 +189,13 @@ func (s *mediatekAccelSuite) TestSanitizePlugWithVcu(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *mediatekAccelSuite) TestSanitizePlugWithInvalidVcuApu(c *C) {
+func (s *mediatekAccelSuite) TestSanitizePlugWithNoUnitEnabled(c *C) {
+	_, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithNoUnitEnabledMockPlugSnapInfoYaml, nil, "mediatek-accel")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
+		`cannot connect mediatek-accel interface without any units enabled`)
+}
+
+func (s *mediatekAccelSuite) TestSanitizePlugWithInvalid(c *C) {
 	const badVcu = `name: consumer
 version: 0
 apps:
@@ -162,6 +208,19 @@ plugs:
 	_, s.plugInfo = MockConnectedPlug(c, badVcu, nil, "mediatek-accel")
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
 		`mediatek-accel "vcu" attribute must be boolean`)
+
+	const badApu = `name: consumer
+version: 0
+apps:
+ app:
+  plugs: [mediatek-accel]
+plugs:
+ mediatek-accel:
+  apu: no-sorry
+`
+	_, s.plugInfo = MockConnectedPlug(c, badApu, nil, "mediatek-accel")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), ErrorMatches,
+		`mediatek-accel "apu" attribute must be boolean`)
 }
 
 func (s *mediatekAccelSuite) TestUDevConnectedPlug(c *C) {
@@ -169,24 +228,39 @@ func (s *mediatekAccelSuite) TestUDevConnectedPlug(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# mediatek-accel
 SUBSYSTEM=="misc", KERNEL=="apusys", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# mediatek-accel
+SUBSYSTEM=="vcu", KERNEL=="vcu", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# mediatek-accel
+SUBSYSTEM=="vcu[0-9]*", KERNEL=="vcu[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(
 		`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
-func (s *mediatekAccelSuite) TestUDevVcuApuConnectedPlug(c *C) {
+func (s *mediatekAccelSuite) TestUDevVcuConnectedPlug(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithVcuMockPlugSnapInfoYaml, nil, "mediatek-accel")
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 4)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# mediatek-accel
 SUBSYSTEM=="vcu", KERNEL=="vcu", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# mediatek-accel
-SUBSYSTEM=="vcu1", KERNEL=="vcu1", TAG+="snap_consumer_app"`)
+SUBSYSTEM=="vcu[0-9]*", KERNEL=="vcu[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(
+		`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+}
+
+func (s *mediatekAccelSuite) TestUDevApuConnectedPlug(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, mediatekAccelWithApuMockPlugSnapInfoYaml, nil, "mediatek-accel")
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# mediatek-accel
 SUBSYSTEM=="misc", KERNEL=="apusys", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(
