@@ -159,3 +159,21 @@ jobs:
         files: .coverage/*
         # only pick files under .coverage directory
         network_filter: .coverage/
+
+  snap-builds:
+    uses: ./.github/workflows/snap-builds.yaml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      toolchain: ${{ matrix.toolchain }}
+      variant: 'test'
+    strategy:
+      matrix:
+        runs-on:
+          - '["ubuntu-22.04"]'
+          - '["ubuntu-22.04-arm"]'
+        toolchain:
+          - default
+          - FIPS
+        exclude:
+          - runs-on: '["ubuntu-22.04-arm"]'
+            toolchain: FIPS
