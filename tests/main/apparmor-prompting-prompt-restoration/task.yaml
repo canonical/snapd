@@ -114,10 +114,11 @@ execute: |
     sleep 1
 
     echo "Restart snapd"
-    systemctl restart snapd.service snapd.socket
     systemctl daemon-reload
+    systemctl restart snapd
 
-    sleep 1 # given snapd a second to start up
+    sleep 1
+    retry --wait 1 -n 30 systemctl is-active snapd
 
     echo "Check whether prompts are still present after restart"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
