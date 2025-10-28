@@ -543,22 +543,23 @@ prepare_project() {
                     quiet apt install -y golang-1.23
                     ;;
             esac
-            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-            gdebi --quiet --apt-line ./debian/control >deps.txt
-            quiet xargs -r eatmydata apt-get install -y < deps.txt
-            # The go 1.18 backport is not using alternatives or anything else so
+
+            # HACK: patches required to enable build on 18.04
+            case "$SPREAD_SYSTEM" in
+                ubuntu-18.04-*)
+                    go mod edit -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
+                    go mod tidy
+                    sed -i 's/golang-1.22/golang-1.18/' ./debian/control
+                    ;;
+            esac
+
+            apt build-dep -y ./
+
+            # The go 1.18/1.22 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.18/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
-            ;;
-    esac
-
-    case "$SPREAD_SYSTEM" in
-        ubuntu-18.04-*)
-            go mod edit -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
-            go mod tidy
             ;;
     esac
 
@@ -597,10 +598,6 @@ prepare_project() {
         chown test:test -R "$SPREAD_PATH"
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)
