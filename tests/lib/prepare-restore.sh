@@ -557,7 +557,7 @@ prepare_project() {
 
             # The go 1.18/1.22 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
-            if [ -z "$(command -v go)" ]; then
+            if ! go version | grep -q "${best_golang#*-}"; then
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
