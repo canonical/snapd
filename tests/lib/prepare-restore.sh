@@ -547,8 +547,6 @@ prepare_project() {
             # HACK: patches required to enable build on 18.04
             case "$SPREAD_SYSTEM" in
                 ubuntu-18.04-*)
-                    go mod edit -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
-                    go mod tidy
                     sed -i 's/golang-1.22/golang-1.18/' ./debian/control
                     ;;
             esac
@@ -560,6 +558,15 @@ prepare_project() {
             if ! go version | grep -q "${best_golang#*-}"; then
                 ln -fs "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
+            ;;
+    esac
+
+
+    # HACK: patches required to enable build on 18.04
+    case "$SPREAD_SYSTEM" in
+        ubuntu-18.04-*)
+            go mod edit -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
+            go mod tidy
             ;;
     esac
 
