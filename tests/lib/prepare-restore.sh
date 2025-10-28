@@ -528,8 +528,11 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            best_golang=golang-1.18
+            best_golang=golang-1.22
             case "$SPREAD_SYSTEM" in
+                ubuntu-18.04-*)
+                    best_golang=golang-1.18
+                    ;;
                 ubuntu-fips-*)
                     # we are limited by the FIPS variants of go toolchain
                     # available from the PPA, and we need to match the Go
@@ -549,6 +552,13 @@ prepare_project() {
                 # the path filesystem path is: /usr/lib/go-1.18/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
+            ;;
+    esac
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-18.04-*)
+            go mod edit -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
+            go mod tidy
             ;;
     esac
 
