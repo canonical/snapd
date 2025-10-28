@@ -57,6 +57,10 @@ jobs:
           mv "packaging/${{ inputs.os }}-${{ inputs.os-version }}" debian
         fi
 
+        if [ "${{ inputs.os }}" = "ubuntu" ] && [ "${{ inputs.os-version }}" = "18.04" ]; then
+          sed -i 's/golang-1.22/golang-1.18/' ./debian/control
+        fi
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
