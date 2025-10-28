@@ -57,11 +57,8 @@ func init() {
 }
 
 func skipGenericLink(category, link string) bool {
-	if category == "website" && strings.Contains(link, "://snapcraft.io") {
-		// store page is not the snap's website
-		return true
-	}
-	return false
+	// store page is not the snap's website
+	return category == "website" && strings.Contains(link, "://snapcraft.io")
 }
 
 func collectLinks(linksBag map[string]map[string]bool, fromSnap *client.Snap) {
