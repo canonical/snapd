@@ -68,10 +68,10 @@ tool_configure() {
         GOBINS=$(go env GOPATH | sed 's|:|/bin:|g' | sed 's|.*|\0/bin|g')
         export PATH="$PATH:$GOBINS"
 
-        # when *not* running inside github, and go-1.18 is available, use it
-        if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
-            export PATH=/usr/lib/go-1.18/bin:"${PATH}"
-	    echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
+        # when *not* running inside github, and go-1.22 is available, use it
+        if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.22/bin" ]; then
+            export PATH=/usr/lib/go-1.22/bin:"${PATH}"
+            echo "WARNING: Forcing the use of Go 1.22 (preferred version for this project)" >&2
         fi
         ;;
     shellcheck) ;&    # fallthrough
