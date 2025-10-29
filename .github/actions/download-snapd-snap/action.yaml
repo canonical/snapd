@@ -5,11 +5,11 @@ inputs:
     description: 'Use snapd snap from master push workflow'
     required: true
     type: boolean
-  is-amd:
+  is-amd64:
     description: 'Get AMD snapd snap build'
     required: true
     type: boolean
-  is-arm:
+  is-arm64:
     description: 'Get ARM snapd snap build'
     required: true
     type: boolean
@@ -28,7 +28,7 @@ runs:
   steps:
   - name: Download built snap (amd64)
     uses: actions/download-artifact@v5
-    if: "${{ inputs.use-master-push == 'false' && inputs.is-amd == 'true' && inputs.is-fips == 'false' }}"
+    if: "${{ inputs.use-master-push == 'false' && inputs.is-amd64 == 'true' && inputs.is-fips == 'false' }}"
     with:
       name: snap-files-amd64-default-test
       # eg. snapd_1337.2.65.1+g97.d35b459_amd64.snap
@@ -36,7 +36,7 @@ runs:
       path: "${{ inputs.download-folder }}"
 
   - name: Download built snap (arm64)
-    if: "${{ inputs.use-master-push == 'false' && inputs.is-arm == 'true' && inputs.is-fips == 'false' }}"
+    if: "${{ inputs.use-master-push == 'false' && inputs.is-arm64 == 'true' && inputs.is-fips == 'false' }}"
     uses: actions/download-artifact@v5
     with:
       name: snap-files-arm64-default-test
@@ -47,7 +47,7 @@ runs:
   - name: Download built FIPS snap (amd64)
     uses: actions/download-artifact@v5
     # eg. ubuntu-fips-deb, ubuntu-fips-snap
-    if: "${{ inputs.use-master-push == 'false' && inputs.is-amd == 'true' && inputs.is-fips == 'true' }}"
+    if: "${{ inputs.use-master-push == 'false' && inputs.is-amd64 == 'true' && inputs.is-fips == 'true' }}"
     with:
       name: snap-files-amd64-FIPS-test
       # eg. snapd_1337.2.65.1+g97.d35b459-fips_amd64.snap
@@ -62,11 +62,11 @@ runs:
     run: |
       set -x
       filename=
-      if [[ "${{ inputs.is-fips }}" = "true" ]] && [[ "${{ inputs.is-amd }}" = "true" ]]; then
+      if [[ "${{ inputs.is-fips }}" = "true" ]] && [[ "${{ inputs.is-amd64 }}" = "true" ]]; then
         filename="snap-files-amd64-FIPS-test"
-      elif [[ "${{ inputs.is-amd }}" = "true" ]]; then
+      elif [[ "${{ inputs.is-amd64 }}" = "true" ]]; then
         filename="snap-files-amd64-default-test"
-      elif [[ "${{ inputs.is-arm }}" = "true" ]] && [[ "${{ inputs.is-fips }}" != "true" ]] ; then
+      elif [[ "${{ inputs.is-arm64 }}" = "true" ]] && [[ "${{ inputs.is-fips }}" != "true" ]] ; then
         filename="snap-files-arm64-default-test"
       else
         echo "There are no snapd builds with the specified combination"

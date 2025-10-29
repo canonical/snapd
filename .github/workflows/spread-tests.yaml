@@ -316,8 +316,8 @@ jobs:
       uses: ./.github/actions/download-snapd-snap
       with:
         use-master-push: ${{ inputs.use-snapd-snap-from-master }}
-        is-amd: ${{ !contains(inputs.group, '-arm64') }}
-        is-arm: ${{ contains(inputs.group, '-arm64') }}
+        is-amd64: ${{ !contains(inputs.group, '-arm64') }}
+        is-arm64: ${{ contains(inputs.group, '-arm64') }}
         is-fips: ${{ contains(inputs.group, '-fips') }}
 
     - name: Run spread tests
