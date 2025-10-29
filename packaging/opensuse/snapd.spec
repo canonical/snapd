@@ -322,8 +322,8 @@ M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		TMPFILESDIR=%{_tmpfilesdir} \
-        USE_CANONICAL_SNAP_MOUNT_DIR=true \
-        USE_ALT_SNAP_MOUNT_DIR=true
+		USE_CANONICAL_SNAP_MOUNT_DIR=true \
+		USE_ALT_SNAP_MOUNT_DIR=true
 
 %check
 # These binaries execute inside the mount namespace thus they must be built statically
@@ -362,8 +362,8 @@ export SNAPD_SKIP_SLOW_TESTS=1
 		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		TMPFILESDIR=%{_tmpfilesdir} \
-        USE_CANONICAL_SNAP_MOUNT_DIR=true \
-        USE_ALT_SNAP_MOUNT_DIR=true
+		USE_CANONICAL_SNAP_MOUNT_DIR=true \
+		USE_ALT_SNAP_MOUNT_DIR=true
 
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
