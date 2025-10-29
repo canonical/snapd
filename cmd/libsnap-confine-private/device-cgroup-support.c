@@ -351,11 +351,11 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     /* copy what fits into BPF_OBJ_NAME_LEN-2 ('s_' prefix) and truncate the
        rest */
     strncpy(self->v2.name + 2, snap_name_start, sizeof(self->v2.name) - 2 - 1);
-    /* replace all hyphens which are valid in security tags, but are invalid for
-     * BPF object names */
-    for (char *c = strchr(self->v2.name, '-'); c != NULL; c = strchr(c, '-')) {
-        *c = '_';
-    }
+    /* Security tags may contain '+' and '-' characters that are not
+     * valid as BPF object names.
+     */
+    for (char *c = self->v2.name; *c != '\0'; c++)
+        if ((*c == '-') || (*c == '+')) *c = '_';
 
     debug("bpf fs tag: %s, object names: %s", self->v2.tag, self->v2.name);
 
