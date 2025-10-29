@@ -546,7 +546,7 @@ prepare_project() {
 
             # HACK: patches required to enable build on 18.04
             case "$SPREAD_SYSTEM" in
-                ubuntu-18.04-*)
+                ubuntu-18.04-*|ubuntu-core-18-*)
                     sed -i 's/golang-1.22/golang-1.18/' ./debian/control
                     ;;
             esac
