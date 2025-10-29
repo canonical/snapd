@@ -51,7 +51,7 @@ systemctl_stop() {
 }
 
 is_component_mount_unit() {
-    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q '\(/snap\|/var/lib/snapd/snap\)[^/]*/components/mnt/[^/]*/[^/]*'
+    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q '\(/snap\|/var/lib/snapd/snap\)/[^/]*/components/mnt/[^/]*/[^/]*'
 }
 
 purge() {
@@ -63,7 +63,7 @@ purge() {
         systemctl_stop snap.mount.service
     fi
 
-    units=$(systemctl list-unit-files --no-legend --full 'snap.*.service' | grep -vF snap.mount.service || true)
+    units=$(systemctl list-unit-files --no-legend --full 'snap.*' | grep -vF snap.mount.service || true)
     mounts=$(echo "$units" | grep -e "^snap-.*\\.mount" -e "^var-lib-snapd-snap-.*\\.mount" | cut -f1 -d ' ')
 
     # *.snap and *.comp mount points
