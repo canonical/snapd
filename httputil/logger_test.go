@@ -178,3 +178,29 @@ func (s loggerSuite) TestRedir(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(n, check.Equals, 2)
 }
+
+type closeIdlerTransport struct {
+	fakeTransport
+	closed bool
+}
+
+func (t *closeIdlerTransport) CloseIdleConnections() {
+	t.closed = true
+}
+
+func (loggerSuite) TestCloseIdleConnections(c *check.C) {
+	t := &closeIdlerTransport{}
+	tr := &httputil.LoggedTransport{
+		Transport: t,
+	}
+
+	tr.CloseIdleConnections()
+	c.Check(t.closed, check.Equals, true)
+
+	tr = &httputil.LoggedTransport{
+		Transport: &fakeTransport{},
+	}
+
+	// no-op, since the underlying method does not exist
+	tr.CloseIdleConnections()
+}
