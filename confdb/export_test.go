@@ -26,6 +26,10 @@ type (
 var (
 	GetValuesThroughPaths = getValuesThroughPaths
 	NewAuthentication     = newAuthentication
+	ValidSubkey           = validSubkey
+	ValidIndexSubkey      = validIndexSubkey
+	ValidPlaceholder      = validPlaceholder
+	ValidIndexPlaceholder = validIndexPlaceholder
 )
 
 type Authentication = authentication
