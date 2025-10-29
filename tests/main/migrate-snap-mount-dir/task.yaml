@@ -112,6 +112,7 @@ execute: |
         
         snap services test-snapd-service | MATCH ' active'
         if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap start test-snapd-service_foo
             snap services test-snapd-service_foo | MATCH ' active'
         fi
         
