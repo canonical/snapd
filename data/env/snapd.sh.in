@@ -3,7 +3,7 @@ m4_dnl
 m4_changequote([,])m4_dnl
 m4_define([INJECT_DIR],[m4_dnl
 snap_bin_path="$1/bin"
-if test -n "${PATH##*:${snap_bin_path}}" && test -n "${PATH##*:${snap_bin_path}:*}"; then
+if test -n "${PATH##*${snap_bin_path}}" && test -n "${PATH##*${snap_bin_path}:*}"; then
     export PATH="$PATH:${snap_bin_path}"
 fi
 ])m4_dnl
