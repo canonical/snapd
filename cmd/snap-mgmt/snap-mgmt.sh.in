@@ -463,6 +463,10 @@ _mount_dir_migrate() {
 
     if [ -d "$mount_from" ]; then
         echo "Renaming old snap mount directory $mount_from to $mount_from.old"
+        if mountpoint "$mount_from"; then
+            echo "Found $mount_from to be a mount point, likely from parallel instances"
+            umount -l "$mount_from"
+        fi
         mv -v "$mount_from" "${mount_from}.old"
     fi
 
