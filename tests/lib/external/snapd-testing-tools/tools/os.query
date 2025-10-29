@@ -316,7 +316,7 @@ compare_kernel() {
             ;;
     esac
 
-    echo "$TO_SORT" | sort -CV
+    echo -e "$TO_SORT" | sort -CV
 }
 
 main() {
