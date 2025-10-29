@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -232,8 +233,8 @@ func (s *hookHandlerSuite) TestSaveViewHookErrorRollsBackSaves(c *C) {
 	// the transaction has been cleared
 	tx, _, _, err = confdbstate.GetStoredTransaction(secondTask)
 	c.Assert(err, IsNil)
-	_, err = tx.Get(parsePath(c, "foo"))
-	c.Assert(err, ErrorMatches, "no value was found under path \"foo\"")
+	_, err = tx.Get(parsePath(c, "foo"), nil)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
 	halts := secondTask.HaltTasks()
 	c.Assert(halts, HasLen, 1)
@@ -457,7 +458,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 	err = tx.Clear(s.state)
 	c.Assert(err, IsNil)
 
-	val, err := tx.Get(parsePath(c, "wifi.ssid"))
+	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "foo")
 }

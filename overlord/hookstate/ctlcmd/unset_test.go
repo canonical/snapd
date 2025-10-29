@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type unsetSuite struct {
@@ -184,11 +185,11 @@ func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
 
-	_, err = tx.Get(parsePath(c, "wifi.ssid"))
-	c.Assert(err, ErrorMatches, `no value was found under path "wifi.ssid"`)
+	_, err = tx.Get(parsePath(c, "wifi.ssid"), nil)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
-	_, err = tx.Get(parsePath(c, "wifi.psk"))
-	c.Assert(err, ErrorMatches, `no value was found under path "wifi.psk"`)
+	_, err = tx.Get(parsePath(c, "wifi.psk"), nil)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *confdbSuite) TestConfdbUnsetInvalid(c *C) {
