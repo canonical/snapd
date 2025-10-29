@@ -6,6 +6,10 @@ details: |
 systems:
     - opensuse-*
 
+environment:
+    PARALLEL_INSTANCES/parallel: true
+    PARALLEL_INSTANCES/no-parallel: false
+
 prepare: |
     snap set system experimental.user-daemons=true
 
@@ -16,13 +20,22 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
 
-    #  TODO variant with parallel installs?
+    if [ "$PARALLEL_INSTANCES" = "true" ]; then
+        snap set system experimental.parallel-instances=true
+
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service test-snapd-service_foo
+    fi
 
 restore: |
     snap remove --purge test-snapd-user-service
 
     # although state reset should clean that up
     snap unset system experimental.user-daemons
+
+    if [ "$PARALLEL_INSTANCES" = "true" ]; then
+        snap remove --purge test-snapd-service_foo
+        snap unset system experimental.parallel-instances
+    fi
 
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
@@ -40,11 +53,16 @@ execute: |
 
         MATCH "/system.slice/snap.test-snapd-service.test-snapd-service.service" < check-migrate.log
         MATCH "likely owned by snap: 'test-snapd-service'" < check-migrate.log
+        MATCH "likely owned by snap: 'test-snapd-service_foo'" < check-migrate.log
         MATCH "Mount directory migration cannot continue." < check-migrate.log
         NOMATCH "System is ready for migration." < check-migrate.log
 
         # stop the services
         snap stop test-snapd-service
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap stop test-snapd-service_foo
+        fi
+
         # but start the application
         test-snapd-sh-core24.sh -c 'exec sleep infinity' &
         
@@ -91,6 +109,9 @@ execute: |
         snap start test-snapd-service
         
         snap services test-snapd-service | MATCH ' active'
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap services test-snapd-service_foo | MATCH ' active'
+        fi
         
         # both revisions are present
         test -f /var/lib/snapd/snap/test-snapd-sh-core24/x1/meta/snap.yaml
@@ -106,6 +127,14 @@ execute: |
         test "$(readlink /var/lib/snapd/snap/test-snapd-service/current)" = "x1"
         # mount unit is active
         systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service/x1).mount"
+
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            # and parallel instance of test-snapd-service
+            test -f /var/lib/snapd/snap/test-snapd-service_foo/x1/meta/snap.yaml
+            test "$(readlink /var/lib/snapd/snap/test-snapd-service_foo/current)" = "x1"
+            # mount unit is active
+            systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service_foo/x1).mount"
+        fi
         
         # /snap is preserved as symlink
         test -L /snap
@@ -148,6 +177,11 @@ execute: |
         echo "Snaps continue to work"
         snap services test-snapd-service | MATCH ' active'
 
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-service_foo/x1).mount"
+            snap services test-snapd-service_foo | MATCH ' active'
+        fi
+
         test-snapd-sh-core24.sh -c true
 
         snapd.tool exec snap-mgmt --migrate-mount-dir |& tee migrate.log
@@ -158,6 +192,9 @@ execute: |
         rm -rfv /snap.old
 
         snap stop test-snapd-service
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            snap stop test-snapd-service_foo
+        fi
         snap stop test-snapd-user-service
 
         echo "Forcing migration does not modify files"
