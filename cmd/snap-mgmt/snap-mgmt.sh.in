@@ -19,7 +19,6 @@ A simple script to cleanup snap installations.
 
 optional arguments:
   --help                           Show this help message and exit
-  --snap-mount-dir=<path>          Provide a path to be used as $STATIC_SNAP_MOUNT_DIR
   --snap-tooling-dir=<path>        Override default path to snapd tooling dir
   --purge                          Purge all data from $STATIC_SNAP_MOUNT_DIR
   --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
@@ -27,9 +26,6 @@ optional arguments:
   --force                          Force operation (relevant for mount directory migration)
 EOF
 }
-
-# TODO make purge aware of both mount directories
-SNAP_UNIT_PREFIX="$(systemd-escape -p ${STATIC_SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
@@ -55,7 +51,7 @@ systemctl_stop() {
 }
 
 is_component_mount_unit() {
-    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q "${SNAP_MOUNT_DIR}/"'[^/]*/components/mnt/[^/]*/[^/]*'
+    systemctl show "$1" -p Where | sed 's#Where=##' | grep -q '\(/snap\|/var/lib/snapd/snap\)[^/]*/components/mnt/[^/]*/[^/]*'
 }
 
 purge() {
@@ -67,8 +63,8 @@ purge() {
         systemctl_stop snap.mount.service
     fi
 
-    units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
-    mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
+    units=$(systemctl list-unit-files --no-legend --full 'snap.*.service' | grep -vF snap.mount.service || true)
+    mounts=$(echo "$units" | grep -e "^snap-.*\\.mount" -e "^var-lib-snapd-snap-.*\\.mount" | cut -f1 -d ' ')
 
     # *.snap and *.comp mount points
     snap_mounts=""
@@ -169,7 +165,7 @@ purge() {
 
     # Undo any bind mounts to ${STATIC_SNAP_MOUNT_DIR} or /var/snap done by parallel
     # installs or LP:#1668659
-    for mp in "$STATIC_SNAP_MOUNT_DIR" /var/snap; do
+    for mp in /snap /var/lib/snapd/snap /var/snap; do
         # btrfs bind mounts actually include subvolume in the filesystem-path
         # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
         if grep -q " $mp $mp " /proc/self/mountinfo ||
@@ -213,7 +209,11 @@ purge() {
     rm -rf /var/lib/snapd/features
 
     echo "Final directory cleanup"
-    rm -rf "${STATIC_SNAP_MOUNT_DIR}"
+    for snap_mount_dir in /snap /var/lib/snapd/snap; do
+        if [ -d "$snap_mount_dir" ]; then
+            rm -rf "$snap_mount_dir"
+        fi
+    done
     rm -rf /var/snap
 
     echo "Removing leftover snap shared state data"
@@ -241,7 +241,9 @@ purge() {
         # Remove auto-generated rules for snap-confine from the 'core' snap
         echo "Removing extra snap-confine apparmor rules"
         # shellcheck disable=SC2046
-        rm -f /etc/apparmor.d/$(echo "$SNAP_UNIT_PREFIX" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
+        for snap_unit_prefix in snap var-lib-snapd-snap; do
+            rm -f /etc/apparmor.d/$(echo "$snap_unit_prefix" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
+        done
     fi
 }
 
@@ -338,7 +340,7 @@ _mount_dir_migrate() {
         exit 1
     fi
 
-    service_units=$(systemctl list-unit-files --no-legend --full 'snap.*' | cut -f1 -d' '|| true)
+    service_units=$(systemctl list-unit-files --no-legend --full 'snap.*.service' | cut -f1 -d' '|| true)
     mount_units=$(systemctl list-unit-files --no-legend --full "${mount_from_escaped}-*.mount" | cut -f1 -d' ' || true)
 
     echo "-- services"
@@ -554,11 +556,6 @@ while [ -n "$1" ]; do
         --help)
             show_help
             exit
-            ;;
-        --snap-mount-dir=*)
-            STATIC_SNAP_MOUNT_DIR=${1#*=}
-            SNAP_UNIT_PREFIX=$(systemd-escape -p "$STATIC_SNAP_MOUNT_DIR")
-            shift
             ;;
         --snap-tooling-dir=*)
             STATIC_SNAP_TOOLING_DIR=${1#*=}
