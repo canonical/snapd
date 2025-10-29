@@ -2051,6 +2051,10 @@ func getMap(subKeys []Accessor, index int, node map[string]json.RawMessage, resu
 				level[k] = deser
 			}
 
+			if len(level) == 0 {
+				return &NoDataError{}
+			}
+
 			*result = level
 			return nil
 		}
@@ -2120,15 +2124,14 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 	listIndex := -1
 	if key.Type() == ListIndexType {
 		listIndex, _ = strconv.Atoi(key.Name())
+		if listIndex >= len(list) {
+			return &NoDataError{}
+		}
 	} else if key.Type() == IndexPlaceholderType {
 		matchAll = true
 	} else {
 		pathPrefix := JoinAccessors(subKeys[:keyIndex])
 		return fmt.Errorf("cannot use %q to index list at path %q", key.Access(), pathPrefix)
-	}
-
-	if listIndex >= len(list) {
-		return &NoDataError{}
 	}
 
 	// read the final value
@@ -2142,6 +2145,10 @@ func getList(subKeys []Accessor, keyIndex int, list []json.RawMessage, result *a
 					return fmt.Errorf(`internal error: %w`, err)
 				}
 				level[i] = deser
+			}
+
+			if len(level) == 0 {
+				return &NoDataError{}
 			}
 
 			*result = level
@@ -2451,13 +2458,15 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 	}
 
 	if index == len(subKeys)-1 {
-		if key.Type() == KeyPlaceholderType {
-			// remove entire level
+		if key.Type() == KeyPlaceholderType || (len(node) == 1 && node[key.Name()] != nil) {
+			// remove entire level. We still need to iterate and delete() because the
+			// top level is always non-nil so returning nil isn't enough
+			for k := range node {
+				delete(node, k)
+			}
 			return nil, nil
 		}
 
-		// NOTE: don't remove entire level even if all entries are unset to keep it
-		// consistent with options
 		delete(node, key.Name())
 		return json.Marshal(node)
 	}
@@ -2500,6 +2509,9 @@ func unsetMap(subKeys []Accessor, index int, node map[string]json.RawMessage) (j
 		}
 	}
 
+	if len(node) == 0 {
+		return nil, nil
+	}
 	return json.Marshal(node)
 }
 
@@ -2522,8 +2534,10 @@ func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.R
 			node = append(node[:i], node[i+1:]...)
 		}
 
-		// NOTE: we don't remove the list if all entries were unset to keep this
-		// consistent with maps (which in turn are consistent w/ how options work)
+		if len(node) == 0 {
+			return nil, nil
+		}
+
 		return json.Marshal(node)
 	}
 
@@ -2572,8 +2586,10 @@ func unsetList(subKeys []Accessor, keyIndex int, node []json.RawMessage) (json.R
 		}
 	}
 
-	// NOTE: we don't remove the list if all entries were unset to keep this
-	// consistent with maps (which in turn are consistent w/ how options work)
+	if len(node) == 0 {
+		return nil, nil
+	}
+
 	return json.Marshal(node)
 }
 
