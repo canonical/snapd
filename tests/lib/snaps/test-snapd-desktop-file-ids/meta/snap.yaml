@@ -15,3 +15,4 @@ plugs:
   desktop:
     desktop-file-ids:
     - org.example.desktop
+    - org.example.Fallback
