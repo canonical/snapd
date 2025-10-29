@@ -24,7 +24,7 @@ optional arguments:
   --purge                          Purge all data from $STATIC_SNAP_MOUNT_DIR
   --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
   --check-mount-dir-migration      Check system state required to run mount directory migration
-  --force                          Force operation (relevant in certain contexts)
+  --force                          Force operation (relevant for mount directory migration)
 EOF
 }
 
