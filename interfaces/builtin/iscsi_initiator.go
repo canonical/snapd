@@ -45,13 +45,6 @@ const iscsiInitiatorBaseDeclarationSlots = `
 `
 
 const iscsiInitiatorConnectedPlugAppArmor = `
-# ConfigFS access for Linux-IO (LIO) target management
-/sys/kernel/config/target/ rw,
-/sys/kernel/config/target/** rw,
-
-# Lock file used by targetcli for exclusive access
-/{var/,}run/targetcli.lock rwlk,
-
 # iSCSI initiator configuration files
 /etc/iscsi/initiatorname.iscsi r,
 /etc/iscsi/iscsid.conf r,
