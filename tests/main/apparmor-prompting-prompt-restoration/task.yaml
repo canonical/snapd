@@ -42,8 +42,32 @@ prepare: |
     snap connect prompt-requester:home
 
     # Enable prompting
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Enable AppArmor prompting experimental feature"
     snap set system experimental.apparmor-prompting=true
-    tests.cleanup defer snap set system experimental.apparmor-prompting=false
+
+    echo "Wait for snapd to begin restart"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
+
+    echo "Wait until snapd is active"
+    retry --wait 1 -n 300 systemctl is-active snapd
+
+restore: |
+    tests.exec is-skipped && exit 0
+
+    SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
+
+    echo "Disable AppArmor prompting experimental feature"
+    snap set system experimental.apparmor-prompting=false
+
+    echo "Wait for snapd to begin restart"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 300 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)'
+
+    echo "Wait until snapd is active"
+    retry --wait 1 -n 300 systemctl is-active snapd
 
 debug: |
     tests.exec is-skipped && exit 0
@@ -52,6 +76,8 @@ debug: |
     uname -a
     echo "Check system info"
     snap debug api /v2/system-info
+    echo "Check warnings"
+    snap warnings
     echo "Check current prompts"
     tests.session -u test exec snap debug api /v2/interfaces/requests/prompts
 
@@ -113,12 +139,18 @@ execute: |
     BEFORE="$(date --utc --rfc-3339 ns | tr -s ' ' T | sed 's/+00:00/Z/')" # Replace UTC 00:00 with Z
     sleep 1
 
+    SNAPD_PID="$(systemctl show --property MainPID snapd | cut -f2 -d=)"
+
     echo "Restart snapd"
     systemctl daemon-reload
     systemctl restart snapd
 
-    sleep 1
-    retry --wait 1 -n 30 systemctl is-active snapd
+    echo "Wait for snapd to begin restart"
+    #shellcheck disable=SC2016
+    retry --wait 1 -n 10 sh -c 'test '"$SNAPD_PID"' != $(systemctl show --property MainPID snapd | cut -f2 -d=)'
+
+    echo "Wait until snapd is active"
+    retry --wait 1 -n 10 systemctl is-active snapd
 
     echo "Check whether prompts are still present after restart"
     RESULT="$(tests.session -u test exec snap debug api /v2/interfaces/requests/prompts)"
