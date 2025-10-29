@@ -53,7 +53,9 @@ execute: |
 
         MATCH "/system.slice/snap.test-snapd-service.test-snapd-service.service" < check-migrate.log
         MATCH "likely owned by snap: 'test-snapd-service'" < check-migrate.log
-        MATCH "likely owned by snap: 'test-snapd-service_foo'" < check-migrate.log
+        if [ "$PARALLEL_INSTANCES" = "true" ]; then
+            MATCH "likely owned by snap: 'test-snapd-service_foo'" < check-migrate.log
+        fi
         MATCH "Mount directory migration cannot continue." < check-migrate.log
         NOMATCH "System is ready for migration." < check-migrate.log
 
