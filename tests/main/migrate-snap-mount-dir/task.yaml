@@ -8,7 +8,7 @@ systems:
 
 environment:
     PARALLEL_INSTANCES/parallel: true
-    PARALLEL_INSTANCES/no-parallel: false
+    PARALLEL_INSTANCES/no_parallel: false
 
 prepare: |
     snap set system experimental.user-daemons=true
