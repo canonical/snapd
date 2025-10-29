@@ -95,7 +95,7 @@ execute: |
         # both revisions are present
         test -f /var/lib/snapd/snap/test-snapd-sh-core24/x1/meta/snap.yaml
         test -f /var/lib/snapd/snap/test-snapd-sh-core24/x2/meta/snap.yaml
-        # curent is correct
+        # current is correct
         test "$(readlink /var/lib/snapd/snap/test-snapd-sh-core24/current)" = "x2"
         # mount units are active
         systemctl is-active "$(systemd-escape -p var/lib/snapd/snap/test-snapd-sh-core24/x1).mount"
