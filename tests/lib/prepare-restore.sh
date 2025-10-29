@@ -530,7 +530,7 @@ prepare_project() {
         debian-*|ubuntu-*)
             best_golang=golang-1.22
             case "$SPREAD_SYSTEM" in
-                ubuntu-18.04-*)
+                ubuntu-18.04-*|ubuntu-core-18-*)
                     best_golang=golang-1.18
                     ;;
                 ubuntu-fips-*)
@@ -564,7 +564,7 @@ prepare_project() {
 
     # HACK: patches required to enable build on 18.04
     case "$SPREAD_SYSTEM" in
-        ubuntu-18.04-*)
+        ubuntu-18.04-*|ubuntu-core-18-*)
             go mod edit -go=1.18 -replace=golang.org/x/crypto=golang.org/x/crypto@v0.23.0
             go mod tidy
             ;;
