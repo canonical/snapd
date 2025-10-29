@@ -113,6 +113,84 @@ func keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
+func (x *reportProblemCmd) reportOne(snapName string) bool {
+	remoteSnap, _, remoteErr := x.client.FindOne(snap.InstanceSnap(snapName))
+	localSnap, _, localErr := x.client.Snap(snapName)
+
+	allLinks := map[string]map[string]bool{}
+
+	if remoteErr != nil {
+		logger.Debugf("remote snap err: %v\n", remoteErr)
+	}
+	if remoteSnap != nil {
+		collectLinks(allLinks, remoteSnap)
+		addCategoryLinks(allLinks, "contact", remoteSnap.Contact)
+		addCategoryLinks(allLinks, "website", remoteSnap.Website)
+	}
+
+	if localErr != nil {
+		logger.Debugf("local snap err: %v\n", localErr)
+	}
+	if localSnap != nil {
+		collectLinks(allLinks, localSnap)
+		addCategoryLinks(allLinks, "contact", localSnap.Contact)
+		addCategoryLinks(allLinks, "website", localSnap.Website)
+	}
+
+	logger.Debugf("all links: %+v", allLinks)
+
+	if len(allLinks) == 0 {
+		fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has not listed any points of contact.\n"), snapName)
+		return false
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has listed the following points of contact:\n"), snapName)
+
+	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
+
+	if c, ok := allLinks["contact"]; ok {
+		c := keys(c)
+		sort.Strings(c)
+		fmt.Fprintf(w, i18n.G("\tContact:\n"))
+		for _, k := range c {
+			fmt.Fprintf(w, "\t\t%s\n", k)
+		}
+	}
+
+	if c, ok := allLinks["issues"]; ok {
+		c := keys(c)
+		sort.Strings(c)
+		fmt.Fprintf(w, i18n.G("\tIssue reporting:\n"))
+		for _, k := range c {
+			fmt.Fprintf(w, "\t\t%s\n", k)
+		}
+	}
+
+	if c, ok := allLinks["website"]; ok {
+		c := keys(c)
+		sort.Strings(c)
+		fmt.Fprintf(w, i18n.G("\tWebsite:\n"))
+		for _, k := range c {
+			fmt.Fprintf(w, "\t\t%s\n", k)
+		}
+	}
+
+	for _, sourceName := range []string{"source", "source-code"} {
+		if c, ok := allLinks[sourceName]; ok {
+			c := keys(c)
+			sort.Strings(c)
+			fmt.Fprintf(w, i18n.G("\tSource code:\n"))
+			for _, k := range c {
+				fmt.Fprintf(w, "\t\t%s\n", k)
+			}
+			break
+		}
+	}
+	w.Flush()
+
+	return true
+}
+
 func (x *reportProblemCmd) Execute([]string) error {
 	hadLinks := false
 	for i, snapName := range x.Positional.Snaps {
@@ -125,78 +203,8 @@ func (x *reportProblemCmd) Execute([]string) error {
 			continue
 		}
 
-		remoteSnap, _, remoteErr := x.client.FindOne(snap.InstanceSnap(snapName))
-		localSnap, _, localErr := x.client.Snap(snapName)
-
-		allLinks := map[string]map[string]bool{}
-
-		if remoteErr != nil {
-			logger.Debugf("remote snap err: %v\n", remoteErr)
-		}
-		if remoteSnap != nil {
-			collectLinks(allLinks, remoteSnap)
-			addCategoryLinks(allLinks, "contact", remoteSnap.Contact)
-			addCategoryLinks(allLinks, "website", remoteSnap.Website)
-		}
-
-		if localErr != nil {
-			fmt.Printf("local snap err: %v\n", localErr)
-		}
-		if localSnap != nil {
-			collectLinks(allLinks, localSnap)
-			addCategoryLinks(allLinks, "contact", localSnap.Contact)
-			addCategoryLinks(allLinks, "website", localSnap.Website)
-		}
-
-		logger.Debugf("all links: %+v", allLinks)
-
-		if len(allLinks) > 0 {
-			fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has listed the following points of contact:\n"), snapName)
-
-			w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
-
-			if c, ok := allLinks["contact"]; ok {
-				c := keys(c)
-				sort.Strings(c)
-				fmt.Fprintf(w, i18n.G("\tContact:\n"))
-				for _, k := range c {
-					fmt.Fprintf(w, "\t\t%s\n", k)
-				}
-			}
-
-			if c, ok := allLinks["issues"]; ok {
-				c := keys(c)
-				sort.Strings(c)
-				fmt.Fprintf(w, i18n.G("\tIssue reporting:\n"))
-				for _, k := range c {
-					fmt.Fprintf(w, "\t\t%s\n", k)
-				}
-			}
-
-			if c, ok := allLinks["website"]; ok {
-				c := keys(c)
-				sort.Strings(c)
-				fmt.Fprintf(w, i18n.G("\tWebsite:\n"))
-				for _, k := range c {
-					fmt.Fprintf(w, "\t\t%s\n", k)
-				}
-			}
-
-			for _, sourceName := range []string{"source", "source-code"} {
-				if c, ok := allLinks[sourceName]; ok {
-					fmt.Fprintf(w, i18n.G("\tSource code:\n"))
-					for k := range c {
-						fmt.Fprintf(w, "\t\t%s\n", k)
-					}
-					break
-				}
-			}
-			w.Flush()
-
-			hadLinks = true
-		} else {
-			fmt.Fprintf(Stdout, i18n.G("Publisher of snap %q has not listed any points of contact.\n"), snapName)
-		}
+		oneHadLinks := x.reportOne(snapName)
+		hadLinks = hadLinks || oneHadLinks
 	}
 
 	if hadLinks {
