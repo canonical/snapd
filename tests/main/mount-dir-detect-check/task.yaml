@@ -70,7 +70,7 @@ execute: |
 
       tests.systemd stop-unit snapd.service
       # purge all snaps so that the alt mount directory can be purged
-      snapd.tool exec snap-mgmt --purge --snap-mount-dir="$baddir"
+      snapd.tool exec snap-mgmt --purge
   fi
 
   echo "After restoring the correct snap mount directory"
