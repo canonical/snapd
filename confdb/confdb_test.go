@@ -791,14 +791,14 @@ func (s *viewSuite) TestViewUnsetWithNestedEntry(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
-func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
+func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentMap(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "foo", map[string]any{
 		"my-view": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "foo", "storage": "foo"},
 				map[string]any{"request": "foo.bar", "storage": "foo.bar"},
-				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+				map[string]any{"request": "a.{b}", "storage": "a.{b}"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -817,23 +817,63 @@ func (s *viewSuite) TestViewUnsetLeafLeavesEmptyParent(c *C) {
 	c.Assert(err, IsNil)
 
 	value, err = view.Get(databag, "foo")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(value, IsNil)
+
+	err = view.Set(databag, "a", map[string]any{"c": "d"})
+	c.Assert(err, IsNil)
+
+	err = view.Unset(databag, "a.c")
+	c.Assert(err, IsNil)
+
+	value, err = view.Get(databag, "a.c")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(value, IsNil)
+
+	err = view.Set(databag, "a.c", map[string]any{})
+	c.Assert(err, IsNil)
+
+	value, err = view.Get(databag, "a.c")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]any{})
 
-	// check we leave an empty list
-	err = view.Set(databag, "a", []any{[]any{"foo"}})
-	c.Assert(err, IsNil)
-
 	value, err = view.Get(databag, "a")
 	c.Assert(err, IsNil)
-	c.Assert(value, Not(HasLen), 0)
+	c.Assert(value, DeepEquals, map[string]any{"c": map[string]any{}})
+}
 
-	err = view.Unset(databag, "a[0]")
+func (s *viewSuite) TestViewUnsetLeafDoesntLeaveEmptyParentList(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "b[{n}].c", "storage": "b[{n}].c"},
+				map[string]any{"request": "c[{n}]", "storage": "b[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 
-	val, err := view.Get(databag, "a")
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "b", []any{map[string]any{"c": "d"}, map[string]any{"c": "e"}})
 	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, []any{})
+
+	// removing the map entry "c" removes the parent map and list as well
+	err = view.Unset(bag, "b[1].c")
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "b[1]")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(val, IsNil)
+
+	// this will match b[{n}] and remove that map, removing the list as well
+	err = view.Unset(bag, "c")
+	c.Assert(err, IsNil)
+
+	val, err = view.Get(bag, "b")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(val, IsNil)
 }
 
 func (s *viewSuite) TestViewUnsetAlreadyUnsetEntry(c *C) {
@@ -1263,6 +1303,8 @@ func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a.{b}.c.{d}.e", "storage": "a.{b}.c.{d}.e"},
+				map[string]any{"request": "b.{b}", "storage": "b.{b}"},
+				map[string]any{"request": "c[{b}]", "storage": "c[{b}]"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -1305,6 +1347,18 @@ func (s *viewSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 		},
 	}
 	c.Assert(value, DeepEquals, expected)
+
+	err = databag.Set(parsePath(c, "b"), map[string]any{})
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(databag, "b")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+
+	err = databag.Set(parsePath(c, "c"), []any{})
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(databag, "c")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *viewSuite) TestGetMergeAtDifferentLevels(c *C) {
@@ -2151,7 +2205,7 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 			"one": "value",
 			"two": "other",
 		},
-		// the nested value should be removed, leaving an empty map
+		// the nested value should be removed, removing its parent as well
 		"b": map[string]any{
 			"one": "value",
 		},
@@ -2171,7 +2225,6 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 		"a": map[string]any{
 			"two": "other",
 		},
-		"b": map[string]any{},
 		"c": map[string]any{
 			"two": "value",
 		},
@@ -3527,6 +3580,7 @@ func (*viewSuite) TestUnsetList(c *C) {
 		"foo": map[string]any{
 			"rules": []any{
 				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
+				map[string]any{"request": "b[{n}].c", "storage": "b[{n}].c"},
 			},
 		},
 	}, confdb.NewJSONSchema())
@@ -3553,6 +3607,16 @@ func (*viewSuite) TestUnsetList(c *C) {
 	val, err = view.Get(bag, "a")
 	c.Check(err, testutil.ErrorIs, &confdb.NoDataError{})
 	c.Assert(val, IsNil)
+
+	// check matching on a prefix unsets every list element
+	err = view.Set(bag, "b", []any{map[string]any{"c": "foo"}, map[string]any{"c": "bar"}})
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "b")
+	c.Assert(err, IsNil)
+
+	_, err = view.Get(bag, "b")
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (*viewSuite) TestUnsetBeyondCurrentList(c *C) {
