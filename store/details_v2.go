@@ -423,7 +423,7 @@ func addIntegrityData(info *snap.Info, integrityData []storeIntegrity) error {
 	// gathered from the system (such as preferred algorithm, preferred block size etc.)
 	i := integrityData[0]
 
-	version, err := strconv.Atoi(i.Version)
+	version, err := strconv.ParseUint(i.Version, 10, 32)
 	if err != nil {
 		return err
 	}
