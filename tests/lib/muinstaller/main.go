@@ -192,6 +192,7 @@ func runMntFor(label string) string {
 
 type volumeAuthOptions struct {
 	passphrase string
+	pin        string
 	kdfType    string
 	kdfTime    time.Duration
 }
@@ -225,6 +226,13 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			Passphrase: volumesAuth.passphrase,
 			KDFType:    volumesAuth.kdfType,
 			KDFTime:    volumesAuth.kdfTime,
+		}
+	} else if volumesAuth.pin != "" {
+		opts.VolumesAuth = &device.VolumesAuthOptions{
+			Mode:    device.AuthModePIN,
+			PIN:     volumesAuth.pin,
+			KDFType: volumesAuth.kdfType,
+			KDFTime: volumesAuth.kdfTime,
 		}
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
@@ -456,17 +464,20 @@ func detectStorageEncryption(seedLabel string, volumesAuth volumeAuthOptions) (b
 		return false, errors.New(details.StorageEncryption.UnavailableReason)
 	}
 
-	if volumesAuth.passphrase != "" {
-		passphraseAuthAvailable := false
-		for _, feat := range details.StorageEncryption.Features {
-			if feat == client.StorageEncryptionFeaturePassphraseAuth {
-				passphraseAuthAvailable = true
-				break
-			}
+	var passphraseAuthSupported, pinAuthSupported bool
+	for _, feat := range details.StorageEncryption.Features {
+		switch feat {
+		case client.StorageEncryptionFeaturePassphraseAuth:
+			passphraseAuthSupported = true
+		case client.StorageEncryptionFeaturePINAuth:
+			pinAuthSupported = true
 		}
-		if !passphraseAuthAvailable {
-			return false, errors.New("--passphrase specified but snapd support for passphrases is missing")
-		}
+	}
+	if volumesAuth.passphrase != "" && !passphraseAuthSupported {
+		return false, errors.New("--passphrase specified but snapd support for passphrases is missing")
+	}
+	if volumesAuth.pin != "" && !pinAuthSupported {
+		return false, errors.New("--pin specified but snapd support for PINs is missing")
 	}
 
 	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
@@ -565,6 +576,9 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyO
 	if err != nil {
 		return err
 	}
+	if volumesAuth.passphrase != "" && volumesAuth.pin != "" {
+		return errors.New("cannot specify --passphrase and --pin at the same time")
+	}
 	// TODO: support multiple volumes, see gadget/install/install.go
 	if len(details.Volumes) != 1 {
 		return fmt.Errorf("gadget defines %v volumes, while we support only one at the moment", len(details.Volumes))
@@ -645,6 +659,7 @@ func main() {
 	rootfsCreator := flag.String("rootfs-creator", "", "rootfs creator (optional). If specified, classic Ubuntu with core boot will be installed.\nOtherwise, Ubuntu Core will be installed")
 	optionalInstallPath := flag.String("optional", "", "path to optional snaps and components JSON file (optional)")
 	passphrase := flag.String("passphrase", "", "encryption passphrase (optional). If specified and encryption is suppported, passphrase authentication will be enabled")
+	pin := flag.String("pin", "", "encryption PIN (optional). If specified and encryption is suppported, PIN authentication will be enabled")
 	kdfType := flag.String("kdf-type", "", "KDF type for passphrase [\"argon2id\", \"argon2i\" or \"pbkdf2\"] (optional)")
 	kdfTime := flag.Duration("kdf-time", 0, "length of time to run the KDF (optional)")
 	recoveryKeyOut := flag.String("recovery-key-out", "", "indicate that a recovery key should be created and stored at given path (optional)")
@@ -664,6 +679,7 @@ func main() {
 
 	volumesAuth := volumeAuthOptions{
 		passphrase: *passphrase,
+		pin:        *pin,
 		kdfType:    *kdfType,
 		kdfTime:    *kdfTime,
 	}
